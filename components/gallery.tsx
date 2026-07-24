@@ -161,13 +161,15 @@ export function Gallery({
             <X className="h-5 w-5" />
           </button>
 
-          <button
-            onClick={prevImage}
-            className="absolute left-4 top-1/2 z-50 -translate-y-1/2 rounded-full p-3 text-white/70 hover:text-white"
-            aria-label="Previous image"
-          >
-            <ChevronLeft className="h-8 w-8" />
-          </button>
+          {images.length > 1 && (
+            <button
+              onClick={prevImage}
+              className="absolute left-4 top-1/2 z-50 -translate-y-1/2 rounded-full p-3 text-white/70 hover:text-white"
+              aria-label="Previous image"
+            >
+              <ChevronLeft className="h-8 w-8" />
+            </button>
+          )}
 
           <div className="relative h-full w-full bg-black">
             {images.length > 0 ? (
@@ -194,13 +196,15 @@ export function Gallery({
             )}
           </div>
 
-          <button
-            onClick={nextImage}
-            className="absolute right-4 top-1/2 z-50 -translate-y-1/2 rounded-full p-3 text-white/70 hover:text-white"
-            aria-label="Next image"
-          >
-            <ChevronRight className="h-8 w-8" />
-          </button>
+          {images.length > 1 && (
+            <button
+              onClick={nextImage}
+              className="absolute right-4 top-1/2 z-50 -translate-y-1/2 rounded-full p-3 text-white/70 hover:text-white"
+              aria-label="Next image"
+            >
+              <ChevronRight className="h-8 w-8" />
+            </button>
+          )}
         </DialogContent>
       </Dialog>
     </>
