@@ -580,7 +580,7 @@ function CollectionContent() {
                     ),
                   )
                 }
-                className="ml-1 rounded-sm p-0.5 hover:bg-muted"
+                className="ml-1 rounded-sm p-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label={`Clear ${filter.label} filter value ${filter.value}`}
               >
                 <X className="h-3 w-3" />
@@ -593,7 +593,7 @@ function CollectionContent() {
               {query.trim()}
               <button
                 onClick={() => setQuery('')}
-                className="ml-1 rounded-sm p-0.5 hover:bg-muted"
+                className="ml-1 rounded-sm p-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Clear search"
               >
                 <X className="h-3 w-3" />
