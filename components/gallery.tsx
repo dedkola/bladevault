@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { getImageUrl } from '@/lib/data'
 import {
@@ -30,6 +30,25 @@ export function Gallery({
   const nextImage = () => setActiveIdx((prev) => (prev + 1) % images.length)
   const prevImage = () =>
     setActiveIdx((prev) => (prev - 1 + images.length) % images.length)
+
+  useEffect(() => {
+    if (!isFullScreen || images.length <= 1) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        setActiveIdx((prev) => (prev - 1 + images.length) % images.length)
+      }
+
+      if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        setActiveIdx((prev) => (prev + 1) % images.length)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown, true)
+    return () => document.removeEventListener('keydown', handleKeyDown, true)
+  }, [images.length, isFullScreen])
 
   const moveImage = (index: number, direction: -1 | 1) => {
     if (!onReorder) return
