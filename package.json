@@ -82,9 +82,9 @@
     "re2@1.24.1": true,
     "sharp@0.34.5": true,
     "unrs-resolver@1.12.2": true,
-    "better-sqlite3@12.11.1": true,
     "fsevents@2.3.2": true,
     "core-js@3.49.0": true,
-    "electron-winstaller@5.4.0": true
+    "electron-winstaller@5.4.0": true,
+    "better-sqlite3@13.0.1": true
   }
 }
