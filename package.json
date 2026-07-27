@@ -64,7 +64,7 @@
     "@types/react-dom": "^19",
     "electron": "43.2.0",
     "electron-builder": "26.15.3",
-    "eslint": "^9.39.4",
+    "eslint": "^10.8.0",
     "eslint-config-next": "^16.2.12",
     "prettier": "^3.9.6",
     "tailwindcss": "4.3.3",
