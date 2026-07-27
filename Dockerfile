@@ -2,6 +2,12 @@ FROM mcr.microsoft.com/playwright:v1.61.1-noble AS deps
 
 WORKDIR /app
 
+# better-sqlite3 falls back to node-gyp when no prebuilt binary matches the
+# current Node.js runtime. Keep the compiler toolchain in this build-only stage.
+RUN apt-get update && \
+  apt-get install -y --no-install-recommends build-essential && \
+  rm -rf /var/lib/apt/lists/*
+
 COPY package*.json ./
 RUN npm ci
 
