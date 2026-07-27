@@ -44,7 +44,7 @@
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.27.0",
     "next": "^16.2.11",
-    "playwright": "1.61.1",
+    "playwright": "1.62.0",
     "postcss": "^8.5.20",
     "react": "^19.2.7",
     "react-day-picker": "^10.0.1",
