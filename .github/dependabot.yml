@@ -4,7 +4,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
-      day: monday
+      day: tuesday
       time: '09:00'
     assignees:
       - dedkola
@@ -16,7 +16,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
-      day: monday
+      day: tuesday
       time: '09:00'
     assignees:
       - dedkola
