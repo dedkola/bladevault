@@ -118,7 +118,7 @@ export function Gallery({
               >
                 <button
                   onClick={() => setActiveIdx(idx)}
-                  className="absolute inset-0 z-10"
+                  className="absolute inset-0 z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-inset"
                   aria-label={`Select thumbnail ${idx + 1}`}
                 />
                 <Image
@@ -141,7 +141,7 @@ export function Gallery({
                           moveImage(idx, -1)
                         }}
                         disabled={idx === 0}
-                        className="rounded-full p-1 bg-white/90 text-foreground hover:bg-white disabled:opacity-30 disabled:hover:bg-white/90 transition-colors"
+                        className="rounded-full bg-white/90 p-1 text-foreground transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] disabled:opacity-30 disabled:hover:bg-white/90"
                         aria-label="Move image left"
                       >
                         <ChevronLeft className="h-3.5 w-3.5" />
@@ -152,7 +152,7 @@ export function Gallery({
                           moveImage(idx, 1)
                         }}
                         disabled={idx === images.length - 1}
-                        className="rounded-full p-1 bg-white/90 text-foreground hover:bg-white disabled:opacity-30 disabled:hover:bg-white/90 transition-colors"
+                        className="rounded-full bg-white/90 p-1 text-foreground transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] disabled:opacity-30 disabled:hover:bg-white/90"
                         aria-label="Move image right"
                       >
                         <ChevronRight className="h-3.5 w-3.5" />
@@ -174,7 +174,7 @@ export function Gallery({
           <DialogTitle className="sr-only">Image viewer</DialogTitle>
           <button
             onClick={() => setIsFullScreen(false)}
-            className="absolute top-4 right-4 z-50 flex h-8 w-8 items-center justify-center rounded-full text-white/70 hover:text-white"
+            className="absolute right-4 top-4 z-50 flex h-8 w-8 items-center justify-center rounded-full text-white/70 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -183,7 +183,7 @@ export function Gallery({
           {images.length > 1 && (
             <button
               onClick={prevImage}
-              className="absolute left-4 top-1/2 z-50 -translate-y-1/2 rounded-full p-3 text-white/70 hover:text-white"
+              className="absolute left-4 top-1/2 z-50 -translate-y-1/2 rounded-full p-3 text-white/70 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
               aria-label="Previous image"
             >
               <ChevronLeft className="h-8 w-8" />
@@ -218,7 +218,7 @@ export function Gallery({
           {images.length > 1 && (
             <button
               onClick={nextImage}
-              className="absolute right-4 top-1/2 z-50 -translate-y-1/2 rounded-full p-3 text-white/70 hover:text-white"
+              className="absolute right-4 top-1/2 z-50 -translate-y-1/2 rounded-full p-3 text-white/70 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
               aria-label="Next image"
             >
               <ChevronRight className="h-8 w-8" />
