@@ -181,6 +181,15 @@ export function Gallery({
           </button>
 
           {images.length > 1 && (
+            <div
+              className="absolute left-1/2 top-4 z-50 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-xs font-medium tabular-nums text-white"
+              aria-live="polite"
+            >
+              {activeIdx + 1} / {images.length}
+            </div>
+          )}
+
+          {images.length > 1 && (
             <button
               onClick={prevImage}
               className="absolute left-4 top-1/2 z-50 -translate-y-1/2 rounded-full p-3 text-white/70 hover:text-white"
