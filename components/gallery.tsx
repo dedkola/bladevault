@@ -131,10 +131,10 @@ export function Gallery({
                 />
                 {editable && (
                   <>
-                    <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-center py-1 bg-gradient-to-b from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-center py-1 bg-gradient-to-b from-black/50 to-transparent opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                       <GripHorizontal className="h-4 w-4 text-white" />
                     </div>
-                    <div className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-between px-1 py-1 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-between px-1 py-1 bg-gradient-to-t from-black/60 to-transparent opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
