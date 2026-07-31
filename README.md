@@ -138,6 +138,8 @@ The default chart is designed for k3s with MetalLB. It creates a dedicated
 `LoadBalancer` address and a persistent 5 GiB volume for the SQLite database and
 downloaded images.
 
+### Install
+
 ```bash
 helm repo add bladevault https://dedkola.github.io/bladevault
 
@@ -153,8 +155,45 @@ kubectl get service bladevault --namespace bladevault
 ```
 
 If the repository was already added, run `helm repo update bladevault` before
-installing. See the [chart README](charts/bladevault/README.md) for upgrades,
-NGINX ingress with a hostname, existing PVCs, and other configuration.
+installing.
+
+### Update to the latest BladeVault image
+
+After the GitHub **Build & Push Docker Image** workflow completes, recreate the
+pod so Kubernetes pulls the newly published `latest` image:
+
+```bash
+kubectl rollout restart deployment/bladevault --namespace bladevault
+kubectl rollout status deployment/bladevault --namespace bladevault
+```
+
+`helm repo update` only refreshes the available chart list; it does not restart
+the application or pull a new container image. If a new chart version is also
+available, update both the chart and image:
+
+```bash
+helm repo update bladevault
+helm upgrade bladevault bladevault/bladevault --namespace bladevault
+kubectl rollout restart deployment/bladevault --namespace bladevault
+kubectl rollout status deployment/bladevault --namespace bladevault
+```
+
+### Remove BladeVault
+
+```bash
+helm uninstall bladevault --namespace bladevault
+```
+
+The chart keeps the `bladevault-data` PVC so uninstalling does not remove your
+collection. To permanently delete the stored database and images too:
+
+```bash
+kubectl delete pvc bladevault-data --namespace bladevault
+kubectl delete namespace bladevault
+```
+
+See the [chart README](charts/bladevault/README.md) for NGINX ingress with a
+hostname, immutable image tags, existing PVCs, and other configuration.
 
 ## Desktop app
 

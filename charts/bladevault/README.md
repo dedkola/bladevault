@@ -49,22 +49,53 @@ helm install bladevault bladevault/bladevault \
   --set 'ingress.hosts[0].paths[0].servicePort=80'
 ```
 
-## Upgrade
+## Update to the latest BladeVault image
+
+After publishing a new BladeVault release, wait for the GitHub **Build & Push
+Docker Image** workflow to complete. Then recreate the pod so Kubernetes pulls
+the newly published `latest` image:
+
+```bash
+kubectl rollout restart deployment/bladevault --namespace bladevault
+kubectl rollout status deployment/bladevault --namespace bladevault
+```
+
+`helm repo update` only refreshes the available chart list. It does not restart
+the application or pull a new container image.
+
+## Update the chart and image
+
+When a new Helm chart version is also available:
 
 ```bash
 helm repo update bladevault
 helm upgrade bladevault bladevault/bladevault --namespace bladevault
+kubectl rollout restart deployment/bladevault --namespace bladevault
 kubectl rollout status deployment/bladevault --namespace bladevault
 ```
 
-The `latest` image is pulled whenever Kubernetes creates a pod. To pull a newly
-published image under the same tag without a chart change:
+For reproducible production deployments, update to an immutable release tag
+instead. Changing the tag automatically rolls out a new pod:
 
 ```bash
-kubectl rollout restart deployment/bladevault --namespace bladevault
+helm upgrade bladevault bladevault/bladevault \
+  --namespace bladevault \
+  --set image.tag=v0.2.41
 ```
 
-For reproducible production deployments, set `image.tag` to an immutable tag.
+## Remove BladeVault
+
+```bash
+helm uninstall bladevault --namespace bladevault
+```
+
+The generated `bladevault-data` PVC is retained so uninstalling does not remove
+the collection. To permanently delete the database and downloaded images too:
+
+```bash
+kubectl delete pvc bladevault-data --namespace bladevault
+kubectl delete namespace bladevault
+```
 
 ## Persistent data
 
