@@ -1,2 +1,0 @@
-xattr -d com.apple.quarantine "/Applications/BladeVault.app"
-open "/Applications/BladeVault.app"
