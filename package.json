@@ -1,6 +1,6 @@
 {
   "name": "bladevault",
-  "version": "0.2.41",
+  "version": "0.2.42",
   "private": true,
   "description": "A sharp, local-first knife collection manager.",
   "homepage": "https://github.com/dedkola/bladevault",
