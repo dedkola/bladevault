@@ -1,0 +1,105 @@
+# Default values for BladeVault.
+
+# BladeVault uses a local SQLite database, so the default deployment has one
+# replica and uses the Recreate strategy to avoid concurrent database access.
+replicaCount: 1
+
+strategy:
+  type: Recreate
+
+image:
+  repository: ghcr.io/dedkola/bladevault
+  tag: 'latest'
+  pullPolicy: Always
+
+# The default GHCR image is public.
+imagePullSecrets: []
+
+nameOverride: ''
+fullnameOverride: ''
+
+podAnnotations: {}
+podLabels: {}
+podSecurityContext: {}
+securityContext: {}
+
+service:
+  # A dedicated LoadBalancer avoids conflicting with another hostless ingress
+  # on a shared NGINX controller and receives its own MetalLB address on k3s.
+  type: LoadBalancer
+  port: 80
+  targetPort: 3000
+  protocol: TCP
+  name: http
+  annotations: {}
+  loadBalancerIP: ''
+
+ingress:
+  # Enable this when routing BladeVault through an ingress hostname. When
+  # enabled, normally change service.type to ClusterIP.
+  enabled: false
+  className: nginx
+  annotations: {}
+  hosts: []
+  tls: []
+  # Example:
+  # hosts:
+  #   - host: bladevault.example.com
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  #         servicePort: 80
+  # tls:
+  #   - secretName: bladevault-tls
+  #     hosts:
+  #       - bladevault.example.com
+
+persistence:
+  enabled: true
+  # Use an existing PVC instead of creating one when set.
+  existingClaim: ''
+  mountPath: /app/data
+  accessModes:
+    - ReadWriteOnce
+  size: 5Gi
+  # Empty uses the cluster's default StorageClass (local-path on standard k3s).
+  # Set to "-" to disable dynamic provisioning.
+  storageClass: ''
+  # Preserve collection data if the Helm release is uninstalled.
+  annotations:
+    helm.sh/resource-policy: keep
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: '2'
+    memory: 2Gi
+
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 6
+
+# Additional environment variables, for example optional auth/backup URLs.
+env: []
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

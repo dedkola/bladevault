@@ -5,6 +5,7 @@
 README.md
 assets
 build
+charts/*/templates
 dist
 node_modules
 package-lock.json

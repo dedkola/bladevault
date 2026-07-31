@@ -1,0 +1,33 @@
+BladeVault has been installed.
+
+{{- if eq .Values.service.type "LoadBalancer" }}
+The dedicated MetalLB address may take a moment to appear:
+
+  kubectl get service {{ include "bladevault.fullname" . }} \
+    --namespace {{ .Release.Namespace }} --watch
+
+Then open http://<EXTERNAL-IP>
+{{- else if .Values.ingress.enabled }}
+{{- if .Values.ingress.hosts }}
+{{- range $host := .Values.ingress.hosts }}
+{{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
+{{- end }}
+{{- end }}
+{{- else }}
+BladeVault uses the default route on the {{ .Values.ingress.className }} ingress address.
+{{- end }}
+{{- else }}
+Use port-forwarding to access BladeVault:
+
+  kubectl port-forward service/{{ include "bladevault.fullname" . }} \
+    --namespace {{ .Release.Namespace }} 8080:{{ .Values.service.port }}
+
+Then open http://127.0.0.1:8080
+{{- end }}
+
+{{- if .Values.persistence.enabled }}
+Persistent collection data is stored in PVC {{ include "bladevault.pvcName" . }}.
+{{- else }}
+WARNING: Persistence is disabled. Collection data will be lost when the pod is replaced.
+{{- end }}

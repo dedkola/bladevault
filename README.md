@@ -15,6 +15,7 @@
     <img src="https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white&style=flat-square" alt="SQLite" />
     <img src="https://img.shields.io/badge/Electron-47848F?logo=electron&logoColor=white&style=flat-square" alt="Electron" />
     <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white&style=flat-square" alt="Docker" />
+    <img src="https://img.shields.io/badge/Helm-0F1689?logo=helm&logoColor=white&style=flat-square" alt="Helm" />
   </p>
 
   <p>
@@ -60,6 +61,7 @@
 | --- | --- | --- |
 | Desktop app | A native macOS or Windows experience | [Download the latest release](https://github.com/dedkola/bladevault/releases/latest) |
 | Docker or Podman | A self-hosted local instance | [Run a container](#run-in-a-container) |
+| Kubernetes | k3s or another Kubernetes cluster | [Install with Helm](#install-with-helm) |
 | Source | Development and customization | [Run from source](#run-from-source) |
 
 ## Run in a container
@@ -129,6 +131,30 @@ docker run -d \
   -v "$HOME/BladeVault/data:/app/data" \
   bladevault
 ```
+
+## Install with Helm
+
+The default chart is designed for k3s with MetalLB. It creates a dedicated
+`LoadBalancer` address and a persistent 5 GiB volume for the SQLite database and
+downloaded images.
+
+```bash
+helm repo add bladevault https://dedkola.github.io/bladevault
+
+helm install bladevault bladevault/bladevault \
+  --namespace bladevault \
+  --create-namespace
+```
+
+Get the address, then open `http://<EXTERNAL-IP>`:
+
+```bash
+kubectl get service bladevault --namespace bladevault
+```
+
+If the repository was already added, run `helm repo update bladevault` before
+installing. See the [chart README](charts/bladevault/README.md) for upgrades,
+NGINX ingress with a hostname, existing PVCs, and other configuration.
 
 ## Desktop app
 
