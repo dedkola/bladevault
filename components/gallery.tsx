@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { getImageUrl } from '@/lib/data'
 import {
@@ -26,6 +26,7 @@ export function Gallery({
 }) {
   const [activeIdx, setActiveIdx] = useState(0)
   const [isFullScreen, setIsFullScreen] = useState(false)
+  const fullscreenThumbnailRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   const nextImage = () => setActiveIdx((prev) => (prev + 1) % images.length)
   const prevImage = () =>
@@ -49,6 +50,16 @@ export function Gallery({
     document.addEventListener('keydown', handleKeyDown, true)
     return () => document.removeEventListener('keydown', handleKeyDown, true)
   }, [images.length, isFullScreen])
+
+  useEffect(() => {
+    if (!isFullScreen || images.length <= 1) return
+
+    fullscreenThumbnailRefs.current[activeIdx]?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center',
+    })
+  }, [activeIdx, images.length, isFullScreen])
 
   const moveImage = (index: number, direction: -1 | 1) => {
     if (!onReorder) return
@@ -169,68 +180,133 @@ export function Gallery({
       <Dialog open={isFullScreen} onOpenChange={setIsFullScreen}>
         <DialogContent
           showCloseButton={false}
-          className="max-w-[calc(100%-2rem)] h-[90vh] w-[90vw] border-none bg-black/95 p-0 text-white sm:max-w-[90vw] rounded-none"
+          className="inset-0 block h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-none border-none bg-[#0b0b09] p-0 text-white ring-0 sm:max-w-none"
         >
-          <DialogTitle className="sr-only">Image viewer</DialogTitle>
-          <button
-            onClick={() => setIsFullScreen(false)}
-            className="absolute right-4 top-4 z-50 flex h-8 w-8 items-center justify-center rounded-full text-white/70 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
-
-          {images.length > 1 && (
-            <div
-              className="absolute left-1/2 top-4 z-50 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-xs font-medium tabular-nums text-white"
-              aria-live="polite"
-            >
-              {activeIdx + 1} / {images.length}
+          <header className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/35 to-transparent px-4 pb-10 pt-4 sm:px-6 sm:pt-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <DialogTitle className="truncate text-sm font-semibold tracking-[-0.01em] text-white sm:text-base">
+                Image viewer
+              </DialogTitle>
+              {images.length > 1 && (
+                <span
+                  className="rounded-md border border-white/15 bg-white/10 px-2 py-1 text-[11px] font-medium tabular-nums text-white/75 backdrop-blur-md"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  {activeIdx + 1} of {images.length}
+                </span>
+              )}
             </div>
-          )}
+            <button
+              onClick={() => setIsFullScreen(false)}
+              className="pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-black/35 text-white/75 shadow-lg shadow-black/20 backdrop-blur-md transition-colors hover:bg-white/15 hover:text-white active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)]"
+              aria-label="Close image viewer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </header>
 
           {images.length > 1 && (
             <button
               onClick={prevImage}
-              className="absolute left-4 top-1/2 z-50 -translate-y-1/2 rounded-full p-3 text-white/70 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+              className="absolute left-3 top-1/2 z-40 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white/75 shadow-lg shadow-black/20 backdrop-blur-md transition-all hover:scale-105 hover:bg-white/15 hover:text-white active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] sm:left-6 sm:h-12 sm:w-12"
               aria-label="Previous image"
             >
-              <ChevronLeft className="h-8 w-8" />
+              <ChevronLeft className="h-6 w-6 sm:h-7 sm:w-7" />
             </button>
           )}
 
-          <div className="relative h-full w-full bg-black">
-            {images.length > 0 ? (
-              images.map((image, index) => (
-                <Image
-                  key={`${image}-${index}`}
-                  src={getImageUrl(image)}
-                  alt={index === activeIdx ? 'Knife full screen' : ''}
-                  aria-hidden={index !== activeIdx}
-                  fill
-                  loading="eager"
-                  sizes="90vw"
-                  className={cn(
-                    'object-contain',
-                    index === activeIdx ? 'z-10 opacity-100' : 'z-0 opacity-0',
-                  )}
-                  referrerPolicy="no-referrer"
-                />
-              ))
-            ) : (
-              <div className="flex h-full w-full items-center justify-center">
-                <ImageIcon className="h-16 w-16 text-white/50" />
-              </div>
-            )}
+          <div className="h-full w-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.055),transparent_58%)] px-2 pb-28 pt-16 sm:px-20 sm:pb-36 sm:pt-20">
+            <div className="relative h-full w-full">
+              {images.length > 0 ? (
+                images.map((image, index) => (
+                  <Image
+                    key={`${image}-${index}`}
+                    src={getImageUrl(image)}
+                    alt={
+                      index === activeIdx
+                        ? `Knife image ${index + 1} of ${images.length}, fullscreen`
+                        : ''
+                    }
+                    aria-hidden={index !== activeIdx}
+                    fill
+                    loading="eager"
+                    sizes="100vw"
+                    className={cn(
+                      'object-contain',
+                      index === activeIdx
+                        ? 'z-10 opacity-100'
+                        : 'z-0 opacity-0',
+                    )}
+                    referrerPolicy="no-referrer"
+                  />
+                ))
+              ) : (
+                <div className="flex h-full w-full items-center justify-center">
+                  <ImageIcon className="h-16 w-16 text-white/35" />
+                </div>
+              )}
+            </div>
           </div>
+
+          {images.length > 1 && (
+            <nav
+              className="absolute inset-x-0 bottom-0 z-40 bg-gradient-to-t from-black via-black/90 to-transparent px-3 pb-3 pt-10 sm:px-6 sm:pb-5 sm:pt-14"
+              aria-label="Choose an image"
+            >
+              <div className="mx-auto max-w-5xl">
+                <div className="mb-2 hidden items-center justify-between px-1 text-[11px] font-medium text-white/55 sm:flex">
+                  <span>Choose image</span>
+                  <span>Use ← → keys to browse</span>
+                </div>
+                <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-[calc(50%-2rem)] py-1 [scrollbar-width:none] sm:gap-2.5 sm:px-[calc(50%-2.5rem)] [&::-webkit-scrollbar]:hidden">
+                  {images.map((image, index) => (
+                    <button
+                      key={`${image}-fullscreen-thumbnail-${index}`}
+                      ref={(node) => {
+                        fullscreenThumbnailRefs.current[index] = node
+                      }}
+                      onClick={() => setActiveIdx(index)}
+                      className={cn(
+                        'relative h-16 w-16 shrink-0 snap-center overflow-hidden rounded-md border bg-[#171713] shadow-md shadow-black/30 transition-all duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-2 focus-visible:ring-offset-black sm:h-20 sm:w-20',
+                        index === activeIdx
+                          ? 'scale-[1.03] border-[var(--bladevault-gold)] opacity-100 ring-1 ring-[var(--bladevault-gold)]'
+                          : 'border-white/10 opacity-55 hover:border-white/30 hover:opacity-100',
+                      )}
+                      aria-label={`Show image ${index + 1} of ${images.length}`}
+                      aria-pressed={index === activeIdx}
+                    >
+                      <Image
+                        src={getImageUrl(image)}
+                        alt=""
+                        fill
+                        sizes="(max-width: 640px) 64px, 80px"
+                        className="object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                      <span
+                        className={cn(
+                          'absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-1.5 pb-1 pt-4 text-left text-[10px] font-semibold tabular-nums text-white/65',
+                          index === activeIdx && 'text-white',
+                        )}
+                        aria-hidden="true"
+                      >
+                        {String(index + 1).padStart(2, '0')}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </nav>
+          )}
 
           {images.length > 1 && (
             <button
               onClick={nextImage}
-              className="absolute right-4 top-1/2 z-50 -translate-y-1/2 rounded-full p-3 text-white/70 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+              className="absolute right-3 top-1/2 z-40 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white/75 shadow-lg shadow-black/20 backdrop-blur-md transition-all hover:scale-105 hover:bg-white/15 hover:text-white active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] sm:right-6 sm:h-12 sm:w-12"
               aria-label="Next image"
             >
-              <ChevronRight className="h-8 w-8" />
+              <ChevronRight className="h-6 w-6 sm:h-7 sm:w-7" />
             </button>
           )}
         </DialogContent>
