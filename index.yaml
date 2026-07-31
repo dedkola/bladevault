@@ -3,7 +3,7 @@ entries:
   bladevault:
   - apiVersion: v2
     appVersion: 0.2.41
-    created: "2026-07-31T14:10:27.682265377Z"
+    created: "2026-07-31T17:48:39.491787+03:00"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: 8d61972235c3b5e2e093463a9b75ec8a2e607abc798321528c7a7a9c6d1e6fa0
     home: https://www.bladevault.pro
@@ -21,11 +21,11 @@ entries:
     - https://github.com/dedkola/bladevault
     type: application
     urls:
-    - https://github.com/dedkola/bladevault/releases/download/bladevault-0.1.1/bladevault-0.1.1.tgz
+    - https://dedkola.github.io/bladevault/bladevault-0.1.1.tgz
     version: 0.1.1
   - apiVersion: v2
     appVersion: 0.2.41
-    created: "2026-07-31T13:56:49.260778717Z"
+    created: "2026-07-31T17:48:39.491456+03:00"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: ffdc143d8c5b6538d7ff7eeee83fe628df71194a1e9cd79dfcb7dd79dfec1f51
     home: https://www.bladevault.pro
@@ -43,6 +43,6 @@ entries:
     - https://github.com/dedkola/bladevault
     type: application
     urls:
-    - https://github.com/dedkola/bladevault/releases/download/bladevault-0.1.0/bladevault-0.1.0.tgz
+    - https://dedkola.github.io/bladevault/bladevault-0.1.0.tgz
     version: 0.1.0
-generated: "2026-07-31T14:10:27.682274865Z"
+generated: "2026-07-31T17:48:39.490709+03:00"
