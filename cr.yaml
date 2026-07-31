@@ -1,8 +1,0 @@
-# Configuration for helm/chart-releaser-action.
-owner: dedkola
-git-repo: bladevault
-charts-repo-url: https://dedkola.github.io/bladevault
-index-path: './index.yaml'
-package-path: '.cr-release-packages'
-release-name-template: '{{ .Name }}-{{ .Version }}'
-skip-existing: true

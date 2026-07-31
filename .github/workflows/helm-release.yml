@@ -1,4 +1,4 @@
-name: Release Charts
+name: Publish Helm Repository
 
 on:
   push:
@@ -6,25 +6,23 @@ on:
       - main
     paths:
       - 'charts/**'
-      - 'cr.yaml'
       - '.github/workflows/helm-release.yml'
 
 permissions:
   contents: write
 
+concurrency:
+  group: helm-pages
+  cancel-in-progress: false
+
 jobs:
-  release:
+  publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout source
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-
-      - name: Configure Git
-        run: |
-          git config user.name "$GITHUB_ACTOR"
-          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
       - name: Install Helm
         uses: azure/setup-helm@v4
@@ -36,10 +34,61 @@ jobs:
           helm lint charts/bladevault
           helm template bladevault charts/bladevault --namespace bladevault >/dev/null
 
-      - name: Run chart-releaser
-        uses: helm/chart-releaser-action@v1.7.0
-        env:
-          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+      - name: Package chart
+        id: chart
+        run: |
+          set -euo pipefail
+
+          chart_name=$(helm show chart charts/bladevault | awk '$1 == "name:" { print $2 }')
+          chart_version=$(helm show chart charts/bladevault | awk '$1 == "version:" { print $2 }')
+          package_name="${chart_name}-${chart_version}.tgz"
+
+          mkdir -p .helm-packages
+          helm package charts/bladevault --destination .helm-packages
+          test -f ".helm-packages/${package_name}"
+
+          echo "name=${chart_name}" >> "$GITHUB_OUTPUT"
+          echo "version=${chart_version}" >> "$GITHUB_OUTPUT"
+          echo "package=${package_name}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Helm repository
+        uses: actions/checkout@v7
         with:
-          charts_dir: charts
-          config: cr.yaml
+          ref: gh-pages
+          path: .helm-pages
+          fetch-depth: 0
+
+      - name: Publish chart to GitHub Pages
+        env:
+          CHART_NAME: "${{ steps.chart.outputs.name }}"
+          CHART_VERSION: "${{ steps.chart.outputs.version }}"
+          PACKAGE_NAME: "${{ steps.chart.outputs.package }}"
+        run: |
+          set -euo pipefail
+
+          source_package=".helm-packages/${PACKAGE_NAME}"
+          target_package=".helm-pages/${PACKAGE_NAME}"
+
+          if [[ -f "$target_package" ]]; then
+            comparison_dir=$(mktemp -d)
+            mkdir -p "$comparison_dir/source" "$comparison_dir/published"
+            tar -xzf "$source_package" -C "$comparison_dir/source"
+            tar -xzf "$target_package" -C "$comparison_dir/published"
+
+            if ! diff -qr "$comparison_dir/source" "$comparison_dir/published"; then
+              echo "::error::${PACKAGE_NAME} already exists with different contents. Bump charts/bladevault/Chart.yaml version."
+              exit 1
+            fi
+
+            echo "${PACKAGE_NAME} is already published with identical contents."
+            exit 0
+          fi
+
+          cp "$source_package" "$target_package"
+          helm repo index .helm-pages --url https://dedkola.github.io/bladevault
+
+          git -C .helm-pages config user.name "github-actions[bot]"
+          git -C .helm-pages config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C .helm-pages add -- index.yaml "$PACKAGE_NAME"
+          git -C .helm-pages commit -m "Publish ${CHART_NAME} chart ${CHART_VERSION}"
+          git -C .helm-pages push origin HEAD:gh-pages
