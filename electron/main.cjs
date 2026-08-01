@@ -20,6 +20,7 @@ const DEV_SERVER_URL = process.env.ELECTRON_START_URL || 'http://127.0.0.1:3000'
 const DEV_SERVER_ORIGIN = new URL(DEV_SERVER_URL).origin
 const FORCE_PRODUCTION_SERVER = process.env.BLADEVAULT_FORCE_PROD_SERVER === '1'
 const SMOKE_TEST_MODE = process.env.BLADEVAULT_SMOKE_TEST === '1'
+const SKIP_UPDATE_CHECK = process.env.BLADEVAULT_SKIP_UPDATE_CHECK === '1'
 const UPDATE_DEBUG_ENABLED =
   process.platform === 'win32' && process.env.BLADEVAULT_UPDATE_DEBUG !== '0'
 const UPDATE_AUTO_TEST = process.env.BLADEVAULT_UPDATE_AUTOTEST === '1'
@@ -1170,6 +1171,11 @@ app
     })
 
     const runInitialUpdateFlow = () => {
+      if (SKIP_UPDATE_CHECK) {
+        appendUpdateDebug('initial_update_check_skipped')
+        return
+      }
+
       if (UPDATE_AUTO_TEST) {
         void runUpdateAutoTest().catch((error) => {
           const message = error instanceof Error ? error.message : String(error)

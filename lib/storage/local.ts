@@ -323,7 +323,7 @@ export class LocalStorage implements Storage {
           const filePath = path.join(getImagesDir(), img)
           const resolved = path.resolve(filePath)
           const base = path.resolve(getImagesDir())
-          if (resolved.startsWith(base)) {
+          if (resolved === base || resolved.startsWith(`${base}${path.sep}`)) {
             await fs.unlink(resolved)
           }
         } catch {
@@ -493,7 +493,9 @@ export class LocalStorage implements Storage {
 
   async getCompareList(): Promise<string[]> {
     const rows = getDb()
-      .prepare('SELECT knife_id FROM compare_list ORDER BY added_at DESC')
+      .prepare(
+        'SELECT knife_id FROM compare_list ORDER BY added_at DESC, rowid DESC',
+      )
       .all() as Array<{ knife_id: string }>
     return rows.map((r) => r.knife_id)
   }
@@ -522,8 +524,8 @@ export class LocalStorage implements Storage {
 
     getDb()
       .prepare(
-        `INSERT OR REPLACE INTO knives (id, name, brand, steel, blade_style, handle_material, images, specs, description, added_at, updated_at, source_url, pinned)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO knives (id, name, brand, steel, blade_style, handle_material, images, specs, custom_fields, description, added_at, updated_at, source_url, pinned)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         normalizedKnife.id,
@@ -534,6 +536,7 @@ export class LocalStorage implements Storage {
         normalizedKnife.handleMaterial,
         JSON.stringify(images),
         JSON.stringify(normalizedKnife.specs),
+        JSON.stringify(normalizedKnife.customFields),
         normalizedKnife.description,
         normalizedKnife.addedAt,
         restoredUpdatedAt,
@@ -603,7 +606,7 @@ export class LocalStorage implements Storage {
     const resolved = path.resolve(filePath)
     const base = path.resolve(getImagesDir())
 
-    if (!resolved.startsWith(base)) {
+    if (resolved !== base && !resolved.startsWith(`${base}${path.sep}`)) {
       throw new Error('Invalid image path')
     }
 

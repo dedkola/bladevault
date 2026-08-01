@@ -29,12 +29,15 @@ function isTarGzipFile(buffer: Buffer): boolean {
 
 function isSafeTarEntry(entryPath: string, expectedTopDir: string): boolean {
   // Reject absolute paths and any path component that escapes the archive root.
-  if (path.isAbsolute(entryPath)) return false
-  const normalized = path.normalize(entryPath)
-  if (normalized.startsWith('..')) return false
-  if (normalized.split(path.sep).includes('..')) return false
+  const portablePath = entryPath.replace(/\\/g, '/')
+  if (path.posix.isAbsolute(portablePath) || /^[a-z]:\//i.test(portablePath)) {
+    return false
+  }
+  if (portablePath.split('/').includes('..')) return false
+  const normalized = path.posix.normalize(portablePath)
+  if (normalized === '..' || normalized.startsWith('../')) return false
   // All entries must live inside the expected top-level data directory.
-  const topDir = normalized.split(path.sep)[0]
+  const topDir = normalized.split('/')[0]
   if (topDir !== expectedTopDir) return false
   return true
 }
@@ -68,18 +71,34 @@ async function extractArchive(
   })
 }
 
-async function validateArchive(archivePath: string, expectedTopDir: string) {
+async function validateArchive(archivePath: string): Promise<string> {
+  let expectedTopDir = ''
+  let unsafeEntry = ''
+
   await tar.list({
     file: archivePath,
     gzip: true,
     strict: true,
     onReadEntry: (entry) => {
       const entryPath = entry.path || String(entry.header?.path)
-      if (!isSafeTarEntry(entryPath, expectedTopDir)) {
-        throw new Error(`Unsafe backup archive entry: ${entryPath}`)
+      const normalized = path.posix.normalize(entryPath.replace(/\\/g, '/'))
+      const topDir = normalized.split('/')[0]
+      if (!expectedTopDir) expectedTopDir = topDir
+      if (!unsafeEntry && !isSafeTarEntry(entryPath, expectedTopDir)) {
+        unsafeEntry = entryPath
       }
     },
   })
+
+  if (unsafeEntry) {
+    throw new Error(`Unsafe backup archive entry: ${unsafeEntry}`)
+  }
+
+  if (!expectedTopDir) {
+    throw new Error('Backup archive does not contain a data directory.')
+  }
+
+  return expectedTopDir
 }
 
 async function validateSqliteFile(dbPath: string) {
@@ -174,14 +193,13 @@ async function restoreArchiveFromPath(archivePath: string) {
     path.join(os.tmpdir(), 'bladevault-backup-import-'),
   )
   const extractRoot = path.join(tempRoot, 'extract')
-  const expectedTopDir = path.basename(getLocalDataDirPath())
 
   try {
     await fs.mkdir(extractRoot, { recursive: true })
-    await validateArchive(archivePath, expectedTopDir)
-    await extractArchive(archivePath, extractRoot, expectedTopDir)
+    const archivedTopDir = await validateArchive(archivePath)
+    await extractArchive(archivePath, extractRoot, archivedTopDir)
 
-    const extractedDataDir = path.join(extractRoot, expectedTopDir)
+    const extractedDataDir = path.join(extractRoot, archivedTopDir)
     const extractedDbPath = path.join(extractedDataDir, 'bladevault.sqlite')
 
     await fs.access(extractedDataDir)
@@ -376,10 +394,7 @@ export async function POST(request: Request) {
     try {
       downloadUrl = new URL('/backup/latest', backupUrl).toString()
     } catch {
-      return NextResponse.json(
-        { error: 'Invalid backupUrl' },
-        { status: 400 },
-      )
+      return NextResponse.json({ error: 'Invalid backupUrl' }, { status: 400 })
     }
 
     if (!isBackupUrlAllowed(downloadUrl)) {

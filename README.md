@@ -239,6 +239,10 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run start` | Serve the production build after `npm run build`. |
 | `npm run lint` | Run ESLint. |
 | `npm run format:check` | Check formatting with Prettier. |
+| `npm run test` | Run the unit and integration suite once. |
+| `npm run test:watch` | Run unit and integration tests in watch mode. |
+| `npm run test:e2e` | Build the web app and run Chromium smoke tests. |
+| `npm run test:e2e:ui` | Open Playwright's interactive test runner. |
 | `npm run desktop:dev` | Run the Electron desktop shell in development. |
 | `npm run desktop:smoke` | Build and smoke-test the desktop runtime. |
 | `npm run dist:desktop` | Package desktop installers without publishing them. |

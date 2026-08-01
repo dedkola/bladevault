@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
 
-    if (!body.name || typeof body.name !== 'string') {
+    if (typeof body.name !== 'string' || !body.name.trim()) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
 

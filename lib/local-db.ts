@@ -354,7 +354,7 @@ function normalizeKnifeRows(database: Database.Database) {
   const rows = database
     .prepare(
       `
-    SELECT id, name, brand, blade_style, handle_material, specs, description, source_url, added_at, updated_at
+    SELECT id, name, brand, blade_style, handle_material, specs, custom_fields, description, source_url, added_at, updated_at
     FROM knives
   `,
     )
@@ -365,6 +365,7 @@ function normalizeKnifeRows(database: Database.Database) {
     blade_style: string
     handle_material: string
     specs: string
+    custom_fields: string
     description: string
     source_url: string
     added_at: string
@@ -398,10 +399,8 @@ function normalizeKnifeRows(database: Database.Database) {
         price?: string
         country: string
       }>
-      const customFields = (row as Record<string, unknown>).custom_fields
-        ? (JSON.parse(
-            String((row as Record<string, unknown>).custom_fields),
-          ) as Record<string, string>)
+      const customFields = row.custom_fields
+        ? (JSON.parse(row.custom_fields) as Record<string, string>)
         : {}
       const normalized = normalizeKnifeTextFields({
         name: row.name,
@@ -428,8 +427,7 @@ function normalizeKnifeRows(database: Database.Database) {
         normalized.description !== row.description ||
         normalized.sourceUrl !== row.source_url ||
         normalizedSpecs !== row.specs ||
-        normalizedCustomFields !==
-          String((row as Record<string, unknown>).custom_fields ?? '{}') ||
+        normalizedCustomFields !== row.custom_fields ||
         normalizedUpdatedAt !== (row.updated_at ?? '')
 
       if (!hasChanges) {

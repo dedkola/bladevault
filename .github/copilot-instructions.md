@@ -7,6 +7,9 @@
 - Run web app in development: `npm run dev`
 - Build web app for production: `npm run build`
 - Start production server: `npm run start`
+- Unit and integration tests: `npm run test`
+- Watch a focused test: `npm run test:watch -- <path-or-pattern>`
+- Web smoke tests: `npm run test:e2e`
 - Lint: `npm run lint`
 - Docker local run (from README): `docker compose up -d --build`
 - Desktop dev shell: `npm run desktop:dev`
@@ -14,9 +17,10 @@
 
 ### Tests
 
-- There is no unit/integration test runner configured in this repository right now (`*.test.*`, `*.spec.*`, and Playwright test config are not present).
-- `npm run desktop:smoke` is the closest automated validation command.
-- Single-test command is currently not available.
+- Vitest unit and integration tests live under `tests/unit/` and `tests/integration/`.
+- Playwright Chromium smoke tests live under `tests/e2e/`.
+- Run a single Vitest file with `npm run test:watch -- tests/unit/<file>.test.ts`.
+- Use `npm run desktop:smoke` for Electron, native SQLite, preload, or updater changes.
 
 ## High-level architecture
 

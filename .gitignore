@@ -3,6 +3,8 @@ node_modules/
 .next/
 dist/
 coverage/
+playwright-report/
+test-results/
 pnpm-lock.yaml
 pnpm-workspace.yaml
 

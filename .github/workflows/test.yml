@@ -1,0 +1,98 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          cache: npm
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check changed-file formatting
+        shell: bash
+        env:
+          FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$FORMAT_BASE_SHA" || "$FORMAT_BASE_SHA" =~ ^0+$ ]]; then
+            FORMAT_BASE_SHA="$(git rev-parse HEAD^)"
+          fi
+
+          mapfile -t formatted_files < <(
+            git diff --name-only --diff-filter=ACMR "$FORMAT_BASE_SHA"...HEAD |
+              grep -E '\.(cjs|css|json|md|mts|ts|tsx|ya?ml)$' || true
+          )
+
+          if (( ${#formatted_files[@]} > 0 )); then
+            npx prettier --check -- "${formatted_files[@]}"
+          fi
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run unit and integration tests
+        run: npm run test
+
+      - name: Install Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Build production app
+        run: npm run build
+
+      - name: Run browser smoke tests
+        run: npx playwright test
+
+      - name: Detect desktop-sensitive changes
+        id: desktop
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "required=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git diff --name-only "$BASE_SHA"...HEAD | grep -Eq '^(electron/|scripts/(prepare-desktop-build|run-desktop-smoke|sync-desktop-runtime-deps)|lib/(local-db|storage/)|package(-lock)?\.json|electron-builder\.config\.cjs)'; then
+            echo "required=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "required=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Electron smoke test
+        if: steps.desktop.outputs.required == 'true'
+        run: xvfb-run -a npm run desktop:smoke
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: playwright-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
