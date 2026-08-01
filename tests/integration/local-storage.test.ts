@@ -133,13 +133,13 @@ describe('LocalStorage', () => {
     const storage = new LocalStorage()
     const knife = createKnife({
       id: 'snapshot',
-      customFields: { acquiredFrom: 'Kyiv Show' },
+      customFields: { acquiredFrom: 'Collector Show' },
     })
 
     await storage.replaceAllWithSnapshot([knife], [])
 
     expect((await storage.getKnifeById('snapshot'))?.customFields).toEqual({
-      acquiredFrom: 'Kyiv Show',
+      acquiredFrom: 'Collector Show',
     })
   })
 })

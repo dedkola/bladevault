@@ -8,9 +8,11 @@ import { createKnife } from '@/tests/fixtures/knife'
 
 describe('collection data helpers', () => {
   it('searches built-in, spec, description, and custom-field values', () => {
-    const knife = createKnife({ customFields: { acquiredFrom: 'Kyiv Expo' } })
+    const knife = createKnife({
+      customFields: { acquiredFrom: 'Collector Expo' },
+    })
 
-    for (const query of ['bench', 's30v', 'everyday', 'kyiv expo']) {
+    for (const query of ['bench', 's30v', 'everyday', 'collector expo']) {
       expect(matchesKnifeSearch(knife, query)).toBe(true)
     }
     expect(matchesKnifeSearch(knife, 'fixed blade')).toBe(false)
