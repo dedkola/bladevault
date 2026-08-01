@@ -25,8 +25,7 @@ import { FilterMultiSelect } from '@/components/filter-multi-select'
 import { SearchField } from '@/components/search-field'
 import { useKnives } from '@/components/providers/knives-provider'
 import { Knife, matchesKnifeSearch, prioritizePinnedKnives } from '@/lib/data'
-import { CustomField, CustomFieldType } from '@/lib/settings-shared'
-import { readJsonResponse } from '@/lib/api-response'
+import { CustomFieldType } from '@/lib/settings-shared'
 import { useDebouncedValue } from '@/lib/use-debounced-value'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -156,14 +155,18 @@ function sortFilterOptions(options: string[], type: CustomFieldType): string[] {
 }
 
 function CollectionContent() {
-  const { knives, pinnedItemsFirst, bulkUpdateKnives, showFeedback } =
-    useKnives()
+  const {
+    knives,
+    pinnedItemsFirst,
+    bulkUpdateKnives,
+    showFeedback,
+    customFieldDefinitions,
+  } = useKnives()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const query = searchParams.get('q') ?? ''
-  const [customFields, setCustomFields] = useState<CustomField[]>([])
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
@@ -235,53 +238,29 @@ function CollectionContent() {
     return () => window.removeEventListener('keydown', handleSearchShortcut)
   }, [query, setQuery])
 
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadSettings() {
-      try {
-        const response = await fetch('/api/settings', { cache: 'no-store' })
-        const data = await readJsonResponse<{
-          error?: string
-          settings?: { customFields?: CustomField[] }
-        }>(response)
-        if (!cancelled && response.ok && data.settings?.customFields) {
-          setCustomFields(data.settings.customFields)
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    loadSettings()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
   const filterDefinitions = useMemo(
     () => [
       ...builtInFilterDefinitions,
-      ...customFields.map((field) => ({
+      ...customFieldDefinitions.map((field) => ({
         key: `custom:${field.id}` as CustomFilterKey,
         label: field.name,
         type: field.type,
         getValue: (knife: Knife) => knife.customFields[field.id],
       })),
     ],
-    [customFields],
+    [customFieldDefinitions],
   )
 
   const bulkEditFields = useMemo<BulkEditFieldDefinition[]>(
     () => [
       ...builtInBulkEditFields.map((field) => ({ ...field })),
-      ...customFields.map((field) => ({
+      ...customFieldDefinitions.map((field) => ({
         key: `customFields.${field.id}` as BulkEditFieldKey,
         label: field.name,
         type: field.type,
       })),
     ],
-    [customFields],
+    [customFieldDefinitions],
   )
 
   const selectedFilters = useMemo(
@@ -300,7 +279,7 @@ function CollectionContent() {
       Object.fromEntries(
         filterDefinitions.map((definition) => {
           const field = isCustomFilterKey(definition.key)
-            ? customFields.find(
+            ? customFieldDefinitions.find(
                 (item) => item.id === customFilterKeyToFieldId(definition.key),
               )
             : undefined
@@ -328,7 +307,7 @@ function CollectionContent() {
           ]
         }),
       ) as Record<FilterKey, string[]>,
-    [knives, filterDefinitions, customFields],
+    [knives, filterDefinitions, customFieldDefinitions],
   )
 
   const filteredKnives = useMemo(() => {
@@ -397,7 +376,7 @@ function CollectionContent() {
           : isCustomFilterKey(definition.key)
             ? formatCustomFilterValue(
                 value,
-                customFields.find(
+                customFieldDefinitions.find(
                   (item) =>
                     item.id === customFilterKeyToFieldId(definition.key),
                 )?.type ?? 'text',
