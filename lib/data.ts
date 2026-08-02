@@ -54,10 +54,7 @@ export function getImageUrl(path: string): string {
   return `/api/images/${path}`
 }
 
-export function matchesKnifeSearch(knife: Knife, query: string): boolean {
-  const q = query.trim().toLowerCase()
-  if (!q) return true
-
+export function getKnifeSearchableText(knife: Knife): string {
   const searchableValues = [
     knife.brand,
     knife.name,
@@ -68,7 +65,14 @@ export function matchesKnifeSearch(knife: Knife, query: string): boolean {
     ...Object.values(knife.customFields),
   ]
 
-  return searchableValues.some((value) => value?.toLowerCase().includes(q))
+  return searchableValues.join('\0').toLowerCase()
+}
+
+export function matchesKnifeSearch(knife: Knife, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+
+  return getKnifeSearchableText(knife).includes(q)
 }
 
 export function prioritizePinnedKnives(
