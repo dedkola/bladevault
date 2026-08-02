@@ -123,59 +123,59 @@ async function listDirectoryEntries(dirPath: string) {
   return await fs.readdir(dirPath, { withFileTypes: true })
 }
 
-  async function moveDirectoryContents(sourceDir: string, targetDir: string) {
-    await ensureDirectory(targetDir)
-    const entries = (await listDirectoryEntries(sourceDir)).filter(
-      (entry) => !shouldIgnoreBackupEntry(entry.name),
-    )
+async function moveDirectoryContents(sourceDir: string, targetDir: string) {
+  await ensureDirectory(targetDir)
+  const entries = (await listDirectoryEntries(sourceDir)).filter(
+    (entry) => !shouldIgnoreBackupEntry(entry.name),
+  )
 
-    for (const entry of entries) {
-      const sourcePath = path.join(sourceDir, entry.name)
-      const targetPath = path.join(targetDir, entry.name)
+  for (const entry of entries) {
+    const sourcePath = path.join(sourceDir, entry.name)
+    const targetPath = path.join(targetDir, entry.name)
 
-      try {
-        await fs.rename(sourcePath, targetPath)
-      } catch (error) {
-        if (!(
-          error &&
-          typeof error === 'object' &&
-          'code' in error &&
-          error.code === 'EXDEV'
-        )) {
-          throw error
-        }
-
-        await fs.cp(sourcePath, targetPath, {
-          recursive: true,
-          force: true,
-        })
-        await fs.rm(sourcePath, {
-          recursive: true,
-          force: true,
-        })
-      }
-    }
-  }
-
-  async function removeSQLiteSidecars(dirPath: string) {
     try {
-      const entries = await listDirectoryEntries(dirPath)
-      for (const entry of entries) {
-        if (
-          entry.isFile() &&
-          (entry.name.endsWith('.sqlite-wal') ||
-            entry.name.endsWith('.sqlite-shm'))
-        ) {
-          await fs.rm(path.join(dirPath, entry.name), {
-            recursive: true,
-            force: true,
-          })
-        }
+      await fs.rename(sourcePath, targetPath)
+    } catch (error) {
+      if (!(
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === 'EXDEV'
+      )) {
+        throw error
       }
-    } catch {
-      // Best effort: stale sidecars should not block the restore.
+
+      await fs.cp(sourcePath, targetPath, {
+        recursive: true,
+        force: true,
+      })
+      await fs.rm(sourcePath, {
+        recursive: true,
+        force: true,
+      })
     }
   }
+}
+
+async function removeSQLiteSidecars(dirPath: string) {
+  try {
+    const entries = await listDirectoryEntries(dirPath)
+    for (const entry of entries) {
+      if (
+        entry.isFile() &&
+        (entry.name.endsWith('.sqlite-wal') ||
+          entry.name.endsWith('.sqlite-shm'))
+      ) {
+        await fs.rm(path.join(dirPath, entry.name), {
+          recursive: true,
+          force: true,
+        })
+      }
+    }
+  } catch {
+    // Best effort: stale sidecars should not block the restore.
+  }
+}
 
 async function copyDirectoryContents(sourceDir: string, targetDir: string) {
   await ensureDirectory(targetDir)
