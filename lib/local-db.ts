@@ -295,6 +295,11 @@ export function getLocalDb(): Database.Database {
 
 export function closeLocalDb(): void {
   if (!db) return
+  try {
+    db.pragma('wal_checkpoint(RESTART)')
+  } catch {
+    // Best effort: checkpoint when possible, but always close.
+  }
   db.close()
   db = null
   activeDbPath = null
