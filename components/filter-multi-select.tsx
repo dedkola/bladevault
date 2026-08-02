@@ -148,7 +148,7 @@ export function FilterMultiSelect({
                 <button
                   type="button"
                   onClick={() => setQuery('')}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                   aria-label={`Clear ${label} search`}
                 >
                   <X className="h-3.5 w-3.5" />
