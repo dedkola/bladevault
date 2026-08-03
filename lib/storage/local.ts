@@ -131,9 +131,7 @@ export class LocalStorage implements Storage {
 
     if (rows.length === 0) return id
     if (!rows.some((row) => row.id === id)) return id
-    const suffixPattern = new RegExp(
-      `^${escapeRegExp(id)}-(\\d+)$`,
-    )
+    const suffixPattern = new RegExp(`^${escapeRegExp(id)}-(\\d+)$`)
     const usedSuffixes = new Set<number>()
     for (const row of rows) {
       const match = row.id.match(suffixPattern)
