@@ -113,7 +113,12 @@ export async function fetchExternalUrl(
   initialUrl: URL,
   init: RequestInit,
 ): Promise<Response> {
-  let url = initialUrl
+  const initialValidation = await validateExternalUrl(initialUrl.href)
+  if (!initialValidation.ok) {
+    throw new Error(initialValidation.reason)
+  }
+
+  let url = initialValidation.url
 
   for (let redirects = 0; redirects <= MAX_EXTERNAL_REDIRECTS; redirects += 1) {
     const response = await fetch(url, { ...init, redirect: 'manual' })

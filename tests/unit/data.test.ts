@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   getImageUrl,
+  getKnifeSearchableText,
   matchesKnifeSearch,
   prioritizePinnedKnives,
 } from '@/lib/data'
@@ -17,6 +18,21 @@ describe('collection data helpers', () => {
     }
     expect(matchesKnifeSearch(knife, 'fixed blade')).toBe(false)
     expect(matchesKnifeSearch(knife, '   ')).toBe(true)
+  })
+
+  it('builds a lowercased searchable text without cross-field false matches', () => {
+    const knife = createKnife({
+      brand: 'Benchmade',
+      name: 'Bugout',
+      customFields: { acquiredFrom: 'Collector Expo' },
+    })
+
+    const text = getKnifeSearchableText(knife)
+
+    expect(text).toContain('benchmade')
+    expect(text).toContain('bugout')
+    expect(text).toContain('collector expo')
+    expect(text).not.toContain('benchmadebugout')
   })
 
   it('moves pinned knives first stably without mutating the source array', () => {
