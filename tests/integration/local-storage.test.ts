@@ -143,7 +143,7 @@ describe('LocalStorage', () => {
     })
   })
 
-  it('resolves unique ids with a single database query', async () => {
+  it('fills gaps when generating unique ids', async () => {
     vault = await createTempVault()
     const storage = new LocalStorage()
 
