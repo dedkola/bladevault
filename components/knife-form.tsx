@@ -556,9 +556,7 @@ export function KnifeFormFields({
                         Cover
                       </div>
                     )}
-                    <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-2 px-1 py-1 bg-gradient-to-t from-black/60 to-transparent opacity-0 transition-opacity group-hover:opacity-100">
-                      <button
-                        type="button"
+<div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-2 px-1 py-1 bg-gradient-to-t from-black/60 to-transparent opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                         onClick={(e) => {
                           e.stopPropagation()
                           reorderImage(index, -1)
