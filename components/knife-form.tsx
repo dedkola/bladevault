@@ -546,11 +546,14 @@ export function KnifeFormFields({
                       />
                     </div>
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation()
                         removeImage(index)
                       }}
-                      className="absolute right-1 top-1 z-10 rounded-md bg-black/60 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                      className="absolute right-1 top-1 z-10 rounded-md bg-black/60 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-2"
+                      aria-label={`Remove image ${index + 1}`}
+                      title="Remove image"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -561,12 +564,13 @@ export function KnifeFormFields({
                     )}
                     <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-2 px-1 py-1 bg-gradient-to-t from-black/60 to-transparent opacity-0 transition-opacity group-hover:opacity-100">
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation()
                           reorderImage(index, -1)
                         }}
                         disabled={index === 0}
-                        className="rounded-full p-1 bg-white/90 text-foreground hover:bg-white disabled:opacity-30 disabled:hover:bg-white/90 transition-colors"
+                        className="rounded-full bg-white/90 p-1 text-foreground transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-2 disabled:opacity-30 disabled:hover:bg-white/90"
                         aria-label="Move image earlier"
                         title="Move earlier"
                       >
@@ -574,11 +578,12 @@ export function KnifeFormFields({
                       </button>
                       {!isFirst && (
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation()
                             setFirstImage(index)
                           }}
-                          className="rounded-full px-1.5 py-0.5 bg-white/90 text-[9px] font-medium uppercase tracking-wide text-foreground hover:bg-white transition-colors"
+                          className="rounded-full bg-white/90 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-foreground transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-2"
                           aria-label="Set as cover image"
                           title="Set as cover"
                         >
@@ -586,12 +591,13 @@ export function KnifeFormFields({
                         </button>
                       )}
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation()
                           reorderImage(index, 1)
                         }}
                         disabled={index === form.images.length - 1}
-                        className="rounded-full p-1 bg-white/90 text-foreground hover:bg-white disabled:opacity-30 disabled:hover:bg-white/90 transition-colors"
+                        className="rounded-full bg-white/90 p-1 text-foreground transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-2 disabled:opacity-30 disabled:hover:bg-white/90"
                         aria-label="Move image later"
                         title="Move later"
                       >
