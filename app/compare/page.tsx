@@ -14,8 +14,6 @@ import { ArchiveX, FileDown, ImageIcon, Printer, X } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
 import { EmptyState } from '@/components/empty-state'
 import { getImageUrl, Knife, prioritizePinnedKnives } from '@/lib/data'
-import { CustomField } from '@/lib/settings-shared'
-import { readJsonResponse } from '@/lib/api-response'
 import { useKnives } from '@/components/providers/knives-provider'
 import { cn } from '@/lib/utils'
 import {
@@ -269,8 +267,8 @@ export default function ComparePage() {
     removeFromCompare,
     clearCompare,
     pinnedItemsFirst,
+    customFieldDefinitions,
   } = useKnives()
-  const [customFields, setCustomFields] = useState<CustomField[]>([])
   const [hoveredCell, setHoveredCell] = useState<{
     knifeId: string
     rowKey: CompareRowKey
@@ -278,39 +276,15 @@ export default function ComparePage() {
   const [showDifferencesOnly, setShowDifferencesOnly] = useState(false)
   const printFrameRef = useRef<HTMLIFrameElement | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadSettings() {
-      try {
-        const response = await fetch('/api/settings', { cache: 'no-store' })
-        const data = await readJsonResponse<{
-          error?: string
-          settings?: { customFields?: CustomField[] }
-        }>(response)
-        if (!cancelled && response.ok && data.settings?.customFields) {
-          setCustomFields(data.settings.customFields)
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    loadSettings()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
   const compareRows: { label: string; key: CompareRowKey }[] = useMemo(
     () => [
       ...builtInCompareRows,
-      ...customFields.map((field) => ({
+      ...customFieldDefinitions.map((field) => ({
         label: field.name,
         key: `custom:${field.id}` as `custom:${string}`,
       })),
     ],
-    [customFields],
+    [customFieldDefinitions],
   )
 
   useEffect(() => {
