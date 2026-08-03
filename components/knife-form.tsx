@@ -304,9 +304,18 @@ export function KnifeFormFields({
 
   return (
     <div className="space-y-5">
-      <FormSection
-        title="Dimensions"
-      >
+      <FormSection title="Identity">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {inputField('Brand / Maker', 'brand', 'e.g. Chris Reeve Knives', 2)}
+          {inputField('Model Name', 'name', 'e.g. Sebenza 31', 2)}
+          {inputField('Model Number', 'modelNumber', 'e.g. 1122A4')}
+          {inputField('Designer', 'designer', 'e.g. Chris Reeve')}
+          {inputField('Country', 'country', 'e.g. USA')}
+          {inputField('Price', 'price', 'e.g. $525')}
+        </div>
+      </FormSection>
+
+      <FormSection title="Dimensions">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {inputField('Overall Length', 'overallLength', 'e.g. 8.33 in')}
           {inputField('Blade Length', 'bladeLength', 'e.g. 3.61 in')}
@@ -316,9 +325,7 @@ export function KnifeFormFields({
         </div>
       </FormSection>
 
-      <FormSection
-        title="Construction"
-      >
+      <FormSection title="Construction">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {inputField('Blade Material', 'bladeMaterial', 'e.g. AEB-L')}
           {inputField('Blade Style', 'bladeStyle', 'e.g. Drop Point')}
@@ -330,19 +337,6 @@ export function KnifeFormFields({
             'e.g. Compression lock',
           )}
           {inputField('Hardness', 'hardness', 'e.g. 58-60 HRC')}
-        </div>
-      </FormSection>
-
-      <FormSection
-        title="Identity"
-      >
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {inputField('Brand / Maker', 'brand', 'e.g. Chris Reeve Knives', 2)}
-          {inputField('Model Name', 'name', 'e.g. Sebenza 31', 2)}
-          {inputField('Model Number', 'modelNumber', 'e.g. 1122A4')}
-          {inputField('Designer', 'designer', 'e.g. Chris Reeve')}
-          {inputField('Country', 'country', 'e.g. USA')}
-          {inputField('Price', 'price', 'e.g. $525')}
         </div>
       </FormSection>
 
