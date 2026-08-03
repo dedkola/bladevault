@@ -126,11 +126,11 @@ export class LocalStorage implements Storage {
 
   async ensureUniqueId(id: string): Promise<string> {
     const rows = getDb()
-      .prepare("SELECT id FROM knives WHERE id = ? OR id LIKE ?")
+      .prepare('SELECT id FROM knives WHERE id = ? OR id LIKE ?')
       .all(id, `${id}-%`) as Array<{ id: string }>
 
     if (rows.length === 0) return id
-
+    if (!rows.some((row) => row.id === id)) return id
     const suffixPattern = new RegExp(
       `^${escapeRegExp(id)}-(\\d+)$`,
     )
