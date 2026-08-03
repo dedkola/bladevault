@@ -60,4 +60,15 @@ describe('external URL validation', () => {
       expect.objectContaining({ redirect: 'manual' }),
     )
   })
+
+  it('revalidates the initial request URL before fetching', async () => {
+    lookup.mockResolvedValue([{ address: '127.0.0.1', family: 4 }])
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      fetchExternalUrl(new URL('http://internal.example/private'), {}),
+    ).rejects.toThrow('Private or internal URLs are not allowed')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })
