@@ -249,7 +249,10 @@ export function Sidebar() {
               <Collapsible open={pinnedOpen} onOpenChange={setPinnedOpen}>
                 <CollapsibleTrigger
                   render={
-                    <button className="flex w-full items-center justify-between px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)]">
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-1"
+                    >
                       Pinned
                       <ChevronRight
                         className={cn(
@@ -323,7 +326,7 @@ export function Sidebar() {
               <Collapsible open={brandsOpen} onOpenChange={setBrandsOpen}>
                 <CollapsibleTrigger
                   render={
-                    <button className="flex w-full items-center justify-between px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)]">
+                    <button className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-1">
                       Brands
                       <ChevronRight
                         className={cn(
