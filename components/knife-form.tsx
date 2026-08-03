@@ -370,9 +370,7 @@ export function KnifeFormFields({
         </FormSection>
       )}
 
-      <FormSection
-        title="Notes"
-      >
+      <FormSection title="Notes">
         <div className="space-y-2">
           <label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
             Description
@@ -387,9 +385,7 @@ export function KnifeFormFields({
         </div>
       </FormSection>
 
-      <FormSection
-        title="Images"
-      >
+      <FormSection title="Images">
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
@@ -556,7 +552,9 @@ export function KnifeFormFields({
                         Cover
                       </div>
                     )}
-<div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-2 px-1 py-1 bg-gradient-to-t from-black/60 to-transparent opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                    <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-2 px-1 py-1 bg-gradient-to-t from-black/60 to-transparent opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                      <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation()
                           reorderImage(index, -1)
