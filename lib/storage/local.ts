@@ -107,6 +107,10 @@ function getImagesDir() {
   return getLocalImagesDirPath()
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 export class LocalStorage implements Storage {
   async getAllKnives(): Promise<Knife[]> {
     const rows = getDb()
@@ -121,10 +125,25 @@ export class LocalStorage implements Storage {
   }
 
   async ensureUniqueId(id: string): Promise<string> {
-    const existing = await this.getKnifeById(id)
-    if (!existing) return id
+    const rows = getDb()
+      .prepare("SELECT id FROM knives WHERE id = ? OR id LIKE ?")
+      .all(id, `${id}-%`) as Array<{ id: string }>
+
+    if (rows.length === 0) return id
+
+    const suffixPattern = new RegExp(
+      `^${escapeRegExp(id)}-(\\d+)$`,
+    )
+    const usedSuffixes = new Set<number>()
+    for (const row of rows) {
+      const match = row.id.match(suffixPattern)
+      if (match) {
+        usedSuffixes.add(Number.parseInt(match[1], 10))
+      }
+    }
+
     let counter = 2
-    while (await this.getKnifeById(`${id}-${counter}`)) {
+    while (usedSuffixes.has(counter)) {
       counter += 1
     }
     return `${id}-${counter}`

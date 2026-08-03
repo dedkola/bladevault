@@ -142,4 +142,43 @@ describe('LocalStorage', () => {
       acquiredFrom: 'Collector Show',
     })
   })
+
+  it('resolves unique ids with a single database query', async () => {
+    vault = await createTempVault()
+    const storage = new LocalStorage()
+
+    const first = await storage.createKnife(baseInput)
+    expect(first.id).toBe('bugout')
+
+    const second = await storage.createKnife(baseInput)
+    expect(second.id).toBe('bugout-2')
+
+    const third = await storage.createKnife(baseInput)
+    expect(third.id).toBe('bugout-3')
+
+    await storage.deleteKnife(second.id)
+
+    const fourth = await storage.createKnife(baseInput)
+    expect(fourth.id).toBe('bugout-2')
+
+    const ids = [first.id, third.id, fourth.id].sort()
+    expect(ids).toEqual(['bugout', 'bugout-2', 'bugout-3'])
+  })
+
+  it('handles many duplicate names efficiently', async () => {
+    vault = await createTempVault()
+    const storage = new LocalStorage()
+
+    const createdIds: string[] = []
+    for (let i = 0; i < 100; i += 1) {
+      const knife = await storage.createKnife(baseInput)
+      createdIds.push(knife.id)
+    }
+
+    const uniqueIds = new Set(createdIds)
+    expect(uniqueIds.size).toBe(createdIds.length)
+    expect(createdIds[0]).toBe('bugout')
+    expect(createdIds[1]).toBe('bugout-2')
+    expect(createdIds[createdIds.length - 1]).toBe('bugout-100')
+  })
 })
