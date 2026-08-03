@@ -406,9 +406,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
         <div className="flex flex-col gap-6">
           <Gallery images={knife.images} />
 
-          <DetailSection
-            title="Notes"
-          >
+          <DetailSection title="Notes">
             <div className="max-w-3xl space-y-3">
               {knife.description ? (
                 knife.description
@@ -430,7 +428,6 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
               )}
             </div>
           </DetailSection>
-
         </div>
 
         <div className="flex flex-col gap-6">
@@ -478,10 +475,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
               </DetailSection>
 
               {customFieldRows.length > 0 && (
-                <DetailSection
-                  title="Custom Fields"
-                  className="rounded-lg"
-                >
+                <DetailSection title="Custom Fields" className="rounded-lg">
                   <div>
                     {customFieldRows.map(({ label, value }) => (
                       <DetailRow key={label} label={label} value={value} />
