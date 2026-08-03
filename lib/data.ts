@@ -54,9 +54,11 @@ export function getImageUrl(path: string): string {
   return `/api/images/${path}`
 }
 
-export function matchesKnifeSearch(knife: Knife, query: string): boolean {
-  const q = query.trim().toLowerCase()
-  if (!q) return true
+const searchableTextCache = new WeakMap<Knife, string>()
+
+export function getKnifeSearchableText(knife: Knife): string {
+  const cachedText = searchableTextCache.get(knife)
+  if (cachedText) return cachedText
 
   const searchableValues = [
     knife.brand,
@@ -68,7 +70,16 @@ export function matchesKnifeSearch(knife: Knife, query: string): boolean {
     ...Object.values(knife.customFields),
   ]
 
-  return searchableValues.some((value) => value?.toLowerCase().includes(q))
+  const searchableText = searchableValues.join('\0').toLowerCase()
+  searchableTextCache.set(knife, searchableText)
+  return searchableText
+}
+
+export function matchesKnifeSearch(knife: Knife, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+
+  return getKnifeSearchableText(knife).includes(q)
 }
 
 export function prioritizePinnedKnives(
