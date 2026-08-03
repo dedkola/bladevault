@@ -1,6 +1,5 @@
-import type { LucideIcon } from 'lucide-react'
 import { ChevronRightIcon } from 'lucide-react'
-import { Fragment } from 'react'
+import { Fragment, type ElementType } from 'react'
 import Link from 'next/link'
 
 import {
@@ -16,12 +15,12 @@ export type BreadcrumbSegment =
   | {
       label: string
       href: string
-      icon: LucideIcon
+      icon: ElementType<{ className?: string }>
       current?: false
     }
   | {
       label: string
-      icon: LucideIcon
+      icon: ElementType<{ className?: string }>
       current: true
       href?: never
     }

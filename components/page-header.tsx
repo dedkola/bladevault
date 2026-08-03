@@ -1,4 +1,5 @@
-import { FileTextIcon, FolderIcon, HomeIcon } from 'lucide-react'
+import { FolderIcon, HomeIcon } from 'lucide-react'
+import { PiKnife } from 'react-icons/pi'
 import Breadcrumb3, {
   type BreadcrumbSegment,
 } from '@/components/ui/breadcrumb-3'
@@ -25,7 +26,7 @@ export function PageHeader({
     const isLast = index === breadcrumbs.length - 1
 
     if (isLast || !item.href) {
-      return { label: item.label, icon: FileTextIcon, current: true }
+      return { label: item.label, icon: PiKnife, current: true }
     }
 
     return { label: item.label, href: item.href, icon: FolderIcon }
