@@ -568,9 +568,10 @@ export default function ComparePage() {
                       )}
                       <div className="flex items-center gap-2">
                         <button
+                          type="button"
                           onClick={() => handleRemove(knife.id)}
-                          className="text-[var(--bladevault-local)] transition-colors hover:text-destructive"
-                          aria-label="Remove from compare"
+                          className="rounded-sm text-[var(--bladevault-local)] transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                          aria-label={`Remove ${knife.brand} ${knife.name} from compare`}
                           title="Remove"
                         >
                           <X className="h-4 w-4" />
@@ -661,9 +662,10 @@ export default function ComparePage() {
                                   </div>
                                 )}
                                 <button
+                                  type="button"
                                   onClick={() => handleRemove(knife.id)}
-                                  className="absolute right-1.5 top-1.5 z-10 rounded-full bg-background/90 p-0.5 text-red-500 opacity-0 transition-opacity group-hover/image:opacity-100 hover:text-red-600"
-                                  aria-label="Remove from compare"
+                                  className="absolute right-1.5 top-1.5 z-10 rounded-full bg-background/90 p-0.5 text-red-500 opacity-0 transition-opacity group-hover/image:opacity-100 hover:text-red-600 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                                  aria-label={`Remove ${knife.brand} ${knife.name} from compare`}
                                   title="Remove"
                                 >
                                   <X className="h-4 w-4" />
