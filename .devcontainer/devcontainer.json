@@ -3,11 +3,12 @@
   "image": "mcr.microsoft.com/playwright:v1.61.1-noble",
   "workspaceFolder": "/workspaces/bladevault",
   "containerEnv": {
-    "BLADEVAULT_DATA_DIR": "/workspaces/bladevault/data",
+    "BLADEVAULT_DATA_DIR": "/root/BladeVault/data",
     "PLAYWRIGHT_BROWSERS_PATH": "/ms-playwright"
   },
   "mounts": [
-    "source=bladevault-node-modules,target=/workspaces/bladevault/node_modules,type=volume"
+    "source=bladevault-node-modules,target=/workspaces/bladevault/node_modules,type=volume",
+    "source=bladevault-dev-data,target=/root/BladeVault/data,type=volume"
   ],
   "onCreateCommand": "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential && rm -rf /var/lib/apt/lists/*",
   "postCreateCommand": "npm ci",
