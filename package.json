@@ -98,7 +98,7 @@
     "fsevents@2.3.3": true,
     "core-js@3.49.0": true,
     "electron-winstaller@5.4.0": true,
-    "better-sqlite3@13.0.1": true,
-    "esbuild@0.28.1": true
+    "esbuild@0.28.1": true,
+    "better-sqlite3@13.0.2": true
   }
 }
