@@ -16,11 +16,11 @@ import type { BulkEditFieldKey } from '@/lib/bulk-edit'
 import { CLOUD_AUTH_STATE_EVENT, getCloudAuthState } from '@/lib/cloud-backup'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
 import {
+  type CardField,
+  type CustomField,
   DEFAULT_SETTINGS,
   normalizeCardFields,
   SETTINGS_UPDATED_EVENT,
-  type CardField,
-  type CustomField,
 } from '@/lib/settings-shared'
 import {
   canAttemptSilentCloudBackup,
@@ -410,11 +410,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       const hasBackupWorthyUpdate = Object.keys(updates).some(
         (field) => field !== 'pinned',
       )
-      if (
-        hasBackupWorthyUpdate &&
-        isCloudSyncEnabled &&
-        isAutoBackupEnabled
-      ) {
+      if (hasBackupWorthyUpdate && isCloudSyncEnabled && isAutoBackupEnabled) {
         scheduleAutoBackup('mutation')
       }
       return knife
