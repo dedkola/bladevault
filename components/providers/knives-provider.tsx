@@ -41,6 +41,7 @@ type KnivesContextValue = {
   isLoading: boolean
   compareIds: string[]
   addToCompare: (id: string) => Promise<void>
+  addManyToCompare: (ids: string[]) => Promise<void>
   removeFromCompare: (id: string) => Promise<void>
   clearCompare: () => Promise<void>
   isCloudSyncEnabled: boolean
@@ -493,6 +494,24 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  const addManyToCompare = useCallback(async (ids: string[]): Promise<void> => {
+    const response = await fetch('/api/compare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
+
+    if (!response.ok) {
+      const data = await response.json()
+      throw new Error(data.error ?? 'Failed to add knives to compare')
+    }
+
+    const data = await response.json()
+    if (Array.isArray(data.compareIds)) {
+      setCompareIds(data.compareIds)
+    }
+  }, [])
+
   const removeFromCompare = useCallback(async (id: string): Promise<void> => {
     const response = await fetch('/api/compare', {
       method: 'DELETE',
@@ -538,6 +557,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       isLoading,
       compareIds,
       addToCompare,
+      addManyToCompare,
       removeFromCompare,
       clearCompare,
       isCloudSyncEnabled,
@@ -558,6 +578,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       isLoading,
       compareIds,
       addToCompare,
+      addManyToCompare,
       removeFromCompare,
       clearCompare,
       isCloudSyncEnabled,

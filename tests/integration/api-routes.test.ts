@@ -142,5 +142,17 @@ describe('knife API routes', () => {
       ((await (await compareRoute.GET()).json()) as { compareIds: string[] })
         .compareIds,
     ).toEqual(['first'])
+
+    await compareRoute.DELETE(
+      jsonRequest('http://localhost/api/compare', 'DELETE', {}),
+    )
+    const bulkCompare = await compareRoute.POST(
+      jsonRequest('http://localhost/api/compare', 'POST', {
+        ids: ['first', 'second', 'first'],
+      }),
+    )
+    expect(
+      ((await bulkCompare.json()) as { compareIds: string[] }).compareIds,
+    ).toEqual(['first', 'second'])
   })
 })

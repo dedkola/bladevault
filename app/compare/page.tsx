@@ -10,19 +10,26 @@ import {
 } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArchiveX, FileDown, ImageIcon, Printer, X } from 'lucide-react'
+import {
+  ArchiveX,
+  FileDown,
+  ImageIcon,
+  ListPlus,
+  Printer,
+  X,
+} from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
 import { EmptyState } from '@/components/empty-state'
-import { getImageUrl, Knife, prioritizePinnedKnives } from '@/lib/data'
-import { useKnives } from '@/components/providers/knives-provider'
-import { cn } from '@/lib/utils'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  getImageUrl,
+  Knife,
+  matchesKnifeSearch,
+  prioritizePinnedKnives,
+} from '@/lib/data'
+import { useKnives } from '@/components/providers/knives-provider'
+import { SearchField } from '@/components/search-field'
+import { useDebouncedValue } from '@/lib/use-debounced-value'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent } from '@/components/ui/card'
@@ -144,6 +151,18 @@ function getRowValue(knife: Knife, rowKey: CompareRowKey): string {
   return knife[knifeKey] ?? '-'
 }
 
+function getSearchResultSummary(knife: Knife): string {
+  return [
+    knife.specs.modelNumber ? `Model ${knife.specs.modelNumber}` : '',
+    knife.specs.bladeMaterial,
+    knife.bladeStyle,
+    knife.handleMaterial,
+    knife.specs.country,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -252,17 +271,23 @@ export default function ComparePage() {
     knives,
     compareIds,
     addToCompare,
+    addManyToCompare,
     removeFromCompare,
     clearCompare,
     pinnedItemsFirst,
     customFieldDefinitions,
+    showFeedback,
   } = useKnives()
   const [hoveredCell, setHoveredCell] = useState<{
     knifeId: string
     rowKey: CompareRowKey
   } | null>(null)
   const [showDifferencesOnly, setShowDifferencesOnly] = useState(false)
+  const [query, setQuery] = useState('')
+  const [isBulkAdding, setIsBulkAdding] = useState(false)
   const printFrameRef = useRef<HTMLIFrameElement | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const debouncedQuery = useDebouncedValue(query, 200)
 
   const compareRows: { label: string; key: CompareRowKey }[] = useMemo(
     () => [
@@ -282,29 +307,101 @@ export default function ComparePage() {
     }
   }, [])
 
+  useEffect(() => {
+    const handleSearchShortcut = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      const isTyping =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target?.isContentEditable
+
+      if (event.key === '/' && !isTyping) {
+        event.preventDefault()
+        searchInputRef.current?.focus()
+        return
+      }
+
+      if (
+        event.key === 'Escape' &&
+        document.activeElement === searchInputRef.current &&
+        query
+      ) {
+        event.preventDefault()
+        setQuery('')
+      }
+    }
+
+    window.addEventListener('keydown', handleSearchShortcut)
+    return () => window.removeEventListener('keydown', handleSearchShortcut)
+  }, [query])
+
   const comparedKnives = prioritizePinnedKnives(
     compareIds
       .map((id) => knives.find((k) => k.id === id))
       .filter((k): k is Knife => Boolean(k)),
     pinnedItemsFirst,
   )
-  const availableKnives = knives
-    .filter((knife) => !compareIds.includes(knife.id))
-    .sort((left, right) => {
-      if (pinnedItemsFirst && left.pinned !== right.pinned) {
-        return left.pinned ? -1 : 1
-      }
+  const availableKnives = useMemo(
+    () =>
+      knives
+        .filter((knife) => !compareIds.includes(knife.id))
+        .sort((left, right) => {
+          if (pinnedItemsFirst && left.pinned !== right.pinned) {
+            return left.pinned ? -1 : 1
+          }
 
-      return (
-        left.brand.localeCompare(right.brand) ||
-        left.name.localeCompare(right.name)
-      )
-    })
+          return (
+            left.brand.localeCompare(right.brand) ||
+            left.name.localeCompare(right.name)
+          )
+        }),
+    [compareIds, knives, pinnedItemsFirst],
+  )
+  const filteredAvailableKnives = useMemo(() => {
+    if (!debouncedQuery.trim()) return []
 
-  const handleSelect = (id: string) => {
+    return availableKnives.filter((knife) =>
+      matchesKnifeSearch(knife, debouncedQuery),
+    )
+  }, [availableKnives, debouncedQuery])
+  const hasSearchQuery = query.trim().length > 0
+  const isSearchPending = query.trim() !== debouncedQuery.trim()
+
+  const handleSelect = async (id: string) => {
     if (!id) return
     if (compareIds.includes(id)) return
-    addToCompare(id)
+    try {
+      await addToCompare(id)
+      showFeedback('Added to compare')
+    } catch (error) {
+      showFeedback(
+        error instanceof Error ? error.message : 'Could not add to compare.',
+        'error',
+      )
+    }
+  }
+
+  const handleBulkAdd = async () => {
+    const ids = filteredAvailableKnives.map((knife) => knife.id)
+    if (ids.length === 0) return
+
+    try {
+      setIsBulkAdding(true)
+      await addManyToCompare(ids)
+      showFeedback(
+        `Added ${ids.length} ${ids.length === 1 ? 'knife' : 'knives'} to compare`,
+      )
+    } catch (error) {
+      showFeedback(
+        error instanceof Error
+          ? error.message
+          : 'Could not add matching knives to compare.',
+        'error',
+      )
+    } finally {
+      setIsBulkAdding(false)
+    }
   }
 
   const handleRemove = (id: string) => {
@@ -316,7 +413,6 @@ export default function ComparePage() {
   }
 
   const hasComparedKnives = comparedKnives.length > 0
-  const showAddSlot = availableKnives.length > 0
   const visibleCompareRows = useMemo(() => {
     if (!showDifferencesOnly) return compareRows
 
@@ -520,65 +616,151 @@ export default function ComparePage() {
                 </div>
               </div>
 
-              <HorizontalScrollArea
-                label="Compare lineup"
-                viewportClassName="overflow-x-auto rounded-lg"
-              >
-                <div className="flex min-w-max items-center rounded-lg border border-[var(--bladevault-line)]/70 bg-[color:var(--bladevault-surface-soft)]/45 px-3 py-2">
-                  {showAddSlot && (
-                    <div className="flex items-center">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--bladevault-title)]">
-                          Add knife
+              {availableKnives.length > 0 && (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <SearchField
+                    value={query}
+                    onChange={setQuery}
+                    placeholder="Search names, specs, materials…"
+                    className="mx-0 max-w-none sm:max-w-sm sm:flex-1"
+                    inputRef={searchInputRef}
+                    shortcutHint="/"
+                  />
+                  {hasSearchQuery && (
+                    <div
+                      className="flex items-center gap-2 sm:ml-auto"
+                      aria-live="polite"
+                    >
+                      {isSearchPending ? (
+                        <span className="text-xs text-muted-foreground">
+                          Searching…
                         </span>
-                        <Select
-                          value=""
-                          onValueChange={(value) => handleSelect(value ?? '')}
-                        >
-                          <SelectTrigger className="w-48" size="sm">
-                            <SelectValue placeholder="Select a knife" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableKnives.map((knife) => (
-                              <SelectItem key={knife.id} value={knife.id}>
-                                {knife.brand} {knife.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      ) : (
+                        <>
+                          <span className="text-xs tabular-nums text-muted-foreground">
+                            {filteredAvailableKnives.length}{' '}
+                            {filteredAvailableKnives.length === 1
+                              ? 'match'
+                              : 'matches'}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              void handleBulkAdd()
+                            }}
+                            disabled={
+                              filteredAvailableKnives.length === 0 ||
+                              isBulkAdding
+                            }
+                          >
+                            <ListPlus className="mr-1.5 h-4 w-4" />
+                            {isBulkAdding
+                              ? 'Adding…'
+                              : `Add all ${filteredAvailableKnives.length}`}
+                          </Button>
+                        </>
+                      )}
                     </div>
                   )}
-                  {comparedKnives.map((knife, index) => (
-                    <div key={knife.id} className="flex items-center">
-                      {(showAddSlot || index > 0) && (
-                        <div className="mx-3 h-4 w-px bg-border" />
-                      )}
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleRemove(knife.id)}
-                          className="rounded-sm text-[var(--bladevault-local)] transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-                          aria-label={`Remove ${knife.brand} ${knife.name} from compare`}
-                          title="Remove"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                        <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--bladevault-title)]">
-                          {knife.brand} {knife.name}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
                 </div>
-              </HorizontalScrollArea>
+              )}
+
+              {availableKnives.length > 0 && hasSearchQuery && (
+                <div
+                  className="overflow-hidden rounded-lg border border-[var(--bladevault-line)]/70 bg-[color:var(--bladevault-surface-soft)]/30"
+                  role="region"
+                  aria-label="Available knife search results"
+                >
+                  <div className="border-b border-[var(--bladevault-line)]/60 px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)]">
+                    Search results
+                  </div>
+                  {isSearchPending ? (
+                    <div className="px-3 py-5 text-center text-sm text-muted-foreground">
+                      Searching…
+                    </div>
+                  ) : filteredAvailableKnives.length > 0 ? (
+                    <ul className="max-h-56 divide-y divide-[var(--bladevault-line)]/50 overflow-y-auto">
+                      {filteredAvailableKnives.map((knife) => {
+                        const summary = getSearchResultSummary(knife)
+
+                        return (
+                          <li
+                            key={knife.id}
+                            className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-[color:var(--bladevault-surface-hover)]/45"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-sm font-medium text-foreground">
+                                {knife.brand} {knife.name}
+                              </div>
+                              {summary && (
+                                <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                                  {summary}
+                                </div>
+                              )}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="xs"
+                              onClick={() => {
+                                void handleSelect(knife.id)
+                              }}
+                              disabled={isBulkAdding}
+                              aria-label={`Add ${knife.brand} ${knife.name} to compare`}
+                            >
+                              Add
+                            </Button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  ) : (
+                    <div className="px-3 py-5 text-center text-sm text-muted-foreground">
+                      No available knives match “{query.trim()}”.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {comparedKnives.length > 0 && (
+                <HorizontalScrollArea
+                  label="Compare lineup"
+                  viewportClassName="overflow-x-auto rounded-lg"
+                >
+                  <div className="flex min-w-max items-center rounded-lg border border-[var(--bladevault-line)]/70 bg-[color:var(--bladevault-surface-soft)]/45 px-3 py-2">
+                    {comparedKnives.map((knife, index) => (
+                      <div key={knife.id} className="flex items-center">
+                        {index > 0 && (
+                          <div className="mx-3 h-4 w-px bg-border" />
+                        )}
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleRemove(knife.id)}
+                            className="rounded-sm text-[var(--bladevault-local)] transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                            aria-label={`Remove ${knife.brand} ${knife.name} from compare`}
+                            title="Remove"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                          <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--bladevault-title)]">
+                            {knife.brand} {knife.name}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </HorizontalScrollArea>
+              )}
             </CardContent>
           </Card>
 
           {comparedKnives.length === 0 ? (
             <EmptyState
               title="Select knives to compare"
-              description="Choose one or more knives from the selector above or add them from your collection."
+              description="Search above to find knives or add them from your collection."
               icon={<ArchiveX className="h-8 w-8" />}
               action={
                 <Button
