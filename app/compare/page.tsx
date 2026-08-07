@@ -47,22 +47,17 @@ function HorizontalScrollArea({
   viewportClassName?: string
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
-  const [overflow, setOverflow] = useState({ left: false, right: false })
+  const [hasRightOverflow, setHasRightOverflow] = useState(false)
 
   const updateOverflow = useCallback(() => {
     const viewport = viewportRef.current
     if (!viewport) return
 
-    const next = {
-      left: viewport.scrollLeft > 1,
-      right:
-        viewport.scrollLeft + viewport.clientWidth < viewport.scrollWidth - 1,
-    }
+    const nextHasRightOverflow =
+      viewport.scrollLeft + viewport.clientWidth < viewport.scrollWidth - 1
 
-    setOverflow((current) =>
-      current.left === next.left && current.right === next.right
-        ? current
-        : next,
+    setHasRightOverflow((current) =>
+      current === nextHasRightOverflow ? current : nextHasRightOverflow,
     )
   }, [])
 
@@ -106,15 +101,8 @@ function HorizontalScrollArea({
       <div
         aria-hidden="true"
         className={cn(
-          'pointer-events-none absolute inset-y-0 left-0 z-40 w-8 bg-gradient-to-r from-background to-transparent opacity-0 transition-opacity',
-          overflow.left && 'opacity-100',
-        )}
-      />
-      <div
-        aria-hidden="true"
-        className={cn(
           'pointer-events-none absolute inset-y-0 right-0 z-40 w-8 bg-gradient-to-l from-background to-transparent opacity-0 transition-opacity',
-          overflow.right && 'opacity-100',
+          hasRightOverflow && 'opacity-100',
         )}
       />
     </div>
