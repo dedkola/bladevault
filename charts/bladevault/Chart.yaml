@@ -2,8 +2,9 @@ apiVersion: v2
 name: bladevault
 description: A Helm chart for the BladeVault local-first knife collection manager
 type: application
-version: 0.1.1
-appVersion: '0.2.41'
+# Tagged releases override both fields from package.json while packaging.
+version: 0.2.46
+appVersion: '0.2.46'
 home: https://www.bladevault.pro
 icon: https://raw.githubusercontent.com/dedkola/bladevault/main/public/logo.png
 keywords:

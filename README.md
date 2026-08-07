@@ -157,23 +157,24 @@ kubectl get service bladevault --namespace bladevault
 If the repository was already added, run `helm repo update bladevault` before
 installing.
 
-### Update to the latest BladeVault image
+### Update BladeVault
 
-After the GitHub **Build & Push Docker Image** workflow completes, recreate the
-pod so Kubernetes pulls the newly published `latest` image:
-
-```bash
-kubectl rollout restart deployment/bladevault --namespace bladevault
-kubectl rollout status deployment/bladevault --namespace bladevault
-```
-
-`helm repo update` only refreshes the available chart list; it does not restart
-the application or pull a new container image. If a new chart version is also
-available, update both the chart and image:
+Each BladeVault release publishes a matching Helm chart and immutable container
+image. After the GitHub **Build & Push Docker Image** and **Publish Helm
+Repository** workflows complete, refresh the repository and upgrade the release:
 
 ```bash
 helm repo update bladevault
-helm upgrade bladevault bladevault/bladevault --namespace bladevault
+helm upgrade bladevault bladevault/bladevault --namespace bladevault --wait
+```
+
+The chart version, displayed app version, and default image tag match the
+BladeVault release. For example, chart `0.2.46` installs image `v0.2.46`.
+
+If you explicitly override `image.tag=latest`, recreate the pod after a new
+image is published because the mutable tag does not change the Deployment:
+
+```bash
 kubectl rollout restart deployment/bladevault --namespace bladevault
 kubectl rollout status deployment/bladevault --namespace bladevault
 ```

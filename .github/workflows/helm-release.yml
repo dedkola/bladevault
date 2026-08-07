@@ -1,28 +1,29 @@
 name: Publish Helm Repository
 
 on:
-  push:
-    branches:
-      - main
+  pull_request:
     paths:
       - 'charts/**'
       - '.github/workflows/helm-release.yml'
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+    paths:
+      - 'charts/**'
+      - '.github/workflows/helm-release.yml'
+  workflow_dispatch:
 
 permissions:
-  contents: write
-
-concurrency:
-  group: helm-pages
-  cancel-in-progress: false
+  contents: read
 
 jobs:
-  publish:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       - name: Install Helm
         uses: azure/setup-helm@v5
@@ -34,21 +35,65 @@ jobs:
           helm lint charts/bladevault
           helm template bladevault charts/bladevault --namespace bladevault >/dev/null
 
+  publish:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: helm-pages
+      cancel-in-progress: false
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: v3.17.0
+
       - name: Package chart
         id: chart
         run: |
           set -euo pipefail
 
+          release_version=$(node -p "require('./package.json').version")
+          if [[ -z "$release_version" ]]; then
+            echo "::error::Failed to read version from package.json"
+            exit 1
+          fi
+
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            expected_tag="v${release_version}"
+            if [[ "$GITHUB_REF_NAME" != "$expected_tag" ]]; then
+              echo "::error title=Tag/version mismatch::Tag '$GITHUB_REF_NAME' does not match package.json version '$release_version'. Expected '$expected_tag'."
+              exit 1
+            fi
+          fi
+
           chart_name=$(helm show chart charts/bladevault | awk '$1 == "name:" { print $2 }')
-          chart_version=$(helm show chart charts/bladevault | awk '$1 == "version:" { print $2 }')
-          package_name="${chart_name}-${chart_version}.tgz"
+          package_name="${chart_name}-${release_version}.tgz"
 
           mkdir -p .helm-packages
-          helm package charts/bladevault --destination .helm-packages
+          helm package charts/bladevault \
+            --version "$release_version" \
+            --app-version "$release_version" \
+            --destination .helm-packages
           test -f ".helm-packages/${package_name}"
 
+          packaged_chart=".helm-packages/${package_name}"
+          test "$(helm show chart "$packaged_chart" | awk '$1 == "version:" { print $2 }')" = "$release_version"
+          test "$(helm show chart "$packaged_chart" | awk '$1 == "appVersion:" { print $2 }')" = "$release_version"
+          helm lint "$packaged_chart"
+          expected_image="image: \"ghcr.io/dedkola/bladevault:v${release_version}\""
+          helm template bladevault "$packaged_chart" --namespace bladevault \
+            | grep -F "$expected_image"
+
           echo "name=${chart_name}" >> "$GITHUB_OUTPUT"
-          echo "version=${chart_version}" >> "$GITHUB_OUTPUT"
+          echo "version=${release_version}" >> "$GITHUB_OUTPUT"
           echo "package=${package_name}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout Helm repository
@@ -76,7 +121,7 @@ jobs:
             tar -xzf "$target_package" -C "$comparison_dir/published"
 
             if ! diff -qr "$comparison_dir/source" "$comparison_dir/published"; then
-              echo "::error::${PACKAGE_NAME} already exists with different contents. Bump charts/bladevault/Chart.yaml version."
+              echo "::error::${PACKAGE_NAME} is already published with different contents. Release chart versions are immutable."
               exit 1
             fi
 

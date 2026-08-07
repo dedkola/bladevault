@@ -9,7 +9,8 @@ strategy:
 
 image:
   repository: ghcr.io/dedkola/bladevault
-  tag: 'latest'
+  # Empty defaults to the immutable v<chart appVersion> release image.
+  tag: ''
   pullPolicy: Always
 
 # The default GHCR image is public.

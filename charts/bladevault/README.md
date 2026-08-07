@@ -15,7 +15,8 @@ helm install bladevault bladevault/bladevault \
 
 The default installation:
 
-- pulls the public multi-platform `ghcr.io/dedkola/bladevault:latest` image;
+- pulls the public multi-platform image matching the chart's app version, such
+  as `ghcr.io/dedkola/bladevault:v0.2.46`;
 - creates a 5 GiB `ReadWriteOnce` PVC at `/app/data` using the default
   StorageClass;
 - uses one replica and the `Recreate` strategy for SQLite safety; and
@@ -49,38 +50,30 @@ helm install bladevault bladevault/bladevault \
   --set 'ingress.hosts[0].paths[0].servicePort=80'
 ```
 
-## Update to the latest BladeVault image
+## Update BladeVault
 
-After publishing a new BladeVault release, wait for the GitHub **Build & Push
-Docker Image** workflow to complete. Then recreate the pod so Kubernetes pulls
-the newly published `latest` image:
-
-```bash
-kubectl rollout restart deployment/bladevault --namespace bladevault
-kubectl rollout status deployment/bladevault --namespace bladevault
-```
-
-`helm repo update` only refreshes the available chart list. It does not restart
-the application or pull a new container image.
-
-## Update the chart and image
-
-When a new Helm chart version is also available:
+Each BladeVault release publishes a matching Helm chart and immutable container
+image. After the GitHub **Build & Push Docker Image** and **Publish Helm
+Repository** workflows complete, refresh the repository and upgrade the release:
 
 ```bash
 helm repo update bladevault
-helm upgrade bladevault bladevault/bladevault --namespace bladevault
-kubectl rollout restart deployment/bladevault --namespace bladevault
-kubectl rollout status deployment/bladevault --namespace bladevault
+helm upgrade bladevault bladevault/bladevault --namespace bladevault --wait
 ```
 
-For reproducible production deployments, update to an immutable release tag
-instead. Changing the tag automatically rolls out a new pod:
+The chart version, displayed app version, and default image tag match the
+BladeVault release. For example, chart `0.2.46` installs image `v0.2.46`.
+
+To opt into the mutable `latest` image instead, set it explicitly. Recreate the
+pod after future image publications because the tag itself does not change:
 
 ```bash
 helm upgrade bladevault bladevault/bladevault \
   --namespace bladevault \
-  --set image.tag=v0.2.41
+  --set image.tag=latest
+
+kubectl rollout restart deployment/bladevault --namespace bladevault
+kubectl rollout status deployment/bladevault --namespace bladevault
 ```
 
 ## Remove BladeVault
