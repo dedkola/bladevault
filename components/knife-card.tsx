@@ -207,7 +207,7 @@ export const KnifeCard = memo(function KnifeCard({
           inCompare && activeKnifeFloatingClassName,
         )}
         style={inCompare ? activeKnifeActionStyle : undefined}
-        aria-label={inCompare ? 'Remove from compare' : 'Add to compare'}
+        aria-label={`${inCompare ? 'Remove' : 'Add'} ${knife.brand} ${knife.name} ${inCompare ? 'from' : 'to'} compare`}
         title={inCompare ? 'Remove from compare' : 'Add to compare'}
       >
         <Scale className="h-3 w-3" />
@@ -222,7 +222,7 @@ export const KnifeCard = memo(function KnifeCard({
           pinned && activeKnifeFloatingClassName,
         )}
         style={pinned ? activeKnifeActionStyle : undefined}
-        aria-label={pinned ? 'Unpin knife' : 'Pin knife'}
+        aria-label={`${pinned ? 'Unpin' : 'Pin'} ${knife.brand} ${knife.name}`}
         title={pinned ? 'Unpin' : 'Pin'}
       >
         <BookmarkIcon active={pinned} />
