@@ -1,5 +1,6 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -7,10 +8,23 @@ import { PageHeader } from '@/components/page-header'
 import { EmptyState } from '@/components/empty-state'
 import { KnifeCard } from '@/components/knife-card'
 import { SearchField } from '@/components/search-field'
-import { CollectionPulse } from '@/components/collection-pulse'
 import { useKnives } from '@/components/providers/knives-provider'
 import { matchesKnifeSearch, prioritizePinnedKnives } from '@/lib/data'
 import { useDebouncedValue } from '@/lib/use-debounced-value'
+
+const CollectionPulse = dynamic(
+  () =>
+    import('@/components/collection-pulse').then((mod) => mod.CollectionPulse),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        aria-hidden="true"
+        className="min-h-[18rem] animate-pulse rounded-xl bg-card ring-1 ring-foreground/10"
+      />
+    ),
+  },
+)
 
 const RECENTLY_ADDED_LIMIT = 12
 
