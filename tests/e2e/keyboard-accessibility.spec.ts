@@ -5,6 +5,28 @@ test.beforeEach(async ({ request }) => {
   await resetVault(request)
 })
 
+test('matches collection search against model names only', async ({
+  page,
+  request,
+}) => {
+  await seedKnife(request, {
+    name: 'Porcupine',
+    brand: 'Forest',
+    description: 'Raccoon-inspired design',
+  })
+  await seedKnife(request, {
+    name: 'Raccoon',
+    brand: 'Forest',
+  })
+  await page.goto('/collection')
+
+  const search = page.getByPlaceholder('Search model name…')
+  await search.fill('raccoon')
+
+  await expect(page.getByTitle('Forest Raccoon')).toBeVisible()
+  await expect(page.getByTitle('Forest Porcupine')).not.toBeVisible()
+})
+
 test('supports collection search and filter keyboard focus', async ({
   page,
   request,
@@ -16,10 +38,10 @@ test('supports collection search and filter keyboard focus', async ({
   await page.getByRole('button', { name: 'Select' }).click()
   await page.getByRole('button', { name: 'Cancel selection' }).click()
   await page.keyboard.press('/')
-  const search = page.getByPlaceholder('Search names, specs, materials…')
+  const search = page.getByPlaceholder('Search model name…')
   await expect(search).toBeFocused()
-  await search.fill('s30v')
-  await expect(page).toHaveURL(/q=s30v/)
+  await search.fill('bugout')
+  await expect(page).toHaveURL(/q=bugout/)
   await page.keyboard.press('Escape')
   await expect(search).toHaveValue('')
   await expect(page).not.toHaveURL(/q=/)

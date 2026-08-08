@@ -447,7 +447,7 @@ function CollectionContent() {
           <SearchField
             value={query}
             onChange={setQuery}
-            placeholder="Search names, specs, materials…"
+            placeholder="Search model name…"
             className="mx-0 max-w-none sm:max-w-sm sm:flex-1"
             inputRef={searchInputRef}
             shortcutHint="/"

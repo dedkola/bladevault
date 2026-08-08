@@ -17,7 +17,7 @@ type SearchFieldProps = {
 export function SearchField({
   value,
   onChange,
-  placeholder = 'Search brand or model…',
+  placeholder = 'Search model name…',
   className,
   inputRef,
   shortcutHint,
