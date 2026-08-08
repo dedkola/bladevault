@@ -54,25 +54,8 @@ export function getImageUrl(path: string): string {
   return `/api/images/${path}`
 }
 
-const searchableTextCache = new WeakMap<Knife, string>()
-
 export function getKnifeSearchableText(knife: Knife): string {
-  const cachedText = searchableTextCache.get(knife)
-  if (cachedText) return cachedText
-
-  const searchableValues = [
-    knife.brand,
-    knife.name,
-    knife.bladeStyle,
-    knife.handleMaterial,
-    knife.description,
-    ...Object.values(knife.specs),
-    ...Object.values(knife.customFields),
-  ]
-
-  const searchableText = searchableValues.join('\0').toLowerCase()
-  searchableTextCache.set(knife, searchableText)
-  return searchableText
+  return knife.name.toLowerCase()
 }
 
 export function matchesKnifeSearch(knife: Knife, query: string): boolean {
