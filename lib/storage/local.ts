@@ -627,7 +627,10 @@ export class LocalStorage implements Storage {
       throw new Error('Invalid image path')
     }
 
-    const buffer = await fs.readFile(resolved)
+    const [buffer, stat] = await Promise.all([
+      fs.readFile(resolved),
+      fs.stat(resolved),
+    ])
     const ext = path.extname(resolved).toLowerCase()
     const contentType =
       {
@@ -640,6 +643,9 @@ export class LocalStorage implements Storage {
         '.svg': 'image/svg+xml',
       }[ext] ?? 'application/octet-stream'
 
-    return { buffer, contentType }
+    const etag = `"${stat.mtimeMs.toString(36)}-${stat.size.toString(36)}"`
+    const lastModified = stat.mtime.toUTCString()
+
+    return { buffer, contentType, etag, lastModified }
   }
 }

@@ -11,6 +11,8 @@ export type CreateKnifeInput = Omit<
 export interface ImageData {
   buffer: Buffer
   contentType: string
+  etag?: string
+  lastModified?: string
 }
 
 export interface Storage {
