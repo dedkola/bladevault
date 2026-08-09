@@ -412,9 +412,11 @@ function CollectionContent() {
 
   useEffect(() => {
     const handleScroll = () => {
-      setShowBackToTop(window.scrollY > 400)
+      const shouldShow = window.scrollY > 400
+      setShowBackToTop((prev) => (prev !== shouldShow ? shouldShow : prev))
     }
 
+    handleScroll()
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
@@ -707,7 +709,7 @@ function CollectionContent() {
         <Button
           type="button"
           size="icon"
-          className="fixed right-4 bottom-4 z-40 rounded-full shadow-lg"
+          className="fixed right-4 bottom-20 z-40 rounded-full shadow-lg"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           aria-label="Back to top"
         >
