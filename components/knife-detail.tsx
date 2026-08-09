@@ -22,6 +22,14 @@ import { PageHeader } from '@/components/page-header'
 import { Gallery } from '@/components/gallery'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import {
   activeKnifeActionStyle,
@@ -212,17 +220,17 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
     }
   }
 
-  const handleDelete = async () => {
-    const confirmed = window.confirm(
-      'Are you sure you want to delete this knife? This action cannot be undone.',
-    )
-    if (!confirmed) return
+  const confirmDelete = () => {
+    setDeleteDialogOpen(true)
+  }
 
+  const handleDelete = async () => {
     setIsDeleting(true)
     setError(null)
 
     try {
       await deleteKnife(knife.id)
+      setDeleteDialogOpen(false)
       router.push('/collection')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete knife')
@@ -380,7 +388,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleDelete}
+              onClick={confirmDelete}
               disabled={isDeleting}
               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
             >
@@ -487,6 +495,39 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
           </Card>
         </div>
       </div>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Delete Knife</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{knife.name}</strong>?
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
