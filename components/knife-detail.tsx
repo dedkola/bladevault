@@ -10,6 +10,7 @@ import {
   AlertCircle,
   ExternalLink,
   Scale,
+  Clipboard,
 } from 'lucide-react'
 import { BookmarkIcon } from '@/components/bookmark-icon'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -85,6 +86,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
     compareIds,
     addToCompare,
     removeFromCompare,
+    showFeedback,
   } = useKnives()
 
   const knife = knives.find((k) => k.id === initialKnife.id) ?? initialKnife
@@ -326,6 +328,29 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
     }))
     .filter(Boolean)
 
+  const handleCopyDetails = async () => {
+    const lines = [
+      `${knife.brand} ${knife.name}`,
+      '',
+      ...identityRows.map(({ label, value }) => `${label}: ${value}`),
+      '',
+      ...dimensionRows.map(({ label, value }) => `${label}: ${value}`),
+      '',
+      ...constructionRows.map(({ label, value }) => `${label}: ${value}`),
+      ...(customFieldRows.length > 0
+        ? ['', ...customFieldRows.map(({ label, value }) => `${label}: ${value}`)]
+        : []),
+    ]
+    const text = lines.join('\n')
+
+    try {
+      await navigator.clipboard.writeText(text)
+      showFeedback('Knife details copied to clipboard')
+    } catch {
+      showFeedback('Could not copy details', 'error')
+    }
+  }
+
   return (
     <div className="flex-1 p-6 lg:p-8 w-full max-w-7xl 2xl:max-w-[100rem] mx-auto">
       <PageHeader
@@ -376,6 +401,14 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
             >
               <Pencil className="h-3.5 w-3.5" />
               Edit
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopyDetails}
+            >
+              <Clipboard className="h-3.5 w-3.5" />
+              Copy
             </Button>
             <Button
               variant="outline"
