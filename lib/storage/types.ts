@@ -13,6 +13,11 @@ export interface ImageData {
   contentType: string
 }
 
+export interface ImageStream {
+  stream: ReadableStream<Uint8Array>
+  contentType: string
+}
+
 export interface Storage {
   getAllKnives(): Promise<Knife[]>
   getKnifeById(id: string): Promise<Knife | undefined>
@@ -21,6 +26,7 @@ export interface Storage {
   bulkUpdateKnives(ids: string[], updates: KnifeUpdates): Promise<Knife[]>
   deleteKnife(id: string): Promise<void>
   getImage(path: string): Promise<ImageData>
+  getImageStream?(path: string): Promise<ImageStream>
   init?(): Promise<void>
   getCompareList(): Promise<string[]>
   addToCompare(id: string): Promise<void>

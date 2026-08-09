@@ -1,10 +1,12 @@
 import fs from 'fs/promises'
+import { createReadStream } from 'fs'
 import path from 'path'
+import { Readable } from 'stream'
 import { Knife, KnifeUpdates } from '@/lib/data'
 import { normalizeKnifeTextFields } from '@/lib/knife-text'
 import { getLocalDb, getLocalImagesDirPath } from '@/lib/local-db'
 import { fetchExternalUrl, validateExternalUrl } from '@/lib/url-validation'
-import { CreateKnifeInput, ImageData, Storage } from './types'
+import { CreateKnifeInput, ImageData, ImageStream, Storage } from './types'
 
 function extensionFromMimeType(contentType: string): string {
   const type = contentType.split(';')[0].trim().toLowerCase()
@@ -641,5 +643,42 @@ export class LocalStorage implements Storage {
       }[ext] ?? 'application/octet-stream'
 
     return { buffer, contentType }
+  }
+
+  private resolveImagePath(relativePath: string): {
+    resolved: string
+    contentType: string
+  } {
+    const filePath = path.join(getImagesDir(), relativePath)
+    const resolved = path.resolve(filePath)
+    const base = path.resolve(getImagesDir())
+
+    if (resolved !== base && !resolved.startsWith(`${base}${path.sep}`)) {
+      throw new Error('Invalid image path')
+    }
+
+    const ext = path.extname(resolved).toLowerCase()
+    const contentType =
+      {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.webp': 'image/webp',
+        '.gif': 'image/gif',
+        '.avif': 'image/avif',
+        '.svg': 'image/svg+xml',
+      }[ext] ?? 'application/octet-stream'
+
+    return { resolved, contentType }
+  }
+
+  async getImageStream(relativePath: string): Promise<ImageStream> {
+    const { resolved, contentType } = this.resolveImagePath(relativePath)
+    const stream = createReadStream(resolved)
+
+    return {
+      stream: Readable.toWeb(stream) as ReadableStream<Uint8Array>,
+      contentType,
+    }
   }
 }
