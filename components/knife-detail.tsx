@@ -338,7 +338,10 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
       '',
       ...constructionRows.map(({ label, value }) => `${label}: ${value}`),
       ...(customFieldRows.length > 0
-        ? ['', ...customFieldRows.map(({ label, value }) => `${label}: ${value}`)]
+        ? [
+            '',
+            ...customFieldRows.map(({ label, value }) => `${label}: ${value}`),
+          ]
         : []),
     ]
     const text = lines.join('\n')
@@ -402,11 +405,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
               <Pencil className="h-3.5 w-3.5" />
               Edit
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCopyDetails}
-            >
+            <Button variant="outline" size="sm" onClick={handleCopyDetails}>
               <Clipboard className="h-3.5 w-3.5" />
               Copy
             </Button>
