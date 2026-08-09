@@ -209,7 +209,6 @@ function CollectionContent() {
     [replaceParams],
   )
 
-
   const filterDefinitions = useMemo(
     () => [
       ...builtInFilterDefinitions,
@@ -593,7 +592,11 @@ function CollectionContent() {
           )}
           {hasActiveFilters && (
             <span className="ml-auto text-xs text-muted-foreground hidden sm:inline">
-              Press <kbd className="rounded border bg-muted px-1 py-0.5 font-mono text-[10px]">Esc</kbd> to clear
+              Press{' '}
+              <kbd className="rounded border bg-muted px-1 py-0.5 font-mono text-[10px]">
+                Esc
+              </kbd>{' '}
+              to clear
             </span>
           )}
         </div>
