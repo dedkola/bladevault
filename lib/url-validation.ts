@@ -3,6 +3,7 @@ import { isIP } from 'net'
 
 const BLOCKED_HOST_PATTERNS = [/^localhost\.?$/i, /^\s*$/]
 const MAX_EXTERNAL_REDIRECTS = 5
+const DEFAULT_EXTERNAL_FETCH_TIMEOUT_MS = 30_000
 
 function isPrivateIp(host: string): boolean {
   const normalizedHost = host.replace(/^\[|\]$/g, '').toLowerCase()
@@ -109,19 +110,44 @@ export async function validateExternalUrl(
   return { ok: true, url: parsed }
 }
 
+function withTimeout(
+  init: RequestInit,
+  timeoutMs: number,
+): RequestInit {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+
+  const signal = init.signal
+    ? AbortSignal.any?.([init.signal, controller.signal])
+    : controller.signal
+
+  if (signal) {
+    signal.addEventListener?.('abort', () => clearTimeout(timeout), {
+      once: true,
+    })
+  }
+
+  return { ...init, signal }
+}
+
 export async function fetchExternalUrl(
   initialUrl: URL,
   init: RequestInit,
+  options?: { timeoutMs?: number },
 ): Promise<Response> {
   const initialValidation = await validateExternalUrl(initialUrl.href)
   if (!initialValidation.ok) {
     throw new Error(initialValidation.reason)
   }
 
+  const timeoutMs = options?.timeoutMs ?? DEFAULT_EXTERNAL_FETCH_TIMEOUT_MS
   let url = initialValidation.url
 
   for (let redirects = 0; redirects <= MAX_EXTERNAL_REDIRECTS; redirects += 1) {
-    const response = await fetch(url, { ...init, redirect: 'manual' })
+    const response = await fetch(
+      url,
+      withTimeout({ ...init, redirect: 'manual' }, timeoutMs),
+    )
     const location = response.headers.get('location')
     const isRedirect = response.status >= 300 && response.status < 400
 
