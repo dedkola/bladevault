@@ -296,9 +296,7 @@ export class LocalStorage implements Storage {
       ...existing,
       name: `${existing.name.trim()} Copy`,
     })
-    const newId = await this.ensureUniqueId(
-      generateId(normalizedExisting.name),
-    )
+    const newId = await this.ensureUniqueId(generateId(normalizedExisting.name))
     const addedAt = new Date().toISOString()
     const updatedAt = addedAt
 
