@@ -17,6 +17,7 @@ import {
   closeLocalDb,
   endLocalRestore,
   getLocalDataDirPath,
+  getLocalDb,
 } from '@/lib/local-db'
 
 function shouldIgnoreBackupEntry(name: string): boolean {
@@ -324,8 +325,10 @@ export async function GET() {
     const dataDir = getLocalDataDirPath()
     await fs.mkdir(dataDir, { recursive: true })
 
-    closeLocalDb()
-    clearStorageCache()
+    // Ensure the latest writes are in the main database file before
+    // archiving, without closing the connection and forcing the next
+    // request to reopen the database.
+    getLocalDb().pragma('wal_checkpoint(RESTART)')
 
     await createArchive(dataDir, archivePath)
     const buffer = await fs.readFile(archivePath)
