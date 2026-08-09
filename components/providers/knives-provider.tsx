@@ -609,48 +609,48 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
           aria-live="polite"
           className="pointer-events-none fixed bottom-4 right-4 z-50 flex max-w-sm flex-col gap-3"
         >
-        {feedback && (
-          <div
-            role={feedback.tone === 'error' ? 'alert' : 'status'}
-            className={
-              feedback.tone === 'error'
-                ? 'flex items-center gap-3 rounded-xl border border-destructive/40 bg-background/95 px-3 py-2.5 text-sm text-destructive shadow-md backdrop-blur'
-                : 'flex items-center gap-3 rounded-xl border border-[var(--bladevault-line)] bg-background/95 px-3 py-2.5 text-sm text-foreground shadow-md backdrop-blur'
-            }
-          >
+          {feedback && (
             <div
+              role={feedback.tone === 'error' ? 'alert' : 'status'}
               className={
                 feedback.tone === 'error'
-                  ? 'flex h-8 w-8 items-center justify-center rounded-lg bg-destructive/10 text-destructive'
-                  : 'flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bladevault-surface-soft)] text-[var(--bladevault-local)] dark:text-[var(--bladevault-gold)]'
+                  ? 'flex items-center gap-3 rounded-xl border border-destructive/40 bg-background/95 px-3 py-2.5 text-sm text-destructive shadow-md backdrop-blur'
+                  : 'flex items-center gap-3 rounded-xl border border-[var(--bladevault-line)] bg-background/95 px-3 py-2.5 text-sm text-foreground shadow-md backdrop-blur'
               }
             >
-              {feedback.tone === 'error' ? (
-                <AlertCircle className="h-4 w-4" />
-              ) : (
-                <CheckCircle2 className="h-4 w-4" />
-              )}
-            </div>
-            <span className="font-medium">{feedback.message}</span>
-          </div>
-        )}
-        {backupNotice && (
-          <div className="flex items-center gap-3 rounded-xl border border-[var(--bladevault-line)] bg-background/95 px-3 py-2.5 text-sm text-foreground shadow-md backdrop-blur">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bladevault-surface-soft)] text-[var(--bladevault-local)] dark:text-[var(--bladevault-gold)]">
-              <CheckCircle2 className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 font-medium">
-                <Cloud className="h-4 w-4 text-[var(--bladevault-local)] dark:text-[var(--bladevault-gold)]" />
-                <span>{backupNotice.message}</span>
+              <div
+                className={
+                  feedback.tone === 'error'
+                    ? 'flex h-8 w-8 items-center justify-center rounded-lg bg-destructive/10 text-destructive'
+                    : 'flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bladevault-surface-soft)] text-[var(--bladevault-local)] dark:text-[var(--bladevault-gold)]'
+                }
+              >
+                {feedback.tone === 'error' ? (
+                  <AlertCircle className="h-4 w-4" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4" />
+                )}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Your vault was synced in the background.
-              </p>
+              <span className="font-medium">{feedback.message}</span>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+          {backupNotice && (
+            <div className="flex items-center gap-3 rounded-xl border border-[var(--bladevault-line)] bg-background/95 px-3 py-2.5 text-sm text-foreground shadow-md backdrop-blur">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bladevault-surface-soft)] text-[var(--bladevault-local)] dark:text-[var(--bladevault-gold)]">
+                <CheckCircle2 className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 font-medium">
+                  <Cloud className="h-4 w-4 text-[var(--bladevault-local)] dark:text-[var(--bladevault-gold)]" />
+                  <span>{backupNotice.message}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Your vault was synced in the background.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
       </KnivesActionsContext.Provider>
     </KnivesDataContext.Provider>
   )
