@@ -274,41 +274,46 @@ function CollectionContent() {
     [searchParams, filterDefinitions],
   )
 
-  const optionsByFilter = useMemo(
-    () =>
-      Object.fromEntries(
-        filterDefinitions.map((definition) => {
-          const field = isCustomFilterKey(definition.key)
-            ? customFieldDefinitions.find(
-                (item) => item.id === customFilterKeyToFieldId(definition.key),
-              )
-            : undefined
-          const type = field?.type ?? 'text'
-          const rawValues = knives.map((knife) => definition.getValue(knife))
-          const hasMissingValue = rawValues.some(
-            (value) => !value || value.trim().length === 0,
-          )
-          const populatedValues = sortFilterOptions(
-            Array.from(
-              new Set(
-                rawValues.filter((value): value is string =>
-                  Boolean(value && value.trim().length > 0),
-                ),
-              ),
-            ),
-            type,
-          )
+  const optionsByFilter = useMemo(() => {
+    const populatedByKey = new Map<FilterKey, Set<string>>()
+    const hasMissingByKey = new Map<FilterKey, boolean>()
 
-          return [
-            definition.key,
-            hasMissingValue
-              ? [NOT_SET_FILTER_VALUE, ...populatedValues]
-              : populatedValues,
-          ]
-        }),
-      ) as Record<FilterKey, string[]>,
-    [knives, filterDefinitions, customFieldDefinitions],
-  )
+    for (const definition of filterDefinitions) {
+      populatedByKey.set(definition.key, new Set())
+      hasMissingByKey.set(definition.key, false)
+    }
+
+    for (const knife of knives) {
+      for (const definition of filterDefinitions) {
+        const value = definition.getValue(knife)
+        if (!value || value.trim().length === 0) {
+          hasMissingByKey.set(definition.key, true)
+          continue
+        }
+        populatedByKey.get(definition.key)?.add(value)
+      }
+    }
+
+    const result = {} as Record<FilterKey, string[]>
+    for (const definition of filterDefinitions) {
+      const field = isCustomFilterKey(definition.key)
+        ? customFieldDefinitions.find(
+            (item) => item.id === customFilterKeyToFieldId(definition.key),
+          )
+        : undefined
+      const type = field?.type ?? 'text'
+      const populated = sortFilterOptions(
+        Array.from(populatedByKey.get(definition.key) ?? []),
+        type,
+      )
+
+      result[definition.key] = hasMissingByKey.get(definition.key)
+        ? [NOT_SET_FILTER_VALUE, ...populated]
+        : populated
+    }
+
+    return result
+  }, [knives, filterDefinitions, customFieldDefinitions])
 
   const filteredKnives = useMemo(() => {
     const matches = knives.filter((knife) => {
