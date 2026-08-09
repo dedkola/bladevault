@@ -409,14 +409,10 @@ export class LocalStorage implements Storage {
     if (uniqueIds.length === 0) return []
 
     const database = getDb()
-    const selectStatement = database.prepare(
-      'SELECT * FROM knives WHERE id = ?',
-    )
-    const rows = uniqueIds
-      .map(
-        (id) => selectStatement.get(id) as Record<string, unknown> | undefined,
-      )
-      .filter((row): row is Record<string, unknown> => Boolean(row))
+    const placeholders = uniqueIds.map(() => '?').join(',')
+    const rows = database
+      .prepare(`SELECT * FROM knives WHERE id IN (${placeholders})`)
+      .all(...uniqueIds) as Record<string, unknown>[]
 
     if (rows.length !== uniqueIds.length) {
       throw new Error('One or more selected knives could not be found')
