@@ -602,30 +602,26 @@ export class LocalStorage implements Storage {
 
     for (const knife of knives) {
       const importedImages: string[] = (
-        await processInBatches(
-          knife.images,
-          5,
-          async (image, index) => {
-            if (image.startsWith('data:image')) {
-              try {
-                return await this.saveDataUrl(image, knife.id, index)
-              } catch {
-                // ignore broken embedded images during restore
-                return null
-              }
+        await processInBatches(knife.images, 5, async (image, index) => {
+          if (image.startsWith('data:image')) {
+            try {
+              return await this.saveDataUrl(image, knife.id, index)
+            } catch {
+              // ignore broken embedded images during restore
+              return null
             }
+          }
 
-            if (image.startsWith('http://') || image.startsWith('https://')) {
-              try {
-                return await this.downloadImage(image, knife.id, index)
-              } catch {
-                return image
-              }
+          if (image.startsWith('http://') || image.startsWith('https://')) {
+            try {
+              return await this.downloadImage(image, knife.id, index)
+            } catch {
+              return image
             }
+          }
 
-            return image
-          },
-        )
+          return image
+        })
       ).filter((relativePath): relativePath is string => relativePath !== null)
 
       await this.migrateKnife(knife, importedImages)
