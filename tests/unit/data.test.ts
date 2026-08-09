@@ -8,27 +8,31 @@ import {
 import { createKnife } from '@/tests/fixtures/knife'
 
 describe('collection data helpers', () => {
-  it('searches only the model name', () => {
+  it('searches across name, brand, specs, description and custom fields', () => {
     const porcupine = createKnife({
       name: 'Porcupine',
       brand: 'Raccoon Knives',
       description: 'Raccoon-inspired design',
       specs: {
         ...createKnife().specs,
-        modelNumber: 'Raccoon',
+        modelNumber: 'RP-01',
       },
-      customFields: { nickname: 'Raccoon' },
+      customFields: { nickname: 'Spiky' },
     })
     const raccoon = createKnife({ name: 'Raccoon' })
 
     expect(matchesKnifeSearch(porcupine, 'porcupine')).toBe(true)
     expect(matchesKnifeSearch(porcupine, '  PORC  ')).toBe(true)
-    expect(matchesKnifeSearch(porcupine, 'raccoon')).toBe(false)
+    expect(matchesKnifeSearch(porcupine, 'raccoon knives')).toBe(true)
+    expect(matchesKnifeSearch(porcupine, 'rp-01')).toBe(true)
+    expect(matchesKnifeSearch(porcupine, 'spiky')).toBe(true)
+    expect(matchesKnifeSearch(porcupine, 'inspired')).toBe(true)
+    expect(matchesKnifeSearch(porcupine, 'nonexistent')).toBe(false)
     expect(matchesKnifeSearch(raccoon, 'raccoon')).toBe(true)
     expect(matchesKnifeSearch(porcupine, '   ')).toBe(true)
   })
 
-  it('builds lowercase searchable text from the model name', () => {
+  it('builds lowercase searchable text from multiple fields', () => {
     const knife = createKnife({
       brand: 'Benchmade',
       name: 'Bugout',
@@ -37,7 +41,9 @@ describe('collection data helpers', () => {
 
     const text = getKnifeSearchableText(knife)
 
-    expect(text).toBe('bugout')
+    expect(text).toContain('bugout')
+    expect(text).toContain('benchmade')
+    expect(text).toContain('collector expo')
   })
 
   it('moves pinned knives first stably without mutating the source array', () => {

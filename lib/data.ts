@@ -55,7 +55,20 @@ export function getImageUrl(path: string): string {
 }
 
 export function getKnifeSearchableText(knife: Knife): string {
-  return knife.name.toLowerCase()
+  const parts = [
+    knife.name,
+    knife.brand,
+    knife.bladeStyle,
+    knife.handleMaterial,
+    knife.description,
+    ...Object.values(knife.specs),
+    ...Object.values(knife.customFields),
+  ]
+
+  return parts
+    .filter((value): value is string => typeof value === 'string')
+    .join(' ')
+    .toLowerCase()
 }
 
 export function matchesKnifeSearch(knife: Knife, query: string): boolean {
