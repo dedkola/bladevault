@@ -37,6 +37,7 @@ type KnivesContextValue = {
     field: BulkEditFieldKey,
     value: string,
   ) => Promise<Knife[]>
+  bulkDeleteKnives: (ids: string[]) => Promise<void>
   deleteKnife: (id: string) => Promise<void>
   isLoading: boolean
   compareIds: string[]
@@ -451,6 +452,29 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     [isAutoBackupEnabled, isCloudSyncEnabled, scheduleAutoBackup],
   )
 
+  const bulkDeleteKnives = useCallback(
+    async (ids: string[]): Promise<void> => {
+      const response = await fetch('/api/knives/bulk', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error ?? 'Failed to delete selected knives')
+      }
+
+      const idSet = new Set(ids)
+      setKnives((prev) => prev.filter((k) => !idSet.has(k.id)))
+      setCompareIds((prev) => prev.filter((cid) => !idSet.has(cid)))
+      if (isCloudSyncEnabled && isAutoBackupEnabled) {
+        scheduleAutoBackup('mutation')
+      }
+    },
+    [isAutoBackupEnabled, isCloudSyncEnabled, scheduleAutoBackup],
+  )
+
   const deleteKnife = useCallback(
     async (id: string): Promise<void> => {
       const response = await fetch(`/api/knives/${id}`, {
@@ -549,6 +573,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       addKnife,
       updateKnife,
       bulkUpdateKnives,
+      bulkDeleteKnives,
       deleteKnife,
       isLoading,
       compareIds,
@@ -570,6 +595,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       addKnife,
       updateKnife,
       bulkUpdateKnives,
+      bulkDeleteKnives,
       deleteKnife,
       isLoading,
       compareIds,

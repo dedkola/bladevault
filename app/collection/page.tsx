@@ -15,6 +15,7 @@ import {
   ChevronDown,
   PencilLine,
   SlidersHorizontal,
+  Trash2,
   X,
 } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
@@ -159,6 +160,7 @@ function CollectionContent() {
     knives,
     pinnedItemsFirst,
     bulkUpdateKnives,
+    bulkDeleteKnives,
     showFeedback,
     customFieldDefinitions,
   } = useKnives()
@@ -436,6 +438,29 @@ function CollectionContent() {
     exitSelectionMode()
   }
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return
+
+    const confirmed = window.confirm(
+      `Delete ${selectedIds.size} selected ${selectedIds.size === 1 ? 'knife' : 'knives'}? This cannot be undone.`,
+    )
+    if (!confirmed) return
+
+    const selectedCount = selectedIds.size
+    try {
+      await bulkDeleteKnives(Array.from(selectedIds))
+      showFeedback(
+        `Deleted ${selectedCount} ${selectedCount === 1 ? 'knife' : 'knives'}`,
+      )
+      exitSelectionMode()
+    } catch (error) {
+      showFeedback(
+        error instanceof Error ? error.message : 'Failed to delete selected knives',
+        'error',
+      )
+    }
+  }
+
   return (
     <div
       className={`flex-1 p-6 lg:p-8 w-full max-w-7xl mx-auto ${isSelectionMode ? 'pb-28 lg:pb-28' : ''}`}
@@ -678,6 +703,17 @@ function CollectionContent() {
                   Clear
                 </Button>
               )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleBulkDelete}
+                disabled={selectedIds.size === 0}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="mr-1.5 size-3.5" />
+                Delete
+              </Button>
               <Button
                 type="button"
                 size="sm"

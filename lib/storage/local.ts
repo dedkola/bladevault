@@ -508,6 +508,46 @@ export class LocalStorage implements Storage {
     }
   }
 
+  async bulkDeleteKnives(ids: string[]): Promise<void> {
+    const uniqueIds = Array.from(new Set(ids))
+    if (uniqueIds.length === 0) return
+
+    const database = getDb()
+    const placeholders = uniqueIds.map(() => '?').join(',')
+    const existingRows = database
+      .prepare(`SELECT id FROM knives WHERE id IN (${placeholders})`)
+      .all(...uniqueIds) as Array<{ id: string }>
+
+    if (existingRows.length !== uniqueIds.length) {
+      throw new Error('One or more selected knives could not be found')
+    }
+
+    const deleteKnives = database.prepare('DELETE FROM knives WHERE id = ?')
+    const deleteCompare = database.prepare(
+      'DELETE FROM compare_list WHERE knife_id = ?',
+    )
+
+    const deleteAll = database.transaction(() => {
+      for (const id of uniqueIds) {
+        deleteKnives.run(id)
+        deleteCompare.run(id)
+      }
+    })
+
+    deleteAll()
+
+    await Promise.all(
+      uniqueIds.map(async (id) => {
+        try {
+          const dir = path.join(getImagesDir(), id)
+          await fs.rm(dir, { recursive: true, force: true })
+        } catch {
+          // ignore cleanup errors
+        }
+      }),
+    )
+  }
+
   async getCompareList(): Promise<string[]> {
     const rows = getDb()
       .prepare(
