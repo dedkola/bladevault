@@ -11,6 +11,7 @@ import {
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
+  ArrowUp,
   CheckSquare2,
   ChevronDown,
   PencilLine,
@@ -172,6 +173,7 @@ function CollectionContent() {
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
+  const [showBackToTop, setShowBackToTop] = useState(false)
   const debouncedQuery = useDebouncedValue(query, 200)
 
   const replaceParams = useCallback(
@@ -406,6 +408,15 @@ function CollectionContent() {
       }
       return next
     })
+  }, [])
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowBackToTop(window.scrollY > 400)
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
   const toggleAllFiltered = () => {
@@ -690,6 +701,18 @@ function CollectionContent() {
             </div>
           </div>
         </div>
+      )}
+
+      {showBackToTop && (
+        <Button
+          type="button"
+          size="icon"
+          className="fixed right-4 bottom-4 z-40 rounded-full shadow-lg"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          aria-label="Back to top"
+        >
+          <ArrowUp className="h-4 w-4" />
+        </Button>
       )}
 
       <BulkEditDialog
