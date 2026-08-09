@@ -455,7 +455,9 @@ function CollectionContent() {
       exitSelectionMode()
     } catch (error) {
       showFeedback(
-        error instanceof Error ? error.message : 'Failed to delete selected knives',
+        error instanceof Error
+          ? error.message
+          : 'Failed to delete selected knives',
         'error',
       )
     }
