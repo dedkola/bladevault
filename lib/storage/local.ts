@@ -111,6 +111,22 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+async function processInBatches<T, R>(
+  items: T[],
+  batchSize: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = []
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize)
+    const batchResults = await Promise.all(
+      batch.map((item, idx) => fn(item, i + idx)),
+    )
+    results.push(...batchResults)
+  }
+  return results
+}
+
 export class LocalStorage implements Storage {
   async getAllKnives(): Promise<Knife[]> {
     const rows = getDb()
@@ -223,21 +239,23 @@ export class LocalStorage implements Storage {
     const addedAt = new Date().toISOString()
     const updatedAt = addedAt
 
-    const imagePaths: string[] = []
-    for (let i = 0; i < normalizedInput.imageUrls.length; i++) {
-      try {
-        const src = normalizedInput.imageUrls[i]
-        let relativePath: string
-        if (src.startsWith('data:image')) {
-          relativePath = await this.saveDataUrl(src, id, i)
-        } else {
-          relativePath = await this.downloadImage(src, id, i)
-        }
-        imagePaths.push(relativePath)
-      } catch {
-        // Skip images that fail to download.
-      }
-    }
+    const imagePaths: string[] = (
+      await processInBatches(
+        normalizedInput.imageUrls,
+        5,
+        async (src, index) => {
+          try {
+            if (src.startsWith('data:image')) {
+              return await this.saveDataUrl(src, id, index)
+            }
+            return await this.downloadImage(src, id, index)
+          } catch {
+            // Skip images that fail to download.
+            return null
+          }
+        },
+      )
+    ).filter((relativePath): relativePath is string => relativePath !== null)
 
     const customFields: Knife['customFields'] = Object.fromEntries(
       Object.entries(normalizedInput.customFields ?? {}).filter(
@@ -583,33 +601,32 @@ export class LocalStorage implements Storage {
     }
 
     for (const knife of knives) {
-      const importedImages: string[] = []
+      const importedImages: string[] = (
+        await processInBatches(
+          knife.images,
+          5,
+          async (image, index) => {
+            if (image.startsWith('data:image')) {
+              try {
+                return await this.saveDataUrl(image, knife.id, index)
+              } catch {
+                // ignore broken embedded images during restore
+                return null
+              }
+            }
 
-      for (let index = 0; index < knife.images.length; index += 1) {
-        const image = knife.images[index]
+            if (image.startsWith('http://') || image.startsWith('https://')) {
+              try {
+                return await this.downloadImage(image, knife.id, index)
+              } catch {
+                return image
+              }
+            }
 
-        if (image.startsWith('data:image')) {
-          try {
-            importedImages.push(await this.saveDataUrl(image, knife.id, index))
-          } catch {
-            // ignore broken embedded images during restore
-          }
-          continue
-        }
-
-        if (image.startsWith('http://') || image.startsWith('https://')) {
-          try {
-            importedImages.push(
-              await this.downloadImage(image, knife.id, index),
-            )
-          } catch {
-            importedImages.push(image)
-          }
-          continue
-        }
-
-        importedImages.push(image)
-      }
+            return image
+          },
+        )
+      ).filter((relativePath): relativePath is string => relativePath !== null)
 
       await this.migrateKnife(knife, importedImages)
     }
