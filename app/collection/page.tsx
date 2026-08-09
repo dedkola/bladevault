@@ -385,8 +385,7 @@ function CollectionContent() {
       }
 
       if (event.key === 'Escape' && !isTyping && hasActiveFilters) {
-        const target = event.target as HTMLElement
-        if (target.closest('[role="dialog"], [role="menu"], [role="listbox"]')) {
+        if (target?.closest('[role="dialog"], [role="menu"], [role="listbox"]')) {
           return
         }
         event.preventDefault()
