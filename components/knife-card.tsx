@@ -169,7 +169,7 @@ export const KnifeCard = memo(function KnifeCard({
             variant="default"
             className="ml-2 mt-1 inline-flex items-center gap-1 bg-[var(--bladevault-gold)] text-[var(--bladevault-olive)] hover:bg-[var(--bladevault-gold)] text-[10px] font-medium"
           >
-            <Sparkles className="h-3 w-3" />
+            <Sparkles className="h-3 w-3" aria-hidden="true" focusable="false" />
             New
           </Badge>
         )}
