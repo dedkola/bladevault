@@ -433,12 +433,14 @@ export default function ComparePage() {
   }
 
   const handleCompareRandomPair = async () => {
-    const shuffled = [...knives].sort(() => Math.random() - 0.5)
-    const pair = shuffled.slice(0, 2).map((knife) => knife.id)
-    if (pair.length < 2) {
+    if (knives.length < 2) {
       showFeedback('Add at least two knives to compare.', 'error')
       return
     }
+    const i = Math.floor(Math.random() * knives.length)
+    let j = Math.floor(Math.random() * (knives.length - 1))
+    if (j >= i) j++
+    const pair = [knives[i].id, knives[j].id]
     try {
       await addManyToCompare(pair)
       showFeedback('Random pair added to compare')
@@ -839,7 +841,8 @@ export default function ComparePage() {
                           key={knife.id}
                           variant="outline"
                           size="sm"
-                          onClick={() => handleSelect(knife.id)}
+                          onClick={() => void handleSelect(knife.id)}
+                          disabled={isBulkAdding}
                         >
                           <Plus className="mr-1.5 h-3.5 w-3.5" />
                           {knife.brand} {knife.name}
@@ -850,7 +853,8 @@ export default function ComparePage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={handleCompareRandomPair}
+                        onClick={() => void handleCompareRandomPair()}
+                        disabled={isBulkAdding}
                       >
                         <Shuffle className="mr-1.5 h-3.5 w-3.5" />
                         Compare a random pair
