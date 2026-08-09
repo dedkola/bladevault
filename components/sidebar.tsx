@@ -214,7 +214,7 @@ export function Sidebar() {
                 href={link.href}
                 onClick={handleNavigate}
                 className={cn(
-                  'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors',
+                  'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-1',
                   isActive
                     ? 'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)]'
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground',
