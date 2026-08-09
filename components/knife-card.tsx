@@ -8,7 +8,10 @@ import { BookmarkIcon } from '@/components/bookmark-icon'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { useKnives } from '@/components/providers/knives-provider'
+import {
+  useKnivesActions,
+  useKnivesData,
+} from '@/components/providers/knives-provider'
 import {
   activeKnifeActionStyle,
   activeKnifeFloatingClassName,
@@ -28,16 +31,10 @@ export const KnifeCard = memo(function KnifeCard({
   selected?: boolean
   onSelect?: (id: string) => void
 }) {
-  const {
-    updateKnife,
-    compareIds,
-    addToCompare,
-    removeFromCompare,
-    pinnedItemsFirst,
-    cardFields,
-    customFieldDefinitions,
-    showFeedback,
-  } = useKnives()
+  const { compareIds, pinnedItemsFirst, cardFields, customFieldDefinitions } =
+    useKnivesData()
+  const { updateKnife, addToCompare, removeFromCompare, showFeedback } =
+    useKnivesActions()
   const pinned = knife.pinned
   const inCompare = compareIds.includes(knife.id)
   const [isTogglingPin, setIsTogglingPin] = useState(false)

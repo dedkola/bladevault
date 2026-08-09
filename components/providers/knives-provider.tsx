@@ -27,8 +27,19 @@ import {
   uploadCloudBackupArchive,
 } from '@/lib/cloud-backup-client'
 
-type KnivesContextValue = {
+type KnivesDataContextValue = {
   knives: Knife[]
+  isLoading: boolean
+  compareIds: string[]
+  isCloudSyncEnabled: boolean
+  isAutoBackupEnabled: boolean
+  isAutoBackupActive: boolean
+  pinnedItemsFirst: boolean
+  cardFields: CardField[]
+  customFieldDefinitions: CustomField[]
+}
+
+type KnivesActionsContextValue = {
   refreshVault: () => Promise<void>
   addKnife: (draft: KnifeDraft) => Promise<Knife>
   updateKnife: (id: string, updates: KnifeUpdates) => Promise<Knife>
@@ -38,24 +49,21 @@ type KnivesContextValue = {
     value: string,
   ) => Promise<Knife[]>
   deleteKnife: (id: string) => Promise<void>
-  isLoading: boolean
-  compareIds: string[]
   addToCompare: (id: string) => Promise<void>
   addManyToCompare: (ids: string[]) => Promise<void>
   removeFromCompare: (id: string) => Promise<void>
   clearCompare: () => Promise<void>
-  isCloudSyncEnabled: boolean
-  isAutoBackupEnabled: boolean
-  isAutoBackupActive: boolean
-  pinnedItemsFirst: boolean
-  cardFields: CardField[]
-  customFieldDefinitions: CustomField[]
   showFeedback: (message: string, tone?: FeedbackTone) => void
 }
 
+type KnivesContextValue = KnivesDataContextValue & KnivesActionsContextValue
+
 type FeedbackTone = 'success' | 'error'
 
-const KnivesContext = createContext<KnivesContextValue | null>(null)
+const KnivesDataContext = createContext<KnivesDataContextValue | null>(null)
+const KnivesActionsContext = createContext<KnivesActionsContextValue | null>(
+  null,
+)
 const BACKUP_NOTICE_DURATION_MS = 3200
 const FEEDBACK_DURATION_MS = 3200
 
@@ -542,57 +550,65 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const contextValue = useMemo(
+  const dataValue = useMemo(
     () => ({
       knives,
-      refreshVault,
-      addKnife,
-      updateKnife,
-      bulkUpdateKnives,
-      deleteKnife,
       isLoading,
       compareIds,
-      addToCompare,
-      addManyToCompare,
-      removeFromCompare,
-      clearCompare,
       isCloudSyncEnabled,
       isAutoBackupEnabled,
       isAutoBackupActive: isCloudSyncEnabled && isAutoBackupEnabled,
       pinnedItemsFirst,
       cardFields,
       customFieldDefinitions,
-      showFeedback,
     }),
     [
       knives,
-      refreshVault,
-      addKnife,
-      updateKnife,
-      bulkUpdateKnives,
-      deleteKnife,
       isLoading,
       compareIds,
-      addToCompare,
-      addManyToCompare,
-      removeFromCompare,
-      clearCompare,
       isCloudSyncEnabled,
       isAutoBackupEnabled,
       pinnedItemsFirst,
       cardFields,
       customFieldDefinitions,
+    ],
+  )
+
+  const actionsValue = useMemo(
+    () => ({
+      refreshVault,
+      addKnife,
+      updateKnife,
+      bulkUpdateKnives,
+      deleteKnife,
+      addToCompare,
+      addManyToCompare,
+      removeFromCompare,
+      clearCompare,
+      showFeedback,
+    }),
+    [
+      refreshVault,
+      addKnife,
+      updateKnife,
+      bulkUpdateKnives,
+      deleteKnife,
+      addToCompare,
+      addManyToCompare,
+      removeFromCompare,
+      clearCompare,
       showFeedback,
     ],
   )
 
   return (
-    <KnivesContext.Provider value={contextValue}>
-      {children}
-      <div
-        aria-live="polite"
-        className="pointer-events-none fixed bottom-4 right-4 z-50 flex max-w-sm flex-col gap-3"
-      >
+    <KnivesDataContext.Provider value={dataValue}>
+      <KnivesActionsContext.Provider value={actionsValue}>
+        {children}
+        <div
+          aria-live="polite"
+          className="pointer-events-none fixed bottom-4 right-4 z-50 flex max-w-sm flex-col gap-3"
+        >
         {feedback && (
           <div
             role={feedback.tone === 'error' ? 'alert' : 'status'}
@@ -635,14 +651,27 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
           </div>
         )}
       </div>
-    </KnivesContext.Provider>
+      </KnivesActionsContext.Provider>
+    </KnivesDataContext.Provider>
   )
 }
 
-export function useKnives(): KnivesContextValue {
-  const context = useContext(KnivesContext)
+export function useKnivesData(): KnivesDataContextValue {
+  const context = useContext(KnivesDataContext)
   if (!context) {
-    throw new Error('useKnives must be used within a KnivesProvider')
+    throw new Error('useKnivesData must be used within a KnivesProvider')
   }
   return context
+}
+
+export function useKnivesActions(): KnivesActionsContextValue {
+  const context = useContext(KnivesActionsContext)
+  if (!context) {
+    throw new Error('useKnivesActions must be used within a KnivesProvider')
+  }
+  return context
+}
+
+export function useKnives(): KnivesContextValue {
+  return { ...useKnivesData(), ...useKnivesActions() }
 }
