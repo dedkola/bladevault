@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { memo, useCallback, useState } from 'react'
-import { Check, ImageIcon, Scale } from 'lucide-react'
+import { Check, ImageIcon, Scale, Sparkles } from 'lucide-react'
 import { getImageUrl, Knife } from '@/lib/data'
 import { cn } from '@/lib/utils'
 import { BookmarkIcon } from '@/components/bookmark-icon'
@@ -14,6 +14,15 @@ import {
   activeKnifeFloatingClassName,
 } from '@/lib/knife-action-styles'
 import { getCardFieldDisplayValue } from '@/lib/card-fields'
+
+const RECENT_DAYS = 7
+
+function isRecentlyAdded(addedAt: string): boolean {
+  const added = new Date(addedAt).getTime()
+  if (Number.isNaN(added)) return false
+  const cutoff = Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000
+  return added >= cutoff
+}
 
 export const KnifeCard = memo(function KnifeCard({
   knife,
@@ -155,6 +164,15 @@ export const KnifeCard = memo(function KnifeCard({
             <span className="font-medium text-foreground">{knife.name}</span>
           </span>
         </Badge>
+        {isRecentlyAdded(knife.addedAt) && (
+          <Badge
+            variant="default"
+            className="ml-2 mt-1 inline-flex items-center gap-1 bg-[var(--bladevault-gold)] text-[var(--bladevault-olive)] hover:bg-[var(--bladevault-gold)] text-[10px] font-medium"
+          >
+            <Sparkles className="h-3 w-3" />
+            New
+          </Badge>
+        )}
         {visibleCardFields.length > 0 ? (
           <p className="mt-1 flex min-h-5 flex-wrap items-center text-xs leading-5 text-muted-foreground before:ml-2 before:mr-2 before:h-3 before:w-px before:shrink-0 before:bg-border before:content-[''] after:ml-2 after:h-3 after:w-px after:shrink-0 after:bg-border after:content-['']">
             {visibleCardFields.map((value, index) => (
