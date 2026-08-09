@@ -14,8 +14,11 @@ import {
   ArchiveX,
   FileDown,
   ImageIcon,
+  Lightbulb,
   ListPlus,
+  Plus,
   Printer,
+  Shuffle,
   X,
 } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
@@ -365,6 +368,23 @@ export default function ComparePage() {
       matchesKnifeSearch(knife, debouncedQuery),
     )
   }, [availableKnives, debouncedQuery])
+  const suggestedKnives = useMemo(
+    () =>
+      [...availableKnives]
+        .sort((left, right) => {
+          if (pinnedItemsFirst && left.pinned !== right.pinned) {
+            return left.pinned ? -1 : 1
+          }
+          return (
+            new Date(right.addedAt).getTime() -
+              new Date(left.addedAt).getTime() ||
+            left.brand.localeCompare(right.brand) ||
+            left.name.localeCompare(right.name)
+          )
+        })
+        .slice(0, 4),
+    [availableKnives, pinnedItemsFirst],
+  )
   const hasSearchQuery = query.trim().length > 0
   const isSearchPending = query.trim() !== debouncedQuery.trim()
 
@@ -410,6 +430,24 @@ export default function ComparePage() {
 
   const handleClearCompare = () => {
     void clearCompare()
+  }
+
+  const handleCompareRandomPair = async () => {
+    const shuffled = [...knives].sort(() => Math.random() - 0.5)
+    const pair = shuffled.slice(0, 2).map((knife) => knife.id)
+    if (pair.length < 2) {
+      showFeedback('Add at least two knives to compare.', 'error')
+      return
+    }
+    try {
+      await addManyToCompare(pair)
+      showFeedback('Random pair added to compare')
+    } catch (error) {
+      showFeedback(
+        error instanceof Error ? error.message : 'Could not add pair.',
+        'error',
+      )
+    }
   }
 
   const hasComparedKnives = comparedKnives.length > 0
@@ -774,19 +812,54 @@ export default function ComparePage() {
           </Card>
 
           {comparedKnives.length === 0 ? (
-            <EmptyState
-              title="Select knives to compare"
-              description="Search above to find knives or add them from your collection."
-              icon={<ArchiveX className="h-8 w-8" />}
-              action={
-                <Button
-                  variant="outline"
-                  size="sm"
-                  render={<Link href="/collection">Browse collection</Link>}
-                  nativeButton={false}
-                />
-              }
-            />
+            <div className="space-y-6">
+              <EmptyState
+                title="Select knives to compare"
+                description="Search above to find knives or add them from your collection."
+                icon={<ArchiveX className="h-8 w-8" />}
+                action={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    render={<Link href="/collection">Browse collection</Link>}
+                    nativeButton={false}
+                  />
+                }
+              />
+              {suggestedKnives.length > 0 && (
+                <Card className="border-[var(--bladevault-line)]/80 bg-background shadow-none">
+                  <CardContent className="space-y-3 p-4">
+                    <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                      <Lightbulb className="h-4 w-4 text-[var(--bladevault-gold)]" />
+                      Suggested knives
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {suggestedKnives.map((knife) => (
+                        <Button
+                          key={knife.id}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSelect(knife.id)}
+                        >
+                          <Plus className="mr-1.5 h-3.5 w-3.5" />
+                          {knife.brand} {knife.name}
+                        </Button>
+                      ))}
+                    </div>
+                    {knives.length >= 2 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCompareRandomPair}
+                      >
+                        <Shuffle className="mr-1.5 h-3.5 w-3.5" />
+                        Compare a random pair
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           ) : (
             <Card className="border-[var(--bladevault-line)]/80 bg-background shadow-none">
               <CardContent className="space-y-3 p-4">
