@@ -330,7 +330,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
 
   const handleCopyDetails = async () => {
     const lines = [
-      `${knife.brand} ${knife.name}`,
+      [knife.brand, knife.name].filter(Boolean).join(' '),
       '',
       ...identityRows.map(({ label, value }) => `${label}: ${value}`),
       '',
