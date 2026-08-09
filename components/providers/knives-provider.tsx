@@ -37,6 +37,7 @@ type KnivesContextValue = {
     field: BulkEditFieldKey,
     value: string,
   ) => Promise<Knife[]>
+  bulkPinKnives: (ids: string[], pinned: boolean) => Promise<Knife[]>
   deleteKnife: (id: string) => Promise<void>
   isLoading: boolean
   compareIds: string[]
@@ -451,6 +452,33 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     [isAutoBackupEnabled, isCloudSyncEnabled, scheduleAutoBackup],
   )
 
+  const bulkPinKnives = useCallback(
+    async (ids: string[], pinned: boolean): Promise<Knife[]> => {
+      const response = await fetch('/api/knives/bulk/pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, pinned }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error ?? 'Failed to update pins')
+      }
+
+      const data = await response.json()
+      const updatedKnives = data.knives as Knife[]
+      const updatedById = new Map(updatedKnives.map((k) => [k.id, k]))
+      setKnives((prev) =>
+        prev.map((knife) => updatedById.get(knife.id) ?? knife),
+      )
+      if (isCloudSyncEnabled && isAutoBackupEnabled) {
+        scheduleAutoBackup('mutation')
+      }
+      return updatedKnives
+    },
+    [isAutoBackupEnabled, isCloudSyncEnabled, scheduleAutoBackup],
+  )
+
   const deleteKnife = useCallback(
     async (id: string): Promise<void> => {
       const response = await fetch(`/api/knives/${id}`, {
@@ -549,6 +577,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       addKnife,
       updateKnife,
       bulkUpdateKnives,
+      bulkPinKnives,
       deleteKnife,
       isLoading,
       compareIds,
@@ -570,6 +599,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       addKnife,
       updateKnife,
       bulkUpdateKnives,
+      bulkPinKnives,
       deleteKnife,
       isLoading,
       compareIds,

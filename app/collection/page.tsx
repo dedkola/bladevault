@@ -14,6 +14,8 @@ import {
   CheckSquare2,
   ChevronDown,
   PencilLine,
+  Pin,
+  PinOff,
   SlidersHorizontal,
   X,
 } from 'lucide-react'
@@ -159,6 +161,7 @@ function CollectionContent() {
     knives,
     pinnedItemsFirst,
     bulkUpdateKnives,
+    bulkPinKnives,
     showFeedback,
     customFieldDefinitions,
   } = useKnives()
@@ -172,6 +175,7 @@ function CollectionContent() {
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
+  const [isBulkPinning, setIsBulkPinning] = useState(false)
   const debouncedQuery = useDebouncedValue(query, 200)
 
   const replaceParams = useCallback(
@@ -436,6 +440,31 @@ function CollectionContent() {
     exitSelectionMode()
   }
 
+  const selectedKnivesPinned = useMemo(
+    () => selectedKnives.every((knife) => knife.pinned),
+    [selectedKnives],
+  )
+
+  const handleBulkPin = async () => {
+    if (selectedIds.size === 0) return
+    const selectedCount = selectedIds.size
+    const pinned = !selectedKnivesPinned
+    setIsBulkPinning(true)
+    try {
+      await bulkPinKnives(Array.from(selectedIds), pinned)
+      showFeedback(
+        `${pinned ? 'Pinned' : 'Unpinned'} ${selectedCount} ${selectedCount === 1 ? 'knife' : 'knives'}`,
+      )
+    } catch (error) {
+      showFeedback(
+        error instanceof Error ? error.message : 'Could not update pins.',
+        'error',
+      )
+    } finally {
+      setIsBulkPinning(false)
+    }
+  }
+
   return (
     <div
       className={`flex-1 p-6 lg:p-8 w-full max-w-7xl mx-auto ${isSelectionMode ? 'pb-28 lg:pb-28' : ''}`}
@@ -686,6 +715,20 @@ function CollectionContent() {
               >
                 <PencilLine className="mr-1.5 size-3.5" />
                 Bulk edit
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleBulkPin}
+                disabled={selectedIds.size === 0 || isBulkPinning}
+              >
+                {selectedKnivesPinned ? (
+                  <PinOff className="mr-1.5 size-3.5" />
+                ) : (
+                  <Pin className="mr-1.5 size-3.5" />
+                )}
+                {selectedKnivesPinned ? 'Unpin' : 'Pin'}
               </Button>
             </div>
           </div>
