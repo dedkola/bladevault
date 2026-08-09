@@ -441,7 +441,7 @@ function CollectionContent() {
   }
 
   const selectedKnivesPinned = useMemo(
-    () => selectedKnives.every((knife) => knife.pinned),
+    () => selectedKnives.length > 0 && selectedKnives.every((knife) => knife.pinned),
     [selectedKnives],
   )
 

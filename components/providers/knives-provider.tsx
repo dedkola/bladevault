@@ -471,12 +471,9 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       setKnives((prev) =>
         prev.map((knife) => updatedById.get(knife.id) ?? knife),
       )
-      if (isCloudSyncEnabled && isAutoBackupEnabled) {
-        scheduleAutoBackup('mutation')
-      }
       return updatedKnives
     },
-    [isAutoBackupEnabled, isCloudSyncEnabled, scheduleAutoBackup],
+    [],
   )
 
   const deleteKnife = useCallback(
