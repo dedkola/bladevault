@@ -78,7 +78,8 @@ async function isBlockedHost(host: string): Promise<boolean> {
 }
 
 export type UrlValidationResult =
-  { ok: true; url: URL } | { ok: false; reason: string }
+  | { ok: true; url: URL }
+  | { ok: false; reason: string }
 
 export async function validateExternalUrl(
   value: string,
@@ -110,10 +111,7 @@ export async function validateExternalUrl(
   return { ok: true, url: parsed }
 }
 
-function withTimeout(
-  init: RequestInit,
-  timeoutMs: number,
-): RequestInit {
+function withTimeout(init: RequestInit, timeoutMs: number): RequestInit {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
