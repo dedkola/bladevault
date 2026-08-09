@@ -31,6 +31,7 @@ type KnivesContextValue = {
   knives: Knife[]
   refreshVault: () => Promise<void>
   addKnife: (draft: KnifeDraft) => Promise<Knife>
+  duplicateKnife: (id: string) => Promise<Knife>
   updateKnife: (id: string, updates: KnifeUpdates) => Promise<Knife>
   bulkUpdateKnives: (
     ids: string[],
@@ -391,6 +392,28 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     [isAutoBackupEnabled, isCloudSyncEnabled, scheduleAutoBackup],
   )
 
+  const duplicateKnife = useCallback(
+    async (id: string): Promise<Knife> => {
+      const response = await fetch(`/api/knives/${id}/duplicate`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error ?? 'Failed to duplicate knife')
+      }
+
+      const data = await response.json()
+      const knife = data.knife as Knife
+      setKnives((prev) => [knife, ...prev])
+      if (isCloudSyncEnabled && isAutoBackupEnabled) {
+        scheduleAutoBackup('mutation')
+      }
+      return knife
+    },
+    [isAutoBackupEnabled, isCloudSyncEnabled, scheduleAutoBackup],
+  )
+
   const updateKnife = useCallback(
     async (id: string, updates: KnifeUpdates): Promise<Knife> => {
       const response = await fetch(`/api/knives/${id}`, {
@@ -547,6 +570,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       knives,
       refreshVault,
       addKnife,
+      duplicateKnife,
       updateKnife,
       bulkUpdateKnives,
       deleteKnife,
@@ -568,6 +592,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       knives,
       refreshVault,
       addKnife,
+      duplicateKnife,
       updateKnife,
       bulkUpdateKnives,
       deleteKnife,

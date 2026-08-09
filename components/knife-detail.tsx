@@ -10,6 +10,7 @@ import {
   AlertCircle,
   ExternalLink,
   Scale,
+  Copy,
 } from 'lucide-react'
 import { BookmarkIcon } from '@/components/bookmark-icon'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -81,10 +82,12 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
   const {
     knives,
     updateKnife,
+    duplicateKnife,
     deleteKnife,
     compareIds,
     addToCompare,
     removeFromCompare,
+    showFeedback,
   } = useKnives()
 
   const knife = knives.find((k) => k.id === initialKnife.id) ?? initialKnife
@@ -107,6 +110,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isDuplicating, setIsDuplicating] = useState(false)
   const [isTogglingPin, setIsTogglingPin] = useState(false)
   const [isTogglingCompare, setIsTogglingCompare] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -227,6 +231,20 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete knife')
       setIsDeleting(false)
+    }
+  }
+
+  async function handleDuplicate() {
+    setIsDuplicating(true)
+    setError(null)
+
+    try {
+      const duplicate = await duplicateKnife(knife.id)
+      showFeedback?.('Knife duplicated successfully')
+      router.push(`/knives/${duplicate.id}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to duplicate knife')
+      setIsDuplicating(false)
     }
   }
 
@@ -376,6 +394,19 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
             >
               <Pencil className="h-3.5 w-3.5" />
               Edit
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDuplicate}
+              disabled={isDuplicating}
+            >
+              {isDuplicating ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+              Duplicate
             </Button>
             <Button
               variant="outline"

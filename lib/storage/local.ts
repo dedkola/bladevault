@@ -286,6 +286,82 @@ export class LocalStorage implements Storage {
     return newKnife
   }
 
+  async duplicateKnife(id: string): Promise<Knife> {
+    const existing = await this.getKnifeById(id)
+    if (!existing) {
+      throw new Error(`Knife with id "${id}" not found`)
+    }
+
+    const normalizedExisting = normalizeKnifeTextFields({
+      ...existing,
+      name: `${existing.name.trim()} Copy`,
+    })
+    const newId = await this.ensureUniqueId(
+      generateId(normalizedExisting.name),
+    )
+    const addedAt = new Date().toISOString()
+    const updatedAt = addedAt
+
+    const imagePaths: string[] = []
+    for (let i = 0; i < existing.images.length; i++) {
+      const src = existing.images[i]
+
+      if (src.startsWith('http://') || src.startsWith('https://')) {
+        imagePaths.push(src)
+        continue
+      }
+
+      try {
+        const { buffer } = await this.getImage(src)
+        const ext =
+          path.extname(src).toLowerCase().replace('.', '') ||
+          extensionFromMimeType('image/jpeg')
+        const dir = path.join(getImagesDir(), newId)
+        await fs.mkdir(dir, { recursive: true })
+        const filename = `image-${String(i + 1).padStart(2, '0')}.${ext}`
+        const filePath = path.join(dir, filename)
+        await fs.writeFile(filePath, buffer)
+        imagePaths.push(`${newId}/${filename}`)
+      } catch {
+        // Skip images that fail to copy.
+      }
+    }
+
+    const newKnife: Knife = {
+      ...normalizedExisting,
+      id: newId,
+      name: normalizedExisting.name,
+      images: imagePaths,
+      addedAt,
+      updatedAt,
+      pinned: false,
+    }
+
+    getDb()
+      .prepare(
+        `INSERT INTO knives (id, name, brand, steel, blade_style, handle_material, images, specs, custom_fields, description, added_at, updated_at, source_url, pinned)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        newKnife.id,
+        newKnife.name,
+        newKnife.brand,
+        '',
+        newKnife.bladeStyle,
+        newKnife.handleMaterial,
+        JSON.stringify(newKnife.images),
+        JSON.stringify(newKnife.specs),
+        JSON.stringify(newKnife.customFields),
+        newKnife.description,
+        newKnife.addedAt,
+        newKnife.updatedAt,
+        newKnife.sourceUrl,
+        newKnife.pinned ? 1 : 0,
+      )
+
+    return newKnife
+  }
+
   async updateKnife(id: string, updates: KnifeUpdates): Promise<Knife> {
     const existing = await this.getKnifeById(id)
     if (!existing) {
