@@ -61,6 +61,14 @@ export function Gallery({
     })
   }, [activeIdx, images.length, isFullScreen])
 
+  function isVisibleInFullScreen(index: number): boolean {
+    if (images.length <= 3) return true
+
+    const prev = (activeIdx - 1 + images.length) % images.length
+    const next = (activeIdx + 1) % images.length
+    return index === activeIdx || index === prev || index === next
+  }
+
   const moveImage = (index: number, direction: -1 | 1) => {
     if (!onReorder) return
     const newIndex = index + direction
@@ -244,28 +252,30 @@ export function Gallery({
           <div className="h-full w-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.055),transparent_58%)] px-2 pb-28 pt-16 sm:px-20 sm:pb-36 sm:pt-20">
             <div className="relative h-full w-full">
               {images.length > 0 ? (
-                images.map((image, index) => (
-                  <Image
-                    key={`${image}-${index}`}
-                    src={getImageUrl(image)}
-                    alt={
-                      index === activeIdx
-                        ? `Knife image ${index + 1} of ${images.length}, fullscreen`
-                        : ''
-                    }
-                    aria-hidden={index !== activeIdx}
-                    fill
-                    loading="eager"
-                    sizes="100vw"
-                    className={cn(
-                      'object-contain',
-                      index === activeIdx
-                        ? 'z-10 opacity-100'
-                        : 'z-0 opacity-0',
-                    )}
-                    referrerPolicy="no-referrer"
-                  />
-                ))
+                images.map((image, index) =>
+                  isVisibleInFullScreen(index) ? (
+                    <Image
+                      key={`${image}-${index}`}
+                      src={getImageUrl(image)}
+                      alt={
+                        index === activeIdx
+                          ? `Knife image ${index + 1} of ${images.length}, fullscreen`
+                          : ''
+                      }
+                      aria-hidden={index !== activeIdx}
+                      fill
+                      loading="eager"
+                      sizes="100vw"
+                      className={cn(
+                        'object-contain',
+                        index === activeIdx
+                          ? 'z-10 opacity-100'
+                          : 'z-0 opacity-0',
+                      )}
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : null,
+                )
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
                   <ImageIcon className="h-16 w-16 text-white/35" />
