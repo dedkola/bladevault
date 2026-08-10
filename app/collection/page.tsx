@@ -385,7 +385,9 @@ function CollectionContent() {
       }
 
       if (event.key === 'Escape' && !isTyping && hasActiveFilters) {
-        if (target?.closest('[role="dialog"], [role="menu"], [role="listbox"]')) {
+        if (
+          target?.closest('[role="dialog"], [role="menu"], [role="listbox"]')
+        ) {
           return
         }
         event.preventDefault()
