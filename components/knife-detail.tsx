@@ -214,7 +214,11 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
   }
 
   const handleDelete = async () => {
-    if (!window.confirm(`Are you sure you want to delete ${knife.name}? This action cannot be undone.`)) {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete ${knife.name}? This action cannot be undone.`,
+      )
+    ) {
       return
     }
     setIsDeleting(true)
@@ -487,7 +491,6 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
           </Card>
         </div>
       </div>
-
     </div>
   )
 }
