@@ -28,6 +28,7 @@ const baseInput: CreateKnifeInput = {
 
 afterEach(async () => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
   await vault?.cleanup()
   vault = null
 })
@@ -126,6 +127,29 @@ describe('LocalStorage', () => {
     await expect(
       storage.getImage('../images-private/secret.png'),
     ).rejects.toThrow('Invalid image path')
+  })
+
+  it('truncates file mtimes before encoding image ETags', async () => {
+    vault = await createTempVault()
+    const storage = new LocalStorage()
+    const knife = await storage.createKnife({
+      ...baseInput,
+      imageUrls: ['data:image/png;base64,aGVsbG8='],
+    })
+    const imagePath = path.join(vault.dataDir, 'images', knife.images[0])
+    const actualStat = await fs.stat(imagePath)
+    vi.spyOn(fs, 'stat').mockResolvedValue({
+      ...actualStat,
+      mtime: new Date('1970-01-01T00:00:01.234Z'),
+      mtimeMs: 1234.567,
+      size: 42,
+    } as Awaited<ReturnType<typeof fs.stat>>)
+
+    const image = await storage.getImage(knife.images[0])
+
+    expect(image.etag).toBe(
+      `"${Math.trunc(1234.567).toString(36)}-${(42).toString(36)}"`,
+    )
   })
 
   it('preserves custom fields when importing a snapshot', async () => {

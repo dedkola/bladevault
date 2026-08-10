@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import * as compareRoute from '@/app/api/compare/route'
+import * as imageRoute from '@/app/api/images/[...path]/route'
 import * as bulkRoute from '@/app/api/knives/bulk/route'
 import * as knifeRoute from '@/app/api/knives/[id]/route'
 import * as knivesRoute from '@/app/api/knives/route'
+import { LocalStorage } from '@/lib/storage/local'
 import { saveSettings } from '@/lib/settings'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
@@ -154,5 +156,44 @@ describe('knife API routes', () => {
     expect(
       ((await bulkCompare.json()) as { compareIds: string[] }).compareIds,
     ).toEqual(['first', 'second'])
+  })
+
+  it('returns 304 for matching weak ETags in If-None-Match lists', async () => {
+    vault = await createTempVault()
+    await knivesRoute.POST(
+      jsonRequest('http://localhost/api/knives', 'POST', {
+        name: 'Image Knife',
+        imageUrls: ['data:image/png;base64,aGVsbG8='],
+      }),
+    )
+
+    const [knife] = await new LocalStorage().getAllKnives()
+    if (!knife?.images[0]) {
+      throw new Error('Expected a stored image')
+    }
+    const imagePath = knife.images[0]
+    const params = { params: Promise.resolve({ path: imagePath.split('/') }) }
+    const initial = await imageRoute.GET(
+      new Request(`http://localhost/api/images/${imagePath}`),
+      params,
+    )
+
+    expect(initial.status).toBe(200)
+    const etag = initial.headers.get('etag')
+    const lastModified = initial.headers.get('last-modified')
+    if (!etag || !lastModified) {
+      throw new Error('Expected cache validators')
+    }
+
+    const cached = await imageRoute.GET(
+      new Request(`http://localhost/api/images/${imagePath}`, {
+        headers: { 'If-None-Match': `"other", W/${etag}` },
+      }),
+      params,
+    )
+
+    expect(cached.status).toBe(304)
+    expect(cached.headers.get('etag')).toBe(etag)
+    expect(cached.headers.get('last-modified')).toBe(lastModified)
   })
 })

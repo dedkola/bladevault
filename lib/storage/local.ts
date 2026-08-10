@@ -643,7 +643,7 @@ export class LocalStorage implements Storage {
         '.svg': 'image/svg+xml',
       }[ext] ?? 'application/octet-stream'
 
-    const etag = `"${stat.mtimeMs.toString(36)}-${stat.size.toString(36)}"`
+    const etag = `"${Math.trunc(stat.mtimeMs).toString(36)}-${stat.size.toString(36)}"`
     const lastModified = stat.mtime.toUTCString()
 
     return { buffer, contentType, etag, lastModified }
