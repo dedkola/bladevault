@@ -621,31 +621,13 @@ export class LocalStorage implements Storage {
   }
 
   async getImage(relativePath: string): Promise<ImageData> {
-    const filePath = path.join(getImagesDir(), relativePath)
-    const resolved = path.resolve(filePath)
-    const base = path.resolve(getImagesDir())
-
-    if (resolved !== base && !resolved.startsWith(`${base}${path.sep}`)) {
-      throw new Error('Invalid image path')
-    }
-
+    const { resolved, contentType } = this.resolveImage(relativePath)
     const buffer = await fs.readFile(resolved)
-    const ext = path.extname(resolved).toLowerCase()
-    const contentType =
-      {
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.png': 'image/png',
-        '.webp': 'image/webp',
-        '.gif': 'image/gif',
-        '.avif': 'image/avif',
-        '.svg': 'image/svg+xml',
-      }[ext] ?? 'application/octet-stream'
 
     return { buffer, contentType }
   }
 
-  private resolveImagePath(relativePath: string): {
+  private resolveImage(relativePath: string): {
     resolved: string
     contentType: string
   } {
@@ -673,7 +655,8 @@ export class LocalStorage implements Storage {
   }
 
   async getImageStream(relativePath: string): Promise<ImageStream> {
-    const { resolved, contentType } = this.resolveImagePath(relativePath)
+    const { resolved, contentType } = this.resolveImage(relativePath)
+    await fs.access(resolved)
     const stream = createReadStream(resolved)
 
     return {

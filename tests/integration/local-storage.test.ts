@@ -128,6 +128,13 @@ describe('LocalStorage', () => {
     ).rejects.toThrow('Invalid image path')
   })
 
+  it('rejects missing image streams before returning a response stream', async () => {
+    vault = await createTempVault()
+    const storage = new LocalStorage()
+
+    await expect(storage.getImageStream('missing/image.png')).rejects.toThrow()
+  })
+
   it('preserves custom fields when importing a snapshot', async () => {
     vault = await createTempVault()
     const storage = new LocalStorage()
