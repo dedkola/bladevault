@@ -457,6 +457,28 @@ function normalizeKnifeRows(database: Database.Database) {
   normalizeRows(rows)
 }
 
+function createIndexes(database: Database.Database) {
+  // Speed up the main collection list ordered by recency.
+  database.exec(
+    `CREATE INDEX IF NOT EXISTS idx_knives_added_at ON knives(added_at DESC);`,
+  )
+
+  // Speed up pinned sorts/filters used by the sidebar and collection view.
+  database.exec(
+    `CREATE INDEX IF NOT EXISTS idx_knives_pinned ON knives(pinned);`,
+  )
+
+  // Speed up brand aggregation/filtering in the sidebar.
+  database.exec(
+    `CREATE INDEX IF NOT EXISTS idx_knives_brand ON knives(brand);`,
+  )
+
+  // Speed up compare-list retrieval ordered by insertion time.
+  database.exec(
+    `CREATE INDEX IF NOT EXISTS idx_compare_list_added_at ON compare_list(added_at DESC);`,
+  )
+}
+
 function initSchema(database: Database.Database) {
   database.exec(`
     CREATE TABLE IF NOT EXISTS knives (
@@ -485,4 +507,5 @@ function initSchema(database: Database.Database) {
   `)
 
   migrateSchema(database)
+  createIndexes(database)
 }
