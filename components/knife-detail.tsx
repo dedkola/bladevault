@@ -115,6 +115,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isTogglingPin, setIsTogglingPin] = useState(false)
   const [isTogglingCompare, setIsTogglingCompare] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -221,6 +222,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
   }
 
   const confirmDelete = () => {
+    setError(null)
     setDeleteDialogOpen(true)
   }
 
@@ -234,6 +236,8 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
       router.push('/collection')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete knife')
+      setDeleteDialogOpen(false)
+    } finally {
       setIsDeleting(false)
     }
   }
@@ -496,7 +500,14 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
         </div>
       </div>
 
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <Dialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!isDeleting) {
+            setDeleteDialogOpen(open)
+          }
+        }}
+      >
         <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>Delete Knife</DialogTitle>
