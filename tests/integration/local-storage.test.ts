@@ -86,6 +86,27 @@ describe('LocalStorage', () => {
     expect(bulk.every((knife) => knife.specs.country === 'Japan')).toBe(true)
   })
 
+  it('bulk updates more knives than SQLite allows in one bound query', async () => {
+    vault = await createTempVault()
+    const storage = new LocalStorage()
+    const knives = await Promise.all(
+      Array.from({ length: 1000 }, (_, index) =>
+        storage.createKnife({
+          ...baseInput,
+          name: `Knife ${index + 1}`,
+        }),
+      ),
+    )
+
+    const updated = await storage.bulkUpdateKnives(
+      knives.map((knife) => knife.id),
+      { brand: 'Spyderco' },
+    )
+
+    expect(updated).toHaveLength(knives.length)
+    expect(updated.every((knife) => knife.brand === 'Spyderco')).toBe(true)
+  })
+
   it('returns the newest compare item first even when timestamps collide', async () => {
     vault = await createTempVault()
     vi.useFakeTimers()
