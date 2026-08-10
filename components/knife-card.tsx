@@ -5,6 +5,7 @@ import { Check, ImageIcon, Scale } from 'lucide-react'
 import { getImageUrl, Knife } from '@/lib/data'
 import { cn } from '@/lib/utils'
 import { BookmarkIcon } from '@/components/bookmark-icon'
+import { ImageCountBadge } from '@/components/image-count-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -142,14 +143,12 @@ export const KnifeCard = memo(function KnifeCard({
             <Check className="size-3.5" strokeWidth={3} />
           </span>
         )}
-        {knife.images.length > 1 && (
-          <span
-            className="absolute right-2 bottom-2 z-10 flex items-center gap-1 rounded-full border bg-white/90 px-2 py-0.5 text-[10px] font-medium text-[var(--bladevault-olive)] shadow-sm backdrop-blur-sm dark:border-input dark:bg-input/90 dark:text-[var(--bladevault-gold)]"
-            aria-label={`${knife.images.length} images`}
-          >
-            <ImageIcon className="h-3 w-3" />
-            {knife.images.length}
-          </span>
+        {knife.images.length > 0 && (
+          <ImageCountBadge
+            count={knife.images.length}
+            size="sm"
+            className="absolute right-2 bottom-2 z-10"
+          />
         )}
       </div>
       <CardContent className="px-1 pb-1 pt-0">
