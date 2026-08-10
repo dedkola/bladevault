@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   useKnivesActions,
-  useKnivesData,
+  useKnivesSettings,
 } from '@/components/providers/knives-provider'
 import {
   activeKnifeActionStyle,
@@ -32,7 +32,7 @@ export const KnifeCard = memo(function KnifeCard({
   onSelect?: (id: string) => void
 }) {
   const { compareIds, pinnedItemsFirst, cardFields, customFieldDefinitions } =
-    useKnivesData()
+    useKnivesSettings()
   const { updateKnife, addToCompare, removeFromCompare, showFeedback } =
     useKnivesActions()
   const pinned = knife.pinned

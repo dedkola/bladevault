@@ -27,9 +27,12 @@ import {
   uploadCloudBackupArchive,
 } from '@/lib/cloud-backup-client'
 
-type KnivesDataContextValue = {
+type KnivesVaultContextValue = {
   knives: Knife[]
   isLoading: boolean
+}
+
+type KnivesSettingsContextValue = {
   compareIds: string[]
   isCloudSyncEnabled: boolean
   isAutoBackupEnabled: boolean
@@ -38,6 +41,9 @@ type KnivesDataContextValue = {
   cardFields: CardField[]
   customFieldDefinitions: CustomField[]
 }
+
+type KnivesDataContextValue = KnivesVaultContextValue &
+  KnivesSettingsContextValue
 
 type KnivesActionsContextValue = {
   refreshVault: () => Promise<void>
@@ -60,7 +66,10 @@ type KnivesContextValue = KnivesDataContextValue & KnivesActionsContextValue
 
 type FeedbackTone = 'success' | 'error'
 
-const KnivesDataContext = createContext<KnivesDataContextValue | null>(null)
+const KnivesVaultContext = createContext<KnivesVaultContextValue | null>(null)
+const KnivesSettingsContext = createContext<KnivesSettingsContextValue | null>(
+  null,
+)
 const KnivesActionsContext = createContext<KnivesActionsContextValue | null>(
   null,
 )
@@ -550,10 +559,16 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const dataValue = useMemo(
+  const vaultValue = useMemo(
     () => ({
       knives,
       isLoading,
+    }),
+    [knives, isLoading],
+  )
+
+  const settingsValue = useMemo(
+    () => ({
       compareIds,
       isCloudSyncEnabled,
       isAutoBackupEnabled,
@@ -563,8 +578,6 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       customFieldDefinitions,
     }),
     [
-      knives,
-      isLoading,
       compareIds,
       isCloudSyncEnabled,
       isAutoBackupEnabled,
@@ -602,8 +615,9 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <KnivesDataContext.Provider value={dataValue}>
-      <KnivesActionsContext.Provider value={actionsValue}>
+    <KnivesVaultContext.Provider value={vaultValue}>
+      <KnivesSettingsContext.Provider value={settingsValue}>
+        <KnivesActionsContext.Provider value={actionsValue}>
         {children}
         <div
           aria-live="polite"
@@ -651,15 +665,25 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
             </div>
           )}
         </div>
-      </KnivesActionsContext.Provider>
-    </KnivesDataContext.Provider>
+        </KnivesActionsContext.Provider>
+      </KnivesSettingsContext.Provider>
+    </KnivesVaultContext.Provider>
   )
 }
 
 export function useKnivesData(): KnivesDataContextValue {
-  const context = useContext(KnivesDataContext)
-  if (!context) {
+  const vault = useContext(KnivesVaultContext)
+  const settings = useContext(KnivesSettingsContext)
+  if (!vault || !settings) {
     throw new Error('useKnivesData must be used within a KnivesProvider')
+  }
+  return { ...vault, ...settings }
+}
+
+export function useKnivesSettings(): KnivesSettingsContextValue {
+  const context = useContext(KnivesSettingsContext)
+  if (!context) {
+    throw new Error('useKnivesSettings must be used within a KnivesProvider')
   }
   return context
 }
