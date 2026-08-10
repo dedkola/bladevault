@@ -22,14 +22,7 @@ import { PageHeader } from '@/components/page-header'
 import { Gallery } from '@/components/gallery'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+
 import { cn } from '@/lib/utils'
 import {
   activeKnifeActionStyle,
@@ -115,7 +108,6 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isTogglingPin, setIsTogglingPin] = useState(false)
   const [isTogglingCompare, setIsTogglingCompare] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -221,22 +213,18 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
     }
   }
 
-  const confirmDelete = () => {
-    setError(null)
-    setDeleteDialogOpen(true)
-  }
-
   const handleDelete = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${knife.name}? This action cannot be undone.`)) {
+      return
+    }
     setIsDeleting(true)
     setError(null)
 
     try {
       await deleteKnife(knife.id)
-      setDeleteDialogOpen(false)
       router.push('/collection')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete knife')
-      setDeleteDialogOpen(false)
     } finally {
       setIsDeleting(false)
     }
@@ -392,7 +380,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
             <Button
               variant="outline"
               size="sm"
-              onClick={confirmDelete}
+              onClick={handleDelete}
               disabled={isDeleting}
               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
             >
@@ -500,45 +488,6 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
         </div>
       </div>
 
-      <Dialog
-        open={deleteDialogOpen}
-        onOpenChange={(open) => {
-          if (!isDeleting) {
-            setDeleteDialogOpen(open)
-          }
-        }}
-      >
-        <DialogContent showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>Delete Knife</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete <strong>{knife.name}</strong>?
-              This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteDialogOpen(false)}
-              disabled={isDeleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={isDeleting}
-            >
-              {isDeleting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="h-3.5 w-3.5" />
-              )}
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
