@@ -221,8 +221,6 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
     }
   }
 
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-
   const confirmDelete = () => {
     setError(null)
     setDeleteDialogOpen(true)
