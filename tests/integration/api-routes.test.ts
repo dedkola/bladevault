@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import * as compareRoute from '@/app/api/compare/route'
 import * as bulkRoute from '@/app/api/knives/bulk/route'
+import * as bulkPinRoute from '@/app/api/knives/bulk/pin/route'
 import * as knifeRoute from '@/app/api/knives/[id]/route'
 import * as knivesRoute from '@/app/api/knives/route'
 import { saveSettings } from '@/lib/settings'
@@ -154,5 +155,57 @@ describe('knife API routes', () => {
     expect(
       ((await bulkCompare.json()) as { compareIds: string[] }).compareIds,
     ).toEqual(['first', 'second'])
+  })
+})
+
+describe('bulk pin API route', () => {
+  it('validates input and bulk-updates pinned state', async () => {
+    vault = await createTempVault()
+
+    for (const name of ['Alpha', 'Beta']) {
+      await knivesRoute.POST(
+        jsonRequest('http://localhost/api/knives', 'POST', { name }),
+      )
+    }
+
+    // rejects missing pinned field
+    const missingPinned = await bulkPinRoute.POST(
+      jsonRequest('http://localhost/api/knives/bulk/pin', 'POST', {
+        ids: ['alpha'],
+      }),
+    )
+    expect(missingPinned.status).toBe(400)
+
+    // rejects empty ids array
+    const emptyIds = await bulkPinRoute.POST(
+      jsonRequest('http://localhost/api/knives/bulk/pin', 'POST', {
+        ids: [],
+        pinned: true,
+      }),
+    )
+    expect(emptyIds.status).toBe(400)
+
+    // strips invalid entries and deduplicates
+    const pin = await bulkPinRoute.POST(
+      jsonRequest('http://localhost/api/knives/bulk/pin', 'POST', {
+        ids: ['alpha', 'beta', '', 123, 'alpha'],
+        pinned: true,
+      }),
+    )
+    expect(pin.status).toBe(200)
+    const pinPayload = (await pin.json()) as { knives: Array<{ id: string; pinned: boolean }> }
+    expect(pinPayload.knives).toHaveLength(2)
+    expect(pinPayload.knives.every((k) => k.pinned)).toBe(true)
+
+    // unpin
+    const unpin = await bulkPinRoute.POST(
+      jsonRequest('http://localhost/api/knives/bulk/pin', 'POST', {
+        ids: ['alpha'],
+        pinned: false,
+      }),
+    )
+    expect(unpin.status).toBe(200)
+    const unpinPayload = (await unpin.json()) as { knives: Array<{ pinned: boolean }> }
+    expect(unpinPayload.knives.every((k) => !k.pinned)).toBe(true)
   })
 })
