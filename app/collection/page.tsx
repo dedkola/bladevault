@@ -209,35 +209,6 @@ function CollectionContent() {
     [replaceParams],
   )
 
-  useEffect(() => {
-    const handleSearchShortcut = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null
-      const isTyping =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement ||
-        target?.isContentEditable
-
-      if (event.key === '/' && !isTyping) {
-        event.preventDefault()
-        searchInputRef.current?.focus()
-        return
-      }
-
-      if (
-        event.key === 'Escape' &&
-        document.activeElement === searchInputRef.current &&
-        query
-      ) {
-        event.preventDefault()
-        setQuery('')
-      }
-    }
-
-    window.addEventListener('keydown', handleSearchShortcut)
-    return () => window.removeEventListener('keydown', handleSearchShortcut)
-  }, [query, setQuery])
-
   const filterDefinitions = useMemo(
     () => [
       ...builtInFilterDefinitions,
@@ -358,13 +329,13 @@ function CollectionContent() {
     setFilterValues(key, nextValues)
   }
 
-  const clearAllFilters = () => {
+  const clearAllFilters = useCallback(() => {
     replaceParams((params) => {
       params.delete('q')
       filterDefinitions.forEach((definition) => params.delete(definition.key))
     })
     setVisibleCount(PAGE_SIZE)
-  }
+  }, [replaceParams, filterDefinitions])
 
   const activeFilters = filterDefinitions.flatMap((definition) =>
     selectedFilters[definition.key].map((value) => ({
@@ -387,6 +358,46 @@ function CollectionContent() {
   )
 
   const hasActiveFilters = activeFilters.length > 0 || query.trim().length > 0
+
+  useEffect(() => {
+    const handleSearchShortcut = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      const isTyping =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target?.isContentEditable
+
+      if (event.key === '/' && !isTyping) {
+        event.preventDefault()
+        searchInputRef.current?.focus()
+        return
+      }
+
+      if (
+        event.key === 'Escape' &&
+        document.activeElement === searchInputRef.current &&
+        query
+      ) {
+        event.preventDefault()
+        setQuery('')
+        return
+      }
+
+      if (event.key === 'Escape' && !isTyping && hasActiveFilters) {
+        if (
+          target?.closest('[role="dialog"], [role="menu"], [role="listbox"]')
+        ) {
+          return
+        }
+        event.preventDefault()
+        clearAllFilters()
+      }
+    }
+
+    window.addEventListener('keydown', handleSearchShortcut)
+    return () => window.removeEventListener('keydown', handleSearchShortcut)
+  }, [query, setQuery, hasActiveFilters, clearAllFilters])
 
   const selectedKnives = useMemo(
     () => knives.filter((knife) => selectedIds.has(knife.id)),
@@ -583,6 +594,15 @@ function CollectionContent() {
             <Button variant="ghost" size="xs" onClick={clearAllFilters}>
               Clear all
             </Button>
+          )}
+          {hasActiveFilters && (
+            <span className="ml-auto text-xs text-muted-foreground hidden sm:inline">
+              Press{' '}
+              <kbd className="rounded border bg-muted px-1 py-0.5 font-mono text-[10px]">
+                Esc
+              </kbd>{' '}
+              to clear
+            </span>
           )}
         </div>
       </div>
