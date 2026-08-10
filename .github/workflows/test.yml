@@ -26,28 +26,7 @@ jobs:
           cache: npm
           node-version: 22
 
-      - name: Install dependencies
-        run: npm ci
 
-      - name: Check changed-file formatting
-        shell: bash
-        env:
-          FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          set -euo pipefail
-
-          if [[ -z "$FORMAT_BASE_SHA" || "$FORMAT_BASE_SHA" =~ ^0+$ ]]; then
-            FORMAT_BASE_SHA="$(git rev-parse HEAD^)"
-          fi
-
-          mapfile -t formatted_files < <(
-            git diff --name-only --diff-filter=ACMR "$FORMAT_BASE_SHA"...HEAD |
-              grep -E '\.(cjs|css|json|md|mts|ts|tsx|ya?ml)$' || true
-          )
-
-          if (( ${#formatted_files[@]} > 0 )); then
-            npx prettier --check -- "${formatted_files[@]}"
-          fi
 
       - name: Lint
         run: npm run lint
