@@ -10,7 +10,7 @@ export type BreadcrumbItemData = {
 }
 
 type PageHeaderProps = {
-  title: string
+  title: React.ReactNode
   description?: string
   breadcrumbs?: BreadcrumbItemData[]
   actions?: React.ReactNode

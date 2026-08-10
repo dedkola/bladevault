@@ -19,6 +19,7 @@ import { CustomField } from '@/lib/settings-shared'
 import { readJsonResponse } from '@/lib/api-response'
 import { getSafeExternalUrl } from '@/lib/external-url'
 import { PageHeader } from '@/components/page-header'
+import { ImageCountBadge } from '@/components/image-count-badge'
 import { Gallery } from '@/components/gallery'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -329,7 +330,12 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
   return (
     <div className="flex-1 p-6 lg:p-8 w-full max-w-7xl 2xl:max-w-[100rem] mx-auto">
       <PageHeader
-        title={[knife.brand, knife.name].filter(Boolean).join(' ')}
+        title={
+          <span className="inline-flex items-center gap-2">
+            {[knife.brand, knife.name].filter(Boolean).join(' ')}
+            <ImageCountBadge count={knife.images.length} />
+          </span>
+        }
         breadcrumbs={knifeBreadcrumbs}
         actions={
           <>
