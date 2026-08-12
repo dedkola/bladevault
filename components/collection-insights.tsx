@@ -592,15 +592,15 @@ export function CollectionInsights() {
     (peak, bin) => (bin.count > peak.count ? bin : peak),
     measurement.bins[0],
   )
-const topTwoMakerShare = stats.total
-  ? Math.round(
-      (makerCategories
-        .slice(0, 2)
-        .reduce((sum, category) => sum + category.count, 0) /
-        stats.total) *
-        100,
-    )
-  : 0
+  const topTwoMakerShare = stats.total
+    ? Math.round(
+        (makerCategories
+          .slice(0, 2)
+          .reduce((sum, category) => sum + category.count, 0) /
+          stats.total) *
+          100,
+      )
+    : 0
   const activityWeeks = useMemo(
     () =>
       Array.from({ length: 52 }, (_, index) =>
@@ -1353,16 +1353,7 @@ const topTwoMakerShare = stats.total
         open={Boolean(drilldown)}
         onOpenChange={(open) => !open && setDrilldown(null)}
       >
-        <DialogContent
-          className="flex h-dvh max-h-dvh w-full max-w-md flex-col gap-0 rounded-none p-0 sm:max-w-md"
-          style={{
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 'auto',
-            transform: 'none',
-          }}
-        >
+        <DialogContent className="top-0 right-0 bottom-0 left-auto flex h-dvh max-h-dvh w-full max-w-md translate-x-0 translate-y-0 flex-col gap-0 rounded-none p-0 data-open:slide-in-from-right-4 data-open:zoom-in-100 data-closed:slide-out-to-right-4 data-closed:zoom-out-100 sm:max-w-md">
           <DialogHeader className="border-b p-5 pr-14">
             <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)]">
               {drilldown?.eyebrow}
