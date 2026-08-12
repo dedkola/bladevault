@@ -295,8 +295,7 @@ function buildCategoryStats(
   for (const knife of knives) {
     const value = definition.getValue(knife)?.trim()
     if (!value) continue
-    const normalized = value.toLocaleLowerCase()
-    const group = groups.get(normalized)
+    const normalized = value.toLowerCase()
     if (group) {
       group.knifeIds.push(knife.id)
     } else {
