@@ -9,6 +9,18 @@ export async function GET(
     const { path: segments } = await params
     const relativePath = segments.join('/')
     const storage = getStorage()
+
+    if (storage.getImageStream) {
+      const { stream, contentType } = await storage.getImageStream(relativePath)
+
+      return new NextResponse(stream, {
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=31536000, immutable',
+        },
+      })
+    }
+
     const { buffer, contentType } = await storage.getImage(relativePath)
 
     return new NextResponse(new Uint8Array(buffer), {
