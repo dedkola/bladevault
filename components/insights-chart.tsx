@@ -19,6 +19,8 @@ export type InsightsChartPalette = {
   surface: string
   line: string
   ringTrack: string
+  gold: string
+  highlightWash: string
   chartPrimary: string
   chartSecondary: string
 }
@@ -37,6 +39,10 @@ function getPalette(): InsightsChartPalette {
     ringTrack: document.documentElement.classList.contains('dark')
       ? '#40371f'
       : '#eee6d7',
+    gold: get('--bladevault-gold', '#c89c3d'),
+    highlightWash: document.documentElement.classList.contains('dark')
+      ? 'rgba(200, 156, 61, 0.2)'
+      : 'rgba(200, 156, 61, 0.14)',
     chartPrimary: document.documentElement.classList.contains('dark')
       ? '#c89c3d'
       : '#2e3417',

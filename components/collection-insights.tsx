@@ -87,6 +87,26 @@ function getChartColors(palette: InsightsChartPalette) {
   ]
 }
 
+function getTooltipAppearance(palette: InsightsChartPalette) {
+  return {
+    backgroundColor: palette.card,
+    borderColor: palette.gold,
+    borderWidth: 1,
+    textStyle: { color: palette.foreground, fontSize: 11 },
+    extraCssText:
+      'border-radius: 8px; box-shadow: 0 8px 24px rgba(46, 52, 23, 0.16);',
+  }
+}
+
+function getPieEmphasis(palette: InsightsChartPalette) {
+  return {
+    itemStyle: {
+      borderColor: palette.gold,
+      borderWidth: 2,
+    },
+  }
+}
+
 function missingHref(key: CategoryKey | MeasurementKey) {
   const params = new URLSearchParams()
   params.set(key, NOT_SET_FILTER_VALUE)
@@ -146,7 +166,11 @@ function getMakerOption(
   return {
     animation: false,
     color: getChartColors(palette),
-    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    tooltip: {
+      trigger: 'item',
+      formatter: '{b}: {c} ({d}%)',
+      ...getTooltipAppearance(palette),
+    },
     series: [
       {
         name: 'Brands',
@@ -168,6 +192,7 @@ function getMakerOption(
           },
         },
         labelLine: { show: false },
+        emphasis: getPieEmphasis(palette),
         data: categories.map(({ name, count }) => ({ name, value: count })),
       },
     ],
@@ -182,7 +207,11 @@ function getLockTypeOption(
   return {
     animation: false,
     color: getChartColors(palette),
-    tooltip: { trigger: 'item', formatter: '{b}: {c} knives ({d}%)' },
+    tooltip: {
+      trigger: 'item',
+      formatter: '{b}: {c} knives ({d}%)',
+      ...getTooltipAppearance(palette),
+    },
     series: [
       {
         name: 'Lock types',
@@ -204,6 +233,7 @@ function getLockTypeOption(
           },
         },
         labelLine: { show: false },
+        emphasis: getPieEmphasis(palette),
         data: categories.map(({ name, count }) => ({ name, value: count })),
       },
     ],
@@ -220,7 +250,11 @@ function getBladeLengthDistributionOption(
     grid: { left: 2, right: 2, top: 15, bottom: 25 },
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'shadow' },
+      axisPointer: {
+        type: 'shadow',
+        shadowStyle: { color: palette.highlightWash },
+      },
+      ...getTooltipAppearance(palette),
       formatter: (params: unknown) => {
         const item = Array.isArray(params) ? params[0] : undefined
         const index =
@@ -282,6 +316,7 @@ function getBladeLengthDistributionOption(
             return value ? String(value) : ''
           },
         },
+        emphasis: { itemStyle: { color: palette.gold } },
       },
     ],
   }
@@ -342,7 +377,11 @@ function getHorizontalBarOption(
     grid: { left: 74, right: 62, top: 0, bottom: 0 },
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'shadow' },
+      axisPointer: {
+        type: 'shadow',
+        shadowStyle: { color: palette.highlightWash },
+      },
+      ...getTooltipAppearance(palette),
       formatter: (params: unknown) => {
         const item = Array.isArray(params) ? params[0] : undefined
         const index =
@@ -390,6 +429,7 @@ function getHorizontalBarOption(
             return category ? `${category.count} · ${category.percent}%` : ''
           },
         },
+        emphasis: { itemStyle: { color: palette.gold } },
       },
     ],
   }
@@ -403,7 +443,11 @@ function getPieOption(
   return {
     animation: false,
     color: getChartColors(palette),
-    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    tooltip: {
+      trigger: 'item',
+      formatter: '{b}: {c} ({d}%)',
+      ...getTooltipAppearance(palette),
+    },
     legend: {
       right: 0,
       top: 'middle',
@@ -434,6 +478,7 @@ function getPieOption(
           },
         },
         labelLine: { show: false },
+        emphasis: getPieEmphasis(palette),
         data: categories.map(({ name, count }) => ({ name, value: count })),
       },
     ],
@@ -449,7 +494,11 @@ function getHistogramOption(
     grid: { left: 12, right: 12, top: 20, bottom: 38 },
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'shadow' },
+      axisPointer: {
+        type: 'shadow',
+        shadowStyle: { color: palette.highlightWash },
+      },
+      ...getTooltipAppearance(palette),
       formatter: (params: unknown) => {
         const item = Array.isArray(params) ? params[0] : undefined
         const index =
@@ -474,6 +523,7 @@ function getHistogramOption(
         barMaxWidth: 62,
         data: measurement.bins.map(({ count }) => count),
         itemStyle: { color: '#c89c3d', borderRadius: [6, 6, 1, 1] },
+        emphasis: { itemStyle: { color: palette.gold } },
         label: {
           show: true,
           position: 'top',
@@ -1011,7 +1061,7 @@ export function CollectionInsights() {
                       <TabsTrigger
                         key={key}
                         value={key}
-                        className="text-[10px]"
+                        className="text-[10px] data-active:bg-[var(--bladevault-gold)] data-active:text-[var(--bladevault-olive)] dark:data-active:border-[var(--bladevault-gold)] dark:data-active:bg-[var(--bladevault-gold)] dark:data-active:text-[var(--bladevault-olive)]"
                       >
                         {key === 'bladeLength'
                           ? 'Blade'
@@ -1025,14 +1075,14 @@ export function CollectionInsights() {
                   </TabsList>
                 </Tabs>
               }
-              className="col-span-12 lg:col-span-8"
+              className="col-span-12 lg:col-span-7"
             >
               <InsightsChart
                 buildOption={(palette) =>
                   getHistogramOption(measurement, palette)
                 }
                 ariaLabel={`${measurement.label} distribution`}
-                className="h-56 w-full"
+                className="h-48 w-full"
                 onChartClick={(event) => {
                   const bin = measurement.bins[event.dataIndex ?? -1]
                   if (!bin) return
@@ -1066,7 +1116,7 @@ export function CollectionInsights() {
             <InsightPanel
               eyebrow="Collection health"
               title="Data completeness"
-              className="col-span-12 lg:col-span-4"
+              className="col-span-12 lg:col-span-5"
             >
               <InsightsChart
                 buildOption={(palette) =>
