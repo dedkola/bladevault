@@ -89,12 +89,15 @@ function getChartColors(palette: InsightsChartPalette) {
 
 function getTooltipAppearance(palette: InsightsChartPalette) {
   return {
+    renderMode: 'html' as const,
+    appendTo: 'body',
+    confine: false,
     backgroundColor: palette.card,
     borderColor: palette.gold,
     borderWidth: 1,
     textStyle: { color: palette.foreground, fontSize: 11 },
     extraCssText:
-      'border-radius: 8px; box-shadow: 0 8px 24px rgba(46, 52, 23, 0.16);',
+      'z-index: 9999999; border-radius: 8px; box-shadow: 0 8px 24px rgba(46, 52, 23, 0.16); pointer-events: none;',
   }
 }
 
