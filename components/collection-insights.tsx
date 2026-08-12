@@ -174,6 +174,42 @@ function getMakerOption(
   }
 }
 
+function getLockTypeOption(
+  categories: CategoryStat[],
+  lockTypeCount: number,
+  palette: InsightsChartPalette,
+): EChartsOption {
+  return {
+    animation: false,
+    color: getChartColors(palette),
+    tooltip: { trigger: 'item', formatter: '{b}: {c} knives ({d}%)' },
+    series: [
+      {
+        name: 'Lock types',
+        type: 'pie',
+        radius: ['50%', '72%'],
+        center: ['50%', '50%'],
+        label: {
+          show: true,
+          position: 'center',
+          formatter: `{count|${lockTypeCount}}\n{small|types}`,
+          rich: {
+            count: {
+              color: palette.foreground,
+              fontSize: 25,
+              fontWeight: 600,
+              lineHeight: 27,
+            },
+            small: { color: palette.muted, fontSize: 8 },
+          },
+        },
+        labelLine: { show: false },
+        data: categories.map(({ name, count }) => ({ name, value: count })),
+      },
+    ],
+  }
+}
+
 function getBladeLengthDistributionOption(
   measurement: MeasurementStats,
   palette: InsightsChartPalette,
@@ -565,6 +601,10 @@ export function CollectionInsights() {
     () => collapseCategories(stats.categories.bladeStyle, 5, stats.total),
     [stats.categories.bladeStyle, stats.total],
   )
+  const lockCategories = useMemo(
+    () => collapseCategories(stats.categories.lockingMechanism, 5, stats.total),
+    [stats.categories.lockingMechanism, stats.total],
+  )
   const measurement = stats.measurements[measurementKey]
   const bladeMeasurement = allTimeStats.measurements.bladeLength
   const bladeLengthPeak = bladeMeasurement.bins.reduce(
@@ -814,22 +854,50 @@ export function CollectionInsights() {
               <CardContent className="grid h-full grid-cols-[minmax(0,1fr)_7rem] items-center gap-2 p-4">
                 <div>
                   <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)]">
-                    Data health
+                    Lock types
                   </span>
-                  <p className="mt-4 text-xs text-muted-foreground">
-                    {stats.missingFields.reduce(
-                      (sum, field) => sum + field.count,
-                      0,
-                    )}{' '}
-                    details still need attention
-                  </p>
+                  {stats.categories.lockingMechanism[0] ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openCategory(
+                          'Locking mechanism',
+                          'lockingMechanism',
+                          stats.categories.lockingMechanism[0],
+                        )
+                      }
+                      className="mt-4 block text-left text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <strong className="block truncate text-sm text-foreground">
+                        {stats.categories.lockingMechanism[0].name}
+                      </strong>
+                      {stats.categories.lockingMechanism[0].count} knives ·{' '}
+                      {stats.categories.lockingMechanism[0].percent}%
+                    </button>
+                  ) : (
+                    <p className="mt-4 text-xs text-muted-foreground">
+                      No lock types recorded
+                    </p>
+                  )}
                 </div>
                 <InsightsChart
                   buildOption={(palette) =>
-                    getCompletenessOption(stats.completeness, palette)
+                    getLockTypeOption(
+                      lockCategories,
+                      stats.categories.lockingMechanism.length,
+                      palette,
+                    )
                   }
-                  ariaLabel={`${stats.completeness}% of key collection data is complete`}
+                  ariaLabel={`${stats.categories.lockingMechanism.length} lock types represented`}
                   className="h-28 w-28"
+                  onChartClick={(event) =>
+                    openChartCategory(
+                      event,
+                      'Locking mechanism',
+                      'lockingMechanism',
+                      lockCategories,
+                    )
+                  }
                 />
               </CardContent>
             </Card>
