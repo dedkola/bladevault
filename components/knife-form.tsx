@@ -401,7 +401,7 @@ export function KnifeFormFields({
                 <button
                   type="button"
                   onClick={selectAllImages}
-                  className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
+                  className="rounded-sm text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-2"
                 >
                   Select all
                 </button>
@@ -409,7 +409,7 @@ export function KnifeFormFields({
                 <button
                   type="button"
                   onClick={deselectAllImages}
-                  className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
+                  className="rounded-sm text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-2"
                 >
                   Deselect all
                 </button>
