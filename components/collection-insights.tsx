@@ -592,9 +592,15 @@ export function CollectionInsights() {
     (peak, bin) => (bin.count > peak.count ? bin : peak),
     measurement.bins[0],
   )
-  const topTwoMakerShare = makerCategories
-    .slice(0, 2)
-    .reduce((sum, category) => sum + category.percent, 0)
+const topTwoMakerShare = stats.total
+  ? Math.round(
+      (makerCategories
+        .slice(0, 2)
+        .reduce((sum, category) => sum + category.count, 0) /
+        stats.total) *
+        100,
+    )
+  : 0
   const activityWeeks = useMemo(
     () =>
       Array.from({ length: 52 }, (_, index) =>
