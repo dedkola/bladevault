@@ -21,29 +21,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getImageUrl, type Knife } from '@/lib/data'
 import {
   collapseCategories,
   createCollectionStats,
-  getStatsPeriodLabel,
   type CategoryKey,
   type CategoryStat,
   type MeasurementKey,
   type MeasurementStats,
-  type StatsPeriod,
 } from '@/lib/collection-stats'
 import { NOT_SET_FILTER_VALUE } from '@/lib/collection-filters'
 import { cn } from '@/lib/utils'
 
-const PERIODS: StatsPeriod[] = ['all', 'year', 'twelve-months']
 const LEGEND_DOT_CLASSES = [
   'bg-[#2e3417] dark:bg-[#c89c3d]',
   'bg-[#79824a] dark:bg-[#947535]',
@@ -543,7 +533,6 @@ function RecentKnife({ knife }: { knife: Knife }) {
 
 export function CollectionInsights() {
   const { knives, isLoading } = useKnives()
-  const [period, setPeriod] = useState<StatsPeriod>('all')
   const [measurementKey, setMeasurementKey] =
     useState<MeasurementKey>('bladeLength')
   const [drilldown, setDrilldown] = useState<Drilldown | null>(null)
@@ -552,13 +541,7 @@ export function CollectionInsights() {
     () => createCollectionStats(knives, 'all', now),
     [knives, now],
   )
-  const stats = useMemo(
-    () =>
-      period === 'all'
-        ? allTimeStats
-        : createCollectionStats(knives, period, now),
-    [allTimeStats, knives, period, now],
-  )
+  const stats = allTimeStats
   const knivesById = useMemo(
     () => new Map(knives.map((knife) => [knife.id, knife])),
     [knives],
@@ -693,27 +676,8 @@ export function CollectionInsights() {
           <h1 className="mt-2 font-serif text-4xl tracking-[-0.04em] sm:text-5xl">
             Collection Insights
           </h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            A complete view of what you collect, where the patterns are, and
-            which details are still missing.
-          </p>
         </div>
-        <div className="flex items-center gap-2 print:hidden">
-          <Select
-            value={period}
-            onValueChange={(value) => setPeriod(value as StatsPeriod)}
-          >
-            <SelectTrigger className="h-9 min-w-40 bg-card">
-              <SelectValue>{getStatsPeriodLabel(period)}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {PERIODS.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {getStatsPeriodLabel(value)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="print:hidden">
           <Button variant="outline" onClick={() => window.print()}>
             <Download className="size-4" /> Export
           </Button>
@@ -725,14 +689,14 @@ export function CollectionInsights() {
           <CardContent className="flex flex-col items-center py-14 text-center">
             <h2 className="font-medium">No knives in this period</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Choose All time to return to your complete collection.
+              Add a knife to start building collection insights.
             </p>
             <Button
               className="mt-4"
-              variant="outline"
-              onClick={() => setPeriod('all')}
+              render={<Link href="/add" />}
+              nativeButton={false}
             >
-              Show all time
+              Add a knife
             </Button>
           </CardContent>
         </Card>
