@@ -22,6 +22,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { getImageUrl, type Knife } from '@/lib/data'
 import {
   collapseCategories,
@@ -72,6 +77,23 @@ function formatMetric(value: number | undefined, unit: string): string {
 
 function formatMeasurementAxisLabel(label: string): string {
   return label.replace(/\.0(?=–|″|\s)/g, '')
+}
+
+function getOrdinalDay(day: number): string {
+  const lastTwoDigits = day % 100
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 13) return `${day}th`
+  if (day % 10 === 1) return `${day}st`
+  if (day % 10 === 2) return `${day}nd`
+  if (day % 10 === 3) return `${day}rd`
+  return `${day}th`
+}
+
+function formatActivityDayLabel(date: Date, count: number): string {
+  const formattedDate = `${date.toLocaleDateString(undefined, {
+    month: 'long',
+  })} ${getOrdinalDay(date.getDate())}`
+  if (count === 0) return `No knives added on ${formattedDate}.`
+  return `${count} ${count === 1 ? 'knife' : 'knives'} added on ${formattedDate}.`
 }
 
 function categoryHref(key: CategoryKey, category: CategoryStat) {
@@ -378,9 +400,10 @@ function getHorizontalBarOption(
   categories: CategoryStat[],
   palette: InsightsChartPalette,
 ): EChartsOption {
+  const colors = getChartColors(palette)
   return {
     animation: false,
-    color: [palette.chartPrimary],
+    color: colors,
     grid: { left: 74, right: 62, top: 0, bottom: 0 },
     tooltip: {
       trigger: 'axis',
@@ -418,10 +441,13 @@ function getHorizontalBarOption(
       {
         type: 'bar',
         barMaxWidth: 10,
-        data: categories.map((category) => ({
+        data: categories.map((category, index) => ({
           value: category.count,
           itemStyle: {
-            color: category.name === 'Other' ? '#a9aa9f' : palette.chartPrimary,
+            color:
+              category.name === 'Other'
+                ? '#a9aa9f'
+                : colors[index % colors.length],
             borderRadius: 8,
           },
         })),
@@ -496,6 +522,7 @@ function getHistogramOption(
   measurement: MeasurementStats,
   palette: InsightsChartPalette,
 ): EChartsOption {
+  const colors = getChartColors(palette)
   return {
     animation: false,
     grid: { left: 12, right: 12, top: 20, bottom: 38 },
@@ -530,8 +557,13 @@ function getHistogramOption(
       {
         type: 'bar',
         barMaxWidth: 62,
-        data: measurement.bins.map(({ count }) => count),
-        itemStyle: { color: '#c89c3d', borderRadius: [6, 6, 1, 1] },
+        data: measurement.bins.map(({ count }, index) => ({
+          value: count,
+          itemStyle: {
+            color: colors[index % colors.length],
+            borderRadius: [6, 6, 1, 1],
+          },
+        })),
         emphasis: { itemStyle: { color: palette.gold } },
         label: {
           show: true,
@@ -1381,43 +1413,51 @@ export function CollectionInsights() {
                                       (day.count / maxActivityCount) * 4,
                                     ),
                                   )
-                            return day.count === 0 ? (
-                              <span
-                                key={day.dateKey}
-                                className="h-[11px] min-w-[10px] rounded-[2px] bg-muted"
-                                aria-hidden="true"
-                              />
-                            ) : (
-                              <button
-                                key={day.dateKey}
-                                type="button"
-                                title={`${day.count} ${day.count === 1 ? 'knife' : 'knives'} added on ${day.date.toLocaleDateString()}`}
-                                aria-label={`${day.count} ${day.count === 1 ? 'knife' : 'knives'} added on ${day.date.toLocaleDateString()}`}
-                                onClick={() =>
-                                  setDrilldown({
-                                    eyebrow: 'Added date',
-                                    title: day.date.toLocaleDateString(
-                                      undefined,
-                                      {
-                                        dateStyle: 'medium',
-                                      },
-                                    ),
-                                    description: `${day.count} ${day.count === 1 ? 'knife was' : 'knives were'} added`,
-                                    knifeIds: day.knifeIds,
-                                  })
-                                }
-                                className={cn(
-                                  'h-[11px] min-w-[10px] rounded-[2px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                                  level === 1 &&
-                                    'bg-[#b7bd86] dark:bg-[#66552c]',
-                                  level === 2 &&
-                                    'bg-[#79824a] dark:bg-[#947535]',
-                                  level === 3 &&
-                                    'bg-[#4f5821] dark:bg-[#b78d36]',
-                                  level === 4 &&
-                                    'bg-[#2e3417] dark:bg-[#c89c3d]',
-                                )}
-                              />
+                            const activityLabel = formatActivityDayLabel(
+                              day.date,
+                              day.count,
+                            )
+                            return (
+                              <Tooltip key={day.dateKey}>
+                                <TooltipTrigger
+                                  type="button"
+                                  aria-label={activityLabel}
+                                  onClick={
+                                    day.count
+                                      ? () =>
+                                          setDrilldown({
+                                            eyebrow: 'Added date',
+                                            title: day.date.toLocaleDateString(
+                                              undefined,
+                                              {
+                                                dateStyle: 'medium',
+                                              },
+                                            ),
+                                            description: `${day.count} ${day.count === 1 ? 'knife was' : 'knives were'} added`,
+                                            knifeIds: day.knifeIds,
+                                          })
+                                      : undefined
+                                  }
+                                  className={cn(
+                                    'h-[11px] min-w-[10px] rounded-[2px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                    day.count === 0 && 'bg-muted',
+                                    level === 1 &&
+                                      'bg-[#b7bd86] dark:bg-[#66552c]',
+                                    level === 2 &&
+                                      'bg-[#79824a] dark:bg-[#947535]',
+                                    level === 3 &&
+                                      'bg-[#4f5821] dark:bg-[#b78d36]',
+                                    level === 4 &&
+                                      'bg-[#2e3417] dark:bg-[#c89c3d]',
+                                  )}
+                                />
+                                <TooltipContent
+                                  sideOffset={8}
+                                  className="whitespace-nowrap text-sm font-semibold"
+                                >
+                                  {activityLabel}
+                                </TooltipContent>
+                              </Tooltip>
                             )
                           })}
                         </div>
