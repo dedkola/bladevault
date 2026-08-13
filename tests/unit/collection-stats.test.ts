@@ -109,6 +109,40 @@ describe('collection statistics', () => {
     })
   })
 
+  it('uses ten fine-grained measurement bins around common blade lengths', () => {
+    const bladeLengths = [
+      '2.99 in',
+      '3.0 in',
+      '3.12 in',
+      '3.24 in',
+      '3.25 in',
+      '3.49 in',
+      '3.5 in',
+    ]
+    const knives = bladeLengths.map((bladeLength, index) =>
+      createKnife({
+        id: `blade-${index}`,
+        specs: { ...createKnife().specs, bladeLength },
+      }),
+    )
+
+    const measurements = createCollectionStats(knives, 'all').measurements
+    const measurement = measurements.bladeLength
+
+    expect(Object.values(measurements).map(({ bins }) => bins.length)).toEqual([
+      10, 10, 10, 10,
+    ])
+    expect(measurement.bins).toHaveLength(10)
+    expect(measurement.bins).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: '2.75–3.0″', count: 1 }),
+        expect.objectContaining({ label: '3.0–3.25″', count: 3 }),
+        expect.objectContaining({ label: '3.25–3.5″', count: 2 }),
+        expect.objectContaining({ label: '3.5–3.75″', count: 1 }),
+      ]),
+    )
+  })
+
   it('collapses long category lists into an Other group', () => {
     const categories = ['A', 'B', 'C', 'D', 'E', 'F'].map((name, index) => ({
       name,

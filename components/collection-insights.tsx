@@ -70,6 +70,10 @@ function formatMetric(value: number | undefined, unit: string): string {
   return `${value.toLocaleString(undefined, { maximumFractionDigits: fractionDigits })} ${unit}`
 }
 
+function formatMeasurementAxisLabel(label: string): string {
+  return label.replace(/\.0(?=–|″|\s)/g, '')
+}
+
 function categoryHref(key: CategoryKey, category: CategoryStat) {
   if (category.name === 'Other') return undefined
   const params = new URLSearchParams()
@@ -276,14 +280,14 @@ function getBladeLengthDistributionOption(
     xAxis: {
       type: 'category',
       data: measurement.bins.map(({ label }) =>
-        label.replace('.0', '').replace('–', '–\n'),
+        formatMeasurementAxisLabel(label).replace('–', '–\n'),
       ),
       axisLine: { lineStyle: { color: palette.line } },
       axisTick: { show: false },
       axisLabel: {
         color: palette.muted,
         fontSize: 7,
-        interval: 0,
+        hideOverlap: true,
         lineHeight: 8,
       },
     },
@@ -514,10 +518,12 @@ function getHistogramOption(
     },
     xAxis: {
       type: 'category',
-      data: measurement.bins.map(({ label }) => label),
+      data: measurement.bins.map(({ label }) =>
+        formatMeasurementAxisLabel(label),
+      ),
       axisTick: { show: false },
       axisLine: { lineStyle: { color: palette.line } },
-      axisLabel: { color: palette.muted, fontSize: 9, interval: 0 },
+      axisLabel: { color: palette.muted, fontSize: 9, hideOverlap: true },
     },
     yAxis: { type: 'value', show: false, minInterval: 1 },
     series: [
