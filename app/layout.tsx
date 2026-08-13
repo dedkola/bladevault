@@ -45,11 +45,11 @@ export default function RootLayout({
       )}
       suppressHydrationWarning
     >
-      <body className="bg-background text-foreground flex h-dvh min-h-0 w-full flex-col overflow-hidden font-sans md:flex-row">
+      <body className="bg-background text-foreground flex h-dvh min-h-0 w-full flex-col overflow-hidden font-sans print:h-auto print:overflow-visible md:flex-row">
         <KnivesProvider>
           <TooltipProvider>
             <SidebarShell />
-            <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+            <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain print:overflow-visible">
               {children}
             </main>
           </TooltipProvider>

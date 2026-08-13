@@ -35,7 +35,7 @@ import { type AppSettings } from '@/lib/settings-shared'
 import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
 
 const links = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/', label: 'Insights', icon: LayoutDashboard },
   { href: '/collection', label: 'Collection', icon: Library },
   { href: '/compare', label: 'Compare', icon: Scale },
 ]
@@ -119,7 +119,7 @@ export function Sidebar() {
     return (
       <aside
         className={cn(
-          'flex min-h-0 flex-col bg-sidebar text-sidebar-foreground',
+          'flex min-h-0 flex-col bg-sidebar text-sidebar-foreground print:hidden',
           isMobile
             ? 'h-dvh max-h-dvh w-[min(20rem,calc(100vw-2.5rem))] max-w-full border-r border-sidebar-border shadow-2xl'
             : 'hidden h-full w-60 shrink-0 border-r border-sidebar-border md:flex',
@@ -443,7 +443,7 @@ export function Sidebar() {
 
   return (
     <>
-      <svg width="0" height="0" className="absolute">
+      <svg width="0" height="0" className="absolute print:hidden">
         <defs>
           <linearGradient
             id="sidebar-cloud-gradient"
@@ -459,7 +459,7 @@ export function Sidebar() {
         </defs>
       </svg>
 
-      <div className="flex items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 md:hidden">
+      <div className="flex items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 print:hidden md:hidden">
         <Link href="/" className="flex min-w-0 items-center gap-2.5">
           <div className="relative h-10 w-10 shrink-0">
             <Image
@@ -491,7 +491,7 @@ export function Sidebar() {
 
       {isMobileNavOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/45 md:hidden"
+          className="fixed inset-0 z-50 bg-black/45 print:hidden md:hidden"
           onClick={closeMobileNav}
         >
           <div className="h-full" onClick={(event) => event.stopPropagation()}>

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import * as activityRoute from '@/app/api/activity/route'
 import * as compareRoute from '@/app/api/compare/route'
 import * as bulkRoute from '@/app/api/knives/bulk/route'
 import * as bulkPinRoute from '@/app/api/knives/bulk/pin/route'
@@ -53,6 +54,13 @@ describe('knife API routes', () => {
     const list = await knivesRoute.GET()
     const listPayload = (await list.json()) as { knives: Array<{ id: string }> }
     expect(listPayload.knives.map((knife) => knife.id)).toEqual(['native-5'])
+
+    const activity = (await (await activityRoute.GET()).json()) as {
+      activity: Array<{ knifeId: string; type: string }>
+    }
+    expect(activity.activity).toEqual([
+      expect.objectContaining({ knifeId: 'native-5', type: 'created' }),
+    ])
   })
 
   it('filters patch fields and returns 404 for an unknown knife', async () => {
@@ -193,7 +201,9 @@ describe('bulk pin API route', () => {
       }),
     )
     expect(pin.status).toBe(200)
-    const pinPayload = (await pin.json()) as { knives: Array<{ id: string; pinned: boolean }> }
+    const pinPayload = (await pin.json()) as {
+      knives: Array<{ id: string; pinned: boolean }>
+    }
     expect(pinPayload.knives).toHaveLength(2)
     expect(pinPayload.knives.every((k) => k.pinned)).toBe(true)
 
@@ -205,7 +215,9 @@ describe('bulk pin API route', () => {
       }),
     )
     expect(unpin.status).toBe(200)
-    const unpinPayload = (await unpin.json()) as { knives: Array<{ pinned: boolean }> }
+    const unpinPayload = (await unpin.json()) as {
+      knives: Array<{ pinned: boolean }>
+    }
     expect(unpinPayload.knives.every((k) => !k.pinned)).toBe(true)
   })
 })

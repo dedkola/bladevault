@@ -2,7 +2,7 @@ import fs from 'fs/promises'
 import { createReadStream } from 'fs'
 import path from 'path'
 import { Readable } from 'stream'
-import { Knife, KnifeUpdates } from '@/lib/data'
+import { Knife, KnifeActivityEvent, KnifeUpdates } from '@/lib/data'
 import { normalizeKnifeTextFields } from '@/lib/knife-text'
 import { getLocalDb, getLocalImagesDirPath } from '@/lib/local-db'
 import { fetchExternalUrl, validateExternalUrl } from '@/lib/url-validation'
@@ -119,6 +119,27 @@ export class LocalStorage implements Storage {
       .prepare('SELECT * FROM knives ORDER BY added_at DESC')
       .all()
     return rows.map((row) => rowToKnife(row as Record<string, unknown>))
+  }
+
+  async getKnifeActivity(): Promise<KnifeActivityEvent[]> {
+    const rows = getDb()
+      .prepare(
+        `SELECT id, knife_id, event_type, occurred_at
+         FROM knife_activity
+         ORDER BY occurred_at ASC, id ASC`,
+      )
+      .all() as Array<{
+      id: number
+      knife_id: string
+      event_type: KnifeActivityEvent['type']
+      occurred_at: string
+    }>
+
+    return rows.map((row) => ({
+      knifeId: row.knife_id,
+      type: row.event_type,
+      occurredAt: row.occurred_at,
+    }))
   }
 
   async getKnifeById(id: string): Promise<Knife | undefined> {
@@ -263,27 +284,37 @@ export class LocalStorage implements Storage {
       pinned: normalizedInput.pinned ?? false,
     }
 
-    getDb()
-      .prepare(
-        `INSERT INTO knives (id, name, brand, steel, blade_style, handle_material, images, specs, custom_fields, description, added_at, updated_at, source_url, pinned)
+    const database = getDb()
+    const create = database.transaction(() => {
+      database
+        .prepare(
+          `INSERT INTO knives (id, name, brand, steel, blade_style, handle_material, images, specs, custom_fields, description, added_at, updated_at, source_url, pinned)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        newKnife.id,
-        newKnife.name,
-        newKnife.brand,
-        '',
-        newKnife.bladeStyle,
-        newKnife.handleMaterial,
-        JSON.stringify(newKnife.images),
-        JSON.stringify(newKnife.specs),
-        JSON.stringify(newKnife.customFields),
-        newKnife.description,
-        newKnife.addedAt,
-        newKnife.updatedAt,
-        newKnife.sourceUrl,
-        newKnife.pinned ? 1 : 0,
-      )
+        )
+        .run(
+          newKnife.id,
+          newKnife.name,
+          newKnife.brand,
+          '',
+          newKnife.bladeStyle,
+          newKnife.handleMaterial,
+          JSON.stringify(newKnife.images),
+          JSON.stringify(newKnife.specs),
+          JSON.stringify(newKnife.customFields),
+          newKnife.description,
+          newKnife.addedAt,
+          newKnife.updatedAt,
+          newKnife.sourceUrl,
+          newKnife.pinned ? 1 : 0,
+        )
+      database
+        .prepare(
+          `INSERT INTO knife_activity (knife_id, event_type, occurred_at)
+           VALUES (?, 'created', ?)`,
+        )
+        .run(newKnife.id, newKnife.addedAt)
+    })
+    create()
 
     return newKnife
   }
@@ -378,27 +409,37 @@ export class LocalStorage implements Storage {
       ),
     }
 
-    getDb()
-      .prepare(
-        `UPDATE knives
+    const database = getDb()
+    const update = database.transaction(() => {
+      database
+        .prepare(
+          `UPDATE knives
          SET name = ?, brand = ?, steel = ?, blade_style = ?, handle_material = ?, images = ?, specs = ?, custom_fields = ?, description = ?, updated_at = ?, source_url = ?, pinned = ?
          WHERE id = ?`,
-      )
-      .run(
-        updated.name,
-        updated.brand,
-        '',
-        updated.bladeStyle,
-        updated.handleMaterial,
-        JSON.stringify(updated.images),
-        JSON.stringify(updated.specs),
-        JSON.stringify(updated.customFields),
-        updated.description,
-        updated.updatedAt,
-        updated.sourceUrl,
-        updated.pinned ? 1 : 0,
-        id,
-      )
+        )
+        .run(
+          updated.name,
+          updated.brand,
+          '',
+          updated.bladeStyle,
+          updated.handleMaterial,
+          JSON.stringify(updated.images),
+          JSON.stringify(updated.specs),
+          JSON.stringify(updated.customFields),
+          updated.description,
+          updated.updatedAt,
+          updated.sourceUrl,
+          updated.pinned ? 1 : 0,
+          id,
+        )
+      database
+        .prepare(
+          `INSERT INTO knife_activity (knife_id, event_type, occurred_at)
+           VALUES (?, 'updated', ?)`,
+        )
+        .run(id, updated.updatedAt)
+    })
+    update()
 
     return updated
   }
@@ -436,6 +477,10 @@ export class LocalStorage implements Storage {
       `UPDATE knives
        SET name = ?, brand = ?, steel = ?, blade_style = ?, handle_material = ?, images = ?, specs = ?, custom_fields = ?, description = ?, updated_at = ?, source_url = ?, pinned = ?
        WHERE id = ?`,
+    )
+    const activityStatement = database.prepare(
+      `INSERT INTO knife_activity (knife_id, event_type, occurred_at)
+       VALUES (?, 'updated', ?)`,
     )
 
     const updateAll = database.transaction(() =>
@@ -487,6 +532,7 @@ export class LocalStorage implements Storage {
           updated.pinned ? 1 : 0,
           id,
         )
+        activityStatement.run(id, updated.updatedAt)
 
         return updated
       }),
@@ -499,8 +545,13 @@ export class LocalStorage implements Storage {
     const knife = await this.getKnifeById(id)
     if (!knife) return
 
-    getDb().prepare('DELETE FROM knives WHERE id = ?').run(id)
-    getDb().prepare('DELETE FROM compare_list WHERE knife_id = ?').run(id)
+    const database = getDb()
+    const remove = database.transaction(() => {
+      database.prepare('DELETE FROM knife_activity WHERE knife_id = ?').run(id)
+      database.prepare('DELETE FROM compare_list WHERE knife_id = ?').run(id)
+      database.prepare('DELETE FROM knives WHERE id = ?').run(id)
+    })
+    remove()
 
     try {
       const dir = path.join(getImagesDir(), id)
@@ -541,27 +592,45 @@ export class LocalStorage implements Storage {
     const restoredUpdatedAt =
       normalizedKnife.updatedAt?.trim() || normalizedKnife.addedAt
 
-    getDb()
-      .prepare(
-        `INSERT OR REPLACE INTO knives (id, name, brand, steel, blade_style, handle_material, images, specs, custom_fields, description, added_at, updated_at, source_url, pinned)
+    const database = getDb()
+    const migrate = database.transaction(() => {
+      database
+        .prepare(
+          `INSERT OR REPLACE INTO knives (id, name, brand, steel, blade_style, handle_material, images, specs, custom_fields, description, added_at, updated_at, source_url, pinned)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        normalizedKnife.id,
-        normalizedKnife.name,
-        normalizedKnife.brand,
-        '',
-        normalizedKnife.bladeStyle,
-        normalizedKnife.handleMaterial,
-        JSON.stringify(images),
-        JSON.stringify(normalizedKnife.specs),
-        JSON.stringify(normalizedKnife.customFields),
-        normalizedKnife.description,
-        normalizedKnife.addedAt,
-        restoredUpdatedAt,
-        normalizedKnife.sourceUrl,
-        normalizedKnife.pinned ? 1 : 0,
-      )
+        )
+        .run(
+          normalizedKnife.id,
+          normalizedKnife.name,
+          normalizedKnife.brand,
+          '',
+          normalizedKnife.bladeStyle,
+          normalizedKnife.handleMaterial,
+          JSON.stringify(images),
+          JSON.stringify(normalizedKnife.specs),
+          JSON.stringify(normalizedKnife.customFields),
+          normalizedKnife.description,
+          normalizedKnife.addedAt,
+          restoredUpdatedAt,
+          normalizedKnife.sourceUrl,
+          normalizedKnife.pinned ? 1 : 0,
+        )
+      database
+        .prepare(
+          `INSERT INTO knife_activity (knife_id, event_type, occurred_at)
+           VALUES (?, 'created', ?)`,
+        )
+        .run(normalizedKnife.id, normalizedKnife.addedAt)
+      if (restoredUpdatedAt !== normalizedKnife.addedAt) {
+        database
+          .prepare(
+            `INSERT INTO knife_activity (knife_id, event_type, occurred_at)
+             VALUES (?, 'updated', ?)`,
+          )
+          .run(normalizedKnife.id, restoredUpdatedAt)
+      }
+    })
+    migrate()
   }
 
   async migrateCompareList(ids: string[]): Promise<void> {

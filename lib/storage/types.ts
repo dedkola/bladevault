@@ -1,4 +1,4 @@
-import { Knife, KnifeUpdates } from '@/lib/data'
+import { Knife, KnifeActivityEvent, KnifeUpdates } from '@/lib/data'
 
 export type CreateKnifeInput = Omit<
   Knife,
@@ -20,6 +20,7 @@ export interface ImageStream {
 
 export interface Storage {
   getAllKnives(): Promise<Knife[]>
+  getKnifeActivity(): Promise<KnifeActivityEvent[]>
   getKnifeById(id: string): Promise<Knife | undefined>
   createKnife(input: CreateKnifeInput): Promise<Knife>
   updateKnife(id: string, updates: KnifeUpdates): Promise<Knife>
