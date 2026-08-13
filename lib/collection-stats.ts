@@ -461,6 +461,7 @@ function buildActivity(
   const mondayOffset = (end.getDay() + 6) % 7
   const start = new Date(end)
   start.setDate(end.getDate() - mondayOffset - 51 * 7)
+  const visibleDayCount = 51 * 7 + mondayOffset + 1
 
   const visibleKnifeIds = new Set(knives.map(({ id }) => id))
   const activityByDate = new Map<
@@ -481,7 +482,7 @@ function buildActivity(
     activityByDate.set(key, bucket)
   }
 
-  return Array.from({ length: 52 * 7 }, (_, index) => {
+  return Array.from({ length: visibleDayCount }, (_, index) => {
     const date = new Date(start)
     date.setDate(start.getDate() + index)
     const dateKey = getDateKey(date)

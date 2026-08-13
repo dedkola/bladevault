@@ -721,7 +721,47 @@ export function CollectionInsights() {
   const [measurementKey, setMeasurementKey] =
     useState<MeasurementKey>('bladeLength')
   const [drilldown, setDrilldown] = useState<Drilldown | null>(null)
-  const now = useMemo(() => new Date(), [])
+  const [now, setNow] = useState(() => new Date())
+
+  useEffect(() => {
+    let midnightTimeout: number | undefined
+
+    function scheduleNextLocalDay() {
+      if (midnightTimeout !== undefined) {
+        window.clearTimeout(midnightTimeout)
+      }
+      const currentTime = new Date()
+      const nextLocalDay = new Date(currentTime)
+      nextLocalDay.setHours(24, 0, 1, 0)
+      midnightTimeout = window.setTimeout(
+        refreshCurrentDate,
+        Math.max(1_000, nextLocalDay.getTime() - currentTime.getTime()),
+      )
+    }
+
+    function refreshCurrentDate() {
+      setNow(new Date())
+      scheduleNextLocalDay()
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        refreshCurrentDate()
+      }
+    }
+
+    scheduleNextLocalDay()
+    window.addEventListener('focus', refreshCurrentDate)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      if (midnightTimeout !== undefined) {
+        window.clearTimeout(midnightTimeout)
+      }
+      window.removeEventListener('focus', refreshCurrentDate)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false

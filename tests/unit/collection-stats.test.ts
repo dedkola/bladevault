@@ -134,6 +134,8 @@ describe('collection statistics', () => {
     expect(stats.activeDays).toBe(3)
     expect(stats.additionsInActivityRange).toBe(3)
     expect(stats.editsInActivityRange).toBe(2)
+    expect(stats.activity).toHaveLength(51 * 7 + 3)
+    expect(stats.activity.at(-1)?.dateKey).toBe('2026-08-12')
     expect(
       stats.activity.find(({ dateKey }) => dateKey === '2026-08-10'),
     ).toMatchObject({
