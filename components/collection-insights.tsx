@@ -922,10 +922,7 @@ export function CollectionInsights() {
   if (knives.length === 0) {
     return (
       <div className="mx-auto w-full max-w-7xl flex-1 p-6 lg:p-8">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)]">
-          Your collection, understood
-        </span>
-        <h1 className="mt-2 font-serif text-4xl tracking-tight">
+        <h1 className="font-serif text-4xl tracking-tight">
           Collection Insights
         </h1>
         <Card className="mt-8 border-dashed bg-muted/40">
@@ -951,10 +948,7 @@ export function CollectionInsights() {
     <div className="mx-auto w-full max-w-7xl flex-1 p-6 print:max-w-none print:p-0 lg:p-8">
       <header className="mb-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)]">
-            Your collection, understood
-          </span>
-          <h1 className="mt-2 font-serif text-4xl tracking-[-0.04em] sm:text-5xl">
+          <h1 className="font-serif text-4xl tracking-[-0.04em] sm:text-5xl">
             Collection Insights
           </h1>
         </div>
