@@ -721,6 +721,22 @@ export function CollectionInsights() {
     [openCategory],
   )
 
+  const openMeasurementBin = useCallback(
+    (
+      selectedMeasurement: MeasurementStats,
+      bin: MeasurementStats['bins'][number] | undefined,
+    ) => {
+      if (!bin?.count) return
+      setDrilldown({
+        eyebrow: selectedMeasurement.label,
+        title: bin.label,
+        description: `${bin.count} ${bin.count === 1 ? 'knife' : 'knives'} in this range`,
+        knifeIds: bin.knifeIds,
+      })
+    },
+    [],
+  )
+
   if (isLoading) {
     return (
       <div className="mx-auto w-full max-w-7xl flex-1 p-6 lg:p-8">
@@ -889,7 +905,14 @@ export function CollectionInsights() {
                 <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)]">
                   Blade lengths
                 </span>
-                <div className="mt-2 flex items-baseline justify-between gap-2">
+                <button
+                  type="button"
+                  disabled={!bladeLengthPeak?.count}
+                  onClick={() =>
+                    openMeasurementBin(bladeMeasurement, bladeLengthPeak)
+                  }
+                  className="mt-2 flex w-full items-baseline justify-between gap-2 rounded-sm text-left transition-colors hover:text-[var(--bladevault-title)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
+                >
                   <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
                     Most common
                   </span>
@@ -898,13 +921,19 @@ export function CollectionInsights() {
                       ? bladeLengthPeak.label
                       : 'Not enough data'}
                   </strong>
-                </div>
+                </button>
                 <InsightsChart
                   buildOption={(palette) =>
                     getBladeLengthDistributionOption(bladeMeasurement, palette)
                   }
-                  ariaLabel={`Blade length distribution for the full collection${bladeLengthPeak?.count ? `; most common range ${bladeLengthPeak.label} with ${bladeLengthPeak.count} knives` : ''}`}
-                  className="mt-1 h-20 w-full"
+                  ariaLabel={`Blade length distribution for the full collection${bladeLengthPeak?.count ? `; most common range ${bladeLengthPeak.label} with ${bladeLengthPeak.count} knives; select a bar to view its knives` : ''}`}
+                  className="mt-1 h-20 w-full cursor-pointer"
+                  onChartAreaClick={(event) =>
+                    openMeasurementBin(
+                      bladeMeasurement,
+                      bladeMeasurement.bins[event.dataIndex ?? -1],
+                    )
+                  }
                 />
               </CardContent>
             </Card>
@@ -996,8 +1025,9 @@ export function CollectionInsights() {
                   getHorizontalBarOption(steelCategories, palette)
                 }
                 ariaLabel="Blade steel distribution"
-                className="h-48 w-full"
-                onChartClick={(event) =>
+                className="h-48 w-full cursor-pointer"
+                areaClickCategoryAxis="y"
+                onChartAreaClick={(event) =>
                   openChartCategory(
                     event,
                     'Blade material',
@@ -1091,17 +1121,13 @@ export function CollectionInsights() {
                   getHistogramOption(measurement, palette)
                 }
                 ariaLabel={`${measurement.label} distribution`}
-                className="h-48 w-full"
-                onChartClick={(event) => {
-                  const bin = measurement.bins[event.dataIndex ?? -1]
-                  if (!bin) return
-                  setDrilldown({
-                    eyebrow: measurement.label,
-                    title: bin.label,
-                    description: `${bin.count} ${bin.count === 1 ? 'knife' : 'knives'} in this range`,
-                    knifeIds: bin.knifeIds,
-                  })
-                }}
+                className="h-48 w-full cursor-pointer"
+                onChartAreaClick={(event) =>
+                  openMeasurementBin(
+                    measurement,
+                    measurement.bins[event.dataIndex ?? -1],
+                  )
+                }
               />
               <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
                 <span>

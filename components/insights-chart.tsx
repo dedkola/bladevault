@@ -57,16 +57,22 @@ export function InsightsChart({
   ariaLabel,
   className,
   onChartClick,
+  onChartAreaClick,
+  areaClickCategoryAxis = 'x',
 }: {
   buildOption: (palette: InsightsChartPalette) => EChartsOption
   ariaLabel: string
   className?: string
   onChartClick?: (event: InsightsChartClick) => void
+  onChartAreaClick?: (event: InsightsChartClick) => void
+  areaClickCategoryAxis?: 'x' | 'y'
 }) {
   const chartRef = useRef<HTMLDivElement>(null)
   const chartInstanceRef = useRef<ECharts | undefined>(undefined)
   const buildOptionRef = useRef(buildOption)
   const clickHandlerRef = useRef(onChartClick)
+  const areaClickHandlerRef = useRef(onChartAreaClick)
+  const areaClickCategoryAxisRef = useRef(areaClickCategoryAxis)
 
   useEffect(() => {
     let chart: ECharts | undefined
@@ -85,6 +91,18 @@ export function InsightsChart({
       updateOption()
       chart.on('click', (event) => {
         clickHandlerRef.current?.(event as InsightsChartClick)
+      })
+      chart.getZr().on('click', (event) => {
+        if (!chart || !areaClickHandlerRef.current) return
+        const point = [event.offsetX, event.offsetY]
+        if (!chart.containPixel({ gridIndex: 0 }, point)) return
+        const converted = chart.convertFromPixel({ gridIndex: 0 }, point)
+        const category = Array.isArray(converted)
+          ? converted[areaClickCategoryAxisRef.current === 'x' ? 0 : 1]
+          : converted
+        const dataIndex = Number(category)
+        if (!Number.isInteger(dataIndex)) return
+        areaClickHandlerRef.current({ dataIndex })
       })
 
       resizeObserver = new ResizeObserver(() => chart?.resize())
@@ -114,6 +132,14 @@ export function InsightsChart({
   useEffect(() => {
     clickHandlerRef.current = onChartClick
   }, [onChartClick])
+
+  useEffect(() => {
+    areaClickHandlerRef.current = onChartAreaClick
+  }, [onChartAreaClick])
+
+  useEffect(() => {
+    areaClickCategoryAxisRef.current = areaClickCategoryAxis
+  }, [areaClickCategoryAxis])
 
   return (
     <div
