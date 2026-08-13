@@ -352,6 +352,33 @@ function migrateSchema(database: Database.Database) {
     `)
   }
 
+  const hasKnifeActivity = tables.some((t) => t.name === 'knife_activity')
+  if (!hasKnifeActivity) {
+    database.exec(`
+      CREATE TABLE knife_activity (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        knife_id TEXT NOT NULL,
+        event_type TEXT NOT NULL CHECK (event_type IN ('created', 'updated')),
+        occurred_at TEXT NOT NULL
+      );
+
+      CREATE INDEX knife_activity_occurred_at_idx
+      ON knife_activity (occurred_at);
+
+      CREATE INDEX knife_activity_knife_id_idx
+      ON knife_activity (knife_id);
+
+      INSERT INTO knife_activity (knife_id, event_type, occurred_at)
+      SELECT id, 'created', added_at
+      FROM knives;
+
+      INSERT INTO knife_activity (knife_id, event_type, occurred_at)
+      SELECT id, 'updated', updated_at
+      FROM knives
+      WHERE updated_at <> added_at;
+    `)
+  }
+
   normalizeKnifeRows(database)
 }
 

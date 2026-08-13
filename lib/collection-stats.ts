@@ -1,4 +1,4 @@
-import type { Knife } from '@/lib/data'
+import type { Knife, KnifeActivityEvent } from '@/lib/data'
 
 export type StatsPeriod = 'all' | 'year' | 'twelve-months'
 
@@ -51,7 +51,11 @@ export type ActivityDay = {
   date: Date
   dateKey: string
   count: number
+  addedCount: number
+  editedCount: number
   knifeIds: string[]
+  addedKnifeIds: string[]
+  editedKnifeIds: string[]
 }
 
 export type CollectionStats = {
@@ -66,6 +70,7 @@ export type CollectionStats = {
   activity: ActivityDay[]
   activeDays: number
   additionsInActivityRange: number
+  editsInActivityRange: number
   recent: Knife[]
 }
 
@@ -447,28 +452,55 @@ function buildCompleteness(knives: Knife[]) {
   }
 }
 
-function buildActivity(knives: Knife[], now: Date): ActivityDay[] {
+function buildActivity(
+  knives: Knife[],
+  activityEvents: KnifeActivityEvent[],
+  now: Date,
+): ActivityDay[] {
   const end = startOfDay(now)
   const mondayOffset = (end.getDay() + 6) % 7
   const start = new Date(end)
   start.setDate(end.getDate() - mondayOffset - 51 * 7)
 
-  const knivesByDate = new Map<string, string[]>()
-  for (const knife of knives) {
-    const addedAt = getDate(knife.addedAt)
-    if (!addedAt) continue
-    const key = getDateKey(addedAt)
-    const ids = knivesByDate.get(key)
-    if (ids) ids.push(knife.id)
-    else knivesByDate.set(key, [knife.id])
+  const visibleKnifeIds = new Set(knives.map(({ id }) => id))
+  const activityByDate = new Map<
+    string,
+    { addedKnifeIds: Set<string>; editedKnifeIds: Set<string> }
+  >()
+  for (const event of activityEvents) {
+    if (!visibleKnifeIds.has(event.knifeId)) continue
+    const occurredAt = getDate(event.occurredAt)
+    if (!occurredAt) continue
+    const key = getDateKey(occurredAt)
+    const bucket = activityByDate.get(key) ?? {
+      addedKnifeIds: new Set<string>(),
+      editedKnifeIds: new Set<string>(),
+    }
+    if (event.type === 'created') bucket.addedKnifeIds.add(event.knifeId)
+    else bucket.editedKnifeIds.add(event.knifeId)
+    activityByDate.set(key, bucket)
   }
 
   return Array.from({ length: 52 * 7 }, (_, index) => {
     const date = new Date(start)
     date.setDate(start.getDate() + index)
     const dateKey = getDateKey(date)
-    const knifeIds = knivesByDate.get(dateKey) ?? []
-    return { date, dateKey, count: knifeIds.length, knifeIds }
+    const bucket = activityByDate.get(dateKey)
+    const addedKnifeIds = Array.from(bucket?.addedKnifeIds ?? [])
+    const editedKnifeIds = Array.from(bucket?.editedKnifeIds ?? [])
+    const knifeIds = Array.from(new Set([...addedKnifeIds, ...editedKnifeIds]))
+    const addedCount = addedKnifeIds.length
+    const editedCount = editedKnifeIds.length
+    return {
+      date,
+      dateKey,
+      count: addedCount + editedCount,
+      addedCount,
+      editedCount,
+      knifeIds,
+      addedKnifeIds,
+      editedKnifeIds,
+    }
   })
 }
 
@@ -497,8 +529,16 @@ export function createCollectionStats(
   allKnives: Knife[],
   period: StatsPeriod,
   now = new Date(),
+  recordedActivity?: KnifeActivityEvent[],
 ): CollectionStats {
   const knives = filterKnivesByStatsPeriod(allKnives, period, now)
+  const activityEvents =
+    recordedActivity ??
+    allKnives.map((knife) => ({
+      knifeId: knife.id,
+      type: 'created' as const,
+      occurredAt: knife.addedAt,
+    }))
   const categories = Object.fromEntries(
     CATEGORY_DEFINITIONS.map((definition) => [
       definition.key,
@@ -512,13 +552,17 @@ export function createCollectionStats(
     ]),
   ) as Record<MeasurementKey, MeasurementStats>
   const { completeness, missingFields } = buildCompleteness(knives)
-  const activity = buildActivity(knives, now)
+  const activity = buildActivity(knives, activityEvents, now)
   const additionsInActivityRange = activity.reduce(
-    (sum, day) => sum + day.count,
+    (sum, day) => sum + day.addedCount,
     0,
   )
   const activeDays = activity.reduce(
     (sum, day) => sum + Number(day.count > 0),
+    0,
+  )
+  const editsInActivityRange = activity.reduce(
+    (sum, day) => sum + day.editedCount,
     0,
   )
   const recent = [...knives]
@@ -544,6 +588,7 @@ export function createCollectionStats(
     activity,
     activeDays,
     additionsInActivityRange,
+    editsInActivityRange,
     recent,
   }
 }

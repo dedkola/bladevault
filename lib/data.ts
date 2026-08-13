@@ -28,6 +28,14 @@ export type Knife = {
   pinned: boolean
 }
 
+export type KnifeActivityType = 'created' | 'updated'
+
+export type KnifeActivityEvent = {
+  knifeId: string
+  type: KnifeActivityType
+  occurredAt: string
+}
+
 export type KnifeDraft = Omit<Knife, 'id' | 'addedAt' | 'updatedAt'>
 
 export type KnifeUpdates = Partial<

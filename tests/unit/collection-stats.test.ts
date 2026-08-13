@@ -79,6 +79,38 @@ describe('collection statistics', () => {
       knives,
       'all',
       new Date('2026-08-12T12:00:00.000Z'),
+      [
+        {
+          knifeId: 'one',
+          type: 'created',
+          occurredAt: '2026-08-10T12:00:00.000Z',
+        },
+        {
+          knifeId: 'two',
+          type: 'created',
+          occurredAt: '2026-08-10T18:00:00.000Z',
+        },
+        {
+          knifeId: 'three',
+          type: 'created',
+          occurredAt: '2026-06-01T12:00:00.000Z',
+        },
+        {
+          knifeId: 'one',
+          type: 'updated',
+          occurredAt: '2026-08-11T12:00:00.000Z',
+        },
+        {
+          knifeId: 'one',
+          type: 'updated',
+          occurredAt: '2026-08-11T18:00:00.000Z',
+        },
+        {
+          knifeId: 'two',
+          type: 'updated',
+          occurredAt: '2026-08-11T20:00:00.000Z',
+        },
+      ],
     )
 
     expect(stats.total).toBe(3)
@@ -99,13 +131,28 @@ describe('collection statistics', () => {
     expect(stats.missingFields.map(({ label }) => label)).toEqual(
       expect.arrayContaining(['Blade thickness', 'Handle material']),
     )
-    expect(stats.activeDays).toBe(2)
+    expect(stats.activeDays).toBe(3)
     expect(stats.additionsInActivityRange).toBe(3)
+    expect(stats.editsInActivityRange).toBe(2)
     expect(
       stats.activity.find(({ dateKey }) => dateKey === '2026-08-10'),
     ).toMatchObject({
       count: 2,
+      addedCount: 2,
+      editedCount: 0,
       knifeIds: ['one', 'two'],
+      addedKnifeIds: ['one', 'two'],
+      editedKnifeIds: [],
+    })
+    expect(
+      stats.activity.find(({ dateKey }) => dateKey === '2026-08-11'),
+    ).toMatchObject({
+      count: 2,
+      addedCount: 0,
+      editedCount: 2,
+      knifeIds: ['one', 'two'],
+      addedKnifeIds: [],
+      editedKnifeIds: ['one', 'two'],
     })
   })
 

@@ -86,6 +86,55 @@ describe('LocalStorage', () => {
     expect(bulk.every((knife) => knife.specs.country === 'Japan')).toBe(true)
   })
 
+  it('records durable creation and edit activity for individual and bulk changes', async () => {
+    vault = await createTempVault()
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-10T12:00:00.000Z'))
+    const storage = new LocalStorage()
+    const first = await storage.createKnife(baseInput)
+    const second = await storage.createKnife({ ...baseInput, name: 'Bailout' })
+
+    vi.setSystemTime(new Date('2026-08-11T12:00:00.000Z'))
+    await storage.updateKnife(first.id, { brand: 'Updated' })
+    await storage.updateKnife(first.id, { description: 'Updated again' })
+
+    vi.setSystemTime(new Date('2026-08-12T12:00:00.000Z'))
+    await storage.bulkUpdateKnives([first.id, second.id], { pinned: true })
+
+    expect(await storage.getKnifeActivity()).toEqual([
+      expect.objectContaining({
+        knifeId: first.id,
+        type: 'created',
+        occurredAt: '2026-08-10T12:00:00.000Z',
+      }),
+      expect.objectContaining({
+        knifeId: second.id,
+        type: 'created',
+        occurredAt: '2026-08-10T12:00:00.000Z',
+      }),
+      expect.objectContaining({
+        knifeId: first.id,
+        type: 'updated',
+        occurredAt: '2026-08-11T12:00:00.000Z',
+      }),
+      expect.objectContaining({
+        knifeId: first.id,
+        type: 'updated',
+        occurredAt: '2026-08-11T12:00:00.000Z',
+      }),
+      expect.objectContaining({
+        knifeId: first.id,
+        type: 'updated',
+        occurredAt: '2026-08-12T12:00:00.000Z',
+      }),
+      expect.objectContaining({
+        knifeId: second.id,
+        type: 'updated',
+        occurredAt: '2026-08-12T12:00:00.000Z',
+      }),
+    ])
+  })
+
   it('returns the newest compare item first even when timestamps collide', async () => {
     vault = await createTempVault()
     vi.useFakeTimers()
@@ -111,6 +160,7 @@ describe('LocalStorage', () => {
 
     expect(await storage.getKnifeById(knife.id)).toBeUndefined()
     expect(await storage.getCompareList()).toEqual([])
+    expect(await storage.getKnifeActivity()).toEqual([])
     await expect(
       fs.access(path.join(vault.dataDir, 'images', knife.id)),
     ).rejects.toThrow()

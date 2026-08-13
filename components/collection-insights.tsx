@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { EChartsOption } from 'echarts'
 import { Download, ImageIcon } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -27,7 +27,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { getImageUrl, type Knife } from '@/lib/data'
+import { readJsonResponse } from '@/lib/api-response'
+import { getImageUrl, type Knife, type KnifeActivityEvent } from '@/lib/data'
 import {
   collapseCategories,
   createCollectionStats,
@@ -66,6 +67,10 @@ type Drilldown = {
   title: string
   description: string
   knifeIds: string[]
+  groups?: Array<{
+    label: 'Added' | 'Edited'
+    knifeIds: string[]
+  }>
   collectionHref?: string
 }
 
@@ -88,12 +93,30 @@ function getOrdinalDay(day: number): string {
   return `${day}th`
 }
 
-function formatActivityDayLabel(date: Date, count: number): string {
+function formatActivityCounts(addedCount: number, editedCount: number): string {
+  const parts: string[] = []
+  if (addedCount > 0) {
+    parts.push(`${addedCount} ${addedCount === 1 ? 'knife' : 'knives'} added`)
+  }
+  if (editedCount > 0) {
+    parts.push(
+      `${editedCount} ${editedCount === 1 ? 'knife' : 'knives'} edited`,
+    )
+  }
+  return parts.join(' · ')
+}
+
+function formatActivityDayLabel(
+  date: Date,
+  addedCount: number,
+  editedCount: number,
+): string {
   const formattedDate = `${date.toLocaleDateString(undefined, {
     month: 'long',
   })} ${getOrdinalDay(date.getDate())}`
-  if (count === 0) return `No knives added on ${formattedDate}.`
-  return `${count} ${count === 1 ? 'knife' : 'knives'} added on ${formattedDate}.`
+  const counts = formatActivityCounts(addedCount, editedCount)
+  if (!counts) return `No knives added or edited on ${formattedDate}.`
+  return `${counts} on ${formattedDate}.`
 }
 
 function categoryHref(key: CategoryKey, category: CategoryStat) {
@@ -658,15 +681,74 @@ function RecentKnife({ knife }: { knife: Knife }) {
   )
 }
 
+function DrilldownKnife({ knife }: { knife: Knife }) {
+  return (
+    <Link
+      href={`/collection/${knife.id}`}
+      className="grid grid-cols-[4rem_minmax(0,1fr)] items-center gap-3 rounded-lg border border-border bg-card p-2 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <span className="relative grid h-14 w-16 place-items-center overflow-hidden rounded-md bg-muted">
+        {knife.images[0] ? (
+          <Image
+            src={getImageUrl(knife.images[0])}
+            alt=""
+            fill
+            sizes="64px"
+            className="object-contain"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <ImageIcon className="size-5 text-muted-foreground/60" />
+        )}
+      </span>
+      <span className="min-w-0">
+        <strong className="block truncate text-sm">
+          {knife.brand} {knife.name}
+        </strong>
+        <span className="block truncate text-xs text-muted-foreground">
+          {[knife.specs.bladeMaterial, knife.bladeStyle]
+            .filter(Boolean)
+            .join(' · ') || 'Details not set'}
+        </span>
+      </span>
+    </Link>
+  )
+}
+
 export function CollectionInsights() {
   const { knives, isLoading } = useKnives()
+  const [activity, setActivity] = useState<KnifeActivityEvent[]>()
   const [measurementKey, setMeasurementKey] =
     useState<MeasurementKey>('bladeLength')
   const [drilldown, setDrilldown] = useState<Drilldown | null>(null)
   const now = useMemo(() => new Date(), [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadActivity() {
+      try {
+        const response = await fetch('/api/activity', { cache: 'no-store' })
+        const data = await readJsonResponse<{
+          activity?: KnifeActivityEvent[]
+        }>(response)
+        if (!cancelled && response.ok && Array.isArray(data.activity)) {
+          setActivity(data.activity)
+        }
+      } catch {
+        // Keep the additions-only fallback if activity history cannot load.
+      }
+    }
+
+    void loadActivity()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const allTimeStats = useMemo(
-    () => createCollectionStats(knives, 'all', now),
-    [knives, now],
+    () => createCollectionStats(knives, 'all', now, activity),
+    [activity, knives, now],
   )
   const stats = allTimeStats
   const knivesById = useMemo(
@@ -678,6 +760,18 @@ export function CollectionInsights() {
       drilldown?.knifeIds
         .map((id) => knivesById.get(id))
         .filter((knife): knife is Knife => Boolean(knife)) ?? [],
+    [drilldown, knivesById],
+  )
+  const selectedGroups = useMemo(
+    () =>
+      drilldown?.groups
+        ?.map((group) => ({
+          ...group,
+          knives: group.knifeIds
+            .map((id) => knivesById.get(id))
+            .filter((knife): knife is Knife => Boolean(knife)),
+        }))
+        .filter(({ knives }) => knives.length > 0),
     [drilldown, knivesById],
   )
   const makerCategories = useMemo(
@@ -1365,8 +1459,8 @@ export function CollectionInsights() {
 
             <InsightPanel
               eyebrow="Activity"
-              title="Collection growth"
-              description={`${stats.additionsInActivityRange} additions across ${stats.activeDays} active days · darker squares mean more knives added`}
+              title="Collection activity"
+              description={`${stats.additionsInActivityRange} additions and ${stats.editsInActivityRange} edited knives across ${stats.activeDays} active days · darker squares mean more activity`}
               className="col-span-12 lg:col-span-8"
             >
               <div className="overflow-x-auto pb-2">
@@ -1415,7 +1509,8 @@ export function CollectionInsights() {
                                   )
                             const activityLabel = formatActivityDayLabel(
                               day.date,
-                              day.count,
+                              day.addedCount,
+                              day.editedCount,
                             )
                             return (
                               <Tooltip key={day.dateKey}>
@@ -1426,15 +1521,28 @@ export function CollectionInsights() {
                                     day.count
                                       ? () =>
                                           setDrilldown({
-                                            eyebrow: 'Added date',
+                                            eyebrow: 'Activity date',
                                             title: day.date.toLocaleDateString(
                                               undefined,
                                               {
                                                 dateStyle: 'medium',
                                               },
                                             ),
-                                            description: `${day.count} ${day.count === 1 ? 'knife was' : 'knives were'} added`,
+                                            description: formatActivityCounts(
+                                              day.addedCount,
+                                              day.editedCount,
+                                            ),
                                             knifeIds: day.knifeIds,
+                                            groups: [
+                                              {
+                                                label: 'Added',
+                                                knifeIds: day.addedKnifeIds,
+                                              },
+                                              {
+                                                label: 'Edited',
+                                                knifeIds: day.editedKnifeIds,
+                                              },
+                                            ],
                                           })
                                       : undefined
                                   }
@@ -1520,39 +1628,43 @@ export function CollectionInsights() {
             </DialogTitle>
             <DialogDescription>{drilldown?.description}</DialogDescription>
           </DialogHeader>
-          <div className="grid min-h-0 flex-1 content-start gap-2 overflow-y-auto p-4">
-            {selectedKnives.map((knife) => (
-              <Link
-                key={knife.id}
-                href={`/collection/${knife.id}`}
-                className="grid grid-cols-[4rem_minmax(0,1fr)] items-center gap-3 rounded-lg border border-border bg-card p-2 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <span className="relative grid h-14 w-16 place-items-center overflow-hidden rounded-md bg-muted">
-                  {knife.images[0] ? (
-                    <Image
-                      src={getImageUrl(knife.images[0])}
-                      alt=""
-                      fill
-                      sizes="64px"
-                      className="object-contain"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <ImageIcon className="size-5 text-muted-foreground/60" />
-                  )}
-                </span>
-                <span className="min-w-0">
-                  <strong className="block truncate text-sm">
-                    {knife.brand} {knife.name}
-                  </strong>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {[knife.specs.bladeMaterial, knife.bladeStyle]
-                      .filter(Boolean)
-                      .join(' · ') || 'Details not set'}
-                  </span>
-                </span>
-              </Link>
-            ))}
+          <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-4">
+            {selectedGroups
+              ? selectedGroups.map((group, index) => (
+                  <section
+                    key={group.label}
+                    className={cn(
+                      'grid gap-2',
+                      index > 0 && 'border-t border-border pt-4',
+                    )}
+                  >
+                    <div className="flex items-center justify-between px-1">
+                      <h3 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            'size-2 rounded-full',
+                            group.label === 'Added'
+                              ? 'bg-[#c89c3d]'
+                              : 'bg-[#79824a]',
+                          )}
+                        />
+                        {group.label}
+                      </h3>
+                      <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                        {group.knives.length}
+                      </span>
+                    </div>
+                    <div className="grid gap-2">
+                      {group.knives.map((knife) => (
+                        <DrilldownKnife key={knife.id} knife={knife} />
+                      ))}
+                    </div>
+                  </section>
+                ))
+              : selectedKnives.map((knife) => (
+                  <DrilldownKnife key={knife.id} knife={knife} />
+                ))}
           </div>
           {drilldown?.collectionHref ? (
             <DialogFooter className="m-0 rounded-none p-4">
