@@ -37,8 +37,11 @@ test('supports collection search and filter keyboard focus', async ({
   // Exercise a client handler first so the shortcut assertion cannot race hydration.
   await page.getByRole('button', { name: 'Select' }).click()
   await page.getByRole('button', { name: 'Cancel selection' }).click()
-  await page.keyboard.press('/')
+  await expect(page.getByRole('button', { name: 'Search knives' })).toHaveCount(
+    0,
+  )
   const search = page.getByPlaceholder('Search model name…')
+  await page.keyboard.press('/')
   await expect(search).toBeFocused()
   await search.fill('bugout')
   await expect(page).toHaveURL(/q=bugout/)
@@ -52,6 +55,46 @@ test('supports collection search and filter keyboard focus', async ({
   await page.keyboard.press('Escape')
   await expect(brandTrigger).toBeFocused()
   await expect(brandTrigger).toHaveAttribute('aria-expanded', 'false')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('button', { name: 'Search knives' })).toHaveCount(
+    0,
+  )
+  const compareSearch = page.getByPlaceholder('Search model name…')
+  await page.keyboard.press('/')
+  await expect(compareSearch).toBeFocused()
+})
+
+test('finds and opens knives from insights and knife details', async ({
+  page,
+  request,
+}) => {
+  const bugout = await seedKnife(request)
+  const raccoon = await seedKnife(request, {
+    name: 'Raccoon',
+    brand: 'Vosteed',
+  })
+
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Search knives' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Find a knife' })
+  const search = dialog.getByRole('combobox', {
+    name: 'Find a knife by model name',
+  })
+  await expect(search).toBeFocused()
+  await search.fill('bugout')
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(`/collection/${bugout.knife.id}`)
+
+  await expect(
+    page.getByRole('button', { name: 'Search knives' }),
+  ).toBeVisible()
+  await page.keyboard.press('/')
+  await expect(search).toBeFocused()
+  await search.fill('raccoon')
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(`/collection/${raccoon.knife.id}`)
 })
 
 test('navigates the fullscreen gallery with arrow keys', async ({
