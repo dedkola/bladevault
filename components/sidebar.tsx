@@ -214,7 +214,7 @@ export function Sidebar() {
                 href={link.href}
                 onClick={handleNavigate}
                 className={cn(
-                  'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors',
+                  'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-1',
                   isActive
                     ? 'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)]'
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground',
@@ -274,7 +274,7 @@ export function Sidebar() {
                         href={knifeHref}
                         onClick={handleNavigate}
                         className={cn(
-                          'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors',
+                          'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-1',
                           isKnifeActive
                             ? 'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)]'
                             : 'text-muted-foreground hover:bg-accent hover:text-foreground',
@@ -351,7 +351,7 @@ export function Sidebar() {
                         href={brandHref}
                         onClick={handleNavigate}
                         className={cn(
-                          'flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs transition-colors',
+                          'flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-1',
                           isBrandActive
                             ? 'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)]'
                             : 'text-muted-foreground hover:bg-accent hover:text-foreground',
