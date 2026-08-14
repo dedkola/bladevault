@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS, getSettings } from '@/lib/settings'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { cn } from '@/lib/utils'
+import { GlobalKnifeSearch } from '@/components/global-knife-search'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-sans' })
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono' })
@@ -52,6 +53,7 @@ export default function RootLayout({
             <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain print:overflow-visible">
               {children}
             </main>
+            <GlobalKnifeSearch />
           </TooltipProvider>
         </KnivesProvider>
       </body>
