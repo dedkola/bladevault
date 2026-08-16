@@ -162,6 +162,20 @@ export function GlobalKnifeSearch() {
               }
               className="h-full min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground sm:text-sm"
             />
+            {query && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery('')
+                  setActiveIndex(0)
+                  inputRef.current?.focus()
+                }}
+                aria-label="Clear search"
+                className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X className="size-4" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => handleOpenChange(false)}
