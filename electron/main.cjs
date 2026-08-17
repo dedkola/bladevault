@@ -15,6 +15,8 @@ const https = require('https')
 const os = require('os')
 const path = require('path')
 const net = require('net')
+const { Readable } = require('stream')
+const { pipeline } = require('stream/promises')
 
 const DEV_SERVER_URL = process.env.ELECTRON_START_URL || 'http://127.0.0.1:3000'
 const DEV_SERVER_ORIGIN = new URL(DEV_SERVER_URL).origin
@@ -1070,6 +1072,56 @@ ipcMain.handle('bladevault:select-directory', async () => {
   }
 
   return result.filePaths[0] ?? null
+})
+
+ipcMain.handle('bladevault:save-backup-file', async (_event, defaultName) => {
+  const safeDefaultName =
+    typeof defaultName === 'string' &&
+    defaultName.toLowerCase().endsWith('.zip')
+      ? path.basename(defaultName)
+      : 'bladevault-backup.zip'
+
+  const result = await dialog.showSaveDialog(mainWindow ?? undefined, {
+    buttonLabel: 'Save Backup',
+    defaultPath: safeDefaultName,
+    filters: [{ name: 'ZIP archive', extensions: ['zip'] }],
+    title: 'Save BladeVault Backup',
+  })
+
+  if (result.canceled || !result.filePath) {
+    return false
+  }
+
+  if (!serverOrigin) {
+    throw new Error('BladeVault local server is not ready.')
+  }
+
+  const response = await fetch(
+    new URL('/api/local-backup/archive', serverOrigin),
+    { cache: 'no-store' },
+  )
+  if (!response.ok || !response.body) {
+    let details = ''
+    try {
+      details = await response.text()
+    } catch {
+      // Ignore response parsing errors and use the status below.
+    }
+    throw new Error(
+      details || `Backup download failed with HTTP ${response.status}.`,
+    )
+  }
+
+  try {
+    await pipeline(
+      Readable.fromWeb(response.body),
+      fs.createWriteStream(result.filePath, { mode: 0o600 }),
+    )
+  } catch (error) {
+    await fs.promises.rm(result.filePath, { force: true })
+    throw error
+  }
+  return true
 })
 
 ipcMain.handle('bladevault:get-update-status', () => updateStatus)

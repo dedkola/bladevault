@@ -57,7 +57,9 @@
     "shadcn": "^4.16.2",
     "sharp": "^0.35.3",
     "tailwind-merge": "^3.6.0",
-    "tar": "7.5.22"
+    "tar": "7.5.22",
+    "unzipper": "^0.12.5",
+    "yazl": "^3.3.1"
   },
   "devDependencies": {
     "@electron/notarize": "^3.1.1",
@@ -71,6 +73,8 @@
     "@types/node": "^26.2.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/unzipper": "^0.10.11",
+    "@types/yazl": "^3.3.1",
     "electron": "43.3.0",
     "electron-builder": "26.15.3",
     "eslint": "^9.39.4",

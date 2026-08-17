@@ -25,6 +25,7 @@ declare global {
   interface Window {
     bladevaultDesktop?: {
       selectDirectory: () => Promise<string | null>
+      saveBackupFile: (defaultName: string) => Promise<boolean>
       getUpdateStatus: () => Promise<BladeVaultUpdateStatus>
       checkForUpdates: () => Promise<BladeVaultUpdateStatus>
       downloadUpdate: () => Promise<BladeVaultUpdateStatus>

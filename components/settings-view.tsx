@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   AlertCircle,
@@ -73,6 +73,14 @@ import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
 import { useKnives } from '@/components/providers/knives-provider'
 
 type StatusTone = 'idle' | 'loading' | 'success' | 'error'
+type LocalBackupManifest = {
+  formatVersion: number
+  bladeVaultVersion: string
+  schemaVersion: number
+  createdAt: string
+  knifeCount: number
+  imageCount: number
+}
 type SettingsTab =
   | 'general'
   | 'cloud-backup'
@@ -137,6 +145,82 @@ function formatSyncTime(value: string) {
     }).format(new Date(value))
   } catch {
     return value
+  }
+}
+
+function getBackupDownloadName(response: Response): string {
+  const disposition = response.headers.get('content-disposition') || ''
+  const match = disposition.match(/filename="([^"]+)"/i)
+  return (
+    match?.[1] ||
+    `bladevault-backup-${new Date().toISOString().slice(0, 10)}.zip`
+  )
+}
+
+async function saveBackupResponse(
+  response: Response,
+  filename: string,
+): Promise<boolean> {
+  const savePicker = (
+    window as Window & {
+      showSaveFilePicker?: (options: {
+        suggestedName: string
+        types: Array<{
+          accept: Record<string, string[]>
+          description: string
+        }>
+      }) => Promise<{
+        createWritable: () => Promise<{
+          close: () => Promise<void>
+          write: (data: Blob) => Promise<void>
+        }>
+      }>
+    }
+  ).showSaveFilePicker
+
+  if (savePicker) {
+    try {
+      const handle = await savePicker({
+        suggestedName: filename,
+        types: [
+          {
+            accept: { 'application/zip': ['.zip'] },
+            description: 'ZIP archive',
+          },
+        ],
+      })
+      const writable = await handle.createWritable()
+      if (!response.body) {
+        throw new Error('Backup download returned an empty response.')
+      }
+      const reader = response.body.getReader()
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        await writable.write(new Blob([value]))
+      }
+      await writable.close()
+      return true
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        await response.body?.cancel()
+        return false
+      }
+      throw error
+    }
+  }
+
+  const downloadUrl = URL.createObjectURL(await response.blob())
+  try {
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = filename
+    document.body.append(link)
+    link.click()
+    link.remove()
+    return true
+  } finally {
+    URL.revokeObjectURL(downloadUrl)
   }
 }
 
@@ -220,6 +304,8 @@ export default function SettingsView() {
   const [backupMessage, setBackupMessage] = useState('')
   const [restoreStatus, setRestoreStatus] = useState<StatusTone>('idle')
   const [restoreMessage, setRestoreMessage] = useState('')
+  const [localBackupStatus, setLocalBackupStatus] = useState<StatusTone>('idle')
+  const [localBackupMessage, setLocalBackupMessage] = useState('')
   const [localDataStatus, setLocalDataStatus] = useState<StatusTone>('idle')
   const [localDataMessage, setLocalDataMessage] = useState('')
   const [loadAttemptKey, setLoadAttemptKey] = useState(0)
@@ -229,6 +315,7 @@ export default function SettingsView() {
   const [newFieldName, setNewFieldName] = useState('')
   const [newFieldType, setNewFieldType] = useState<CustomFieldType>('text')
   const [isSavingCardFields, setIsSavingCardFields] = useState(false)
+  const localRestoreInputRef = useRef<HTMLInputElement>(null)
 
   const updateMessage =
     update.status === 'checking'
@@ -304,7 +391,7 @@ export default function SettingsView() {
       { id: 'cloud-backup' as const, label: 'Cloud Backup', icon: Cloud },
       {
         id: 'restore-database' as const,
-        label: 'Restore database',
+        label: 'Backup & Restore',
         icon: Download,
       },
       { id: 'appearance' as const, label: 'Appearance', icon: Palette },
@@ -471,6 +558,32 @@ export default function SettingsView() {
     )
 
     return nextSettings
+  }, [])
+
+  const refreshRestoredSettings = useCallback(async () => {
+    try {
+      const response = await fetch('/api/settings', { cache: 'no-store' })
+      const data = await readJsonResponse<{
+        error?: string
+        settings?: AppSettings
+      }>(response)
+      if (!response.ok || !data.settings) {
+        throw new Error(
+          getApiErrorMessage(data, 'Failed to refresh restored settings'),
+        )
+      }
+
+      setSettings(data.settings)
+      applyThemePreference(data.settings.theme)
+      window.dispatchEvent(
+        new CustomEvent<Partial<AppSettings>>(SETTINGS_UPDATED_EVENT, {
+          detail: data.settings,
+        }),
+      )
+    } catch {
+      setLoadAttemptKey((current) => current + 1)
+      window.dispatchEvent(new Event(SETTINGS_UPDATED_EVENT))
+    }
   }, [])
 
   const handleChooseLocalDataFolder = async () => {
@@ -747,12 +860,131 @@ export default function SettingsView() {
       }
 
       await refreshVault()
+      await refreshRestoredSettings()
       setRestoreStatus('success')
       setRestoreMessage('Cloud backup restored successfully.')
     } catch (error) {
       setRestoreStatus('error')
       setRestoreMessage(
         formatCloudBackupError(error, getCloudRuntimeConfig().backupUrl),
+      )
+    }
+  }
+
+  const handleLocalBackupDownload = async () => {
+    setLocalBackupStatus('loading')
+    setLocalBackupMessage('Creating a full local backup...')
+
+    try {
+      const desktopSave = window.bladevaultDesktop?.saveBackupFile
+      if (desktopSave) {
+        const filename = `bladevault-backup-${new Date().toISOString().slice(0, 10)}.zip`
+        const saved = await desktopSave(filename)
+        if (!saved) {
+          setLocalBackupStatus('idle')
+          setLocalBackupMessage('')
+          return
+        }
+        setLocalBackupStatus('success')
+        setLocalBackupMessage('Full local backup saved successfully.')
+        return
+      }
+
+      const response = await fetch('/api/local-backup/archive', {
+        cache: 'no-store',
+      })
+      if (!response.ok) {
+        const data = await readJsonResponse<{ error?: string }>(response)
+        throw new Error(
+          getApiErrorMessage(data, 'Failed to create local backup'),
+        )
+      }
+
+      const filename = getBackupDownloadName(response)
+      const saved = await saveBackupResponse(response, filename)
+      if (!saved) {
+        setLocalBackupStatus('idle')
+        setLocalBackupMessage('')
+        return
+      }
+
+      setLocalBackupStatus('success')
+      setLocalBackupMessage('Full local backup saved successfully.')
+    } catch (error) {
+      setLocalBackupStatus('error')
+      setLocalBackupMessage(
+        error instanceof Error
+          ? error.message
+          : 'Failed to create local backup',
+      )
+    }
+  }
+
+  const handleLocalRestoreFile = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    setLocalBackupStatus('loading')
+    setLocalBackupMessage('Validating the selected backup...')
+
+    try {
+      const inspectResponse = await fetch('/api/local-backup/archive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/zip' },
+        body: file,
+      })
+      const inspectData = await readJsonResponse<{
+        error?: string
+        manifest?: LocalBackupManifest
+      }>(inspectResponse)
+      if (!inspectResponse.ok || !inspectData.manifest) {
+        throw new Error(
+          getApiErrorMessage(inspectData, 'Selected backup is invalid'),
+        )
+      }
+
+      const manifest = inspectData.manifest
+      const createdAt = formatSyncTime(manifest.createdAt)
+      const confirmed = window.confirm(
+        `Restore ${manifest.knifeCount} knives and ${manifest.imageCount} images from the backup created ${createdAt}?\n\nThis replaces the current local database and images. BladeVault will keep a safety copy of the current data.`,
+      )
+      if (!confirmed) {
+        setLocalBackupStatus('idle')
+        setLocalBackupMessage('')
+        return
+      }
+
+      setLocalBackupMessage('Restoring the local backup...')
+      const restoreResponse = await fetch('/api/local-backup/archive', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/zip' },
+        body: file,
+      })
+      const restoreData = await readJsonResponse<{
+        error?: string
+        manifest?: LocalBackupManifest
+      }>(restoreResponse)
+      if (!restoreResponse.ok) {
+        throw new Error(
+          getApiErrorMessage(restoreData, 'Failed to restore local backup'),
+        )
+      }
+
+      await refreshVault()
+      await refreshRestoredSettings()
+      setLocalBackupStatus('success')
+      setLocalBackupMessage(
+        `Local backup restored successfully (${manifest.knifeCount} knives and ${manifest.imageCount} images).`,
+      )
+    } catch (error) {
+      setLocalBackupStatus('error')
+      setLocalBackupMessage(
+        error instanceof Error
+          ? error.message
+          : 'Failed to restore local backup',
       )
     }
   }
@@ -1182,15 +1414,74 @@ export default function SettingsView() {
 
               {activeTab === 'restore-database' && (
                 <div className="mx-auto max-w-3xl space-y-3">
-                  <SettingsSection title="Restore database">
+                  <SettingsSection
+                    title="Local backup"
+                    description="Create or restore a portable ZIP on this device. No cloud account is required."
+                  >
+                    <SettingsRow
+                      label="Download full backup"
+                      description="Save the database, collection settings, history, compare list, and local images in one ZIP file."
+                    >
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={`${settingsSecondaryButtonClassName} h-8 rounded-lg`}
+                        onClick={handleLocalBackupDownload}
+                        disabled={localBackupStatus === 'loading'}
+                      >
+                        {localBackupStatus === 'loading' ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5" />
+                        )}
+                        Download ZIP
+                      </Button>
+                    </SettingsRow>
+
+                    <SettingsRow
+                      label="Restore from local ZIP"
+                      description="Validate a BladeVault backup, review its contents, then replace this device's local database and images."
+                    >
+                      <input
+                        ref={localRestoreInputRef}
+                        type="file"
+                        accept=".zip,application/zip"
+                        className="hidden"
+                        onChange={handleLocalRestoreFile}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={`${settingsSecondaryButtonClassName} h-8 rounded-lg`}
+                        onClick={() => localRestoreInputRef.current?.click()}
+                        disabled={localBackupStatus === 'loading'}
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        Choose ZIP
+                      </Button>
+                    </SettingsRow>
+
+                    <div className="py-3">
+                      <StatusPill
+                        status={localBackupStatus}
+                        message={localBackupMessage}
+                      />
+                    </div>
+                  </SettingsSection>
+
+                  <SettingsSection
+                    title="Cloud restore"
+                    description="The existing cloud backup restore remains separate from local ZIP backups."
+                  >
                     {!cloudSession ? (
                       <div className="py-3 text-sm text-muted-foreground">
-                        Sign in under Cloud Backup before restoring a database.
+                        Sign in under Cloud Backup before restoring from the
+                        cloud.
                       </div>
                     ) : null}
                     <SettingsRow
                       label="Restore from cloud"
-                      description="Restore the latest cloud backup to this device. This replaces the local database."
+                      description="Restore the latest cloud backup to this device. This replaces the local data."
                     >
                       <Button
                         variant="outline"

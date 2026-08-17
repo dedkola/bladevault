@@ -14,6 +14,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [{ protocol: 'https', hostname: '**' }],
   },
   allowedDevOrigins: ['192.168.0.155'],
+  serverExternalPackages: ['unzipper', 'yazl'],
   // Vercel supplies its own deployment adapter; standalone output is only
   // needed by BladeVault's self-hosted and desktop builds.
   output: process.env.VERCEL ? undefined : 'standalone',
