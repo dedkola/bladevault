@@ -1,10 +1,9 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { memo, useCallback, useState } from 'react'
-import { Check, ImageIcon, Scale } from 'lucide-react'
+import { Check, ImageIcon, Pin, Scale } from 'lucide-react'
 import { getImageUrl, Knife } from '@/lib/data'
 import { cn } from '@/lib/utils'
-import { BookmarkIcon } from '@/components/bookmark-icon'
 import { ImageCountBadge } from '@/components/image-count-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -233,7 +232,7 @@ export const KnifeCard = memo(function KnifeCard({
         aria-label={`${pinned ? 'Unpin' : 'Pin'} ${knife.brand} ${knife.name}`}
         title={pinned ? 'Unpin' : 'Pin'}
       >
-        <BookmarkIcon active={pinned} />
+        <Pin />
       </Button>
     </div>
   )

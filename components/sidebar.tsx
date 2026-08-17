@@ -4,7 +4,6 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
-import { BookmarkIcon } from '@/components/bookmark-icon'
 import {
   LayoutDashboard,
   Library,
@@ -19,6 +18,7 @@ import {
   Download,
   Loader2,
   Menu,
+  Pin,
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -280,7 +280,7 @@ export function Sidebar() {
                             : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                         )}
                       >
-                        <BookmarkIcon active className="size-3 shrink-0" />
+                        <Pin className="size-3 shrink-0" />
                         <span className="truncate">
                           <span
                             className={cn(

@@ -9,9 +9,9 @@ import {
   Loader2,
   AlertCircle,
   ExternalLink,
+  Pin,
   Scale,
 } from 'lucide-react'
-import { BookmarkIcon } from '@/components/bookmark-icon'
 import { useKnives } from '@/components/providers/knives-provider'
 import { Knife, KnifeUpdates } from '@/lib/data'
 import { knifeToFormData, KnifeScrapeEditor } from '@/components/knife-form'
@@ -279,7 +279,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
                 {isTogglingPin ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <BookmarkIcon active={pinned} />
+                  <Pin />
                 )}
                 {pinned ? 'Pinned' : 'Pin'}
               </Button>
@@ -371,7 +371,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
               {isTogglingPin ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <BookmarkIcon active={pinned} />
+                <Pin />
               )}
               {pinned ? 'Pinned' : 'Pin'}
             </Button>
