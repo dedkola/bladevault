@@ -43,6 +43,7 @@ async function main() {
       'getUpdateStatus',
       'installUpdate',
       'onUpdateStatus',
+      'saveBackupFile',
       'selectDirectory',
     ])
     assert.equal(boundary.hasNodeProcess, false)

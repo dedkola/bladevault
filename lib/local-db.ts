@@ -14,6 +14,8 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
+export const LOCAL_DB_SCHEMA_VERSION = 1
+
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
 }
@@ -512,4 +514,11 @@ function initSchema(database: Database.Database) {
   `)
 
   migrateSchema(database)
+
+  const currentSchemaVersion = Number(
+    database.pragma('user_version', { simple: true }),
+  )
+  if (currentSchemaVersion < LOCAL_DB_SCHEMA_VERSION) {
+    database.pragma(`user_version = ${LOCAL_DB_SCHEMA_VERSION}`)
+  }
 }

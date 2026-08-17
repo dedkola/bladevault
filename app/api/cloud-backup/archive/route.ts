@@ -1,5 +1,4 @@
 import { createWriteStream } from 'fs'
-import Database from 'better-sqlite3'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
@@ -12,12 +11,8 @@ import {
   isBackupUrlAllowed,
 } from '@/lib/cloud-backup-server'
 import { clearStorageCache } from '@/lib/storage'
-import {
-  beginLocalRestore,
-  closeLocalDb,
-  endLocalRestore,
-  getLocalDataDirPath,
-} from '@/lib/local-db'
+import { closeLocalDb, getLocalDataDirPath } from '@/lib/local-db'
+import { replaceLocalDataFromDirectory } from '@/lib/local-data-restore'
 
 function shouldIgnoreBackupEntry(name: string): boolean {
   return name === '.DS_Store' || name === '__MACOSX' || name.startsWith('._')
@@ -101,113 +96,6 @@ async function validateArchive(archivePath: string): Promise<string> {
   return expectedTopDir
 }
 
-async function validateSqliteFile(dbPath: string) {
-  const db = new Database(dbPath, { readonly: true })
-
-  try {
-    const row = db.prepare('PRAGMA integrity_check;').get() as
-      Record<string, string> | undefined
-    if (!row || Object.values(row)[0] !== 'ok') {
-      throw new Error('Restored SQLite database failed integrity_check.')
-    }
-  } finally {
-    db.close()
-  }
-}
-
-async function ensureDirectory(dirPath: string) {
-  await fs.mkdir(dirPath, { recursive: true })
-}
-
-async function listDirectoryEntries(dirPath: string) {
-  return await fs.readdir(dirPath, { withFileTypes: true })
-}
-
-async function moveDirectoryContents(sourceDir: string, targetDir: string) {
-  await ensureDirectory(targetDir)
-  const entries = (await listDirectoryEntries(sourceDir)).filter(
-    (entry) => !shouldIgnoreBackupEntry(entry.name),
-  )
-
-  for (const entry of entries) {
-    const sourcePath = path.join(sourceDir, entry.name)
-    const targetPath = path.join(targetDir, entry.name)
-
-    try {
-      await fs.rename(sourcePath, targetPath)
-    } catch (error) {
-      if (!(
-        error &&
-        typeof error === 'object' &&
-        'code' in error &&
-        error.code === 'EXDEV'
-      )) {
-        throw error
-      }
-
-      await fs.cp(sourcePath, targetPath, {
-        recursive: true,
-        force: true,
-      })
-      await fs.rm(sourcePath, {
-        recursive: true,
-        force: true,
-      })
-    }
-  }
-}
-
-async function removeSQLiteSidecars(dirPath: string) {
-  try {
-    const entries = await listDirectoryEntries(dirPath)
-    for (const entry of entries) {
-      if (
-        entry.isFile() &&
-        (entry.name.endsWith('.sqlite-wal') ||
-          entry.name.endsWith('.sqlite-shm'))
-      ) {
-        await fs.rm(path.join(dirPath, entry.name), {
-          recursive: true,
-          force: true,
-        })
-      }
-    }
-  } catch {
-    // Best effort: stale sidecars should not block the restore.
-  }
-}
-
-async function copyDirectoryContents(sourceDir: string, targetDir: string) {
-  await ensureDirectory(targetDir)
-  const entries = (await listDirectoryEntries(sourceDir)).filter(
-    (entry) => !shouldIgnoreBackupEntry(entry.name),
-  )
-
-  for (const entry of entries) {
-    await fs.cp(
-      path.join(sourceDir, entry.name),
-      path.join(targetDir, entry.name),
-      {
-        recursive: true,
-        force: true,
-      },
-    )
-  }
-}
-
-async function removeDirectoryContents(dirPath: string) {
-  const entries = (await listDirectoryEntries(dirPath)).filter(
-    (entry) => !shouldIgnoreBackupEntry(entry.name),
-  )
-
-  for (const entry of entries) {
-    await fs.rm(path.join(dirPath, entry.name), {
-      recursive: true,
-      force: true,
-    })
-  }
-}
-
 async function restoreArchiveFromPath(archivePath: string) {
   const tempRoot = await fs.mkdtemp(
     path.join(os.tmpdir(), 'bladevault-backup-import-'),
@@ -220,62 +108,13 @@ async function restoreArchiveFromPath(archivePath: string) {
     await extractArchive(archivePath, extractRoot, archivedTopDir)
 
     const extractedDataDir = path.join(extractRoot, archivedTopDir)
-    const extractedDbPath = path.join(extractedDataDir, 'bladevault.sqlite')
-
     await fs.access(extractedDataDir)
-    await fs.access(extractedDbPath)
-    await validateSqliteFile(extractedDbPath)
-
-    const currentDataDir = getLocalDataDirPath()
-    const backupDataDir = `${currentDataDir}.before-restore-${Date.now()}.bak`
-
-    beginLocalRestore()
-    closeLocalDb()
-    clearStorageCache()
-
-    try {
-      try {
-        await fs.rm(backupDataDir, { recursive: true, force: true })
-        await ensureDirectory(currentDataDir)
-        await moveDirectoryContents(currentDataDir, backupDataDir)
-      } catch (error) {
-        if (!(
-          error &&
-          typeof error === 'object' &&
-          'code' in error &&
-          error.code === 'ENOENT'
-        )) {
-          throw error
-        }
-      }
-
-      await removeSQLiteSidecars(currentDataDir)
-      await fs.mkdir(path.dirname(currentDataDir), { recursive: true })
-
-      try {
-        await copyDirectoryContents(extractedDataDir, currentDataDir)
-        await validateSqliteFile(path.join(currentDataDir, 'bladevault.sqlite'))
-      } catch (error) {
-        await removeDirectoryContents(currentDataDir)
-
-        try {
-          await moveDirectoryContents(backupDataDir, currentDataDir)
-        } catch {
-          // Best effort rollback if the restore copy fails.
-        }
-
-        throw error
-      }
-    } finally {
-      endLocalRestore()
-    }
+    const result = await replaceLocalDataFromDirectory(extractedDataDir)
 
     const stat = await fs.stat(archivePath)
     return {
-      ok: true,
+      ...result,
       size: stat.size,
-      restoredAt: new Date().toISOString(),
-      dataDir: currentDataDir,
     }
   } finally {
     await fs.rm(tempRoot, { recursive: true, force: true })
