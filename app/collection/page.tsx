@@ -97,6 +97,7 @@ function CollectionContent() {
   const query = searchParams.get('q') ?? ''
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
+  const [isDesktopFiltersOpen, setIsDesktopFiltersOpen] = useState(true)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
@@ -415,42 +416,40 @@ function CollectionContent() {
       <PageHeader title="Collection" />
 
       {knives.length > 0 && (
-        <div className="mb-4 flex flex-col gap-3 border border-[var(--bladevault-line)]/80 bg-[color:var(--bladevault-surface-soft)]/35 p-3 sm:flex-row sm:items-center">
+        <div className="mb-4 flex flex-wrap items-center justify-center gap-3 border border-[var(--bladevault-line)]/80 bg-[color:var(--bladevault-surface-soft)]/35 p-3">
           <SearchField
             value={query}
             onChange={setQuery}
             placeholder="Search model name…"
-            className="mx-0 max-w-none sm:max-w-sm sm:flex-1"
+            className="mx-0 max-w-sm basis-full sm:basis-96"
             inputRef={searchInputRef}
             shortcutHint="/"
           />
-          <div className="flex flex-wrap items-center gap-2 sm:ml-auto sm:justify-end">
-            <span className="mr-1 text-xs tabular-nums text-muted-foreground">
-              {isSelectionMode
-                ? `${selectedIds.size} selected · ${filteredKnives.length} ${filteredKnives.length === 1 ? 'match' : 'matches'}`
-                : filteredKnives.length === knives.length
-                  ? `${knives.length} ${knives.length === 1 ? 'knife' : 'knives'}`
-                  : `${filteredKnives.length} of ${knives.length} knives`}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (isSelectionMode) {
-                  exitSelectionMode()
-                } else {
-                  setIsSelectionMode(true)
-                }
-              }}
-            >
-              {isSelectionMode ? (
-                <X className="mr-1.5 size-3.5" />
-              ) : (
-                <CheckSquare2 className="mr-1.5 size-3.5" />
-              )}
-              {isSelectionMode ? 'Cancel selection' : 'Select'}
-            </Button>
-          </div>
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {isSelectionMode
+              ? `${selectedIds.size} selected · ${filteredKnives.length} ${filteredKnives.length === 1 ? 'match' : 'matches'}`
+              : filteredKnives.length === knives.length
+                ? `${knives.length} ${knives.length === 1 ? 'knife' : 'knives'}`
+                : `${filteredKnives.length} of ${knives.length} knives`}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (isSelectionMode) {
+                exitSelectionMode()
+              } else {
+                setIsSelectionMode(true)
+              }
+            }}
+          >
+            {isSelectionMode ? (
+              <X className="mr-1.5 size-3.5" />
+            ) : (
+              <CheckSquare2 className="mr-1.5 size-3.5" />
+            )}
+            {isSelectionMode ? 'Cancel selection' : 'Select'}
+          </Button>
         </div>
       )}
 
@@ -478,15 +477,34 @@ function CollectionContent() {
               aria-hidden="true"
             />
           </button>
-          <div className="mb-3 hidden items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:flex">
+          <button
+            type="button"
+            onClick={() => setIsDesktopFiltersOpen((current) => !current)}
+            aria-expanded={isDesktopFiltersOpen}
+            aria-controls="collection-filters"
+            className="mb-3 hidden min-h-8 w-full items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
+          >
             <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
             Filters
-          </div>
+            {activeFilters.length > 0 ? (
+              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold leading-none text-foreground tabular-nums">
+                {activeFilters.length}
+              </span>
+            ) : null}
+            <ChevronDown
+              className={cn(
+                'ml-auto h-3.5 w-3.5 transition-transform',
+                isDesktopFiltersOpen && 'rotate-180',
+              )}
+              aria-hidden="true"
+            />
+          </button>
           <div
             id="collection-filters"
             className={cn(
-              'mt-3 gap-2 sm:mt-0 sm:grid sm:grid-cols-2 lg:gap-2.5 xl:grid-cols-4',
+              'mt-3 gap-2 sm:mt-0 sm:grid-cols-2 lg:gap-2.5 xl:grid-cols-4',
               isFiltersOpen ? 'grid' : 'hidden',
+              isDesktopFiltersOpen ? 'sm:grid' : 'sm:hidden',
             )}
           >
             {filterDefinitions.map((definition) => (
