@@ -78,7 +78,7 @@
     "electron": "43.4.0",
     "electron-builder": "26.15.3",
     "eslint": "^9.39.4",
-    "eslint-config-next": "^16.3.0",
+    "eslint-config-next": "^16.3.1",
     "jsdom": "^30.0.1",
     "prettier": "^3.9.6",
     "tailwindcss": "4.3.3",
