@@ -37,7 +37,7 @@
     "clean": "rm -rf .next"
   },
   "dependencies": {
-    "@base-ui/react": "^1.6.0",
+    "@base-ui/react": "^1.7.0",
     "better-sqlite3": "^13.0.3",
     "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
