@@ -18,3 +18,46 @@ test('persists the pinned-first setting across reloads', async ({ page }) => {
   await page.getByRole('button', { name: 'Appearance' }).click()
   await expect(page.getByRole('checkbox').first()).not.toBeChecked()
 })
+
+test('controls MCP access and copies the LM Studio configuration', async ({
+  context,
+  page,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.goto('/settings?tab=mcp')
+
+  await expect(page.getByText('MCP access', { exact: true })).toBeVisible()
+  await expect(page.getByText('Activity', { exact: true })).toBeVisible()
+
+  const access = page.getByRole('checkbox', { name: 'Enable MCP access' })
+  const writes = page.getByRole('checkbox', {
+    name: 'Allow MCP to modify knives',
+  })
+  await expect(access).toBeChecked()
+  await expect(writes).not.toBeChecked()
+
+  await access.click()
+  await expect(access).not.toBeChecked()
+  await expect(writes).toBeDisabled()
+  expect((await page.request.get('/mcp')).status()).toBe(404)
+
+  await page.reload()
+  await expect(access).not.toBeChecked()
+  await access.click()
+  await expect(access).toBeChecked()
+
+  page.once('dialog', (dialog) => dialog.accept())
+  await writes.click()
+  await expect(writes).toBeChecked()
+
+  await page.getByRole('button', { name: 'Copy config' }).click()
+  await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible()
+  const copied = JSON.parse(
+    await page.evaluate(() => navigator.clipboard.readText()),
+  )
+  expect(copied).toEqual({
+    mcpServers: {
+      bladevault: { url: 'http://127.0.0.1:3199/mcp' },
+    },
+  })
+})

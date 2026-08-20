@@ -248,6 +248,107 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run desktop:smoke` | Build and smoke-test the desktop runtime. |
 | `npm run dist:desktop` | Package desktop installers without publishing them. |
 
+## Model Context Protocol (MCP)
+
+BladeVault can expose its existing local collection to MCP clients such as
+Codex or Claude Desktop. It provides eight focused tools for search, details,
+statistics, missing fields, duplicate candidates, proposals, single-record
+updates, and transactional bulk updates. Read tools and bulk previews are safe
+by default. Applied metadata changes require explicit write enablement, the
+latest record timestamp, and are written to an audit log.
+
+### Local stdio
+
+Build and start the local MCP process with the same data directory as the app:
+
+```bash
+BLADEVAULT_DATA_DIR="$HOME/BladeVault/data" npm run mcp
+```
+
+For a client configuration, use Node as the command and
+`dist/mcp/bladevault.mjs mcp` as the arguments after `npm run mcp:build`.
+
+Codex uses TOML in `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.bladevault]
+command = "node"
+args = ["/absolute/path/to/bladevault/dist/mcp/bladevault.mjs", "mcp"]
+env = { BLADEVAULT_DATA_DIR = "/absolute/path/to/BladeVault/data" }
+```
+
+Claude Desktop, Cursor, and clients using the common JSON shape can use:
+
+```json
+{
+  "mcpServers": {
+    "bladevault": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/bladevault/dist/mcp/bladevault.mjs",
+        "mcp"
+      ],
+      "env": {
+        "BLADEVAULT_DATA_DIR": "/absolute/path/to/BladeVault/data"
+      }
+    }
+  }
+}
+```
+
+### Streamable HTTP
+
+The HTTP transport uses the existing BladeVault port. Open
+**Settings → AI / MCP** to enable or disable access, keep the server read-only,
+allow audited metadata changes, copy the LM Studio configuration, and review
+recent MCP activity. These controls persist across restarts and take effect
+without rebuilding or restarting BladeVault.
+
+For a local source server, start BladeVault normally:
+
+```bash
+npm run dev
+```
+
+For Docker Compose, build and start the current checkout with:
+
+```bash
+docker compose up -d --build
+```
+
+Local clients can then connect using only the URL:
+
+```json
+{
+  "mcpServers": {
+    "bladevault": {
+      "url": "http://localhost:5500/mcp"
+    }
+  }
+}
+```
+
+The source-development endpoint is `http://localhost:3000/mcp`. If BladeVault
+is exposed beyond the local computer, configure a bearer token and pass the
+same token from the client:
+
+```bash
+MCP_AUTH_TOKEN='<secret>' docker compose up -d
+```
+
+Set `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS` as comma-separated allowlists
+when exposing a hostname or browser origin other than localhost.
+
+Metadata writes remain disabled until **Allow MCP to modify knives** is enabled
+in Settings. `MCP_ENABLED` and `MCP_WRITE_ENABLED` remain available for
+administrators who explicitly add them to the container environment; setting
+either variable locks its corresponding app control. MCP can update the
+existing built-in fields—including `name` (alias `model`), `brand`,
+`specs.bladeMaterial` (alias `steel`), dimensions, price, designer, country,
+description, source URL, and pinned state—and configured custom fields through
+`customFields.<field-id>`. It cannot replace IDs, timestamps, images, or the
+whole record.
+
 ## Your data
 
 BladeVault is local-first: it works without an account or API key.

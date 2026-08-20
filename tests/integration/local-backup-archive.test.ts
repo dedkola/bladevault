@@ -126,7 +126,7 @@ describe('local backup archive route', () => {
       formatVersion: 1,
       knifeCount: 1,
       imageCount: 1,
-      schemaVersion: 1,
+      schemaVersion: 2,
     })
 
     const inspected = await localBackupRoute.POST(

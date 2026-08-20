@@ -6,7 +6,15 @@ import { Knife, KnifeActivityEvent, KnifeUpdates } from '@/lib/data'
 import { normalizeKnifeTextFields } from '@/lib/knife-text'
 import { getLocalDb, getLocalImagesDirPath } from '@/lib/local-db'
 import { fetchExternalUrl, validateExternalUrl } from '@/lib/url-validation'
-import { CreateKnifeInput, ImageData, ImageStream, Storage } from './types'
+import {
+  type BulkKnifeUpdateItem,
+  type CreateKnifeInput,
+  type ImageData,
+  type ImageStream,
+  type KnifeMutationContext,
+  type KnifeUpdateOptions,
+  type Storage,
+} from './types'
 
 function extensionFromMimeType(contentType: string): string {
   const type = contentType.split(';')[0].trim().toLowerCase()
@@ -109,8 +117,40 @@ function getImagesDir() {
   return getLocalImagesDirPath()
 }
 
+function nextUpdatedAt(previous: string): string {
+  const previousTime = Date.parse(previous)
+  const nextTime = Number.isFinite(previousTime)
+    ? Math.max(Date.now(), previousTime + 1)
+    : Date.now()
+  return new Date(nextTime).toISOString()
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function recordMutation(
+  database: ReturnType<typeof getLocalDb>,
+  knifeId: string,
+  occurredAt: string,
+  mutation: KnifeMutationContext | undefined,
+) {
+  if (!mutation || mutation.changes.length === 0) return
+
+  database
+    .prepare(
+      `INSERT INTO knife_change_log
+       (operation_id, knife_id, source, transport, changes, occurred_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      mutation.operationId,
+      knifeId,
+      mutation.source,
+      mutation.transport,
+      JSON.stringify(mutation.changes),
+      occurredAt,
+    )
 }
 
 export class LocalStorage implements Storage {
@@ -319,10 +359,22 @@ export class LocalStorage implements Storage {
     return newKnife
   }
 
-  async updateKnife(id: string, updates: KnifeUpdates): Promise<Knife> {
+  async updateKnife(
+    id: string,
+    updates: KnifeUpdates,
+    options: KnifeUpdateOptions = {},
+  ): Promise<Knife> {
     const existing = await this.getKnifeById(id)
     if (!existing) {
       throw new Error(`Knife with id "${id}" not found`)
+    }
+    if (
+      options.expectedUpdatedAt &&
+      options.expectedUpdatedAt !== existing.updatedAt
+    ) {
+      throw new Error(
+        `Knife "${id}" changed after it was read; fetch it again before updating`,
+      )
     }
 
     const normalizedUpdates = normalizeKnifeTextFields(updates)
@@ -382,7 +434,9 @@ export class LocalStorage implements Storage {
       }
     }
 
-    const updatedAt = new Date().toISOString()
+    const updatedAt = options.expectedUpdatedAt
+      ? nextUpdatedAt(existing.updatedAt)
+      : new Date().toISOString()
     const updated: Knife = {
       ...existing,
       name: normalizedUpdates.name ?? existing.name,
@@ -411,33 +465,40 @@ export class LocalStorage implements Storage {
 
     const database = getDb()
     const update = database.transaction(() => {
-      database
-        .prepare(
-          `UPDATE knives
+      const updateStatement = database.prepare(
+        `UPDATE knives
          SET name = ?, brand = ?, steel = ?, blade_style = ?, handle_material = ?, images = ?, specs = ?, custom_fields = ?, description = ?, updated_at = ?, source_url = ?, pinned = ?
-         WHERE id = ?`,
+         WHERE id = ?${options.expectedUpdatedAt ? ' AND updated_at = ?' : ''}`,
+      )
+      const parameters = [
+        updated.name,
+        updated.brand,
+        '',
+        updated.bladeStyle,
+        updated.handleMaterial,
+        JSON.stringify(updated.images),
+        JSON.stringify(updated.specs),
+        JSON.stringify(updated.customFields),
+        updated.description,
+        updated.updatedAt,
+        updated.sourceUrl,
+        updated.pinned ? 1 : 0,
+        id,
+        ...(options.expectedUpdatedAt ? [existing.updatedAt] : []),
+      ]
+      const result = updateStatement.run(...parameters)
+      if (result.changes !== 1) {
+        throw new Error(
+          `Knife "${id}" changed after it was read; fetch it again before updating`,
         )
-        .run(
-          updated.name,
-          updated.brand,
-          '',
-          updated.bladeStyle,
-          updated.handleMaterial,
-          JSON.stringify(updated.images),
-          JSON.stringify(updated.specs),
-          JSON.stringify(updated.customFields),
-          updated.description,
-          updated.updatedAt,
-          updated.sourceUrl,
-          updated.pinned ? 1 : 0,
-          id,
-        )
+      }
       database
         .prepare(
           `INSERT INTO knife_activity (knife_id, event_type, occurred_at)
            VALUES (?, 'updated', ?)`,
         )
         .run(id, updated.updatedAt)
+      recordMutation(database, id, updated.updatedAt, options.mutation)
     })
     update()
 
@@ -541,12 +602,113 @@ export class LocalStorage implements Storage {
     return updateAll()
   }
 
+  async bulkUpdateKnifeItems(
+    items: BulkKnifeUpdateItem[],
+    context: Omit<KnifeMutationContext, 'changes'>,
+  ): Promise<Knife[]> {
+    const ids = items.map(({ id }) => id)
+    const uniqueIds = new Set(ids)
+    if (items.length === 0) return []
+    if (uniqueIds.size !== items.length) {
+      throw new Error('Bulk updates cannot contain duplicate knife IDs')
+    }
+
+    const database = getDb()
+    const selectStatement = database.prepare(
+      'SELECT * FROM knives WHERE id = ?',
+    )
+    const updateStatement = database.prepare(
+      `UPDATE knives
+       SET name = ?, brand = ?, steel = ?, blade_style = ?, handle_material = ?, images = ?, specs = ?, custom_fields = ?, description = ?, updated_at = ?, source_url = ?, pinned = ?
+       WHERE id = ?`,
+    )
+    const activityStatement = database.prepare(
+      `INSERT INTO knife_activity (knife_id, event_type, occurred_at)
+       VALUES (?, 'updated', ?)`,
+    )
+
+    const updateAll = database.transaction(() => {
+      const rows = new Map<string, Knife>()
+      for (const item of items) {
+        const row = selectStatement.get(item.id) as
+          Record<string, unknown> | undefined
+        if (!row) {
+          throw new Error(`Knife with id "${item.id}" not found`)
+        }
+        const existing = rowToKnife(row)
+        if (existing.updatedAt !== item.expectedUpdatedAt) {
+          throw new Error(
+            `Knife "${item.id}" changed after preview; preview the bulk update again`,
+          )
+        }
+        rows.set(item.id, existing)
+      }
+
+      return items.map((item) => {
+        const existing = rows.get(item.id)
+        if (!existing) {
+          throw new Error(`Knife with id "${item.id}" not found`)
+        }
+        const updates = normalizeKnifeTextFields(item.updates)
+        const updatedAt = nextUpdatedAt(existing.updatedAt)
+        const updated: Knife = {
+          ...existing,
+          name: updates.name ?? existing.name,
+          brand: updates.brand ?? existing.brand,
+          bladeStyle: updates.bladeStyle ?? existing.bladeStyle,
+          handleMaterial: updates.handleMaterial ?? existing.handleMaterial,
+          description: updates.description ?? existing.description,
+          sourceUrl: updates.sourceUrl ?? existing.sourceUrl,
+          pinned: updates.pinned ?? existing.pinned,
+          updatedAt,
+          specs: { ...existing.specs, ...(updates.specs ?? {}) },
+          customFields: {
+            ...existing.customFields,
+            ...Object.fromEntries(
+              Object.entries(updates.customFields ?? {}).filter(
+                (entry): entry is [string, string] =>
+                  typeof entry[1] === 'string',
+              ),
+            ),
+          },
+        }
+
+        updateStatement.run(
+          updated.name,
+          updated.brand,
+          '',
+          updated.bladeStyle,
+          updated.handleMaterial,
+          JSON.stringify(updated.images),
+          JSON.stringify(updated.specs),
+          JSON.stringify(updated.customFields),
+          updated.description,
+          updated.updatedAt,
+          updated.sourceUrl,
+          updated.pinned ? 1 : 0,
+          updated.id,
+        )
+        activityStatement.run(updated.id, updated.updatedAt)
+        recordMutation(database, updated.id, updated.updatedAt, {
+          ...context,
+          changes: item.changes,
+        })
+        return updated
+      })
+    })
+
+    return updateAll()
+  }
+
   async deleteKnife(id: string): Promise<void> {
     const knife = await this.getKnifeById(id)
     if (!knife) return
 
     const database = getDb()
     const remove = database.transaction(() => {
+      database
+        .prepare('DELETE FROM knife_change_log WHERE knife_id = ?')
+        .run(id)
       database.prepare('DELETE FROM knife_activity WHERE knife_id = ?').run(id)
       database.prepare('DELETE FROM compare_list WHERE knife_id = ?').run(id)
       database.prepare('DELETE FROM knives WHERE id = ?').run(id)

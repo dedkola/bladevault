@@ -817,6 +817,8 @@ async function startEmbeddedServer() {
     ...process.env,
     ELECTRON_RUN_AS_NODE: '1',
     BLADEVAULT_DESKTOP_RUNTIME: '1',
+    BLADEVAULT_MCP_NODE_COMMAND: getNodeExecPath(),
+    BLADEVAULT_MCP_ENTRY: path.join(getStandaloneDir(), 'bladevault-mcp.mjs'),
     HOSTNAME: '127.0.0.1',
     NEXT_TELEMETRY_DISABLED: '1',
     NODE_ENV: 'production',

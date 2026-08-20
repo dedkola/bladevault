@@ -26,6 +26,8 @@ const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
   cardFields: 'card_fields',
   cloudBackupLastSyncedAt: 'cloud_backup_last_synced_at',
   cloudAutoBackupEnabled: 'cloud_auto_backup_enabled',
+  mcpEnabled: 'mcp_enabled',
+  mcpWriteEnabled: 'mcp_write_enabled',
   customFields: 'custom_fields',
 }
 
@@ -114,6 +116,14 @@ export function getSettings(): AppSettings {
       map.get(SETTINGS_KEYS.cloudAutoBackupEnabled),
       DEFAULT_SETTINGS.cloudAutoBackupEnabled,
     ),
+    mcpEnabled: parseBool(
+      map.get(SETTINGS_KEYS.mcpEnabled),
+      DEFAULT_SETTINGS.mcpEnabled,
+    ),
+    mcpWriteEnabled: parseBool(
+      map.get(SETTINGS_KEYS.mcpWriteEnabled),
+      DEFAULT_SETTINGS.mcpWriteEnabled,
+    ),
     customFields: parseCustomFields(map.get(SETTINGS_KEYS.customFields)),
   }
 }
@@ -139,6 +149,8 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
     ['cardFields', JSON.stringify(next.cardFields)],
     ['cloudBackupLastSyncedAt', next.cloudBackupLastSyncedAt],
     ['cloudAutoBackupEnabled', next.cloudAutoBackupEnabled ? '1' : '0'],
+    ['mcpEnabled', next.mcpEnabled ? '1' : '0'],
+    ['mcpWriteEnabled', next.mcpWriteEnabled ? '1' : '0'],
     ['customFields', JSON.stringify(next.customFields)],
   ]
 

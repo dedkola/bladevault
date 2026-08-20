@@ -14,7 +14,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 1
+export const LOCAL_DB_SCHEMA_VERSION = 2
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -378,6 +378,27 @@ function migrateSchema(database: Database.Database) {
       SELECT id, 'updated', updated_at
       FROM knives
       WHERE updated_at <> added_at;
+    `)
+  }
+
+  const hasKnifeChangeLog = tables.some((t) => t.name === 'knife_change_log')
+  if (!hasKnifeChangeLog) {
+    database.exec(`
+      CREATE TABLE knife_change_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation_id TEXT NOT NULL,
+        knife_id TEXT NOT NULL,
+        source TEXT NOT NULL CHECK (source IN ('mcp')),
+        transport TEXT NOT NULL CHECK (transport IN ('stdio', 'http')),
+        changes TEXT NOT NULL,
+        occurred_at TEXT NOT NULL
+      );
+
+      CREATE INDEX knife_change_log_knife_id_idx
+      ON knife_change_log (knife_id);
+
+      CREATE INDEX knife_change_log_occurred_at_idx
+      ON knife_change_log (occurred_at);
     `)
   }
 
