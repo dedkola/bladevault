@@ -56,6 +56,18 @@ async function main() {
     assert.equal(initial.status, 200)
     assert.deepEqual(initial.body.knives, [])
 
+    const mcpStatus = await window.evaluate(async () => {
+      const response = await fetch('/api/settings/mcp', { cache: 'no-store' })
+      return { body: await response.json(), status: response.status }
+    })
+    assert.equal(mcpStatus.status, 200)
+    assert.equal(mcpStatus.body.mcp.stdio.env.BLADEVAULT_DATA_DIR, dataDir)
+    assert.equal(mcpStatus.body.mcp.stdio.env.ELECTRON_RUN_AS_NODE, '1')
+    assert.equal(
+      mcpStatus.body.mcp.stdio.args[0].endsWith('bladevault-mcp.mjs'),
+      true,
+    )
+
     const created = await window.evaluate(async () => {
       const response = await fetch('/api/knives', {
         method: 'POST',

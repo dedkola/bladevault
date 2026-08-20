@@ -76,6 +76,13 @@ describe('local database migrations', () => {
     ).toBeTruthy()
     expect(
       database
+        .prepare(
+          "SELECT 1 FROM sqlite_master WHERE type='table' AND name='knife_change_log'",
+        )
+        .get(),
+    ).toBeTruthy()
+    expect(
+      database
         .prepare('SELECT knife_id, event_type, occurred_at FROM knife_activity')
         .all(),
     ).toEqual([

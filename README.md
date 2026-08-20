@@ -16,6 +16,7 @@
     <img src="https://img.shields.io/badge/Electron-47848F?logo=electron&logoColor=white&style=flat-square" alt="Electron" />
     <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white&style=flat-square" alt="Docker" />
     <img src="https://img.shields.io/badge/Helm-0F1689?logo=helm&logoColor=white&style=flat-square" alt="Helm" />
+    <img src="https://img.shields.io/badge/MCP-8_tools-C89B3C?style=flat-square" alt="Model Context Protocol: 8 tools" />
   </p>
 
   <p>
@@ -35,6 +36,7 @@
 - Import product details from supported retailer URLs, with an interactive browser fallback for pages that need it.
 - Compare any number of knives side by side, focus on differences, and export or print the table as a landscape PDF.
 - See collection insights such as recent additions, maker distribution, and acquisition activity.
+- Connect local AI clients through MCP to search and analyze the collection, find missing data or duplicates, and apply optional audited metadata updates.
 - Run completely locally with SQLite, or opt into cloud backup when a BladeVault backup service is configured.
 
 ## Screenshots
@@ -247,6 +249,148 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run desktop:dev` | Run the Electron desktop shell in development. |
 | `npm run desktop:smoke` | Build and smoke-test the desktop runtime. |
 | `npm run dist:desktop` | Package desktop installers without publishing them. |
+
+## Model Context Protocol (MCP)
+
+BladeVault exposes its existing local collection to MCP clients such as LM
+Studio, Codex, Claude Desktop, and Cursor. No separate database or cloud account
+is required.
+
+| Tool | Ability | Access |
+| --- | --- | --- |
+| `search_knives` | Search text and exact BladeVault fields | Read-only |
+| `get_knife` | Retrieve one complete knife record | Read-only |
+| `get_collection_stats` | Summarize completeness, categories, measurements, and recent records | Read-only |
+| `find_missing_fields` | Find knives with missing built-in or custom fields | Read-only |
+| `find_duplicates` | Score possible duplicate records without merging or deleting | Read-only |
+| `propose_changes` | Validate suggested values without modifying the collection | Read-only |
+| `update_knife` | Apply a timestamp-checked metadata update to one knife | Write mode |
+| `bulk_update_knives` | Preview and atomically apply explicit multi-knife updates | Write mode |
+
+Open **Settings → AI / MCP** to review activity, copy the local client
+configuration, enable or disable HTTP access, and allow or deny metadata
+writes. Write mode is off by default. Applied changes use optimistic locking
+and are recorded in `knife_change_log`; MCP cannot replace IDs, timestamps,
+images, or entire records.
+
+### Docker or Podman: URL connection
+
+Container installations expose MCP on the existing BladeVault port. With the
+examples in this README, the endpoint is `http://localhost:5500/mcp`.
+
+LM Studio, Claude Desktop, Cursor, and clients using the common JSON shape can
+use:
+
+```json
+{
+  "mcpServers": {
+    "bladevault": {
+      "url": "http://localhost:5500/mcp"
+    }
+  }
+}
+```
+
+Start the included Compose setup with:
+
+```bash
+docker compose up -d --build
+```
+
+No bearer token is required for localhost. If BladeVault is exposed beyond the
+local computer, configure `MCP_AUTH_TOKEN`, `MCP_ALLOWED_HOSTS`, and
+`MCP_ALLOWED_ORIGINS` in the container environment.
+
+### macOS desktop app: bundled command connection
+
+The desktop app's internal HTTP port can change when its preferred port is
+busy. Use the bundled MCP helper instead of the Docker URL so the client setup
+remains stable across app restarts. For an app installed in `/Applications`,
+use:
+
+```json
+{
+  "mcpServers": {
+    "bladevault": {
+      "command": "/Applications/BladeVault.app/Contents/Frameworks/BladeVault Helper.app/Contents/MacOS/BladeVault Helper",
+      "args": [
+        "/Applications/BladeVault.app/Contents/Resources/app.asar.unpacked/.next/standalone/bladevault-mcp.mjs",
+        "mcp"
+      ],
+      "env": {
+        "ELECTRON_RUN_AS_NODE": "1"
+      }
+    }
+  }
+}
+```
+
+If BladeVault is installed elsewhere, replace the
+`/Applications/BladeVault.app` prefix in both paths. The helper resolves the
+same data folder used by the app, including a custom folder saved under
+**Settings → Local storage**, and can run while the BladeVault window is
+closed.
+
+### Source checkout: stdio connection
+
+Build and start the local MCP process with the same data directory as the app:
+
+```bash
+BLADEVAULT_DATA_DIR="$HOME/BladeVault/data" npm run mcp
+```
+
+For a client configuration, use Node as the command and
+`dist/mcp/bladevault.mjs mcp` as the arguments after `npm run mcp:build`.
+
+Codex uses TOML in `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.bladevault]
+command = "node"
+args = ["/absolute/path/to/bladevault/dist/mcp/bladevault.mjs", "mcp"]
+env = { BLADEVAULT_DATA_DIR = "/absolute/path/to/BladeVault/data" }
+```
+
+Claude Desktop, Cursor, and clients using the common JSON shape can use:
+
+```json
+{
+  "mcpServers": {
+    "bladevault": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/bladevault/dist/mcp/bladevault.mjs",
+        "mcp"
+      ],
+      "env": {
+        "BLADEVAULT_DATA_DIR": "/absolute/path/to/BladeVault/data"
+      }
+    }
+  }
+}
+```
+
+For an HTTP connection to a source server, start BladeVault normally:
+
+```bash
+npm run dev
+```
+
+Then change the Docker example URL to:
+
+```json
+{
+  "mcpServers": {
+    "bladevault": {
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}
+```
+
+`MCP_ENABLED` and `MCP_WRITE_ENABLED` remain available for administrators who
+explicitly add deployment overrides. Setting either variable locks its
+corresponding app control.
 
 ## Your data
 

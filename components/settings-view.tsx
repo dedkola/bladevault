@@ -1,11 +1,19 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   AlertCircle,
   CheckCircle2,
   Cloud,
+  Copy,
   Database,
   Download,
   FolderOpen,
@@ -14,6 +22,7 @@ import {
   Lock,
   LogOut,
   Palette,
+  Plug,
   RefreshCw,
   ShieldCheck,
   SlidersHorizontal,
@@ -87,7 +96,34 @@ type SettingsTab =
   | 'restore-database'
   | 'appearance'
   | 'fields'
+  | 'mcp'
   | 'about'
+
+type McpRuntimeStatus = {
+  enabled: boolean
+  writeEnabled: boolean
+  controls: {
+    enabledManagedByEnvironment: boolean
+    writeEnabledManagedByEnvironment: boolean
+  }
+  http: {
+    path: string
+    authConfigured: boolean
+  }
+  tools: { read: number; write: number; total: number }
+  activity: {
+    lastActivityAt: string | null
+    httpRequestsSinceStart: number
+    toolCallsSinceStart: number
+    lastTransport: 'http' | 'stdio' | null
+  }
+  stats: {
+    knifeCount: number
+    writeOperationCount: number
+    changedKnifeCount: number
+    lastWriteAt: string | null
+  }
+}
 
 const settingsTabTriggerClassName =
   'flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors sm:w-full'
@@ -97,6 +133,10 @@ const settingsSecondaryButtonClassName =
 
 const settingsPrimaryButtonClassName =
   'border-[var(--bladevault-gold)] bg-[var(--bladevault-gold)] text-[var(--bladevault-olive)] hover:bg-[var(--bladevault-title)] hover:text-[var(--bladevault-olive)]'
+
+const subscribeToBrowserOrigin = () => () => {}
+const getBrowserOrigin = () => window.location.origin
+const getServerOrigin = () => ''
 
 function StatusPill({
   status,
@@ -275,8 +315,11 @@ function CardFieldsPreview({
 
 export default function SettingsView() {
   const searchParams = useSearchParams()
-  const requestedTab =
-    searchParams.get('tab') === 'cloud-backup' ? 'cloud-backup' : null
+  const requestedTab = ['cloud-backup', 'mcp'].includes(
+    searchParams.get('tab') || '',
+  )
+    ? (searchParams.get('tab') as SettingsTab)
+    : null
   const { update, checkForUpdates, downloadUpdate, installUpdate } =
     useDesktopUpdates()
   const { refreshVault } = useKnives()
@@ -315,6 +358,10 @@ export default function SettingsView() {
   const [newFieldName, setNewFieldName] = useState('')
   const [newFieldType, setNewFieldType] = useState<CustomFieldType>('text')
   const [isSavingCardFields, setIsSavingCardFields] = useState(false)
+  const [mcpStatus, setMcpStatus] = useState<McpRuntimeStatus | null>(null)
+  const [copiedMcpConfig, setCopiedMcpConfig] = useState(false)
+  const [mcpUpdateStatus, setMcpUpdateStatus] = useState<StatusTone>('idle')
+  const [mcpUpdateMessage, setMcpUpdateMessage] = useState('')
   const localRestoreInputRef = useRef<HTMLInputElement>(null)
 
   const updateMessage =
@@ -370,6 +417,14 @@ export default function SettingsView() {
   const isLocalDataFolderDirty =
     normalizedPendingLocalDataPath !== '' &&
     normalizedPendingLocalDataPath !== localDataPath
+  const browserOrigin = useSyncExternalStore(
+    subscribeToBrowserOrigin,
+    getBrowserOrigin,
+    getServerOrigin,
+  )
+  const mcpEndpointUrl = browserOrigin
+    ? new URL(mcpStatus?.http.path || '/mcp', browserOrigin).toString()
+    : mcpStatus?.http.path || '/mcp'
 
   useEffect(() => {
     const openCloudBackup = () => setActiveTab('cloud-backup')
@@ -400,6 +455,7 @@ export default function SettingsView() {
         label: 'Custom Fields',
         icon: SlidersHorizontal,
       },
+      { id: 'mcp' as const, label: 'AI / MCP', icon: Plug },
       { id: 'about' as const, label: 'About', icon: Info },
     ],
     [],
@@ -476,9 +532,10 @@ export default function SettingsView() {
       setLocalDataMessage('')
 
       try {
-        const [response, nextCloudConfig] = await Promise.all([
+        const [response, nextCloudConfig, mcpResponse] = await Promise.all([
           fetch('/api/settings', { cache: 'no-store' }),
           refreshCloudConfig(true),
+          fetch('/api/settings/mcp', { cache: 'no-store' }),
         ])
         const data = await readJsonResponse<{
           configuredLocalDataPath?: string | null
@@ -509,6 +566,12 @@ export default function SettingsView() {
         setDockerHostDataMountPath(data.dockerHostDataMountPath || '')
         setIsContainerized(Boolean(data.isContainerized))
         setCloudConfig(nextCloudConfig)
+        if (mcpResponse.ok) {
+          const mcpData = await readJsonResponse<{ mcp?: McpRuntimeStatus }>(
+            mcpResponse,
+          )
+          setMcpStatus(mcpData.mcp || null)
+        }
         void refreshCloudSession(cancellation)
       } catch (error) {
         if (!cancellation.cancelled) {
@@ -1042,6 +1105,113 @@ export default function SettingsView() {
       )
     } finally {
       setIsSavingCardFields(false)
+    }
+  }
+
+  const handleCopyMcpConfig = async () => {
+    if (!mcpStatus) return
+    const config = {
+      mcpServers: {
+        bladevault: {
+          url: new URL(mcpStatus.http.path, window.location.origin).toString(),
+          ...(mcpStatus.http.authConfigured
+            ? {
+                headers: {
+                  Authorization: 'Bearer <MCP_AUTH_TOKEN>',
+                },
+              }
+            : {}),
+        },
+      },
+    }
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(config, null, 2))
+      setCopiedMcpConfig(true)
+      window.setTimeout(() => setCopiedMcpConfig(false), 1800)
+    } catch {
+      setLoadError('Could not copy the MCP configuration to the clipboard.')
+    }
+  }
+
+  const updateMcpSettings = async (
+    updates: { enabled?: boolean; writeEnabled?: boolean },
+    successMessage: string,
+  ) => {
+    setMcpUpdateStatus('loading')
+    setMcpUpdateMessage('Saving MCP settings...')
+    try {
+      const response = await fetch('/api/settings/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+      const data = await readJsonResponse<{
+        error?: string
+        mcp?: McpRuntimeStatus
+      }>(response)
+      if (!response.ok || !data.mcp) {
+        throw new Error(getApiErrorMessage(data, 'Failed to save MCP settings'))
+      }
+
+      setMcpStatus(data.mcp)
+      setMcpUpdateStatus('success')
+      setMcpUpdateMessage(successMessage)
+    } catch (error) {
+      setMcpUpdateStatus('error')
+      setMcpUpdateMessage(
+        error instanceof Error ? error.message : 'Failed to save MCP settings',
+      )
+    }
+  }
+
+  const handleMcpEnabledChange = (checked: boolean) =>
+    updateMcpSettings(
+      { enabled: checked },
+      checked ? 'MCP access is enabled.' : 'MCP access is disabled.',
+    )
+
+  const handleMcpWriteEnabledChange = (checked: boolean) => {
+    if (
+      checked &&
+      !window.confirm(
+        'Allow connected AI clients to modify knife metadata? Every MCP change is audited, but approved tool calls will update your collection.',
+      )
+    ) {
+      return
+    }
+    return updateMcpSettings(
+      { writeEnabled: checked },
+      checked ? 'MCP write access is enabled.' : 'MCP is now read-only.',
+    )
+  }
+
+  const refreshMcpStatus = async () => {
+    setMcpUpdateStatus('loading')
+    setMcpUpdateMessage('Refreshing MCP activity...')
+    try {
+      const response = await fetch('/api/settings/mcp', {
+        cache: 'no-store',
+      })
+      const data = await readJsonResponse<{
+        error?: string
+        mcp?: McpRuntimeStatus
+      }>(response)
+      if (!response.ok || !data.mcp) {
+        throw new Error(
+          getApiErrorMessage(data, 'Failed to refresh MCP activity'),
+        )
+      }
+      setMcpStatus(data.mcp)
+      setMcpUpdateStatus('idle')
+      setMcpUpdateMessage('')
+    } catch (error) {
+      setMcpUpdateStatus('error')
+      setMcpUpdateMessage(
+        error instanceof Error
+          ? error.message
+          : 'Failed to refresh MCP activity',
+      )
     }
   }
 
@@ -1769,6 +1939,154 @@ export default function SettingsView() {
                         </Button>
                       </div>
                     </div>
+                  </SettingsSection>
+                </div>
+              )}
+
+              {activeTab === 'mcp' && (
+                <div className="mx-auto max-w-3xl space-y-3">
+                  <div className="flex min-h-5 justify-end">
+                    <StatusPill
+                      status={mcpUpdateStatus}
+                      message={mcpUpdateMessage}
+                    />
+                  </div>
+
+                  <SettingsSection title="MCP access">
+                    <SettingsRow
+                      label="Enable MCP"
+                      description={
+                        mcpStatus?.controls.enabledManagedByEnvironment
+                          ? 'Controlled by the MCP_ENABLED deployment environment variable.'
+                          : 'Allow local AI clients such as LM Studio to access your BladeVault collection.'
+                      }
+                    >
+                      <Checkbox
+                        checked={mcpStatus?.enabled || false}
+                        onCheckedChange={(checked) =>
+                          void handleMcpEnabledChange(checked === true)
+                        }
+                        disabled={
+                          !mcpStatus ||
+                          mcpUpdateStatus === 'loading' ||
+                          mcpStatus.controls.enabledManagedByEnvironment
+                        }
+                        aria-label="Enable MCP access"
+                      />
+                    </SettingsRow>
+                    <SettingsRow
+                      label="Allow MCP to modify knives"
+                      description={
+                        mcpStatus?.controls.writeEnabledManagedByEnvironment
+                          ? 'Controlled by the MCP_WRITE_ENABLED deployment environment variable.'
+                          : 'Off keeps MCP read-only. When enabled, approved metadata updates are recorded in the audit log.'
+                      }
+                    >
+                      <Checkbox
+                        checked={mcpStatus?.writeEnabled || false}
+                        onCheckedChange={(checked) =>
+                          void handleMcpWriteEnabledChange(checked === true)
+                        }
+                        disabled={
+                          !mcpStatus?.enabled ||
+                          mcpUpdateStatus === 'loading' ||
+                          mcpStatus.controls.writeEnabledManagedByEnvironment
+                        }
+                        aria-label="Allow MCP to modify knives"
+                      />
+                    </SettingsRow>
+                    <SettingsRow
+                      label="LM Studio connection"
+                      description={`${
+                        mcpStatus?.http.authConfigured
+                          ? 'Token protected'
+                          : 'Local URL only'
+                      }. Copy the ready-to-use MCP configuration.`}
+                    >
+                      <div className="flex max-w-full items-center gap-2 text-right">
+                        <MonoValue>{mcpEndpointUrl}</MonoValue>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className={`${settingsSecondaryButtonClassName} h-8 rounded-lg`}
+                          onClick={() => void handleCopyMcpConfig()}
+                          disabled={!mcpStatus}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          {copiedMcpConfig ? 'Copied' : 'Copy config'}
+                        </Button>
+                      </div>
+                    </SettingsRow>
+                  </SettingsSection>
+
+                  <SettingsSection
+                    title={
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Activity</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 rounded-lg px-2 text-xs"
+                          onClick={() => void refreshMcpStatus()}
+                          disabled={mcpUpdateStatus === 'loading'}
+                        >
+                          <RefreshCw
+                            className={cn(
+                              'h-3.5 w-3.5',
+                              mcpUpdateStatus === 'loading' && 'animate-spin',
+                            )}
+                          />
+                          Refresh
+                        </Button>
+                      </div>
+                    }
+                  >
+                    <SettingsRow
+                      label="Collection available"
+                      description="Knives currently available to MCP read tools."
+                    >
+                      <span className="text-xs text-muted-foreground">
+                        {mcpStatus?.stats.knifeCount ?? 0} knives
+                      </span>
+                    </SettingsRow>
+                    <SettingsRow
+                      label="Available tools"
+                      description={`Tool calls this app session: ${
+                        mcpStatus?.activity.toolCallsSinceStart ?? 0
+                      }`}
+                    >
+                      <span className="text-xs text-muted-foreground">
+                        {mcpStatus?.tools.read ?? 6} read ·{' '}
+                        {mcpStatus?.tools.write ?? 2} write
+                      </span>
+                    </SettingsRow>
+                    <SettingsRow
+                      label="Last activity"
+                      description={
+                        mcpStatus?.activity.lastTransport
+                          ? `Last used through ${mcpStatus.activity.lastTransport.toUpperCase()}.`
+                          : 'No MCP client activity recorded in this app session.'
+                      }
+                    >
+                      <span className="text-xs text-muted-foreground">
+                        {formatSyncTime(
+                          mcpStatus?.activity.lastActivityAt || '',
+                        )}
+                      </span>
+                    </SettingsRow>
+                    <SettingsRow
+                      label="Audited MCP changes"
+                      description={`Last change: ${formatSyncTime(
+                        mcpStatus?.stats.lastWriteAt || '',
+                      )}`}
+                    >
+                      <span className="text-xs text-muted-foreground">
+                        {mcpStatus?.stats.writeOperationCount ?? 0} operations ·{' '}
+                        {mcpStatus?.stats.changedKnifeCount ?? 0} knives
+                      </span>
+                    </SettingsRow>
                   </SettingsSection>
                 </div>
               )}

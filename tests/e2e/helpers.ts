@@ -16,6 +16,8 @@ export async function resetVault(request: APIRequestContext) {
       cardFields: ['bladeStyle', 'handleMaterial'],
       cloudBackupLastSyncedAt: '',
       cloudAutoBackupEnabled: false,
+      mcpEnabled: true,
+      mcpWriteEnabled: false,
       customFields: [],
     },
   })

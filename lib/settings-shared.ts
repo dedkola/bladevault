@@ -44,6 +44,8 @@ export type AppSettings = {
   cardFields: CardField[]
   cloudBackupLastSyncedAt: string
   cloudAutoBackupEnabled: boolean
+  mcpEnabled: boolean
+  mcpWriteEnabled: boolean
   customFields: CustomField[]
 }
 
@@ -53,6 +55,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   cardFields: [...DEFAULT_CARD_FIELDS],
   cloudBackupLastSyncedAt: '',
   cloudAutoBackupEnabled: false,
+  mcpEnabled: true,
+  mcpWriteEnabled: false,
   customFields: [],
 }
 
