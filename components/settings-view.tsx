@@ -109,6 +109,9 @@ type McpRuntimeStatus = {
   http: {
     path: string
     authConfigured: boolean
+    authToken: string
+    authManagedByEnvironment: boolean
+    authRequiredForRemote: boolean
   }
   tools: { read: number; write: number; total: number }
   activity: {
@@ -360,6 +363,7 @@ export default function SettingsView() {
   const [isSavingCardFields, setIsSavingCardFields] = useState(false)
   const [mcpStatus, setMcpStatus] = useState<McpRuntimeStatus | null>(null)
   const [copiedMcpConfig, setCopiedMcpConfig] = useState(false)
+  const [copiedMcpToken, setCopiedMcpToken] = useState(false)
   const [mcpUpdateStatus, setMcpUpdateStatus] = useState<StatusTone>('idle')
   const [mcpUpdateMessage, setMcpUpdateMessage] = useState('')
   const localRestoreInputRef = useRef<HTMLInputElement>(null)
@@ -425,6 +429,22 @@ export default function SettingsView() {
   const mcpEndpointUrl = browserOrigin
     ? new URL(mcpStatus?.http.path || '/mcp', browserOrigin).toString()
     : mcpStatus?.http.path || '/mcp'
+  const mcpClientConfig = mcpStatus
+    ? JSON.stringify(
+        {
+          mcpServers: {
+            bladevault: {
+              url: mcpEndpointUrl,
+              headers: {
+                Authorization: `Bearer ${mcpStatus.http.authToken}`,
+              },
+            },
+          },
+        },
+        null,
+        2,
+      )
+    : ''
 
   useEffect(() => {
     const openCloudBackup = () => setActiveTab('cloud-backup')
@@ -1109,28 +1129,26 @@ export default function SettingsView() {
   }
 
   const handleCopyMcpConfig = async () => {
-    if (!mcpStatus) return
-    const config = {
-      mcpServers: {
-        bladevault: {
-          url: new URL(mcpStatus.http.path, window.location.origin).toString(),
-          ...(mcpStatus.http.authConfigured
-            ? {
-                headers: {
-                  Authorization: 'Bearer <MCP_AUTH_TOKEN>',
-                },
-              }
-            : {}),
-        },
-      },
-    }
+    if (!mcpClientConfig) return
 
     try {
-      await navigator.clipboard.writeText(JSON.stringify(config, null, 2))
+      await navigator.clipboard.writeText(mcpClientConfig)
       setCopiedMcpConfig(true)
       window.setTimeout(() => setCopiedMcpConfig(false), 1800)
     } catch {
       setLoadError('Could not copy the MCP configuration to the clipboard.')
+    }
+  }
+
+  const handleCopyMcpToken = async () => {
+    if (!mcpStatus?.http.authToken) return
+
+    try {
+      await navigator.clipboard.writeText(mcpStatus.http.authToken)
+      setCopiedMcpToken(true)
+      window.setTimeout(() => setCopiedMcpToken(false), 1800)
+    } catch {
+      setLoadError('Could not copy the MCP token to the clipboard.')
     }
   }
 
@@ -1996,28 +2014,65 @@ export default function SettingsView() {
                       />
                     </SettingsRow>
                     <SettingsRow
-                      label="LM Studio connection"
-                      description={`${
-                        mcpStatus?.http.authConfigured
-                          ? 'Token protected'
-                          : 'Local URL only'
-                      }. Copy the ready-to-use MCP configuration.`}
+                      label="MCP endpoint"
+                      description="Local connections may use the URL directly. Remote connections require the token below."
+                    >
+                      <MonoValue>{mcpEndpointUrl}</MonoValue>
+                    </SettingsRow>
+                    <SettingsRow
+                      label="Permanent access token"
+                      description={
+                        mcpStatus?.http.authManagedByEnvironment
+                          ? 'Managed by MCP_AUTH_TOKEN and preserved by your deployment configuration.'
+                          : 'Generated once and stored with your BladeVault data, so it survives restarts and updates.'
+                      }
                     >
                       <div className="flex max-w-full items-center gap-2 text-right">
-                        <MonoValue>{mcpEndpointUrl}</MonoValue>
+                        <MonoValue>
+                          {mcpStatus?.http.authToken || 'Unavailable'}
+                        </MonoValue>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className={`${settingsSecondaryButtonClassName} h-8 rounded-lg`}
+                          onClick={() => void handleCopyMcpToken()}
+                          disabled={!mcpStatus}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          {copiedMcpToken ? 'Copied' : 'Copy token'}
+                        </Button>
+                      </div>
+                    </SettingsRow>
+                    <div className="space-y-2 py-3">
+                      <div>
+                        <div className="text-sm font-medium text-foreground">
+                          Client configuration
+                        </div>
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          Ready to paste into LM Studio or another URL-based MCP
+                          client.
+                        </div>
+                      </div>
+                      <pre className="max-h-64 overflow-auto rounded-lg border border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] p-3 text-xs text-foreground dark:border-[#d3c097]/30">
+                        <code>
+                          {mcpClientConfig || 'Loading configuration…'}
+                        </code>
+                      </pre>
+                      <div className="flex justify-end">
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
                           className={`${settingsSecondaryButtonClassName} h-8 rounded-lg`}
                           onClick={() => void handleCopyMcpConfig()}
-                          disabled={!mcpStatus}
+                          disabled={!mcpClientConfig}
                         >
                           <Copy className="h-3.5 w-3.5" />
                           {copiedMcpConfig ? 'Copied' : 'Copy config'}
                         </Button>
                       </div>
-                    </SettingsRow>
+                    </div>
                   </SettingsSection>
 
                   <SettingsSection

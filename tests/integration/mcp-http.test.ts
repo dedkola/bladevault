@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { handleMcpHttpRequest } from '@/lib/mcp/http'
+import { closeLocalDb } from '@/lib/local-db'
 import {
   getMcpRuntimeStatus,
   McpSettingManagedError,
@@ -12,6 +13,8 @@ const previous = {
   enabled: process.env.MCP_ENABLED,
   writeEnabled: process.env.MCP_WRITE_ENABLED,
   token: process.env.MCP_AUTH_TOKEN,
+  allowedHosts: process.env.MCP_ALLOWED_HOSTS,
+  allowedOrigins: process.env.MCP_ALLOWED_ORIGINS,
 }
 
 let vault: TempVault | null = null
@@ -21,6 +24,8 @@ beforeEach(async () => {
   delete process.env.MCP_ENABLED
   delete process.env.MCP_WRITE_ENABLED
   delete process.env.MCP_AUTH_TOKEN
+  delete process.env.MCP_ALLOWED_HOSTS
+  delete process.env.MCP_ALLOWED_ORIGINS
 })
 
 afterEach(async () => {
@@ -30,6 +35,11 @@ afterEach(async () => {
   else process.env.MCP_WRITE_ENABLED = previous.writeEnabled
   if (previous.token === undefined) delete process.env.MCP_AUTH_TOKEN
   else process.env.MCP_AUTH_TOKEN = previous.token
+  if (previous.allowedHosts === undefined) delete process.env.MCP_ALLOWED_HOSTS
+  else process.env.MCP_ALLOWED_HOSTS = previous.allowedHosts
+  if (previous.allowedOrigins === undefined)
+    delete process.env.MCP_ALLOWED_ORIGINS
+  else process.env.MCP_ALLOWED_ORIGINS = previous.allowedOrigins
   await vault?.cleanup()
   vault = null
 })
@@ -92,6 +102,16 @@ describe('MCP HTTP transport', () => {
     )
   })
 
+  it('creates one permanent access token and preserves it when the database reopens', () => {
+    const initial = getMcpRuntimeStatus().http.authToken
+
+    expect(initial).toMatch(/^bv_mcp_[A-Za-z0-9_-]{43}$/)
+    expect(getMcpRuntimeStatus().http.authToken).toBe(initial)
+
+    closeLocalDb()
+    expect(getMcpRuntimeStatus().http.authToken).toBe(initial)
+  })
+
   it('stays closed until enabled, then supports URL-only localhost access', async () => {
     saveSettings({ mcpEnabled: false })
     expect((await handleMcpHttpRequest(initializeRequest())).status).toBe(404)
@@ -109,9 +129,10 @@ describe('MCP HTTP transport', () => {
     ).toBe(401)
   })
 
-  it('rejects non-local hosts and browser origins in URL-only mode', async () => {
+  it('requires the permanent token for remote hosts', async () => {
     process.env.MCP_ENABLED = 'true'
     delete process.env.MCP_AUTH_TOKEN
+    const token = getMcpRuntimeStatus().http.authToken
 
     expect(
       (
@@ -119,11 +140,33 @@ describe('MCP HTTP transport', () => {
           initializeRequest(undefined, { host: 'bladevault.example.com' }),
         )
       ).status,
-    ).toBe(403)
+    ).toBe(401)
     expect(
       (
         await handleMcpHttpRequest(
-          initializeRequest(undefined, {
+          initializeRequest('wrong-secret', {
+            host: 'bladevault.example.com',
+          }),
+        )
+      ).status,
+    ).toBe(401)
+    expect(
+      (
+        await handleMcpHttpRequest(
+          initializeRequest(token, { host: 'bladevault.example.com' }),
+        )
+      ).status,
+    ).toBe(200)
+  })
+
+  it('rejects untrusted browser origins even with the permanent token', async () => {
+    const token = getMcpRuntimeStatus().http.authToken
+
+    expect(
+      (
+        await handleMcpHttpRequest(
+          initializeRequest(token, {
+            host: 'bladevault.example.com',
             origin: 'https://untrusted.example.com',
           }),
         )

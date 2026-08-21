@@ -55,9 +55,32 @@ test('controls MCP access and copies the LM Studio configuration', async ({
   const copied = JSON.parse(
     await page.evaluate(() => navigator.clipboard.readText()),
   )
-  expect(copied).toEqual({
+  expect(copied).toMatchObject({
     mcpServers: {
-      bladevault: { url: 'http://127.0.0.1:3199/mcp' },
+      bladevault: {
+        url: 'http://127.0.0.1:3199/mcp',
+        headers: {
+          Authorization: expect.stringMatching(
+            /^Bearer bv_mcp_[A-Za-z0-9_-]{43}$/,
+          ),
+        },
+      },
     },
   })
+
+  const token = copied.mcpServers.bladevault.headers.Authorization.replace(
+    'Bearer ',
+    '',
+  )
+  await page.getByRole('button', { name: 'Copy token' }).click()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(token)
+
+  await page.reload()
+  await page.getByRole('button', { name: 'Copy config' }).click()
+  const copiedAfterReload = JSON.parse(
+    await page.evaluate(() => navigator.clipboard.readText()),
+  )
+  expect(copiedAfterReload.mcpServers.bladevault.headers.Authorization).toBe(
+    `Bearer ${token}`,
+  )
 })

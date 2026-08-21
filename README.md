@@ -276,8 +276,8 @@ images, or entire records.
 ### Docker or Podman: LM Studio URL connection
 
 Container installations expose MCP on the existing BladeVault port. With the
-Docker and Podman examples in this README, connect LM Studio to
-`http://localhost:5500/mcp`:
+Docker and Podman examples in this README, a client on the same computer can
+connect to `http://localhost:5500/mcp`:
 
 ```json
 {
@@ -295,9 +295,17 @@ Start the included Compose setup with:
 docker compose up -d --build
 ```
 
-No bearer token is required for localhost. If BladeVault is exposed beyond the
-local computer, configure `MCP_AUTH_TOKEN`, `MCP_ALLOWED_HOSTS`, and
-`MCP_ALLOWED_ORIGINS` in the container environment.
+BladeVault generates one permanent MCP access token and stores it in the
+persisted data volume. Localhost connections may use the URL directly. For a
+LAN address such as `http://192.168.0.5:5500/mcp`, open **Settings → AI / MCP**
+through that address and copy the ready-to-use configuration, including its
+bearer token. The token stays the same across container restarts and image
+updates.
+
+`MCP_AUTH_TOKEN`, `MCP_ALLOWED_HOSTS`, and `MCP_ALLOWED_ORIGINS` remain
+available as deployment overrides. When `MCP_AUTH_TOKEN` is set, its value is
+used instead of the app-generated token and is required for local and remote
+HTTP connections.
 
 `MCP_ENABLED` and `MCP_WRITE_ENABLED` remain available for administrators who
 explicitly add deployment overrides. Setting either variable locks its

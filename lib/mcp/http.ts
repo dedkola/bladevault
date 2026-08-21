@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { createMcpHandler } from '@modelcontextprotocol/server'
 import { createBladeVaultMcpServer } from '@/lib/mcp/create-server'
 import { recordMcpHttpRequest } from '@/lib/mcp/activity'
-import { isMcpEnabled } from '@/lib/mcp/config'
+import { getMcpAuthToken, isMcpEnabled } from '@/lib/mcp/config'
 
 const handler = createMcpHandler(() => createBladeVaultMcpServer('http'), {
   onerror(error) {
@@ -44,6 +44,15 @@ function allowedHost(request: Request): boolean {
   return allowed.includes(host) || allowed.includes(hostname)
 }
 
+function localHost(request: Request): boolean {
+  const host = request.headers.get('host')?.toLowerCase()
+  if (!host) return false
+  const hostname = host.startsWith('[')
+    ? host.slice(0, host.indexOf(']') + 1)
+    : host.split(':')[0]
+  return ['localhost', '127.0.0.1', '[::1]'].includes(hostname)
+}
+
 function allowedOrigin(request: Request): boolean {
   const origin = request.headers.get('origin')
   if (!origin) return true
@@ -66,20 +75,24 @@ export async function handleMcpHttpRequest(
   if (!isMcpEnabled()) {
     return Response.json({ error: 'Not found' }, { status: 404 })
   }
-  if (!allowedHost(request) || !allowedOrigin(request)) {
+  if (!allowedOrigin(request)) {
     return Response.json(
       { error: 'Forbidden MCP request origin.' },
       { status: 403 },
     )
   }
 
-  const expected = process.env.MCP_AUTH_TOKEN?.trim()
-  if (expected) {
-    const authorization = request.headers.get('authorization') || ''
-    const actual = authorization.startsWith('Bearer ')
-      ? authorization.slice('Bearer '.length)
-      : ''
-    if (!actual || !tokenMatches(actual, expected)) return unauthorized()
+  const auth = getMcpAuthToken()
+  const authorization = request.headers.get('authorization') || ''
+  const actual = authorization.startsWith('Bearer ')
+    ? authorization.slice('Bearer '.length)
+    : ''
+  const authenticated = Boolean(actual && tokenMatches(actual, auth.token))
+  const isLocal = localHost(request)
+
+  if (!allowedHost(request) && !authenticated) return unauthorized()
+  if ((auth.managedByEnvironment || !isLocal) && !authenticated) {
+    return unauthorized()
   }
 
   recordMcpHttpRequest()

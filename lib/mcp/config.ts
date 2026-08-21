@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { getLocalDataDirPath, getLocalDb } from '@/lib/local-db'
@@ -7,6 +8,13 @@ import { getSettings, saveSettings } from '@/lib/settings'
 type McpRuntimeSettingsUpdate = {
   enabled?: boolean
   writeEnabled?: boolean
+}
+
+const MCP_AUTH_TOKEN_SETTING_KEY = 'mcp_auth_token'
+
+export type McpAuthToken = {
+  token: string
+  managedByEnvironment: boolean
 }
 
 function environmentFlag(value: string | undefined) {
@@ -40,6 +48,33 @@ export function areMcpWritesEnabled(): boolean {
 
 export function isMcpEnabled(): boolean {
   return getMcpControlState().enabled
+}
+
+function getPersistedMcpAuthToken(): string | null {
+  const row = getLocalDb()
+    .prepare('SELECT value FROM settings WHERE key = ?')
+    .get(MCP_AUTH_TOKEN_SETTING_KEY) as { value: string } | undefined
+  return row?.value.trim() || null
+}
+
+function createPersistedMcpAuthToken(): string {
+  const token = `bv_mcp_${randomBytes(32).toString('base64url')}`
+  getLocalDb()
+    .prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)')
+    .run(MCP_AUTH_TOKEN_SETTING_KEY, token)
+  return getPersistedMcpAuthToken() || token
+}
+
+export function getMcpAuthToken(): McpAuthToken {
+  const environmentToken = process.env.MCP_AUTH_TOKEN?.trim()
+  if (environmentToken) {
+    return { token: environmentToken, managedByEnvironment: true }
+  }
+
+  return {
+    token: getPersistedMcpAuthToken() || createPersistedMcpAuthToken(),
+    managedByEnvironment: false,
+  }
 }
 
 export class McpSettingManagedError extends Error {}
@@ -95,6 +130,7 @@ function getMcpDataStats() {
 
 export function getMcpRuntimeStatus() {
   const control = getMcpControlState()
+  const auth = getMcpAuthToken()
   const packagedCommand = process.env.BLADEVAULT_MCP_NODE_COMMAND
   const packagedEntry = process.env.BLADEVAULT_MCP_ENTRY
   const standaloneEntry = path.join(process.cwd(), 'bladevault-mcp.mjs')
@@ -114,7 +150,10 @@ export function getMcpRuntimeStatus() {
     },
     http: {
       path: '/mcp',
-      authConfigured: Boolean(process.env.MCP_AUTH_TOKEN?.trim()),
+      authConfigured: true,
+      authToken: auth.token,
+      authManagedByEnvironment: auth.managedByEnvironment,
+      authRequiredForRemote: true,
     },
     tools: { read: 6, write: 2, total: 8 },
     activity: getMcpActivity(),
