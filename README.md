@@ -273,13 +273,11 @@ writes. Write mode is off by default. Applied changes use optimistic locking
 and are recorded in `knife_change_log`; MCP cannot replace IDs, timestamps,
 images, or entire records.
 
-### Docker or Podman: URL connection
+### Docker or Podman: LM Studio URL connection
 
 Container installations expose MCP on the existing BladeVault port. With the
-examples in this README, the endpoint is `http://localhost:5500/mcp`.
-
-LM Studio, Claude Desktop, Cursor, and clients using the common JSON shape can
-use:
+Docker and Podman examples in this README, connect LM Studio to
+`http://localhost:5500/mcp`:
 
 ```json
 {
@@ -301,96 +299,31 @@ No bearer token is required for localhost. If BladeVault is exposed beyond the
 local computer, configure `MCP_AUTH_TOKEN`, `MCP_ALLOWED_HOSTS`, and
 `MCP_ALLOWED_ORIGINS` in the container environment.
 
-### macOS desktop app: bundled command connection
-
-The desktop app's internal HTTP port can change when its preferred port is
-busy. Use the bundled MCP helper instead of the Docker URL so the client setup
-remains stable across app restarts. For an app installed in `/Applications`,
-use:
-
-```json
-{
-  "mcpServers": {
-    "bladevault": {
-      "command": "/Applications/BladeVault.app/Contents/Frameworks/BladeVault Helper.app/Contents/MacOS/BladeVault Helper",
-      "args": [
-        "/Applications/BladeVault.app/Contents/Resources/app.asar.unpacked/.next/standalone/bladevault-mcp.mjs",
-        "mcp"
-      ],
-      "env": {
-        "ELECTRON_RUN_AS_NODE": "1"
-      }
-    }
-  }
-}
-```
-
-If BladeVault is installed elsewhere, replace the
-`/Applications/BladeVault.app` prefix in both paths. The helper resolves the
-same data folder used by the app, including a custom folder saved under
-**Settings → Local storage**, and can run while the BladeVault window is
-closed.
-
-### Source checkout: stdio connection
-
-Build and start the local MCP process with the same data directory as the app:
-
-```bash
-BLADEVAULT_DATA_DIR="$HOME/BladeVault/data" npm run mcp
-```
-
-For a client configuration, use Node as the command and
-`dist/mcp/bladevault.mjs mcp` as the arguments after `npm run mcp:build`.
-
-Codex uses TOML in `~/.codex/config.toml`:
-
-```toml
-[mcp_servers.bladevault]
-command = "node"
-args = ["/absolute/path/to/bladevault/dist/mcp/bladevault.mjs", "mcp"]
-env = { BLADEVAULT_DATA_DIR = "/absolute/path/to/BladeVault/data" }
-```
-
-Claude Desktop, Cursor, and clients using the common JSON shape can use:
-
-```json
-{
-  "mcpServers": {
-    "bladevault": {
-      "command": "node",
-      "args": [
-        "/absolute/path/to/bladevault/dist/mcp/bladevault.mjs",
-        "mcp"
-      ],
-      "env": {
-        "BLADEVAULT_DATA_DIR": "/absolute/path/to/BladeVault/data"
-      }
-    }
-  }
-}
-```
-
-For an HTTP connection to a source server, start BladeVault normally:
-
-```bash
-npm run dev
-```
-
-Then change the Docker example URL to:
-
-```json
-{
-  "mcpServers": {
-    "bladevault": {
-      "url": "http://localhost:3000/mcp"
-    }
-  }
-}
-```
-
 `MCP_ENABLED` and `MCP_WRITE_ENABLED` remain available for administrators who
 explicitly add deployment overrides. Setting either variable locks its
 corresponding app control.
+
+### macOS desktop app: LM Studio URL connection
+
+The running macOS app also exposes a local MCP URL. Open
+**Settings → AI / MCP** and copy the current URL shown under
+**LM Studio connection**. For example, if the app shows
+`http://127.0.0.1:61768/mcp`, use:
+
+```json
+{
+  "mcpServers": {
+    "bladevaultmacos": {
+      "url": "http://127.0.0.1:61768/mcp"
+    }
+  }
+}
+```
+
+Keep the BladeVault desktop app running while LM Studio uses this connection.
+Port `61768` is only an example; the app's port can change after a restart if
+its preferred port is unavailable, so copy the current URL from Settings when
+needed.
 
 ## Your data
 
