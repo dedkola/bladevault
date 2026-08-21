@@ -141,6 +141,40 @@ const subscribeToBrowserOrigin = () => () => {}
 const getBrowserOrigin = () => window.location.origin
 const getServerOrigin = () => ''
 
+async function copyTextToClipboard(value: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value)
+      return
+    } catch {
+      // Plain HTTP LAN origins can expose the API but reject write access.
+    }
+  }
+
+  const activeElement = document.activeElement
+  const textarea = document.createElement('textarea')
+  textarea.value = value
+  textarea.readOnly = true
+  textarea.style.position = 'fixed'
+  textarea.style.inset = '0 auto auto -9999px'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.focus()
+  textarea.select()
+  textarea.setSelectionRange(0, textarea.value.length)
+
+  try {
+    if (!document.execCommand('copy')) {
+      throw new Error('Browser copy command was rejected.')
+    }
+  } finally {
+    textarea.remove()
+    if (activeElement instanceof HTMLElement) {
+      activeElement.focus({ preventScroll: true })
+    }
+  }
+}
+
 function StatusPill({
   status,
   message,
@@ -1132,7 +1166,7 @@ export default function SettingsView() {
     if (!mcpClientConfig) return
 
     try {
-      await navigator.clipboard.writeText(mcpClientConfig)
+      await copyTextToClipboard(mcpClientConfig)
       setCopiedMcpConfig(true)
       window.setTimeout(() => setCopiedMcpConfig(false), 1800)
     } catch {
@@ -1144,7 +1178,7 @@ export default function SettingsView() {
     if (!mcpStatus?.http.authToken) return
 
     try {
-      await navigator.clipboard.writeText(mcpStatus.http.authToken)
+      await copyTextToClipboard(mcpStatus.http.authToken)
       setCopiedMcpToken(true)
       window.setTimeout(() => setCopiedMcpToken(false), 1800)
     } catch {
@@ -1963,20 +1997,22 @@ export default function SettingsView() {
 
               {activeTab === 'mcp' && (
                 <div className="mx-auto max-w-3xl space-y-3">
-                  <div className="flex min-h-5 justify-end">
-                    <StatusPill
-                      status={mcpUpdateStatus}
-                      message={mcpUpdateMessage}
-                    />
-                  </div>
+                  {mcpUpdateStatus !== 'idle' ? (
+                    <div className="flex justify-end">
+                      <StatusPill
+                        status={mcpUpdateStatus}
+                        message={mcpUpdateMessage}
+                      />
+                    </div>
+                  ) : null}
 
-                  <SettingsSection title="MCP access">
+                  <SettingsSection title="MCP">
                     <SettingsRow
-                      label="Enable MCP"
+                      label="Enabled"
                       description={
                         mcpStatus?.controls.enabledManagedByEnvironment
-                          ? 'Controlled by the MCP_ENABLED deployment environment variable.'
-                          : 'Allow local AI clients such as LM Studio to access your BladeVault collection.'
+                          ? 'Managed by MCP_ENABLED.'
+                          : undefined
                       }
                     >
                       <Checkbox
@@ -1993,11 +2029,11 @@ export default function SettingsView() {
                       />
                     </SettingsRow>
                     <SettingsRow
-                      label="Allow MCP to modify knives"
+                      label="Write access"
                       description={
                         mcpStatus?.controls.writeEnabledManagedByEnvironment
-                          ? 'Controlled by the MCP_WRITE_ENABLED deployment environment variable.'
-                          : 'Off keeps MCP read-only. When enabled, approved metadata updates are recorded in the audit log.'
+                          ? 'Managed by MCP_WRITE_ENABLED.'
+                          : 'Read-only when off. Writes are audited.'
                       }
                     >
                       <Checkbox
@@ -2014,17 +2050,11 @@ export default function SettingsView() {
                       />
                     </SettingsRow>
                     <SettingsRow
-                      label="MCP endpoint"
-                      description="Local connections may use the URL directly. Remote connections require the token below."
-                    >
-                      <MonoValue>{mcpEndpointUrl}</MonoValue>
-                    </SettingsRow>
-                    <SettingsRow
-                      label="Permanent access token"
+                      label="Token"
                       description={
                         mcpStatus?.http.authManagedByEnvironment
-                          ? 'Managed by MCP_AUTH_TOKEN and preserved by your deployment configuration.'
-                          : 'Generated once and stored with your BladeVault data, so it survives restarts and updates.'
+                          ? 'Managed by MCP_AUTH_TOKEN.'
+                          : 'Stored with your vault data.'
                       }
                     >
                       <div className="flex max-w-full items-center gap-2 text-right">
@@ -2045,21 +2075,10 @@ export default function SettingsView() {
                       </div>
                     </SettingsRow>
                     <div className="space-y-2 py-3">
-                      <div>
+                      <div className="flex items-center justify-between gap-2">
                         <div className="text-sm font-medium text-foreground">
-                          Client configuration
+                          Config
                         </div>
-                        <div className="mt-0.5 text-xs text-muted-foreground">
-                          Ready to paste into LM Studio or another URL-based MCP
-                          client.
-                        </div>
-                      </div>
-                      <pre className="max-h-64 overflow-auto rounded-lg border border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] p-3 text-xs text-foreground dark:border-[#d3c097]/30">
-                        <code>
-                          {mcpClientConfig || 'Loading configuration…'}
-                        </code>
-                      </pre>
-                      <div className="flex justify-end">
                         <Button
                           type="button"
                           variant="outline"
@@ -2072,6 +2091,11 @@ export default function SettingsView() {
                           {copiedMcpConfig ? 'Copied' : 'Copy config'}
                         </Button>
                       </div>
+                      <pre className="max-h-64 overflow-auto rounded-lg border border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] p-3 text-xs text-foreground dark:border-[#d3c097]/30">
+                        <code>
+                          {mcpClientConfig || 'Loading configuration…'}
+                        </code>
+                      </pre>
                     </div>
                   </SettingsSection>
 
@@ -2098,48 +2122,32 @@ export default function SettingsView() {
                       </div>
                     }
                   >
-                    <SettingsRow
-                      label="Collection available"
-                      description="Knives currently available to MCP read tools."
-                    >
+                    <SettingsRow label="Collection">
                       <span className="text-xs text-muted-foreground">
                         {mcpStatus?.stats.knifeCount ?? 0} knives
                       </span>
                     </SettingsRow>
-                    <SettingsRow
-                      label="Available tools"
-                      description={`Tool calls this app session: ${
-                        mcpStatus?.activity.toolCallsSinceStart ?? 0
-                      }`}
-                    >
+                    <SettingsRow label="Tools">
                       <span className="text-xs text-muted-foreground">
                         {mcpStatus?.tools.read ?? 6} read ·{' '}
-                        {mcpStatus?.tools.write ?? 2} write
+                        {mcpStatus?.tools.write ?? 2} write ·{' '}
+                        {mcpStatus?.activity.toolCallsSinceStart ?? 0} calls
                       </span>
                     </SettingsRow>
-                    <SettingsRow
-                      label="Last activity"
-                      description={
-                        mcpStatus?.activity.lastTransport
-                          ? `Last used through ${mcpStatus.activity.lastTransport.toUpperCase()}.`
-                          : 'No MCP client activity recorded in this app session.'
-                      }
-                    >
+                    <SettingsRow label="Last activity">
                       <span className="text-xs text-muted-foreground">
-                        {formatSyncTime(
-                          mcpStatus?.activity.lastActivityAt || '',
-                        )}
+                        {mcpStatus?.activity.lastTransport
+                          ? `${mcpStatus.activity.lastTransport.toUpperCase()} · ${formatSyncTime(
+                              mcpStatus.activity.lastActivityAt || '',
+                            )}`
+                          : 'Never'}
                       </span>
                     </SettingsRow>
-                    <SettingsRow
-                      label="Audited MCP changes"
-                      description={`Last change: ${formatSyncTime(
-                        mcpStatus?.stats.lastWriteAt || '',
-                      )}`}
-                    >
+                    <SettingsRow label="MCP changes">
                       <span className="text-xs text-muted-foreground">
                         {mcpStatus?.stats.writeOperationCount ?? 0} operations ·{' '}
-                        {mcpStatus?.stats.changedKnifeCount ?? 0} knives
+                        {mcpStatus?.stats.changedKnifeCount ?? 0} knives ·{' '}
+                        {formatSyncTime(mcpStatus?.stats.lastWriteAt || '')}
                       </span>
                     </SettingsRow>
                   </SettingsSection>

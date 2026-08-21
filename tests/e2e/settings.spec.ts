@@ -26,8 +26,14 @@ test('controls MCP access and copies the LM Studio configuration', async ({
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.goto('/settings?tab=mcp')
 
-  await expect(page.getByText('MCP access', { exact: true })).toBeVisible()
+  await expect(page.getByText('MCP', { exact: true })).toBeVisible()
   await expect(page.getByText('Activity', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText(
+      'Allow local AI clients such as LM Studio to access your BladeVault collection.',
+    ),
+  ).toHaveCount(0)
+  await expect(page.getByText('Endpoint', { exact: true })).toHaveCount(0)
 
   const access = page.getByRole('checkbox', { name: 'Enable MCP access' })
   const writes = page.getByRole('checkbox', {
@@ -83,4 +89,42 @@ test('controls MCP access and copies the LM Studio configuration', async ({
   expect(copiedAfterReload.mcpServers.bladevault.headers.Authorization).toBe(
     `Bearer ${token}`,
   )
+})
+
+test('copies MCP configuration when the modern Clipboard API is unavailable', async ({
+  page,
+}) => {
+  await page.goto('/settings?tab=mcp')
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: undefined,
+    })
+    document.execCommand = (command) => {
+      if (command !== 'copy') return false
+      const textarea = document.activeElement
+      if (!(textarea instanceof HTMLTextAreaElement)) return false
+      window.sessionStorage.setItem('fallbackClipboard', textarea.value)
+      return true
+    }
+  })
+
+  await page.getByRole('button', { name: 'Copy config' }).click()
+  await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible()
+
+  const copied = JSON.parse(
+    (await page.evaluate(() =>
+      window.sessionStorage.getItem('fallbackClipboard'),
+    )) || '{}',
+  )
+  expect(copied).toMatchObject({
+    mcpServers: {
+      bladevault: {
+        url: 'http://127.0.0.1:3199/mcp',
+        headers: {
+          Authorization: expect.stringMatching(/^Bearer bv_mcp_/),
+        },
+      },
+    },
+  })
 })

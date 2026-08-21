@@ -277,13 +277,17 @@ images, or entire records.
 
 Container installations expose MCP on the existing BladeVault port. With the
 Docker and Podman examples in this README, a client on the same computer can
-connect to `http://localhost:5500/mcp`:
+connect to `http://localhost:5500/mcp`. Open **Settings → AI / MCP** and use
+**Copy config**, or add the displayed token manually:
 
 ```json
 {
   "mcpServers": {
     "bladevault": {
-      "url": "http://localhost:5500/mcp"
+      "url": "http://localhost:5500/mcp",
+      "headers": {
+        "Authorization": "Bearer <TOKEN_FROM_BLADEVAULT_SETTINGS>"
+      }
     }
   }
 }
@@ -296,11 +300,32 @@ docker compose up -d --build
 ```
 
 BladeVault generates one permanent MCP access token and stores it in the
-persisted data volume. Localhost connections may use the URL directly. For a
-LAN address such as `http://192.168.0.5:5500/mcp`, open **Settings → AI / MCP**
-through that address and copy the ready-to-use configuration, including its
-bearer token. The token stays the same across container restarts and image
-updates.
+persisted data volume. Copied HTTP configurations include this bearer token
+for both localhost and LAN addresses. The token stays the same across
+container restarts and image updates.
+
+#### Unraid LAN connection
+
+Expose container port `3000` as host port `5500`, then open BladeVault through
+its Unraid address, for example `http://192.168.0.5:5500`. In **Settings → AI /
+MCP**, copy the permanent access token or use **Copy config**. The equivalent
+client configuration is:
+
+```json
+{
+  "mcpServers": {
+    "bladevault-UNRAID": {
+      "url": "http://192.168.0.5:5500/mcp",
+      "headers": {
+        "Authorization": "Bearer <TOKEN_FROM_BLADEVAULT_SETTINGS>"
+      }
+    }
+  }
+}
+```
+
+Replace the token placeholder with the value shown in BladeVault Settings.
+The copy buttons support plain HTTP LAN addresses as well as secure origins.
 
 `MCP_AUTH_TOKEN`, `MCP_ALLOWED_HOSTS`, and `MCP_ALLOWED_ORIGINS` remain
 available as deployment overrides. When `MCP_AUTH_TOKEN` is set, its value is
