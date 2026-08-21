@@ -4,6 +4,7 @@ import path from 'path'
 import * as tar from 'tar'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as archiveRoute from '@/app/api/cloud-backup/archive/route'
+import { closeLocalDb } from '@/lib/local-db'
 import { getSettings, saveSettings } from '@/lib/settings'
 import { LocalStorage } from '@/lib/storage/local'
 import type { CreateKnifeInput } from '@/lib/storage/types'
@@ -92,6 +93,42 @@ describe('backup archive route', () => {
     expect(
       (await new LocalStorage().getAllKnives()).map((knife) => knife.id),
     ).toEqual(['backup-knife'])
+  })
+
+  it('removes stale SQLite sidecars before opening a restored database', async () => {
+    vault = await createTempVault('bladevault-stale-sidecars-')
+    const storage = new LocalStorage()
+    await storage.createKnife(input)
+    const archive = await (await archiveRoute.GET()).arrayBuffer()
+
+    closeLocalDb()
+    const staleSidecar = Buffer.alloc(32, 0xff)
+    await fs.writeFile(
+      path.join(vault.dataDir, 'bladevault.sqlite-wal'),
+      staleSidecar,
+    )
+    await fs.writeFile(
+      path.join(vault.dataDir, 'bladevault.sqlite-shm'),
+      staleSidecar,
+    )
+
+    const restored = await archiveRoute.PUT(
+      new Request('http://localhost/api/cloud-backup/archive', {
+        method: 'PUT',
+        body: archive,
+      }),
+    )
+
+    expect(restored.status).toBe(200)
+    const walAfterRestore = await fs
+      .readFile(path.join(vault.dataDir, 'bladevault.sqlite-wal'))
+      .catch(() => null)
+    const shmAfterRestore = await fs
+      .readFile(path.join(vault.dataDir, 'bladevault.sqlite-shm'))
+      .catch(() => null)
+    expect(walAfterRestore).not.toEqual(staleSidecar)
+    expect(shmAfterRestore).not.toEqual(staleSidecar)
+    await expect(new LocalStorage().getAllKnives()).resolves.toHaveLength(1)
   })
 
   it('rejects empty, non-gzip, and corrupt archives without replacing the vault', async () => {

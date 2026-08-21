@@ -10,13 +10,18 @@ import {
   LOCAL_DB_SCHEMA_VERSION,
 } from '@/lib/local-db'
 
-function shouldIgnoreDataEntry(name: string): boolean {
+function shouldIgnoreSystemEntry(name: string): boolean {
+  return name === '.DS_Store' || name === '__MACOSX' || name.startsWith('._')
+}
+
+function shouldIgnoreCopiedDataEntry(
+  name: string,
+  includeSqliteSidecars: boolean,
+): boolean {
   return (
-    name === '.DS_Store' ||
-    name === '__MACOSX' ||
-    name.startsWith('._') ||
-    name.endsWith('.sqlite-wal') ||
-    name.endsWith('.sqlite-shm')
+    shouldIgnoreSystemEntry(name) ||
+    (!includeSqliteSidecars &&
+      (name.endsWith('.sqlite-wal') || name.endsWith('.sqlite-shm')))
   )
 }
 
@@ -24,10 +29,11 @@ async function ensureDirectory(dirPath: string) {
   await fs.mkdir(dirPath, { recursive: true })
 }
 
-async function listDataEntries(dirPath: string) {
+async function listDataEntries(dirPath: string, includeSqliteSidecars = false) {
   try {
     return (await fs.readdir(dirPath, { withFileTypes: true })).filter(
-      (entry) => !shouldIgnoreDataEntry(entry.name),
+      (entry) =>
+        !shouldIgnoreCopiedDataEntry(entry.name, includeSqliteSidecars),
     )
   } catch (error) {
     if (
@@ -42,9 +48,13 @@ async function listDataEntries(dirPath: string) {
   }
 }
 
-async function copyDirectoryContents(sourceDir: string, targetDir: string) {
+async function copyDirectoryContents(
+  sourceDir: string,
+  targetDir: string,
+  includeSqliteSidecars = false,
+) {
   await ensureDirectory(targetDir)
-  const entries = await listDataEntries(sourceDir)
+  const entries = await listDataEntries(sourceDir, includeSqliteSidecars)
 
   for (const entry of entries) {
     await fs.cp(
@@ -59,9 +69,23 @@ async function copyDirectoryContents(sourceDir: string, targetDir: string) {
 }
 
 async function removeDirectoryContents(dirPath: string) {
-  const entries = await listDataEntries(dirPath)
+  let entries
+  try {
+    entries = await fs.readdir(dirPath, { withFileTypes: true })
+  } catch (error) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === 'ENOENT'
+    ) {
+      return
+    }
+    throw error
+  }
 
   for (const entry of entries) {
+    if (shouldIgnoreSystemEntry(entry.name)) continue
     await fs.rm(path.join(dirPath, entry.name), {
       recursive: true,
       force: true,
@@ -139,7 +163,7 @@ export async function replaceLocalDataFromDirectory(sourceDir: string) {
   try {
     await ensureDirectory(currentDataDir)
     await fs.rm(safetyBackupDir, { recursive: true, force: true })
-    await copyDirectoryContents(currentDataDir, safetyBackupDir)
+    await copyDirectoryContents(currentDataDir, safetyBackupDir, true)
     safetyBackupCreated = (await listDataEntries(safetyBackupDir)).length > 0
 
     try {
@@ -150,7 +174,7 @@ export async function replaceLocalDataFromDirectory(sourceDir: string) {
       await removeDirectoryContents(currentDataDir)
 
       try {
-        await copyDirectoryContents(safetyBackupDir, currentDataDir)
+        await copyDirectoryContents(safetyBackupDir, currentDataDir, true)
       } catch {
         // Best effort rollback if restoring the safety copy also fails.
       }
