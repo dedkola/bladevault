@@ -273,12 +273,11 @@ writes. Write mode is off by default. Applied changes use optimistic locking
 and are recorded in `knife_change_log`; MCP cannot replace IDs, timestamps,
 images, or entire records.
 
-### Docker or Podman: LM Studio URL connection
+### Connect an MCP client
 
-Container installations expose MCP on the existing BladeVault port. With the
-Docker and Podman examples in this README, a client on the same computer can
-connect to `http://localhost:5500/mcp`. Open **Settings → AI / MCP** and use
-**Copy config**, or add the displayed token manually:
+Every URL-based connection uses the same configuration shape. Open
+**Settings → AI / MCP** through the address you want to use and select **Copy
+config**, or add the displayed URL and token manually:
 
 ```json
 {
@@ -293,39 +292,29 @@ connect to `http://localhost:5500/mcp`. Open **Settings → AI / MCP** and use
 }
 ```
 
-Start the included Compose setup with:
+| BladeVault runtime | MCP URL |
+| --- | --- |
+| Docker or Podman on the same computer | `http://localhost:5500/mcp` |
+| Unraid or another LAN server | `http://<SERVER_IP>:5500/mcp` |
+| macOS or Windows desktop app | `http://127.0.0.1:5501/mcp` |
+| Source checkout | `http://localhost:3000/mcp` |
+
+Replace the example URL when needed and replace the token placeholder with the
+value shown in BladeVault Settings. The copy buttons work on plain HTTP LAN
+addresses as well as secure origins.
+
+For Docker or Podman, start the included Compose setup with:
 
 ```bash
 docker compose up -d --build
 ```
 
-BladeVault generates one permanent MCP access token and stores it in the
-persisted data volume. Copied HTTP configurations include this bearer token
-for both localhost and LAN addresses. The token stays the same across
-container restarts and image updates.
+For Unraid, map host port `5500` to container port `3000`. Keep the desktop app
+running while its MCP connection is in use. If desktop port `5501` is busy,
+BladeVault uses a free local port and **Copy config** includes the active URL.
 
-#### Unraid LAN connection
-
-Expose container port `3000` as host port `5500`, then open BladeVault through
-its Unraid address, for example `http://192.168.0.5:5500`. In **Settings → AI /
-MCP**, copy the permanent access token or use **Copy config**. The equivalent
-client configuration is:
-
-```json
-{
-  "mcpServers": {
-    "bladevault-UNRAID": {
-      "url": "http://192.168.0.5:5500/mcp",
-      "headers": {
-        "Authorization": "Bearer <TOKEN_FROM_BLADEVAULT_SETTINGS>"
-      }
-    }
-  }
-}
-```
-
-Replace the token placeholder with the value shown in BladeVault Settings.
-The copy buttons support plain HTTP LAN addresses as well as secure origins.
+BladeVault generates one permanent MCP access token and stores it with the
+persisted vault data. The token stays the same across restarts and updates.
 
 `MCP_AUTH_TOKEN`, `MCP_ALLOWED_HOSTS`, and `MCP_ALLOWED_ORIGINS` remain
 available as deployment overrides. When `MCP_AUTH_TOKEN` is set, its value is
@@ -335,26 +324,6 @@ HTTP connections.
 `MCP_ENABLED` and `MCP_WRITE_ENABLED` remain available for administrators who
 explicitly add deployment overrides. Setting either variable locks its
 corresponding app control.
-
-### macOS desktop app: LM Studio URL connection
-
-The macOS app exposes MCP at the stable local URL
-`http://127.0.0.1:5501/mcp` and reuses the same server when its window is closed
-and reopened:
-
-```json
-{
-  "mcpServers": {
-    "bladevaultmacos": {
-      "url": "http://127.0.0.1:5501/mcp"
-    }
-  }
-}
-```
-
-Keep the BladeVault desktop app running while LM Studio uses this connection.
-If another process already owns port `5501`, BladeVault safely falls back to a
-free local port; **Settings → AI / MCP** always shows the active URL.
 
 ## Your data
 
