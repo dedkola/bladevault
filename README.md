@@ -305,25 +305,23 @@ corresponding app control.
 
 ### macOS desktop app: LM Studio URL connection
 
-The running macOS app also exposes a local MCP URL. Open
-**Settings → AI / MCP** and copy the current URL shown under
-**LM Studio connection**. For example, if the app shows
-`http://127.0.0.1:61768/mcp`, use:
+The macOS app exposes MCP at the stable local URL
+`http://127.0.0.1:5501/mcp` and reuses the same server when its window is closed
+and reopened:
 
 ```json
 {
   "mcpServers": {
     "bladevaultmacos": {
-      "url": "http://127.0.0.1:61768/mcp"
+      "url": "http://127.0.0.1:5501/mcp"
     }
   }
 }
 ```
 
 Keep the BladeVault desktop app running while LM Studio uses this connection.
-Port `61768` is only an example; the app's port can change after a restart if
-its preferred port is unavailable, so copy the current URL from Settings when
-needed.
+If another process already owns port `5501`, BladeVault safely falls back to a
+free local port; **Settings → AI / MCP** always shows the active URL.
 
 ## Your data
 

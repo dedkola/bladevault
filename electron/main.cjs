@@ -29,7 +29,7 @@ const UPDATE_AUTO_TEST = process.env.BLADEVAULT_UPDATE_AUTOTEST === '1'
 const UPDATE_AUTO_TEST_INSTALL =
   process.env.BLADEVAULT_UPDATE_AUTOTEST_INSTALL === '1'
 const PREFERRED_DESKTOP_PORT = Number.parseInt(
-  process.env.BLADEVAULT_DESKTOP_PORT || '3000',
+  process.env.BLADEVAULT_DESKTOP_PORT || '5501',
   10,
 )
 const FALLBACK_CLOUD_AUTH_URL = 'https://auth.bladevault.pro'
@@ -825,22 +825,34 @@ async function startEmbeddedServer() {
     PORT: String(port),
   }
 
-  serverProcess = spawn(getNodeExecPath(), [serverEntry], {
+  const child = spawn(getNodeExecPath(), [serverEntry], {
     cwd: getServerWorkingDir(),
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
+  serverProcess = child
 
-  serverProcess.stdout.on('data', (chunk) => {
+  child.stdout.on('data', (chunk) => {
     process.stdout.write(`[bladevault-server] ${chunk}`)
   })
 
-  serverProcess.stderr.on('data', (chunk) => {
+  child.stderr.on('data', (chunk) => {
     process.stderr.write(`[bladevault-server] ${chunk}`)
   })
 
-  serverProcess.once('exit', (code) => {
-    if (!isQuitting && mainWindow && !mainWindow.isDestroyed()) {
+  child.once('exit', (code) => {
+    const wasCurrentServer = serverProcess === child
+    if (wasCurrentServer) {
+      serverProcess = null
+      serverOrigin = null
+    }
+
+    if (
+      wasCurrentServer &&
+      !isQuitting &&
+      mainWindow &&
+      !mainWindow.isDestroyed()
+    ) {
       dialog.showErrorBox(
         'BladeVault server stopped',
         `The embedded BladeVault server exited with code ${code ?? 'unknown'}.`,
@@ -856,12 +868,15 @@ async function startEmbeddedServer() {
 }
 
 function stopEmbeddedServer() {
-  if (!serverProcess) {
+  const child = serverProcess
+  serverProcess = null
+  serverOrigin = null
+
+  if (!child) {
     return
   }
 
-  serverProcess.kill()
-  serverProcess = null
+  child.kill()
 }
 
 function waitForChildExit(child, timeoutMs) {
@@ -886,6 +901,7 @@ function waitForChildExit(child, timeoutMs) {
 async function stopEmbeddedServerAndWait(timeoutMs = 5000) {
   const child = serverProcess
   serverProcess = null
+  serverOrigin = null
 
   if (!child || child.exitCode !== null) {
     appendUpdateDebug('embedded_server_already_stopped')
@@ -1131,9 +1147,13 @@ ipcMain.handle('bladevault:check-for-updates', () => checkForUpdates())
 ipcMain.handle('bladevault:download-update', () => downloadUpdate())
 ipcMain.handle('bladevault:install-update', () => installDownloadedUpdate())
 async function createMainWindow() {
-  const startUrl = isUsingEmbeddedServer()
-    ? await startEmbeddedServer()
-    : DEV_SERVER_URL
+  let startUrl = DEV_SERVER_URL
+  if (isUsingEmbeddedServer()) {
+    startUrl =
+      serverProcess && serverProcess.exitCode === null && serverOrigin
+        ? serverOrigin
+        : await startEmbeddedServer()
+  }
 
   if (!serverOrigin) {
     serverOrigin = new URL(startUrl).origin

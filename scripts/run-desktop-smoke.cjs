@@ -27,7 +27,7 @@ async function main() {
       },
     })
 
-    const window = await electronApp.firstWindow()
+    let window = await electronApp.firstWindow()
     window.on('pageerror', (error) => pageErrors.push(error.message))
     await window.waitForLoadState('domcontentloaded')
     assert.equal(await window.title(), 'BladeVault | Knife Collection')
@@ -92,13 +92,39 @@ async function main() {
       persisted.body.knives.map((knife) => knife.id),
       ['electron-smoke'],
     )
+
+    if (process.platform === 'darwin') {
+      const initialOrigin = new URL(window.url()).origin
+      await window.close()
+      const reopenedWindow = electronApp.waitForEvent('window')
+      await electronApp.evaluate(({ app }) => app.emit('activate'))
+      window = await reopenedWindow
+      window.on('pageerror', (error) => pageErrors.push(error.message))
+      await window.waitForLoadState('domcontentloaded')
+      assert.equal(new URL(window.url()).origin, initialOrigin)
+    }
+
     assert.deepEqual(pageErrors, [])
 
     console.log(
       'Desktop smoke passed: API, native SQLite, reload, and preload boundary.',
     )
   } finally {
-    if (electronApp) await electronApp.close()
+    if (electronApp && process.platform === 'darwin') {
+      const electronProcess = electronApp.process()
+      await electronApp
+        .evaluate(({ app }) => app.emit('before-quit'))
+        .catch(() => {})
+      if (electronProcess.exitCode === null) {
+        const exited = new Promise((resolve) =>
+          electronProcess.once('exit', resolve),
+        )
+        electronProcess.kill('SIGKILL')
+        await exited
+      }
+    } else if (electronApp) {
+      await electronApp.close()
+    }
     fs.rmSync(dataDir, { recursive: true, force: true })
   }
 }
