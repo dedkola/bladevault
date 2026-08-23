@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { EChartsOption } from 'echarts'
-import { Download, ImageIcon } from 'lucide-react'
+import { Download, ImageIcon, ScrollText } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
 import {
   InsightsChart,
@@ -952,7 +952,14 @@ export function CollectionInsights() {
             Collection Insights
           </h1>
         </div>
-        <div className="print:hidden">
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
+          <Button
+            variant="outline"
+            render={<Link href="/logs" />}
+            nativeButton={false}
+          >
+            <ScrollText className="size-4" /> Logs
+          </Button>
           <Button variant="outline" onClick={() => window.print()}>
             <Download className="size-4" /> Export
           </Button>

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import * as activityRoute from '@/app/api/activity/route'
+import * as logsRoute from '@/app/api/logs/route'
 import * as compareRoute from '@/app/api/compare/route'
 import * as bulkRoute from '@/app/api/knives/bulk/route'
 import * as bulkPinRoute from '@/app/api/knives/bulk/pin/route'
@@ -97,13 +98,27 @@ describe('knife API routes', () => {
     expect(missing.status).toBe(404)
   })
 
-  it('validates bulk fields and persists compare mutations', async () => {
+  it('validates bulk fields, persists compare mutations, and exposes audit log events', async () => {
     vault = await createTempVault()
     for (const name of ['First', 'Second']) {
       await knivesRoute.POST(
         jsonRequest('http://localhost/api/knives', 'POST', { name }),
       )
     }
+
+    const logs = await logsRoute.GET()
+    expect(logs.status).toBe(200)
+    const logsPayload = (await logs.json()) as {
+      events: Array<{ type: string; knifeId: string | null; actor: string }>
+    }
+    expect(logsPayload.events).toHaveLength(2)
+    expect(logsPayload.events.every((event) => event.type === 'created')).toBe(
+      true,
+    )
+    expect(logsPayload.events.every((event) => event.actor === 'You')).toBe(
+      true,
+    )
+
     saveSettings({
       customFields: [{ id: 'condition', name: 'Condition', type: 'text' }],
     })

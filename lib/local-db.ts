@@ -14,7 +14,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 2
+export const LOCAL_DB_SCHEMA_VERSION = 3
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -400,6 +400,101 @@ function migrateSchema(database: Database.Database) {
       CREATE INDEX knife_change_log_occurred_at_idx
       ON knife_change_log (occurred_at);
     `)
+  }
+
+  const hasAuditLog = tables.some((t) => t.name === 'audit_log')
+  if (!hasAuditLog) {
+    database.exec(`
+      CREATE TABLE audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation_id TEXT NOT NULL,
+        event_type TEXT NOT NULL CHECK (event_type IN ('created', 'updated', 'deleted', 'system')),
+        knife_id TEXT,
+        subject TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        source TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        changes TEXT NOT NULL DEFAULT '[]',
+        occurred_at TEXT NOT NULL
+      );
+
+      CREATE INDEX audit_log_knife_id_idx
+      ON audit_log (knife_id);
+
+      CREATE INDEX audit_log_occurred_at_idx
+      ON audit_log (occurred_at);
+
+      CREATE INDEX audit_log_event_type_idx
+      ON audit_log (event_type);
+    `)
+
+    const changeLogRows = database
+      .prepare(
+        `SELECT operation_id, knife_id, source, transport, changes, occurred_at
+         FROM knife_change_log
+         ORDER BY occurred_at ASC, id ASC`,
+      )
+      .all() as Array<{
+      operation_id: string
+      knife_id: string
+      source: string
+      transport: string
+      changes: string
+      occurred_at: string
+    }>
+
+    if (changeLogRows.length > 0) {
+      const knifeRows = database
+        .prepare(
+          `SELECT id, name, brand
+           FROM knives
+           WHERE id IN (${changeLogRows.map(() => '?').join(', ')})`,
+        )
+        .all(...changeLogRows.map((row) => row.knife_id)) as Array<{
+        id: string
+        name: string
+        brand: string
+      }>
+      const knivesById = new Map(knifeRows.map((row) => [row.id, row]))
+
+      const insertAudit = database.prepare(
+        `INSERT INTO audit_log
+         (operation_id, event_type, knife_id, subject, actor, source, summary, changes, occurred_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+
+      const migrate = database.transaction(() => {
+        for (const row of changeLogRows) {
+          const knife = knivesById.get(row.knife_id)
+          const subject = knife
+            ? `${knife.brand} · ${knife.name}`
+            : 'Unknown knife'
+          const changes = JSON.parse(row.changes) as Array<{
+            field: string
+            previousValue: string | boolean
+            value: string | boolean
+          }>
+          insertAudit.run(
+            row.operation_id,
+            'updated',
+            row.knife_id,
+            subject,
+            'MCP client',
+            `MCP / update_knife`,
+            'Applied metadata update via MCP.',
+            JSON.stringify(
+              changes.map((change) => ({
+                field: change.field,
+                before: String(change.previousValue),
+                after: String(change.value),
+              })),
+            ),
+            row.occurred_at,
+          )
+        }
+      })
+      migrate()
+    }
   }
 
   normalizeKnifeRows(database)

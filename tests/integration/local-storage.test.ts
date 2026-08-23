@@ -185,6 +185,67 @@ describe('LocalStorage', () => {
     await expect(storage.getImageStream('missing/image.png')).rejects.toThrow()
   })
 
+  it('records a durable audit log for create, update, delete, and bulk operations', async () => {
+    vault = await createTempVault()
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-10T12:00:00.000Z'))
+    const storage = new LocalStorage()
+    const knife = await storage.createKnife({
+      ...baseInput,
+      imageUrls: ['data:image/png;base64,aGVsbG8='],
+    })
+
+    vi.setSystemTime(new Date('2026-08-11T12:00:00.000Z'))
+    await storage.updateKnife(knife.id, {
+      brand: 'Updated Brand',
+      specs: { country: 'Japan' },
+    })
+
+    vi.setSystemTime(new Date('2026-08-12T12:00:00.000Z'))
+    await storage.bulkUpdateKnives([knife.id], { pinned: true })
+
+    const beforeDelete = await storage.getAuditLog()
+    expect(beforeDelete).toHaveLength(3)
+    expect(beforeDelete[0]).toMatchObject({
+      type: 'updated',
+      knifeId: knife.id,
+      actor: 'You',
+      source: 'Bulk edit',
+    })
+    expect(beforeDelete[1]).toMatchObject({
+      type: 'updated',
+      knifeId: knife.id,
+      actor: 'You',
+      source: 'Manual entry',
+    })
+    expect(beforeDelete[2]).toMatchObject({
+      type: 'created',
+      knifeId: knife.id,
+      actor: 'You',
+      source: 'Manual entry',
+    })
+
+    const updateEvent = beforeDelete.find(
+      (event) => event.source === 'Manual entry' && event.type === 'updated',
+    )
+    expect(updateEvent?.changes).toEqual(
+      expect.arrayContaining([
+        { field: 'Brand / Maker', before: 'Benchmade', after: 'Updated Brand' },
+        { field: 'Country', before: 'USA', after: 'Japan' },
+      ]),
+    )
+
+    await storage.deleteKnife(knife.id)
+    const afterDelete = await storage.getAuditLog()
+    expect(afterDelete).toHaveLength(4)
+    expect(afterDelete[0]).toMatchObject({
+      type: 'deleted',
+      knifeId: knife.id,
+      actor: 'You',
+      source: 'Collection detail',
+    })
+  })
+
   it('preserves custom fields when importing a snapshot', async () => {
     vault = await createTempVault()
     const storage = new LocalStorage()
