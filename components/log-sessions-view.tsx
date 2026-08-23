@@ -273,26 +273,24 @@ export function LogSessionsView() {
           className="flex items-center gap-1 overflow-x-auto rounded-lg bg-muted/60 p-0.5"
           aria-label="Filter log event type"
         >
-          {(['all', 'created', 'updated', 'deleted', 'system'] as const).map(
-            (value) => (
-              <Button
-                key={value}
-                type="button"
-                size="sm"
-                variant={filter === value ? 'secondary' : 'ghost'}
-                aria-pressed={filter === value}
-                onClick={() => setFilter(value)}
-                disabled={isLoading}
-                className={cn(
-                  'shrink-0 px-3 text-xs capitalize',
-                  filter === value &&
-                    'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)] hover:bg-[var(--bladevault-olive)] hover:text-[var(--bladevault-gold)]',
-                )}
-              >
-                {value}
-              </Button>
-            ),
-          )}
+          {(['all', 'created', 'updated', 'deleted'] as const).map((value) => (
+            <Button
+              key={value}
+              type="button"
+              size="sm"
+              variant={filter === value ? 'secondary' : 'ghost'}
+              aria-pressed={filter === value}
+              onClick={() => setFilter(value)}
+              disabled={isLoading}
+              className={cn(
+                'shrink-0 px-3 text-xs capitalize',
+                filter === value &&
+                  'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)] hover:bg-[var(--bladevault-olive)] hover:text-[var(--bladevault-gold)]',
+              )}
+            >
+              {value}
+            </Button>
+          ))}
         </div>
         <p className="shrink-0 text-xs tabular-nums text-muted-foreground lg:ml-auto">
           <span className="font-medium text-foreground">
