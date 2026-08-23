@@ -10,3 +10,13 @@ export async function GET() {
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
+
+export async function DELETE() {
+  try {
+    await getStorage().clearAuditLog()
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}

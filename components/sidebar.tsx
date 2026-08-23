@@ -33,6 +33,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { type AppSettings } from '@/lib/settings-shared'
+import { useAuditLog } from '@/hooks/use-audit-log'
 import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
 
 const links = [
@@ -48,6 +49,7 @@ export function Sidebar() {
   const selectedBrands = searchParams.getAll('brand')
   const routeKey = searchParamsKey ? `${pathname}?${searchParamsKey}` : pathname
   const { knives, compareIds, isAutoBackupActive } = useKnives()
+  const { count: auditLogCount } = useAuditLog()
   const { update, downloadUpdate } = useDesktopUpdates()
   const [brandsOpen, setBrandsOpen] = useState(true)
   const [pinnedOpen, setPinnedOpen] = useState(true)
@@ -243,7 +245,7 @@ export function Sidebar() {
                     ) : null}
                   </span>
                 </Link>
-                {link.href === '/' && (
+                {link.href === '/' && auditLogCount > 0 && (
                   <Link
                     href="/logs"
                     onClick={handleNavigate}
