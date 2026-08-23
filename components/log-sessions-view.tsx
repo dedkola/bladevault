@@ -2,25 +2,19 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Activity,
   Bot,
   Check,
   ChevronDown,
   ChevronRight,
   CircleAlert,
-  Clock3,
   Database,
-  Filter,
   GitCompareArrows,
-  Loader2,
   Minus,
   Plus,
   Search,
   ShieldCheck,
   UserRound,
-  type LucideIcon,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -33,6 +27,8 @@ type EventType = AuditLogEvent['type']
 type ViewEvent = AuditLogEvent & {
   title: string
   time: string
+  dateKey: string
+  dateLabel: string
 }
 
 const typeMeta: Record<EventType, { label: string; className: string }> = {
@@ -60,25 +56,43 @@ function eventTitle(type: EventType): string {
 
 function formatEventTime(occurredAt: string): string {
   const date = new Date(occurredAt)
-  const now = new Date()
-  const isSameDay = (left: Date, right: Date) =>
-    left.getFullYear() === right.getFullYear() &&
-    left.getMonth() === right.getMonth() &&
-    left.getDate() === right.getDate()
-  const yesterday = new Date(now)
-  yesterday.setDate(yesterday.getDate() - 1)
-  const time = date.toLocaleTimeString(undefined, {
+  return date.toLocaleTimeString(undefined, {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
   })
-  if (isSameDay(date, now)) return `Today, ${time}`
-  if (isSameDay(date, yesterday)) return `Yesterday, ${time}`
-  const datePart = date.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-  })
-  return `${datePart}, ${time}`
+}
+
+function isSameDay(left: Date, right: Date): boolean {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  )
+}
+
+function getEventDate(occurredAt: string): {
+  dateKey: string
+  dateLabel: string
+} {
+  const date = new Date(occurredAt)
+  const now = new Date()
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+
+  const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+  if (isSameDay(date, now)) return { dateKey, dateLabel: 'Today' }
+  if (isSameDay(date, yesterday)) return { dateKey, dateLabel: 'Yesterday' }
+
+  return {
+    dateKey,
+    dateLabel: date.toLocaleDateString(undefined, {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+      year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric',
+    }),
+  }
 }
 
 function formatLastActivity(occurredAt: string | undefined): string {
@@ -89,14 +103,17 @@ function formatLastActivity(occurredAt: string | undefined): string {
     0,
     Math.floor((now.getTime() - date.getTime()) / 1000),
   )
-  if (seconds < 60) return 'Just now'
+  if (seconds < 60) return 'just now'
   const minutes = Math.floor(seconds / 60)
   if (minutes < 60) return `${minutes}m ago`
   const hours = Math.floor(minutes / 60)
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   if (days < 7) return `${days}d ago`
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  })
 }
 
 function isWithinLastWeek(occurredAt: string): boolean {
@@ -156,12 +173,10 @@ export function LogSessionsView() {
           ...event,
           title: eventTitle(event.type),
           time: formatEventTime(event.occurredAt),
+          ...getEventDate(event.occurredAt),
         }))
         if (!cancelled) {
           setEvents(loaded)
-          if (loaded.length > 0) {
-            setExpandedIds(new Set([loaded[0].id]))
-          }
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -200,37 +215,33 @@ export function LogSessionsView() {
     })
   }, [events, filter, query])
 
-  const summaryItems = useMemo<
-    Array<{ value: string; label: string; icon: LucideIcon }>
-  >(() => {
-    const eventsThisWeek = events.filter((event) =>
-      isWithinLastWeek(event.occurredAt),
-    ).length
-    const aiAssisted = events.filter(
-      (event) => event.actor === 'MCP client',
-    ).length
-    const totalWrites = events.filter(
-      (event) =>
-        event.type === 'created' ||
-        event.type === 'updated' ||
-        event.type === 'deleted',
-    ).length
-    const lastActivity = events[0]?.occurredAt
-    return [
-      {
-        value: String(eventsThisWeek),
-        label: 'Events this week',
-        icon: Activity,
-      },
-      { value: String(aiAssisted), label: 'AI-assisted changes', icon: Bot },
-      { value: String(totalWrites), label: 'Total writes', icon: Check },
-      {
-        value: formatLastActivity(lastActivity),
-        label: 'Last activity',
-        icon: Clock3,
-      },
-    ]
-  }, [events])
+  const eventsThisWeek = useMemo(
+    () => events.filter((event) => isWithinLastWeek(event.occurredAt)).length,
+    [events],
+  )
+
+  const groupedEvents = useMemo(() => {
+    const groups: Array<{
+      dateKey: string
+      dateLabel: string
+      events: ViewEvent[]
+    }> = []
+
+    for (const event of filteredEvents) {
+      const current = groups.at(-1)
+      if (current?.dateKey === event.dateKey) {
+        current.events.push(event)
+      } else {
+        groups.push({
+          dateKey: event.dateKey,
+          dateLabel: event.dateLabel,
+          events: [event],
+        })
+      }
+    }
+
+    return groups
+  }, [filteredEvents])
 
   const toggleExpanded = (id: number) => {
     setExpandedIds((previous) => {
@@ -246,42 +257,22 @@ export function LogSessionsView() {
 
   return (
     <div className="w-full">
-      <section
-        aria-label="Log summary"
-        className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4"
-      >
-        {summaryItems.map(({ value, label, icon: Icon }) => (
-          <Card key={label} className="gap-0 py-0 shadow-sm">
-            <div className="p-4">
-              <Icon className="mb-5 size-4 text-[var(--bladevault-title)]" />
-              <strong className="block text-xl font-semibold tracking-tight">
-                {value}
-              </strong>
-              <span className="mt-1 block text-[11px] text-muted-foreground">
-                {label}
-              </span>
-            </div>
-          </Card>
-        ))}
-      </section>
-
-      <div className="mb-5 flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-sm sm:flex-row">
-        <label className="relative min-w-0 flex-1">
+      <div className="mb-6 flex flex-col gap-3 border-b border-border pb-5 lg:flex-row lg:items-center">
+        <label className="relative min-w-0 flex-1 lg:max-w-md">
           <span className="sr-only">Search logs</span>
           <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search event, knife, actor, or source"
+            placeholder="Search logs"
             className="pl-9"
             disabled={isLoading}
           />
         </label>
         <div
-          className="flex items-center gap-1 overflow-x-auto"
+          className="flex items-center gap-1 overflow-x-auto rounded-lg bg-muted/60 p-0.5"
           aria-label="Filter log event type"
         >
-          <Filter className="mx-2 size-4 shrink-0 text-muted-foreground" />
           {(['all', 'created', 'updated', 'deleted', 'system'] as const).map(
             (value) => (
               <Button
@@ -293,7 +284,7 @@ export function LogSessionsView() {
                 onClick={() => setFilter(value)}
                 disabled={isLoading}
                 className={cn(
-                  'shrink-0 text-xs capitalize',
+                  'shrink-0 px-3 text-xs capitalize',
                   filter === value &&
                     'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)] hover:bg-[var(--bladevault-olive)] hover:text-[var(--bladevault-gold)]',
                 )}
@@ -303,6 +294,24 @@ export function LogSessionsView() {
             ),
           )}
         </div>
+        <p className="shrink-0 text-xs tabular-nums text-muted-foreground lg:ml-auto">
+          <span className="font-medium text-foreground">
+            {filteredEvents.length}
+          </span>{' '}
+          {filteredEvents.length === 1 ? 'entry' : 'entries'}
+          {filter === 'all' && !query.trim() ? (
+            <>
+              <span className="mx-2 text-border" aria-hidden>
+                /
+              </span>
+              {eventsThisWeek} this week
+              <span className="mx-2 text-border" aria-hidden>
+                /
+              </span>
+              {formatLastActivity(events[0]?.occurredAt)}
+            </>
+          ) : null}
+        </p>
       </div>
 
       {error ? (
@@ -310,161 +319,164 @@ export function LogSessionsView() {
           {error}
         </div>
       ) : isLoading ? (
-        <div className="flex items-center justify-center rounded-xl border border-border bg-card p-10 text-sm text-muted-foreground">
-          <Loader2 className="mr-2 size-4 animate-spin" />
-          Loading audit log…
+        <div aria-label="Loading logs" className="space-y-4">
+          {[0, 1, 2].map((item) => (
+            <div key={item} className="flex animate-pulse gap-3">
+              <div className="mt-3 size-8 shrink-0 rounded-full bg-muted" />
+              <div className="h-24 flex-1 rounded-xl bg-muted" />
+            </div>
+          ))}
         </div>
       ) : (
-        <section aria-labelledby="event-stream-title">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <h2 id="event-stream-title" className="text-sm font-semibold">
-                Change timeline
-              </h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {filteredEvents.length} changes · newest first · open any change
-                to inspect its diff
-              </p>
-            </div>
-            {events.length === 0 ? null : (
-              <Badge variant="outline" className="font-mono text-[10px]">
-                LOCAL DATA
-              </Badge>
-            )}
-          </div>
-          {filteredEvents.length ? (
-            <ol className="relative list-none before:absolute before:top-6 before:bottom-6 before:left-5 before:hidden before:w-px before:-translate-x-1/2 before:bg-border before:content-[''] md:before:block">
-              {filteredEvents.map((event) => {
-                const meta = typeMeta[event.type]
-                const expanded = expandedIds.has(event.id)
-                const detailId = `log-detail-${event.id}`
-                return (
-                  <li
-                    key={event.id}
-                    className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-3 pb-4 last:pb-0"
-                  >
-                    <span
-                      className={cn(
-                        'relative z-10 mt-4 grid size-8 place-items-center rounded-full border border-border bg-card',
-                        meta.className,
-                      )}
+        <section aria-label="Log entries">
+          {groupedEvents.length ? (
+            <div className="space-y-7">
+              {groupedEvents.map((group) => (
+                <section
+                  key={group.dateKey}
+                  aria-labelledby={`log-date-${group.dateKey}`}
+                >
+                  <div className="mb-3 flex items-baseline gap-2">
+                    <h2
+                      id={`log-date-${group.dateKey}`}
+                      className="text-xs font-semibold text-foreground"
                     >
-                      <EventIcon type={event.type} />
+                      {group.dateLabel}
+                    </h2>
+                    <span className="text-[11px] tabular-nums text-muted-foreground">
+                      {group.events.length}
                     </span>
-                    <Card className="gap-0 py-0 shadow-sm">
-                      <button
-                        type="button"
-                        onClick={() => toggleExpanded(event.id)}
-                        aria-expanded={expanded}
-                        aria-controls={detailId}
-                        className="w-full p-4 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                      >
-                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-                          <div className="min-w-0">
-                            <div className="flex items-center justify-between gap-3">
-                              <span
-                                className={cn(
-                                  'text-[10px] font-semibold uppercase tracking-[0.14em]',
-                                  meta.className,
-                                )}
-                              >
-                                {meta.label}
-                              </span>
-                              <time
-                                dateTime={event.occurredAt}
-                                className="font-mono text-[10px] text-muted-foreground"
-                              >
-                                {event.time}
-                              </time>
-                            </div>
-                            <strong className="mt-1 block truncate text-sm">
-                              {event.title}{' '}
-                              <span className="font-normal text-muted-foreground">
-                                · {event.subject}
-                              </span>
-                            </strong>
-                            <span className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
-                              <span className="flex items-center gap-1.5">
-                                <ActorIcon actor={event.actor} />
-                                {event.actor}
-                              </span>
-                              <span aria-hidden>·</span>
-                              <span className="truncate">{event.source}</span>
-                              <span aria-hidden>·</span>
-                              <code className="font-mono">
-                                {event.operationId}
-                              </code>
-                            </span>
-                            <span className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                              <GitCompareArrows className="size-3 shrink-0" />
-                              <span className="truncate">
-                                {event.changes
-                                  .map((change) => change.field)
-                                  .join(', ')}
-                              </span>
-                            </span>
-                          </div>
-                          <ChevronDown
-                            className={cn(
-                              'mt-1 size-4 shrink-0 text-muted-foreground transition-transform',
-                              expanded && 'rotate-180',
-                            )}
-                          />
-                        </div>
-                      </button>
-                      {expanded ? (
-                        <div
-                          id={detailId}
-                          className="border-t border-border bg-[var(--bladevault-surface-soft)] p-4"
+                  </div>
+                  <ol className="relative list-none before:absolute before:top-6 before:bottom-6 before:left-5 before:hidden before:w-px before:-translate-x-1/2 before:bg-border before:content-[''] md:before:block">
+                    {group.events.map((event) => {
+                      const meta = typeMeta[event.type]
+                      const expanded = expandedIds.has(event.id)
+                      const detailId = `log-detail-${event.id}`
+                      return (
+                        <li
+                          key={event.id}
+                          className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-3 pb-4 last:pb-0"
                         >
-                          <p className="text-xs text-muted-foreground">
-                            {event.summary}
-                          </p>
-                          <div className="mt-3 overflow-hidden rounded-lg border border-border bg-card">
-                            <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
-                              <h3 className="text-xs font-semibold">
-                                Field changes
-                              </h3>
-                              <span className="font-mono text-[10px] text-muted-foreground">
-                                {event.changes.length} fields
-                              </span>
-                            </div>
-                            {event.changes.map((change) => (
-                              <div
-                                key={change.field}
-                                className="border-b border-border p-3 last:border-0"
-                              >
-                                <span className="block text-[11px] font-medium">
-                                  {change.field}
-                                </span>
-                                <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2 font-mono text-[10px]">
-                                  <span className="flex min-w-0 items-center gap-1 rounded bg-muted px-2 py-1 text-muted-foreground">
-                                    <Minus className="size-3 shrink-0" />
+                          <span
+                            className={cn(
+                              'relative z-10 mt-4 grid size-8 place-items-center rounded-full border border-border bg-card',
+                              meta.className,
+                            )}
+                          >
+                            <EventIcon type={event.type} />
+                          </span>
+                          <Card className="gap-0 py-0 shadow-sm">
+                            <button
+                              type="button"
+                              onClick={() => toggleExpanded(event.id)}
+                              aria-expanded={expanded}
+                              aria-controls={detailId}
+                              className="w-full p-4 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                            >
+                              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                                <div className="min-w-0">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span
+                                      className={cn(
+                                        'text-[10px] font-semibold uppercase tracking-[0.14em]',
+                                        meta.className,
+                                      )}
+                                    >
+                                      {meta.label}
+                                    </span>
+                                    <time
+                                      dateTime={event.occurredAt}
+                                      className="font-mono text-[10px] text-muted-foreground"
+                                    >
+                                      {event.time}
+                                    </time>
+                                  </div>
+                                  <strong className="mt-1 block truncate text-sm">
+                                    {event.title}{' '}
+                                    <span className="font-normal text-muted-foreground">
+                                      · {event.subject}
+                                    </span>
+                                  </strong>
+                                  <span className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
+                                    <span className="flex items-center gap-1.5">
+                                      <ActorIcon actor={event.actor} />
+                                      {event.actor}
+                                    </span>
+                                    <span aria-hidden>·</span>
                                     <span className="truncate">
-                                      {change.before}
+                                      {event.source}
                                     </span>
                                   </span>
-                                  <ChevronRight className="size-3 text-muted-foreground" />
-                                  <span className="flex min-w-0 items-center gap-1 rounded bg-emerald-500/10 px-2 py-1 text-emerald-700 dark:text-emerald-400">
-                                    <Plus className="size-3 shrink-0" />
+                                  <span className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                                    <GitCompareArrows className="size-3 shrink-0" />
                                     <span className="truncate">
-                                      {change.after}
+                                      {event.changes
+                                        .map((change) => change.field)
+                                        .join(', ')}
                                     </span>
                                   </span>
                                 </div>
+                                <ChevronDown
+                                  className={cn(
+                                    'mt-1 size-4 shrink-0 text-muted-foreground transition-transform',
+                                    expanded && 'rotate-180',
+                                  )}
+                                />
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                    </Card>
-                  </li>
-                )
-              })}
-            </ol>
+                            </button>
+                            {expanded ? (
+                              <div
+                                id={detailId}
+                                className="border-t border-border bg-[var(--bladevault-surface-soft)] p-4"
+                              >
+                                <p className="text-xs text-muted-foreground">
+                                  {event.summary}
+                                </p>
+                                {event.changes.length ? (
+                                  <div className="mt-3 overflow-hidden rounded-lg border border-border bg-card">
+                                    {event.changes.map((change) => (
+                                      <div
+                                        key={change.field}
+                                        className="border-b border-border p-3 last:border-0"
+                                      >
+                                        <span className="block text-[11px] font-medium">
+                                          {change.field}
+                                        </span>
+                                        <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 font-mono text-[10px]">
+                                          <span className="flex min-w-0 items-center gap-1 rounded bg-muted px-2 py-1 text-muted-foreground">
+                                            <Minus className="size-3 shrink-0" />
+                                            <span className="truncate">
+                                              {change.before}
+                                            </span>
+                                          </span>
+                                          <ChevronRight className="size-3 text-muted-foreground" />
+                                          <span className="flex min-w-0 items-center gap-1 rounded bg-emerald-500/10 px-2 py-1 text-emerald-700 dark:text-emerald-400">
+                                            <Plus className="size-3 shrink-0" />
+                                            <span className="truncate">
+                                              {change.after}
+                                            </span>
+                                          </span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : null}
+                                <code className="mt-3 block truncate font-mono text-[10px] text-muted-foreground">
+                                  {event.operationId}
+                                </code>
+                              </div>
+                            ) : null}
+                          </Card>
+                        </li>
+                      )
+                    })}
+                  </ol>
+                </section>
+              ))}
+            </div>
           ) : (
             <div className="rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
-              No events match these filters.
+              {events.length ? 'No matching entries' : 'No log entries yet'}
             </div>
           )}
         </section>

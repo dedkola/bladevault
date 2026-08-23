@@ -17,19 +17,22 @@ export async function GET() {
     const localDataPath = getLocalDataDirPath()
     const dockerHostDataMountPath = getDockerHostDataMountPath()
     const isContainerized = isContainerizedRuntime()
-    return NextResponse.json({
-      configuredLocalDataPath,
-      dataDirManagedByEnv: isLocalDataDirManagedByEnv(),
-      defaultLocalDataPath,
-      settings,
-      localDataPath,
-      dockerHostDataMountPath,
-      isContainerized,
-    }, {
-      headers: {
-        'Cache-Control': 'no-store',
+    return NextResponse.json(
+      {
+        configuredLocalDataPath,
+        dataDirManagedByEnv: isLocalDataDirManagedByEnv(),
+        defaultLocalDataPath,
+        settings,
+        localDataPath,
+        dockerHostDataMountPath,
+        isContainerized,
       },
-    })
+      {
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      },
+    )
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
@@ -45,19 +48,22 @@ export async function POST(request: Request) {
     const localDataPath = getLocalDataDirPath()
     const dockerHostDataMountPath = getDockerHostDataMountPath()
     const isContainerized = isContainerizedRuntime()
-    return NextResponse.json({
-      configuredLocalDataPath,
-      dataDirManagedByEnv: isLocalDataDirManagedByEnv(),
-      defaultLocalDataPath,
-      settings,
-      localDataPath,
-      dockerHostDataMountPath,
-      isContainerized,
-    }, {
-      headers: {
-        'Cache-Control': 'no-store',
+    return NextResponse.json(
+      {
+        configuredLocalDataPath,
+        dataDirManagedByEnv: isLocalDataDirManagedByEnv(),
+        defaultLocalDataPath,
+        settings,
+        localDataPath,
+        dockerHostDataMountPath,
+        isContainerized,
       },
-    })
+      {
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      },
+    )
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })

@@ -3,12 +3,7 @@ import { isSecurityChallengePage } from '@/lib/scrape'
 import { validateExternalUrl } from '@/lib/url-validation'
 
 export type InteractiveSessionStatus =
-  | 'waiting'
-  | 'ready'
-  | 'scraping'
-  | 'completed'
-  | 'error'
-  | 'cancelled'
+  'waiting' | 'ready' | 'scraping' | 'completed' | 'error' | 'cancelled'
 
 type InteractiveSession = {
   id: string
@@ -31,10 +26,16 @@ function userAgent(): string {
 }
 
 function startCleanupTimer(): void {
-  if (typeof globalThis !== 'undefined' && (globalThis as unknown as Record<string, unknown>).__bladevaultInteractiveCleanup) {
+  if (
+    typeof globalThis !== 'undefined' &&
+    (globalThis as unknown as Record<string, unknown>)
+      .__bladevaultInteractiveCleanup
+  ) {
     return
   }
-  ;(globalThis as unknown as Record<string, unknown>).__bladevaultInteractiveCleanup = true
+  ;(
+    globalThis as unknown as Record<string, unknown>
+  ).__bladevaultInteractiveCleanup = true
 
   setInterval(() => {
     const now = Date.now()
@@ -137,7 +138,10 @@ export async function startInteractiveSession(url: string): Promise<string> {
     Object.defineProperty(navigator, 'plugins', {
       get: () => [
         { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer' },
-        { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
+        {
+          name: 'Chrome PDF Viewer',
+          filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai',
+        },
         { name: 'Native Client', filename: 'internal-nacl-plugin' },
       ],
     })
@@ -193,7 +197,8 @@ export async function startInteractiveSession(url: string): Promise<string> {
 
     session.status = 'waiting'
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to load page'
+    const message =
+      error instanceof Error ? error.message : 'Failed to load page'
     await closeSession(id, 'error', message)
     throw new Error(message)
   }
@@ -201,9 +206,11 @@ export async function startInteractiveSession(url: string): Promise<string> {
   return id
 }
 
-export async function getInteractiveSessionStatus(
-  id: string,
-): Promise<{ status: InteractiveSessionStatus; isSecurityChallenge: boolean; error?: string }> {
+export async function getInteractiveSessionStatus(id: string): Promise<{
+  status: InteractiveSessionStatus
+  isSecurityChallenge: boolean
+  error?: string
+}> {
   const session = sessions.get(id)
   if (!session) {
     return { status: 'cancelled', isSecurityChallenge: false }
@@ -230,7 +237,9 @@ export type InteractiveCapture = {
   finalUrl: string
 }
 
-export async function captureInteractiveSession(id: string): Promise<InteractiveCapture> {
+export async function captureInteractiveSession(
+  id: string,
+): Promise<InteractiveCapture> {
   const session = sessions.get(id)
   if (!session) {
     throw new Error('Interactive scrape session not found or expired.')
@@ -252,7 +261,8 @@ export async function captureInteractiveSession(id: string): Promise<Interactive
 
     return { html, finalUrl }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to capture page'
+    const message =
+      error instanceof Error ? error.message : 'Failed to capture page'
     await closeSession(id, 'error', message)
     throw new Error(message)
   }

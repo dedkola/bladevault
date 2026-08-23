@@ -62,7 +62,10 @@ async function acquireBrowser(): Promise<BrowserState> {
     Object.defineProperty(navigator, 'plugins', {
       get: () => [
         { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer' },
-        { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
+        {
+          name: 'Chrome PDF Viewer',
+          filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai',
+        },
         { name: 'Native Client', filename: 'internal-nacl-plugin' },
       ],
     })

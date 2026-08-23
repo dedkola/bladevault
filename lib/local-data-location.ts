@@ -93,10 +93,14 @@ async function ensureEmptyDirectory(dirPath: string) {
 async function copyManagedEntries(sourceDir: string, targetDir: string) {
   const entries = await listManagedEntries(sourceDir)
   for (const entry of entries) {
-    await fs.cp(path.join(sourceDir, entry.name), path.join(targetDir, entry.name), {
-      recursive: true,
-      force: true,
-    })
+    await fs.cp(
+      path.join(sourceDir, entry.name),
+      path.join(targetDir, entry.name),
+      {
+        recursive: true,
+        force: true,
+      },
+    )
   }
 }
 
@@ -163,7 +167,8 @@ export async function updateLocalDataDirectory({
     }
   }
 
-  const didMoveExistingData = moveExistingData && !isSamePath(currentDataDir, targetDataDir)
+  const didMoveExistingData =
+    moveExistingData && !isSamePath(currentDataDir, targetDataDir)
   const message = didMoveExistingData
     ? 'Local data folder updated and existing data moved.'
     : 'Local data folder updated.'

@@ -600,9 +600,7 @@ export function AddKnifeForm() {
           setScrapeError(null)
           setSaveError(null)
         }}
-        className={`flex flex-col gap-6 ${
-          hasScraped ? 'flex-1 min-h-0' : ''
-        }`}
+        className={`flex flex-col gap-6 ${hasScraped ? 'flex-1 min-h-0' : ''}`}
       >
         <TabsList>
           {TABS.map((tab) => (

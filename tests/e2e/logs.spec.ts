@@ -24,9 +24,7 @@ test('records and displays create, update, and delete events', async ({
   await page.goto('/')
   await page.getByRole('button', { name: 'Logs', exact: true }).click()
   await expect(page).toHaveURL(/\/logs$/)
-  await expect(
-    page.getByRole('heading', { name: 'Log sessions' }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Logs' })).toBeVisible()
   await expect(page.getByText(`${brand} · ${name}`)).toBeVisible()
 
   await page.goto('/collection')
