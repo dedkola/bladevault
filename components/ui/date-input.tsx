@@ -171,7 +171,12 @@ const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
           </Popover.Trigger>
 
           <Popover.Portal>
-            <Popover.Positioner side="bottom" align="start" sideOffset={6}>
+            <Popover.Positioner
+              side="bottom"
+              align="start"
+              sideOffset={6}
+              className="isolate z-50"
+            >
               <Popover.Popup
                 className="z-50 rounded-xl border border-[var(--bladevault-line)] bg-popover p-2.5 pt-1.5 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
                 initialFocus={false}

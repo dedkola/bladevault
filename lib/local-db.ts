@@ -14,7 +14,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 3
+export const LOCAL_DB_SCHEMA_VERSION = 4
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -495,6 +495,30 @@ function migrateSchema(database: Database.Database) {
       })
       migrate()
     }
+  }
+
+  const hasMaintenanceEvents = tables.some(
+    (t) => t.name === 'maintenance_events',
+  )
+  if (!hasMaintenanceEvents) {
+    database.exec(`
+      CREATE TABLE maintenance_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        knife_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        occurred_at TEXT NOT NULL,
+        notes TEXT NOT NULL DEFAULT '',
+        sharpening_details TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (knife_id) REFERENCES knives(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX maintenance_events_knife_id_idx
+      ON maintenance_events (knife_id);
+
+      CREATE INDEX maintenance_events_occurred_at_idx
+      ON maintenance_events (occurred_at);
+    `)
   }
 
   normalizeKnifeRows(database)

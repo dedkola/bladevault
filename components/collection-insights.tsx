@@ -68,7 +68,7 @@ type Drilldown = {
   description: string
   knifeIds: string[]
   groups?: Array<{
-    label: 'Added' | 'Edited'
+    label: 'Added' | 'Edited' | 'Maintained'
     knifeIds: string[]
   }>
   collectionHref?: string
@@ -96,6 +96,7 @@ export function getOrdinalDay(day: number): string {
 export function formatActivityCounts(
   addedCount: number,
   editedCount: number,
+  maintainedCount = 0,
 ): string {
   const parts: string[] = []
   if (addedCount > 0) {
@@ -106,6 +107,11 @@ export function formatActivityCounts(
       `${editedCount} ${editedCount === 1 ? 'knife' : 'knives'} edited`,
     )
   }
+  if (maintainedCount > 0) {
+    parts.push(
+      `${maintainedCount} ${maintainedCount === 1 ? 'knife' : 'knives'} maintained`,
+    )
+  }
   return parts.join(' · ')
 }
 
@@ -113,12 +119,14 @@ export function formatActivityDayLabel(
   date: Date,
   addedCount: number,
   editedCount: number,
+  maintainedCount = 0,
 ): string {
   const formattedDate = `${date.toLocaleDateString(undefined, {
     month: 'long',
   })} ${getOrdinalDay(date.getDate())}`
-  const counts = formatActivityCounts(addedCount, editedCount)
-  if (!counts) return `No knives added or edited on ${formattedDate}.`
+  const counts = formatActivityCounts(addedCount, editedCount, maintainedCount)
+  if (!counts)
+    return `No knives added, edited, or maintained on ${formattedDate}.`
   return `${counts} on ${formattedDate}.`
 }
 
@@ -1525,7 +1533,7 @@ export function CollectionInsights() {
               eyebrow="Activity"
               title="Collection activity"
               detailHref="/insights/activity"
-              description={`${stats.additionsInActivityRange} additions and ${stats.editsInActivityRange} edited knives across ${stats.activeDays} active days · darker squares mean more activity`}
+              description={`${stats.additionsInActivityRange} additions · ${stats.editsInActivityRange} edited · ${stats.maintainedKnivesInActivityRange} maintained across ${stats.activeDays} active days · darker squares mean more activity`}
               className="col-span-12 lg:col-span-8"
             >
               <div className="overflow-x-auto pb-2">
@@ -1576,6 +1584,7 @@ export function CollectionInsights() {
                               day.date,
                               day.addedCount,
                               day.editedCount,
+                              day.maintainedCount,
                             )
                             return (
                               <Tooltip key={day.dateKey}>
@@ -1596,6 +1605,7 @@ export function CollectionInsights() {
                                             description: formatActivityCounts(
                                               day.addedCount,
                                               day.editedCount,
+                                              day.maintainedCount,
                                             ),
                                             knifeIds: day.knifeIds,
                                             groups: [
@@ -1606,6 +1616,11 @@ export function CollectionInsights() {
                                               {
                                                 label: 'Edited',
                                                 knifeIds: day.editedKnifeIds,
+                                              },
+                                              {
+                                                label: 'Maintained',
+                                                knifeIds:
+                                                  day.maintainedKnifeIds,
                                               },
                                             ],
                                           })

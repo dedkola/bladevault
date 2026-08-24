@@ -21,6 +21,7 @@ import { getSafeExternalUrl } from '@/lib/external-url'
 import { PageHeader } from '@/components/page-header'
 import { ImageCountBadge } from '@/components/image-count-badge'
 import { Gallery } from '@/components/gallery'
+import { MaintenanceSection } from '@/components/maintenance/maintenance-section'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -434,6 +435,8 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
               )}
             </div>
           </DetailSection>
+
+          <MaintenanceSection knifeId={knife.id} />
         </div>
 
         <div className="flex flex-col gap-6">

@@ -13,6 +13,10 @@ import {
   proposeKnifeChanges,
   updateKnifeMetadata,
 } from '@/lib/services/knife-service'
+import {
+  addMaintenanceEvent,
+  getKnifeMaintenance,
+} from '@/lib/services/maintenance-service'
 import { LocalStorage } from '@/lib/storage/local'
 import type { CreateKnifeInput } from '@/lib/storage/types'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
@@ -164,6 +168,50 @@ describe('MCP collection and mutation services', () => {
       changedKnifeCount: 2,
     })
     expect(getMcpRuntimeStatus().stats.lastWriteAt).toBeTruthy()
+  })
+
+  it('reads and adds maintenance events through service helpers', async () => {
+    vault = await createTempVault()
+    const storage = new LocalStorage()
+    const knife = await storage.createKnife(baseInput)
+
+    await addMaintenanceEvent({
+      knifeId: knife.id,
+      type: 'cleaning',
+      occurredAt: '2026-08-10T00:00:00.000Z',
+      notes: 'Ultrasonic',
+      origin: 'mcp',
+    })
+
+    await addMaintenanceEvent({
+      knifeId: knife.id,
+      type: 'sharpening',
+      occurredAt: '2026-08-05T00:00:00.000Z',
+      sharpeningDetails: {
+        grit: '600',
+        system: 'KME',
+      },
+    })
+
+    const maintenance = await getKnifeMaintenance(knife.id)
+    expect(maintenance.events).toHaveLength(2)
+    expect(maintenance.lastDone.cleaned).toBe('2026-08-10T00:00:00.000Z')
+    expect(maintenance.lastDone.sharpened).toBe('2026-08-05T00:00:00.000Z')
+    expect(await storage.getAuditLog()).toContainEqual(
+      expect.objectContaining({
+        knifeId: knife.id,
+        actor: 'MCP client',
+        source: 'MCP / add_maintenance_event',
+        summary: 'Cleaning was logged.',
+      }),
+    )
+
+    await expect(
+      addMaintenanceEvent({
+        knifeId: 'missing',
+        type: 'cleaning',
+      }),
+    ).rejects.toThrow('not found')
   })
 
   it('validates single and bulk mutation boundaries', async () => {
