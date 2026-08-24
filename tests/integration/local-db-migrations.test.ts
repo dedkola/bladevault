@@ -83,6 +83,13 @@ describe('local database migrations', () => {
     ).toBeTruthy()
     expect(
       database
+        .prepare(
+          "SELECT 1 FROM sqlite_master WHERE type='table' AND name='audit_log'",
+        )
+        .get(),
+    ).toBeTruthy()
+    expect(
+      database
         .prepare('SELECT knife_id, event_type, occurred_at FROM knife_activity')
         .all(),
     ).toEqual([
@@ -137,6 +144,86 @@ describe('local database migrations', () => {
       { event_type: 'created', occurred_at: '2025-01-01T00:00:00.000Z' },
       { event_type: 'updated', occurred_at: '2025-02-02T00:00:00.000Z' },
     ])
+  })
+
+  it('backfills existing MCP changes into the audit log', async () => {
+    vault = await createTempVault()
+    const legacy = new Database(path.join(vault.dataDir, 'bladevault.sqlite'))
+    const changes = [
+      {
+        field: 'designer',
+        previousValue: '',
+        value: 'Jane Doe',
+      },
+    ]
+    legacy.exec(`
+      CREATE TABLE knives (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        brand TEXT NOT NULL,
+        steel TEXT NOT NULL DEFAULT '',
+        blade_style TEXT NOT NULL,
+        handle_material TEXT NOT NULL,
+        images TEXT NOT NULL,
+        specs TEXT NOT NULL,
+        custom_fields TEXT NOT NULL DEFAULT '{}',
+        description TEXT NOT NULL,
+        added_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        source_url TEXT NOT NULL DEFAULT '',
+        pinned INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE knife_change_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation_id TEXT NOT NULL,
+        knife_id TEXT NOT NULL,
+        source TEXT NOT NULL CHECK (source IN ('mcp')),
+        transport TEXT NOT NULL CHECK (transport IN ('stdio', 'http')),
+        changes TEXT NOT NULL,
+        occurred_at TEXT NOT NULL
+      );
+      INSERT INTO knives VALUES (
+        'mcp-knife', 'Model', 'Maker', '', 'Drop Point', 'G10', '[]',
+        '{"weight":"","overallLength":"","bladeLength":"","country":""}',
+        '{}', '', '2026-08-01T00:00:00.000Z', '2026-08-02T00:00:00.000Z', '', 0
+      );
+    `)
+    legacy
+      .prepare(
+        `INSERT INTO knife_change_log
+         (operation_id, knife_id, source, transport, changes, occurred_at)
+         VALUES (?, ?, 'mcp', 'stdio', ?, ?)`,
+      )
+      .run(
+        'op-existing',
+        'mcp-knife',
+        JSON.stringify(changes),
+        '2026-08-02T00:00:00.000Z',
+      )
+    legacy.close()
+
+    const database = getLocalDb()
+    expect(
+      database
+        .prepare(
+          `SELECT operation_id, event_type, knife_id, subject, actor, source,
+                  summary, changes, occurred_at
+           FROM audit_log`,
+        )
+        .get(),
+    ).toEqual({
+      operation_id: 'op-existing',
+      event_type: 'updated',
+      knife_id: 'mcp-knife',
+      subject: 'Maker · Model',
+      actor: 'MCP client',
+      source: 'MCP / update_knife',
+      summary: 'Applied metadata update via MCP.',
+      changes: JSON.stringify([
+        { field: 'designer', before: '', after: 'Jane Doe' },
+      ]),
+      occurred_at: '2026-08-02T00:00:00.000Z',
+    })
   })
 
   it('preserves non-empty custom fields while normalizing a current database', async () => {

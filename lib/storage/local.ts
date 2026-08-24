@@ -1,8 +1,15 @@
 import fs from 'fs/promises'
 import { createReadStream } from 'fs'
 import path from 'path'
+import { randomUUID } from 'node:crypto'
 import { Readable } from 'stream'
-import { Knife, KnifeActivityEvent, KnifeUpdates } from '@/lib/data'
+import {
+  AuditLogEvent,
+  AuditLogEventChange,
+  Knife,
+  KnifeActivityEvent,
+  KnifeUpdates,
+} from '@/lib/data'
 import { normalizeKnifeTextFields } from '@/lib/knife-text'
 import { getLocalDb, getLocalImagesDirPath } from '@/lib/local-db'
 import { fetchExternalUrl, validateExternalUrl } from '@/lib/url-validation'
@@ -129,6 +136,124 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+function formatKnifeSubject(knife: { brand: string; name: string }): string {
+  return `${knife.brand} · ${knife.name}`
+}
+
+function generateOperationId(): string {
+  return `op_${randomUUID()}`
+}
+
+function recordAuditEvent(
+  database: ReturnType<typeof getLocalDb>,
+  event: {
+    operationId: string
+    type: AuditLogEvent['type']
+    knifeId: string | null
+    subject: string
+    actor: string
+    source: string
+    summary: string
+    changes: AuditLogEventChange[]
+    occurredAt: string
+  },
+) {
+  database
+    .prepare(
+      `INSERT INTO audit_log
+       (operation_id, event_type, knife_id, subject, actor, source, summary, changes, occurred_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      event.operationId,
+      event.type,
+      event.knifeId,
+      event.subject,
+      event.actor,
+      event.source,
+      event.summary,
+      JSON.stringify(event.changes),
+      event.occurredAt,
+    )
+}
+
+function computeUpdateChanges(
+  existing: Knife,
+  updated: Knife,
+): AuditLogEventChange[] {
+  const changes: AuditLogEventChange[] = []
+  const fields: Array<{ path: keyof Knife; label: string }> = [
+    { path: 'name', label: 'Model' },
+    { path: 'brand', label: 'Brand / Maker' },
+    { path: 'bladeStyle', label: 'Blade Style' },
+    { path: 'handleMaterial', label: 'Handle Material' },
+    { path: 'description', label: 'Description' },
+    { path: 'sourceUrl', label: 'Source URL' },
+  ]
+
+  for (const { path: field, label } of fields) {
+    const before = String(existing[field] ?? '')
+    const after = String(updated[field] ?? '')
+    if (before !== after) {
+      changes.push({ field: label, before, after })
+    }
+  }
+
+  if (existing.pinned !== updated.pinned) {
+    changes.push({
+      field: 'Pinned',
+      before: String(existing.pinned),
+      after: String(updated.pinned),
+    })
+  }
+
+  const specFields: Array<{ path: keyof Knife['specs']; label: string }> = [
+    { path: 'weight', label: 'Weight' },
+    { path: 'overallLength', label: 'Overall Length' },
+    { path: 'bladeLength', label: 'Blade Length' },
+    { path: 'bladeThickness', label: 'Blade Thickness' },
+    { path: 'bladeCoating', label: 'Blade Coating / Finish' },
+    { path: 'bladeMaterial', label: 'Blade Material' },
+    { path: 'lockingMechanism', label: 'Locking Mechanism' },
+    { path: 'designer', label: 'Designer' },
+    { path: 'modelNumber', label: 'Model Number' },
+    { path: 'handleLength', label: 'Handle Length' },
+    { path: 'hardness', label: 'Hardness' },
+    { path: 'price', label: 'Price' },
+    { path: 'country', label: 'Country' },
+  ]
+
+  for (const { path: field, label } of specFields) {
+    const before = String(existing.specs[field] ?? '')
+    const after = String(updated.specs[field] ?? '')
+    if (before !== after) {
+      changes.push({ field: label, before, after })
+    }
+  }
+
+  const allCustomFieldKeys = new Set([
+    ...Object.keys(existing.customFields),
+    ...Object.keys(updated.customFields),
+  ])
+  for (const key of allCustomFieldKeys) {
+    const before = String(existing.customFields[key] ?? '')
+    const after = String(updated.customFields[key] ?? '')
+    if (before !== after) {
+      changes.push({ field: key, before, after })
+    }
+  }
+
+  if (existing.images.length !== updated.images.length) {
+    changes.push({
+      field: 'Images',
+      before: `${existing.images.length}`,
+      after: `${updated.images.length}`,
+    })
+  }
+
+  return changes
+}
+
 function recordMutation(
   database: ReturnType<typeof getLocalDb>,
   knifeId: string,
@@ -178,6 +303,40 @@ export class LocalStorage implements Storage {
     return rows.map((row) => ({
       knifeId: row.knife_id,
       type: row.event_type,
+      occurredAt: row.occurred_at,
+    }))
+  }
+
+  async getAuditLog(): Promise<AuditLogEvent[]> {
+    const rows = getDb()
+      .prepare(
+        `SELECT id, operation_id, event_type, knife_id, subject, actor, source, summary, changes, occurred_at
+         FROM audit_log
+         ORDER BY occurred_at DESC, id DESC`,
+      )
+      .all() as Array<{
+      id: number
+      operation_id: string
+      event_type: AuditLogEvent['type']
+      knife_id: string | null
+      subject: string
+      actor: string
+      source: string
+      summary: string
+      changes: string
+      occurred_at: string
+    }>
+
+    return rows.map((row) => ({
+      id: row.id,
+      operationId: row.operation_id,
+      type: row.event_type,
+      knifeId: row.knife_id,
+      subject: row.subject,
+      actor: row.actor,
+      source: row.source,
+      summary: row.summary,
+      changes: (JSON.parse(row.changes) as AuditLogEventChange[]) ?? [],
       occurredAt: row.occurred_at,
     }))
   }
@@ -353,6 +512,24 @@ export class LocalStorage implements Storage {
            VALUES (?, 'created', ?)`,
         )
         .run(newKnife.id, newKnife.addedAt)
+      recordAuditEvent(database, {
+        operationId: generateOperationId(),
+        type: 'created',
+        knifeId: newKnife.id,
+        subject: formatKnifeSubject(newKnife),
+        actor: 'You',
+        source: 'Manual entry',
+        summary: 'Created a new record with images and source URL.',
+        changes: [
+          { field: 'Record', before: 'Does not exist', after: 'Created' },
+          {
+            field: 'Images',
+            before: '0',
+            after: `${imagePaths.length} downloaded`,
+          },
+        ],
+        occurredAt: newKnife.addedAt,
+      })
     })
     create()
 
@@ -499,6 +676,41 @@ export class LocalStorage implements Storage {
         )
         .run(id, updated.updatedAt)
       recordMutation(database, id, updated.updatedAt, options.mutation)
+
+      const mutation = options.mutation
+      const mutationChanges = mutation?.changes ?? []
+      if (mutation && mutationChanges.length > 0) {
+        recordAuditEvent(database, {
+          operationId: mutation.operationId,
+          type: 'updated',
+          knifeId: id,
+          subject: formatKnifeSubject(updated),
+          actor: 'MCP client',
+          source: 'MCP / update_knife',
+          summary: 'Applied metadata update via MCP.',
+          changes: mutationChanges.map((change) => ({
+            field: change.field,
+            before: String(change.previousValue),
+            after: String(change.value),
+          })),
+          occurredAt: updated.updatedAt,
+        })
+      } else {
+        const manualChanges = computeUpdateChanges(existing, updated)
+        if (manualChanges.length > 0) {
+          recordAuditEvent(database, {
+            operationId: generateOperationId(),
+            type: 'updated',
+            knifeId: id,
+            subject: formatKnifeSubject(updated),
+            actor: 'You',
+            source: 'Manual entry',
+            summary: 'Updated record fields.',
+            changes: manualChanges,
+            occurredAt: updated.updatedAt,
+          })
+        }
+      }
     })
     update()
 
@@ -594,6 +806,20 @@ export class LocalStorage implements Storage {
           id,
         )
         activityStatement.run(id, updated.updatedAt)
+        const changes = computeUpdateChanges(existing, updated)
+        if (changes.length > 0) {
+          recordAuditEvent(database, {
+            operationId: generateOperationId(),
+            type: 'updated',
+            knifeId: id,
+            subject: formatKnifeSubject(updated),
+            actor: 'You',
+            source: 'Bulk edit',
+            summary: 'Applied bulk update to record fields.',
+            changes,
+            occurredAt: updated.updatedAt,
+          })
+        }
 
         return updated
       }),
@@ -693,6 +919,23 @@ export class LocalStorage implements Storage {
           ...context,
           changes: item.changes,
         })
+        if (item.changes.length > 0) {
+          recordAuditEvent(database, {
+            operationId: context.operationId,
+            type: 'updated',
+            knifeId: updated.id,
+            subject: formatKnifeSubject(updated),
+            actor: 'MCP client',
+            source: 'MCP / bulk_update_knives',
+            summary: 'Applied bulk metadata update via MCP.',
+            changes: item.changes.map((change) => ({
+              field: change.field,
+              before: String(change.previousValue),
+              after: String(change.value),
+            })),
+            occurredAt: updated.updatedAt,
+          })
+        }
         return updated
       })
     })
@@ -704,8 +947,26 @@ export class LocalStorage implements Storage {
     const knife = await this.getKnifeById(id)
     if (!knife) return
 
+    const occurredAt = new Date().toISOString()
     const database = getDb()
     const remove = database.transaction(() => {
+      recordAuditEvent(database, {
+        operationId: generateOperationId(),
+        type: 'deleted',
+        knifeId: id,
+        subject: formatKnifeSubject(knife),
+        actor: 'You',
+        source: 'Collection detail',
+        summary: 'Removed the record from the collection.',
+        changes: [
+          {
+            field: 'Record',
+            before: formatKnifeSubject(knife),
+            after: 'Deleted',
+          },
+        ],
+        occurredAt,
+      })
       database
         .prepare('DELETE FROM knife_change_log WHERE knife_id = ?')
         .run(id)

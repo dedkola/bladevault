@@ -40,20 +40,20 @@ import {
 import { NOT_SET_FILTER_VALUE } from '@/lib/collection-filters'
 import { cn } from '@/lib/utils'
 
-const LEGEND_DOT_CLASSES = [
+export const LEGEND_DOT_CLASSES = [
   'bg-[#2e3417] dark:bg-[#c89c3d]',
   'bg-[#79824a] dark:bg-[#947535]',
   'bg-[#c89c3d] dark:bg-[#79824a]',
   'bg-[#dfc78f]',
   'bg-[#eae1cf]',
 ]
-const MEASUREMENT_KEYS: MeasurementKey[] = [
+export const MEASUREMENT_KEYS: MeasurementKey[] = [
   'bladeLength',
   'overallLength',
   'weight',
   'bladeThickness',
 ]
-const CATEGORY_QUERY_KEYS: Record<CategoryKey, string> = {
+export const CATEGORY_QUERY_KEYS: Record<CategoryKey, string> = {
   brand: 'brand',
   bladeMaterial: 'bladeMaterial',
   bladeStyle: 'bladeStyle',
@@ -74,17 +74,17 @@ type Drilldown = {
   collectionHref?: string
 }
 
-function formatMetric(value: number | undefined, unit: string): string {
+export function formatMetric(value: number | undefined, unit: string): string {
   if (value === undefined) return '—'
   const fractionDigits = unit === 'mm' ? 1 : 2
   return `${value.toLocaleString(undefined, { maximumFractionDigits: fractionDigits })} ${unit}`
 }
 
-function formatMeasurementAxisLabel(label: string): string {
+export function formatMeasurementAxisLabel(label: string): string {
   return label.replace(/\.0(?=–|″|\s)/g, '')
 }
 
-function getOrdinalDay(day: number): string {
+export function getOrdinalDay(day: number): string {
   const lastTwoDigits = day % 100
   if (lastTwoDigits >= 11 && lastTwoDigits <= 13) return `${day}th`
   if (day % 10 === 1) return `${day}st`
@@ -93,7 +93,10 @@ function getOrdinalDay(day: number): string {
   return `${day}th`
 }
 
-function formatActivityCounts(addedCount: number, editedCount: number): string {
+export function formatActivityCounts(
+  addedCount: number,
+  editedCount: number,
+): string {
   const parts: string[] = []
   if (addedCount > 0) {
     parts.push(`${addedCount} ${addedCount === 1 ? 'knife' : 'knives'} added`)
@@ -106,7 +109,7 @@ function formatActivityCounts(addedCount: number, editedCount: number): string {
   return parts.join(' · ')
 }
 
-function formatActivityDayLabel(
+export function formatActivityDayLabel(
   date: Date,
   addedCount: number,
   editedCount: number,
@@ -119,7 +122,7 @@ function formatActivityDayLabel(
   return `${counts} on ${formattedDate}.`
 }
 
-function categoryHref(key: CategoryKey, category: CategoryStat) {
+export function categoryHref(key: CategoryKey, category: CategoryStat) {
   if (category.name === 'Other') return undefined
   const params = new URLSearchParams()
   params.set(CATEGORY_QUERY_KEYS[key], category.name)
@@ -138,15 +141,12 @@ function getChartColors(palette: InsightsChartPalette) {
 
 function getTooltipAppearance(palette: InsightsChartPalette) {
   return {
-    renderMode: 'html' as const,
-    appendTo: 'body',
-    confine: false,
+    renderMode: 'richText' as const,
+    confine: true,
     backgroundColor: palette.card,
     borderColor: palette.gold,
     borderWidth: 1,
     textStyle: { color: palette.foreground, fontSize: 11 },
-    extraCssText:
-      'z-index: 9999999; border-radius: 8px; box-shadow: 0 8px 24px rgba(46, 52, 23, 0.16); pointer-events: none;',
   }
 }
 
@@ -159,13 +159,13 @@ function getPieEmphasis(palette: InsightsChartPalette) {
   }
 }
 
-function missingHref(key: CategoryKey | MeasurementKey) {
+export function missingHref(key: CategoryKey | MeasurementKey) {
   const params = new URLSearchParams()
   params.set(key, NOT_SET_FILTER_VALUE)
   return `/collection?${params.toString()}`
 }
 
-function getLibraryOption(
+export function getLibraryOption(
   total: number,
   palette: InsightsChartPalette,
 ): EChartsOption {
@@ -374,7 +374,7 @@ function getBladeLengthDistributionOption(
   }
 }
 
-function getCompletenessOption(
+export function getCompletenessOption(
   value: number,
   palette: InsightsChartPalette,
 ): EChartsOption {
@@ -419,7 +419,7 @@ function getCompletenessOption(
   }
 }
 
-function getHorizontalBarOption(
+export function getHorizontalBarOption(
   categories: CategoryStat[],
   palette: InsightsChartPalette,
 ): EChartsOption {
@@ -541,7 +541,7 @@ function getPieOption(
   }
 }
 
-function getHistogramOption(
+export function getHistogramOption(
   measurement: MeasurementStats,
   palette: InsightsChartPalette,
 ): EChartsOption {
@@ -607,6 +607,7 @@ function InsightPanel({
   action,
   children,
   className,
+  detailHref,
 }: {
   eyebrow: string
   title: string
@@ -614,6 +615,7 @@ function InsightPanel({
   action?: React.ReactNode
   children: React.ReactNode
   className?: string
+  detailHref?: string
 }) {
   return (
     <Card
@@ -625,7 +627,16 @@ function InsightPanel({
             {eyebrow}
           </span>
           <h2 className="mt-1 text-base font-semibold tracking-tight">
-            {title}
+            {detailHref ? (
+              <Link
+                href={detailHref}
+                className="rounded-sm transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {title}
+              </Link>
+            ) : (
+              title
+            )}
           </h2>
           {description ? (
             <p className="mt-1 text-xs text-muted-foreground">{description}</p>
@@ -638,7 +649,7 @@ function InsightPanel({
   )
 }
 
-function RecentKnife({ knife }: { knife: Knife }) {
+export function RecentKnife({ knife }: { knife: Knife }) {
   return (
     <Link
       href={`/collection/${knife.id}`}
@@ -681,7 +692,7 @@ function RecentKnife({ knife }: { knife: Knife }) {
   )
 }
 
-function DrilldownKnife({ knife }: { knife: Knife }) {
+export function DrilldownKnife({ knife }: { knife: Knife }) {
   return (
     <Link
       href={`/collection/${knife.id}`}
@@ -952,7 +963,7 @@ export function CollectionInsights() {
             Collection Insights
           </h1>
         </div>
-        <div className="print:hidden">
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
           <Button variant="outline" onClick={() => window.print()}>
             <Download className="size-4" /> Export
           </Button>
@@ -984,9 +995,12 @@ export function CollectionInsights() {
             <Card className="min-h-44 gap-0 py-0 print:break-inside-avoid">
               <CardContent className="grid h-full grid-cols-[minmax(0,1fr)_7rem] items-center gap-2 p-4">
                 <div>
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)]">
+                  <Link
+                    href="/insights/library"
+                    className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
                     Library
-                  </span>
+                  </Link>
                   <p className="mt-4 text-xs text-muted-foreground">
                     <strong className="text-[var(--bladevault-local)]">
                       +{stats.addedThisYear}
@@ -1010,9 +1024,12 @@ export function CollectionInsights() {
             <Card className="min-h-44 gap-0 py-0 print:break-inside-avoid">
               <CardContent className="grid h-full grid-cols-[minmax(0,1fr)_7rem] grid-rows-[1fr_auto] items-center gap-x-2 gap-y-1 p-4">
                 <div>
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)]">
+                  <Link
+                    href="/insights/makers"
+                    className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
                     Maker mix
-                  </span>
+                  </Link>
                   <p className="mt-4 text-xs text-muted-foreground">
                     The top two hold{' '}
                     <strong className="text-foreground">
@@ -1062,9 +1079,12 @@ export function CollectionInsights() {
 
             <Card className="min-h-44 gap-0 py-0 print:break-inside-avoid">
               <CardContent className="p-4">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)]">
+                <Link
+                  href="/insights/measurements?tab=blade"
+                  className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
                   Blade lengths
-                </span>
+                </Link>
                 <button
                   type="button"
                   disabled={!bladeLengthPeak?.count}
@@ -1101,9 +1121,12 @@ export function CollectionInsights() {
             <Card className="min-h-44 gap-0 py-0 print:break-inside-avoid">
               <CardContent className="grid h-full grid-cols-[minmax(0,1fr)_7rem] items-center gap-2 p-4">
                 <div>
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)]">
+                  <Link
+                    href="/insights/locks"
+                    className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
                     Lock types
-                  </span>
+                  </Link>
                   {stats.categories.lockingMechanism[0] ? (
                     <button
                       type="button"
@@ -1155,6 +1178,7 @@ export function CollectionInsights() {
             <InsightPanel
               eyebrow="Materials"
               title="Blade steel mix"
+              detailHref="/insights/blade-steels"
               description={
                 steelCategories[0]
                   ? `${steelCategories[0].name} is your most represented steel · ${steelCategories[0].percent}% of the collection`
@@ -1201,6 +1225,7 @@ export function CollectionInsights() {
             <InsightPanel
               eyebrow="Profiles"
               title="Blade shapes"
+              detailHref="/insights/blade-shapes"
               description={`${stats.categories.bladeStyle.length} distinct profiles represented`}
               className="col-span-12 lg:col-span-5"
             >
@@ -1247,6 +1272,7 @@ export function CollectionInsights() {
             <InsightPanel
               eyebrow="Dimensions"
               title={`${measurement.label} distribution`}
+              detailHref="/insights/measurements"
               description={`Known values for ${measurement.knownCount} of ${stats.total} knives`}
               action={
                 <Tabs
@@ -1311,6 +1337,7 @@ export function CollectionInsights() {
             <InsightPanel
               eyebrow="Collection health"
               title="Data completeness"
+              detailHref="/insights/completeness"
               className="col-span-12 lg:col-span-5"
             >
               <InsightsChart
@@ -1346,6 +1373,7 @@ export function CollectionInsights() {
             <InsightPanel
               eyebrow="Brands"
               title="Maker mix"
+              detailHref="/insights/makers"
               className="col-span-12 md:col-span-4"
             >
               <div className="divide-y divide-border/70">
@@ -1373,6 +1401,7 @@ export function CollectionInsights() {
             <InsightPanel
               eyebrow="Construction"
               title="Handle materials"
+              detailHref="/insights/handle-materials"
               description={`${stats.categories.handleMaterial.length} materials represented`}
               className="col-span-12 md:col-span-4"
             >
@@ -1436,6 +1465,7 @@ export function CollectionInsights() {
             <InsightPanel
               eyebrow="People"
               title="Designers"
+              detailHref="/insights/designers"
               className="col-span-12 md:col-span-4"
             >
               <div className="divide-y divide-border/70">
@@ -1494,6 +1524,7 @@ export function CollectionInsights() {
             <InsightPanel
               eyebrow="Activity"
               title="Collection activity"
+              detailHref="/insights/activity"
               description={`${stats.additionsInActivityRange} additions and ${stats.editsInActivityRange} edited knives across ${stats.activeDays} active days · darker squares mean more activity`}
               className="col-span-12 lg:col-span-8"
             >
@@ -1625,6 +1656,7 @@ export function CollectionInsights() {
             <InsightPanel
               eyebrow="Latest"
               title="Recently added"
+              detailHref="/insights/recent"
               description="Kept compact so insights stay primary"
               action={
                 <Button

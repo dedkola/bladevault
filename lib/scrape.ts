@@ -292,7 +292,9 @@ function cleanProductName(name: string, sourceUrl: string): string {
   const domainBrand = extractBrandFromDomain(sourceUrl)
   if (domainBrand) {
     const escaped = domainBrand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    cleaned = cleaned.replace(new RegExp(`\\s*[-|]\\s*${escaped}$`, 'i'), '').trim()
+    cleaned = cleaned
+      .replace(new RegExp(`\\s*[-|]\\s*${escaped}$`, 'i'), '')
+      .trim()
   }
 
   return cleaned
@@ -368,7 +370,10 @@ function extractDescription($: cheerio.CheerioAPI): string {
 function isThumbnailUrl(url: string): boolean {
   // WordPress/WooCommerce resized images: name-150x150.jpg or -960x384.png
   // Shopify CDN crops: ?v=...&width=100 or _100x.jpg
-  return /-\d+x\d+\.[^/.]+$/.test(url) || /[?&](width|height|w|h)=\d{2,3}\b/.test(url)
+  return (
+    /-\d+x\d+\.[^/.]+$/.test(url) ||
+    /[?&](width|height|w|h)=\d{2,3}\b/.test(url)
+  )
 }
 
 function preferFullSizeImage(url: string): string {
@@ -408,7 +413,9 @@ function extractImages($: cheerio.CheerioAPI, baseUrl: string): string[] {
     images.push(resolved)
   }
 
-  findMeta($, ['og:image', 'twitter:image']).split(',').forEach((href) => add(href, false))
+  findMeta($, ['og:image', 'twitter:image'])
+    .split(',')
+    .forEach((href) => add(href, false))
 
   const imageSelectors = [
     '[data-main-image] img',
@@ -472,8 +479,8 @@ function normalizeBrandName(brand: string): string {
     'microtech gear': 'Microtech',
     'microtech knives': 'Microtech',
     'mtk inc.': 'Microtech',
-    'mtknives': 'Microtech',
-    'milgov': 'Microtech',
+    mtknives: 'Microtech',
+    milgov: 'Microtech',
     'milgov, inc.': 'Microtech',
     'spyderco knives': 'Spyderco',
     'chris reeve knives': 'Chris Reeve',
@@ -492,24 +499,24 @@ function normalizeBrandName(brand: string): string {
     'we knife co': 'WE',
     'we knife co.': 'WE',
     'we knife co ltd': 'WE',
-    'weknife': 'WE',
-    'civivi': 'CIVIVI',
-    'lionsteel': 'LionSteel',
+    weknife: 'WE',
+    civivi: 'CIVIVI',
+    lionsteel: 'LionSteel',
     'lion steel': 'LionSteel',
     'mora knives': 'Morakniv',
     'mora of sweden': 'Morakniv',
-    'morakniv': 'Morakniv',
-    'fallkniven': 'Fällkniven',
-    'fällkniven': 'Fällkniven',
+    morakniv: 'Morakniv',
+    fallkniven: 'Fällkniven',
+    fällkniven: 'Fällkniven',
     'fallkniven ab': 'Fällkniven',
     'extrema ratio': 'Extrema Ratio',
-    'victorinox': 'Victorinox',
+    victorinox: 'Victorinox',
     'victorinox ag': 'Victorinox',
-    'benchmade': 'Benchmade',
+    benchmade: 'Benchmade',
     'benchmade knife co.': 'Benchmade',
     'benchmade knife company': 'Benchmade',
-    'boker': 'Böker',
-    'böker': 'Böker',
+    boker: 'Böker',
+    böker: 'Böker',
     'boker plus': 'Böker Plus',
     'böker plus': 'Böker Plus',
     'böker solingen': 'Böker',
@@ -550,7 +557,9 @@ function extractBrandFromAmazon($: cheerio.CheerioAPI): string {
     $(selector).each((_, row) => {
       if (found) return
       const $row = $(row)
-      const label = cleanText($row.find('td.a-text-bold, th, td:first-child').first().text())
+      const label = cleanText(
+        $row.find('td.a-text-bold, th, td:first-child').first().text(),
+      )
       if (/^brand$/i.test(label) || /^manufacturer$/i.test(label)) {
         found = cleanBrand($row.find('td').last().text())
       }
@@ -559,7 +568,9 @@ function extractBrandFromAmazon($: cheerio.CheerioAPI): string {
   }
 
   // Amazon "product overview" feature lists key/value pairs including Brand.
-  const overview = $('[data-feature-name="productOverview"], #productOverview_feature_div')
+  const overview = $(
+    '[data-feature-name="productOverview"], #productOverview_feature_div',
+  )
   let overviewBrand = ''
   overview.find('div, span, tr, li').each((_, el) => {
     if (overviewBrand) return
@@ -829,23 +840,56 @@ const SPEC_PATTERNS: Array<[keyof ScrapedProduct['specs'], RegExp]> = [
   // Length / Länge / Lunghezza / Longueur / Longitud / Comprimento
   // Require an explicit length keyword so bare "Blade:" or "Handle:" doesn't match.
   // Allow hyphens/underscores between words (e.g. WooCommerce pa_blade-length).
-  ['bladeLength', /(?:blade|klinge|lama|lame)[\s_-]*(?:length|size|len|länge|längd|lunga|lunghezza|longitud|longueur|comprimento|largo|breite|breedte)/i],
-  ['overallLength', /(?:overall|total|gesamt|totallängd|lunghezza\s*totale|longueur\s*totale|longitud\s*total|comprimento\s*totale|totale\s*lengte)[\s_-]*(?:length|size|len|länge|längd|lunga|lunghezza|longitud|longueur|comprimento|largo)/i],
-  ['handleLength', /(?:handle|griff|manche|impugnatura|mango|handtag)[\s_-]*(?:length|size|len|länge|längd|lunga|lunghezza|longitud|longueur|comprimento|largo)/i],
+  [
+    'bladeLength',
+    /(?:blade|klinge|lama|lame)[\s_-]*(?:length|size|len|länge|längd|lunga|lunghezza|longitud|longueur|comprimento|largo|breite|breedte)/i,
+  ],
+  [
+    'overallLength',
+    /(?:overall|total|gesamt|totallängd|lunghezza\s*totale|longueur\s*totale|longitud\s*total|comprimento\s*totale|totale\s*lengte)[\s_-]*(?:length|size|len|länge|längd|lunga|lunghezza|longitud|longueur|comprimento|largo)/i,
+  ],
+  [
+    'handleLength',
+    /(?:handle|griff|manche|impugnatura|mango|handtag)[\s_-]*(?:length|size|len|länge|längd|lunga|lunghezza|longitud|longueur|comprimento|largo)/i,
+  ],
   // Thickness / Dicke / Spessore / Épaisseur / Dikte
-  ['bladeThickness', /(?:blade|klinge|lama|lame)[\s_-]*(?:thickness|thick|dicke|spessore|épaisseur|dikte|tjocklek|grosor)/i],
+  [
+    'bladeThickness',
+    /(?:blade|klinge|lama|lame)[\s_-]*(?:thickness|thick|dicke|spessore|épaisseur|dikte|tjocklek|grosor)/i,
+  ],
   // Weight / Gewicht / Peso / Poids / Vikt
   ['weight', /weight|gewicht|peso|poids|vikt|mass/i],
   // Blade finish / coating / steel
-  ['bladeCoating', /(?:blade|klinge|lama|lame)[\s_-]*(?:coating|finish|finishing|coating\s*\/\s*finish|beschichtung|finitura|finition|revestimiento|beläggning|ytbehandling)/i],
-  ['bladeMaterial', /(?:blade|klinge|lama|lame|stål|steel)[\s_-]*(?:material|steel|stahl|acciaio|acier|acero|materiale)/i],
+  [
+    'bladeCoating',
+    /(?:blade|klinge|lama|lame)[\s_-]*(?:coating|finish|finishing|coating\s*\/\s*finish|beschichtung|finitura|finition|revestimiento|beläggning|ytbehandling)/i,
+  ],
+  [
+    'bladeMaterial',
+    /(?:blade|klinge|lama|lame|stål|steel)[\s_-]*(?:material|steel|stahl|acciaio|acier|acero|materiale)/i,
+  ],
   // Locking
-  ['lockingMechanism', /locking\s*mechanism|lock\s*type|lock\s*mechanism|verschluss|serratura|chiusura|verrouillage|cierre|låsmekanism/i],
-  ['designer', /designer|designed\s*by|entworfen\s*von|progettista|conçu\s*par|diseñador|designad/i],
-  ['modelNumber', /model\s*(?:number|#|no\.?)|\bsku\b|artikelnummer|numero\s*modello|numéro\s*de\s*modèle|número\s*de\s*modelo|modellnummer/i],
+  [
+    'lockingMechanism',
+    /locking\s*mechanism|lock\s*type|lock\s*mechanism|verschluss|serratura|chiusura|verrouillage|cierre|låsmekanism/i,
+  ],
+  [
+    'designer',
+    /designer|designed\s*by|entworfen\s*von|progettista|conçu\s*par|diseñador|designad/i,
+  ],
+  [
+    'modelNumber',
+    /model\s*(?:number|#|no\.?)|\bsku\b|artikelnummer|numero\s*modello|numéro\s*de\s*modèle|número\s*de\s*modelo|modellnummer/i,
+  ],
   ['hardness', /hardness|hrc|rockwell|härte|durezza|dureté|dureza|hårdhet/i],
-  ['price', /\b(?:price|msrp|retail\s*price|preis|prezzo|prix|precio|prijs)\b/i],
-  ['country', /country\s*(?:of\s*origin)?|made\s*in|origin|hergestellt\s*in|fabriqué\s*en|fatto\s*in|hecho\s*en|tillverkad\s*i|paese\s*di\s*origine|país\s*de\s*origen/i],
+  [
+    'price',
+    /\b(?:price|msrp|retail\s*price|preis|prezzo|prix|precio|prijs)\b/i,
+  ],
+  [
+    'country',
+    /country\s*(?:of\s*origin)?|made\s*in|origin|hergestellt\s*in|fabriqué\s*en|fatto\s*in|hecho\s*en|tillverkad\s*i|paese\s*di\s*origine|país\s*de\s*origen/i,
+  ],
 ]
 
 const COUNTRIES = [
@@ -1160,7 +1204,9 @@ function splitByMeasurementLabels(text: string): string[] {
 // Try to extract a measurement label and its value from a chunk even when no
 // colon separates them (e.g. "Vikt, endast kniv (g) 149"). Returns null when
 // the chunk does not start with a known measurement label.
-function extractMeasurementPair(chunk: string): { label: string; value: string } | null {
+function extractMeasurementPair(
+  chunk: string,
+): { label: string; value: string } | null {
   const pattern = new RegExp(
     `^((?:${MEASUREMENT_LABEL_ALTERNATIONS.join('|')}))\\s*[:\\uFF1A]?\\s*(.{1,120}?)\\s*$`,
     'i',
@@ -1241,11 +1287,14 @@ function extractSpecBlock($: cheerio.CheerioAPI): string {
 
 // Prestashop stores embed product features as an HTML-escaped JSON array.
 // Extract it directly so we don't have to rely on visible tables.
-function extractPrestashopFeatures($: cheerio.CheerioAPI): Array<{ label: string; value: string }> {
+function extractPrestashopFeatures(
+  $: cheerio.CheerioAPI,
+): Array<{ label: string; value: string }> {
   const pairs: Array<{ label: string; value: string }> = []
   const html = $.html()
   // Match both escaped (&quot;) and regular JSON feature arrays.
-  const featureMatches = html.match(/&quot;features&quot;:\[(.*?)\]|"features":\[(.*?)\]/g) || []
+  const featureMatches =
+    html.match(/&quot;features&quot;:\[(.*?)\]|"features":\[(.*?)\]/g) || []
   for (const match of featureMatches) {
     try {
       const decoded = htmlToPlainText(match)
@@ -1255,8 +1304,15 @@ function extractPrestashopFeatures($: cheerio.CheerioAPI): Array<{ label: string
       const features = json.features
       if (Array.isArray(features)) {
         for (const feature of features) {
-          if (feature && typeof feature.name === 'string' && typeof feature.value === 'string') {
-            pairs.push({ label: cleanText(feature.name), value: cleanText(feature.value) })
+          if (
+            feature &&
+            typeof feature.name === 'string' &&
+            typeof feature.value === 'string'
+          ) {
+            pairs.push({
+              label: cleanText(feature.name),
+              value: cleanText(feature.value),
+            })
           }
         }
       }
@@ -1322,7 +1378,7 @@ function extractJsonLdProperties(
       'overall-length': 'overall length',
       'blade-thickness': 'blade thickness',
       'weight-knife': 'weight',
-      'weight': 'weight',
+      weight: 'weight',
       steel: 'blade steel',
       'blade-steel': 'blade steel',
       'handle-material': 'handle material',
@@ -1342,7 +1398,8 @@ function extractJsonLdProperties(
         const items = graph && Array.isArray(graph) ? graph : [item]
         for (const node of items) {
           const props =
-            node?.additionalProperty || node?.hasVariant?.[0]?.additionalProperty
+            node?.additionalProperty ||
+            node?.hasVariant?.[0]?.additionalProperty
           if (Array.isArray(props)) {
             for (const prop of props) {
               if (
@@ -1825,7 +1882,10 @@ export function scrapeProduct(
   const bladeStyle =
     cleanValue(ldBladeStyle) ||
     cleanValue(
-      extractLabeledValue(productDescriptionText, ['blade style', 'blade grind']),
+      extractLabeledValue(productDescriptionText, [
+        'blade style',
+        'blade grind',
+      ]),
     ) ||
     cleanValue(
       extractLabeledValue(searchText, ['blade style', 'blade grind']),

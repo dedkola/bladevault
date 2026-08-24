@@ -1,4 +1,9 @@
-import { Knife, KnifeActivityEvent, KnifeUpdates } from '@/lib/data'
+import {
+  AuditLogEvent,
+  Knife,
+  KnifeActivityEvent,
+  KnifeUpdates,
+} from '@/lib/data'
 import type { ValidatedKnifeChange } from '@/lib/knife-fields'
 
 export type CreateKnifeInput = Omit<
@@ -61,4 +66,5 @@ export interface Storage {
   addToCompare(id: string): Promise<void>
   removeFromCompare(id: string): Promise<void>
   clearCompareList(): Promise<void>
+  getAuditLog(): Promise<AuditLogEvent[]>
 }

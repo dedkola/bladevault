@@ -36,6 +36,29 @@ export type KnifeActivityEvent = {
   occurredAt: string
 }
 
+export type AuditLogEventType = 'created' | 'updated' | 'deleted' | 'system'
+
+export type AuditLogEventChange = {
+  field: string
+  before: string
+  after: string
+}
+
+export type AuditLogEvent = {
+  id: number
+  operationId: string
+  type: AuditLogEventType
+  knifeId: string | null
+  subject: string
+  actor: string
+  source: string
+  summary: string
+  changes: AuditLogEventChange[]
+  occurredAt: string
+}
+
+export type AuditLogEventInput = Omit<AuditLogEvent, 'id'>
+
 export type KnifeDraft = Omit<Knife, 'id' | 'addedAt' | 'updatedAt'>
 
 export type KnifeUpdates = Partial<
