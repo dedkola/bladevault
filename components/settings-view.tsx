@@ -1603,6 +1603,43 @@ export default function SettingsView() {
                     </SettingsRow>
                   </SettingsSection>
 
+                  <SettingsSection
+                    title="Restore"
+                    description="Restore the latest cloud backup to this device. This replaces the local data."
+                  >
+                    {!cloudSession ? (
+                      <div className="py-3 text-sm text-muted-foreground">
+                        Sign in above before restoring from the cloud.
+                      </div>
+                    ) : null}
+                    <SettingsRow
+                      label="Restore from cloud"
+                      description="Download the latest cloud backup and replace this device's local vault."
+                    >
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={`${settingsSecondaryButtonClassName} h-8 rounded-lg`}
+                        onClick={handleRestore}
+                        disabled={!cloudSession || restoreStatus === 'loading'}
+                      >
+                        {restoreStatus === 'loading' ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5" />
+                        )}
+                        Restore
+                      </Button>
+                    </SettingsRow>
+
+                    <div className="py-3">
+                      <StatusPill
+                        status={restoreStatus}
+                        message={restoreMessage}
+                      />
+                    </div>
+                  </SettingsSection>
+
                   <SettingsSection title="Status">
                     <SettingsRow
                       label="Cloud connection"
@@ -1687,44 +1724,6 @@ export default function SettingsView() {
                       <StatusPill
                         status={localBackupStatus}
                         message={localBackupMessage}
-                      />
-                    </div>
-                  </SettingsSection>
-
-                  <SettingsSection
-                    title="Cloud restore"
-                    description="The existing cloud backup restore remains separate from local ZIP backups."
-                  >
-                    {!cloudSession ? (
-                      <div className="py-3 text-sm text-muted-foreground">
-                        Sign in under Cloud Backup before restoring from the
-                        cloud.
-                      </div>
-                    ) : null}
-                    <SettingsRow
-                      label="Restore from cloud"
-                      description="Restore the latest cloud backup to this device. This replaces the local data."
-                    >
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className={`${settingsSecondaryButtonClassName} h-8 rounded-lg`}
-                        onClick={handleRestore}
-                        disabled={!cloudSession || restoreStatus === 'loading'}
-                      >
-                        {restoreStatus === 'loading' ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Download className="h-3.5 w-3.5" />
-                        )}
-                        Restore
-                      </Button>
-                    </SettingsRow>
-
-                    <div className="py-3">
-                      <StatusPill
-                        status={restoreStatus}
-                        message={restoreMessage}
                       />
                     </div>
                   </SettingsSection>
