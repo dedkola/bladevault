@@ -108,6 +108,8 @@ describe('knife API routes', () => {
 
     const logs = await logsRoute.GET()
     expect(logs.status).toBe(200)
+    expect(logs.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(logsRoute).not.toHaveProperty('DELETE')
     const logsPayload = (await logs.json()) as {
       events: Array<{ type: string; knifeId: string | null; actor: string }>
     }

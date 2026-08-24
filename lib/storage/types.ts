@@ -67,5 +67,4 @@ export interface Storage {
   removeFromCompare(id: string): Promise<void>
   clearCompareList(): Promise<void>
   getAuditLog(): Promise<AuditLogEvent[]>
-  clearAuditLog(): Promise<void>
 }

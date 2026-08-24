@@ -8,6 +8,20 @@ function formatDateKey(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
+function logEntries(page: import('@playwright/test').Page, type?: string) {
+  return page.locator(
+    type ? `[data-log-entry][data-event-type="${type}"]` : '[data-log-entry]',
+  )
+}
+
+function logEntry(
+  page: import('@playwright/test').Page,
+  type: string,
+  subject: string,
+) {
+  return logEntries(page, type).filter({ hasText: subject }).first()
+}
+
 test.beforeEach(async ({ request }) => {
   await resetVault(request)
 })
@@ -32,7 +46,7 @@ test('records and displays create, update, and delete events', async ({
   await page.getByRole('link', { name: 'Logs', exact: true }).click()
   await expect(page).toHaveURL(/\/logs$/)
   await expect(page.getByRole('heading', { name: 'Logs' })).toBeVisible()
-  await expect(page.getByText(`${brand} · ${name}`)).toBeVisible()
+  await expect(logEntry(page, 'created', `${brand} · ${name}`)).toBeVisible()
 
   await page.goto('/collection')
   await page.getByRole('link', { name: new RegExp(name, 'i') }).click()
@@ -41,7 +55,9 @@ test('records and displays create, update, and delete events', async ({
   await page.getByRole('button', { name: 'Save Changes' }).click()
 
   await page.goto('/logs')
-  await expect(page.getByText(`${brand} · ${updatedName}`)).toBeVisible()
+  await expect(
+    logEntry(page, 'updated', `${brand} · ${updatedName}`),
+  ).toBeVisible()
 
   await page.goto('/collection')
   await page.getByRole('link', { name: new RegExp(updatedName, 'i') }).click()
@@ -49,9 +65,8 @@ test('records and displays create, update, and delete events', async ({
   await page.getByRole('button', { name: 'Delete' }).click()
 
   await page.goto('/logs')
-  await expect(page.getByText('Knife deleted')).toBeVisible()
   await expect(
-    page.getByText(`${brand} · ${updatedName}`).first(),
+    logEntry(page, 'deleted', `${brand} · ${updatedName}`),
   ).toBeVisible()
 
   const allFilter = page.getByRole('button', { name: 'all', exact: true })
@@ -74,24 +89,24 @@ test('records and displays create, update, and delete events', async ({
 
   await createdFilter.click()
   await expect(createdFilter).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.getByText('Knife added')).toBeVisible()
-  await expect(page.getByText('Metadata updated')).toHaveCount(0)
+  await expect(logEntries(page, 'created').first()).toBeVisible()
+  await expect(logEntries(page, 'updated')).toHaveCount(0)
 
   await updatedFilter.click()
   await expect(updatedFilter).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.getByText('Metadata updated')).toBeVisible()
-  await expect(page.getByText('Knife deleted')).toHaveCount(0)
+  await expect(logEntries(page, 'updated').first()).toBeVisible()
+  await expect(logEntries(page, 'deleted')).toHaveCount(0)
 
   await deletedFilter.click()
   await expect(deletedFilter).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.getByText('Knife deleted')).toBeVisible()
-  await expect(page.getByText('Knife added')).toHaveCount(0)
+  await expect(logEntries(page, 'deleted').first()).toBeVisible()
+  await expect(logEntries(page, 'created')).toHaveCount(0)
 
   await allFilter.click()
   await expect(allFilter).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.getByText('Knife added')).toBeVisible()
-  await expect(page.getByText('Metadata updated')).toBeVisible()
-  await expect(page.getByText('Knife deleted')).toBeVisible()
+  await expect(logEntries(page, 'created').first()).toBeVisible()
+  await expect(logEntries(page, 'updated').first()).toBeVisible()
+  await expect(logEntries(page, 'deleted').first()).toBeVisible()
 
   const dateRangeTrigger = page.getByRole('button', {
     name: 'Filter logs by date range',
@@ -100,6 +115,7 @@ test('records and displays create, update, and delete events', async ({
 
   const dateRangePicker = page.getByTestId('log-date-range-picker')
   await expect(dateRangePicker.getByText('Quick ranges')).toBeVisible()
+  await expect(dateRangePicker.locator('..')).toHaveCSS('z-index', '50')
   await expect(dateRangePicker.locator('table')).toHaveCount(2)
 
   const today = new Date()
@@ -135,9 +151,9 @@ test('records and displays create, update, and delete events', async ({
   await expect(
     page.getByRole('button', { name: /change date range/i }),
   ).toBeVisible()
-  await expect(page.getByText('Knife added')).toBeVisible()
-  await expect(page.getByText('Metadata updated')).toBeVisible()
-  await expect(page.getByText('Knife deleted')).toBeVisible()
+  await expect(logEntries(page, 'created').first()).toBeVisible()
+  await expect(logEntries(page, 'updated').first()).toBeVisible()
+  await expect(logEntries(page, 'deleted').first()).toBeVisible()
 
   await page.getByRole('button', { name: /change date range/i }).click()
   await dateRangePicker.getByRole('button', { name: 'Clear' }).click()

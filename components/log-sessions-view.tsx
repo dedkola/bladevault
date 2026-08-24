@@ -459,10 +459,15 @@ export function LogSessionsView() {
             <span>{formatDateRangeLabel(selectedRange)}</span>
           </Popover.Trigger>
           <Popover.Portal>
-            <Popover.Positioner side="bottom" align="end" sideOffset={6}>
+            <Popover.Positioner
+              side="bottom"
+              align="end"
+              sideOffset={6}
+              className="z-50"
+            >
               <Popover.Popup
                 data-testid="log-date-range-picker"
-                className="z-50 max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] overflow-auto rounded-xl border border-[var(--bladevault-line)] bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
+                className="max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] overflow-auto rounded-xl border border-[var(--bladevault-line)] bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
               >
                 <div className="grid md:grid-cols-[8.5rem_auto]">
                   <aside
@@ -654,6 +659,8 @@ export function LogSessionsView() {
                       return (
                         <li
                           key={event.id}
+                          data-event-type={event.type}
+                          data-log-entry
                           className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-3 pb-4 last:pb-0"
                         >
                           <span

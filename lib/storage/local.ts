@@ -341,10 +341,6 @@ export class LocalStorage implements Storage {
     }))
   }
 
-  async clearAuditLog(): Promise<void> {
-    getDb().prepare('DELETE FROM audit_log').run()
-  }
-
   async getKnifeById(id: string): Promise<Knife | undefined> {
     const row = getDb().prepare('SELECT * FROM knives WHERE id = ?').get(id)
     return row ? rowToKnife(row as Record<string, unknown>) : undefined

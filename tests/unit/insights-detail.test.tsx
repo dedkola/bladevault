@@ -11,6 +11,8 @@ import { InsightDetailShell } from '@/components/insight-pages/insight-detail-sh
 import { LibraryDetail } from '@/components/insight-pages/library-detail'
 import { MeasurementDetail } from '@/components/insight-pages/measurement-detail'
 import { RecentDetail } from '@/components/insight-pages/recent-detail'
+import { getHorizontalBarOption } from '@/components/collection-insights'
+import type { InsightsChartPalette } from '@/components/insights-chart'
 import type { Knife } from '@/lib/data'
 import {
   isInsightCategorySlug,
@@ -44,6 +46,19 @@ function setKnives(knives: Knife[], isLoading = false) {
 }
 
 afterEach(cleanup)
+
+const chartPalette: InsightsChartPalette = {
+  card: '#fffdf8',
+  foreground: '#2f2a20',
+  muted: '#6f6751',
+  surface: '#f7f1e5',
+  line: '#d3c097',
+  ringTrack: '#eee6d7',
+  gold: '#c89c3d',
+  highlightWash: 'rgba(200, 156, 61, 0.14)',
+  chartPrimary: '#2e3417',
+  chartSecondary: '#79824a',
+}
 
 describe('insight detail slug validation', () => {
   it('accepts known insight slugs', () => {
@@ -114,6 +129,36 @@ describe('InsightDetailShell', () => {
 })
 
 describe('CategoryDetail', () => {
+  it('uses non-HTML tooltips for persisted category names', () => {
+    const option = getHorizontalBarOption(
+      [
+        {
+          name: '<img src=x onerror="window.__bladevaultXss=1">',
+          count: 1,
+          percent: 100,
+          knifeIds: ['knife'],
+        },
+      ],
+      chartPalette,
+    )
+
+    expect(option.tooltip).toMatchObject({
+      renderMode: 'richText',
+      confine: true,
+    })
+    expect(option.tooltip).not.toHaveProperty('appendTo')
+    expect(option.tooltip).not.toHaveProperty('extraCssText')
+
+    const formatter = (
+      option.tooltip as {
+        formatter: (params: Array<{ dataIndex: number }>) => string
+      }
+    ).formatter
+    expect(formatter([{ dataIndex: 0 }])).toBe(
+      '<img src=x onerror="window.__bladevaultXss=1">: 1 (100%)',
+    )
+  })
+
   it('renders a row for every category', () => {
     setKnives([
       createKnife({ id: 'a', brand: 'Benchmade' }),
