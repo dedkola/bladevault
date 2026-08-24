@@ -1,6 +1,13 @@
 import { expect, test } from '@playwright/test'
 import { resetVault } from './helpers'
 
+function formatDateKey(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 test.beforeEach(async ({ request }) => {
   await resetVault(request)
 })
@@ -85,4 +92,61 @@ test('records and displays create, update, and delete events', async ({
   await expect(page.getByText('Knife added')).toBeVisible()
   await expect(page.getByText('Metadata updated')).toBeVisible()
   await expect(page.getByText('Knife deleted')).toBeVisible()
+
+  const dateRangeTrigger = page.getByRole('button', {
+    name: 'Filter logs by date range',
+  })
+  await dateRangeTrigger.click()
+
+  const dateRangePicker = page.getByTestId('log-date-range-picker')
+  await expect(dateRangePicker.getByText('Quick ranges')).toBeVisible()
+  await expect(dateRangePicker.locator('table')).toHaveCount(2)
+
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const fromDay = dateRangePicker.locator(
+    `[data-day="${formatDateKey(yesterday)}"]:not([data-outside])`,
+  )
+  const toDay = dateRangePicker.locator(
+    `[data-day="${formatDateKey(today)}"]:not([data-outside])`,
+  )
+  await fromDay.getByRole('button').click()
+  await expect(fromDay).toHaveClass(/range-pending/)
+
+  await toDay.getByRole('button').click()
+  await expect(fromDay).toHaveClass(/range-start/)
+  await expect(toDay).toHaveClass(/range-end/)
+  await expect(dateRangePicker.locator('[data-selected]')).toHaveCount(2)
+  await expect(dateRangePicker.locator('[data-outside] button')).toHaveCount(0)
+
+  const endpointColor = 'rgb(200, 156, 61)'
+  await expect(fromDay.getByRole('button')).toHaveCSS(
+    'background-color',
+    endpointColor,
+  )
+  await toDay.getByRole('button').hover()
+  await expect(toDay.getByRole('button')).toHaveCSS(
+    'background-color',
+    endpointColor,
+  )
+  await dateRangePicker.getByRole('button', { name: 'Apply' }).click()
+
+  await expect(
+    page.getByRole('button', { name: /change date range/i }),
+  ).toBeVisible()
+  await expect(page.getByText('Knife added')).toBeVisible()
+  await expect(page.getByText('Metadata updated')).toBeVisible()
+  await expect(page.getByText('Knife deleted')).toBeVisible()
+
+  await page.getByRole('button', { name: /change date range/i }).click()
+  await dateRangePicker.getByRole('button', { name: 'Clear' }).click()
+  await expect(dateRangeTrigger).toBeVisible()
+
+  await dateRangeTrigger.click()
+  await dateRangePicker.getByRole('button', { name: 'Last 7 days' }).click()
+  await page.getByRole('button', { name: /change date range/i }).click()
+  await expect(
+    dateRangePicker.getByRole('button', { name: 'Last 7 days' }),
+  ).toHaveAttribute('aria-pressed', 'true')
 })

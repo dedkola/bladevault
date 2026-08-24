@@ -15,7 +15,7 @@ import { Calendar, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-const dayPickerClassNames: Partial<ClassNames> = {
+export const dayPickerClassNames: Partial<ClassNames> = {
   [UI.Root]: 'text-foreground',
   [UI.Months]: 'flex',
   [UI.Month]: 'space-y-2',

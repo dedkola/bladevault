@@ -1,10 +1,14 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { Popover } from '@base-ui/react/popover'
+import { DayPicker, SelectionState, UI, type DateRange } from 'react-day-picker'
 import {
   Bot,
+  Calendar,
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   CircleAlert,
   Database,
@@ -15,8 +19,9 @@ import {
   ShieldCheck,
   UserRound,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { dayPickerClassNames } from '@/components/ui/date-input'
 import { Input } from '@/components/ui/input'
 import type { AuditLogEvent } from '@/lib/data'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
@@ -30,6 +35,28 @@ type ViewEvent = AuditLogEvent & {
   dateKey: string
   dateLabel: string
 }
+
+const quickRanges = [
+  { label: 'Today', days: 1 },
+  { label: 'Last 7 days', days: 7 },
+  { label: 'Last 30 days', days: 30 },
+] as const
+
+const rangePickerClassNames = {
+  ...dayPickerClassNames,
+  [UI.Root]: 'relative text-foreground',
+  [UI.Months]: 'flex gap-4',
+  [SelectionState.selected]: 'bg-transparent',
+  [SelectionState.range_start]:
+    'range-start [&>button]:bg-[var(--bladevault-gold)] [&>button]:text-[var(--bladevault-olive)] [&>button:hover]:bg-[var(--bladevault-gold)]',
+  [SelectionState.range_middle]:
+    'range-middle [&>button]:rounded-none [&>button]:bg-[var(--bladevault-gold)]/15 [&>button:hover]:bg-[var(--bladevault-gold)]/25',
+  [SelectionState.range_end]:
+    'range-end [&>button]:bg-[var(--bladevault-gold)] [&>button]:text-[var(--bladevault-olive)] [&>button:hover]:bg-[var(--bladevault-gold)]',
+}
+
+const pendingRangeClassName =
+  'range-pending [&>button]:bg-[var(--bladevault-gold)] [&>button]:text-[var(--bladevault-olive)] [&>button:hover]:bg-[var(--bladevault-gold)]'
 
 const typeMeta: Record<EventType, { label: string; className: string }> = {
   created: {
@@ -123,6 +150,59 @@ function isWithinLastWeek(occurredAt: string): boolean {
   return date.getTime() >= weekAgo.getTime()
 }
 
+function startOfDay(date: Date): Date {
+  const next = new Date(date)
+  next.setHours(0, 0, 0, 0)
+  return next
+}
+
+function startOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1)
+}
+
+function createRecentRange(days: number): DateRange {
+  const to = startOfDay(new Date())
+  const from = new Date(to)
+  from.setDate(from.getDate() - (days - 1))
+  return { from, to }
+}
+
+function rangesMatch(
+  left: DateRange | undefined,
+  right: DateRange | undefined,
+): boolean {
+  if (!left?.from || !right?.from) return !left?.from && !right?.from
+  const leftTo = left.to ?? left.from
+  const rightTo = right.to ?? right.from
+  return isSameDay(left.from, right.from) && isSameDay(leftTo, rightTo)
+}
+
+function formatDateLabel(date: Date, includeYear = true): string {
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: includeYear ? 'numeric' : undefined,
+  }).format(date)
+}
+
+function formatDateRangeLabel(range: DateRange | undefined): string {
+  if (!range?.from) return 'Date'
+  const to = range.to ?? range.from
+  if (isSameDay(range.from, to)) return formatDateLabel(range.from)
+
+  const sameYear = range.from.getFullYear() === to.getFullYear()
+  return `${formatDateLabel(range.from, !sameYear)} – ${formatDateLabel(to)}`
+}
+
+function getCalendarStartMonth(date: Date, numberOfMonths: number): Date {
+  const month = startOfMonth(date)
+  const currentMonth = startOfMonth(new Date())
+  if (numberOfMonths > 1 && isSameDay(month, currentMonth)) {
+    month.setMonth(month.getMonth() - 1)
+  }
+  return month
+}
+
 function EventIcon({ type }: { type: EventType }) {
   const Icon =
     type === 'created'
@@ -151,6 +231,11 @@ export function LogSessionsView() {
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<'all' | EventType>('all')
+  const [selectedRange, setSelectedRange] = useState<DateRange | undefined>()
+  const [draftRange, setDraftRange] = useState<DateRange | undefined>()
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date())
+  const [calendarMonths, setCalendarMonths] = useState(1)
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<number>>(
     () => new Set(),
   )
@@ -198,6 +283,19 @@ export function LogSessionsView() {
     }
   }, [])
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 768px)')
+    const updateCalendarMonths = () => {
+      setCalendarMonths(mediaQuery.matches ? 2 : 1)
+    }
+
+    updateCalendarMonths()
+    mediaQuery.addEventListener('change', updateCalendarMonths)
+    return () => {
+      mediaQuery.removeEventListener('change', updateCalendarMonths)
+    }
+  }, [])
+
   const filteredEvents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     return events.filter((event) => {
@@ -211,9 +309,20 @@ export function LogSessionsView() {
           event.source,
           event.summary,
         ].some((value) => value.toLowerCase().includes(normalizedQuery))
-      return matchesType && matchesQuery
+      const eventDay = startOfDay(new Date(event.occurredAt)).getTime()
+      const rangeStart = selectedRange?.from
+        ? startOfDay(selectedRange.from).getTime()
+        : undefined
+      const rangeEnd = selectedRange?.from
+        ? startOfDay(selectedRange.to ?? selectedRange.from).getTime()
+        : undefined
+      const matchesDate =
+        rangeStart === undefined ||
+        rangeEnd === undefined ||
+        (eventDay >= rangeStart && eventDay <= rangeEnd)
+      return matchesType && matchesQuery && matchesDate
     })
-  }, [events, filter, query])
+  }, [events, filter, query, selectedRange])
 
   const eventsThisWeek = useMemo(
     () => events.filter((event) => isWithinLastWeek(event.occurredAt)).length,
@@ -255,6 +364,39 @@ export function LogSessionsView() {
     })
   }
 
+  const handleCalendarOpenChange = (open: boolean) => {
+    setCalendarOpen(open)
+    if (!open) return
+
+    setDraftRange(selectedRange)
+    setCalendarMonth(
+      getCalendarStartMonth(selectedRange?.from ?? new Date(), calendarMonths),
+    )
+  }
+
+  const applyQuickRange = (days: number) => {
+    const range = createRecentRange(days)
+    setSelectedRange(range)
+    setDraftRange(range)
+    setCalendarMonth(getCalendarStartMonth(range.from!, calendarMonths))
+    setCalendarOpen(false)
+  }
+
+  const clearDateRange = () => {
+    setSelectedRange(undefined)
+    setDraftRange(undefined)
+    setCalendarOpen(false)
+  }
+
+  const applyDraftRange = () => {
+    if (!draftRange?.from) return
+    const from = startOfDay(draftRange.from)
+    const to = startOfDay(draftRange.to ?? draftRange.from)
+    setSelectedRange({ from, to })
+    setDraftRange({ from, to })
+    setCalendarOpen(false)
+  }
+
   return (
     <div className="w-full">
       <div className="mb-6 flex flex-col gap-3 border-b border-border pb-5 lg:flex-row lg:items-center">
@@ -292,12 +434,171 @@ export function LogSessionsView() {
             </Button>
           ))}
         </div>
+        <Popover.Root
+          open={calendarOpen}
+          onOpenChange={handleCalendarOpenChange}
+        >
+          <Popover.Trigger
+            type="button"
+            disabled={isLoading}
+            aria-label={
+              selectedRange?.from
+                ? `Change date range, ${formatDateRangeLabel(selectedRange)}`
+                : 'Filter logs by date range'
+            }
+            aria-expanded={calendarOpen}
+            className={cn(
+              buttonVariants({
+                variant: selectedRange ? 'secondary' : 'ghost',
+                size: 'sm',
+              }),
+              'shrink-0 px-2.5 tabular-nums',
+            )}
+          >
+            <Calendar className="size-3.5" />
+            <span>{formatDateRangeLabel(selectedRange)}</span>
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Positioner side="bottom" align="end" sideOffset={6}>
+              <Popover.Popup
+                data-testid="log-date-range-picker"
+                className="z-50 max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] overflow-auto rounded-xl border border-[var(--bladevault-line)] bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
+              >
+                <div className="grid md:grid-cols-[8.5rem_auto]">
+                  <aside
+                    aria-label="Quick date ranges"
+                    className="border-b border-[var(--bladevault-line)]/60 p-2 md:border-r md:border-b-0"
+                  >
+                    <p className="px-2 pt-1 pb-1.5 text-[10px] font-medium text-muted-foreground">
+                      Quick ranges
+                    </p>
+                    <div className="grid grid-cols-3 gap-1 md:grid-cols-1">
+                      {quickRanges.map((range) => {
+                        const active = rangesMatch(
+                          selectedRange,
+                          createRecentRange(range.days),
+                        )
+                        return (
+                          <Button
+                            key={range.days}
+                            type="button"
+                            size="sm"
+                            variant={active ? 'secondary' : 'ghost'}
+                            aria-pressed={active}
+                            onClick={() => applyQuickRange(range.days)}
+                            className="justify-start px-2"
+                          >
+                            {range.label}
+                          </Button>
+                        )
+                      })}
+                    </div>
+                  </aside>
+
+                  <div className="p-3">
+                    <DayPicker
+                      mode="range"
+                      month={calendarMonth}
+                      onMonthChange={setCalendarMonth}
+                      numberOfMonths={calendarMonths}
+                      pagedNavigation={calendarMonths > 1}
+                      fixedWeeks
+                      resetOnSelect
+                      endMonth={startOfMonth(new Date())}
+                      disabled={{ after: new Date() }}
+                      selected={draftRange}
+                      onSelect={setDraftRange}
+                      modifiers={{
+                        range_pending:
+                          draftRange?.from && !draftRange.to
+                            ? draftRange.from
+                            : undefined,
+                      }}
+                      modifiersClassNames={{
+                        range_pending: pendingRangeClassName,
+                      }}
+                      showOutsideDays={calendarMonths === 1}
+                      classNames={rangePickerClassNames}
+                      components={{
+                        Chevron: ({
+                          orientation,
+                          className: chevronClassName,
+                        }) => {
+                          const chevronClass = cn('size-4', chevronClassName)
+                          switch (orientation) {
+                            case 'left':
+                              return <ChevronLeft className={chevronClass} />
+                            case 'right':
+                              return <ChevronRight className={chevronClass} />
+                            case 'up':
+                              return (
+                                <ChevronRight
+                                  className={cn(
+                                    chevronClass,
+                                    'rotate-[-90deg]',
+                                  )}
+                                />
+                              )
+                            case 'down':
+                              return (
+                                <ChevronRight
+                                  className={cn(chevronClass, 'rotate-90')}
+                                />
+                              )
+                            default:
+                              return <ChevronRight className={chevronClass} />
+                          }
+                        },
+                      }}
+                    />
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--bladevault-line)]/60 pt-3">
+                      <p className="mr-auto min-w-0 truncate text-xs tabular-nums text-muted-foreground">
+                        {draftRange?.from
+                          ? formatDateRangeLabel(draftRange)
+                          : 'Choose dates'}
+                      </p>
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="ghost"
+                        onClick={clearDateRange}
+                        disabled={!selectedRange && !draftRange?.from}
+                      >
+                        Clear
+                      </Button>
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => {
+                          setDraftRange(selectedRange)
+                          setCalendarOpen(false)
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        size="xs"
+                        onClick={applyDraftRange}
+                        disabled={!draftRange?.from}
+                      >
+                        Apply
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </Popover.Popup>
+            </Popover.Positioner>
+          </Popover.Portal>
+        </Popover.Root>
         <p className="shrink-0 text-xs tabular-nums text-muted-foreground lg:ml-auto">
           <span className="font-medium text-foreground">
             {filteredEvents.length}
           </span>{' '}
           {filteredEvents.length === 1 ? 'entry' : 'entries'}
-          {filter === 'all' && !query.trim() ? (
+          {!selectedRange && filter === 'all' && !query.trim() ? (
             <>
               <span className="mx-2 text-border" aria-hidden>
                 /
