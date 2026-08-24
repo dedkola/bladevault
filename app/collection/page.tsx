@@ -164,6 +164,11 @@ function CollectionContent() {
     [customFieldDefinitions],
   )
 
+  // `useSearchParams` returns a new object reference every render, so we use
+  // the query string as a stable key to avoid recomputing filters on every
+  // render when the URL has not actually changed.
+  const searchParamsKey = searchParams.toString()
+
   const selectedFilters = useMemo(
     () =>
       Object.fromEntries(
@@ -172,7 +177,8 @@ function CollectionContent() {
           searchParams.getAll(definition.key).filter(Boolean),
         ]),
       ) as Record<FilterKey, string[]>,
-    [searchParams, filterDefinitions],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [searchParamsKey, filterDefinitions],
   )
 
   const optionsByFilter = useMemo(() => {
