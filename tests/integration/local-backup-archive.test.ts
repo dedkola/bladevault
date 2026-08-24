@@ -5,7 +5,11 @@ import path from 'path'
 import * as unzipper from 'unzipper'
 import { ZipFile } from 'yazl'
 import { afterEach, describe, expect, it } from 'vitest'
+import * as activityRoute from '@/app/api/activity/route'
 import * as localBackupRoute from '@/app/api/local-backup/archive/route'
+import * as logsRoute from '@/app/api/logs/route'
+import { closeLocalDb, getLocalDb } from '@/lib/local-db'
+import { validateLocalDatabase } from '@/lib/local-data-restore'
 import { getSettings, saveSettings } from '@/lib/settings'
 import { LocalStorage } from '@/lib/storage/local'
 import type { CreateKnifeInput } from '@/lib/storage/types'
@@ -95,6 +99,12 @@ describe('local backup archive route', () => {
     let storage = new LocalStorage()
     const knife = await storage.createKnife(input)
     await storage.addToCompare(knife.id)
+    await storage.addMaintenanceEvent(knife.id, {
+      type: 'sharpening',
+      occurredAt: '2026-08-20T12:00:00.000Z',
+      notes: 'KME 600 grit',
+      sharpeningDetails: { grit: '600', system: 'KME' },
+    })
     saveSettings({ theme: 'dark' })
 
     const exported = await localBackupRoute.GET()
@@ -168,6 +178,34 @@ describe('local backup archive route', () => {
     })
     expect(await storage.getCompareList()).toEqual([knife.id])
     expect(getSettings().theme).toBe('dark')
+    await expect(storage.getMaintenanceEvents(knife.id)).resolves.toEqual([
+      expect.objectContaining({
+        knifeId: knife.id,
+        type: 'sharpening',
+        notes: 'KME 600 grit',
+        sharpeningDetails: { grit: '600', system: 'KME' },
+      }),
+    ])
+    const activityPayload = (await (await activityRoute.GET()).json()) as {
+      activity: Array<{ knifeId: string; type: string }>
+    }
+    expect(activityPayload.activity).toContainEqual(
+      expect.objectContaining({ knifeId: knife.id, type: 'maintained' }),
+    )
+    const logsPayload = (await (await logsRoute.GET()).json()) as {
+      events: Array<{
+        knifeId: string | null
+        source: string
+        summary: string
+      }>
+    }
+    expect(logsPayload.events).toContainEqual(
+      expect.objectContaining({
+        knifeId: knife.id,
+        source: 'Maintenance',
+        summary: 'Sharpening was logged.',
+      }),
+    )
     await expect(
       storage.getImage(restoredKnife?.images[0] ?? ''),
     ).resolves.toMatchObject({ contentType: 'image/png' })
@@ -227,6 +265,17 @@ describe('local backup archive route', () => {
     )
     expect(corrupt.status).toBe(400)
     expect(await storage.getKnifeById(knife.id)).not.toBeNull()
+  })
+
+  it('rejects a current-schema database missing maintenance storage', async () => {
+    vault = await createTempVault('bladevault-invalid-maintenance-schema-')
+    await new LocalStorage().createKnife(input)
+    getLocalDb().exec('DROP TABLE maintenance_events')
+    closeLocalDb()
+
+    expect(() =>
+      validateLocalDatabase(path.join(vault!.dataDir, 'bladevault.sqlite')),
+    ).toThrow('missing the maintenance_events table')
   })
 
   it('rejects an incompatible manifest before changing local data', async () => {

@@ -90,7 +90,13 @@ function eventMeta(event: AuditLogEvent): {
 }
 
 function eventTitle(event: AuditLogEvent): string {
-  if (isMaintenanceEvent(event)) return 'Maintenance logged'
+  if (isMaintenanceEvent(event)) {
+    if (event.type === 'deleted') return 'Maintenance deleted'
+    if (event.summary.endsWith('entry was updated.')) {
+      return 'Maintenance updated'
+    }
+    return 'Maintenance logged'
+  }
 
   switch (event.type) {
     case 'created':

@@ -124,6 +124,20 @@ test('edits and deletes maintenance events', async ({ page, request }) => {
   await expect(
     page.getByText('No maintenance recorded yet', { exact: true }),
   ).toBeVisible()
+
+  await page.goto('/logs')
+  await expect(
+    page
+      .locator('[data-log-entry]')
+      .filter({ hasText: 'Maintenance updated' })
+      .first(),
+  ).toBeVisible()
+  await expect(
+    page
+      .locator('[data-log-entry]')
+      .filter({ hasText: 'Maintenance deleted' })
+      .first(),
+  ).toBeVisible()
 })
 
 test('keeps the maintenance controls in place after a quick add', async ({

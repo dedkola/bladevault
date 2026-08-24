@@ -84,6 +84,10 @@ export interface Storage {
   updateMaintenanceEvent(
     eventId: number,
     input: MaintenanceEventUpdate,
+    options?: MaintenanceEventOptions,
   ): Promise<MaintenanceEvent>
-  deleteMaintenanceEvent(eventId: number): Promise<void>
+  deleteMaintenanceEvent(
+    eventId: number,
+    options?: MaintenanceEventOptions,
+  ): Promise<void>
 }

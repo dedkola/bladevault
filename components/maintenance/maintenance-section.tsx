@@ -19,6 +19,7 @@ import {
   MaintenanceSummarySkeleton,
 } from '@/components/maintenance/maintenance-summary'
 import { MaintenanceTimeline } from '@/components/maintenance/maintenance-timeline'
+import { useKnives } from '@/components/providers/knives-provider'
 
 function upsertMaintenanceEvent(
   events: MaintenanceEvent[],
@@ -31,6 +32,7 @@ function upsertMaintenanceEvent(
 }
 
 export function MaintenanceSection({ knifeId }: { knifeId: string }) {
+  const { scheduleVaultBackup } = useKnives()
   const [events, setEvents] = useState<MaintenanceEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -107,6 +109,7 @@ export function MaintenanceSection({ knifeId }: { knifeId: string }) {
         throw new Error('Maintenance was saved but no entry was returned')
       }
       setEvents((current) => upsertMaintenanceEvent(current, data.event!))
+      scheduleVaultBackup()
       setStatusMessage(`${maintenanceTypeLabel(type)} today`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to log maintenance')
@@ -140,6 +143,7 @@ export function MaintenanceSection({ knifeId }: { knifeId: string }) {
           throw new Error('Maintenance was updated but no entry was returned')
         }
         setEvents((current) => upsertMaintenanceEvent(current, data.event!))
+        scheduleVaultBackup()
       } else {
         const response = await fetch(`/api/knives/${knifeId}/maintenance`, {
           method: 'POST',
@@ -157,6 +161,7 @@ export function MaintenanceSection({ knifeId }: { knifeId: string }) {
           throw new Error('Maintenance was saved but no entry was returned')
         }
         setEvents((current) => upsertMaintenanceEvent(current, data.event!))
+        scheduleVaultBackup()
       }
 
       setIsFormOpen(false)
@@ -193,6 +198,7 @@ export function MaintenanceSection({ knifeId }: { knifeId: string }) {
         throw new Error(data.error || 'Failed to delete maintenance')
       }
       setEvents((current) => current.filter((item) => item.id !== event.id))
+      scheduleVaultBackup()
       setStatusMessage('Maintenance entry deleted')
     } catch (err) {
       setError(

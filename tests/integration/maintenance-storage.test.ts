@@ -124,6 +124,22 @@ describe('LocalStorage maintenance events', () => {
         (activity) => activity.type === 'maintained',
       ),
     ).toHaveLength(1)
+    const finalMaintenanceAudit = (await storage.getAuditLog()).filter(
+      (audit) => audit.source === 'Maintenance',
+    )
+    expect(finalMaintenanceAudit).toHaveLength(5)
+    expect(finalMaintenanceAudit).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'updated',
+          summary: 'Cleaning entry was updated.',
+        }),
+        expect.objectContaining({
+          type: 'deleted',
+          summary: 'Cleaning entry was deleted.',
+        }),
+      ]),
+    )
   })
 
   it('rejects invalid maintenance types and missing knives', async () => {
