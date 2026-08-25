@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -101,6 +101,30 @@ describe('KnivesProvider backup side effects', () => {
 
   it('backs up content edits but not pin-only or compare mutations', async () => {
     const user = userEvent.setup()
+    const scheduledBackupCallbacks: Array<() => void> = []
+    const nativeSetTimeout = window.setTimeout.bind(window)
+    const nativeClearTimeout = window.clearTimeout.bind(window)
+    const backupTimerIdBase = 1_000_000_000
+
+    vi.spyOn(window, 'setTimeout').mockImplementation(((
+      handler: TimerHandler,
+      timeout?: number,
+      ...args: unknown[]
+    ) => {
+      if (timeout === 30_000 && typeof handler === 'function') {
+        scheduledBackupCallbacks.push(() => handler(...args))
+        return backupTimerIdBase + scheduledBackupCallbacks.length
+      }
+
+      return nativeSetTimeout(handler, timeout, ...args)
+    }) as typeof window.setTimeout)
+    const clearTimeoutSpy = vi
+      .spyOn(window, 'clearTimeout')
+      .mockImplementation((timerId) => {
+        if (Number(timerId) >= backupTimerIdBase) return
+        nativeClearTimeout(timerId)
+      })
+
     render(
       <KnivesProvider>
         <ProviderConsumer />
@@ -109,6 +133,19 @@ describe('KnivesProvider backup side effects', () => {
     await screen.findByText('ready')
 
     await user.click(screen.getByRole('button', { name: 'Edit' }))
+    await waitFor(() => expect(scheduledBackupCallbacks).toHaveLength(1))
+    expect(uploadCloudBackupArchive).not.toHaveBeenCalled()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Maintenance mutation' }),
+    )
+    await waitFor(() => expect(scheduledBackupCallbacks).toHaveLength(2))
+    expect(clearTimeoutSpy).toHaveBeenCalledWith(backupTimerIdBase + 1)
+    expect(uploadCloudBackupArchive).not.toHaveBeenCalled()
+
+    await act(async () => {
+      scheduledBackupCallbacks.at(-1)?.()
+    })
     await waitFor(() =>
       expect(uploadCloudBackupArchive).toHaveBeenCalledTimes(1),
     )
@@ -137,6 +174,12 @@ describe('KnivesProvider backup side effects', () => {
     await user.click(
       screen.getByRole('button', { name: 'Maintenance mutation' }),
     )
+    await waitFor(() => expect(scheduledBackupCallbacks).toHaveLength(3))
+    expect(uploadCloudBackupArchive).not.toHaveBeenCalled()
+
+    await act(async () => {
+      scheduledBackupCallbacks.at(-1)?.()
+    })
     await waitFor(() =>
       expect(uploadCloudBackupArchive).toHaveBeenCalledTimes(1),
     )

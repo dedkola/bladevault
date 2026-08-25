@@ -42,7 +42,8 @@ async function createArchive(sourceDir: string, outputPath: string) {
     {
       cwd: path.dirname(sourceDir),
       file: outputPath,
-      gzip: true,
+      // Most vault bytes are already-compressed images, so favor low CPU cost.
+      gzip: { level: 1 },
       portable: true,
       filter: (entryPath) => !shouldIgnoreBackupEntry(path.basename(entryPath)),
     },
