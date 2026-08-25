@@ -16,7 +16,7 @@
     <img src="https://img.shields.io/badge/Electron-47848F?logo=electron&logoColor=white&style=flat-square" alt="Electron" />
     <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white&style=flat-square" alt="Docker" />
     <img src="https://img.shields.io/badge/Helm-0F1689?logo=helm&logoColor=white&style=flat-square" alt="Helm" />
-    <img src="https://img.shields.io/badge/MCP-8_tools-C89B3C?style=flat-square" alt="Model Context Protocol: 8 tools" />
+    <img src="https://img.shields.io/badge/MCP-10_tools-C89B3C?style=flat-square" alt="Model Context Protocol: 10 tools" />
   </p>
 
   <p>
@@ -266,6 +266,8 @@ is required.
 | `propose_changes` | Validate suggested values without modifying the collection | Read-only |
 | `update_knife` | Apply a timestamp-checked metadata update to one knife | Write mode |
 | `bulk_update_knives` | Preview and atomically apply explicit multi-knife updates | Write mode |
+| `get_knife_maintenance` | Retrieve maintenance history for one knife | Read-only |
+| `add_maintenance_event` | Log a maintenance event for one knife | Write mode |
 
 Open **Settings → AI / MCP** to review activity, copy the local client
 configuration, enable or disable HTTP access, and allow or deny metadata

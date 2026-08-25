@@ -131,6 +131,7 @@ export function ActivityDetail() {
                       day.date,
                       day.addedCount,
                       day.editedCount,
+                      day.maintainedCount,
                     )
                     return (
                       <Tooltip key={day.dateKey}>
@@ -194,6 +195,7 @@ export function ActivityDetail() {
           {activeDays.map((day) => {
             const addedKnives = resolveKnives(day.addedKnifeIds)
             const editedKnives = resolveKnives(day.editedKnifeIds)
+            const maintainedKnives = resolveKnives(day.maintainedKnifeIds)
             return (
               <section
                 key={day.dateKey}
@@ -204,7 +206,11 @@ export function ActivityDetail() {
                   {formatActivityListDate(day.date)}
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  {formatActivityCounts(day.addedCount, day.editedCount)}
+                  {formatActivityCounts(
+                    day.addedCount,
+                    day.editedCount,
+                    day.maintainedCount,
+                  )}
                 </p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {addedKnives.length > 0 && (
@@ -223,6 +229,16 @@ export function ActivityDetail() {
                         Edited
                       </h4>
                       {editedKnives.map((knife) => (
+                        <DrilldownKnife key={knife.id} knife={knife} />
+                      ))}
+                    </div>
+                  )}
+                  {maintainedKnives.length > 0 && (
+                    <div className="grid gap-2">
+                      <h4 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                        Maintained
+                      </h4>
+                      {maintainedKnives.map((knife) => (
                         <DrilldownKnife key={knife.id} knife={knife} />
                       ))}
                     </div>

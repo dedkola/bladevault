@@ -28,7 +28,7 @@ export type Knife = {
   pinned: boolean
 }
 
-export type KnifeActivityType = 'created' | 'updated'
+export type KnifeActivityType = 'created' | 'updated' | 'maintained'
 
 export type KnifeActivityEvent = {
   knifeId: string
@@ -94,6 +94,97 @@ export function matchesKnifeSearch(knife: Knife, query: string): boolean {
   if (!q) return true
 
   return getKnifeSearchableText(knife).includes(q)
+}
+
+export type MaintenanceType =
+  | 'cleaning'
+  | 'lubrication'
+  | 'sharpening'
+  | 'stropping'
+  | 'disassembly'
+  | 'reassembly'
+  | 'hardware_replacement'
+  | 'part_replacement'
+  | 'other'
+
+export const MAINTENANCE_TYPES: MaintenanceType[] = [
+  'cleaning',
+  'lubrication',
+  'sharpening',
+  'stropping',
+  'disassembly',
+  'reassembly',
+  'hardware_replacement',
+  'part_replacement',
+  'other',
+]
+
+export type SharpeningDetails = {
+  grit?: string
+  angle?: string
+  system?: string
+  passes?: number
+  ceramic?: string
+  strop?: string
+  compound?: string
+  notes?: string
+}
+
+export type MaintenanceEvent = {
+  id: number
+  knifeId: string
+  type: MaintenanceType
+  occurredAt: string
+  notes: string
+  sharpeningDetails?: SharpeningDetails
+  createdAt: string
+}
+
+export type MaintenanceEventInput = {
+  type: MaintenanceType
+  occurredAt: string
+  notes?: string
+  sharpeningDetails?: SharpeningDetails
+}
+
+export type MaintenanceEventUpdate = Partial<
+  Omit<MaintenanceEventInput, 'sharpeningDetails'>
+> & {
+  sharpeningDetails?: SharpeningDetails | null
+}
+
+export function isMaintenanceType(value: string): value is MaintenanceType {
+  return (MAINTENANCE_TYPES as string[]).includes(value)
+}
+
+export function maintenanceTypeLabel(type: MaintenanceType): string {
+  const labels: Record<MaintenanceType, string> = {
+    cleaning: 'Cleaned',
+    lubrication: 'Lubricated',
+    sharpening: 'Sharpened',
+    stropping: 'Stropped',
+    disassembly: 'Disassembled',
+    reassembly: 'Reassembled',
+    hardware_replacement: 'Hardware replaced',
+    part_replacement: 'Part replaced',
+    other: 'Other',
+  }
+  return labels[type]
+}
+
+export function maintenanceTypeName(type: MaintenanceType): string {
+  const names: Record<MaintenanceType, string> = {
+    cleaning: 'Cleaning',
+    lubrication: 'Lubrication',
+    sharpening: 'Sharpening',
+    stropping: 'Stropping',
+    disassembly: 'Disassembly',
+    reassembly: 'Reassembly',
+    hardware_replacement: 'Hardware replacement',
+    part_replacement: 'Part replacement',
+    other: 'Other maintenance',
+  }
+  return names[type]
 }
 
 export function prioritizePinnedKnives(

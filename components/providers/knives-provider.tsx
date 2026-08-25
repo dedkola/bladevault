@@ -52,6 +52,7 @@ type KnivesContextValue = {
   cardFields: CardField[]
   customFieldDefinitions: CustomField[]
   showFeedback: (message: string, tone?: FeedbackTone) => void
+  scheduleVaultBackup: () => void
 }
 
 type FeedbackTone = 'success' | 'error'
@@ -271,6 +272,12 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     },
     [runAutoBackup],
   )
+
+  const scheduleVaultBackup = useCallback(() => {
+    if (isCloudSyncEnabled && isAutoBackupEnabled) {
+      scheduleAutoBackup('mutation')
+    }
+  }, [isAutoBackupEnabled, isCloudSyncEnabled, scheduleAutoBackup])
 
   useEffect(() => {
     let cancelled = false
@@ -589,6 +596,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       cardFields,
       customFieldDefinitions,
       showFeedback,
+      scheduleVaultBackup,
     }),
     [
       knives,
@@ -610,6 +618,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       cardFields,
       customFieldDefinitions,
       showFeedback,
+      scheduleVaultBackup,
     ],
   )
 

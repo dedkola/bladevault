@@ -38,7 +38,8 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 function ProviderConsumer() {
-  const { addToCompare, isLoading, updateKnife } = useKnives()
+  const { addToCompare, isLoading, scheduleVaultBackup, updateKnife } =
+    useKnives()
 
   return (
     <div>
@@ -50,6 +51,7 @@ function ProviderConsumer() {
         Pin
       </button>
       <button onClick={() => void addToCompare('knife')}>Compare</button>
+      <button onClick={scheduleVaultBackup}>Maintenance mutation</button>
     </div>
   )
 }
@@ -131,5 +133,12 @@ describe('KnivesProvider backup side effects', () => {
     )
     await new Promise((resolve) => window.setTimeout(resolve, 20))
     expect(uploadCloudBackupArchive).not.toHaveBeenCalled()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Maintenance mutation' }),
+    )
+    await waitFor(() =>
+      expect(uploadCloudBackupArchive).toHaveBeenCalledTimes(1),
+    )
   })
 })

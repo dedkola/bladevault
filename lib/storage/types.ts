@@ -3,6 +3,9 @@ import {
   Knife,
   KnifeActivityEvent,
   KnifeUpdates,
+  MaintenanceEvent,
+  MaintenanceEventInput,
+  MaintenanceEventUpdate,
 } from '@/lib/data'
 import type { ValidatedKnifeChange } from '@/lib/knife-fields'
 
@@ -36,6 +39,11 @@ export type KnifeUpdateOptions = {
   mutation?: KnifeMutationContext
 }
 
+export type MaintenanceEventOptions = {
+  actor?: string
+  source?: string
+}
+
 export type BulkKnifeUpdateItem = {
   id: string
   updates: KnifeUpdates
@@ -67,4 +75,19 @@ export interface Storage {
   removeFromCompare(id: string): Promise<void>
   clearCompareList(): Promise<void>
   getAuditLog(): Promise<AuditLogEvent[]>
+  getMaintenanceEvents(knifeId: string): Promise<MaintenanceEvent[]>
+  addMaintenanceEvent(
+    knifeId: string,
+    input: MaintenanceEventInput,
+    options?: MaintenanceEventOptions,
+  ): Promise<MaintenanceEvent>
+  updateMaintenanceEvent(
+    eventId: number,
+    input: MaintenanceEventUpdate,
+    options?: MaintenanceEventOptions,
+  ): Promise<MaintenanceEvent>
+  deleteMaintenanceEvent(
+    eventId: number,
+    options?: MaintenanceEventOptions,
+  ): Promise<void>
 }

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   getImageUrl,
   getKnifeSearchableText,
+  isMaintenanceType,
+  maintenanceTypeLabel,
   matchesKnifeSearch,
   prioritizePinnedKnives,
 } from '@/lib/data'
@@ -62,6 +64,15 @@ describe('collection data helpers', () => {
     )
     expect(getImageUrl('data:image/png;base64,AA==')).toBe(
       'data:image/png;base64,AA==',
+    )
+  })
+
+  it('validates maintenance types and returns human labels', () => {
+    expect(isMaintenanceType('sharpening')).toBe(true)
+    expect(isMaintenanceType('invalid')).toBe(false)
+    expect(maintenanceTypeLabel('cleaning')).toBe('Cleaned')
+    expect(maintenanceTypeLabel('hardware_replacement')).toBe(
+      'Hardware replaced',
     )
   })
 })

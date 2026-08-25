@@ -53,9 +53,11 @@ export type ActivityDay = {
   count: number
   addedCount: number
   editedCount: number
+  maintainedCount: number
   knifeIds: string[]
   addedKnifeIds: string[]
   editedKnifeIds: string[]
+  maintainedKnifeIds: string[]
 }
 
 export type CollectionStats = {
@@ -71,6 +73,7 @@ export type CollectionStats = {
   activeDays: number
   additionsInActivityRange: number
   editsInActivityRange: number
+  maintainedKnivesInActivityRange: number
   recent: Knife[]
 }
 
@@ -466,7 +469,11 @@ function buildActivity(
   const visibleKnifeIds = new Set(knives.map(({ id }) => id))
   const activityByDate = new Map<
     string,
-    { addedKnifeIds: Set<string>; editedKnifeIds: Set<string> }
+    {
+      addedKnifeIds: Set<string>
+      editedKnifeIds: Set<string>
+      maintainedKnifeIds: Set<string>
+    }
   >()
   for (const event of activityEvents) {
     if (!visibleKnifeIds.has(event.knifeId)) continue
@@ -476,9 +483,11 @@ function buildActivity(
     const bucket = activityByDate.get(key) ?? {
       addedKnifeIds: new Set<string>(),
       editedKnifeIds: new Set<string>(),
+      maintainedKnifeIds: new Set<string>(),
     }
     if (event.type === 'created') bucket.addedKnifeIds.add(event.knifeId)
-    else bucket.editedKnifeIds.add(event.knifeId)
+    else if (event.type === 'updated') bucket.editedKnifeIds.add(event.knifeId)
+    else bucket.maintainedKnifeIds.add(event.knifeId)
     activityByDate.set(key, bucket)
   }
 
@@ -489,18 +498,24 @@ function buildActivity(
     const bucket = activityByDate.get(dateKey)
     const addedKnifeIds = Array.from(bucket?.addedKnifeIds ?? [])
     const editedKnifeIds = Array.from(bucket?.editedKnifeIds ?? [])
-    const knifeIds = Array.from(new Set([...addedKnifeIds, ...editedKnifeIds]))
+    const maintainedKnifeIds = Array.from(bucket?.maintainedKnifeIds ?? [])
+    const knifeIds = Array.from(
+      new Set([...addedKnifeIds, ...editedKnifeIds, ...maintainedKnifeIds]),
+    )
     const addedCount = addedKnifeIds.length
     const editedCount = editedKnifeIds.length
+    const maintainedCount = maintainedKnifeIds.length
     return {
       date,
       dateKey,
-      count: addedCount + editedCount,
+      count: addedCount + editedCount + maintainedCount,
       addedCount,
       editedCount,
+      maintainedCount,
       knifeIds,
       addedKnifeIds,
       editedKnifeIds,
+      maintainedKnifeIds,
     }
   })
 }
@@ -566,6 +581,10 @@ export function createCollectionStats(
     (sum, day) => sum + day.editedCount,
     0,
   )
+  const maintainedKnivesInActivityRange = activity.reduce(
+    (sum, day) => sum + day.maintainedCount,
+    0,
+  )
   const recent = [...knives]
     .sort((left, right) => {
       const leftTime = getDate(left.addedAt)?.getTime() ?? 0
@@ -590,6 +609,7 @@ export function createCollectionStats(
     activeDays,
     additionsInActivityRange,
     editsInActivityRange,
+    maintainedKnivesInActivityRange,
     recent,
   }
 }
