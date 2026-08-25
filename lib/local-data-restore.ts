@@ -123,7 +123,12 @@ export function validateLocalDatabase(dbPath: string): ValidatedLocalDatabase {
       )
     }
 
-    const requiredTables = ['knives', 'settings']
+    const requiredTables = [
+      'knives',
+      'settings',
+      ...(schemaVersion >= 3 ? ['audit_log'] : []),
+      ...(schemaVersion >= 4 ? ['maintenance_events'] : []),
+    ]
     const tableRows = database
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
       .all() as Array<{ name: string }>

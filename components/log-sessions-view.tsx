@@ -18,6 +18,7 @@ import {
   Search,
   ShieldCheck,
   UserRound,
+  Wrench,
 } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -68,8 +69,36 @@ const typeMeta: Record<EventType, { label: string; className: string }> = {
   system: { label: 'System', className: 'text-slate-600 dark:text-slate-300' },
 }
 
-function eventTitle(type: EventType): string {
-  switch (type) {
+function isMaintenanceEvent(event: AuditLogEvent): boolean {
+  return (
+    event.source === 'Maintenance' ||
+    event.source === 'MCP / add_maintenance_event'
+  )
+}
+
+function eventMeta(event: AuditLogEvent): {
+  label: string
+  className: string
+} {
+  if (isMaintenanceEvent(event)) {
+    return {
+      label: 'Maintenance',
+      className: 'text-amber-700 dark:text-amber-300',
+    }
+  }
+  return typeMeta[event.type]
+}
+
+function eventTitle(event: AuditLogEvent): string {
+  if (isMaintenanceEvent(event)) {
+    if (event.type === 'deleted') return 'Maintenance deleted'
+    if (event.summary.endsWith('entry was updated.')) {
+      return 'Maintenance updated'
+    }
+    return 'Maintenance logged'
+  }
+
+  switch (event.type) {
     case 'created':
       return 'Knife added'
     case 'updated':
@@ -203,7 +232,10 @@ function getCalendarStartMonth(date: Date, numberOfMonths: number): Date {
   return month
 }
 
-function EventIcon({ type }: { type: EventType }) {
+function EventIcon({ event }: { event: ViewEvent }) {
+  if (isMaintenanceEvent(event)) return <Wrench className="size-4" />
+
+  const { type } = event
   const Icon =
     type === 'created'
       ? Check
@@ -256,7 +288,7 @@ export function LogSessionsView() {
         }
         const loaded = (data.events ?? []).map((event) => ({
           ...event,
-          title: eventTitle(event.type),
+          title: eventTitle(event),
           time: formatEventTime(event.occurredAt),
           ...getEventDate(event.occurredAt),
         }))
@@ -653,7 +685,7 @@ export function LogSessionsView() {
                   </div>
                   <ol className="relative list-none before:absolute before:top-6 before:bottom-6 before:left-5 before:hidden before:w-px before:-translate-x-1/2 before:bg-border before:content-[''] md:before:block">
                     {group.events.map((event) => {
-                      const meta = typeMeta[event.type]
+                      const meta = eventMeta(event)
                       const expanded = expandedIds.has(event.id)
                       const detailId = `log-detail-${event.id}`
                       return (
@@ -669,7 +701,7 @@ export function LogSessionsView() {
                               meta.className,
                             )}
                           >
-                            <EventIcon type={event.type} />
+                            <EventIcon event={event} />
                           </span>
                           <Card className="gap-0 py-0 shadow-sm">
                             <button

@@ -13,6 +13,12 @@ import {
   type McpTransport,
   updateKnifeMetadata,
 } from '@/lib/services/knife-service'
+import {
+  addMaintenanceEvent,
+  getKnifeMaintenance,
+  type AddMaintenanceInput,
+} from '@/lib/services/maintenance-service'
+import { MAINTENANCE_TYPES } from '@/lib/data'
 import { recordMcpToolCall } from '@/lib/mcp/activity'
 import { areMcpWritesEnabled } from '@/lib/mcp/config'
 
@@ -256,6 +262,64 @@ export function createBladeVaultMcpServer(transport: McpTransport): McpServer {
           previewHash: preview_hash,
           transport,
         })
+      }),
+  )
+
+  server.registerTool(
+    'get_knife_maintenance',
+    {
+      title: 'Get knife maintenance history',
+      description:
+        'Return maintenance events and last-done summary for a specific knife.',
+      inputSchema: z.object({
+        knife_id: z.string().min(1),
+      }),
+      annotations: readOnlyAnnotations,
+    },
+    ({ knife_id }) => runTool(transport, () => getKnifeMaintenance(knife_id)),
+  )
+
+  const sharpeningDetailsSchema = z
+    .object({
+      grit: z.string().optional(),
+      angle: z.string().optional(),
+      system: z.string().optional(),
+      passes: z.number().int().min(0).optional(),
+      ceramic: z.string().optional(),
+      strop: z.string().optional(),
+      compound: z.string().optional(),
+      notes: z.string().optional(),
+    })
+    .optional()
+
+  server.registerTool(
+    'add_maintenance_event',
+    {
+      title: 'Add a maintenance event to a knife',
+      description:
+        'Log cleaning, lubrication, sharpening, disassembly, or other maintenance for a specific knife.',
+      inputSchema: z.object({
+        knife_id: z.string().min(1),
+        type: z.enum(MAINTENANCE_TYPES as [string, ...string[]]),
+        occurred_at: z.string().optional(),
+        notes: z.string().optional(),
+        sharpening_details: sharpeningDetailsSchema,
+      }),
+      annotations: writeAnnotations,
+    },
+    ({ knife_id, type, occurred_at, notes, sharpening_details }) =>
+      runTool(transport, async () => {
+        requireMcpWrites()
+        const input: AddMaintenanceInput = {
+          knifeId: knife_id,
+          type: type as AddMaintenanceInput['type'],
+          occurredAt: occurred_at,
+          notes,
+          sharpeningDetails: sharpening_details,
+          origin: 'mcp',
+        }
+        const event = await addMaintenanceEvent(input)
+        return { event }
       }),
   )
 

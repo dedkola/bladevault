@@ -77,7 +77,13 @@ describe('backup archive route', () => {
 
   it('restores an archive into a differently named data directory', async () => {
     vault = await createTempVault('bladevault-export-name-')
-    await new LocalStorage().createKnife(input)
+    const sourceStorage = new LocalStorage()
+    const knife = await sourceStorage.createKnife(input)
+    await sourceStorage.addMaintenanceEvent(knife.id, {
+      type: 'cleaning',
+      occurredAt: '2026-08-21T09:30:00.000Z',
+      notes: 'Portable maintenance record',
+    })
     const archive = await (await archiveRoute.GET()).arrayBuffer()
 
     await vault.cleanup()
@@ -90,9 +96,29 @@ describe('backup archive route', () => {
       }),
     )
     expect(restored.status).toBe(200)
+    const restoredStorage = new LocalStorage()
     expect(
-      (await new LocalStorage().getAllKnives()).map((knife) => knife.id),
+      (await restoredStorage.getAllKnives()).map((knife) => knife.id),
     ).toEqual(['backup-knife'])
+    await expect(
+      restoredStorage.getMaintenanceEvents(knife.id),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        knifeId: knife.id,
+        type: 'cleaning',
+        notes: 'Portable maintenance record',
+      }),
+    ])
+    expect(await restoredStorage.getKnifeActivity()).toContainEqual(
+      expect.objectContaining({ knifeId: knife.id, type: 'maintained' }),
+    )
+    expect(await restoredStorage.getAuditLog()).toContainEqual(
+      expect.objectContaining({
+        knifeId: knife.id,
+        source: 'Maintenance',
+        summary: 'Cleaning was logged.',
+      }),
+    )
   })
 
   it('removes stale SQLite sidecars before opening a restored database', async () => {

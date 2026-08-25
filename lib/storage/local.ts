@@ -9,6 +9,12 @@ import {
   Knife,
   KnifeActivityEvent,
   KnifeUpdates,
+  MaintenanceEvent,
+  MaintenanceEventInput,
+  MaintenanceEventUpdate,
+  MaintenanceType,
+  isMaintenanceType,
+  maintenanceTypeName,
 } from '@/lib/data'
 import { normalizeKnifeTextFields } from '@/lib/knife-text'
 import { getLocalDb, getLocalImagesDirPath } from '@/lib/local-db'
@@ -20,6 +26,7 @@ import {
   type ImageStream,
   type KnifeMutationContext,
   type KnifeUpdateOptions,
+  type MaintenanceEventOptions,
   type Storage,
 } from './types'
 
@@ -177,6 +184,62 @@ function recordAuditEvent(
     )
 }
 
+function formatSharpeningDetails(
+  details: MaintenanceEvent['sharpeningDetails'],
+): string {
+  if (!details) return 'Not set'
+
+  const fields: Array<[string, string | number | undefined]> = [
+    ['Grit', details.grit],
+    ['Angle', details.angle],
+    ['System', details.system],
+    ['Passes', details.passes],
+    ['Ceramic', details.ceramic],
+    ['Strop', details.strop],
+    ['Compound', details.compound],
+    ['Notes', details.notes],
+  ]
+  const summary = fields
+    .filter(([, value]) => value !== undefined && value !== '')
+    .map(([label, value]) => `${label}: ${value}`)
+    .join(' · ')
+  return summary || 'Not set'
+}
+
+function getMaintenanceUpdateChanges(
+  existing: MaintenanceEvent,
+  updated: MaintenanceEvent,
+): AuditLogEventChange[] {
+  const changes: AuditLogEventChange[] = []
+  const fields = [
+    {
+      field: 'Maintenance',
+      before: maintenanceTypeName(existing.type),
+      after: maintenanceTypeName(updated.type),
+    },
+    {
+      field: 'Maintenance date',
+      before: existing.occurredAt.slice(0, 10),
+      after: updated.occurredAt.slice(0, 10),
+    },
+    {
+      field: 'Notes',
+      before: existing.notes || 'Not set',
+      after: updated.notes || 'Not set',
+    },
+    {
+      field: 'Sharpening details',
+      before: formatSharpeningDetails(existing.sharpeningDetails),
+      after: formatSharpeningDetails(updated.sharpeningDetails),
+    },
+  ]
+
+  for (const change of fields) {
+    if (change.before !== change.after) changes.push(change)
+  }
+  return changes
+}
+
 function computeUpdateChanges(
   existing: Knife,
   updated: Knife,
@@ -289,9 +352,15 @@ export class LocalStorage implements Storage {
   async getKnifeActivity(): Promise<KnifeActivityEvent[]> {
     const rows = getDb()
       .prepare(
-        `SELECT id, knife_id, event_type, occurred_at
-         FROM knife_activity
-         ORDER BY occurred_at ASC, id ASC`,
+        `SELECT knife_id, event_type, occurred_at
+         FROM (
+           SELECT id, 0 AS source_order, knife_id, event_type, occurred_at
+           FROM knife_activity
+           UNION ALL
+           SELECT id, 1 AS source_order, knife_id, 'maintained' AS event_type, occurred_at
+           FROM maintenance_events
+         )
+         ORDER BY occurred_at ASC, source_order ASC, id ASC`,
       )
       .all() as Array<{
       id: number
@@ -1008,6 +1077,271 @@ export class LocalStorage implements Storage {
 
   async clearCompareList(): Promise<void> {
     getDb().prepare('DELETE FROM compare_list').run()
+  }
+
+  private rowToMaintenanceEvent(
+    row: Record<string, unknown>,
+  ): MaintenanceEvent {
+    const sharpeningDetails = row.sharpening_details
+      ? (JSON.parse(
+          String(row.sharpening_details),
+        ) as MaintenanceEvent['sharpeningDetails'])
+      : undefined
+
+    return {
+      id: Number(row.id),
+      knifeId: String(row.knife_id),
+      type: String(row.type) as MaintenanceType,
+      occurredAt: String(row.occurred_at),
+      notes: String(row.notes ?? ''),
+      sharpeningDetails,
+      createdAt: String(row.created_at),
+    }
+  }
+
+  async getMaintenanceEvents(knifeId: string): Promise<MaintenanceEvent[]> {
+    const rows = getDb()
+      .prepare(
+        `SELECT id, knife_id, type, occurred_at, notes, sharpening_details, created_at
+         FROM maintenance_events
+         WHERE knife_id = ?
+         ORDER BY occurred_at DESC, id DESC`,
+      )
+      .all(knifeId) as Array<Record<string, unknown>>
+
+    return rows.map((row) => this.rowToMaintenanceEvent(row))
+  }
+
+  async addMaintenanceEvent(
+    knifeId: string,
+    input: MaintenanceEventInput,
+    options: MaintenanceEventOptions = {},
+  ): Promise<MaintenanceEvent> {
+    const knife = await this.getKnifeById(knifeId)
+    if (!knife) {
+      throw new Error(`Knife with id "${knifeId}" not found`)
+    }
+
+    if (!isMaintenanceType(input.type)) {
+      throw new Error(`Invalid maintenance type: ${input.type}`)
+    }
+
+    const occurredAt = input.occurredAt.trim() || new Date().toISOString()
+    const createdAt = new Date().toISOString()
+    const notes = input.notes?.trim() ?? ''
+    const sharpeningDetails = input.sharpeningDetails
+      ? JSON.stringify(input.sharpeningDetails)
+      : null
+
+    const database = getDb()
+    const insertEvent = database.transaction(() => {
+      const result = database
+        .prepare(
+          `INSERT INTO maintenance_events
+           (knife_id, type, occurred_at, notes, sharpening_details, created_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          knifeId,
+          input.type,
+          occurredAt,
+          notes,
+          sharpeningDetails,
+          createdAt,
+        )
+
+      const maintenanceName = maintenanceTypeName(input.type)
+      const changes: AuditLogEventChange[] = [
+        {
+          field: 'Maintenance',
+          before: 'Not logged',
+          after: maintenanceName,
+        },
+        {
+          field: 'Maintenance date',
+          before: 'Not logged',
+          after: occurredAt.slice(0, 10),
+        },
+      ]
+      if (notes) {
+        changes.push({ field: 'Notes', before: '', after: notes })
+      }
+
+      recordAuditEvent(database, {
+        operationId: generateOperationId(),
+        type: 'updated',
+        knifeId,
+        subject: formatKnifeSubject(knife),
+        actor: options.actor ?? 'You',
+        source: options.source ?? 'Maintenance',
+        summary: `${maintenanceName} was logged.`,
+        changes,
+        occurredAt: createdAt,
+      })
+
+      return Number(result.lastInsertRowid)
+    })
+    const eventId = insertEvent()
+
+    const event = await this.getMaintenanceEventById(eventId)
+    if (!event) {
+      throw new Error('Failed to retrieve created maintenance event')
+    }
+    return event
+  }
+
+  private getMaintenanceEventById(id: number): MaintenanceEvent | undefined {
+    const row = getDb()
+      .prepare('SELECT * FROM maintenance_events WHERE id = ?')
+      .get(id) as Record<string, unknown> | undefined
+    return row ? this.rowToMaintenanceEvent(row) : undefined
+  }
+
+  async updateMaintenanceEvent(
+    eventId: number,
+    input: MaintenanceEventUpdate,
+    options: MaintenanceEventOptions = {},
+  ): Promise<MaintenanceEvent> {
+    const existing = this.getMaintenanceEventById(eventId)
+    if (!existing) {
+      throw new Error(`Maintenance event with id "${eventId}" not found`)
+    }
+
+    if (input.type && !isMaintenanceType(input.type)) {
+      throw new Error(`Invalid maintenance type: ${input.type}`)
+    }
+
+    const knife = await this.getKnifeById(existing.knifeId)
+    if (!knife) {
+      throw new Error(`Knife with id "${existing.knifeId}" not found`)
+    }
+
+    const next: MaintenanceEvent = {
+      ...existing,
+      type: input.type ?? existing.type,
+      occurredAt:
+        input.occurredAt !== undefined
+          ? input.occurredAt.trim() || existing.occurredAt
+          : existing.occurredAt,
+      notes: input.notes !== undefined ? input.notes.trim() : existing.notes,
+      sharpeningDetails:
+        input.sharpeningDetails !== undefined
+          ? (input.sharpeningDetails ?? undefined)
+          : existing.sharpeningDetails,
+    }
+    const changes = getMaintenanceUpdateChanges(existing, next)
+    if (changes.length === 0) return existing
+
+    const updates: string[] = []
+    const values: Array<string | number | null> = []
+
+    if (input.type) {
+      updates.push('type = ?')
+      values.push(input.type)
+    }
+    if (input.occurredAt !== undefined) {
+      updates.push('occurred_at = ?')
+      values.push(input.occurredAt.trim() || existing.occurredAt)
+    }
+    if (input.notes !== undefined) {
+      updates.push('notes = ?')
+      values.push(input.notes.trim())
+    }
+    if (input.sharpeningDetails !== undefined) {
+      updates.push('sharpening_details = ?')
+      values.push(
+        input.sharpeningDetails
+          ? JSON.stringify(input.sharpeningDetails)
+          : null,
+      )
+    }
+
+    if (updates.length === 0) {
+      return existing
+    }
+
+    values.push(eventId)
+    const database = getDb()
+    const updateEvent = database.transaction(() => {
+      database
+        .prepare(
+          `UPDATE maintenance_events SET ${updates.join(', ')} WHERE id = ?`,
+        )
+        .run(...values)
+
+      recordAuditEvent(database, {
+        operationId: generateOperationId(),
+        type: 'updated',
+        knifeId: existing.knifeId,
+        subject: formatKnifeSubject(knife),
+        actor: options.actor ?? 'You',
+        source: options.source ?? 'Maintenance',
+        summary: `${maintenanceTypeName(next.type)} entry was updated.`,
+        changes,
+        occurredAt: new Date().toISOString(),
+      })
+    })
+    updateEvent()
+
+    const updated = this.getMaintenanceEventById(eventId)
+    if (!updated) {
+      throw new Error('Failed to retrieve updated maintenance event')
+    }
+    return updated
+  }
+
+  async deleteMaintenanceEvent(
+    eventId: number,
+    options: MaintenanceEventOptions = {},
+  ): Promise<void> {
+    const existing = this.getMaintenanceEventById(eventId)
+    if (!existing) {
+      throw new Error(`Maintenance event with id "${eventId}" not found`)
+    }
+
+    const knife = await this.getKnifeById(existing.knifeId)
+    if (!knife) {
+      throw new Error(`Knife with id "${existing.knifeId}" not found`)
+    }
+
+    const changes: AuditLogEventChange[] = [
+      {
+        field: 'Maintenance',
+        before: maintenanceTypeName(existing.type),
+        after: 'Deleted',
+      },
+      {
+        field: 'Maintenance date',
+        before: existing.occurredAt.slice(0, 10),
+        after: 'Deleted',
+      },
+    ]
+    if (existing.notes) {
+      changes.push({
+        field: 'Notes',
+        before: existing.notes,
+        after: 'Deleted',
+      })
+    }
+
+    const database = getDb()
+    const deleteEvent = database.transaction(() => {
+      database
+        .prepare('DELETE FROM maintenance_events WHERE id = ?')
+        .run(eventId)
+      recordAuditEvent(database, {
+        operationId: generateOperationId(),
+        type: 'deleted',
+        knifeId: existing.knifeId,
+        subject: formatKnifeSubject(knife),
+        actor: options.actor ?? 'You',
+        source: options.source ?? 'Maintenance',
+        summary: `${maintenanceTypeName(existing.type)} entry was deleted.`,
+        changes,
+        occurredAt: new Date().toISOString(),
+      })
+    })
+    deleteEvent()
   }
 
   async migrateKnife(knife: Knife, images: string[]): Promise<void> {
