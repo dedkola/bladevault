@@ -412,30 +412,6 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.25fr_380px] 2xl:grid-cols-[1.5fr_420px]">
         <div className="flex flex-col gap-6">
           <Gallery images={knife.images} />
-
-          <DetailSection title="Notes">
-            <div className="max-w-3xl space-y-3">
-              {knife.description ? (
-                knife.description
-                  .split(/\n\s*\n/)
-                  .map((p) => p.trim())
-                  .filter(Boolean)
-                  .map((paragraph, index) => (
-                    <p
-                      key={index}
-                      className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground"
-                    >
-                      {paragraph}
-                    </p>
-                  ))
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No description provided.
-                </p>
-              )}
-            </div>
-          </DetailSection>
-
           <MaintenanceSection knifeId={knife.id} />
         </div>
 
@@ -480,6 +456,29 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
                   {constructionRows.map(({ label, value }) => (
                     <DetailRow key={label} label={label} value={value} />
                   ))}
+                </div>
+              </DetailSection>
+
+              <DetailSection title="Notes" className="rounded-lg">
+                <div className="space-y-3">
+                  {knife.description ? (
+                    knife.description
+                      .split(/\n\s*\n/)
+                      .map((p) => p.trim())
+                      .filter(Boolean)
+                      .map((paragraph, index) => (
+                        <p
+                          key={index}
+                          className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground"
+                        >
+                          {paragraph}
+                        </p>
+                      ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No description provided.
+                    </p>
+                  )}
                 </div>
               </DetailSection>
 
