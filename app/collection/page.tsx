@@ -97,7 +97,7 @@ function CollectionContent() {
   const query = searchParams.get('q') ?? ''
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
-  const [isDesktopFiltersOpen, setIsDesktopFiltersOpen] = useState(true)
+  const [isDesktopFiltersOpen, setIsDesktopFiltersOpen] = useState(false)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
@@ -454,7 +454,14 @@ function CollectionContent() {
       )}
 
       {knives.length > 0 && (
-        <div className="mb-6 border border-border/80 bg-muted/20 p-3 sm:p-4">
+        <div
+          data-collection-filter-panel
+          className={cn(
+            'mb-6 border border-border/80 bg-muted/20',
+            isFiltersOpen ? 'p-3' : 'p-2',
+            isDesktopFiltersOpen ? 'sm:p-4' : 'sm:p-2',
+          )}
+        >
           <button
             type="button"
             onClick={() => setIsFiltersOpen((current) => !current)}
@@ -482,7 +489,10 @@ function CollectionContent() {
             onClick={() => setIsDesktopFiltersOpen((current) => !current)}
             aria-expanded={isDesktopFiltersOpen}
             aria-controls="collection-filters"
-            className="mb-3 hidden min-h-8 w-full items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
+            className={cn(
+              'hidden min-h-8 w-full items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex',
+              isDesktopFiltersOpen && 'mb-3',
+            )}
           >
             <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
             Filters

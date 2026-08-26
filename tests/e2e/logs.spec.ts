@@ -46,6 +46,12 @@ test('records and displays create, update, and delete events', async ({
   await page.getByRole('link', { name: 'Logs', exact: true }).click()
   await expect(page).toHaveURL(/\/logs$/)
   await expect(page.getByRole('heading', { name: 'Logs' })).toBeVisible()
+  await expect(
+    page.getByRole('link', { name: 'Logs', exact: true }),
+  ).toHaveAttribute('aria-current', 'page')
+  await expect(
+    page.getByRole('link', { name: 'Insights', exact: true }),
+  ).not.toHaveAttribute('aria-current')
   await expect(logEntry(page, 'created', `${brand} · ${name}`)).toBeVisible()
 
   await page.goto('/collection')
