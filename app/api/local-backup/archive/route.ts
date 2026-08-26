@@ -30,6 +30,7 @@ const MAX_ARCHIVE_BYTES = 20 * 1024 * 1024 * 1024
 const MAX_EXTRACTED_BYTES = 50 * 1024 * 1024 * 1024
 const MAX_ARCHIVE_ENTRIES = 100_000
 const MAX_JSON_BYTES = 256 * 1024
+const UNCOMPRESSED_ZIP_ENTRY_OPTIONS = { compress: false } as const
 
 type LocalBackupManifest = {
   formatVersion: number
@@ -476,15 +477,21 @@ async function writeBackupZip(outputPath: string) {
       archive.addBuffer(
         Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`),
         'manifest.json',
+        UNCOMPRESSED_ZIP_ENTRY_OPTIONS,
       )
       archive.addBuffer(
         Buffer.from(`${JSON.stringify(metadata, null, 2)}\n`),
         'metadata.json',
+        UNCOMPRESSED_ZIP_ENTRY_OPTIONS,
       )
-      archive.addFile(dbPath, 'database.sqlite')
+      archive.addFile(dbPath, 'database.sqlite', UNCOMPRESSED_ZIP_ENTRY_OPTIONS)
       archive.addEmptyDirectory('images')
       for (const image of images) {
-        archive.addFile(image.absolutePath, image.archivePath)
+        archive.addFile(
+          image.absolutePath,
+          image.archivePath,
+          UNCOMPRESSED_ZIP_ENTRY_OPTIONS,
+        )
       }
       archive.end()
     })

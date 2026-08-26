@@ -116,6 +116,9 @@ describe('local backup archive route', () => {
     const archive = Buffer.from(await exported.arrayBuffer())
     const directory = await unzipper.Open.buffer(archive)
     const paths = directory.files.map((entry) => entry.path)
+    expect(
+      directory.files.every((entry) => entry.compressionMethod === 0),
+    ).toBe(true)
     expect(paths).toEqual(
       expect.arrayContaining([
         'manifest.json',
