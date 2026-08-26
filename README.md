@@ -43,8 +43,11 @@
 
 <div align="center">
 
-  <img src="assets/screenshots/dashboard.png" alt="BladeVault dashboard showing recent additions and collection insights" width="80%" />
-  <p><sub>Dashboard — recent additions and collection insights</sub></p>
+  <img src="assets/screenshots/insights.png" alt="BladeVault collection insights showing maker, material, dimension, and data completeness analytics" width="80%" />
+  <p><sub>Insights — patterns, dimensions, materials, and collection health</sub></p>
+
+  <img src="assets/screenshots/collection.png" alt="BladeVault collection showing search, filters, pinned knives, and image-rich records" width="80%" />
+  <p><sub>Collection — search, filter, pin, and browse every knife</sub></p>
 
   <img src="assets/screenshots/detail.png" alt="Knife detail page with specifications and image gallery" width="80%" />
   <p><sub>Knife detail — specifications, notes, and image gallery</sub></p>
