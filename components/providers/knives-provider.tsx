@@ -58,6 +58,7 @@ type KnivesContextValue = {
 type FeedbackTone = 'success' | 'error'
 
 const KnivesContext = createContext<KnivesContextValue | null>(null)
+const AUTO_BACKUP_DEBOUNCE_MS = 30_000
 const BACKUP_NOTICE_DURATION_MS = 3200
 const FEEDBACK_DURATION_MS = 3200
 
@@ -99,6 +100,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
   >(DEFAULT_SETTINGS.customFields)
   const backupInFlightRef = useRef(false)
   const pendingBackupRef = useRef(false)
+  const scheduledBackupTimerRef = useRef<number | null>(null)
   const runAutoBackupRef = useRef<
     (reason: 'mutation' | 'queued') => Promise<void>
   >(async () => {})
@@ -266,11 +268,35 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
 
   const scheduleAutoBackup = useCallback(
     (reason: 'mutation') => {
-      window.setTimeout(() => {
+      if (scheduledBackupTimerRef.current !== null) {
+        window.clearTimeout(scheduledBackupTimerRef.current)
+      }
+
+      scheduledBackupTimerRef.current = window.setTimeout(() => {
+        scheduledBackupTimerRef.current = null
         void runAutoBackup(reason)
-      }, 0)
+      }, AUTO_BACKUP_DEBOUNCE_MS)
     },
     [runAutoBackup],
+  )
+
+  useEffect(() => {
+    if (isCloudSyncEnabled && isAutoBackupEnabled) return
+
+    if (scheduledBackupTimerRef.current !== null) {
+      window.clearTimeout(scheduledBackupTimerRef.current)
+      scheduledBackupTimerRef.current = null
+    }
+    pendingBackupRef.current = false
+  }, [isAutoBackupEnabled, isCloudSyncEnabled])
+
+  useEffect(
+    () => () => {
+      if (scheduledBackupTimerRef.current !== null) {
+        window.clearTimeout(scheduledBackupTimerRef.current)
+      }
+    },
+    [],
   )
 
   const scheduleVaultBackup = useCallback(() => {
