@@ -49,7 +49,21 @@ test('supports collection search and filter keyboard focus', async ({
   await expect(search).toHaveValue('')
   await expect(page).not.toHaveURL(/q=/)
 
+  const filtersTrigger = page.getByRole('button', {
+    name: 'Filters',
+    exact: true,
+  })
+  const filterPanel = page.locator('[data-collection-filter-panel]')
   const brandTrigger = page.getByRole('button', { name: 'Brand', exact: true })
+
+  await expect(filtersTrigger).toHaveAttribute('aria-expanded', 'false')
+  await expect(brandTrigger).not.toBeVisible()
+  expect(
+    await filterPanel.evaluate((element) => element.clientHeight),
+  ).toBeLessThan(60)
+
+  await filtersTrigger.click()
+  await expect(filtersTrigger).toHaveAttribute('aria-expanded', 'true')
   await brandTrigger.click()
   await expect(page.getByPlaceholder('Search brand...')).toBeFocused()
   await page.keyboard.press('Escape')
