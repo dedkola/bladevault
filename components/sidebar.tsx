@@ -33,11 +33,11 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { type AppSettings } from '@/lib/settings-shared'
-import { useAuditLog } from '@/hooks/use-audit-log'
 import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
 
 const links = [
   { href: '/', label: 'Insights', icon: LayoutDashboard },
+  { href: '/logs', label: 'Logs', icon: ScrollText },
   { href: '/collection', label: 'Collection', icon: Library },
   { href: '/compare', label: 'Compare', icon: Scale },
 ]
@@ -49,7 +49,6 @@ export function Sidebar() {
   const selectedBrands = searchParams.getAll('brand')
   const routeKey = searchParamsKey ? `${pathname}?${searchParamsKey}` : pathname
   const { knives, compareIds, isAutoBackupActive } = useKnives()
-  const { count: auditLogCount } = useAuditLog()
   const { update, downloadUpdate } = useDesktopUpdates()
   const [brandsOpen, setBrandsOpen] = useState(true)
   const [pinnedOpen, setPinnedOpen] = useState(true)
@@ -209,58 +208,41 @@ export function Sidebar() {
             const Icon = link.icon
             const isActive =
               pathname === link.href ||
-              (link.href !== '/' && pathname.startsWith(link.href)) ||
-              (link.href === '/' && pathname === '/logs')
-            const isLogsActive = pathname === '/logs'
+              (link.href !== '/' && pathname.startsWith(link.href))
 
             return (
-              <div key={link.href} className="space-y-0.5">
-                <Link
-                  href={link.href}
-                  onClick={handleNavigate}
-                  className={cn(
-                    'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors',
-                    isActive
-                      ? 'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)]'
-                      : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="flex flex-1 items-center justify-between gap-2">
-                    <span>{link.label}</span>
-                    {(link.href === '/collection' && knives.length > 0) ||
-                    (link.href === '/compare' && compareIds.length > 0) ? (
-                      <span
-                        className={cn(
-                          'inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none',
-                          isActive
-                            ? 'bg-[var(--bladevault-gold)] text-[var(--bladevault-olive)]'
-                            : 'bg-muted text-foreground',
-                        )}
-                      >
-                        {link.href === '/collection'
-                          ? knives.length
-                          : compareIds.length}
-                      </span>
-                    ) : null}
-                  </span>
-                </Link>
-                {link.href === '/' && auditLogCount > 0 && (
-                  <Link
-                    href="/logs"
-                    onClick={handleNavigate}
-                    className={cn(
-                      'flex items-center gap-2 rounded-md px-2.5 py-1.5 pl-[2.125rem] text-xs transition-colors',
-                      isLogsActive
-                        ? 'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)]'
-                        : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-                    )}
-                  >
-                    <ScrollText className="h-3.5 w-3.5" />
-                    Logs
-                  </Link>
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={handleNavigate}
+                aria-current={isActive ? 'page' : undefined}
+                className={cn(
+                  'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors',
+                  isActive
+                    ? 'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)]'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                 )}
-              </div>
+              >
+                <Icon className="h-4 w-4" />
+                <span className="flex flex-1 items-center justify-between gap-2">
+                  <span>{link.label}</span>
+                  {(link.href === '/collection' && knives.length > 0) ||
+                  (link.href === '/compare' && compareIds.length > 0) ? (
+                    <span
+                      className={cn(
+                        'inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none',
+                        isActive
+                          ? 'bg-[var(--bladevault-gold)] text-[var(--bladevault-olive)]'
+                          : 'bg-muted text-foreground',
+                      )}
+                    >
+                      {link.href === '/collection'
+                        ? knives.length
+                        : compareIds.length}
+                    </span>
+                  ) : null}
+                </span>
+              </Link>
             )
           })}
 
