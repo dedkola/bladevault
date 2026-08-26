@@ -20,7 +20,9 @@ import {
   type CustomField,
   DEFAULT_SETTINGS,
   normalizeCardFields,
+  normalizeTimeFormat,
   SETTINGS_UPDATED_EVENT,
+  type TimeFormat,
 } from '@/lib/settings-shared'
 import {
   canAttemptSilentCloudBackup,
@@ -49,6 +51,7 @@ type KnivesContextValue = {
   isAutoBackupEnabled: boolean
   isAutoBackupActive: boolean
   pinnedItemsFirst: boolean
+  timeFormat: TimeFormat
   cardFields: CardField[]
   customFieldDefinitions: CustomField[]
   showFeedback: (message: string, tone?: FeedbackTone) => void
@@ -92,6 +95,9 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
   const [pinnedItemsFirst, setPinnedItemsFirst] = useState(
     DEFAULT_SETTINGS.pinnedItemsFirst,
   )
+  const [timeFormat, setTimeFormat] = useState<TimeFormat>(
+    DEFAULT_SETTINGS.timeFormat,
+  )
   const [cardFields, setCardFields] = useState<CardField[]>(
     DEFAULT_SETTINGS.cardFields,
   )
@@ -116,6 +122,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
           settings?: {
             cloudAutoBackupEnabled?: boolean
             pinnedItemsFirst?: boolean
+            timeFormat?: TimeFormat
             cardFields?: CardField[]
             customFields?: CustomField[]
           }
@@ -127,6 +134,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) {
           setIsAutoBackupEnabled(Boolean(data.settings?.cloudAutoBackupEnabled))
           setPinnedItemsFirst(Boolean(data.settings?.pinnedItemsFirst))
+          setTimeFormat(normalizeTimeFormat(data.settings?.timeFormat))
           setCardFields(normalizeCardFields(data.settings?.cardFields))
           setCustomFieldDefinitions(
             Array.isArray(data.settings?.customFields)
@@ -138,6 +146,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) {
           setIsAutoBackupEnabled(DEFAULT_SETTINGS.cloudAutoBackupEnabled)
           setPinnedItemsFirst(DEFAULT_SETTINGS.pinnedItemsFirst)
+          setTimeFormat(DEFAULT_SETTINGS.timeFormat)
           setCardFields(DEFAULT_SETTINGS.cardFields)
           setCustomFieldDefinitions(DEFAULT_SETTINGS.customFields)
         }
@@ -149,6 +158,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
         event as CustomEvent<{
           cloudAutoBackupEnabled?: boolean
           pinnedItemsFirst?: boolean
+          timeFormat?: TimeFormat
           cardFields?: CardField[]
           customFields?: CustomField[]
         }>
@@ -162,6 +172,11 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
 
       if (typeof detail?.pinnedItemsFirst === 'boolean') {
         setPinnedItemsFirst(detail.pinnedItemsFirst)
+        didUpdate = true
+      }
+
+      if (detail?.timeFormat !== undefined) {
+        setTimeFormat(normalizeTimeFormat(detail.timeFormat))
         didUpdate = true
       }
 
@@ -619,6 +634,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       isAutoBackupEnabled,
       isAutoBackupActive: isCloudSyncEnabled && isAutoBackupEnabled,
       pinnedItemsFirst,
+      timeFormat,
       cardFields,
       customFieldDefinitions,
       showFeedback,
@@ -641,6 +657,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       isCloudSyncEnabled,
       isAutoBackupEnabled,
       pinnedItemsFirst,
+      timeFormat,
       cardFields,
       customFieldDefinitions,
       showFeedback,

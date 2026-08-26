@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { resetVault } from './helpers'
+import { resetVault, seedKnife } from './helpers'
 
 test.beforeEach(async ({ request }) => {
   await resetVault(request)
@@ -17,6 +17,35 @@ test('persists the pinned-first setting across reloads', async ({ page }) => {
   await page.reload()
   await page.getByRole('button', { name: 'Appearance' }).click()
   await expect(page.getByRole('checkbox').first()).not.toBeChecked()
+})
+
+test('persists and applies the selected time format', async ({
+  page,
+  request,
+}) => {
+  await page.goto('/settings')
+  await page.getByRole('button', { name: 'Appearance' }).click()
+
+  const timeFormat = page.getByRole('combobox', { name: 'Time format' })
+  const timeFormatValue = timeFormat.locator('[data-slot="select-value"]')
+  await expect(timeFormatValue).toHaveText('12-hour')
+  await timeFormat.click()
+  await page.getByRole('option', { name: '24-hour' }).click()
+  await expect(timeFormatValue).toHaveText('24-hour')
+
+  await page.reload()
+  await page.getByRole('button', { name: 'Appearance' }).click()
+  await expect(
+    page
+      .getByRole('combobox', { name: 'Time format' })
+      .locator('[data-slot="select-value"]'),
+  ).toHaveText('24-hour')
+
+  await seedKnife(request, { name: 'Time Format Test' })
+  await page.goto('/logs')
+  await expect(page.locator('[data-log-entry] time').first()).toHaveText(
+    /^\d{1,2} [A-Z][a-z]{2} · \d{2}:\d{2}:\d{2}$/,
+  )
 })
 
 test('controls MCP access and copies the LM Studio configuration', async ({

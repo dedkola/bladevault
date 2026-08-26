@@ -24,14 +24,18 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { dayPickerClassNames } from '@/components/ui/date-input'
 import { Input } from '@/components/ui/input'
+import { useKnives } from '@/components/providers/knives-provider'
 import type { AuditLogEvent } from '@/lib/data'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
+import type { TimeFormat } from '@/lib/settings-shared'
+import { getHourCycle } from '@/lib/time-format'
 import { cn } from '@/lib/utils'
 
 type EventType = AuditLogEvent['type']
 
 type ViewEvent = AuditLogEvent & {
   title: string
+  shortDate: string
   time: string
   dateKey: string
   dateLabel: string
@@ -110,13 +114,21 @@ function eventTitle(event: AuditLogEvent): string {
   }
 }
 
-function formatEventTime(occurredAt: string): string {
+function formatEventTime(occurredAt: string, timeFormat: TimeFormat): string {
   const date = new Date(occurredAt)
   return date.toLocaleTimeString(undefined, {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
+    hourCycle: getHourCycle(timeFormat),
   })
+}
+
+function formatEventShortDate(occurredAt: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date(occurredAt))
 }
 
 function isSameDay(left: Date, right: Date): boolean {
@@ -258,6 +270,7 @@ function ActorIcon({ actor }: { actor: string }) {
 }
 
 export function LogSessionsView() {
+  const { timeFormat } = useKnives()
   const [events, setEvents] = useState<ViewEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -289,7 +302,8 @@ export function LogSessionsView() {
         const loaded = (data.events ?? []).map((event) => ({
           ...event,
           title: eventTitle(event),
-          time: formatEventTime(event.occurredAt),
+          shortDate: formatEventShortDate(event.occurredAt),
+          time: formatEventTime(event.occurredAt, timeFormat),
           ...getEventDate(event.occurredAt),
         }))
         if (!cancelled) {
@@ -313,7 +327,7 @@ export function LogSessionsView() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [timeFormat])
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(min-width: 768px)')
@@ -726,7 +740,7 @@ export function LogSessionsView() {
                                       dateTime={event.occurredAt}
                                       className="font-mono text-[10px] text-muted-foreground"
                                     >
-                                      {event.time}
+                                      {event.shortDate} · {event.time}
                                     </time>
                                   </div>
                                   <strong className="mt-1 block truncate text-sm">

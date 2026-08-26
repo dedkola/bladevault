@@ -28,6 +28,7 @@ import {
 } from '@/lib/data'
 import { useKnives } from '@/components/providers/knives-provider'
 import { SearchField } from '@/components/search-field'
+import { getHourCycle } from '@/lib/time-format'
 import { useDebouncedValue } from '@/lib/use-debounced-value'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -275,6 +276,7 @@ export default function ComparePage() {
     removeFromCompare,
     clearCompare,
     pinnedItemsFirst,
+    timeFormat,
     customFieldDefinitions,
     showFeedback,
   } = useKnives()
@@ -489,6 +491,7 @@ export default function ComparePage() {
     const generatedAt = new Intl.DateTimeFormat(undefined, {
       dateStyle: 'medium',
       timeStyle: 'short',
+      hourCycle: getHourCycle(timeFormat),
     }).format(new Date())
     const printableHtml = buildPrintableHtml(
       comparedKnives,

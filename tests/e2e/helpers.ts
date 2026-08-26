@@ -12,6 +12,7 @@ export async function resetVault(request: APIRequestContext) {
   await request.post('/api/settings', {
     data: {
       theme: 'light',
+      timeFormat: '12h',
       pinnedItemsFirst: true,
       cardFields: ['bladeStyle', 'handleMaterial'],
       cloudBackupLastSyncedAt: '',

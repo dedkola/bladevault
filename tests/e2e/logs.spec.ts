@@ -8,6 +8,13 @@ function formatDateKey(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
+function formatShortDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+  }).format(date)
+}
+
 function logEntries(page: import('@playwright/test').Page, type?: string) {
   return page.locator(
     type ? `[data-log-entry][data-event-type="${type}"]` : '[data-log-entry]',
@@ -53,6 +60,9 @@ test('records and displays create, update, and delete events', async ({
     page.getByRole('link', { name: 'Insights', exact: true }),
   ).not.toHaveAttribute('aria-current')
   await expect(logEntry(page, 'created', `${brand} · ${name}`)).toBeVisible()
+  await expect(
+    logEntry(page, 'created', `${brand} · ${name}`).locator('time'),
+  ).toContainText(`${formatShortDate(new Date())} · `)
 
   await page.goto('/collection')
   await page.getByRole('link', { name: new RegExp(name, 'i') }).click()

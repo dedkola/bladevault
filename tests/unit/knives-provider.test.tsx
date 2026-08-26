@@ -73,6 +73,7 @@ describe('KnivesProvider backup side effects', () => {
             settings: {
               cloudAutoBackupEnabled: true,
               pinnedItemsFirst: true,
+              timeFormat: '12h',
               cardFields: ['bladeStyle', 'handleMaterial'],
               customFields: [],
             },

@@ -105,7 +105,7 @@ describe('local backup archive route', () => {
       notes: 'KME 600 grit',
       sharpeningDetails: { grit: '600', system: 'KME' },
     })
-    saveSettings({ theme: 'dark' })
+    saveSettings({ theme: 'dark', timeFormat: '24h' })
 
     const exported = await localBackupRoute.GET()
     expect(exported.status).toBe(200)
@@ -159,7 +159,7 @@ describe('local backup archive route', () => {
     expect(await storage.getKnifeById(knife.id)).not.toBeNull()
 
     await storage.deleteKnife(knife.id)
-    saveSettings({ theme: 'light' })
+    saveSettings({ theme: 'light', timeFormat: '12h' })
     const restored = await localBackupRoute.PUT(
       new Request('http://localhost/api/local-backup/archive', {
         method: 'PUT',
@@ -181,6 +181,7 @@ describe('local backup archive route', () => {
     })
     expect(await storage.getCompareList()).toEqual([knife.id])
     expect(getSettings().theme).toBe('dark')
+    expect(getSettings().timeFormat).toBe('24h')
     await expect(storage.getMaintenanceEvents(knife.id)).resolves.toEqual([
       expect.objectContaining({
         knifeId: knife.id,

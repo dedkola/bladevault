@@ -41,7 +41,7 @@ describe('backup archive route', () => {
     let storage = new LocalStorage()
     const knife = await storage.createKnife(input)
     await storage.addToCompare(knife.id)
-    saveSettings({ theme: 'dark' })
+    saveSettings({ theme: 'dark', timeFormat: '24h' })
 
     const exported = await archiveRoute.GET()
     expect(exported.status).toBe(200)
@@ -49,7 +49,7 @@ describe('backup archive route', () => {
     const archive = await exported.arrayBuffer()
 
     await storage.deleteKnife(knife.id)
-    saveSettings({ theme: 'light' })
+    saveSettings({ theme: 'light', timeFormat: '12h' })
 
     const restored = await archiveRoute.PUT(
       new Request('http://localhost/api/cloud-backup/archive', {
@@ -68,6 +68,7 @@ describe('backup archive route', () => {
     })
     expect(await storage.getCompareList()).toEqual([knife.id])
     expect(getSettings().theme).toBe('dark')
+    expect(getSettings().timeFormat).toBe('24h')
     await expect(
       storage.getImage(restoredKnife?.images[0] ?? ''),
     ).resolves.toMatchObject({

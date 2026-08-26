@@ -34,13 +34,17 @@ import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
 import {
   APP_THEMES,
   CUSTOM_FIELD_TYPES,
+  DEFAULT_SETTINGS,
   SETTINGS_UPDATED_EVENT,
+  TIME_FORMATS,
   type AppSettings,
   type AppTheme,
   type CardField,
   type CustomField,
   type CustomFieldType,
+  type TimeFormat,
 } from '@/lib/settings-shared'
+import { getHourCycle } from '@/lib/time-format'
 import { getCardFieldGroups, getCardFieldLabel } from '@/lib/card-fields'
 import {
   clearCloudAuthState,
@@ -212,13 +216,17 @@ function StatusPill({
   )
 }
 
-function formatSyncTime(value: string) {
+function formatSyncTime(
+  value: string,
+  timeFormat: TimeFormat = DEFAULT_SETTINGS.timeFormat,
+) {
   if (!value) return 'Never'
 
   try {
     return new Intl.DateTimeFormat(undefined, {
       dateStyle: 'medium',
       timeStyle: 'short',
+      hourCycle: getHourCycle(timeFormat),
     }).format(new Date(value))
   } catch {
     return value
@@ -1064,7 +1072,7 @@ export default function SettingsView() {
       }
 
       const manifest = inspectData.manifest
-      const createdAt = formatSyncTime(manifest.createdAt)
+      const createdAt = formatSyncTime(manifest.createdAt, settings?.timeFormat)
       const confirmed = window.confirm(
         `Restore ${manifest.knifeCount} knives and ${manifest.imageCount} images from the backup created ${createdAt}?\n\nThis replaces the current local database and images. BladeVault will keep a safety copy of the current data.`,
       )
@@ -1124,6 +1132,19 @@ export default function SettingsView() {
 
     try {
       await saveSettings({ theme })
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : 'Failed to save settings',
+      )
+    }
+  }
+
+  const handleTimeFormatChange = async (value: string | null) => {
+    const timeFormat = value as TimeFormat
+    if (!timeFormat || !TIME_FORMATS.includes(timeFormat)) return
+
+    try {
+      await saveSettings({ timeFormat })
     } catch (error) {
       setLoadError(
         error instanceof Error ? error.message : 'Failed to save settings',
@@ -1645,6 +1666,7 @@ export default function SettingsView() {
                       label="Cloud connection"
                       description={`Last backup: ${formatSyncTime(
                         settings.cloudBackupLastSyncedAt,
+                        settings.timeFormat,
                       )}`}
                     >
                       {cloudSession ? (
@@ -1732,9 +1754,9 @@ export default function SettingsView() {
 
               {activeTab === 'appearance' && (
                 <div className="mx-auto max-w-3xl space-y-3">
-                  <SettingsSection title="Theme">
+                  <SettingsSection title="Appearance">
                     <SettingsRow
-                      label="Appearance"
+                      label="Theme"
                       description="Choose how BladeVault looks on this device."
                     >
                       <Select
@@ -1743,6 +1765,7 @@ export default function SettingsView() {
                       >
                         <SelectTrigger
                           size="sm"
+                          aria-label="Theme"
                           className="h-8 min-w-[8rem] rounded-lg border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)]"
                         >
                           <SelectValue />
@@ -1755,6 +1778,34 @@ export default function SettingsView() {
                               className="text-sm capitalize"
                             >
                               {theme}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </SettingsRow>
+                    <SettingsRow
+                      label="Time format"
+                      description="Choose how clock times are shown."
+                    >
+                      <Select
+                        value={settings.timeFormat}
+                        onValueChange={handleTimeFormatChange}
+                      >
+                        <SelectTrigger
+                          size="sm"
+                          aria-label="Time format"
+                          className="h-8 min-w-[8rem] rounded-lg border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)]"
+                        >
+                          <SelectValue>
+                            {(value: TimeFormat) =>
+                              value === '12h' ? '12-hour' : '24-hour'
+                            }
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TIME_FORMATS.map((timeFormat) => (
+                            <SelectItem key={timeFormat} value={timeFormat}>
+                              {timeFormat === '12h' ? '12-hour' : '24-hour'}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -2138,6 +2189,7 @@ export default function SettingsView() {
                         {mcpStatus?.activity.lastTransport
                           ? `${mcpStatus.activity.lastTransport.toUpperCase()} · ${formatSyncTime(
                               mcpStatus.activity.lastActivityAt || '',
+                              settings.timeFormat,
                             )}`
                           : 'Never'}
                       </span>
@@ -2146,7 +2198,10 @@ export default function SettingsView() {
                       <span className="text-xs text-muted-foreground">
                         {mcpStatus?.stats.writeOperationCount ?? 0} operations ·{' '}
                         {mcpStatus?.stats.changedKnifeCount ?? 0} knives ·{' '}
-                        {formatSyncTime(mcpStatus?.stats.lastWriteAt || '')}
+                        {formatSyncTime(
+                          mcpStatus?.stats.lastWriteAt || '',
+                          settings.timeFormat,
+                        )}
                       </span>
                     </SettingsRow>
                   </SettingsSection>
