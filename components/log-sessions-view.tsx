@@ -32,6 +32,7 @@ import { getHourCycle } from '@/lib/time-format'
 import { cn } from '@/lib/utils'
 
 type EventType = AuditLogEvent['type']
+type LogFilter = 'all' | EventType | 'maintenance'
 
 type ViewEvent = AuditLogEvent & {
   title: string
@@ -275,7 +276,7 @@ export function LogSessionsView() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<'all' | EventType>('all')
+  const [filter, setFilter] = useState<LogFilter>('all')
   const [selectedRange, setSelectedRange] = useState<DateRange | undefined>()
   const [draftRange, setDraftRange] = useState<DateRange | undefined>()
   const [calendarOpen, setCalendarOpen] = useState(false)
@@ -345,7 +346,11 @@ export function LogSessionsView() {
   const filteredEvents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     return events.filter((event) => {
-      const matchesType = filter === 'all' || event.type === filter
+      const matchesType =
+        filter === 'all' ||
+        (filter === 'maintenance'
+          ? isMaintenanceEvent(event)
+          : event.type === filter)
       const matchesQuery =
         !normalizedQuery ||
         [
@@ -445,7 +450,7 @@ export function LogSessionsView() {
 
   return (
     <div className="w-full">
-      <div className="mb-6 flex flex-col gap-3 border-b border-border pb-5 lg:flex-row lg:items-center">
+      <div className="mb-6 flex flex-col gap-3 border-b border-border pb-5 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-center">
         <label className="relative min-w-0 flex-1 lg:max-w-md">
           <span className="sr-only">Search logs</span>
           <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
@@ -461,7 +466,9 @@ export function LogSessionsView() {
           className="flex items-center gap-1 overflow-x-auto rounded-lg bg-muted/60 p-0.5"
           aria-label="Filter log event type"
         >
-          {(['all', 'created', 'updated', 'deleted'] as const).map((value) => (
+          {(
+            ['all', 'created', 'updated', 'deleted', 'maintenance'] as const
+          ).map((value) => (
             <Button
               key={value}
               type="button"
@@ -480,6 +487,28 @@ export function LogSessionsView() {
             </Button>
           ))}
         </div>
+        <span
+          aria-hidden="true"
+          className="invisible hidden items-center gap-3 whitespace-nowrap lg:col-start-3 lg:row-start-1 lg:flex"
+        >
+          <span
+            className={cn(
+              buttonVariants({ variant: 'ghost', size: 'sm' }),
+              'shrink-0 px-2.5 tabular-nums',
+            )}
+          >
+            <Calendar className="size-3.5" />
+            <span>Date</span>
+          </span>
+          <span className="text-xs tabular-nums text-muted-foreground">
+            <span className="font-medium text-foreground">{events.length}</span>{' '}
+            entries
+            <span className="mx-2 text-border">/</span>
+            {eventsThisWeek} this week
+            <span className="mx-2 text-border">/</span>
+            {formatLastActivity(events[0]?.occurredAt)}
+          </span>
+        </span>
         <Popover.Root
           open={calendarOpen}
           onOpenChange={handleCalendarOpenChange}
@@ -498,7 +527,7 @@ export function LogSessionsView() {
                 variant: selectedRange ? 'secondary' : 'ghost',
                 size: 'sm',
               }),
-              'shrink-0 px-2.5 tabular-nums',
+              'shrink-0 px-2.5 tabular-nums lg:col-start-3 lg:row-start-1 lg:justify-self-start',
             )}
           >
             <Calendar className="size-3.5" />
@@ -644,7 +673,7 @@ export function LogSessionsView() {
             </Popover.Positioner>
           </Popover.Portal>
         </Popover.Root>
-        <p className="shrink-0 text-xs tabular-nums text-muted-foreground lg:ml-auto">
+        <p className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground lg:col-start-3 lg:row-start-1 lg:justify-self-end">
           <span className="font-medium text-foreground">
             {filteredEvents.length}
           </span>{' '}

@@ -124,6 +124,10 @@ test('records and displays create, update, and delete events', async ({
   await expect(logEntries(page, 'updated').first()).toBeVisible()
   await expect(logEntries(page, 'deleted').first()).toBeVisible()
 
+  const search = page.getByRole('textbox', { name: 'Search logs' })
+  const searchWidthBefore = await search.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  )
   const dateRangeTrigger = page.getByRole('button', {
     name: 'Filter logs by date range',
   })
@@ -167,6 +171,10 @@ test('records and displays create, update, and delete events', async ({
   await expect(
     page.getByRole('button', { name: /change date range/i }),
   ).toBeVisible()
+  const searchWidthAfter = await search.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  )
+  expect(searchWidthAfter).toBe(searchWidthBefore)
   await expect(logEntries(page, 'created').first()).toBeVisible()
   await expect(logEntries(page, 'updated').first()).toBeVisible()
   await expect(logEntries(page, 'deleted').first()).toBeVisible()

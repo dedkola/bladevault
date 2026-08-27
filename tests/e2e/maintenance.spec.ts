@@ -77,6 +77,25 @@ test('logs maintenance events from the knife detail page', async ({
       .getByText('Maintenance', { exact: true })
       .first(),
   ).toBeVisible()
+
+  const search = page.getByRole('textbox', { name: 'Search logs' })
+  const searchWidthBefore = await search.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  )
+  const maintenanceFilter = page.getByRole('button', {
+    name: 'maintenance',
+    exact: true,
+  })
+  await maintenanceFilter.click()
+  await expect(maintenanceFilter).toHaveAttribute('aria-pressed', 'true')
+  const searchWidthAfter = await search.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  )
+  expect(searchWidthAfter).toBe(searchWidthBefore)
+  await expect(page.locator('[data-log-entry]')).toHaveCount(3)
+  await expect(
+    page.locator('[data-log-entry]').filter({ hasText: 'Maintenance logged' }),
+  ).toHaveCount(3)
 })
 
 test('edits and deletes maintenance events', async ({ page, request }) => {
