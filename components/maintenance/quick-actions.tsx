@@ -9,6 +9,7 @@ const quickActionTypes: MaintenanceType[] = [
   'cleaning',
   'lubrication',
   'sharpening',
+  'stropping',
   'disassembly',
 ]
 

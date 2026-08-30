@@ -38,6 +38,11 @@ test('logs maintenance events from the knife detail page', async ({
   await page.getByRole('button', { name: 'Sharpened' }).click()
   await expect(page.getByText('Last sharpened')).toBeVisible()
 
+  await page.getByRole('button', { name: 'Stropped' }).click()
+  await expect(
+    timelineLocator(page).getByText('Stropped', { exact: true }),
+  ).toBeVisible()
+
   await page.getByRole('button', { name: 'Add maintenance' }).click()
   await page.getByRole('combobox').click()
   await page.getByRole('option', { name: 'Lubricated' }).click()
@@ -56,6 +61,9 @@ test('logs maintenance events from the knife detail page', async ({
   await expect(
     timelineLocator(page).getByText('Sharpened', { exact: true }),
   ).toBeVisible()
+  await expect(
+    timelineLocator(page).getByText('Stropped', { exact: true }),
+  ).toBeVisible()
 
   await page.goto('/insights/activity')
   await expect(
@@ -70,7 +78,7 @@ test('logs maintenance events from the knife detail page', async ({
   const maintenanceEntries = page
     .locator('[data-log-entry]')
     .filter({ hasText: 'Maintenance logged' })
-  await expect(maintenanceEntries).toHaveCount(3)
+  await expect(maintenanceEntries).toHaveCount(4)
   await expect(
     maintenanceEntries
       .first()
@@ -92,10 +100,10 @@ test('logs maintenance events from the knife detail page', async ({
     (element) => element.getBoundingClientRect().width,
   )
   expect(searchWidthAfter).toBe(searchWidthBefore)
-  await expect(page.locator('[data-log-entry]')).toHaveCount(3)
+  await expect(page.locator('[data-log-entry]')).toHaveCount(4)
   await expect(
     page.locator('[data-log-entry]').filter({ hasText: 'Maintenance logged' }),
-  ).toHaveCount(3)
+  ).toHaveCount(4)
 })
 
 test('edits and deletes maintenance events', async ({ page, request }) => {
