@@ -105,11 +105,11 @@
     "unrs-resolver@1.12.2": true,
     "fsevents@2.3.2": true,
     "fsevents@2.3.3": true,
-    "core-js@3.49.0": true,
     "electron-winstaller@5.4.0": true,
     "esbuild@0.28.1": true,
     "esbuild@0.28.2": true,
     "better-sqlite3@13.0.2": true,
-    "better-sqlite3@13.0.3": true
+    "better-sqlite3@13.0.3": true,
+    "core-js@3.50.0": true
   }
 }
