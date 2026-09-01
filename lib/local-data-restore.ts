@@ -162,10 +162,10 @@ export async function replaceLocalDataFromDirectory(sourceDir: string) {
   let safetyBackupCreated = false
 
   beginLocalRestore()
-  closeLocalDb()
-  clearStorageCache()
 
   try {
+    closeLocalDb()
+    clearStorageCache()
     await ensureDirectory(currentDataDir)
     await fs.rm(safetyBackupDir, { recursive: true, force: true })
     await copyDirectoryContents(currentDataDir, safetyBackupDir, true)

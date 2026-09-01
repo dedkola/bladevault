@@ -145,16 +145,40 @@ function resolveDataDir(): string {
   return homeDataDir
 }
 
-let db: Database.Database | null = null
-let activeDbPath: string | null = null
-let restoreInProgress = false
+type LocalDbRuntimeState = {
+  db: Database.Database | null
+  activeDbPath: string | null
+  restoreInProgress: boolean
+}
+
+const LOCAL_DB_RUNTIME_STATE_KEY = Symbol.for(
+  'bladevault.local-db-runtime-state',
+)
+
+function getLocalDbRuntimeState(): LocalDbRuntimeState {
+  const runtimeGlobal = globalThis as typeof globalThis & {
+    [key: symbol]: LocalDbRuntimeState | undefined
+  }
+
+  runtimeGlobal[LOCAL_DB_RUNTIME_STATE_KEY] ??= {
+    db: null,
+    activeDbPath: null,
+    restoreInProgress: false,
+  }
+
+  return runtimeGlobal[LOCAL_DB_RUNTIME_STATE_KEY]
+}
 
 export function beginLocalRestore(): void {
-  restoreInProgress = true
+  const state = getLocalDbRuntimeState()
+  if (state.restoreInProgress) {
+    throw new Error('A local database restore is already in progress.')
+  }
+  state.restoreInProgress = true
 }
 
 export function endLocalRestore(): void {
-  restoreInProgress = false
+  getLocalDbRuntimeState().restoreInProgress = false
 }
 
 export function getLocalDataDirPath(): string {
@@ -272,39 +296,42 @@ export function getDockerHostDataMountPath(): string | null {
 }
 
 export function getLocalDb(): Database.Database {
-  if (restoreInProgress) {
+  const state = getLocalDbRuntimeState()
+
+  if (state.restoreInProgress) {
     throw new Error(
       'Local database restore is in progress. Please try again in a moment.',
     )
   }
 
   const nextDbPath = getLocalDbPath()
-  if (db && activeDbPath && activeDbPath !== nextDbPath) {
-    db.close()
-    db = null
-    activeDbPath = null
+  if (state.db && state.activeDbPath && state.activeDbPath !== nextDbPath) {
+    state.db.close()
+    state.db = null
+    state.activeDbPath = null
   }
 
-  if (!db) {
+  if (!state.db) {
     fs.mkdirSync(path.dirname(nextDbPath), { recursive: true })
-    db = new Database(nextDbPath)
-    db.pragma('journal_mode = WAL')
-    initSchema(db)
-    activeDbPath = nextDbPath
+    state.db = new Database(nextDbPath)
+    state.db.pragma('journal_mode = WAL')
+    initSchema(state.db)
+    state.activeDbPath = nextDbPath
   }
-  return db
+  return state.db
 }
 
 export function closeLocalDb(): void {
-  if (!db) return
+  const state = getLocalDbRuntimeState()
+  if (!state.db) return
   try {
-    db.pragma('wal_checkpoint(RESTART)')
+    state.db.pragma('wal_checkpoint(RESTART)')
   } catch {
     // Best effort: checkpoint when possible, but always close.
   }
-  db.close()
-  db = null
-  activeDbPath = null
+  state.db.close()
+  state.db = null
+  state.activeDbPath = null
 }
 
 function migrateSchema(database: Database.Database) {

@@ -2,7 +2,7 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import * as tar from 'tar'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as archiveRoute from '@/app/api/cloud-backup/archive/route'
 import { closeLocalDb } from '@/lib/local-db'
 import { getSettings, saveSettings } from '@/lib/settings'
@@ -156,6 +156,45 @@ describe('backup archive route', () => {
     expect(walAfterRestore).not.toEqual(staleSidecar)
     expect(shmAfterRestore).not.toEqual(staleSidecar)
     await expect(new LocalStorage().getAllKnives()).resolves.toHaveLength(1)
+  })
+
+  it('refreshes storage loaded by another route module after restore', async () => {
+    vault = await createTempVault('bladevault-module-source-')
+    const sourceStorage = new LocalStorage()
+    const restoredKnife = await sourceStorage.createKnife({
+      ...input,
+      name: 'Restored Route Knife',
+    })
+    const archive = await (await archiveRoute.GET()).arrayBuffer()
+
+    await vault.cleanup()
+    vault = await createTempVault('bladevault-module-target-')
+    const storageLoadedBeforeRestore = new LocalStorage()
+    await storageLoadedBeforeRestore.createKnife({
+      ...input,
+      name: 'Pre-Restore Knife',
+    })
+    await expect(
+      storageLoadedBeforeRestore.getKnifeById(restoredKnife.id),
+    ).resolves.toBeUndefined()
+
+    vi.resetModules()
+    const separatelyLoadedArchiveRoute =
+      await import('@/app/api/cloud-backup/archive/route')
+    const restored = await separatelyLoadedArchiveRoute.PUT(
+      new Request('http://localhost/api/cloud-backup/archive', {
+        method: 'PUT',
+        body: archive,
+      }),
+    )
+
+    expect(restored.status).toBe(200)
+    await expect(
+      storageLoadedBeforeRestore.getKnifeById(restoredKnife.id),
+    ).resolves.toMatchObject({
+      id: restoredKnife.id,
+      name: 'Restored Route Knife',
+    })
   })
 
   it('rejects empty, non-gzip, and corrupt archives without replacing the vault', async () => {

@@ -93,6 +93,49 @@ async function main() {
       ['electron-smoke'],
     )
 
+    const restoredOnly = await window.evaluate(async () => {
+      const response = await fetch('/api/knives', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Restored Route Knife',
+          brand: 'BladeVault',
+        }),
+      })
+      return { body: await response.json(), status: response.status }
+    })
+    assert.equal(restoredOnly.status, 200)
+    assert.equal(restoredOnly.body.knife.id, 'restored-route-knife')
+
+    const origin = new URL(window.url()).origin
+    const archiveResponse = await window
+      .context()
+      .request.get(`${origin}/api/cloud-backup/archive`)
+    assert.equal(archiveResponse.status(), 200)
+    const archive = await archiveResponse.body()
+
+    const deleted = await window
+      .context()
+      .request.delete(`${origin}/api/knives/${restoredOnly.body.knife.id}`)
+    assert.equal(deleted.status(), 200)
+
+    await window.goto(`${origin}/collection/${created.body.knife.id}`, {
+      waitUntil: 'domcontentloaded',
+    })
+    await window.getByRole('heading', { name: 'Electron Smoke' }).waitFor()
+
+    const restored = await window
+      .context()
+      .request.put(`${origin}/api/cloud-backup/archive`, { data: archive })
+    assert.equal(restored.status(), 200)
+
+    await window.goto(`${origin}/collection/${restoredOnly.body.knife.id}`, {
+      waitUntil: 'domcontentloaded',
+    })
+    await window
+      .getByRole('heading', { name: 'Restored Route Knife' })
+      .waitFor()
+
     if (process.platform === 'darwin') {
       const initialOrigin = new URL(window.url()).origin
       await window.close()
@@ -107,7 +150,7 @@ async function main() {
     assert.deepEqual(pageErrors, [])
 
     console.log(
-      'Desktop smoke passed: API, native SQLite, reload, and preload boundary.',
+      'Desktop smoke passed: API, native SQLite, restore, reload, and preload boundary.',
     )
   } finally {
     if (electronApp && process.platform === 'darwin') {
