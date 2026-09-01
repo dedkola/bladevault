@@ -51,6 +51,7 @@ const config = {
   },
   mac: {
     category: 'public.app-category.utilities',
+    minimumSystemVersion: '13.0',
     target: ['dmg', 'zip'],
     artifactName: 'BladeVault.${ext}',
     identity: isUnsignedMacBuild ? null : undefined,

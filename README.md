@@ -205,6 +205,8 @@ hostname, immutable image tags, existing PVCs, and other configuration.
 
 ### macOS
 
+BladeVault requires macOS 13 Ventura or newer.
+
 Download [BladeVault.dmg](https://github.com/dedkola/bladevault/releases/latest/download/BladeVault.dmg), open it, then drag `BladeVault.app` to **Applications**.
 
 Releases are unsigned. If macOS blocks the first launch, right-click the app, choose **Open**, and confirm. If needed, run:
@@ -224,7 +226,7 @@ Windows SmartScreen may show a warning for an unsigned build. Choose **More info
 
 ## Run from source
 
-**Prerequisites:** Node.js 20 or newer. Install Chromium as well if you want to use URL import.
+**Prerequisites:** Node.js 22.12 or newer. Install Chromium as well if you want to use URL import.
 
 ```bash
 git clone https://github.com/dedkola/bladevault.git
