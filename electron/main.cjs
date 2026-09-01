@@ -992,7 +992,9 @@ function buildAppContextMenu(window, params) {
           return
         }
 
-        clipboard.writeText(params.linkURL)
+        void clipboard.writeText(params.linkURL).catch((error) => {
+          console.error('Failed to copy link address:', error)
+        })
       },
     },
     {
