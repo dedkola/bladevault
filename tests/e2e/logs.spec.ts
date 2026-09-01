@@ -153,7 +153,7 @@ test('records and displays create, update, and delete events', async ({
   await toDay.getByRole('button').click()
   await expect(fromDay).toHaveClass(/range-start/)
   await expect(toDay).toHaveClass(/range-end/)
-  await expect(dateRangePicker.locator('[data-selected]')).toHaveCount(2)
+  await expect(dateRangePicker.locator('[data-selected] button')).toHaveCount(2)
   await expect(dateRangePicker.locator('[data-outside] button')).toHaveCount(0)
 
   const endpointColor = 'rgb(200, 156, 61)'

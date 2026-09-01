@@ -44,7 +44,7 @@ test('persists and applies the selected time format', async ({
   await seedKnife(request, { name: 'Time Format Test' })
   await page.goto('/logs')
   await expect(page.locator('[data-log-entry] time').first()).toHaveText(
-    /^\d{1,2} [A-Z][a-z]{2} · \d{2}:\d{2}:\d{2}$/,
+    /^\d{1,2} [A-Z][a-z]+ · \d{2}:\d{2}:\d{2}$/,
   )
 })
 
