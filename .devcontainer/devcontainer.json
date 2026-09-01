@@ -1,6 +1,6 @@
 {
   "name": "BladeVault",
-  "image": "mcr.microsoft.com/playwright:v1.61.1-noble",
+  "image": "mcr.microsoft.com/playwright:v1.62.1-noble",
   "workspaceFolder": "/workspaces/bladevault",
   "containerEnv": {
     "BLADEVAULT_DATA_DIR": "/root/BladeVault/data",

@@ -226,7 +226,7 @@ Windows SmartScreen may show a warning for an unsigned build. Choose **More info
 
 ## Run from source
 
-**Prerequisites:** Node.js 22.12 or newer. Install Chromium as well if you want to use URL import.
+**Prerequisites:** Node.js 24 LTS. The repository pins Node.js 24.20.0 for local development and CI. Install Chromium as well if you want to use URL import.
 
 ```bash
 git clone https://github.com/dedkola/bladevault.git
