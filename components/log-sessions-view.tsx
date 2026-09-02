@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { Popover } from '@base-ui/react/popover'
 import { DayPicker, SelectionState, UI, type DateRange } from 'react-day-picker'
@@ -271,7 +272,7 @@ function ActorIcon({ actor }: { actor: string }) {
 }
 
 export function LogSessionsView() {
-  const { timeFormat } = useKnives()
+  const { knives, timeFormat } = useKnives()
   const [events, setEvents] = useState<ViewEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -374,6 +375,11 @@ export function LogSessionsView() {
       return matchesType && matchesQuery && matchesDate
     })
   }, [events, filter, query, selectedRange])
+
+  const currentKnifeIds = useMemo(
+    () => new Set(knives.map((knife) => knife.id)),
+    [knives],
+  )
 
   const eventsThisWeek = useMemo(
     () => events.filter((event) => isWithinLastWeek(event.occurredAt)).length,
@@ -731,6 +737,10 @@ export function LogSessionsView() {
                       const meta = eventMeta(event)
                       const expanded = expandedIds.has(event.id)
                       const detailId = `log-detail-${event.id}`
+                      const knifeHref =
+                        event.knifeId && currentKnifeIds.has(event.knifeId)
+                          ? `/collection/${encodeURIComponent(event.knifeId)}`
+                          : null
                       return (
                         <li
                           key={event.id}
@@ -747,14 +757,8 @@ export function LogSessionsView() {
                             <EventIcon event={event} />
                           </span>
                           <Card className="gap-0 py-0 shadow-sm">
-                            <button
-                              type="button"
-                              onClick={() => toggleExpanded(event.id)}
-                              aria-expanded={expanded}
-                              aria-controls={detailId}
-                              className="w-full p-4 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                            >
-                              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                            <div className="relative">
+                              <div className="pointer-events-none relative z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 p-4">
                                 <div className="min-w-0">
                                   <div className="flex items-center justify-between gap-3">
                                     <span
@@ -775,8 +779,21 @@ export function LogSessionsView() {
                                   <strong className="mt-1 block truncate text-sm">
                                     {event.title}{' '}
                                     <span className="font-normal text-muted-foreground">
-                                      · {event.subject}
+                                      ·{' '}
                                     </span>
+                                    {knifeHref ? (
+                                      <Link
+                                        href={knifeHref}
+                                        aria-label={`View ${event.subject}`}
+                                        className="pointer-events-auto relative rounded-sm font-normal text-muted-foreground underline-offset-4 transition-colors hover:text-[var(--bladevault-local)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                      >
+                                        {event.subject}
+                                      </Link>
+                                    ) : (
+                                      <span className="font-normal text-muted-foreground">
+                                        {event.subject}
+                                      </span>
+                                    )}
                                   </strong>
                                   <span className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
                                     <span className="flex items-center gap-1.5">
@@ -798,13 +815,22 @@ export function LogSessionsView() {
                                   </span>
                                 </div>
                                 <ChevronDown
+                                  aria-hidden
                                   className={cn(
                                     'mt-1 size-4 shrink-0 text-muted-foreground transition-transform',
                                     expanded && 'rotate-180',
                                   )}
                                 />
                               </div>
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleExpanded(event.id)}
+                                aria-expanded={expanded}
+                                aria-controls={detailId}
+                                aria-label={`${expanded ? 'Collapse' : 'Expand'} ${event.title} details for ${event.subject}`}
+                                className="absolute inset-0 z-0 rounded-xl text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                              />
+                            </div>
                             {expanded ? (
                               <div
                                 id={detailId}
