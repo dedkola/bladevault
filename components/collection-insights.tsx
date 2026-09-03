@@ -1641,7 +1641,7 @@ export function CollectionInsights() {
                                 />
                                 <TooltipContent
                                   sideOffset={8}
-                                  className="whitespace-nowrap border border-[var(--bladevault-line)] bg-[#f7f1e5] text-sm font-semibold text-[var(--bladevault-olive)] shadow-[0_8px_24px_rgba(46,52,23,0.14)] [&>[aria-hidden=true]]:bg-[#f7f1e5] [&>[aria-hidden=true]]:fill-[#f7f1e5]"
+                                  className="whitespace-normal border border-[var(--bladevault-line)] bg-[#f7f1e5] text-sm font-semibold text-[var(--bladevault-olive)] shadow-[0_8px_24px_rgba(46,52,23,0.14)] [&>[aria-hidden=true]]:bg-[#f7f1e5] [&>[aria-hidden=true]]:fill-[#f7f1e5]"
                                 >
                                   {activityLabel}
                                 </TooltipContent>
