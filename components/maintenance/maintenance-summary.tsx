@@ -1,10 +1,6 @@
 'use client'
 
-import {
-  MaintenanceEvent,
-  MaintenanceType,
-  maintenanceTypeLabel,
-} from '@/lib/data'
+import type { MaintenanceEvent, MaintenanceType } from '@/lib/data'
 
 const summaryItems: {
   type: MaintenanceType
@@ -53,17 +49,6 @@ export function MaintenanceSummary({ events }: { events: MaintenanceEvent[] }) {
   )
 }
 
-export function getLastDoneDates(events: MaintenanceEvent[]) {
-  return {
-    cleaned: events.find((e) => e.type === 'cleaning')?.occurredAt ?? null,
-    lubricated:
-      events.find((e) => e.type === 'lubrication')?.occurredAt ?? null,
-    sharpened: events.find((e) => e.type === 'sharpening')?.occurredAt ?? null,
-    disassembled:
-      events.find((e) => e.type === 'disassembly')?.occurredAt ?? null,
-  }
-}
-
 export function MaintenanceSummarySkeleton() {
   return (
     <div className="grid grid-cols-2 gap-3">
@@ -79,5 +64,3 @@ export function MaintenanceSummarySkeleton() {
     </div>
   )
 }
-
-export { maintenanceTypeLabel }

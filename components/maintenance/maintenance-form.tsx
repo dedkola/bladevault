@@ -47,7 +47,7 @@ function parseDateToISO(value: string): string {
   return new Date(year, month - 1, day).toISOString()
 }
 
-export type MaintenanceFormData = {
+type MaintenanceFormData = {
   type: MaintenanceType
   occurredAt: string
   notes: string
@@ -94,9 +94,7 @@ function emptyFormData(): MaintenanceFormData {
   }
 }
 
-export function formDataToInput(
-  data: MaintenanceFormData,
-): MaintenanceEventInput {
+function formDataToInput(data: MaintenanceFormData): MaintenanceEventInput {
   const input: MaintenanceEventInput = {
     type: data.type,
     occurredAt: parseDateToISO(data.occurredAt),
