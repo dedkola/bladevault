@@ -143,19 +143,23 @@ export function Gallery({
         {images.length > 1 && (
           <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-visible lg:pb-0">
             {images.map((img, idx) => (
-              <Card
+              <div
                 key={idx}
                 className={cn(
-                  'group relative h-20 w-20 shrink-0 snap-start overflow-hidden p-0 bg-white transition-all',
-                  activeIdx === idx
-                    ? 'ring-2 ring-[var(--bladevault-title)] ring-offset-1'
-                    : 'opacity-70 hover:opacity-100',
+                  'group relative h-20 w-20 shrink-0 snap-start overflow-hidden rounded-md bg-white transition-opacity',
+                  activeIdx !== idx && 'opacity-70 hover:opacity-100',
                 )}
               >
                 <button
                   onClick={() => setActiveIdx(idx)}
-                  className="absolute inset-0 z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-inset"
+                  className={cn(
+                    'absolute inset-0 z-10 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-inset',
+                    activeIdx === idx
+                      ? 'border-2 border-[var(--bladevault-title)]'
+                      : 'border border-foreground/10',
+                  )}
                   aria-label={`Select thumbnail ${idx + 1}`}
+                  aria-pressed={activeIdx === idx}
                 />
                 <Image
                   src={getImageUrl(img)}
@@ -196,7 +200,7 @@ export function Gallery({
                     </div>
                   </>
                 )}
-              </Card>
+              </div>
             ))}
           </div>
         )}
