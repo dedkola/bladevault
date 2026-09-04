@@ -106,18 +106,18 @@ export function Gallery({
                     <button
                       type="button"
                       onClick={prevImage}
-                      className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--bladevault-gold)]/70 bg-[color:var(--bladevault-olive)]/90 text-[var(--bladevault-gold)] shadow-md shadow-black/20 backdrop-blur-sm transition-all hover:scale-105 hover:border-[var(--bladevault-gold)] hover:bg-[var(--bladevault-gold)] hover:text-[var(--bladevault-olive)] active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)]"
+                      className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center text-[var(--bladevault-gold)] transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)]"
                       aria-label="Previous image"
                     >
-                      <ChevronLeft className="h-5 w-5" />
+                      <ChevronLeft className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
                       onClick={nextImage}
-                      className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--bladevault-gold)]/70 bg-[color:var(--bladevault-olive)]/90 text-[var(--bladevault-gold)] shadow-md shadow-black/20 backdrop-blur-sm transition-all hover:scale-105 hover:border-[var(--bladevault-gold)] hover:bg-[var(--bladevault-gold)] hover:text-[var(--bladevault-olive)] active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)]"
+                      className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center text-[var(--bladevault-gold)] transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)]"
                       aria-label="Next image"
                     >
-                      <ChevronRight className="h-5 w-5" />
+                      <ChevronRight className="h-4 w-4" />
                     </button>
                   </>
                 )}
@@ -125,7 +125,7 @@ export function Gallery({
                   <button
                     type="button"
                     onClick={() => setIsFullScreen(true)}
-                    className="absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-md border border-[var(--bladevault-gold)]/70 bg-[color:var(--bladevault-olive)]/90 text-[var(--bladevault-gold)] opacity-100 transition-colors hover:border-[var(--bladevault-gold)] hover:bg-[var(--bladevault-gold)] hover:text-[var(--bladevault-olive)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] lg:opacity-0 lg:group-hover/gallery:opacity-100 lg:focus-visible:opacity-100"
+                    className="absolute top-3 right-3 flex h-7 w-7 items-center justify-center text-[var(--bladevault-gold)] opacity-100 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] lg:opacity-0 lg:group-hover/gallery:opacity-100 lg:focus-visible:opacity-100"
                     aria-label="View fullscreen"
                   >
                     <Maximize2 className="h-3.5 w-3.5" />
@@ -234,10 +234,10 @@ export function Gallery({
           {images.length > 1 && (
             <button
               onClick={prevImage}
-              className="absolute left-3 top-1/2 z-40 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--bladevault-gold)]/70 bg-[color:var(--bladevault-olive)]/90 text-[var(--bladevault-gold)] shadow-lg shadow-black/20 backdrop-blur-md transition-all hover:scale-105 hover:border-[var(--bladevault-gold)] hover:bg-[var(--bladevault-gold)] hover:text-[var(--bladevault-olive)] active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] sm:left-6 sm:h-12 sm:w-12"
+              className="absolute left-3 top-1/2 z-40 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-[var(--bladevault-gold)] transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] sm:left-6 sm:h-12 sm:w-12"
               aria-label="Previous image"
             >
-              <ChevronLeft className="h-6 w-6 sm:h-7 sm:w-7" />
+              <ChevronLeft className="h-4 w-4" />
             </button>
           )}
 
@@ -328,10 +328,10 @@ export function Gallery({
           {images.length > 1 && (
             <button
               onClick={nextImage}
-              className="absolute right-3 top-1/2 z-40 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--bladevault-gold)]/70 bg-[color:var(--bladevault-olive)]/90 text-[var(--bladevault-gold)] shadow-lg shadow-black/20 backdrop-blur-md transition-all hover:scale-105 hover:border-[var(--bladevault-gold)] hover:bg-[var(--bladevault-gold)] hover:text-[var(--bladevault-olive)] active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] sm:right-6 sm:h-12 sm:w-12"
+              className="absolute right-3 top-1/2 z-40 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-[var(--bladevault-gold)] transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] sm:right-6 sm:h-12 sm:w-12"
               aria-label="Next image"
             >
-              <ChevronRight className="h-6 w-6 sm:h-7 sm:w-7" />
+              <ChevronRight className="h-4 w-4" />
             </button>
           )}
         </DialogContent>
