@@ -613,9 +613,3 @@ export function createCollectionStats(
     recent,
   }
 }
-
-export function getStatsPeriodLabel(period: StatsPeriod): string {
-  if (period === 'year') return 'Added this year'
-  if (period === 'twelve-months') return 'Last 12 months'
-  return 'All time'
-}

@@ -2,11 +2,7 @@
 
 import { useState } from 'react'
 import { Check, Loader2, Pencil, Trash2 } from 'lucide-react'
-import {
-  MaintenanceEvent,
-  MaintenanceType,
-  maintenanceTypeLabel,
-} from '@/lib/data'
+import { MaintenanceEvent, maintenanceTypeLabel } from '@/lib/data'
 import { Button } from '@/components/ui/button'
 
 function formatDate(isoString: string): string {

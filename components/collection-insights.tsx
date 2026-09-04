@@ -40,7 +40,7 @@ import {
 import { NOT_SET_FILTER_VALUE } from '@/lib/collection-filters'
 import { cn } from '@/lib/utils'
 
-export const LEGEND_DOT_CLASSES = [
+const LEGEND_DOT_CLASSES = [
   'bg-[#2e3417] dark:bg-[#c89c3d]',
   'bg-[#79824a] dark:bg-[#947535]',
   'bg-[#c89c3d] dark:bg-[#79824a]',
@@ -53,7 +53,7 @@ export const MEASUREMENT_KEYS: MeasurementKey[] = [
   'weight',
   'bladeThickness',
 ]
-export const CATEGORY_QUERY_KEYS: Record<CategoryKey, string> = {
+const CATEGORY_QUERY_KEYS: Record<CategoryKey, string> = {
   brand: 'brand',
   bladeMaterial: 'bladeMaterial',
   bladeStyle: 'bladeStyle',
@@ -80,7 +80,7 @@ export function formatMetric(value: number | undefined, unit: string): string {
   return `${value.toLocaleString(undefined, { maximumFractionDigits: fractionDigits })} ${unit}`
 }
 
-export function formatMeasurementAxisLabel(label: string): string {
+function formatMeasurementAxisLabel(label: string): string {
   return label.replace(/\.0(?=–|″|\s)/g, '')
 }
 

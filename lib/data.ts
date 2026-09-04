@@ -57,8 +57,6 @@ export type AuditLogEvent = {
   occurredAt: string
 }
 
-export type AuditLogEventInput = Omit<AuditLogEvent, 'id'>
-
 export type KnifeDraft = Omit<Knife, 'id' | 'addedAt' | 'updatedAt'>
 
 export type KnifeUpdates = Partial<

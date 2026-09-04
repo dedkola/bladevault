@@ -11,7 +11,6 @@ import {
   type CardField,
   type CustomField,
   type CustomFieldType,
-  type TimeFormat,
 } from './settings-shared'
 export { DEFAULT_SETTINGS, SETTINGS_UPDATED_EVENT } from './settings-shared'
 export type {

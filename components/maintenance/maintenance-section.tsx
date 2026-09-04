@@ -9,10 +9,7 @@ import {
   maintenanceTypeLabel,
 } from '@/lib/data'
 import { readJsonResponse } from '@/lib/api-response'
-import {
-  MaintenanceForm,
-  formDataToInput,
-} from '@/components/maintenance/maintenance-form'
+import { MaintenanceForm } from '@/components/maintenance/maintenance-form'
 import { MaintenanceQuickActions } from '@/components/maintenance/quick-actions'
 import {
   MaintenanceSummary,
