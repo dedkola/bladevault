@@ -310,6 +310,26 @@ Replace the example URL when needed and replace the token placeholder with the
 value shown in BladeVault Settings. The copy buttons work on plain HTTP LAN
 addresses as well as secure origins.
 
+#### Codex
+
+To connect Codex, add BladeVault to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.bladevault]
+enabled = true
+url = "http://<UNRAID_IP>:5500/mcp"
+http_headers = { Authorization = "Bearer <TOKEN_FROM_BLADEVAULT_SETTINGS>" }
+```
+
+Use `http://localhost:5500/mcp` for Docker or Podman on the same computer, or
+use the active desktop URL shown in **Settings → AI / MCP**. Restart Codex after
+changing its configuration.
+
+Codex also supports `bearer_token_env_var`, but its value must be the name of
+an environment variable containing the raw token, not `Bearer` followed by the
+token itself. The `http_headers` example above matches BladeVault's copied
+client configuration directly.
+
 For Docker or Podman, start the included Compose setup with:
 
 ```bash

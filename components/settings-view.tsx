@@ -8,7 +8,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   AlertCircle,
   CheckCircle2,
@@ -23,6 +23,7 @@ import {
   LogOut,
   Palette,
   Plug,
+  Printer,
   RefreshCw,
   ShieldCheck,
   SlidersHorizontal,
@@ -359,6 +360,7 @@ function CardFieldsPreview({
 }
 
 export default function SettingsView() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const requestedTab = ['cloud-backup', 'mcp'].includes(
     searchParams.get('tab') || '',
@@ -367,7 +369,7 @@ export default function SettingsView() {
     : null
   const { update, checkForUpdates, downloadUpdate, installUpdate } =
     useDesktopUpdates()
-  const { refreshVault } = useKnives()
+  const { knives, refreshVault } = useKnives()
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [localDataPath, setLocalDataPath] = useState('')
   const [configuredLocalDataPath, setConfiguredLocalDataPath] = useState('')
@@ -1043,6 +1045,10 @@ export default function SettingsView() {
           : 'Failed to create local backup',
       )
     }
+  }
+
+  const handlePrintCollectionReport = () => {
+    router.push('/?print=1')
   }
 
   const handleLocalRestoreFile = async (
@@ -1748,6 +1754,27 @@ export default function SettingsView() {
                         message={localBackupMessage}
                       />
                     </div>
+                  </SettingsSection>
+
+                  <SettingsSection
+                    title="Print"
+                    description="Create a readable report of your full collection."
+                  >
+                    <SettingsRow
+                      label="Collection report"
+                      description="Open the Overview and use your system print dialog to print it or save it as a PDF."
+                    >
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={`${settingsSecondaryButtonClassName} h-8 rounded-lg`}
+                        onClick={handlePrintCollectionReport}
+                        disabled={knives.length === 0}
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                        Print Report
+                      </Button>
+                    </SettingsRow>
                   </SettingsSection>
                 </div>
               )}

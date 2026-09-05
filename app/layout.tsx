@@ -52,12 +52,10 @@ export default function RootLayout({
         <KnivesProvider>
           <TooltipProvider>
             <SidebarShell />
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              <GlobalKnifeSearch />
-              <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain print:overflow-visible">
-                {children}
-              </main>
-            </div>
+            <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain print:overflow-visible">
+              {children}
+            </main>
+            <GlobalKnifeSearch />
           </TooltipProvider>
         </KnivesProvider>
       </body>
