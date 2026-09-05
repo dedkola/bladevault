@@ -48,6 +48,34 @@ test('persists and applies the selected time format', async ({
   )
 })
 
+test('prints the collection report from Backup & Restore', async ({
+  page,
+  request,
+}) => {
+  await seedKnife(request, { name: 'Printable Knife' })
+  await page.addInitScript(() => {
+    window.print = () => {
+      window.sessionStorage.setItem('bladevault-print-requested', 'true')
+    }
+  })
+
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: 'Export' })).toHaveCount(0)
+
+  await page.goto('/settings')
+  await page.getByRole('button', { name: 'Backup & Restore' }).click()
+  await page.getByRole('button', { name: 'Print Report' }).click()
+
+  await expect(page).toHaveURL('/')
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.sessionStorage.getItem('bladevault-print-requested'),
+      ),
+    )
+    .toBe('true')
+})
+
 test('controls MCP access and copies the LM Studio configuration', async ({
   context,
   page,

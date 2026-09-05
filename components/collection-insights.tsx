@@ -2,9 +2,9 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { EChartsOption } from 'echarts'
-import { Download, ImageIcon } from 'lucide-react'
+import { ImageIcon } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
 import {
   InsightsChart,
@@ -738,10 +738,12 @@ export function DrilldownKnife({ knife }: { knife: Knife }) {
 export function CollectionInsights() {
   const { knives, isLoading } = useKnives()
   const [activity, setActivity] = useState<KnifeActivityEvent[]>()
+  const [isActivityLoaded, setIsActivityLoaded] = useState(false)
   const [measurementKey, setMeasurementKey] =
     useState<MeasurementKey>('bladeLength')
   const [drilldown, setDrilldown] = useState<Drilldown | null>(null)
   const [now, setNow] = useState(() => new Date())
+  const printRequestedRef = useRef(false)
 
   useEffect(() => {
     let midnightTimeout: number | undefined
@@ -797,6 +799,10 @@ export function CollectionInsights() {
         }
       } catch {
         // Keep the additions-only fallback if activity history cannot load.
+      } finally {
+        if (!cancelled) {
+          setIsActivityLoaded(true)
+        }
       }
     }
 
@@ -805,6 +811,41 @@ export function CollectionInsights() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (
+      isLoading ||
+      !isActivityLoaded ||
+      printRequestedRef.current ||
+      new URLSearchParams(window.location.search).get('print') !== '1'
+    ) {
+      return
+    }
+
+    let printTimeout: number | undefined
+    const animationFrame = window.requestAnimationFrame(() => {
+      printTimeout = window.setTimeout(() => {
+        if (printRequestedRef.current) return
+        printRequestedRef.current = true
+
+        const url = new URL(window.location.href)
+        url.searchParams.delete('print')
+        window.history.replaceState(
+          window.history.state,
+          '',
+          `${url.pathname}${url.search}${url.hash}`,
+        )
+        window.print()
+      }, 150)
+    })
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame)
+      if (printTimeout !== undefined) {
+        window.clearTimeout(printTimeout)
+      }
+    }
+  }, [isActivityLoaded, isLoading])
 
   const allTimeStats = useMemo(
     () => createCollectionStats(knives, 'all', now, activity),
@@ -964,16 +1005,7 @@ export function CollectionInsights() {
 
   return (
     <div className="mx-auto w-full max-w-7xl flex-1 p-6 print:max-w-none print:p-0 lg:p-8">
-      <PageHeader
-        title="Collection Insights"
-        actions={
-          <div className="print:hidden">
-            <Button variant="outline" onClick={() => window.print()}>
-              <Download className="size-4" /> Export
-            </Button>
-          </div>
-        }
-      />
+      <PageHeader title="Collection Insights" />
 
       {stats.total === 0 ? (
         <Card className="border-dashed bg-muted/40">
