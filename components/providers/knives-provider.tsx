@@ -22,6 +22,7 @@ import {
   normalizeCardFields,
   normalizeTimeFormat,
   SETTINGS_UPDATED_EVENT,
+  type AppTheme,
   type TimeFormat,
 } from '@/lib/settings-shared'
 import {
@@ -120,6 +121,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
         const data = await readJsonResponse<{
           error?: string
           settings?: {
+            theme?: AppTheme
             cloudAutoBackupEnabled?: boolean
             pinnedItemsFirst?: boolean
             timeFormat?: TimeFormat
@@ -132,6 +134,10 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (!cancelled) {
+          document.documentElement.classList.toggle(
+            'dark',
+            data.settings?.theme === 'dark',
+          )
           setIsAutoBackupEnabled(Boolean(data.settings?.cloudAutoBackupEnabled))
           setPinnedItemsFirst(Boolean(data.settings?.pinnedItemsFirst))
           setTimeFormat(normalizeTimeFormat(data.settings?.timeFormat))
@@ -156,6 +162,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     const onSettingsUpdated = (event: Event) => {
       const detail = (
         event as CustomEvent<{
+          theme?: AppTheme
           cloudAutoBackupEnabled?: boolean
           pinnedItemsFirst?: boolean
           timeFormat?: TimeFormat
@@ -164,6 +171,14 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
         }>
       ).detail
       let didUpdate = false
+
+      if (detail?.theme) {
+        document.documentElement.classList.toggle(
+          'dark',
+          detail.theme === 'dark',
+        )
+        didUpdate = true
+      }
 
       if (typeof detail?.cloudAutoBackupEnabled === 'boolean') {
         setIsAutoBackupEnabled(detail.cloudAutoBackupEnabled)

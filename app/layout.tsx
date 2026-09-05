@@ -20,6 +20,8 @@ export const metadata: Metadata = {
   },
 }
 
+export const dynamic = 'force-dynamic'
+
 function getInitialTheme() {
   try {
     return getSettings().theme
@@ -50,10 +52,12 @@ export default function RootLayout({
         <KnivesProvider>
           <TooltipProvider>
             <SidebarShell />
-            <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain print:overflow-visible">
-              {children}
-            </main>
-            <GlobalKnifeSearch />
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              <GlobalKnifeSearch />
+              <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain print:overflow-visible">
+                {children}
+              </main>
+            </div>
           </TooltipProvider>
         </KnivesProvider>
       </body>

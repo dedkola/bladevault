@@ -108,24 +108,26 @@ export function GlobalKnifeSearch() {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      {!open && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Search knives"
-          aria-keyshortcuts="/"
-          className="fixed top-2 left-1/2 z-40 flex h-8 -translate-x-1/2 items-center gap-2 rounded-full border border-[var(--bladevault-line)]/80 bg-popover/90 px-3 text-[11px] font-medium text-muted-foreground shadow-[0_6px_24px_rgba(31,27,17,0.14)] backdrop-blur-md transition-[color,background-color,box-shadow,transform] hover:bg-popover hover:text-foreground hover:shadow-[0_8px_28px_rgba(31,27,17,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.98] print:hidden"
-        >
-          <Search
-            className="size-3.5 text-[var(--bladevault-title)]"
-            aria-hidden="true"
-          />
-          <span>Find a knife</span>
-          <kbd className="rounded-md border border-[var(--bladevault-line)]/65 bg-[color:var(--bladevault-surface-soft)]/75 px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground">
-            /
-          </kbd>
-        </button>
-      )}
+      <div className="flex h-12 shrink-0 items-center justify-end border-b border-sidebar-border bg-sidebar px-4 print:hidden">
+        {!open && (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label="Search knives"
+            aria-keyshortcuts="/"
+            className="flex size-10 items-center justify-center gap-2 rounded-lg border border-[var(--bladevault-line)]/80 bg-popover/80 text-[11px] font-medium text-muted-foreground transition-[color,background-color,box-shadow,transform] hover:bg-popover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.98] sm:h-8 sm:w-auto sm:rounded-full sm:px-3"
+          >
+            <Search
+              className="size-4 text-[var(--bladevault-title)] sm:size-3.5"
+              aria-hidden="true"
+            />
+            <span className="hidden sm:inline">Find a knife</span>
+            <kbd className="hidden rounded-md border border-[var(--bladevault-line)]/65 bg-[color:var(--bladevault-surface-soft)]/75 px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground sm:inline">
+              /
+            </kbd>
+          </button>
+        )}
+      </div>
       {open && (
         <DialogContent
           showCloseButton={false}

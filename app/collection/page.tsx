@@ -422,7 +422,7 @@ function CollectionContent() {
       <PageHeader title="Collection" />
 
       {knives.length > 0 && (
-        <div className="mb-4 flex flex-wrap items-center justify-center gap-3 border border-[var(--bladevault-line)]/80 bg-[color:var(--bladevault-surface-soft)]/35 p-3">
+        <div className="mb-4 flex flex-wrap items-center justify-center gap-3 rounded-xl border border-[var(--bladevault-line)]/80 bg-[color:var(--bladevault-surface-soft)]/35 p-3">
           <SearchField
             value={query}
             onChange={setQuery}
@@ -463,7 +463,7 @@ function CollectionContent() {
         <div
           data-collection-filter-panel
           className={cn(
-            'mb-6 border border-border/80 bg-muted/20',
+            'mb-6 rounded-xl border border-border/80 bg-muted/20',
             isFiltersOpen ? 'p-3' : 'p-2',
             isDesktopFiltersOpen ? 'sm:p-4' : 'sm:p-2',
           )}

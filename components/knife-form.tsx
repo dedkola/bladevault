@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import Image from 'next/image'
 import {
   Loader2,
@@ -255,6 +255,7 @@ export function KnifeFormFields({
   removeImage,
 }: KnifeFormFieldsProps) {
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const formId = useId()
   const [isDraggingImages, setIsDraggingImages] = useState(false)
 
   const importImageFiles = (files: File[]) => {
@@ -286,21 +287,29 @@ export function KnifeFormFields({
     field: keyof KnifeFormData,
     placeholder: string,
     span: 1 | 2 = 1,
-  ) => (
-    <div className={cn('space-y-2', span === 2 && 'sm:col-span-2')}>
-      <label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-        {label}
-      </label>
-      <Input
-        value={form[field] as string}
-        onChange={(e) =>
-          updateField(field, e.target.value as KnifeFormData[typeof field])
-        }
-        placeholder={placeholder}
-        className="bg-background/80"
-      />
-    </div>
-  )
+  ) => {
+    const inputId = `${formId}-${field}`
+
+    return (
+      <div className={cn('space-y-2', span === 2 && 'sm:col-span-2')}>
+        <label
+          htmlFor={inputId}
+          className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+        >
+          {label}
+        </label>
+        <Input
+          id={inputId}
+          value={form[field] as string}
+          onChange={(e) =>
+            updateField(field, e.target.value as KnifeFormData[typeof field])
+          }
+          placeholder={placeholder}
+          className="bg-background/80"
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5">
@@ -348,10 +357,14 @@ export function KnifeFormFields({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {customFieldDefinitions.map((field) => (
               <div key={field.id} className="space-y-2">
-                <label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                <label
+                  htmlFor={`${formId}-custom-${field.id}`}
+                  className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                >
                   {field.name}
                 </label>
                 <Input
+                  id={`${formId}-custom-${field.id}`}
                   type={inputTypeForCustomField(field.type)}
                   step={field.type === 'number' ? 'any' : undefined}
                   value={form.customFields[field.id] ?? ''}
@@ -372,10 +385,14 @@ export function KnifeFormFields({
 
       <FormSection title="Notes">
         <div className="space-y-2">
-          <label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          <label
+            htmlFor={`${formId}-description`}
+            className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+          >
             Description
           </label>
           <Textarea
+            id={`${formId}-description`}
             value={form.description}
             onChange={(e) => updateField('description', e.target.value)}
             rows={5}
@@ -388,14 +405,14 @@ export function KnifeFormFields({
       <FormSection title="Images">
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
               Image Library
               {form.images.length > 0 && (
                 <span className="ml-2 font-sans text-[10px] font-normal normal-case text-muted-foreground/70">
                   {selectedImages.size} of {form.images.length} selected
                 </span>
               )}
-            </label>
+            </div>
             {form.images.length > 0 && (
               <div className="flex items-center gap-2">
                 <button
@@ -419,6 +436,7 @@ export function KnifeFormFields({
 
           <div className="flex flex-col gap-2 rounded-lg border border-[var(--bladevault-line)]/70 bg-[color:var(--bladevault-surface-soft)]/45 p-2 sm:flex-row">
             <Input
+              aria-label="Image URL"
               type="url"
               value={imageUrlInput}
               onChange={(e) => setImageUrlInput(e.target.value)}
@@ -432,6 +450,7 @@ export function KnifeFormFields({
                 size="icon-sm"
                 onClick={addImageUrl}
                 disabled={!imageUrlInput.trim()}
+                aria-label="Add image URL"
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -530,6 +549,7 @@ export function KnifeFormFields({
                     />
                     <div className="absolute left-2 top-2 z-10">
                       <Checkbox
+                        aria-label={`Include image ${index + 1}`}
                         checked={isSelected}
                         onCheckedChange={() => toggleImageSelection(src)}
                         onClick={(e) => e.stopPropagation()}
@@ -658,6 +678,7 @@ export function KnifeScrapeEditor({
   saveError = null,
   actions,
 }: KnifeScrapeEditorProps) {
+  const editorId = useId()
   const [form, setForm] = useState<KnifeFormData>(initialData)
   const [imageUrlInput, setImageUrlInput] = useState('')
   const [url, setUrl] = useState(initialData.sourceUrl)
@@ -901,13 +922,17 @@ export function KnifeScrapeEditor({
         <Card size="sm">
           <CardContent className="space-y-3">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              <label
+                htmlFor={`${editorId}-product-url`}
+                className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+              >
                 Product URL
               </label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Link2 className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
+                    id={`${editorId}-product-url`}
                     type="url"
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
@@ -1021,6 +1046,7 @@ export function KnifeScrapeEditor({
                     size="icon-xs"
                     onClick={() => setShowPreview((prev) => !prev)}
                     title={showPreview ? 'Hide preview' : 'Show preview'}
+                    aria-label={showPreview ? 'Hide preview' : 'Show preview'}
                   >
                     {showPreview ? (
                       <EyeOff className="h-3.5 w-3.5" />

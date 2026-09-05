@@ -410,12 +410,16 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.25fr_380px] 2xl:grid-cols-[1.5fr_420px]">
-        <div className="flex flex-col gap-6">
-          <Gallery images={knife.images} />
-          <MaintenanceSection knifeId={knife.id} />
+        <div className="contents lg:flex lg:flex-col lg:gap-6">
+          <div className="order-1 lg:order-none">
+            <Gallery images={knife.images} />
+          </div>
+          <div className="order-3 lg:order-none">
+            <MaintenanceSection knifeId={knife.id} />
+          </div>
         </div>
 
-        <div className="flex flex-col gap-6">
+        <div className="order-2 flex flex-col gap-6 lg:order-none">
           <Card size="sm">
             <CardContent className="space-y-4">
               {safeSourceUrl ? (

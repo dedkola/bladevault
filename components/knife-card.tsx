@@ -5,7 +5,6 @@ import { Check, ImageIcon, Pin, Scale } from 'lucide-react'
 import { getImageUrl, Knife } from '@/lib/data'
 import { cn } from '@/lib/utils'
 import { ImageCountBadge } from '@/components/image-count-badge'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -150,20 +149,17 @@ export const KnifeCard = memo(function KnifeCard({
           />
         )}
       </div>
-      <CardContent className="px-1 pb-1 pt-0">
-        <Badge
-          variant="secondary"
-          className="ml-2 max-w-full text-[10px] font-medium uppercase tracking-wide"
-          title={`${knife.brand} ${knife.name}`}
-        >
-          <span className="truncate">
-            <span className="text-muted-foreground">{knife.brand}</span>
-            <span className="mx-1 text-muted-foreground/50">·</span>
-            <span className="font-medium text-foreground">{knife.name}</span>
-          </span>
-        </Badge>
+      <CardContent className="px-3 pb-2 pt-1">
+        <div className="min-w-0" title={`${knife.brand} ${knife.name}`}>
+          <div className="truncate text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+            {knife.brand}
+          </div>
+          <div className="line-clamp-2 min-h-9 text-sm font-medium leading-[1.125rem] text-foreground">
+            {knife.name}
+          </div>
+        </div>
         {visibleCardFields.length > 0 ? (
-          <p className="mt-1 flex min-h-5 flex-wrap items-center text-xs leading-5 text-muted-foreground before:ml-2 before:mr-2 before:h-3 before:w-px before:shrink-0 before:bg-border before:content-[''] after:ml-2 after:h-3 after:w-px after:shrink-0 after:bg-border after:content-['']">
+          <p className="mt-1 flex min-h-5 flex-wrap items-center text-xs leading-5 text-muted-foreground">
             {visibleCardFields.map((value, index) => (
               <span
                 key={`${index}-${value}`}
@@ -210,7 +206,7 @@ export const KnifeCard = memo(function KnifeCard({
         onClick={handleCompareClick}
         disabled={isTogglingCompare}
         className={cn(
-          'absolute left-2 top-2 z-10 rounded-full border bg-white/90 text-[var(--bladevault-olive)] backdrop-blur-sm transition-colors hover:bg-white hover:text-[var(--bladevault-olive)] dark:border-input dark:bg-input/90 dark:text-[var(--bladevault-gold)] dark:hover:bg-input dark:hover:text-[var(--bladevault-gold)]',
+          "absolute left-2 top-2 z-10 rounded-full border bg-white/90 text-[var(--bladevault-olive)] backdrop-blur-sm transition-colors after:absolute after:-inset-2 after:content-[''] hover:bg-white hover:text-[var(--bladevault-olive)] dark:border-input dark:bg-input/90 dark:text-[var(--bladevault-gold)] dark:hover:bg-input dark:hover:text-[var(--bladevault-gold)] sm:after:inset-0",
           inCompare && activeKnifeFloatingClassName,
         )}
         style={inCompare ? activeKnifeActionStyle : undefined}
@@ -225,7 +221,7 @@ export const KnifeCard = memo(function KnifeCard({
         onClick={handlePinClick}
         disabled={isTogglingPin}
         className={cn(
-          'absolute right-2 top-2 z-10 rounded-full border bg-white/90 text-[var(--bladevault-olive)] backdrop-blur-sm transition-colors hover:bg-white hover:text-[var(--bladevault-olive)] dark:border-input dark:bg-input/90 dark:text-[var(--bladevault-gold)] dark:hover:bg-input dark:hover:text-[var(--bladevault-gold)]',
+          "absolute right-2 top-2 z-10 rounded-full border bg-white/90 text-[var(--bladevault-olive)] backdrop-blur-sm transition-colors after:absolute after:-inset-2 after:content-[''] hover:bg-white hover:text-[var(--bladevault-olive)] dark:border-input dark:bg-input/90 dark:text-[var(--bladevault-gold)] dark:hover:bg-input dark:hover:text-[var(--bladevault-gold)] sm:after:inset-0",
           pinned && activeKnifeFloatingClassName,
         )}
         style={pinned ? activeKnifeActionStyle : undefined}
