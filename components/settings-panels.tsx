@@ -10,7 +10,7 @@ const headerClassName =
   'border-b border-[var(--bladevault-line)] bg-background px-4 py-2.5 dark:border-[#d3c097]/30'
 
 const rowClassName =
-  'flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 border-b border-[var(--bladevault-line)]/60 last:border-b-0'
+  'flex flex-col gap-2 border-b border-[var(--bladevault-line)]/60 py-3 last:border-b-0 xl:flex-row xl:items-center xl:justify-between xl:gap-4'
 
 export function SettingsSection({
   title,
@@ -64,7 +64,7 @@ export function SettingsRow({
         ) : null}
       </div>
       {children ? (
-        <div className="flex shrink-0 items-center gap-2 sm:justify-end">
+        <div className="flex min-w-0 items-center gap-2 xl:shrink-0 xl:justify-end">
           {children}
         </div>
       ) : null}

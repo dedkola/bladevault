@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Loader2,
@@ -47,6 +47,7 @@ function hasKnifeFormContent(form: KnifeFormData): boolean {
 
 export function AddKnifeForm() {
   const router = useRouter()
+  const formId = useId()
   const { addKnife } = useKnives()
   const [activeTab, setActiveTab] = useState<Tab>('Scrape URL')
   const [form, setForm] = useState<KnifeFormData>(EMPTY_KNIFE_FORM)
@@ -454,13 +455,17 @@ export function AddKnifeForm() {
     <Card size="sm">
       <CardContent className="space-y-3">
         <div className="space-y-1.5">
-          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <label
+            htmlFor={`${formId}-product-url`}
+            className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+          >
             Product URL
           </label>
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Link2 className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
+                id={`${formId}-product-url`}
                 type="url"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
@@ -645,6 +650,7 @@ export function AddKnifeForm() {
                     size="icon-xs"
                     onClick={() => setShowPreview((prev) => !prev)}
                     title={showPreview ? 'Hide preview' : 'Show preview'}
+                    aria-label={showPreview ? 'Hide preview' : 'Show preview'}
                   >
                     {showPreview ? (
                       <EyeOff className="h-3.5 w-3.5" />

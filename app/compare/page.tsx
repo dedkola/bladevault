@@ -138,18 +138,20 @@ type BuiltInCompareRowKey = (typeof builtInCompareRows)[number]['key']
 type CompareRowKey = BuiltInCompareRowKey | `custom:${string}`
 
 function getRowValue(knife: Knife, rowKey: CompareRowKey): string {
+  let value: string | undefined
+
   if (rowKey.startsWith('custom:')) {
     const fieldId = rowKey.slice('custom:'.length)
-    return knife.customFields[fieldId] ?? '-'
-  }
-
-  if (rowKey.includes('.')) {
+    value = knife.customFields[fieldId]
+  } else if (rowKey.includes('.')) {
     const specKey = rowKey.split('.')[1] as keyof Knife['specs']
-    return knife.specs[specKey] ?? '-'
+    value = knife.specs[specKey]
+  } else {
+    const knifeKey = rowKey as 'bladeStyle' | 'handleMaterial'
+    value = knife[knifeKey]
   }
 
-  const knifeKey = rowKey as 'bladeStyle' | 'handleMaterial'
-  return knife[knifeKey] ?? '-'
+  return value?.trim() || '—'
 }
 
 function getSearchResultSummary(knife: Knife): string {
@@ -798,6 +800,11 @@ export default function ComparePage() {
                     <div className="text-sm font-medium text-foreground">
                       Comparison Matrix
                     </div>
+                    {comparedKnives.length > 1 ? (
+                      <div className="mt-0.5 text-xs text-muted-foreground sm:hidden">
+                        Swipe to compare
+                      </div>
+                    ) : null}
                   </div>
                   <label
                     htmlFor="differences-only"
@@ -822,7 +829,7 @@ export default function ComparePage() {
                   <Table className="min-w-full" containerClassName="contents">
                     <TableHeader>
                       <TableRow className="bg-[color:var(--bladevault-surface-soft)]/70 hover:bg-[color:var(--bladevault-surface-soft)]/70">
-                        <TableHead className="sticky left-0 top-0 z-30 w-44 border-r border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] text-[10px] uppercase tracking-wider text-[var(--bladevault-title)] shadow-[1px_0_0_0_var(--bladevault-line)]">
+                        <TableHead className="sticky left-0 top-0 z-30 w-28 min-w-28 max-w-28 whitespace-normal border-r border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] text-[10px] uppercase tracking-wider text-[var(--bladevault-title)] shadow-[1px_0_0_0_var(--bladevault-line)] sm:w-44 sm:min-w-44 sm:max-w-44">
                           Feature
                         </TableHead>
                         {comparedKnives.map((knife) => (
@@ -890,7 +897,7 @@ export default function ComparePage() {
                         >
                           <TableCell
                             className={cn(
-                              'sticky left-0 z-10 border-r border-[var(--bladevault-line)] text-[11px] font-medium uppercase tracking-wider text-[var(--bladevault-title)] shadow-[1px_0_0_0_var(--bladevault-line)] transition-colors',
+                              'sticky left-0 z-10 w-28 min-w-28 max-w-28 whitespace-normal border-r border-[var(--bladevault-line)] text-[11px] leading-tight font-medium uppercase tracking-wider text-[var(--bladevault-title)] shadow-[1px_0_0_0_var(--bladevault-line)] transition-colors sm:w-44 sm:min-w-44 sm:max-w-44',
                               idx % 2 === 0
                                 ? 'bg-background'
                                 : 'bg-[var(--bladevault-surface-soft)]',
@@ -921,7 +928,7 @@ export default function ComparePage() {
                                 }
                                 onMouseLeave={() => setHoveredCell(null)}
                               >
-                                {value ?? '-'}
+                                {value}
                               </TableCell>
                             )
                           })}

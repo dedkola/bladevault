@@ -133,7 +133,7 @@ type McpRuntimeStatus = {
 }
 
 const settingsTabTriggerClassName =
-  'flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors sm:w-full'
+  'flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors xl:w-full'
 
 const settingsSecondaryButtonClassName =
   'border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] text-foreground hover:bg-[var(--bladevault-surface-hover)] hover:text-foreground dark:border-[#d3c097]/30 dark:bg-[#382f1d] dark:text-[var(--bladevault-gold)] dark:hover:bg-[#4a3f25] dark:hover:text-[var(--bladevault-gold)]'
@@ -1375,10 +1375,10 @@ export default function SettingsView() {
           </div>
         </div>
       ) : (
-        <div className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border border-[var(--bladevault-line)] bg-background sm:flex-row">
+        <div className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border border-[var(--bladevault-line)] bg-background xl:flex-row">
           {/* Sidebar */}
-          <aside className="flex w-full shrink-0 border-b border-[var(--bladevault-line)] bg-background sm:w-56 sm:flex-col sm:border-r sm:border-b-0">
-            <nav className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto p-2 sm:min-h-0 sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto">
+          <aside className="flex w-full shrink-0 border-b border-[var(--bladevault-line)] bg-background xl:w-56 xl:flex-col xl:border-r xl:border-b-0">
+            <nav className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto p-2 xl:min-h-0 xl:flex-col xl:overflow-x-hidden xl:overflow-y-auto">
               {tabs.map((tab) => {
                 const isActive = tab.id === activeTab
                 return (
@@ -1818,6 +1818,7 @@ export default function SettingsView() {
                       description="Place pinned knives before other items in the Dashboard, Collection, and Compare views."
                     >
                       <Checkbox
+                        aria-label="Keep pinned knives first"
                         checked={settings.pinnedItemsFirst}
                         onCheckedChange={(checked) =>
                           handlePinnedItemsFirstToggle(checked === true)

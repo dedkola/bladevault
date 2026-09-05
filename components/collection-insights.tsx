@@ -13,6 +13,7 @@ import {
 } from '@/components/insights-chart'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { PageHeader } from '@/components/page-header'
 import {
   Dialog,
   DialogContent,
@@ -941,10 +942,8 @@ export function CollectionInsights() {
   if (knives.length === 0) {
     return (
       <div className="mx-auto w-full max-w-7xl flex-1 p-6 lg:p-8">
-        <h1 className="text-4xl font-medium tracking-tight text-[var(--bladevault-title)]">
-          Collection Insights
-        </h1>
-        <Card className="mt-8 border-dashed bg-muted/40">
+        <PageHeader title="Collection Insights" />
+        <Card className="border-dashed bg-muted/40">
           <CardContent className="flex flex-col items-center py-16 text-center">
             <h2 className="font-medium">No collection data yet</h2>
             <p className="mt-1 max-w-sm text-sm text-muted-foreground">
@@ -965,18 +964,16 @@ export function CollectionInsights() {
 
   return (
     <div className="mx-auto w-full max-w-7xl flex-1 p-6 print:max-w-none print:p-0 lg:p-8">
-      <header className="mb-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-4xl font-medium tracking-[-0.04em] text-[var(--bladevault-title)] sm:text-5xl">
-            Collection Insights
-          </h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 print:hidden">
-          <Button variant="outline" onClick={() => window.print()}>
-            <Download className="size-4" /> Export
-          </Button>
-        </div>
-      </header>
+      <PageHeader
+        title="Collection Insights"
+        actions={
+          <div className="print:hidden">
+            <Button variant="outline" onClick={() => window.print()}>
+              <Download className="size-4" /> Export
+            </Button>
+          </div>
+        }
+      />
 
       {stats.total === 0 ? (
         <Card className="border-dashed bg-muted/40">

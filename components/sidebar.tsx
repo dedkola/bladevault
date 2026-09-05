@@ -34,6 +34,14 @@ import {
 } from '@/components/ui/collapsible'
 import { type AppSettings } from '@/lib/settings-shared'
 import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 
 const links = [
   { href: '/', label: 'Insights', icon: LayoutDashboard },
@@ -151,14 +159,18 @@ export function Sidebar() {
           </Link>
 
           {isMobile && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={closeMobileNav}
-              aria-label="Close navigation"
+            <DialogClose
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-10"
+                  aria-label="Close navigation"
+                />
+              }
             >
               <X className="h-4 w-4" />
-            </Button>
+            </DialogClose>
           )}
         </div>
 
@@ -387,6 +399,7 @@ export function Sidebar() {
               size="sm"
               className="flex-1"
               onClick={toggleTheme}
+              aria-label="Toggle color theme"
             >
               <Sun className="h-3.5 w-3.5 dark:hidden" />
               <Moon className="hidden h-3.5 w-3.5 dark:block" />
@@ -445,7 +458,11 @@ export function Sidebar() {
   }
 
   return (
-    <>
+    <Dialog
+      open={isMobileNavOpen}
+      onOpenChange={(open) => setMobileNavSession(open ? routeKey : null)}
+      triggerId={isMobileNavOpen ? 'mobile-navigation-trigger' : null}
+    >
       <svg width="0" height="0" className="absolute print:hidden">
         <defs>
           <linearGradient
@@ -481,29 +498,34 @@ export function Sidebar() {
           </span>
         </Link>
 
-        <Button
-          variant="outline"
-          size="icon-sm"
-          onClick={() => setMobileNavSession(routeKey)}
-          aria-label="Open navigation"
-          aria-expanded={isMobileNavOpen}
+        <DialogTrigger
+          id="mobile-navigation-trigger"
+          render={
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="size-10"
+              aria-label="Open navigation"
+            />
+          }
         >
           <Menu className="h-4 w-4" />
-        </Button>
+        </DialogTrigger>
       </div>
 
-      {isMobileNavOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/45 print:hidden md:hidden"
-          onClick={closeMobileNav}
-        >
-          <div className="h-full" onClick={(event) => event.stopPropagation()}>
-            {renderSidebarContent(true)}
-          </div>
-        </div>
-      )}
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="bg-black/45 backdrop-blur-none print:hidden md:hidden"
+        className="top-0 left-0 h-dvh max-h-dvh w-auto max-w-none translate-x-0 translate-y-0 gap-0 rounded-none bg-transparent p-0 ring-0 shadow-none print:hidden md:hidden data-open:slide-in-from-left-4 data-closed:slide-out-to-left-4"
+      >
+        <DialogTitle className="sr-only">Navigation</DialogTitle>
+        <DialogDescription className="sr-only">
+          Navigate BladeVault and access collection shortcuts.
+        </DialogDescription>
+        {renderSidebarContent(true)}
+      </DialogContent>
 
       {renderSidebarContent(false)}
-    </>
+    </Dialog>
   )
 }
