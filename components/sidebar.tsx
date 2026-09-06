@@ -45,9 +45,9 @@ import {
 
 const links = [
   { href: '/', label: 'Insights', icon: LayoutDashboard },
-  { href: '/logs', label: 'Logs', icon: ScrollText },
   { href: '/collection', label: 'Collection', icon: Library },
   { href: '/compare', label: 'Compare', icon: Scale },
+  { href: '/logs', label: 'Logs', icon: ScrollText },
 ]
 
 export function Sidebar() {
