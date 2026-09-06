@@ -33,6 +33,18 @@ test.beforeEach(async ({ request }) => {
   await resetVault(request)
 })
 
+test('shows logs last in the primary sidebar navigation', async ({ page }) => {
+  await page.goto('/')
+
+  const primaryLinks = page.locator('aside:visible nav > a')
+  await expect(primaryLinks).toHaveText([
+    'Insights',
+    'Collection',
+    'Compare',
+    'Logs',
+  ])
+})
+
 test('records and displays create, update, and delete events', async ({
   page,
 }) => {
