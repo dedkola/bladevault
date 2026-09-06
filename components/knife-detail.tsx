@@ -11,6 +11,12 @@ import {
   ExternalLink,
   Pin,
   Scale,
+  IdCard,
+  Ruler,
+  Layers,
+  FileText,
+  ListPlus,
+  type LucideIcon,
 } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
 import { Knife, KnifeUpdates } from '@/lib/data'
@@ -32,48 +38,54 @@ import {
 
 function DetailSection({
   title,
-  description,
+  icon: Icon,
   children,
-  className,
 }: {
   title: string
-  description?: string
+  icon: LucideIcon
   children: React.ReactNode
-  className?: string
 }) {
   return (
     <section
-      className={cn(
-        'overflow-hidden rounded-xl border border-[var(--bladevault-line)] bg-background shadow-none',
-        className,
-      )}
+      aria-label={title}
+      className="mx-5 border-t border-border/60 py-5 first:border-t-0"
     >
-      <div className="border-b border-[var(--bladevault-line)] bg-[color:var(--bladevault-surface-soft)]/70 px-4 py-3 dark:border-[#d3c097]/30">
-        <div className="text-sm font-medium text-foreground">{title}</div>
-        {description ? (
-          <div className="mt-0.5 text-xs text-muted-foreground">
-            {description}
-          </div>
-        ) : null}
-      </div>
-      <div className="p-4">{children}</div>
+      <h3 className="mb-4 flex items-center gap-2 text-xs font-semibold text-foreground">
+        <Icon
+          aria-hidden="true"
+          className="size-3.5 shrink-0 text-[var(--bladevault-title)] dark:text-[var(--bladevault-gold)]"
+          strokeWidth={1.6}
+        />
+        {title}
+      </h3>
+      {children}
     </section>
   )
 }
 
-function DetailRow({
-  label,
-  value,
-}: {
-  label: string
-  value: React.ReactNode
-}) {
+function DetailRow({ label, value }: { label: string; value: string }) {
+  const isMissing = !value.trim() || value === 'N/A'
+
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-[var(--bladevault-line)]/60 py-2.5 last:border-b-0 last:pb-0 first:pt-0">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="max-w-[60%] text-right text-xs text-foreground">
-        {value}
-      </span>
+    <div className="min-w-0">
+      <dt className="mb-1 text-[10px] leading-relaxed text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="text-[13px] leading-relaxed font-medium text-foreground tabular-nums [overflow-wrap:anywhere]">
+        {isMissing ? (
+          <>
+            <span
+              aria-hidden="true"
+              className="font-normal text-muted-foreground/70"
+            >
+              —
+            </span>
+            <span className="sr-only">Not recorded</span>
+          </>
+        ) : (
+          value
+        )}
+      </dd>
     </div>
   )
 }
@@ -420,50 +432,62 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
         </div>
 
         <div className="order-2 flex flex-col gap-6 lg:order-none">
-          <Card size="sm">
-            <CardContent className="space-y-4">
+          <Card size="sm" className="gap-0 border border-border/65 py-0 ring-0">
+            <CardContent className="px-0">
               {safeSourceUrl ? (
-                <div className="rounded-lg border border-[var(--bladevault-line)]/70 bg-[color:var(--bladevault-surface-soft)]/45 px-3 py-3">
-                  <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                    Source
-                  </h3>
-                  <Link
-                    href={safeSourceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-1 inline-flex items-center gap-1 break-all text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    {knife.sourceUrl}
-                    <ExternalLink className="h-3 w-3 shrink-0" />
-                  </Link>
+                <div className="flex items-center justify-between gap-3 px-5 py-4">
+                  <div className="min-w-0">
+                    <h3 className="mb-1 text-[10px] text-muted-foreground">
+                      Source
+                    </h3>
+                    <Link
+                      href={safeSourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={safeSourceUrl}
+                      className="inline-flex max-w-full items-center gap-2 rounded-sm text-xs font-medium text-foreground hover:text-[var(--bladevault-title)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring dark:hover:text-[var(--bladevault-gold)]"
+                    >
+                      <span className="min-w-0 [overflow-wrap:anywhere]">
+                        {new URL(safeSourceUrl).hostname}
+                      </span>
+                      <ExternalLink
+                        aria-hidden="true"
+                        className="size-3.5 shrink-0 text-[var(--bladevault-title)] dark:text-[var(--bladevault-gold)]"
+                      />
+                      <span className="sr-only">(opens in a new tab)</span>
+                    </Link>
+                  </div>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">
+                    Product page
+                  </span>
                 </div>
               ) : null}
 
-              <DetailSection title="Identity" className="rounded-lg">
-                <div>
+              <DetailSection title="Identity" icon={IdCard}>
+                <dl className="grid grid-cols-2 gap-x-5 gap-y-3.5">
                   {identityRows.map(({ label, value }) => (
                     <DetailRow key={label} label={label} value={value} />
                   ))}
-                </div>
+                </dl>
               </DetailSection>
 
-              <DetailSection title="Dimensions" className="rounded-lg">
-                <div>
+              <DetailSection title="Dimensions" icon={Ruler}>
+                <dl className="grid grid-cols-2 gap-x-5 gap-y-3.5">
                   {dimensionRows.map(({ label, value }) => (
                     <DetailRow key={label} label={label} value={value} />
                   ))}
-                </div>
+                </dl>
               </DetailSection>
 
-              <DetailSection title="Construction" className="rounded-lg">
-                <div>
+              <DetailSection title="Construction" icon={Layers}>
+                <dl className="grid grid-cols-2 gap-x-5 gap-y-3.5">
                   {constructionRows.map(({ label, value }) => (
                     <DetailRow key={label} label={label} value={value} />
                   ))}
-                </div>
+                </dl>
               </DetailSection>
 
-              <DetailSection title="Notes" className="rounded-lg">
+              <DetailSection title="Notes" icon={FileText}>
                 <div className="space-y-3">
                   {knife.description ? (
                     knife.description
@@ -473,13 +497,13 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
                       .map((paragraph, index) => (
                         <p
                           key={index}
-                          className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground"
+                          className="whitespace-pre-line text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]"
                         >
                           {paragraph}
                         </p>
                       ))
                   ) : (
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       No description provided.
                     </p>
                   )}
@@ -487,12 +511,12 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
               </DetailSection>
 
               {customFieldRows.length > 0 && (
-                <DetailSection title="Custom Fields" className="rounded-lg">
-                  <div>
+                <DetailSection title="Custom Fields" icon={ListPlus}>
+                  <dl className="grid grid-cols-2 gap-x-5 gap-y-3.5">
                     {customFieldRows.map(({ label, value }) => (
                       <DetailRow key={label} label={label} value={value} />
                     ))}
-                  </div>
+                  </dl>
                 </DetailSection>
               )}
             </CardContent>
