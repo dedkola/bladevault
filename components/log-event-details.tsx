@@ -20,7 +20,7 @@ export function LogEventDetails({
 }) {
   return (
     <>
-      <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-muted/40 px-5 py-3">
+      <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-muted/40 px-3 py-2.5 sm:px-5">
         <h2 className="text-xs font-semibold">Event details</h2>
         <Button
           variant="ghost"
@@ -31,75 +31,79 @@ export function LogEventDetails({
           <X className="size-3.5" />
         </Button>
       </div>
-      <div className="px-5">
-        <section className="py-5">
-          <h3 className="text-base font-semibold tracking-tight [overflow-wrap:anywhere]">
-            {event.subject}
-          </h3>
-          {knifeHref ? (
-            <Link
-              href={knifeHref}
-              className="mt-2 inline-flex items-center gap-1 rounded-sm text-[11px] font-medium text-[var(--bladevault-title)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring dark:text-[var(--bladevault-gold)]"
-            >
-              Open knife details <ArrowUpRight className="size-3.5" />
-            </Link>
-          ) : knifeUnavailable ? (
-            <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-              This knife is no longer in the collection. Its history is
-              retained.
-            </p>
-          ) : null}
-        </section>
+      <div className="px-3 sm:px-5">
+        <div className="xl:grid xl:grid-cols-[minmax(13rem,0.8fr)_minmax(0,2.2fr)]">
+          <section className="py-4 xl:border-r xl:border-border/60 xl:pr-5">
+            <h3 className="text-base font-semibold tracking-tight [overflow-wrap:anywhere]">
+              {event.subject}
+            </h3>
+            {knifeHref ? (
+              <Link
+                href={knifeHref}
+                className="mt-1.5 inline-flex items-center gap-1 rounded-sm text-[11px] font-medium text-[var(--bladevault-title)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring dark:text-[var(--bladevault-gold)]"
+              >
+                Open knife details <ArrowUpRight className="size-3.5" />
+              </Link>
+            ) : knifeUnavailable ? (
+              <p className="mt-1.5 max-w-sm text-[11px] leading-relaxed text-muted-foreground">
+                This knife is no longer in the collection. Its history is
+                retained.
+              </p>
+            ) : null}
+          </section>
+          <section
+            className="border-t border-border/60 py-4 xl:border-t-0 xl:pl-5"
+            aria-label="Activity"
+          >
+            <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold">
+              <History className="size-3.5 text-[var(--bladevault-title)] dark:text-[var(--bladevault-gold)]" />
+              Activity
+            </h3>
+            <dl className="grid grid-cols-2 gap-x-5 gap-y-3 text-xs sm:grid-cols-3 xl:grid-cols-5 [&_dt]:mb-1 [&_dt]:text-[10px] [&_dt]:text-muted-foreground [&_dd]:font-medium [&_dd]:leading-relaxed [&_dd]:[overflow-wrap:anywhere]">
+              <div>
+                <dt>Event</dt>
+                <dd>{title}</dd>
+              </div>
+              <div>
+                <dt>Source</dt>
+                <dd>{event.source}</dd>
+              </div>
+              <div>
+                <dt>Date</dt>
+                <dd>
+                  {new Date(event.occurredAt).toLocaleDateString(undefined, {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                </dd>
+              </div>
+              <div>
+                <dt>Time</dt>
+                <dd className="tabular-nums">
+                  <time dateTime={event.occurredAt}>{time}</time>
+                </dd>
+              </div>
+              <div>
+                <dt>Actor</dt>
+                <dd>{event.actor}</dd>
+              </div>
+            </dl>
+          </section>
+        </div>
         <section
-          className="border-t border-border/60 py-5"
-          aria-label="Activity"
-        >
-          <h3 className="mb-4 flex items-center gap-2 text-xs font-semibold">
-            <History className="size-3.5 text-[var(--bladevault-title)] dark:text-[var(--bladevault-gold)]" />
-            Activity
-          </h3>
-          <dl className="grid grid-cols-2 gap-x-5 gap-y-3.5 text-xs [&_dt]:mb-1 [&_dt]:text-[10px] [&_dt]:text-muted-foreground [&_dd]:font-medium [&_dd]:leading-relaxed [&_dd]:[overflow-wrap:anywhere]">
-            <div>
-              <dt>Event</dt>
-              <dd>{title}</dd>
-            </div>
-            <div>
-              <dt>Source</dt>
-              <dd>{event.source}</dd>
-            </div>
-            <div>
-              <dt>Date</dt>
-              <dd>
-                {new Date(event.occurredAt).toLocaleDateString(undefined, {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                })}
-              </dd>
-            </div>
-            <div>
-              <dt>Time</dt>
-              <dd className="tabular-nums">
-                <time dateTime={event.occurredAt}>{time}</time>
-              </dd>
-            </div>
-            <div>
-              <dt>Actor</dt>
-              <dd>{event.actor}</dd>
-            </div>
-          </dl>
-        </section>
-        <section
-          className="border-t border-border/60 py-5"
+          className="border-t border-border/60 py-4 xl:grid xl:grid-cols-[minmax(13rem,0.8fr)_minmax(0,2.2fr)] xl:gap-x-5"
           aria-label="Changes"
         >
-          <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold">
-            <GitCompareArrows className="size-3.5 text-[var(--bladevault-title)] dark:text-[var(--bladevault-gold)]" />
-            Changes{event.changes.length ? ` · ${event.changes.length}` : ''}
-          </h3>
-          <p className="mb-4 whitespace-pre-wrap text-[11px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
-            {event.summary}
-          </p>
+          <div className="mb-4 xl:mb-0">
+            <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold">
+              <GitCompareArrows className="size-3.5 text-[var(--bladevault-title)] dark:text-[var(--bladevault-gold)]" />
+              Changes{event.changes.length ? ` · ${event.changes.length}` : ''}
+            </h3>
+            <p className="max-w-sm whitespace-pre-wrap text-[11px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+              {event.summary}
+            </p>
+          </div>
           {event.changes.length ? (
             <table className="w-full table-fixed text-left text-[11px] leading-relaxed">
               <caption className="sr-only">Before and after values</caption>
@@ -133,11 +137,11 @@ export function LogEventDetails({
             </p>
           )}
         </section>
-        <details className="border-t border-border/60 py-4 text-[10px] text-muted-foreground">
+        <details className="border-t border-border/60 py-3 text-[10px] text-muted-foreground">
           <summary className="cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
             Technical details
           </summary>
-          <dl className="mt-3 space-y-3 [&_dt]:mb-1 [&_dd]:font-mono [&_dd]:[overflow-wrap:anywhere]">
+          <dl className="mt-3 grid gap-3 sm:grid-cols-2 [&_dt]:mb-1 [&_dd]:font-mono [&_dd]:[overflow-wrap:anywhere]">
             <div>
               <dt>Event ID</dt>
               <dd>{event.id}</dd>

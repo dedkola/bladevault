@@ -208,7 +208,7 @@ test('records and displays create, update, and delete events', async ({
   ).toHaveAttribute('aria-pressed', 'true')
 })
 
-test('inspects real log changes beside the table and inline on smaller screens', async ({
+test('inspects real log changes inline at all screen sizes', async ({
   page,
   request,
 }) => {
@@ -226,52 +226,58 @@ test('inspects real log changes beside the table and inline on smaller screens',
     name: /Metadata updated details/,
   })
   const panel = page.getByRole('complementary', { name: /Event details for/ })
-  await expect(panel).toBeVisible()
-  await expect(panel.getByText(longNotes, { exact: true })).toBeVisible()
+  await expand.click()
+
+  const inlineDetails = page.getByRole('region', {
+    name: /Event details for/,
+  })
+  await expect(inlineDetails).toBeVisible()
+  await expect(panel).toHaveCount(0)
   await expect(
-    panel.getByText('Lightweight folder', { exact: true }),
+    inlineDetails.getByText(longNotes, { exact: true }),
   ).toBeVisible()
   await expect(
-    panel.getByRole('link', { name: 'Open knife details' }),
+    inlineDetails.getByText('Lightweight folder', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    inlineDetails.getByRole('link', { name: 'Open knife details' }),
   ).toHaveAttribute('href', `/collection/${knife.id}`)
-  const tableBounds = await page
-    .locator('[data-slot="table-container"]')
-    .boundingBox()
-  const panelBounds = await panel.boundingBox()
-  expect(panelBounds!.x).toBeGreaterThanOrEqual(
-    tableBounds!.x + tableBounds!.width,
-  )
 
-  await panel.getByRole('button', { name: 'Close event details' }).click()
-  await expect(panel).toHaveCount(0)
+  await inlineDetails
+    .getByRole('button', { name: 'Close event details' })
+    .click()
+  await expect(inlineDetails).toHaveCount(0)
   await expect(expand).toBeFocused()
   await page.keyboard.press('Enter')
-  await expect(panel).toBeVisible()
+  await expect(inlineDetails).toBeVisible()
   await page.keyboard.press('Escape')
-  await expect(panel).toHaveCount(0)
+  await expect(inlineDetails).toHaveCount(0)
   await expect(expand).toBeFocused()
   await expand.click()
 
   const search = page.getByRole('textbox', { name: 'Search logs' })
   await search.fill('detailed maintenance and collection note')
   await expect(logEntries(page)).toHaveCount(1)
-  await expect(panel).toBeVisible()
+  await expect(inlineDetails).toBeVisible()
   await search.fill('no matching knife or field')
   await expect(
     page.getByText('No matching entries', { exact: true }),
   ).toBeVisible()
-  await expect(panel).toHaveCount(0)
+  await expect(inlineDetails).toHaveCount(0)
   await page.getByRole('button', { name: 'Clear filters' }).click()
+  const postFilterUpdated = logEntry(page, 'updated', 'Panel Test Knife')
+  await expect(postFilterUpdated).toBeVisible()
+  await expect(inlineDetails).toBeVisible()
 
   for (const width of [1024, 800, 390, 320]) {
     await page.setViewportSize({ width, height: 900 })
-    const inlineDetails = page.getByRole('region', {
+    const loopDetails = page.getByRole('region', {
       name: /Event details for/,
     })
-    await expect(inlineDetails).toBeVisible()
+    await expect(loopDetails).toBeVisible()
     await expect(panel).toHaveCount(0)
     await expect(
-      inlineDetails.getByText(longNotes, { exact: true }),
+      loopDetails.getByText(longNotes, { exact: true }),
     ).toBeVisible()
     const geometry = await page.evaluate(() => {
       const main = document.querySelector('main')!
@@ -298,6 +304,54 @@ test('inspects real log changes beside the table and inline on smaller screens',
   await expect(page).toHaveURL(new RegExp(`/collection/${knife.id}$`))
   await page.goto('/logs')
   await expect(updated).toBeVisible()
+})
+
+test('keeps the clicked event stationary while switching inline details', async ({
+  page,
+  request,
+}) => {
+  for (let index = 0; index < 8; index += 1) {
+    await seedKnife(request, { name: `Scroll filler ${index}` })
+  }
+  const { knife: targetKnife } = await seedKnife(request, {
+    name: 'Scroll target',
+  })
+  const { knife: upperKnife } = await seedKnife(request, {
+    name: 'Expanded above target',
+  })
+  const update = await request.patch(`/api/knives/${upperKnife.id}`, {
+    data: { description: 'Long detail value. '.repeat(80) },
+  })
+  expect(update.ok()).toBe(true)
+
+  await page.setViewportSize({ width: 1440, height: 700 })
+  await page.goto('/logs')
+
+  const upperEntry = logEntry(page, 'updated', 'Expanded above target')
+  await upperEntry.getByRole('button', { name: /Expand .* details/ }).click()
+
+  const targetEntry = logEntry(page, 'created', 'Scroll target')
+  await targetEntry.scrollIntoViewIfNeeded()
+  const before = await targetEntry.boundingBox()
+  await targetEntry.getByRole('button', { name: /Expand .* details/ }).click()
+
+  const details = page.getByRole('region', {
+    name: `Event details for Benchmade · Scroll target`,
+  })
+  await expect(details).toBeVisible()
+  const after = await targetEntry.boundingBox()
+  const detailBounds = await details.boundingBox()
+  expect(Math.abs(after!.y - before!.y)).toBeLessThanOrEqual(1)
+  expect(detailBounds!.y).toBeGreaterThanOrEqual(after!.y + after!.height - 1)
+
+  await targetEntry.getByRole('button', { name: /Collapse .* details/ }).click()
+  const afterCollapse = await targetEntry.boundingBox()
+  expect(Math.abs(afterCollapse!.y - after!.y)).toBeLessThanOrEqual(1)
+  await expect(details).toHaveCount(0)
+  await expect(targetEntry.getByRole('button')).toBeFocused()
+  await expect(
+    page.getByRole('link', { name: `View Benchmade · Scroll target` }),
+  ).toHaveAttribute('href', `/collection/${targetKnife.id}`)
 })
 
 test('retries a failed log request and renders an empty vault', async ({
