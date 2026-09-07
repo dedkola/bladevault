@@ -1,7 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Popover } from '@base-ui/react/popover'
 import { DayPicker, SelectionState, UI, type DateRange } from 'react-day-picker'
 import {
@@ -253,27 +260,44 @@ export function LogSessionsView() {
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date())
   const [calendarMonths, setCalendarMonths] = useState(1)
-  const [selectedId, setSelectedId] = useState<number | null | undefined>()
-  const [isDesktop, setIsDesktop] = useState(false)
+  const [selectedId, setSelectedId] = useState<number | null>(null)
   const [showSummary, setShowSummary] = useState(false)
+  const [showSource, setShowSource] = useState(false)
   const [loadAttempt, setLoadAttempt] = useState(0)
   const entryButtons = useRef(new Map<number, HTMLButtonElement>())
+  const pendingRowPosition = useRef<{ id: number; top: number } | null>(null)
 
   useEffect(() => {
-    const desktop = window.matchMedia('(min-width: 1280px)')
     const summary = window.matchMedia('(min-width: 1024px)')
+    const source = window.matchMedia('(min-width: 1280px)')
     const update = () => {
-      setIsDesktop(desktop.matches)
       setShowSummary(summary.matches)
+      setShowSource(source.matches)
     }
     update()
-    desktop.addEventListener('change', update)
     summary.addEventListener('change', update)
+    source.addEventListener('change', update)
     return () => {
-      desktop.removeEventListener('change', update)
       summary.removeEventListener('change', update)
+      source.removeEventListener('change', update)
     }
   }, [])
+
+  useLayoutEffect(() => {
+    const pending = pendingRowPosition.current
+    pendingRowPosition.current = null
+    if (!pending) return
+
+    const row = entryButtons.current
+      .get(pending.id)
+      ?.closest<HTMLElement>('[data-log-entry]')
+    const scrollContainer = row?.closest<HTMLElement>('main')
+    if (!row || !scrollContainer) return
+
+    // Keep the clicked row fixed when details above it leave the table.
+    const offset = row.getBoundingClientRect().top - pending.top
+    if (Math.abs(offset) > 0.5) scrollContainer.scrollTop += offset
+  }, [selectedId])
 
   useEffect(() => {
     let cancelled = false
@@ -398,14 +422,9 @@ export function LogSessionsView() {
     return groups
   }, [filteredEvents])
 
-  const selectedEvent =
-    selectedId === undefined
-      ? isDesktop
-        ? filteredEvents[0]
-        : undefined
-      : filteredEvents.find((event) => event.id === selectedId)
-  const showPanel = isDesktop && !!selectedEvent && !isLoading && !error
-  const showSource = isDesktop && !showPanel
+  const selectedEvent = selectedId
+    ? filteredEvents.find((event) => event.id === selectedId)
+    : undefined
   const columnCount = 4 + Number(showSummary) + Number(showSource)
   const getKnifeHref = (event: AuditLogEvent) =>
     event.knifeId && currentKnifeIds.has(event.knifeId)
@@ -415,6 +434,17 @@ export function LogSessionsView() {
     if (selectedEvent)
       entryButtons.current.get(selectedEvent.id)?.focus({ preventScroll: true })
     setSelectedId(null)
+  }
+  const toggleDetails = (id: number) => {
+    const button = entryButtons.current.get(id)
+    const row = button?.closest<HTMLElement>('[data-log-entry]')
+    if (row) {
+      pendingRowPosition.current = {
+        id,
+        top: row.getBoundingClientRect().top,
+      }
+    }
+    setSelectedId((current) => (current === id ? null : id))
   }
   const clearFilters = () => {
     setQuery('')
@@ -458,10 +488,7 @@ export function LogSessionsView() {
 
   return (
     <div
-      className={cn(
-        'grid w-full min-w-0 items-start gap-5',
-        showPanel && 'xl:grid-cols-[minmax(0,1fr)_320px]',
-      )}
+      className="grid w-full min-w-0 items-start gap-5"
       onKeyDown={(event) => {
         if (
           event.key === 'Escape' &&
@@ -733,7 +760,7 @@ export function LogSessionsView() {
         ) : filteredEvents.length ? (
           <>
             <Table
-              className="table-fixed text-xs"
+              className="table-fixed text-xs [overflow-anchor:none]"
               containerClassName="overflow-x-clip"
             >
               <caption className="sr-only">
@@ -806,7 +833,7 @@ export function LogSessionsView() {
                               (click.target as HTMLElement).closest('a, button')
                             )
                               return
-                            setSelectedId(selected ? null : event.id)
+                            toggleDetails(event.id)
                             entryButtons.current
                               .get(event.id)
                               ?.focus({ preventScroll: true })
@@ -875,9 +902,7 @@ export function LogSessionsView() {
                                   entryButtons.current.set(event.id, node)
                                 else entryButtons.current.delete(event.id)
                               }}
-                              onClick={() =>
-                                setSelectedId(selected ? null : event.id)
-                              }
+                              onClick={() => toggleDetails(event.id)}
                               aria-expanded={selected}
                               aria-controls={selected ? detailId : undefined}
                               aria-label={`${selected ? 'Collapse' : 'Expand'} ${event.title} details for ${event.subject}`}
@@ -893,7 +918,7 @@ export function LogSessionsView() {
                             </button>
                           </TableCell>
                         </TableRow>
-                        {selected && !isDesktop && (
+                        {selected && (
                           <TableRow className="hover:bg-transparent">
                             <TableCell
                               colSpan={columnCount}
@@ -957,27 +982,6 @@ export function LogSessionsView() {
           </div>
         )}
       </Card>
-      {showPanel && selectedEvent && (
-        <aside
-          id={`log-detail-${selectedEvent.id}`}
-          aria-label={`Event details for ${selectedEvent.subject}`}
-          className="sticky top-6 max-h-[calc(100dvh-3rem)] min-w-0 overflow-y-auto rounded-xl border border-border/65 bg-card"
-        >
-          <LogEventDetails
-            key={selectedEvent.id}
-            event={selectedEvent}
-            title={selectedEvent.title}
-            time={selectedEvent.time}
-            knifeHref={getKnifeHref(selectedEvent)}
-            knifeUnavailable={
-              !knivesLoading &&
-              !!selectedEvent.knifeId &&
-              !getKnifeHref(selectedEvent)
-            }
-            onClose={closeDetails}
-          />
-        </aside>
-      )}
     </div>
   )
 }
