@@ -457,9 +457,6 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
                       <span className="sr-only">(opens in a new tab)</span>
                     </Link>
                   </div>
-                  <span className="shrink-0 text-[10px] text-muted-foreground">
-                    Product page
-                  </span>
                 </div>
               ) : null}
 

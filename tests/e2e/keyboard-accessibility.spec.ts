@@ -111,6 +111,19 @@ test('finds and opens knives from insights and knife details', async ({
   await expect(page).toHaveURL(`/collection/${raccoon.knife.id}`)
 })
 
+test('shows a detail source link without the redundant product page label', async ({
+  page,
+  request,
+}) => {
+  const { knife } = await seedKnife(request, {
+    sourceUrl: 'https://example.com/knife',
+  })
+
+  await page.goto(`/collection/${knife.id}`)
+  await expect(page.getByRole('link', { name: /example\.com/ })).toBeVisible()
+  await expect(page.getByText('Product page', { exact: true })).toHaveCount(0)
+})
+
 test('navigates the fullscreen gallery with arrow keys', async ({
   page,
   request,
