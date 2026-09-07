@@ -75,9 +75,9 @@ test('logs maintenance events from the knife detail page', async ({
   ).toBeVisible()
 
   await page.goto('/logs')
-  const maintenanceEntries = page
-    .locator('[data-log-entry]')
-    .filter({ hasText: 'Maintenance logged' })
+  const maintenanceEntries = page.locator('[data-log-entry]').filter({
+    has: page.getByRole('button', { name: /Maintenance logged details/ }),
+  })
   await expect(maintenanceEntries).toHaveCount(4)
   await expect(
     maintenanceEntries
@@ -102,7 +102,9 @@ test('logs maintenance events from the knife detail page', async ({
   expect(searchWidthAfter).toBe(searchWidthBefore)
   await expect(page.locator('[data-log-entry]')).toHaveCount(4)
   await expect(
-    page.locator('[data-log-entry]').filter({ hasText: 'Maintenance logged' }),
+    page.locator('[data-log-entry]').filter({
+      has: page.getByRole('button', { name: /Maintenance logged details/ }),
+    }),
   ).toHaveCount(4)
 })
 
@@ -156,13 +158,17 @@ test('edits and deletes maintenance events', async ({ page, request }) => {
   await expect(
     page
       .locator('[data-log-entry]')
-      .filter({ hasText: 'Maintenance updated' })
+      .filter({
+        has: page.getByRole('button', { name: /Maintenance updated details/ }),
+      })
       .first(),
   ).toBeVisible()
   await expect(
     page
       .locator('[data-log-entry]')
-      .filter({ hasText: 'Maintenance deleted' })
+      .filter({
+        has: page.getByRole('button', { name: /Maintenance deleted details/ }),
+      })
       .first(),
   ).toBeVisible()
 })

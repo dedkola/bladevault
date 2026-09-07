@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { resetVault } from './helpers'
+import { resetVault, seedKnife } from './helpers'
 
 function formatDateKey(date: Date): string {
   const year = date.getFullYear()
@@ -64,7 +64,9 @@ test('records and displays create, update, and delete events', async ({
   await page.goto('/')
   await page.getByRole('link', { name: 'Logs', exact: true }).click()
   await expect(page).toHaveURL(/\/logs$/)
-  await expect(page.getByRole('heading', { name: 'Logs' })).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Logs', exact: true }),
+  ).toBeVisible()
   await expect(
     page.getByRole('link', { name: 'Logs', exact: true }),
   ).toHaveAttribute('aria-current', 'page')
@@ -97,7 +99,10 @@ test('records and displays create, update, and delete events', async ({
     logEntry(page, 'deleted', `${brand} · ${updatedName}`),
   ).toBeVisible()
 
-  const allFilter = page.getByRole('button', { name: 'all', exact: true })
+  const allFilter = page.getByRole('button', {
+    name: 'All activity',
+    exact: true,
+  })
   const createdFilter = page.getByRole('button', {
     name: 'created',
     exact: true,
@@ -201,4 +206,136 @@ test('records and displays create, update, and delete events', async ({
   await expect(
     dateRangePicker.getByRole('button', { name: 'Last 7 days' }),
   ).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('inspects real log changes beside the table and inline on smaller screens', async ({
+  page,
+  request,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  const { knife } = await seedKnife(request, { name: 'Panel Test Knife' })
+  const longNotes = 'A detailed maintenance and collection note. '.repeat(20)
+  const update = await request.patch(`/api/knives/${knife.id}`, {
+    data: { description: longNotes },
+  })
+  expect(update.ok()).toBe(true)
+  await page.goto('/logs')
+
+  const updated = logEntry(page, 'updated', 'Panel Test Knife')
+  const expand = updated.getByRole('button', {
+    name: /Metadata updated details/,
+  })
+  const panel = page.getByRole('complementary', { name: /Event details for/ })
+  await expect(panel).toBeVisible()
+  await expect(panel.getByText(longNotes, { exact: true })).toBeVisible()
+  await expect(
+    panel.getByText('Lightweight folder', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    panel.getByRole('link', { name: 'Open knife details' }),
+  ).toHaveAttribute('href', `/collection/${knife.id}`)
+  const tableBounds = await page
+    .locator('[data-slot="table-container"]')
+    .boundingBox()
+  const panelBounds = await panel.boundingBox()
+  expect(panelBounds!.x).toBeGreaterThanOrEqual(
+    tableBounds!.x + tableBounds!.width,
+  )
+
+  await panel.getByRole('button', { name: 'Close event details' }).click()
+  await expect(panel).toHaveCount(0)
+  await expect(expand).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(panel).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(panel).toHaveCount(0)
+  await expect(expand).toBeFocused()
+  await expand.click()
+
+  const search = page.getByRole('textbox', { name: 'Search logs' })
+  await search.fill('detailed maintenance and collection note')
+  await expect(logEntries(page)).toHaveCount(1)
+  await expect(panel).toBeVisible()
+  await search.fill('no matching knife or field')
+  await expect(
+    page.getByText('No matching entries', { exact: true }),
+  ).toBeVisible()
+  await expect(panel).toHaveCount(0)
+  await page.getByRole('button', { name: 'Clear filters' }).click()
+
+  for (const width of [1024, 800, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 })
+    const inlineDetails = page.getByRole('region', {
+      name: /Event details for/,
+    })
+    await expect(inlineDetails).toBeVisible()
+    await expect(panel).toHaveCount(0)
+    await expect(
+      inlineDetails.getByText(longNotes, { exact: true }),
+    ).toBeVisible()
+    const geometry = await page.evaluate(() => {
+      const main = document.querySelector('main')!
+      const table = document.querySelector('[data-slot="table-container"]')!
+      return {
+        documentWidth: document.documentElement.scrollWidth,
+        viewport: innerWidth,
+        mainWidth: main.clientWidth,
+        mainScroll: main.scrollWidth,
+        tableWidth: table.clientWidth,
+        tableScroll: table.scrollWidth,
+      }
+    })
+    expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewport)
+    expect(geometry.mainScroll).toBeLessThanOrEqual(geometry.mainWidth)
+    expect(geometry.tableScroll).toBeLessThanOrEqual(geometry.tableWidth)
+  }
+  await page
+    .getByRole('region', { name: /Event details for/ })
+    .getByRole('button', { name: 'Close event details' })
+    .click()
+  await expect(expand).toBeFocused()
+  await updated.getByRole('link', { name: /View Benchmade/ }).click()
+  await expect(page).toHaveURL(new RegExp(`/collection/${knife.id}$`))
+  await page.goto('/logs')
+  await expect(updated).toBeVisible()
+})
+
+test('retries a failed log request and renders an empty vault', async ({
+  page,
+  request,
+}) => {
+  await seedKnife(request, { name: 'Retry Test Knife' })
+  let fail = true
+  await page.route('**/api/logs', async (route) => {
+    if (fail) {
+      await route.fulfill({
+        status: 503,
+        json: { error: 'Logs are temporarily unavailable.' },
+      })
+    } else {
+      await route.continue()
+    }
+  })
+  await page.goto('/logs')
+  await expect(page.getByRole('main').getByRole('alert')).toContainText(
+    'Logs are temporarily unavailable.',
+  )
+  fail = false
+  await page.getByRole('button', { name: 'Try again' }).click()
+  await expect(
+    logEntries(page).filter({ hasText: 'Retry Test Knife' }).first(),
+  ).toBeVisible()
+  await expect(page.getByRole('main').getByRole('alert')).toHaveCount(0)
+  await page.unroute('**/api/logs')
+  await page.route('**/api/logs', (route) =>
+    route.fulfill({ json: { events: [] } }),
+  )
+  await page.reload()
+  await expect(
+    page.getByText('No log entries yet', { exact: true }),
+  ).toBeVisible()
+  await expect(logEntries(page)).toHaveCount(0)
+  await expect(
+    page.getByRole('complementary', { name: /Event details for/ }),
+  ).toHaveCount(0)
 })

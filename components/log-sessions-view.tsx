@@ -1,28 +1,31 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Popover } from '@base-ui/react/popover'
 import { DayPicker, SelectionState, UI, type DateRange } from 'react-day-picker'
 import {
-  Bot,
   Calendar,
   Check,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
-  Database,
   GitCompareArrows,
-  Minus,
-  Plus,
   Search,
   ShieldCheck,
-  UserRound,
   Wrench,
 } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { LogEventDetails } from '@/components/log-event-details'
 import { dayPickerClassNames } from '@/components/ui/date-input'
 import { Input } from '@/components/ui/input'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -39,6 +42,7 @@ type ViewEvent = AuditLogEvent & {
   title: string
   shortDate: string
   time: string
+  rowTime: string
   dateKey: string
   dateLabel: string
 }
@@ -116,12 +120,16 @@ function eventTitle(event: AuditLogEvent): string {
   }
 }
 
-function formatEventTime(occurredAt: string, timeFormat: TimeFormat): string {
+function formatEventTime(
+  occurredAt: string,
+  timeFormat: TimeFormat,
+  seconds = true,
+): string {
   const date = new Date(occurredAt)
   return date.toLocaleTimeString(undefined, {
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit',
+    second: seconds ? '2-digit' : undefined,
     hourCycle: getHourCycle(timeFormat),
   })
 }
@@ -163,34 +171,6 @@ function getEventDate(occurredAt: string): {
       year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric',
     }),
   }
-}
-
-function formatLastActivity(occurredAt: string | undefined): string {
-  if (!occurredAt) return 'No activity'
-  const date = new Date(occurredAt)
-  const now = new Date()
-  const seconds = Math.max(
-    0,
-    Math.floor((now.getTime() - date.getTime()) / 1000),
-  )
-  if (seconds < 60) return 'just now'
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 7) return `${days}d ago`
-  return date.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
-function isWithinLastWeek(occurredAt: string): boolean {
-  const date = new Date(occurredAt)
-  const weekAgo = new Date()
-  weekAgo.setDate(weekAgo.getDate() - 7)
-  return date.getTime() >= weekAgo.getTime()
 }
 
 function startOfDay(date: Date): Date {
@@ -261,18 +241,8 @@ function EventIcon({ event }: { event: ViewEvent }) {
   return <Icon className="size-4" />
 }
 
-function ActorIcon({ actor }: { actor: string }) {
-  return actor === 'You' ? (
-    <UserRound className="size-3.5" />
-  ) : actor === 'BladeVault' ? (
-    <Database className="size-3.5" />
-  ) : (
-    <Bot className="size-3.5" />
-  )
-}
-
 export function LogSessionsView() {
-  const { knives, timeFormat } = useKnives()
+  const { knives, timeFormat, isLoading: knivesLoading } = useKnives()
   const [events, setEvents] = useState<ViewEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -283,9 +253,27 @@ export function LogSessionsView() {
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date())
   const [calendarMonths, setCalendarMonths] = useState(1)
-  const [expandedIds, setExpandedIds] = useState<ReadonlySet<number>>(
-    () => new Set(),
-  )
+  const [selectedId, setSelectedId] = useState<number | null | undefined>()
+  const [isDesktop, setIsDesktop] = useState(false)
+  const [showSummary, setShowSummary] = useState(false)
+  const [loadAttempt, setLoadAttempt] = useState(0)
+  const entryButtons = useRef(new Map<number, HTMLButtonElement>())
+
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 1280px)')
+    const summary = window.matchMedia('(min-width: 1024px)')
+    const update = () => {
+      setIsDesktop(desktop.matches)
+      setShowSummary(summary.matches)
+    }
+    update()
+    desktop.addEventListener('change', update)
+    summary.addEventListener('change', update)
+    return () => {
+      desktop.removeEventListener('change', update)
+      summary.removeEventListener('change', update)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -306,6 +294,7 @@ export function LogSessionsView() {
           title: eventTitle(event),
           shortDate: formatEventShortDate(event.occurredAt),
           time: formatEventTime(event.occurredAt, timeFormat),
+          rowTime: formatEventTime(event.occurredAt, timeFormat, false),
           ...getEventDate(event.occurredAt),
         }))
         if (!cancelled) {
@@ -329,7 +318,7 @@ export function LogSessionsView() {
     return () => {
       cancelled = true
     }
-  }, [timeFormat])
+  }, [timeFormat, loadAttempt])
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(min-width: 768px)')
@@ -360,6 +349,11 @@ export function LogSessionsView() {
           event.actor,
           event.source,
           event.summary,
+          ...event.changes.flatMap((change) => [
+            change.field,
+            change.before,
+            change.after,
+          ]),
         ].some((value) => value.toLowerCase().includes(normalizedQuery))
       const eventDay = startOfDay(new Date(event.occurredAt)).getTime()
       const rangeStart = selectedRange?.from
@@ -379,11 +373,6 @@ export function LogSessionsView() {
   const currentKnifeIds = useMemo(
     () => new Set(knives.map((knife) => knife.id)),
     [knives],
-  )
-
-  const eventsThisWeek = useMemo(
-    () => events.filter((event) => isWithinLastWeek(event.occurredAt)).length,
-    [events],
   )
 
   const groupedEvents = useMemo(() => {
@@ -409,16 +398,29 @@ export function LogSessionsView() {
     return groups
   }, [filteredEvents])
 
-  const toggleExpanded = (id: number) => {
-    setExpandedIds((previous) => {
-      const next = new Set(previous)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
-      return next
-    })
+  const selectedEvent =
+    selectedId === undefined
+      ? isDesktop
+        ? filteredEvents[0]
+        : undefined
+      : filteredEvents.find((event) => event.id === selectedId)
+  const showPanel = isDesktop && !!selectedEvent && !isLoading && !error
+  const showSource = isDesktop && !showPanel
+  const columnCount = 4 + Number(showSummary) + Number(showSource)
+  const getKnifeHref = (event: AuditLogEvent) =>
+    event.knifeId && currentKnifeIds.has(event.knifeId)
+      ? `/collection/${encodeURIComponent(event.knifeId)}`
+      : null
+  const closeDetails = () => {
+    if (selectedEvent)
+      entryButtons.current.get(selectedEvent.id)?.focus({ preventScroll: true })
+    setSelectedId(null)
+  }
+  const clearFilters = () => {
+    setQuery('')
+    setFilter('all')
+    setSelectedRange(undefined)
+    setDraftRange(undefined)
   }
 
   const handleCalendarOpenChange = (open: boolean) => {
@@ -455,438 +457,526 @@ export function LogSessionsView() {
   }
 
   return (
-    <div className="w-full">
-      <div className="mb-6 flex flex-col gap-3 border-b border-border pb-5 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-center">
-        <label className="relative min-w-0 flex-1 lg:max-w-md">
-          <span className="sr-only">Search logs</span>
-          <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search logs"
-            className="pl-9"
-            disabled={isLoading}
-          />
-        </label>
-        <div
-          className="flex items-center gap-1 overflow-x-auto rounded-lg bg-muted/60 p-0.5"
-          aria-label="Filter log event type"
-        >
-          {(
-            ['all', 'created', 'updated', 'deleted', 'maintenance'] as const
-          ).map((value) => (
-            <Button
-              key={value}
-              type="button"
-              size="sm"
-              variant={filter === value ? 'secondary' : 'ghost'}
-              aria-pressed={filter === value}
-              onClick={() => setFilter(value)}
-              disabled={isLoading}
-              className={cn(
-                'shrink-0 px-3 text-xs capitalize',
-                filter === value &&
-                  'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)] hover:bg-[var(--bladevault-olive)] hover:text-[var(--bladevault-gold)]',
-              )}
+    <div
+      className={cn(
+        'grid w-full min-w-0 items-start gap-5',
+        showPanel && 'xl:grid-cols-[minmax(0,1fr)_320px]',
+      )}
+      onKeyDown={(event) => {
+        if (
+          event.key === 'Escape' &&
+          !calendarOpen &&
+          !event.defaultPrevented
+        ) {
+          event.preventDefault()
+          closeDetails()
+        }
+      }}
+    >
+      <Card
+        size="sm"
+        className="min-w-0 gap-0 border border-border/65 py-0 ring-0"
+      >
+        <div className="px-3 pt-3 sm:px-5">
+          <div className="mb-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <label className="relative min-w-0">
+              <span className="sr-only">Search logs</span>
+              <Search className="pointer-events-none absolute left-0 top-2.5 size-3.5 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search knives, fields, or sources…"
+                className="border-0 bg-transparent pl-6 text-xs shadow-none"
+                disabled={isLoading}
+              />
+            </label>
+            <Popover.Root
+              open={calendarOpen}
+              onOpenChange={handleCalendarOpenChange}
             >
-              {value}
-            </Button>
-          ))}
-        </div>
-        <span
-          aria-hidden="true"
-          className="invisible hidden items-center gap-3 whitespace-nowrap lg:col-start-3 lg:row-start-1 lg:flex"
-        >
-          <span
-            className={cn(
-              buttonVariants({ variant: 'ghost', size: 'sm' }),
-              'shrink-0 px-2.5 tabular-nums',
-            )}
-          >
-            <Calendar className="size-3.5" />
-            <span>Date</span>
-          </span>
-          <span className="text-xs tabular-nums text-muted-foreground">
-            <span className="font-medium text-foreground">{events.length}</span>{' '}
-            entries
-            <span className="mx-2 text-border">/</span>
-            {eventsThisWeek} this week
-            <span className="mx-2 text-border">/</span>
-            {formatLastActivity(events[0]?.occurredAt)}
-          </span>
-        </span>
-        <Popover.Root
-          open={calendarOpen}
-          onOpenChange={handleCalendarOpenChange}
-        >
-          <Popover.Trigger
-            type="button"
-            disabled={isLoading}
-            aria-label={
-              selectedRange?.from
-                ? `Change date range, ${formatDateRangeLabel(selectedRange)}`
-                : 'Filter logs by date range'
-            }
-            aria-expanded={calendarOpen}
-            className={cn(
-              buttonVariants({
-                variant: selectedRange ? 'secondary' : 'ghost',
-                size: 'sm',
-              }),
-              'shrink-0 px-2.5 tabular-nums lg:col-start-3 lg:row-start-1 lg:justify-self-start',
-            )}
-          >
-            <Calendar className="size-3.5" />
-            <span>{formatDateRangeLabel(selectedRange)}</span>
-          </Popover.Trigger>
-          <Popover.Portal>
-            <Popover.Positioner
-              side="bottom"
-              align="end"
-              sideOffset={6}
-              className="z-50"
-            >
-              <Popover.Popup
-                data-testid="log-date-range-picker"
-                className="max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] overflow-auto rounded-xl border border-[var(--bladevault-line)] bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
+              <Popover.Trigger
+                type="button"
+                disabled={isLoading}
+                aria-label={
+                  selectedRange?.from
+                    ? `Change date range, ${formatDateRangeLabel(selectedRange)}`
+                    : 'Filter logs by date range'
+                }
+                aria-expanded={calendarOpen}
+                className={cn(
+                  buttonVariants({
+                    variant: selectedRange ? 'secondary' : 'ghost',
+                    size: 'sm',
+                  }),
+                  'w-24 justify-start px-2 text-[11px] tabular-nums sm:w-44 [&>span]:truncate',
+                )}
               >
-                <div className="grid md:grid-cols-[8.5rem_auto]">
-                  <aside
-                    aria-label="Quick date ranges"
-                    className="border-b border-[var(--bladevault-line)]/60 p-2 md:border-r md:border-b-0"
-                  >
-                    <p className="px-2 pt-1 pb-1.5 text-[10px] font-medium text-muted-foreground">
-                      Quick ranges
-                    </p>
-                    <div className="grid grid-cols-3 gap-1 md:grid-cols-1">
-                      {quickRanges.map((range) => {
-                        const active = rangesMatch(
-                          selectedRange,
-                          createRecentRange(range.days),
-                        )
-                        return (
-                          <Button
-                            key={range.days}
-                            type="button"
-                            size="sm"
-                            variant={active ? 'secondary' : 'ghost'}
-                            aria-pressed={active}
-                            onClick={() => applyQuickRange(range.days)}
-                            className="justify-start px-2"
-                          >
-                            {range.label}
-                          </Button>
-                        )
-                      })}
-                    </div>
-                  </aside>
-
-                  <div className="p-3">
-                    <DayPicker
-                      mode="range"
-                      month={calendarMonth}
-                      onMonthChange={setCalendarMonth}
-                      numberOfMonths={calendarMonths}
-                      pagedNavigation={calendarMonths > 1}
-                      fixedWeeks
-                      resetOnSelect
-                      endMonth={startOfMonth(new Date())}
-                      disabled={{ after: new Date() }}
-                      selected={draftRange}
-                      onSelect={setDraftRange}
-                      modifiers={{
-                        range_pending:
-                          draftRange?.from && !draftRange.to
-                            ? draftRange.from
-                            : undefined,
-                      }}
-                      modifiersClassNames={{
-                        range_pending: pendingRangeClassName,
-                      }}
-                      showOutsideDays={calendarMonths === 1}
-                      classNames={rangePickerClassNames}
-                      components={{
-                        Chevron: ({
-                          orientation,
-                          className: chevronClassName,
-                        }) => {
-                          const chevronClass = cn('size-4', chevronClassName)
-                          switch (orientation) {
-                            case 'left':
-                              return <ChevronLeft className={chevronClass} />
-                            case 'right':
-                              return <ChevronRight className={chevronClass} />
-                            case 'up':
-                              return (
-                                <ChevronRight
-                                  className={cn(
-                                    chevronClass,
-                                    'rotate-[-90deg]',
-                                  )}
-                                />
-                              )
-                            case 'down':
-                              return (
-                                <ChevronRight
-                                  className={cn(chevronClass, 'rotate-90')}
-                                />
-                              )
-                            default:
-                              return <ChevronRight className={chevronClass} />
-                          }
-                        },
-                      }}
-                    />
-
-                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--bladevault-line)]/60 pt-3">
-                      <p className="mr-auto min-w-0 truncate text-xs tabular-nums text-muted-foreground">
-                        {draftRange?.from
-                          ? formatDateRangeLabel(draftRange)
-                          : 'Choose dates'}
-                      </p>
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="ghost"
-                        onClick={clearDateRange}
-                        disabled={!selectedRange && !draftRange?.from}
-                      >
-                        Clear
-                      </Button>
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="ghost"
-                        onClick={() => {
-                          setDraftRange(selectedRange)
-                          setCalendarOpen(false)
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="button"
-                        size="xs"
-                        onClick={applyDraftRange}
-                        disabled={!draftRange?.from}
-                      >
-                        Apply
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </Popover.Popup>
-            </Popover.Positioner>
-          </Popover.Portal>
-        </Popover.Root>
-        <p className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground lg:col-start-3 lg:row-start-1 lg:justify-self-end">
-          <span className="font-medium text-foreground">
-            {filteredEvents.length}
-          </span>{' '}
-          {filteredEvents.length === 1 ? 'entry' : 'entries'}
-          {!selectedRange && filter === 'all' && !query.trim() ? (
-            <>
-              <span className="mx-2 text-border" aria-hidden>
-                /
-              </span>
-              {eventsThisWeek} this week
-              <span className="mx-2 text-border" aria-hidden>
-                /
-              </span>
-              {formatLastActivity(events[0]?.occurredAt)}
-            </>
-          ) : null}
-        </p>
-      </div>
-
-      {error ? (
-        <div className="rounded-xl border border-destructive/50 bg-destructive/10 p-10 text-center text-sm text-destructive">
-          {error}
-        </div>
-      ) : isLoading ? (
-        <div aria-label="Loading logs" className="space-y-4">
-          {[0, 1, 2].map((item) => (
-            <div key={item} className="flex animate-pulse gap-3">
-              <div className="mt-3 size-8 shrink-0 rounded-full bg-muted" />
-              <div className="h-24 flex-1 rounded-xl bg-muted" />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <section aria-label="Log entries">
-          {groupedEvents.length ? (
-            <div className="space-y-7">
-              {groupedEvents.map((group) => (
-                <section
-                  key={group.dateKey}
-                  aria-labelledby={`log-date-${group.dateKey}`}
+                <Calendar className="size-3.5" />
+                <span>{formatDateRangeLabel(selectedRange)}</span>
+              </Popover.Trigger>
+              <Popover.Portal>
+                <Popover.Positioner
+                  side="bottom"
+                  align="end"
+                  sideOffset={6}
+                  className="z-50"
                 >
-                  <div className="mb-3 flex items-baseline gap-2">
-                    <h2
-                      id={`log-date-${group.dateKey}`}
-                      className="text-xs font-semibold text-foreground"
-                    >
-                      {group.dateLabel}
-                    </h2>
-                    <span className="text-[11px] tabular-nums text-muted-foreground">
-                      {group.events.length}
-                    </span>
-                  </div>
-                  <ol className="relative list-none before:absolute before:top-6 before:bottom-6 before:left-5 before:hidden before:w-px before:-translate-x-1/2 before:bg-border before:content-[''] md:before:block">
-                    {group.events.map((event) => {
-                      const meta = eventMeta(event)
-                      const expanded = expandedIds.has(event.id)
-                      const detailId = `log-detail-${event.id}`
-                      const knifeHref =
-                        event.knifeId && currentKnifeIds.has(event.knifeId)
-                          ? `/collection/${encodeURIComponent(event.knifeId)}`
-                          : null
-                      return (
-                        <li
-                          key={event.id}
-                          data-event-type={event.type}
-                          data-log-entry
-                          className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-3 pb-4 last:pb-0"
-                        >
-                          <span
-                            className={cn(
-                              'relative z-10 mt-4 grid size-8 place-items-center rounded-full border border-border bg-card',
-                              meta.className,
-                            )}
-                          >
-                            <EventIcon event={event} />
-                          </span>
-                          <Card className="gap-0 py-0 shadow-sm">
-                            <div className="relative">
-                              <div className="pointer-events-none relative z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 p-4">
-                                <div className="min-w-0">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <span
-                                      className={cn(
-                                        'text-[10px] font-semibold uppercase tracking-[0.14em]',
-                                        meta.className,
-                                      )}
-                                    >
-                                      {meta.label}
-                                    </span>
-                                    <time
-                                      dateTime={event.occurredAt}
-                                      className="font-mono text-[10px] text-muted-foreground"
-                                    >
-                                      {event.shortDate} · {event.time}
-                                    </time>
-                                  </div>
-                                  <strong className="mt-1 block truncate text-sm">
-                                    {event.title}{' '}
-                                    <span className="font-normal text-muted-foreground">
-                                      ·{' '}
-                                    </span>
-                                    {knifeHref ? (
-                                      <Link
-                                        href={knifeHref}
-                                        aria-label={`View ${event.subject}`}
-                                        className="pointer-events-auto relative rounded-sm font-normal text-muted-foreground underline-offset-4 transition-colors hover:text-[var(--bladevault-local)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                      >
-                                        {event.subject}
-                                      </Link>
-                                    ) : (
-                                      <span className="font-normal text-muted-foreground">
-                                        {event.subject}
-                                      </span>
-                                    )}
-                                  </strong>
-                                  <span className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
-                                    <span className="flex items-center gap-1.5">
-                                      <ActorIcon actor={event.actor} />
-                                      {event.actor}
-                                    </span>
-                                    <span aria-hidden>·</span>
-                                    <span className="truncate">
-                                      {event.source}
-                                    </span>
-                                  </span>
-                                  <span className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                                    <GitCompareArrows className="size-3 shrink-0" />
-                                    <span className="truncate">
-                                      {event.changes
-                                        .map((change) => change.field)
-                                        .join(', ')}
-                                    </span>
-                                  </span>
-                                </div>
-                                <ChevronDown
-                                  aria-hidden
-                                  className={cn(
-                                    'mt-1 size-4 shrink-0 text-muted-foreground transition-transform',
-                                    expanded && 'rotate-180',
-                                  )}
-                                />
-                              </div>
-                              <button
+                  <Popover.Popup
+                    data-testid="log-date-range-picker"
+                    className="max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] overflow-auto rounded-xl border border-[var(--bladevault-line)] bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
+                  >
+                    <div className="grid md:grid-cols-[8.5rem_auto]">
+                      <aside
+                        aria-label="Quick date ranges"
+                        className="border-b border-[var(--bladevault-line)]/60 p-2 md:border-r md:border-b-0"
+                      >
+                        <p className="px-2 pt-1 pb-1.5 text-[10px] font-medium text-muted-foreground">
+                          Quick ranges
+                        </p>
+                        <div className="grid grid-cols-3 gap-1 md:grid-cols-1">
+                          {quickRanges.map((range) => {
+                            const active = rangesMatch(
+                              selectedRange,
+                              createRecentRange(range.days),
+                            )
+                            return (
+                              <Button
+                                key={range.days}
                                 type="button"
-                                onClick={() => toggleExpanded(event.id)}
-                                aria-expanded={expanded}
-                                aria-controls={detailId}
-                                aria-label={`${expanded ? 'Collapse' : 'Expand'} ${event.title} details for ${event.subject}`}
-                                className="absolute inset-0 z-0 rounded-xl text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                              />
-                            </div>
-                            {expanded ? (
-                              <div
-                                id={detailId}
-                                className="border-t border-border bg-[var(--bladevault-surface-soft)] p-4"
+                                size="sm"
+                                variant={active ? 'secondary' : 'ghost'}
+                                aria-pressed={active}
+                                onClick={() => applyQuickRange(range.days)}
+                                className="justify-start px-2"
                               >
-                                <p className="text-xs text-muted-foreground">
-                                  {event.summary}
-                                </p>
-                                {event.changes.length ? (
-                                  <div className="mt-3 overflow-hidden rounded-lg border border-border bg-card">
-                                    {event.changes.map((change) => (
-                                      <div
-                                        key={change.field}
-                                        className="border-b border-border p-3 last:border-0"
-                                      >
-                                        <span className="block text-[11px] font-medium">
-                                          {change.field}
-                                        </span>
-                                        <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 font-mono text-[10px]">
-                                          <span className="flex min-w-0 items-center gap-1 rounded bg-muted px-2 py-1 text-muted-foreground">
-                                            <Minus className="size-3 shrink-0" />
-                                            <span className="truncate">
-                                              {change.before}
-                                            </span>
-                                          </span>
-                                          <ChevronRight className="size-3 text-muted-foreground" />
-                                          <span className="flex min-w-0 items-center gap-1 rounded bg-emerald-500/10 px-2 py-1 text-emerald-700 dark:text-emerald-400">
-                                            <Plus className="size-3 shrink-0" />
-                                            <span className="truncate">
-                                              {change.after}
-                                            </span>
-                                          </span>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : null}
-                                <code className="mt-3 block truncate font-mono text-[10px] text-muted-foreground">
-                                  {event.operationId}
-                                </code>
-                              </div>
-                            ) : null}
-                          </Card>
-                        </li>
-                      )
-                    })}
-                  </ol>
-                </section>
+                                {range.label}
+                              </Button>
+                            )
+                          })}
+                        </div>
+                      </aside>
+
+                      <div className="p-3">
+                        <DayPicker
+                          mode="range"
+                          month={calendarMonth}
+                          onMonthChange={setCalendarMonth}
+                          numberOfMonths={calendarMonths}
+                          pagedNavigation={calendarMonths > 1}
+                          fixedWeeks
+                          resetOnSelect
+                          endMonth={startOfMonth(new Date())}
+                          disabled={{ after: new Date() }}
+                          selected={draftRange}
+                          onSelect={setDraftRange}
+                          modifiers={{
+                            range_pending:
+                              draftRange?.from && !draftRange.to
+                                ? draftRange.from
+                                : undefined,
+                          }}
+                          modifiersClassNames={{
+                            range_pending: pendingRangeClassName,
+                          }}
+                          showOutsideDays={calendarMonths === 1}
+                          classNames={rangePickerClassNames}
+                          components={{
+                            Chevron: ({
+                              orientation,
+                              className: chevronClassName,
+                            }) => {
+                              const chevronClass = cn(
+                                'size-4',
+                                chevronClassName,
+                              )
+                              switch (orientation) {
+                                case 'left':
+                                  return (
+                                    <ChevronLeft className={chevronClass} />
+                                  )
+                                case 'right':
+                                  return (
+                                    <ChevronRight className={chevronClass} />
+                                  )
+                                case 'up':
+                                  return (
+                                    <ChevronRight
+                                      className={cn(
+                                        chevronClass,
+                                        'rotate-[-90deg]',
+                                      )}
+                                    />
+                                  )
+                                case 'down':
+                                  return (
+                                    <ChevronRight
+                                      className={cn(chevronClass, 'rotate-90')}
+                                    />
+                                  )
+                                default:
+                                  return (
+                                    <ChevronRight className={chevronClass} />
+                                  )
+                              }
+                            },
+                          }}
+                        />
+
+                        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--bladevault-line)]/60 pt-3">
+                          <p className="mr-auto min-w-0 truncate text-xs tabular-nums text-muted-foreground">
+                            {draftRange?.from
+                              ? formatDateRangeLabel(draftRange)
+                              : 'Choose dates'}
+                          </p>
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="ghost"
+                            onClick={clearDateRange}
+                            disabled={!selectedRange && !draftRange?.from}
+                          >
+                            Clear
+                          </Button>
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="ghost"
+                            onClick={() => {
+                              setDraftRange(selectedRange)
+                              setCalendarOpen(false)
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            type="button"
+                            size="xs"
+                            onClick={applyDraftRange}
+                            disabled={!draftRange?.from}
+                          >
+                            Apply
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </Popover.Popup>
+                </Popover.Positioner>
+              </Popover.Portal>
+            </Popover.Root>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-x-3">
+            <div
+              className="flex flex-wrap gap-x-2 sm:gap-x-5"
+              aria-label="Filter log event type"
+            >
+              {(
+                ['all', 'created', 'updated', 'deleted', 'maintenance'] as const
+              ).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={filter === value}
+                  onClick={() => setFilter(value)}
+                  disabled={isLoading}
+                  className={cn(
+                    'border-b-2 border-transparent px-0 py-3 text-[10px] capitalize sm:text-[11px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50',
+                    filter === value &&
+                      'border-[var(--bladevault-gold)] font-medium text-[var(--bladevault-title)] dark:text-[var(--bladevault-gold)]',
+                  )}
+                >
+                  {value === 'all' ? 'All activity' : value}
+                </button>
               ))}
             </div>
-          ) : (
-            <div className="rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
-              {events.length ? 'No matching entries' : 'No log entries yet'}
+            <p
+              aria-live="polite"
+              className="hidden py-2 text-[10px] tabular-nums text-muted-foreground sm:block"
+            >
+              {!isLoading && !error
+                ? `${filteredEvents.length} ${filteredEvents.length === 1 ? 'entry' : 'entries'}`
+                : ''}
+            </p>
+          </div>
+        </div>
+        {error ? (
+          <div
+            role="alert"
+            className="border-t border-border/60 px-5 py-12 text-center"
+          >
+            <CircleAlert className="mx-auto mb-3 size-5 text-destructive" />
+            <h2 className="text-sm font-medium">Couldn’t load activity</h2>
+            <p className="mt-2 text-xs text-muted-foreground [overflow-wrap:anywhere]">
+              {error}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+            >
+              Try again
+            </Button>
+          </div>
+        ) : isLoading ? (
+          <div
+            role="status"
+            aria-label="Loading logs"
+            className="space-y-3 border-t border-border/60 p-5"
+          >
+            {[0, 1, 2, 3].map((item) => (
+              <div
+                key={item}
+                className="h-12 animate-pulse rounded bg-muted motion-reduce:animate-none"
+              />
+            ))}
+          </div>
+        ) : filteredEvents.length ? (
+          <>
+            <Table
+              className="table-fixed text-xs"
+              containerClassName="overflow-x-clip"
+            >
+              <caption className="sr-only">
+                Collection activity, newest first. Select an event to inspect
+                its changes.
+              </caption>
+              <TableHeader className="border-t border-border/60 bg-muted/40">
+                <TableRow className="hover:bg-transparent [&_th]:h-8 [&_th]:text-[10px] [&_th]:text-muted-foreground">
+                  <TableHead scope="col" className="w-16 pl-3 sm:w-24 sm:pl-5">
+                    Time
+                  </TableHead>
+                  <TableHead scope="col">Knife / subject</TableHead>
+                  <TableHead scope="col" className="w-[104px] sm:w-28">
+                    Event
+                  </TableHead>
+                  {showSummary && (
+                    <TableHead scope="col" className="w-[27%]">
+                      Changes
+                    </TableHead>
+                  )}
+                  {showSource && (
+                    <TableHead scope="col" className="w-28">
+                      Source
+                    </TableHead>
+                  )}
+                  <TableHead scope="col" className="w-8 sm:w-10">
+                    <span className="sr-only">Details</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              {groupedEvents.map((group) => (
+                <TableBody key={group.dateKey}>
+                  <TableRow className="border-0 hover:bg-transparent">
+                    <TableHead
+                      scope="rowgroup"
+                      colSpan={columnCount}
+                      className="h-auto whitespace-normal px-3 pb-2 pt-4 text-[10px] sm:px-5"
+                    >
+                      <span className="font-semibold">{group.dateLabel}</span>
+                      <span className="ml-2 font-normal text-muted-foreground">
+                        ·{' '}
+                        {new Date(
+                          group.events[0].occurredAt,
+                        ).toLocaleDateString(undefined, {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    </TableHead>
+                  </TableRow>
+                  {group.events.map((event) => {
+                    const meta = eventMeta(event)
+                    const selected = selectedEvent?.id === event.id
+                    const knifeHref = getKnifeHref(event)
+                    const detailId = `log-detail-${event.id}`
+                    return (
+                      <Fragment key={event.id}>
+                        <TableRow
+                          data-log-entry
+                          data-event-type={event.type}
+                          data-event-title={event.title}
+                          data-maintenance={
+                            isMaintenanceEvent(event) || undefined
+                          }
+                          data-state={selected ? 'selected' : undefined}
+                          className="cursor-pointer border-border/60 hover:bg-muted/60 data-[state=selected]:bg-accent/60 [&_td]:whitespace-normal [&_td]:py-3"
+                          onClick={(click) => {
+                            if (
+                              (click.target as HTMLElement).closest('a, button')
+                            )
+                              return
+                            setSelectedId(selected ? null : event.id)
+                            entryButtons.current
+                              .get(event.id)
+                              ?.focus({ preventScroll: true })
+                          }}
+                        >
+                          <TableCell className="pl-3 align-top sm:pl-5">
+                            <time
+                              dateTime={event.occurredAt}
+                              title={`${event.shortDate} · ${event.time}`}
+                              className="block text-[10px] leading-relaxed tabular-nums text-muted-foreground sm:text-[11px]"
+                            >
+                              <span className="sr-only">
+                                {event.shortDate} ·{' '}
+                              </span>
+                              {event.rowTime}
+                            </time>
+                          </TableCell>
+                          <TableCell className="[overflow-wrap:anywhere]">
+                            {knifeHref ? (
+                              <Link
+                                href={knifeHref}
+                                aria-label={`View ${event.subject}`}
+                                className="rounded-sm text-xs font-medium leading-relaxed underline-offset-4 hover:text-[var(--bladevault-title)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring dark:hover:text-[var(--bladevault-gold)]"
+                              >
+                                {event.subject}
+                              </Link>
+                            ) : (
+                              <span className="text-xs font-medium leading-relaxed text-muted-foreground">
+                                {event.subject}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <span className="flex items-center gap-1.5 text-[10px] sm:text-[11px]">
+                              <span
+                                aria-hidden
+                                className={cn(
+                                  'shrink-0 [&_svg]:size-3',
+                                  meta.className,
+                                )}
+                              >
+                                <EventIcon event={event} />
+                              </span>
+                              {meta.label}
+                            </span>
+                          </TableCell>
+                          {showSummary && (
+                            <TableCell className="text-[11px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+                              <span className="line-clamp-2">
+                                {event.changes
+                                  .map((change) => change.field)
+                                  .join(', ') || event.summary}
+                              </span>
+                            </TableCell>
+                          )}
+                          {showSource && (
+                            <TableCell className="text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
+                              {event.source}
+                            </TableCell>
+                          )}
+                          <TableCell className="px-0 pr-1 sm:pr-2">
+                            <button
+                              type="button"
+                              ref={(node) => {
+                                if (node)
+                                  entryButtons.current.set(event.id, node)
+                                else entryButtons.current.delete(event.id)
+                              }}
+                              onClick={() =>
+                                setSelectedId(selected ? null : event.id)
+                              }
+                              aria-expanded={selected}
+                              aria-controls={selected ? detailId : undefined}
+                              aria-label={`${selected ? 'Collapse' : 'Expand'} ${event.title} details for ${event.subject}`}
+                              className="flex size-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                            >
+                              <ChevronRight
+                                className={cn(
+                                  'size-3.5 transition-transform',
+                                  selected &&
+                                    'rotate-90 text-[var(--bladevault-title)] dark:text-[var(--bladevault-gold)]',
+                                )}
+                              />
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                        {selected && !isDesktop && (
+                          <TableRow className="hover:bg-transparent">
+                            <TableCell
+                              colSpan={columnCount}
+                              className="whitespace-normal border-b border-border/60 bg-muted/30 p-0"
+                            >
+                              <section
+                                id={detailId}
+                                aria-label={`Event details for ${event.subject}`}
+                              >
+                                <LogEventDetails
+                                  event={event}
+                                  title={event.title}
+                                  time={event.time}
+                                  knifeHref={knifeHref}
+                                  knifeUnavailable={
+                                    !knivesLoading &&
+                                    !!event.knifeId &&
+                                    !knifeHref
+                                  }
+                                  onClose={closeDetails}
+                                />
+                              </section>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
+                    )
+                  })}
+                </TableBody>
+              ))}
+            </Table>
+            <div className="flex flex-wrap justify-between gap-2 border-t border-border/60 px-5 py-3 text-[10px] text-muted-foreground">
+              <span>
+                {filteredEvents.length}{' '}
+                {filteredEvents.length === 1 ? 'entry' : 'entries'} · Newest
+                first
+              </span>
+              <span>Local time</span>
             </div>
-          )}
-        </section>
+          </>
+        ) : (
+          <div className="border-t border-border/60 p-10 text-center">
+            <h2 className="text-sm font-medium">
+              {events.length ? 'No matching entries' : 'No log entries yet'}
+            </h2>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              {events.length
+                ? 'Try another search or clear your filters.'
+                : 'Changes to your collection will appear here.'}
+            </p>
+            {events.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4"
+                onClick={clearFilters}
+              >
+                Clear filters
+              </Button>
+            )}
+          </div>
+        )}
+      </Card>
+      {showPanel && selectedEvent && (
+        <aside
+          id={`log-detail-${selectedEvent.id}`}
+          aria-label={`Event details for ${selectedEvent.subject}`}
+          className="sticky top-6 max-h-[calc(100dvh-3rem)] min-w-0 overflow-y-auto rounded-xl border border-border/65 bg-card"
+        >
+          <LogEventDetails
+            key={selectedEvent.id}
+            event={selectedEvent}
+            title={selectedEvent.title}
+            time={selectedEvent.time}
+            knifeHref={getKnifeHref(selectedEvent)}
+            knifeUnavailable={
+              !knivesLoading &&
+              !!selectedEvent.knifeId &&
+              !getKnifeHref(selectedEvent)
+            }
+            onClose={closeDetails}
+          />
+        </aside>
       )}
     </div>
   )
