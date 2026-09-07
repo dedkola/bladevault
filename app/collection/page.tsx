@@ -94,6 +94,7 @@ function CollectionContent() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
   const query = searchParams.get('q') ?? ''
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
@@ -299,6 +300,25 @@ function CollectionContent() {
   )
 
   const hasActiveFilters = activeFilters.length > 0 || query.trim().length > 0
+
+  useEffect(() => {
+    const loadMoreElement = loadMoreRef.current
+    if (!loadMoreElement || visibleCount >= filteredKnives.length) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return
+
+        setVisibleCount((count) =>
+          Math.min(count + PAGE_SIZE, filteredKnives.length),
+        )
+      },
+      { rootMargin: '400px 0px' },
+    )
+
+    observer.observe(loadMoreElement)
+    return () => observer.disconnect()
+  }, [filteredKnives.length, visibleCount])
 
   useEffect(() => {
     const handleSearchShortcut = (event: KeyboardEvent) => {
@@ -628,7 +648,10 @@ function CollectionContent() {
         />
       ) : (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-6 [overflow-anchor:none] sm:grid-cols-2 lg:grid-cols-3">
+          <div
+            className="grid grid-cols-1 gap-6 [overflow-anchor:none] sm:grid-cols-2 lg:grid-cols-3"
+            data-collection-grid
+          >
             {filteredKnives.slice(0, visibleCount).map((knife, index) => (
               <KnifeCard
                 key={knife.id}
@@ -641,19 +664,12 @@ function CollectionContent() {
             ))}
           </div>
           {visibleCount < filteredKnives.length && (
-            <div className="flex justify-center">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setVisibleCount((count) =>
-                    Math.min(count + PAGE_SIZE, filteredKnives.length),
-                  )
-                }
-              >
-                Load more ({filteredKnives.length - visibleCount} remaining)
-              </Button>
-            </div>
+            <div
+              ref={loadMoreRef}
+              className="h-px"
+              data-infinite-scroll-sentinel
+              aria-hidden="true"
+            />
           )}
         </div>
       )}

@@ -5,6 +5,31 @@ test.beforeEach(async ({ request }) => {
   await resetVault(request)
 })
 
+test('loads more collection and brand results automatically on scroll', async ({
+  page,
+  request,
+}) => {
+  for (let index = 1; index <= 25; index += 1) {
+    await seedKnife(request, {
+      name: `Infinite ${String(index).padStart(2, '0')}`,
+      brand: 'Scroll Brand',
+    })
+  }
+  await seedKnife(request, { name: 'Other', brand: 'Other Brand' })
+
+  const collectionGrid = page.locator('[data-collection-grid]')
+  await page.goto('/collection')
+  await expect(collectionGrid.locator(':scope > *')).toHaveCount(24)
+  await expect(page.getByRole('button', { name: /Load more/ })).toHaveCount(0)
+  await page.locator('[data-infinite-scroll-sentinel]').scrollIntoViewIfNeeded()
+  await expect(collectionGrid.locator(':scope > *')).toHaveCount(26)
+
+  await page.goto('/collection?brand=Scroll%20Brand')
+  await expect(collectionGrid.locator(':scope > *')).toHaveCount(24)
+  await page.locator('[data-infinite-scroll-sentinel]').scrollIntoViewIfNeeded()
+  await expect(collectionGrid.locator(':scope > *')).toHaveCount(25)
+})
+
 test('keeps newest compare item first and filters matching rows', async ({
   page,
   request,
