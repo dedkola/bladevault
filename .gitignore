@@ -6,6 +6,9 @@ coverage/
 playwright-report/
 test-results/
 .playwright-mcp/
+.playwright-cli/
+output/
+prototype/
 pnpm-lock.yaml
 pnpm-workspace.yaml
 
