@@ -59,3 +59,74 @@ test('keeps newest compare item first and filters matching rows', async ({
     page.locator('tbody tr', { hasText: 'Blade Material' }),
   ).toHaveCount(1)
 })
+
+test('groups model variants and switches between their detail pages', async ({
+  page,
+  request,
+}) => {
+  const first = await seedKnife(request, {
+    name: 'Parallel',
+    brand: 'Vosteed',
+    handleMaterial: 'Titanium',
+    specs: {
+      modelNumber: 'A3510',
+      bladeMaterial: '154CM',
+      bladeCoating: 'Destroyer Gray',
+    },
+  })
+  const second = await seedKnife(request, {
+    name: 'Parallel',
+    brand: 'Vosteed',
+    handleMaterial: 'Titanium',
+    specs: {
+      modelNumber: 'A3506',
+      bladeMaterial: 'S35VN',
+      bladeCoating: 'Satin',
+    },
+  })
+  await seedKnife(request, {
+    name: 'Parallel',
+    brand: 'Vosteed',
+    handleMaterial: 'G-10',
+    specs: {
+      modelNumber: 'A3511',
+      bladeMaterial: '154CM',
+      bladeCoating: 'Stonewash',
+    },
+  })
+  await seedKnife(request, { name: 'Marten 330', brand: 'Vosteed' })
+
+  await page.goto('/collection?view=families&bladeMaterial=154CM')
+  const family = page.locator('[data-knife-family]')
+  await expect(
+    page.getByRole('button', {
+      name: 'Vosteed Parallel · 2 of 3 variants match',
+    }),
+  ).toBeVisible()
+  await page
+    .getByRole('button', {
+      name: 'Vosteed Parallel · 2 of 3 variants match',
+    })
+    .click()
+  await expect(family.getByRole('link')).toHaveCount(2)
+  await expect(family).toContainText(
+    'A3510 · 154CM · Titanium · Destroyer Gray',
+  )
+  await expect(family).toContainText('A3511 · 154CM · G-10 · Stonewash')
+  await expect(family).not.toContainText('A3506')
+
+  await family.getByRole('link', { name: /A3510/ }).click()
+  await expect(page).toHaveURL(`/collection/${first.knife.id}`)
+  await page
+    .getByRole('button', { name: /Parallel · 3 variants A3510/ })
+    .click()
+
+  const variants = page.getByRole('navigation', { name: 'Model variants' })
+  await expect(variants.getByRole('link')).toHaveCount(3)
+  await expect(variants.locator('[data-variant-preview]')).toHaveCount(3)
+  await variants.getByRole('link', { name: /A3506/ }).click()
+  await expect(page).toHaveURL(`/collection/${second.knife.id}`)
+  await expect(
+    page.getByRole('button', { name: /Parallel · 3 variants A3506/ }),
+  ).toBeVisible()
+})

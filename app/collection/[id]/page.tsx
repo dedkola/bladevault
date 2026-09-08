@@ -13,5 +13,5 @@ export default async function KnifeDetailPage({
 
   if (!knife) return notFound()
 
-  return <KnifeDetail knife={knife} />
+  return <KnifeDetail key={knife.id} knife={knife} />
 }

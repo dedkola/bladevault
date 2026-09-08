@@ -27,6 +27,7 @@ import { getSafeExternalUrl } from '@/lib/external-url'
 import { PageHeader } from '@/components/page-header'
 import { ImageCountBadge } from '@/components/image-count-badge'
 import { Gallery } from '@/components/gallery'
+import { KnifeVariantSwitcher } from '@/components/knife-variant-switcher'
 import { MaintenanceSection } from '@/components/maintenance/maintenance-section'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -420,6 +421,8 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
           <span>{error}</span>
         </div>
       )}
+
+      <KnifeVariantSwitcher key={knife.id} knife={knife} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.25fr_380px] 2xl:grid-cols-[1.5fr_420px]">
         <div className="contents lg:flex lg:flex-col lg:gap-6">
