@@ -20,12 +20,14 @@ export const KnifeCard = memo(function KnifeCard({
   selectionMode = false,
   selected = false,
   onSelect,
+  variantLabel,
 }: {
   knife: Knife
   eager?: boolean
   selectionMode?: boolean
   selected?: boolean
   onSelect?: (id: string) => void
+  variantLabel?: string
 }) {
   const {
     updateKnife,
@@ -158,7 +160,11 @@ export const KnifeCard = memo(function KnifeCard({
             {knife.name}
           </div>
         </div>
-        {visibleCardFields.length > 0 ? (
+        {variantLabel ? (
+          <p className="mt-1 text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">
+            {variantLabel}
+          </p>
+        ) : visibleCardFields.length > 0 ? (
           <p className="mt-1 flex min-h-5 flex-wrap items-center text-xs leading-5 text-muted-foreground">
             {visibleCardFields.map((value, index) => (
               <span

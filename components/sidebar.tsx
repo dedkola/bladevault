@@ -23,6 +23,11 @@ import {
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  getKnifeFamilyKey,
+  getKnifeVariantLabel,
+  groupKnifeFamilies,
+} from '@/lib/knife-families'
 import { useKnives } from '@/components/providers/knives-provider'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -87,6 +92,14 @@ export function Sidebar() {
 
   const pinnedKnives = useMemo(
     () => knives.filter((knife) => knife.pinned),
+    [knives],
+  )
+
+  const familiesByKey = useMemo(
+    () =>
+      new Map(
+        groupKnifeFamilies(knives).map((family) => [family.key, family.knives]),
+      ),
     [knives],
   )
 
@@ -282,12 +295,20 @@ export function Sidebar() {
                   {pinnedKnives.map((knife) => {
                     const knifeHref = `/collection/${knife.id}`
                     const isKnifeActive = pathname === knifeHref
+                    const siblings =
+                      familiesByKey.get(getKnifeFamilyKey(knife)) ?? []
+                    const variantLabel =
+                      siblings.length > 1
+                        ? getKnifeVariantLabel(knife, siblings)
+                        : ''
 
                     return (
                       <Link
                         key={knife.id}
                         href={knifeHref}
                         onClick={handleNavigate}
+                        title={variantLabel || undefined}
+                        aria-current={isKnifeActive ? 'page' : undefined}
                         className={cn(
                           'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors',
                           isKnifeActive
@@ -296,36 +317,43 @@ export function Sidebar() {
                         )}
                       >
                         <Pin className="size-3 shrink-0" />
-                        <span className="truncate">
-                          <span
-                            className={cn(
-                              isKnifeActive
-                                ? 'text-[var(--bladevault-line)]'
-                                : 'text-muted-foreground',
-                            )}
-                          >
-                            {knife.brand}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate">
+                            <span
+                              className={cn(
+                                isKnifeActive
+                                  ? 'text-[var(--bladevault-line)]'
+                                  : 'text-muted-foreground',
+                              )}
+                            >
+                              {knife.brand}
+                            </span>
+                            <span
+                              className={cn(
+                                'mx-1',
+                                isKnifeActive
+                                  ? 'text-[var(--bladevault-line)]'
+                                  : 'text-muted-foreground/50',
+                              )}
+                            >
+                              ·
+                            </span>
+                            <span
+                              className={cn(
+                                'font-medium',
+                                isKnifeActive
+                                  ? 'text-[var(--bladevault-gold)]'
+                                  : 'text-foreground',
+                              )}
+                            >
+                              {knife.name}
+                            </span>
                           </span>
-                          <span
-                            className={cn(
-                              'mx-1',
-                              isKnifeActive
-                                ? 'text-[var(--bladevault-line)]'
-                                : 'text-muted-foreground/50',
-                            )}
-                          >
-                            ·
-                          </span>
-                          <span
-                            className={cn(
-                              'font-medium',
-                              isKnifeActive
-                                ? 'text-[var(--bladevault-gold)]'
-                                : 'text-foreground',
-                            )}
-                          >
-                            {knife.name}
-                          </span>
+                          {variantLabel && (
+                            <span className="mt-0.5 line-clamp-2 text-[10px] leading-4 opacity-80 [overflow-wrap:anywhere]">
+                              {variantLabel}
+                            </span>
+                          )}
                         </span>
                       </Link>
                     )

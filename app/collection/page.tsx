@@ -22,11 +22,13 @@ import {
 import { PageHeader } from '@/components/page-header'
 import { BulkEditDialog } from '@/components/bulk-edit-dialog'
 import { KnifeCard } from '@/components/knife-card'
+import { KnifeFamilyCard } from '@/components/knife-family-card'
 import { EmptyState } from '@/components/empty-state'
 import { FilterMultiSelect } from '@/components/filter-multi-select'
 import { SearchField } from '@/components/search-field'
 import { useKnives } from '@/components/providers/knives-provider'
 import { Knife, matchesKnifeSearch, prioritizePinnedKnives } from '@/lib/data'
+import { groupKnifeFamilies } from '@/lib/knife-families'
 import { CustomFieldType } from '@/lib/settings-shared'
 import { useDebouncedValue } from '@/lib/use-debounced-value'
 import { cn } from '@/lib/utils'
@@ -104,6 +106,8 @@ function CollectionContent() {
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
   const [isBulkPinning, setIsBulkPinning] = useState(false)
   const debouncedQuery = useDebouncedValue(query, 200)
+  const isFamilyView =
+    searchParams.get('view') === 'families' && !isSelectionMode
 
   const replaceParams = useCallback(
     (
@@ -262,6 +266,21 @@ function CollectionContent() {
     setVisibleCount(PAGE_SIZE)
   }
 
+  const familiesByKey = useMemo(
+    () =>
+      new Map(
+        groupKnifeFamilies(knives).map((family) => [family.key, family.knives]),
+      ),
+    [knives],
+  )
+  const filteredFamilies = useMemo(
+    () => groupKnifeFamilies(filteredKnives),
+    [filteredKnives],
+  )
+  const resultCount = isFamilyView
+    ? filteredFamilies.length
+    : filteredKnives.length
+
   const toggleFilterValue = (key: FilterKey, value: string) => {
     const currentValues = selectedFilters[key]
     const nextValues = currentValues.includes(value)
@@ -303,22 +322,20 @@ function CollectionContent() {
 
   useEffect(() => {
     const loadMoreElement = loadMoreRef.current
-    if (!loadMoreElement || visibleCount >= filteredKnives.length) return
+    if (!loadMoreElement || visibleCount >= resultCount) return
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry?.isIntersecting) return
 
-        setVisibleCount((count) =>
-          Math.min(count + PAGE_SIZE, filteredKnives.length),
-        )
+        setVisibleCount((count) => Math.min(count + PAGE_SIZE, resultCount))
       },
       { rootMargin: '400px 0px' },
     )
 
     observer.observe(loadMoreElement)
     return () => observer.disconnect()
-  }, [filteredKnives.length, visibleCount])
+  }, [resultCount, visibleCount, isFamilyView])
 
   useEffect(() => {
     const handleSearchShortcut = (event: KeyboardEvent) => {
@@ -458,6 +475,32 @@ function CollectionContent() {
                 ? `${knives.length} ${knives.length === 1 ? 'knife' : 'knives'}`
                 : `${filteredKnives.length} of ${knives.length} knives`}
           </span>
+          <div
+            className="flex rounded-lg border border-border p-0.5"
+            role="group"
+            aria-label="Collection view"
+          >
+            {(['knives', 'families'] as const).map((view) => (
+              <Button
+                key={view}
+                size="sm"
+                variant={
+                  (view === 'families') === isFamilyView ? 'secondary' : 'ghost'
+                }
+                aria-pressed={(view === 'families') === isFamilyView}
+                disabled={isSelectionMode}
+                onClick={() => {
+                  replaceParams((params) => {
+                    if (view === 'families') params.set('view', view)
+                    else params.delete('view')
+                  })
+                  setVisibleCount(PAGE_SIZE)
+                }}
+              >
+                {view === 'families' ? 'Families' : 'Knives'}
+              </Button>
+            ))}
+          </div>
           <Button
             variant="outline"
             size="sm"
@@ -652,18 +695,39 @@ function CollectionContent() {
             className="grid grid-cols-1 gap-6 [overflow-anchor:none] sm:grid-cols-2 lg:grid-cols-3"
             data-collection-grid
           >
-            {filteredKnives.slice(0, visibleCount).map((knife, index) => (
-              <KnifeCard
-                key={knife.id}
-                knife={knife}
-                eager={index === 0}
-                selectionMode={isSelectionMode}
-                selected={selectedIds.has(knife.id)}
-                onSelect={toggleKnifeSelection}
-              />
-            ))}
+            {isFamilyView
+              ? filteredFamilies.slice(0, visibleCount).map((family, index) => {
+                  const allVariants =
+                    familiesByKey.get(family.key) ?? family.knives
+                  return allVariants.length > 1 ? (
+                    <KnifeFamilyCard
+                      key={family.key}
+                      family={family}
+                      allVariants={allVariants}
+                      eager={index === 0}
+                    />
+                  ) : (
+                    <KnifeCard
+                      key={family.key}
+                      knife={family.knives[0]}
+                      eager={index === 0}
+                    />
+                  )
+                })
+              : filteredKnives
+                  .slice(0, visibleCount)
+                  .map((knife, index) => (
+                    <KnifeCard
+                      key={knife.id}
+                      knife={knife}
+                      eager={index === 0}
+                      selectionMode={isSelectionMode}
+                      selected={selectedIds.has(knife.id)}
+                      onSelect={toggleKnifeSelection}
+                    />
+                  ))}
           </div>
-          {visibleCount < filteredKnives.length && (
+          {visibleCount < resultCount && (
             <div
               ref={loadMoreRef}
               className="h-px"
