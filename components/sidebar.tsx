@@ -1,6 +1,8 @@
 'use client'
 
 import Link from 'next/link'
+import { useSmartCollections } from '@/components/providers/smart-collections-provider'
+import { matchesCollection } from '@/lib/smart-collections'
 import Image from 'next/image'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
@@ -56,6 +58,8 @@ const links = [
 ]
 
 export function Sidebar() {
+  const { collections: smartCollections, error: smartError } =
+    useSmartCollections()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const searchParamsKey = searchParams.toString()
@@ -65,6 +69,7 @@ export function Sidebar() {
   const { update, downloadUpdate } = useDesktopUpdates()
   const [brandsOpen, setBrandsOpen] = useState(true)
   const [pinnedOpen, setPinnedOpen] = useState(true)
+  const [smartCollectionsOpen, setSmartCollectionsOpen] = useState(true)
   const [mobileNavSession, setMobileNavSession] = useState<string | null>(null)
   const isMobileNavOpen = mobileNavSession === routeKey
   const isSettingsActive = pathname === '/settings'
@@ -270,6 +275,69 @@ export function Sidebar() {
               </Link>
             )
           })}
+
+          {(smartCollections.length > 0 || smartError) && (
+            <>
+              <Separator className="my-3" />
+              <Collapsible
+                open={smartCollectionsOpen}
+                onOpenChange={setSmartCollectionsOpen}
+              >
+                <CollapsibleTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-1"
+                    >
+                      Smart collections
+                      <ChevronRight
+                        className={cn(
+                          'h-3 w-3 transition-transform',
+                          smartCollectionsOpen && 'rotate-90',
+                        )}
+                      />
+                    </button>
+                  }
+                />
+                <CollapsibleContent className="space-y-0.5 pl-1 pt-1">
+                  {smartError && (
+                    <p role="alert" className="px-2 text-xs text-destructive">
+                      {smartError}
+                    </p>
+                  )}
+                  {smartCollections.map((collection) => {
+                    const active =
+                      pathname === '/collection' &&
+                      searchParams.get('smart') === collection.id
+                    const rules = new URLSearchParams(collection.query)
+                    const count = knives.filter((knife) =>
+                      matchesCollection(knife, rules),
+                    ).length
+                    return (
+                      <Link
+                        key={collection.id}
+                        href={`/collection?${collection.query}&smart=${collection.id}`}
+                        onClick={handleNavigate}
+                        aria-current={active ? 'page' : undefined}
+                        title={collection.name}
+                        className={cn(
+                          'flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-xs transition-colors',
+                          active
+                            ? 'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)]'
+                            : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                        )}
+                      >
+                        <span className="min-w-0 truncate">
+                          {collection.name}
+                        </span>
+                        <span className="shrink-0 tabular-nums">{count}</span>
+                      </Link>
+                    )
+                  })}
+                </CollapsibleContent>
+              </Collapsible>
+            </>
+          )}
 
           {pinnedKnives.length > 0 && (
             <>
