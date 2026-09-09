@@ -19,6 +19,11 @@ import {
   SlidersHorizontal,
   X,
 } from 'lucide-react'
+import {
+  CollectionRanges,
+  SmartCollectionControls,
+} from '@/components/smart-collection-controls'
+import { matchesCollection, rangeDefinitions } from '@/lib/smart-collections'
 import { PageHeader } from '@/components/page-header'
 import { BulkEditDialog } from '@/components/bulk-edit-dialog'
 import { KnifeCard } from '@/components/knife-card'
@@ -27,7 +32,7 @@ import { EmptyState } from '@/components/empty-state'
 import { FilterMultiSelect } from '@/components/filter-multi-select'
 import { SearchField } from '@/components/search-field'
 import { useKnives } from '@/components/providers/knives-provider'
-import { Knife, matchesKnifeSearch, prioritizePinnedKnives } from '@/lib/data'
+import { Knife, prioritizePinnedKnives } from '@/lib/data'
 import { groupKnifeFamilies } from '@/lib/knife-families'
 import { CustomFieldType } from '@/lib/settings-shared'
 import { useDebouncedValue } from '@/lib/use-debounced-value'
@@ -228,33 +233,12 @@ function CollectionContent() {
   }, [knives, filterDefinitions, customFieldDefinitions])
 
   const filteredKnives = useMemo(() => {
-    const matches = knives.filter((knife) => {
-      if (!matchesKnifeSearch(knife, debouncedQuery)) return false
-
-      return filterDefinitions.every((definition) => {
-        const selectedValues = selectedFilters[definition.key]
-
-        if (selectedValues.length === 0) {
-          return true
-        }
-
-        const value = definition.getValue(knife)
-        return selectedValues.some((selectedValue) =>
-          selectedValue === NOT_SET_FILTER_VALUE
-            ? !value || value.trim().length === 0
-            : value === selectedValue,
-        )
-      })
-    })
+    const params = new URLSearchParams(searchParamsKey)
+    params.set('q', debouncedQuery)
+    const matches = knives.filter((knife) => matchesCollection(knife, params))
 
     return prioritizePinnedKnives(matches, pinnedItemsFirst)
-  }, [
-    knives,
-    debouncedQuery,
-    selectedFilters,
-    filterDefinitions,
-    pinnedItemsFirst,
-  ])
+  }, [knives, debouncedQuery, searchParamsKey, pinnedItemsFirst])
 
   const setFilterValues = (key: FilterKey, values: string[]) => {
     replaceParams((params) => {
@@ -293,6 +277,12 @@ function CollectionContent() {
   const clearAllFilters = useCallback(() => {
     replaceParams((params) => {
       params.delete('q')
+      params.delete('smart')
+      params.delete('missingSpecs')
+      rangeDefinitions.forEach((field) => {
+        params.delete(`${field.key}Min`)
+        params.delete(`${field.key}Max`)
+      })
       filterDefinitions.forEach((definition) => params.delete(definition.key))
     })
     setVisibleCount(PAGE_SIZE)
@@ -318,7 +308,36 @@ function CollectionContent() {
     })),
   )
 
-  const hasActiveFilters = activeFilters.length > 0 || query.trim().length > 0
+  const extraFilters = [
+    ...rangeDefinitions.flatMap((field) =>
+      (['Min', 'Max'] as const).flatMap((bound) => {
+        const key = `${field.key}${bound}`
+        const value = searchParams.get(key)
+        return value === null
+          ? []
+          : [
+              {
+                key,
+                label: `${field.label} ${bound === 'Min' ? '≥' : '<'} ${value} ${field.unit}`,
+              },
+            ]
+      }),
+    ),
+    ...(searchParams.get('missingSpecs') === '1'
+      ? [{ key: 'missingSpecs', label: 'Missing specifications' }]
+      : []),
+  ]
+  const updateExtraFilter = (key: string, value: string) => {
+    replaceParams((params) => {
+      if (value) params.set(key, value)
+      else params.delete(key)
+    }, 'history')
+    setVisibleCount(PAGE_SIZE)
+  }
+  const hasActiveFilters =
+    activeFilters.length > 0 ||
+    extraFilters.length > 0 ||
+    query.trim().length > 0
 
   useEffect(() => {
     const loadMoreElement = loadMoreRef.current
@@ -456,7 +475,20 @@ function CollectionContent() {
     <div
       className={`flex-1 p-6 lg:p-8 w-full max-w-7xl mx-auto ${isSelectionMode ? 'pb-28 lg:pb-28' : ''}`}
     >
-      <PageHeader title="Collection" />
+      <PageHeader
+        title="Collection"
+        actions={
+          <SmartCollectionControls
+            params={new URLSearchParams(searchParamsKey)}
+            navigate={(query) => {
+              router.replace(query ? `${pathname}?${query}` : pathname, {
+                scroll: false,
+              })
+              setVisibleCount(PAGE_SIZE)
+            }}
+          />
+        }
+      />
 
       {knives.length > 0 && (
         <div className="mb-4 flex flex-wrap items-center justify-center gap-3 rounded-xl border border-[var(--bladevault-line)]/80 bg-[color:var(--bladevault-surface-soft)]/35 p-3">
@@ -540,9 +572,9 @@ function CollectionContent() {
           >
             <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
             Filters
-            {activeFilters.length > 0 ? (
+            {activeFilters.length + extraFilters.length > 0 ? (
               <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold leading-none text-foreground tabular-nums">
-                {activeFilters.length}
+                {activeFilters.length + extraFilters.length}
               </span>
             ) : null}
             <ChevronDown
@@ -565,9 +597,9 @@ function CollectionContent() {
           >
             <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
             Filters
-            {activeFilters.length > 0 ? (
+            {activeFilters.length + extraFilters.length > 0 ? (
               <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold leading-none text-foreground tabular-nums">
-                {activeFilters.length}
+                {activeFilters.length + extraFilters.length}
               </span>
             ) : null}
             <ChevronDown
@@ -605,6 +637,10 @@ function CollectionContent() {
                 getOptionLabel={getFilterOptionLabel}
               />
             ))}
+            <CollectionRanges
+              params={new URLSearchParams(searchParamsKey)}
+              update={updateExtraFilter}
+            />
           </div>
         </div>
       )}
@@ -632,6 +668,22 @@ function CollectionContent() {
                 aria-label={`Clear ${filter.label} filter value ${filter.value}`}
               >
                 <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+          {extraFilters.map((filter) => (
+            <Badge
+              key={filter.key}
+              variant="secondary"
+              className="gap-1 pr-1 text-xs"
+            >
+              {filter.label}
+              <button
+                aria-label={`Clear ${filter.label}`}
+                onClick={() => updateExtraFilter(filter.key, '')}
+                className="ml-1 rounded-sm p-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+              >
+                <X className="size-3" aria-hidden="true" />
               </button>
             </Badge>
           ))}

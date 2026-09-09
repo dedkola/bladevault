@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { SmartCollectionsProvider } from '@/components/providers/smart-collections-provider'
 import { SidebarShell } from '@/components/sidebar-shell'
 import { KnivesProvider } from '@/components/providers/knives-provider'
 import { DEFAULT_SETTINGS, getSettings } from '@/lib/settings'
@@ -50,13 +51,15 @@ export default function RootLayout({
     >
       <body className="bg-background text-foreground flex h-dvh min-h-0 w-full flex-col overflow-hidden font-sans print:h-auto print:overflow-visible md:flex-row">
         <KnivesProvider>
-          <TooltipProvider>
-            <SidebarShell />
-            <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain print:overflow-visible">
-              {children}
-            </main>
-            <GlobalKnifeSearch />
-          </TooltipProvider>
+          <SmartCollectionsProvider>
+            <TooltipProvider>
+              <SidebarShell />
+              <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain print:overflow-visible">
+                {children}
+              </main>
+              <GlobalKnifeSearch />
+            </TooltipProvider>
+          </SmartCollectionsProvider>
         </KnivesProvider>
       </body>
     </html>
