@@ -5,6 +5,34 @@ test.beforeEach(async ({ request }) => {
   await resetVault(request)
 })
 
+test('keeps the global search pill clear of mobile header controls', async ({
+  page,
+}) => {
+  await page.goto('/logs')
+
+  for (const width of [320, 390, 480]) {
+    await page.setViewportSize({ width, height: 800 })
+
+    const logo = page.getByRole('link', {
+      name: 'BladeVault logo BladeVault',
+    })
+    const search = page.getByRole('button', { name: 'Search knives' })
+    const menu = page.getByRole('button', { name: 'Open navigation' })
+
+    const [logoBox, searchBox, menuBox] = await Promise.all([
+      logo.boundingBox(),
+      search.boundingBox(),
+      menu.boundingBox(),
+    ])
+
+    expect(logoBox).not.toBeNull()
+    expect(searchBox).not.toBeNull()
+    expect(menuBox).not.toBeNull()
+    expect(searchBox!.x).toBeGreaterThanOrEqual(logoBox!.x + logoBox!.width + 4)
+    expect(searchBox!.x + searchBox!.width).toBeLessThanOrEqual(menuBox!.x - 4)
+  }
+})
+
 test('matches collection search against model names only', async ({
   page,
   request,

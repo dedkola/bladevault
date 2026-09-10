@@ -114,14 +114,15 @@ export function GlobalKnifeSearch() {
           onClick={() => setOpen(true)}
           aria-label="Search knives"
           aria-keyshortcuts="/"
-          className="fixed top-2 left-1/2 z-40 flex h-8 -translate-x-1/2 items-center gap-2 rounded-full border border-[var(--bladevault-line)]/80 bg-popover/90 px-3 text-[11px] font-medium text-muted-foreground shadow-[0_6px_24px_rgba(31,27,17,0.14)] backdrop-blur-md transition-[color,background-color,box-shadow,transform] hover:bg-popover hover:text-foreground hover:shadow-[0_8px_28px_rgba(31,27,17,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.98] print:hidden"
+          className="fixed top-2 right-16 z-40 flex h-8 items-center gap-2 rounded-full border border-[var(--bladevault-line)]/80 bg-popover/90 px-2 text-[11px] font-medium text-muted-foreground shadow-[0_6px_24px_rgba(31,27,17,0.14)] backdrop-blur-md transition-[color,background-color,box-shadow,transform] hover:bg-popover hover:text-foreground hover:shadow-[0_8px_28px_rgba(31,27,17,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.98] min-[380px]:px-3 md:right-auto md:left-1/2 md:-translate-x-1/2 print:hidden"
         >
           <Search
             className="size-3.5 text-[var(--bladevault-title)]"
             aria-hidden="true"
           />
-          <span>Find a knife</span>
-          <kbd className="rounded-md border border-[var(--bladevault-line)]/65 bg-[color:var(--bladevault-surface-soft)]/75 px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground">
+          <span className="min-[380px]:hidden">Find</span>
+          <span className="hidden min-[380px]:inline">Find a knife</span>
+          <kbd className="hidden rounded-md border border-[var(--bladevault-line)]/65 bg-[color:var(--bladevault-surface-soft)]/75 px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground min-[380px]:inline-flex">
             /
           </kbd>
         </button>
