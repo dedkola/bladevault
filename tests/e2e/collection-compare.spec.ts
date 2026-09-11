@@ -117,16 +117,25 @@ test('groups model variants and switches between their detail pages', async ({
 
   await family.getByRole('link', { name: /A3510/ }).click()
   await expect(page).toHaveURL(`/collection/${first.knife.id}`)
-  await page
-    .getByRole('button', { name: /Parallel · 3 variants A3510/ })
-    .click()
+  const firstVariantTrigger = page.getByRole('button', {
+    name: /Parallel · 3 variants A3510/,
+  })
+  await expect(firstVariantTrigger).toHaveAttribute('aria-expanded', 'false')
+  await firstVariantTrigger.click()
+  await expect(firstVariantTrigger).toHaveAttribute('aria-expanded', 'true')
 
   const variants = page.getByRole('navigation', { name: 'Model variants' })
   await expect(variants.getByRole('link')).toHaveCount(3)
   await expect(variants.locator('[data-variant-preview]')).toHaveCount(3)
   await variants.getByRole('link', { name: /A3506/ }).click()
   await expect(page).toHaveURL(`/collection/${second.knife.id}`)
-  await expect(
-    page.getByRole('button', { name: /Parallel · 3 variants A3506/ }),
-  ).toBeVisible()
+  const secondVariantTrigger = page.getByRole('button', {
+    name: /Parallel · 3 variants A3506/,
+  })
+  await expect(secondVariantTrigger).toHaveAttribute('aria-expanded', 'true')
+  await expect(variants).toBeVisible()
+
+  await secondVariantTrigger.click()
+  await expect(secondVariantTrigger).toHaveAttribute('aria-expanded', 'false')
+  await expect(variants).not.toBeVisible()
 })

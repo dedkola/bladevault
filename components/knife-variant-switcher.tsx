@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { ChevronDown, Check, ImageIcon, Layers } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
+import { useKnifeFamilyPanel } from '@/components/providers/knife-family-panel-provider'
 import {
   Collapsible,
   CollapsibleContent,
@@ -15,6 +16,7 @@ import { cn } from '@/lib/utils'
 
 export function KnifeVariantSwitcher({ knife }: { knife: Knife }) {
   const { knives } = useKnives()
+  const { openFamilyKey, setOpenFamilyKey } = useKnifeFamilyPanel()
   const familyKey = getKnifeFamilyKey(knife)
   const siblings = knives.filter(
     (item) => getKnifeFamilyKey(item) === familyKey,
@@ -22,7 +24,11 @@ export function KnifeVariantSwitcher({ knife }: { knife: Knife }) {
   if (siblings.length < 2) return null
 
   return (
-    <Collapsible className="mb-6 min-w-0 rounded-xl border border-border bg-card">
+    <Collapsible
+      open={openFamilyKey === familyKey}
+      onOpenChange={(open) => setOpenFamilyKey(open ? familyKey : null)}
+      className="mb-6 min-w-0 rounded-xl border border-border bg-card"
+    >
       <CollapsibleTrigger className="group flex w-full min-w-0 items-center gap-3 rounded-xl p-3 text-left hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <Layers
           className="size-4 shrink-0 text-[var(--bladevault-title)]"
