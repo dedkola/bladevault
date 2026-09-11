@@ -14,6 +14,25 @@ import { getImageUrl, type Knife } from '@/lib/data'
 import { getKnifeFamilyKey, getKnifeVariantLabel } from '@/lib/knife-families'
 import { cn } from '@/lib/utils'
 
+function getVariantFields(knife: Knife, label: string) {
+  const fields = [
+    { label: 'Model', value: knife.specs.modelNumber },
+    { label: 'Blade steel', value: knife.specs.bladeMaterial },
+    { label: 'Handle', value: knife.handleMaterial },
+    { label: 'Finish', value: knife.specs.bladeCoating },
+  ]
+    .map((field) => ({ ...field, value: field.value?.trim() }))
+    .filter((field): field is { label: string; value: string } =>
+      Boolean(field.value),
+    )
+
+  if (label === knife.id || label.endsWith(` · ${knife.id}`)) {
+    fields.push({ label: 'Record', value: knife.id })
+  }
+
+  return fields
+}
+
 export function KnifeVariantSwitcher({ knife }: { knife: Knife }) {
   const { knives } = useKnives()
   const { openFamilyKey, setOpenFamilyKey } = useKnifeFamilyPanel()
@@ -55,6 +74,7 @@ export function KnifeVariantSwitcher({ knife }: { knife: Knife }) {
           {siblings.map((sibling) => {
             const active = sibling.id === knife.id
             const label = getKnifeVariantLabel(sibling, siblings)
+            const fields = getVariantFields(sibling, label)
             return (
               <Link
                 key={sibling.id}
@@ -62,14 +82,14 @@ export function KnifeVariantSwitcher({ knife }: { knife: Knife }) {
                 aria-current={active ? 'page' : undefined}
                 aria-label={`${sibling.brand} ${sibling.name} · ${label}`}
                 className={cn(
-                  'flex min-w-0 items-center gap-3 rounded-lg border p-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  'relative grid min-w-0 grid-cols-[7rem_minmax(0,1fr)] items-stretch gap-3 rounded-lg border p-2 pr-8 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4 sm:p-3 sm:pr-10',
                   active
                     ? 'border-[var(--bladevault-gold)] bg-accent'
                     : 'border-border hover:bg-accent/50',
                 )}
               >
                 <span
-                  className="relative h-12 w-20 shrink-0 overflow-hidden rounded-md border border-border/60 bg-white"
+                  className="relative min-h-28 w-full overflow-hidden rounded-md border border-border/60 bg-white sm:min-h-32"
                   data-variant-preview
                 >
                   {sibling.images[0] ? (
@@ -77,8 +97,8 @@ export function KnifeVariantSwitcher({ knife }: { knife: Knife }) {
                       src={getImageUrl(sibling.images[0])}
                       alt=""
                       fill
-                      sizes="80px"
-                      className="object-contain p-1"
+                      sizes="(min-width: 640px) 144px, 112px"
+                      className="object-contain p-2"
                     />
                   ) : (
                     <span className="flex h-full items-center justify-center bg-muted/30 text-muted-foreground/50">
@@ -86,11 +106,26 @@ export function KnifeVariantSwitcher({ knife }: { knife: Knife }) {
                     </span>
                   )}
                 </span>
-                <span className="min-w-0 flex-1 leading-5 [overflow-wrap:anywhere]">
-                  {label}
-                </span>
+                <dl className="min-w-0 self-center [overflow-wrap:anywhere]">
+                  {fields.map((field) => (
+                    <div
+                      key={field.label}
+                      className="grid min-w-0 grid-cols-1 gap-2 border-b border-border/60 py-1.5 first:pt-0 last:border-b-0 last:pb-0 sm:grid-cols-[4rem_minmax(0,1fr)]"
+                    >
+                      <dt className="sr-only text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground sm:not-sr-only">
+                        {field.label}
+                      </dt>
+                      <dd className="min-w-0 font-medium leading-4">
+                        {field.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
                 {active && (
-                  <Check className="size-4 shrink-0" aria-hidden="true" />
+                  <Check
+                    className="absolute right-3 top-3 size-4"
+                    aria-hidden="true"
+                  />
                 )}
               </Link>
             )
