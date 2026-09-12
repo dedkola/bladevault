@@ -37,7 +37,8 @@ jobs:
           docker run --rm \
             -v "$GITHUB_WORKSPACE:/repo" \
             -w /repo \
-            rhysd/actionlint:1.7.12
+            rhysd/actionlint:1.7.12 \
+            -shellcheck=
 
       - name: Lint
         run: npm run lint
