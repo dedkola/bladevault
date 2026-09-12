@@ -1077,7 +1077,7 @@ export function CollectionInsights() {
               <CardContent className="flex h-full flex-col p-4">
                 <Link
                   href="/insights/library"
-                  className="w-fit text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)] hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="block h-4 w-fit text-[10px] font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)] hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   Library
                 </Link>
@@ -1188,11 +1188,11 @@ export function CollectionInsights() {
             </Card>
 
             <Card className="min-h-44 gap-0 py-0 print:break-inside-avoid">
-              <CardContent className="grid h-full grid-cols-[minmax(0,1fr)_7rem] grid-rows-[1fr_auto] items-center gap-x-2 gap-y-1 p-4">
+              <CardContent className="grid h-full grid-cols-[minmax(0,1fr)_7rem] grid-rows-[auto_1fr] items-start gap-x-2 gap-y-1 p-4">
                 <div>
                   <Link
                     href="/insights/makers"
-                    className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="block h-4 w-fit text-[10px] font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     Maker mix
                   </Link>
@@ -1232,7 +1232,7 @@ export function CollectionInsights() {
 
             <Card className="min-h-44 gap-0 py-0 print:break-inside-avoid">
               <CardContent className="flex h-full flex-col p-4">
-                <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)]">
+                <h2 className="h-4 text-[10px] font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)]">
                   Maintenance
                 </h2>
                 <p className="mt-3 text-sm font-semibold">Last recorded care</p>
@@ -1304,11 +1304,11 @@ export function CollectionInsights() {
             </Card>
 
             <Card className="min-h-44 gap-0 py-0 print:break-inside-avoid">
-              <CardContent className="grid h-full grid-cols-[minmax(0,1fr)_7rem] items-center gap-2 p-4">
+              <CardContent className="grid h-full grid-cols-[minmax(0,1fr)_7rem] grid-rows-[auto_1fr] items-start gap-2 p-4">
                 <div>
                   <Link
                     href="/insights/locks"
-                    className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="block h-4 w-fit text-[10px] font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     Lock types
                   </Link>
