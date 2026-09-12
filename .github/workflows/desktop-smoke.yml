@@ -56,8 +56,16 @@ jobs:
           cache: npm
           node-version-file: '.nvmrc'
 
+      - name: Restore Electron download cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.tool_cache }}/electron
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
         run: npm ci
 
       - name: Run desktop smoke test
         run: npm run desktop:smoke
+        env:
+          electron_config_cache: ${{ runner.tool_cache }}/electron

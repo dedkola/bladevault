@@ -1,10 +1,68 @@
 const assert = require('assert/strict')
+const { spawn } = require('child_process')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { _electron: electron } = require('playwright')
 
 const projectRoot = process.cwd()
+const electronInstallScript = require.resolve('electron/install.js')
+
+function installElectronBinary(timeoutMs = 120000) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [electronInstallScript], {
+      cwd: projectRoot,
+      env: process.env,
+      stdio: 'inherit',
+    })
+    let timedOut = false
+    const timeout = setTimeout(() => {
+      timedOut = true
+      child.kill('SIGKILL')
+    }, timeoutMs)
+
+    child.once('error', (error) => {
+      clearTimeout(timeout)
+      reject(error)
+    })
+    child.once('exit', (code, signal) => {
+      clearTimeout(timeout)
+      if (timedOut) {
+        reject(
+          new Error(
+            `Electron binary installation timed out after ${timeoutMs}ms.`,
+          ),
+        )
+      } else if (code === 0) {
+        resolve()
+      } else {
+        reject(
+          new Error(
+            `Electron binary installation exited with ${code ?? signal}.`,
+          ),
+        )
+      }
+    })
+  })
+}
+
+async function ensureElectronExecutable() {
+  let lastError
+
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      await installElectronBinary()
+      return require('electron')
+    } catch (error) {
+      lastError = error
+      if (attempt < 2) {
+        console.warn(`Electron binary installation attempt ${attempt} failed.`)
+      }
+    }
+  }
+
+  throw lastError
+}
 
 async function main() {
   const dataDir = fs.mkdtempSync(
@@ -14,9 +72,11 @@ async function main() {
   let electronApp = null
 
   try {
+    const executablePath = await ensureElectronExecutable()
     electronApp = await electron.launch({
       args: ['.'],
       cwd: projectRoot,
+      executablePath,
       env: {
         ...process.env,
         BLADEVAULT_DATA_DIR: dataDir,
