@@ -6,7 +6,22 @@ const path = require('path')
 const { _electron: electron } = require('playwright')
 
 const projectRoot = process.cwd()
+const electronPackageDir = path.dirname(
+  require.resolve('electron/package.json'),
+)
 const electronInstallScript = require.resolve('electron/install.js')
+
+function killProcessTree(child) {
+  if (process.platform !== 'win32') {
+    child.kill('SIGKILL')
+    return
+  }
+
+  const killer = spawn('taskkill', ['/pid', String(child.pid), '/t', '/f'], {
+    stdio: 'ignore',
+  })
+  killer.once('error', () => child.kill('SIGKILL'))
+}
 
 function installElectronBinary(timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
@@ -18,7 +33,7 @@ function installElectronBinary(timeoutMs = 120000) {
     let timedOut = false
     const timeout = setTimeout(() => {
       timedOut = true
-      child.kill('SIGKILL')
+      killProcessTree(child)
     }, timeoutMs)
 
     child.once('error', (error) => {
@@ -51,8 +66,21 @@ async function ensureElectronExecutable() {
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
+      console.log(`Preparing Electron binary (attempt ${attempt}/2)...`)
       await installElectronBinary()
-      return require('electron')
+      const relativeExecutablePath = fs
+        .readFileSync(path.join(electronPackageDir, 'path.txt'), 'utf8')
+        .trim()
+      const executablePath = path.join(
+        electronPackageDir,
+        'dist',
+        relativeExecutablePath,
+      )
+      if (!fs.existsSync(executablePath)) {
+        throw new Error(`Electron executable is missing at ${executablePath}.`)
+      }
+      console.log('Electron binary is ready.')
+      return executablePath
     } catch (error) {
       lastError = error
       if (attempt < 2) {
@@ -73,6 +101,7 @@ async function main() {
 
   try {
     const executablePath = await ensureElectronExecutable()
+    console.log('Launching Electron smoke application...')
     electronApp = await electron.launch({
       args: ['.'],
       cwd: projectRoot,
@@ -85,9 +114,10 @@ async function main() {
         BLADEVAULT_SKIP_UPDATE_CHECK: '1',
         NEXT_TELEMETRY_DISABLED: '1',
       },
+      timeout: 120000,
     })
 
-    let window = await electronApp.firstWindow()
+    let window = await electronApp.firstWindow({ timeout: 60000 })
     window.on('pageerror', (error) => pageErrors.push(error.message))
     await window.waitForLoadState('domcontentloaded')
     assert.equal(await window.title(), 'BladeVault | Knife Collection')
@@ -222,7 +252,7 @@ async function main() {
         const exited = new Promise((resolve) =>
           electronProcess.once('exit', resolve),
         )
-        electronProcess.kill('SIGKILL')
+        killProcessTree(electronProcess)
         await exited
       }
     }
