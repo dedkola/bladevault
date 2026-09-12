@@ -40,6 +40,7 @@ import {
 } from '@/lib/collection-stats'
 import { NOT_SET_FILTER_VALUE } from '@/lib/collection-filters'
 import { cn } from '@/lib/utils'
+import { getMaintenanceRecency } from '@/lib/maintenance-recency'
 
 const LEGEND_DOT_CLASSES = [
   'bg-[#2e3417] dark:bg-[#c89c3d]',
@@ -73,6 +74,8 @@ type Drilldown = {
     knifeIds: string[]
   }>
   collectionHref?: string
+  categories?: CategoryStat[]
+  categoryKey?: CategoryKey
 }
 
 export function formatMetric(value: number | undefined, unit: string): string {
@@ -301,88 +304,6 @@ function getLockTypeOption(
   }
 }
 
-function getBladeLengthDistributionOption(
-  measurement: MeasurementStats,
-  palette: InsightsChartPalette,
-): EChartsOption {
-  const peakCount = Math.max(0, ...measurement.bins.map(({ count }) => count))
-  return {
-    animation: false,
-    grid: { left: 2, right: 2, top: 15, bottom: 25 },
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow',
-        shadowStyle: { color: palette.highlightWash },
-      },
-      ...getTooltipAppearance(palette),
-      formatter: (params: unknown) => {
-        const item = Array.isArray(params) ? params[0] : undefined
-        const index =
-          typeof item === 'object' && item && 'dataIndex' in item
-            ? Number(item.dataIndex)
-            : -1
-        const bin = measurement.bins[index]
-        if (!bin) return ''
-        const percent =
-          measurement.knownCount === 0
-            ? 0
-            : Math.round((bin.count / measurement.knownCount) * 100)
-        return `${bin.label}: ${bin.count} ${bin.count === 1 ? 'knife' : 'knives'} (${percent}% of known lengths)`
-      },
-    },
-    xAxis: {
-      type: 'category',
-      data: measurement.bins.map(({ label }) =>
-        formatMeasurementAxisLabel(label).replace('–', '–\n'),
-      ),
-      axisLine: { lineStyle: { color: palette.line } },
-      axisTick: { show: false },
-      axisLabel: {
-        color: palette.muted,
-        fontSize: 7,
-        hideOverlap: true,
-        lineHeight: 8,
-      },
-    },
-    yAxis: { type: 'value', show: false, minInterval: 1 },
-    series: [
-      {
-        type: 'bar',
-        barMaxWidth: 25,
-        data: measurement.bins.map(({ count }) => ({
-          value: count,
-          itemStyle: {
-            color:
-              count === peakCount
-                ? palette.chartPrimary
-                : palette.chartSecondary,
-            borderRadius: [4, 4, 1, 1],
-            opacity: count === 0 ? 0.2 : 1,
-          },
-        })),
-        label: {
-          show: true,
-          position: 'top',
-          color: palette.foreground,
-          fontSize: 8,
-          formatter: (params: unknown) => {
-            const value =
-              typeof params === 'object' &&
-              params &&
-              'value' in params &&
-              typeof params.value === 'number'
-                ? params.value
-                : 0
-            return value ? String(value) : ''
-          },
-        },
-        emphasis: { itemStyle: { color: palette.gold } },
-      },
-    ],
-  }
-}
-
 export function getCompletenessOption(
   value: number,
   palette: InsightsChartPalette,
@@ -513,21 +434,11 @@ function getPieOption(
       formatter: '{b}: {c} ({d}%)',
       ...getTooltipAppearance(palette),
     },
-    legend: {
-      right: 0,
-      top: 'middle',
-      orient: 'vertical',
-      icon: 'circle',
-      itemWidth: 7,
-      itemHeight: 7,
-      itemGap: 10,
-      textStyle: { color: palette.muted, fontSize: 10 },
-    },
     series: [
       {
         type: 'pie',
         radius: ['48%', '72%'],
-        center: ['31%', '50%'],
+        center: ['50%', '50%'],
         label: {
           show: true,
           position: 'center',
@@ -554,10 +465,10 @@ export function getHistogramOption(
   measurement: MeasurementStats,
   palette: InsightsChartPalette,
 ): EChartsOption {
-  const colors = getChartColors(palette)
+  const peakCount = Math.max(0, ...measurement.bins.map(({ count }) => count))
   return {
     animation: false,
-    grid: { left: 12, right: 12, top: 20, bottom: 38 },
+    grid: { left: 12, right: 12, top: 20, bottom: 48 },
     tooltip: {
       trigger: 'axis',
       axisPointer: {
@@ -578,21 +489,29 @@ export function getHistogramOption(
     xAxis: {
       type: 'category',
       data: measurement.bins.map(({ label }) =>
-        formatMeasurementAxisLabel(label),
+        formatMeasurementAxisLabel(label).replace('–', '–\n'),
       ),
       axisTick: { show: false },
       axisLine: { lineStyle: { color: palette.line } },
-      axisLabel: { color: palette.muted, fontSize: 9, hideOverlap: true },
+      axisLabel: {
+        color: palette.muted,
+        fontSize: 11,
+        interval: 0,
+        lineHeight: 13,
+      },
     },
     yAxis: { type: 'value', show: false, minInterval: 1 },
     series: [
       {
         type: 'bar',
         barMaxWidth: 62,
-        data: measurement.bins.map(({ count }, index) => ({
+        data: measurement.bins.map(({ count }) => ({
           value: count,
           itemStyle: {
-            color: colors[index % colors.length],
+            color:
+              count === peakCount
+                ? palette.chartPrimary
+                : palette.chartSecondary,
             borderRadius: [6, 6, 1, 1],
           },
         })),
@@ -630,7 +549,7 @@ function InsightPanel({
     <Card
       className={cn('gap-0 py-0 shadow-sm print:break-inside-avoid', className)}
     >
-      <div className="flex items-start justify-between gap-4 px-5 pt-5">
+      <div className="flex flex-col items-start justify-between gap-3 px-5 pt-5 sm:flex-row sm:gap-4">
         <div className="min-w-0">
           <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)]">
             {eyebrow}
@@ -655,6 +574,92 @@ function InsightPanel({
       </div>
       <CardContent className="px-5 pb-5 pt-3">{children}</CardContent>
     </Card>
+  )
+}
+
+function CategoryRows({
+  categories,
+  onSelect,
+  label,
+  showColors = true,
+  neutralOther = false,
+}: {
+  categories: CategoryStat[]
+  onSelect: (category: CategoryStat) => void
+  label: string
+  showColors?: boolean
+  neutralOther?: boolean
+}) {
+  return (
+    <div aria-label={label} className="grid min-w-0 gap-0.5">
+      {categories.map((category, index) => (
+        <button
+          key={category.name}
+          type="button"
+          onClick={() => onSelect(category)}
+          className="flex min-h-8 w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {showColors && (
+            <span
+              aria-hidden="true"
+              className={cn(
+                'size-2 shrink-0 rounded-full',
+                neutralOther && category.name === 'Other'
+                  ? 'bg-[#a9aa9f]'
+                  : LEGEND_DOT_CLASSES[index % LEGEND_DOT_CLASSES.length],
+              )}
+            />
+          )}
+          <span className="min-w-0 flex-1 break-words">{category.name}</span>
+          <span className="shrink-0 tabular-nums text-muted-foreground">
+            {category.count} · {category.percent}%
+          </span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function MeasurementRows({
+  measurement,
+  onSelect,
+}: {
+  measurement: MeasurementStats
+  onSelect: (bin: MeasurementStats['bins'][number]) => void
+}) {
+  return (
+    <details className="mt-3 text-xs">
+      <summary className="w-fit cursor-pointer rounded-sm py-1 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        View data<span className="sr-only">: {measurement.label}</span>
+      </summary>
+      <div
+        aria-label={`${measurement.label} ranges`}
+        className="mt-2 grid gap-1 sm:grid-cols-2"
+      >
+        {measurement.bins.map((bin) => (
+          <button
+            key={bin.label}
+            type="button"
+            disabled={!bin.count}
+            onClick={() => onSelect(bin)}
+            className="flex min-h-9 items-center justify-between gap-3 rounded-md bg-muted px-3 py-2 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          >
+            <span>{bin.label}</span>
+            <span className="tabular-nums">
+              {bin.count} ·{' '}
+              {measurement.knownCount
+                ? Math.round((bin.count / measurement.knownCount) * 100)
+                : 0}
+              %
+            </span>
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-muted-foreground">
+        Percentages use {measurement.knownCount} known values;{' '}
+        {measurement.missingCount} missing.
+      </p>
+    </details>
   )
 }
 
@@ -875,6 +880,32 @@ export function CollectionInsights() {
         .filter(({ knives }) => knives.length > 0),
     [drilldown, knivesById],
   )
+  const libraryMonths = useMemo(
+    () =>
+      Array.from({ length: 6 }, (_, index) => {
+        const start = new Date(now.getFullYear(), now.getMonth() - 5 + index, 1)
+        const end = new Date(start.getFullYear(), start.getMonth() + 1, 1)
+        return {
+          key: `${start.getFullYear()}-${start.getMonth()}`,
+          label: start.toLocaleDateString(undefined, { month: 'short' }),
+          title: start.toLocaleDateString(undefined, {
+            month: 'long',
+            year: 'numeric',
+          }),
+          knifeIds: knives
+            .filter((knife) => {
+              const added = new Date(knife.addedAt)
+              return added >= start && added < end && added <= now
+            })
+            .map((knife) => knife.id),
+        }
+      }),
+    [knives, now],
+  )
+  const mostMonthlyAdditions = Math.max(
+    1,
+    ...libraryMonths.map((month) => month.knifeIds.length),
+  )
   const makerCategories = useMemo(
     () => collapseCategories(stats.categories.brand, 5, stats.total),
     [stats.categories.brand, stats.total],
@@ -892,10 +923,9 @@ export function CollectionInsights() {
     [stats.categories.lockingMechanism, stats.total],
   )
   const measurement = stats.measurements[measurementKey]
-  const bladeMeasurement = allTimeStats.measurements.bladeLength
-  const bladeLengthPeak = bladeMeasurement.bins.reduce(
-    (peak, bin) => (bin.count > peak.count ? bin : peak),
-    bladeMeasurement.bins[0],
+  const maintenanceGroups = useMemo(
+    () => (activity ? getMaintenanceRecency(knives, activity, now) : undefined),
+    [knives, activity, now],
   )
   const measurementPeak = measurement.bins.reduce(
     (peak, bin) => (bin.count > peak.count ? bin : peak),
@@ -924,6 +954,20 @@ export function CollectionInsights() {
 
   const openCategory = useCallback(
     (eyebrow: string, key: CategoryKey, category: CategoryStat) => {
+      if (category.name === 'Other') {
+        const ids = new Set(category.knifeIds)
+        setDrilldown({
+          eyebrow,
+          title: 'Other',
+          description: `${category.count} knives · choose a category to view its knives`,
+          knifeIds: [],
+          categoryKey: key,
+          categories: stats.categories[key].filter((item) =>
+            item.knifeIds.some((id) => ids.has(id)),
+          ),
+        })
+        return
+      }
       setDrilldown({
         eyebrow,
         title: category.name,
@@ -932,7 +976,7 @@ export function CollectionInsights() {
         collectionHref: categoryHref(key, category),
       })
     },
-    [],
+    [stats.categories],
   )
 
   const openChartCategory = useCallback(
@@ -1030,40 +1074,125 @@ export function CollectionInsights() {
             className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
           >
             <Card className="min-h-44 gap-0 py-0 print:break-inside-avoid">
-              <CardContent className="grid h-full grid-cols-[minmax(0,1fr)_7rem] items-center gap-2 p-4">
-                <div>
-                  <Link
-                    href="/insights/library"
-                    className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    Library
-                  </Link>
-                  <p className="mt-4 text-xs text-muted-foreground">
-                    <strong className="text-[var(--bladevault-local)]">
+              <CardContent className="flex h-full flex-col p-4">
+                <Link
+                  href="/insights/library"
+                  className="block h-4 w-fit text-[10px] font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)] hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Library
+                </Link>
+                <Link
+                  href="/collection"
+                  className="mt-3 flex w-fit items-baseline gap-2 rounded-sm hover:text-[var(--bladevault-title)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <strong className="text-4xl font-semibold tracking-tight tabular-nums">
+                    {stats.total}
+                  </strong>
+                  <span className="text-xs text-muted-foreground">
+                    knives catalogued
+                  </span>
+                </Link>
+                <div className="mt-4 grid grid-cols-3 gap-2 border-y border-border/70 py-3 text-xs">
+                  <div>
+                    <strong className="block text-base tabular-nums">
+                      +{libraryMonths[5].knifeIds.length}
+                    </strong>
+                    <span className="text-[10px] text-muted-foreground">
+                      This month
+                    </span>
+                  </div>
+                  <div>
+                    <strong className="block text-base tabular-nums">
                       +{stats.addedThisYear}
-                    </strong>{' '}
-                    added in {now.getFullYear()}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {stats.pinnedCount} pinned
-                  </p>
+                    </strong>
+                    <span className="text-[10px] text-muted-foreground">
+                      In {now.getFullYear()}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!stats.pinnedCount}
+                    onClick={() =>
+                      setDrilldown({
+                        eyebrow: 'Library',
+                        title: 'Pinned knives',
+                        description: `${stats.pinnedCount} pinned knives`,
+                        knifeIds: knives
+                          .filter((knife) => knife.pinned)
+                          .map((knife) => knife.id),
+                      })
+                    }
+                    className="rounded-sm text-left hover:text-[var(--bladevault-title)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
+                  >
+                    <strong className="block text-base tabular-nums">
+                      {stats.pinnedCount}
+                    </strong>
+                    <span className="text-[10px] text-muted-foreground">
+                      Pinned →
+                    </span>
+                  </button>
                 </div>
-                <InsightsChart
-                  buildOption={(palette) =>
-                    getLibraryOption(stats.total, palette)
-                  }
-                  ariaLabel={`${stats.total} knives catalogued`}
-                  className="h-28 w-28"
-                />
+                <div className="mt-auto pt-3">
+                  <p className="text-[10px] text-muted-foreground">
+                    Added by month · last 6 months
+                  </p>
+                  <div
+                    aria-label="Monthly library additions"
+                    className="mt-2 grid grid-cols-6 gap-2"
+                  >
+                    {libraryMonths.map((month, index) => (
+                      <button
+                        key={month.key}
+                        type="button"
+                        disabled={!month.knifeIds.length}
+                        aria-label={`${month.title}: ${month.knifeIds.length} knives added`}
+                        onClick={() =>
+                          setDrilldown({
+                            eyebrow: 'Added to library',
+                            title: month.title,
+                            description: `${month.knifeIds.length} knives added`,
+                            knifeIds: month.knifeIds,
+                          })
+                        }
+                        className="group flex min-w-0 flex-col items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
+                      >
+                        <span className="text-[10px] tabular-nums">
+                          {month.knifeIds.length}
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className="mt-1 flex h-12 w-full items-end"
+                        >
+                          <span
+                            style={{
+                              height: `${Math.max(3, (month.knifeIds.length / mostMonthlyAdditions) * 100)}%`,
+                            }}
+                            className={cn(
+                              'w-full rounded-t-sm transition-colors group-hover:bg-[var(--bladevault-gold)]',
+                              month.knifeIds.length === 0
+                                ? 'bg-muted'
+                                : index === 5
+                                  ? 'bg-[#2e3417] dark:bg-[#c89c3d]'
+                                  : 'bg-[#79824a] dark:bg-[#947535]',
+                            )}
+                          />
+                        </span>
+                        <span className="mt-1 text-[10px] text-muted-foreground">
+                          {month.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
             <Card className="min-h-44 gap-0 py-0 print:break-inside-avoid">
-              <CardContent className="grid h-full grid-cols-[minmax(0,1fr)_7rem] grid-rows-[1fr_auto] items-center gap-x-2 gap-y-1 p-4">
+              <CardContent className="grid h-full grid-cols-[minmax(0,1fr)_7rem] grid-rows-[auto_1fr] items-start gap-x-2 gap-y-1 p-4">
                 <div>
                   <Link
                     href="/insights/makers"
-                    className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="block h-4 w-fit text-[10px] font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     Maker mix
                   </Link>
@@ -1084,83 +1213,102 @@ export function CollectionInsights() {
                     )
                   }
                   ariaLabel={`${stats.categories.brand.length} makers represented`}
-                  className="h-24 w-24 justify-self-end"
+                  className="h-24 w-24 cursor-pointer justify-self-end"
                   onChartClick={(event) =>
                     openChartCategory(event, 'Brand', 'brand', makerCategories)
                   }
                 />
-                <div
-                  aria-label="Leading brands"
-                  className="col-span-2 flex flex-nowrap items-center justify-between gap-1 border-t border-border/70 pt-2"
-                >
-                  {makerCategories.map((category, index) => (
-                    <button
-                      key={category.name}
-                      type="button"
-                      onClick={() => openCategory('Brand', 'brand', category)}
-                      className="inline-flex min-w-0 items-center gap-0.5 whitespace-nowrap text-[8px] tracking-tight text-muted-foreground transition-colors hover:text-foreground focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          'size-1.5 shrink-0 rounded-full',
-                          LEGEND_DOT_CLASSES[index],
-                        )}
-                      />
-                      {category.name}
-                    </button>
-                  ))}
+                <div className="col-span-2 border-t border-border/70 pt-2">
+                  <CategoryRows
+                    categories={makerCategories}
+                    label="Leading brands"
+                    onSelect={(category) =>
+                      openCategory('Brand', 'brand', category)
+                    }
+                  />
                 </div>
               </CardContent>
             </Card>
 
             <Card className="min-h-44 gap-0 py-0 print:break-inside-avoid">
-              <CardContent className="p-4">
-                <Link
-                  href="/insights/measurements?tab=blade"
-                  className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  Blade lengths
-                </Link>
-                <button
-                  type="button"
-                  disabled={!bladeLengthPeak?.count}
-                  onClick={() =>
-                    openMeasurementBin(bladeMeasurement, bladeLengthPeak)
-                  }
-                  className="mt-2 flex w-full items-baseline justify-between gap-2 rounded-sm text-left transition-colors hover:text-[var(--bladevault-title)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
-                >
-                  <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Most common
-                  </span>
-                  <strong className="font-serif text-xl font-medium">
-                    {bladeLengthPeak?.count
-                      ? bladeLengthPeak.label
-                      : 'Not enough data'}
-                  </strong>
-                </button>
-                <InsightsChart
-                  buildOption={(palette) =>
-                    getBladeLengthDistributionOption(bladeMeasurement, palette)
-                  }
-                  ariaLabel={`Blade length distribution for the full collection${bladeLengthPeak?.count ? `; most common range ${bladeLengthPeak.label} with ${bladeLengthPeak.count} knives; select a bar to view its knives` : ''}`}
-                  className="mt-1 h-20 w-full cursor-pointer"
-                  onChartAreaClick={(event) =>
-                    openMeasurementBin(
-                      bladeMeasurement,
-                      bladeMeasurement.bins[event.dataIndex ?? -1],
-                    )
-                  }
-                />
+              <CardContent className="flex h-full flex-col p-4">
+                <h2 className="h-4 text-[10px] font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)]">
+                  Maintenance
+                </h2>
+                <p className="mt-3 text-sm font-semibold">Last recorded care</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Knives by most recent maintenance
+                </p>
+                {!isActivityLoaded ? (
+                  <p
+                    role="status"
+                    className="mt-4 text-xs text-muted-foreground"
+                  >
+                    Loading maintenance history…
+                  </p>
+                ) : !maintenanceGroups ? (
+                  <p
+                    role="status"
+                    className="mt-4 text-xs text-muted-foreground"
+                  >
+                    Maintenance history unavailable. Reload to try again.
+                  </p>
+                ) : (
+                  <div
+                    aria-label="Maintenance recency"
+                    className="mt-3 grid gap-1"
+                  >
+                    {maintenanceGroups.map((group, index) => (
+                      <button
+                        key={group.label}
+                        type="button"
+                        disabled={!group.count}
+                        onClick={() =>
+                          setDrilldown({
+                            eyebrow: 'Last recorded care',
+                            title: group.label,
+                            description: `${group.count} ${group.count === 1 ? 'knife' : 'knives'} · ${group.percent}% of collection`,
+                            knifeIds: group.knifeIds,
+                          })
+                        }
+                        className="group rounded-md px-1 py-2 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
+                      >
+                        <span className="flex items-start justify-between gap-2 text-xs">
+                          <span>{group.label}</span>
+                          <span className="shrink-0 tabular-nums text-muted-foreground">
+                            {group.count} · {group.percent}%
+                          </span>
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-muted"
+                        >
+                          <span
+                            style={{ width: `${group.percent}%` }}
+                            className={cn(
+                              'block h-full rounded-full',
+                              [
+                                'bg-[#2e3417] dark:bg-[#c89c3d]',
+                                'bg-[#79824a] dark:bg-[#947535]',
+                                'bg-[#c89c3d] dark:bg-[#dfc78f]',
+                                'bg-[#a9aa9f]',
+                              ][index],
+                            )}
+                          />
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
             <Card className="min-h-44 gap-0 py-0 print:break-inside-avoid">
-              <CardContent className="grid h-full grid-cols-[minmax(0,1fr)_7rem] items-center gap-2 p-4">
+              <CardContent className="grid h-full grid-cols-[minmax(0,1fr)_7rem] grid-rows-[auto_1fr] items-start gap-2 p-4">
                 <div>
                   <Link
                     href="/insights/locks"
-                    className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="block h-4 w-fit text-[10px] font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     Lock types
                   </Link>
@@ -1197,7 +1345,7 @@ export function CollectionInsights() {
                     )
                   }
                   ariaLabel={`${stats.categories.lockingMechanism.length} lock types represented`}
-                  className="h-28 w-28"
+                  className="h-28 w-28 cursor-pointer"
                   onChartClick={(event) =>
                     openChartCategory(
                       event,
@@ -1207,6 +1355,19 @@ export function CollectionInsights() {
                     )
                   }
                 />
+                <div className="col-span-2 w-full border-t border-border/70 pt-2">
+                  <CategoryRows
+                    categories={lockCategories}
+                    label="Lock types data"
+                    onSelect={(category) =>
+                      openCategory(
+                        'Locking mechanism',
+                        'lockingMechanism',
+                        category,
+                      )
+                    }
+                  />
+                </div>
               </CardContent>
             </Card>
           </section>
@@ -1230,9 +1391,9 @@ export function CollectionInsights() {
                       eyebrow: 'Blade material',
                       title: 'All steels',
                       description: `${stats.categories.bladeMaterial.length} steels represented`,
-                      knifeIds: stats.categories.bladeMaterial.flatMap(
-                        ({ knifeIds }) => knifeIds,
-                      ),
+                      knifeIds: [],
+                      categoryKey: 'bladeMaterial',
+                      categories: stats.categories.bladeMaterial,
                     })
                   }
                 >
@@ -1257,6 +1418,19 @@ export function CollectionInsights() {
                   )
                 }
               />
+              <details className="mt-3 text-xs">
+                <summary className="w-fit cursor-pointer rounded-sm py-1 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  View data<span className="sr-only">: Blade steels</span>
+                </summary>
+                <CategoryRows
+                  categories={steelCategories}
+                  label="Blade steel data"
+                  neutralOther
+                  onSelect={(category) =>
+                    openCategory('Blade material', 'bladeMaterial', category)
+                  }
+                />
+              </details>
             </InsightPanel>
 
             <InsightPanel
@@ -1266,21 +1440,30 @@ export function CollectionInsights() {
               description={`${stats.categories.bladeStyle.length} distinct profiles represented`}
               className="col-span-12 lg:col-span-5"
             >
-              <InsightsChart
-                buildOption={(palette) =>
-                  getPieOption(shapeCategories, stats.total, palette)
-                }
-                ariaLabel="Blade shape distribution"
-                className="h-48 w-full"
-                onChartClick={(event) =>
-                  openChartCategory(
-                    event,
-                    'Blade style',
-                    'bladeStyle',
-                    shapeCategories,
-                  )
-                }
-              />
+              <div className="grid items-center gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <InsightsChart
+                  buildOption={(palette) =>
+                    getPieOption(shapeCategories, stats.total, palette)
+                  }
+                  ariaLabel="Blade shape distribution"
+                  className="h-40 w-full cursor-pointer"
+                  onChartClick={(event) =>
+                    openChartCategory(
+                      event,
+                      'Blade style',
+                      'bladeStyle',
+                      shapeCategories,
+                    )
+                  }
+                />
+                <CategoryRows
+                  categories={shapeCategories}
+                  label="Blade shapes data"
+                  onSelect={(category) =>
+                    openCategory('Blade style', 'bladeStyle', category)
+                  }
+                />
+              </div>
               {stats.categories.lockingMechanism[0] ? (
                 <button
                   type="button"
@@ -1339,18 +1522,33 @@ export function CollectionInsights() {
               }
               className="col-span-12 lg:col-span-7"
             >
-              <InsightsChart
-                buildOption={(palette) =>
-                  getHistogramOption(measurement, palette)
-                }
-                ariaLabel={`${measurement.label} distribution`}
-                className="h-48 w-full cursor-pointer"
-                onChartAreaClick={(event) =>
-                  openMeasurementBin(
-                    measurement,
-                    measurement.bins[event.dataIndex ?? -1],
-                  )
-                }
+              <div
+                role="region"
+                aria-label={`${measurement.label} chart; scroll to see all ranges`}
+                tabIndex={0}
+                className="overflow-x-auto rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <InsightsChart
+                  buildOption={(palette) =>
+                    getHistogramOption(measurement, palette)
+                  }
+                  ariaLabel={`${measurement.label} distribution`}
+                  className="h-52 min-w-[560px] w-full cursor-pointer"
+                  onChartAreaClick={(event) =>
+                    openMeasurementBin(
+                      measurement,
+                      measurement.bins[event.dataIndex ?? -1],
+                    )
+                  }
+                />
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground sm:hidden">
+                Swipe chart for all ranges, or open View data.
+              </p>
+              <MeasurementRows
+                key={measurementKey}
+                measurement={measurement}
+                onSelect={(bin) => openMeasurementBin(measurement, bin)}
               />
               <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
                 <span>
@@ -1739,42 +1937,62 @@ export function CollectionInsights() {
             <DialogDescription>{drilldown?.description}</DialogDescription>
           </DialogHeader>
           <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-4">
-            {selectedGroups
-              ? selectedGroups.map((group, index) => (
-                  <section
-                    key={group.label}
-                    className={cn(
-                      'grid gap-2',
-                      index > 0 && 'border-t border-border pt-4',
-                    )}
-                  >
-                    <div className="flex items-center justify-between px-1">
-                      <h3 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">
-                        <span
-                          aria-hidden="true"
-                          className={cn(
-                            'size-2 rounded-full',
-                            group.label === 'Added'
-                              ? 'bg-[#c89c3d]'
-                              : 'bg-[#79824a]',
-                          )}
-                        />
-                        {group.label}
-                      </h3>
-                      <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                        {group.knives.length}
-                      </span>
-                    </div>
-                    <div className="grid gap-2">
-                      {group.knives.map((knife) => (
-                        <DrilldownKnife key={knife.id} knife={knife} />
-                      ))}
-                    </div>
-                  </section>
-                ))
-              : selectedKnives.map((knife) => (
-                  <DrilldownKnife key={knife.id} knife={knife} />
-                ))}
+            {drilldown?.categories && drilldown.categoryKey ? (
+              <CategoryRows
+                categories={drilldown.categories}
+                label="Other categories"
+                showColors={false}
+                onSelect={(category) => {
+                  setDrilldown({
+                    eyebrow: drilldown.eyebrow,
+                    title: category.name,
+                    description: `${category.count} knives · ${category.percent}% of this view`,
+                    knifeIds: category.knifeIds,
+                    collectionHref: categoryHref(
+                      drilldown.categoryKey!,
+                      category,
+                    ),
+                  })
+                }}
+              />
+            ) : selectedGroups ? (
+              selectedGroups.map((group, index) => (
+                <section
+                  key={group.label}
+                  className={cn(
+                    'grid gap-2',
+                    index > 0 && 'border-t border-border pt-4',
+                  )}
+                >
+                  <div className="flex items-center justify-between px-1">
+                    <h3 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          'size-2 rounded-full',
+                          group.label === 'Added'
+                            ? 'bg-[#c89c3d]'
+                            : 'bg-[#79824a]',
+                        )}
+                      />
+                      {group.label}
+                    </h3>
+                    <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                      {group.knives.length}
+                    </span>
+                  </div>
+                  <div className="grid gap-2">
+                    {group.knives.map((knife) => (
+                      <DrilldownKnife key={knife.id} knife={knife} />
+                    ))}
+                  </div>
+                </section>
+              ))
+            ) : (
+              selectedKnives.map((knife) => (
+                <DrilldownKnife key={knife.id} knife={knife} />
+              ))
+            )}
           </div>
           {drilldown?.collectionHref ? (
             <DialogFooter className="m-0 rounded-none p-4">
