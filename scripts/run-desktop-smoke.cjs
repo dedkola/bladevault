@@ -153,7 +153,7 @@ async function main() {
       'Desktop smoke passed: API, native SQLite, restore, reload, and preload boundary.',
     )
   } finally {
-    if (electronApp && process.platform === 'darwin') {
+    if (electronApp) {
       const electronProcess = electronApp.process()
       await electronApp
         .evaluate(({ app }) => app.emit('before-quit'))
@@ -165,8 +165,6 @@ async function main() {
         electronProcess.kill('SIGKILL')
         await exited
       }
-    } else if (electronApp) {
-      await electronApp.close()
     }
     fs.rmSync(dataDir, { recursive: true, force: true })
   }
