@@ -29,6 +29,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Validate GitHub Actions workflows
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/repo" \
+            -w /repo \
+            rhysd/actionlint:1.7.12
 
       - name: Lint
         run: npm run lint
@@ -77,3 +86,16 @@ jobs:
             test-results/
           if-no-files-found: ignore
           retention-days: 7
+
+  publish-container:
+    name: Verify & publish container
+    if: github.event_name == 'push'
+    needs: test
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+      security-events: write
+    uses: ./.github/workflows/docker-build.yml
+    secrets: inherit
