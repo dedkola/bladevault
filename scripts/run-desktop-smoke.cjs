@@ -166,7 +166,12 @@ async function main() {
         await exited
       }
     }
-    fs.rmSync(dataDir, { recursive: true, force: true })
+    fs.rmSync(dataDir, {
+      recursive: true,
+      force: true,
+      maxRetries: 20,
+      retryDelay: 100,
+    })
   }
 }
 
