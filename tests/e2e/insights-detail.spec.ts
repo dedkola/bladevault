@@ -168,10 +168,19 @@ test('opens maintenance recency groups and distinguishes unavailable history', a
   request,
 }) => {
   const { knife } = await seedKnife(request)
-  const response = await request.post(`/api/knives/${knife.id}/maintenance`, {
-    data: { type: 'cleaning', occurredAt: new Date().toISOString() },
-  })
-  expect(response.ok()).toBe(true)
+  await page.route('**/api/activity', (route) =>
+    route.fulfill({
+      json: {
+        activity: [
+          {
+            knifeId: knife.id,
+            type: 'maintained',
+            occurredAt: new Date(Date.now() - 1_000).toISOString(),
+          },
+        ],
+      },
+    }),
+  )
   await page.goto('/')
   const groups = page.getByLabel('Maintenance recency', { exact: true })
   await expect(
@@ -186,6 +195,7 @@ test('opens maintenance recency groups and distinguishes unavailable history', a
   await expect(
     groups.getByRole('button', { name: /No maintenance recorded/ }),
   ).toBeDisabled()
+  await page.unroute('**/api/activity')
   await page.route('**/api/activity', (route) =>
     route.fulfill({ status: 500, json: { error: 'unavailable' } }),
   )
