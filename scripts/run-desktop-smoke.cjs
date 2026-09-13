@@ -10,10 +10,20 @@ const electronPackageDir = path.dirname(
   require.resolve('electron/package.json'),
 )
 const electronInstallScript = require.resolve('electron/install.js')
+const smokeWorkerFlag = '--smoke-worker'
+const smokeWorkerTimeoutMs = 180000
 
 function killProcessTree(child) {
+  if (!child.pid || child.exitCode !== null) {
+    return
+  }
+
   if (process.platform !== 'win32') {
-    child.kill('SIGKILL')
+    try {
+      process.kill(-child.pid, 'SIGKILL')
+    } catch {
+      child.kill('SIGKILL')
+    }
     return
   }
 
@@ -21,6 +31,84 @@ function killProcessTree(child) {
     stdio: 'ignore',
   })
   killer.once('error', () => child.kill('SIGKILL'))
+  killer.once('exit', (code) => {
+    if (code !== 0 && child.exitCode === null) {
+      child.kill('SIGKILL')
+    }
+  })
+}
+
+function runSmokeWorker(attempt, attempts) {
+  return new Promise((resolve, reject) => {
+    console.log(
+      `Starting desktop smoke worker (attempt ${attempt}/${attempts})...`,
+    )
+    const child = spawn(process.execPath, [__filename, smokeWorkerFlag], {
+      cwd: projectRoot,
+      detached: process.platform !== 'win32',
+      env: process.env,
+      stdio: 'inherit',
+    })
+    let timedOut = false
+    const timeout = setTimeout(() => {
+      timedOut = true
+      console.error(
+        `Desktop smoke worker timed out after ${smokeWorkerTimeoutMs}ms.`,
+      )
+      killProcessTree(child)
+      setTimeout(() => {
+        if (child.exitCode === null) {
+          child.kill('SIGKILL')
+          child.unref()
+          reject(
+            new Error(
+              `Desktop smoke worker did not exit after its process tree was terminated.`,
+            ),
+          )
+        }
+      }, 10000).unref()
+    }, smokeWorkerTimeoutMs)
+
+    child.once('error', (error) => {
+      clearTimeout(timeout)
+      reject(error)
+    })
+    child.once('exit', (code, signal) => {
+      clearTimeout(timeout)
+      if (timedOut) {
+        reject(
+          new Error(
+            `Desktop smoke worker was terminated after ${smokeWorkerTimeoutMs}ms.`,
+          ),
+        )
+      } else if (code === 0) {
+        resolve()
+      } else {
+        reject(new Error(`Desktop smoke worker exited with ${code ?? signal}.`))
+      }
+    })
+  })
+}
+
+async function runSmokeWithRetries() {
+  const attempts = process.platform === 'win32' ? 2 : 1
+  let lastError
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await runSmokeWorker(attempt, attempts)
+      return
+    } catch (error) {
+      lastError = error
+      if (attempt < attempts) {
+        console.warn(
+          `Desktop smoke worker attempt ${attempt} failed; retrying with a fresh process.`,
+        )
+      }
+    }
+  }
+
+  throw lastError
 }
 
 function installElectronBinary(timeoutMs = 120000) {
@@ -103,7 +191,12 @@ async function main() {
     const executablePath = await ensureElectronExecutable()
     console.log('Launching Electron smoke application...')
     electronApp = await electron.launch({
-      args: ['.'],
+      args: [
+        '.',
+        ...(process.platform === 'win32'
+          ? ['--disable-gpu', '--disable-software-rasterizer']
+          : []),
+      ],
       cwd: projectRoot,
       executablePath,
       env: {
@@ -265,7 +358,9 @@ async function main() {
   }
 }
 
-main().catch((error) => {
+const run = process.argv.includes(smokeWorkerFlag) ? main : runSmokeWithRetries
+
+run().catch((error) => {
   console.error(error instanceof Error ? error.message : error)
   process.exit(1)
 })
