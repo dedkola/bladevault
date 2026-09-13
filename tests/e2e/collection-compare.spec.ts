@@ -108,14 +108,22 @@ test('groups model variants and switches between their detail pages', async ({
       name: 'Vosteed Parallel · 2 of 3 variants match',
     })
     .click()
-  await expect(family.getByRole('link')).toHaveCount(2)
+  await expect(
+    family.getByRole('button', { name: /Preview Vosteed Parallel A3510/ }),
+  ).toBeVisible()
   await expect(family).toContainText(
     'A3510 · 154CM · Titanium · Destroyer Gray',
   )
   await expect(family).toContainText('A3511 · 154CM · G-10 · Stonewash')
   await expect(family).not.toContainText('A3506')
 
-  await family.getByRole('link', { name: /A3510/ }).click()
+  await family
+    .getByRole('button', { name: /Preview Vosteed Parallel A3510/ })
+    .click()
+  const inspector = page.locator('[data-collection-inspector]')
+  await expect(inspector).toBeVisible()
+  await expect(page).toHaveURL('/collection?view=families&bladeMaterial=154CM')
+  await inspector.getByRole('link', { name: 'Open full page →' }).click()
   await expect(page).toHaveURL(`/collection/${first.knife.id}`)
   const firstVariantTrigger = page.getByRole('button', {
     name: /Parallel · 3 variants A3510/,
@@ -138,4 +146,57 @@ test('groups model variants and switches between their detail pages', async ({
   await secondVariantTrigger.click()
   await expect(secondVariantTrigger).toHaveAttribute('aria-expanded', 'false')
   await expect(variants).not.toBeVisible()
+})
+
+test('keeps the selected knife inspector open across collection controls', async ({
+  page,
+  request,
+}) => {
+  const first = await seedKnife(request, {
+    name: 'Fieldwork',
+    brand: 'Quiet Carry',
+    specs: { modelNumber: 'FW-01' },
+  })
+  const second = await seedKnife(request, {
+    name: 'Drift',
+    brand: 'Quiet Carry',
+    pinned: true,
+    specs: { modelNumber: 'DR-02' },
+  })
+
+  await page.goto('/collection')
+  await page
+    .getByRole('button', { name: 'Preview Quiet Carry Fieldwork FW-01' })
+    .click()
+
+  const inspector = page.locator('[data-collection-inspector]')
+  await expect(inspector).toBeVisible()
+  await expect(inspector).toContainText('Fieldwork')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+
+  await page.getByPlaceholder('Search model name…').fill('Drift')
+  await expect(page.getByTitle('Quiet Carry Fieldwork')).not.toBeVisible()
+  await expect(inspector).toContainText('Fieldwork')
+
+  await page
+    .getByRole('navigation', { name: 'Collection grouping' })
+    .getByRole('button', { name: 'Pinned 1' })
+    .click()
+  await expect(inspector).toContainText('Fieldwork')
+  await page.getByRole('button', { name: 'Compact view' }).click()
+  await expect(page.locator('[data-collection-grid]')).toHaveAttribute(
+    'data-density',
+    'compact',
+  )
+  await expect(inspector).toContainText('Fieldwork')
+
+  await page.getByPlaceholder('Search model name…').fill('')
+  await page
+    .getByRole('button', { name: 'Preview Quiet Carry Drift DR-02' })
+    .click()
+  await expect(inspector).toContainText('Drift')
+
+  await inspector.getByRole('link', { name: 'Open full page →' }).click()
+  await expect(page).toHaveURL(`/collection/${second.knife.id}`)
+  await expect(page).not.toHaveURL(`/collection/${first.knife.id}`)
 })
