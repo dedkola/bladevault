@@ -30,6 +30,7 @@ export const KnifeCard = memo(function KnifeCard({
   onSelect,
   onOpen,
   variantLabel,
+  imageSizes = '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw',
 }: {
   knife: Knife
   eager?: boolean
@@ -40,6 +41,7 @@ export const KnifeCard = memo(function KnifeCard({
   onSelect?: (id: string) => void
   onOpen?: (knife: Knife) => void
   variantLabel?: string
+  imageSizes?: string
 }) {
   const {
     updateKnife,
@@ -146,7 +148,7 @@ export const KnifeCard = memo(function KnifeCard({
               loading={eager ? 'eager' : 'lazy'}
               priority={eager}
               fetchPriority={eager ? 'high' : undefined}
-              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              sizes={imageSizes}
               className="object-contain p-2 transition-transform duration-500 group-hover/card:scale-[1.03]"
               referrerPolicy="no-referrer"
               decoding="async"

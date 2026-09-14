@@ -97,7 +97,6 @@ test('groups model variants and switches between their detail pages', async ({
   await seedKnife(request, { name: 'Marten 330', brand: 'Vosteed' })
 
   await page.goto('/collection?view=families&bladeMaterial=154CM')
-  const family = page.locator('[data-knife-family]')
   await expect(
     page.getByRole('button', {
       name: 'Vosteed Parallel · 2 of 3 variants match',
@@ -108,18 +107,23 @@ test('groups model variants and switches between their detail pages', async ({
       name: 'Vosteed Parallel · 2 of 3 variants match',
     })
     .click()
+  const familyDialog = page.getByRole('dialog')
+  await expect(familyDialog).toBeVisible()
   await expect(
-    family.getByRole('button', { name: /Preview Vosteed Parallel A3510/ }),
+    familyDialog.getByRole('button', {
+      name: /Preview Vosteed Parallel A3510/,
+    }),
   ).toBeVisible()
-  await expect(family).toContainText(
+  await expect(familyDialog).toContainText(
     'A3510 · 154CM · Titanium · Destroyer Gray',
   )
-  await expect(family).toContainText('A3511 · 154CM · G-10 · Stonewash')
-  await expect(family).not.toContainText('A3506')
+  await expect(familyDialog).toContainText('A3511 · 154CM · G-10 · Stonewash')
+  await expect(familyDialog).not.toContainText('A3506')
 
-  await family
+  await familyDialog
     .getByRole('button', { name: /Preview Vosteed Parallel A3510/ })
     .click()
+  await expect(familyDialog).not.toBeVisible()
   const inspector = page.locator('[data-collection-inspector]')
   await expect(inspector).toBeVisible()
   await expect(page).toHaveURL('/collection?view=families&bladeMaterial=154CM')
@@ -146,6 +150,135 @@ test('groups model variants and switches between their detail pages', async ({
   await secondVariantTrigger.click()
   await expect(secondVariantTrigger).toHaveAttribute('aria-expanded', 'false')
   await expect(variants).not.toBeVisible()
+})
+
+test('keeps family entries aligned and opens single knives directly', async ({
+  page,
+  request,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await seedKnife(request, {
+    name: 'Alpha',
+    brand: 'Workshop',
+    specs: { modelNumber: 'A-1', bladeMaterial: 'S35VN' },
+  })
+  await seedKnife(request, {
+    name: 'Bravo',
+    brand: 'Workshop',
+    specs: { modelNumber: 'B-1', bladeMaterial: 'S35VN' },
+  })
+  await seedKnife(request, {
+    name: 'Bravo',
+    brand: 'Workshop',
+    specs: { modelNumber: 'B-2', bladeMaterial: '154CM' },
+  })
+  await seedKnife(request, {
+    name: 'Charlie',
+    brand: 'Workshop',
+    specs: { modelNumber: 'C-1', bladeMaterial: 'S35VN' },
+  })
+
+  await page.goto('/collection?view=families')
+  await page.locator('#collection-sort').selectOption('model')
+
+  const entries = page.locator('[data-family-entry]')
+  await expect(entries).toHaveCount(3)
+  const entryHeights = await entries.evaluateAll((items) =>
+    items.map((item) => item.getBoundingClientRect().height),
+  )
+  expect(Math.max(...entryHeights) - Math.min(...entryHeights)).toBeLessThan(1)
+
+  const familyTrigger = page.getByRole('button', {
+    name: 'Workshop Bravo · 2 variants',
+  })
+  const familyEntry = page.locator('[data-knife-family]')
+  const triggerBefore = await familyEntry.boundingBox()
+  expect(triggerBefore).not.toBeNull()
+
+  await familyTrigger.click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await expect(
+    dialog.getByRole('button', { name: /Preview Workshop Bravo B-1/ }),
+  ).toBeVisible()
+  await expect(
+    dialog.getByRole('button', { name: /Preview Workshop Bravo B-2/ }),
+  ).toBeVisible()
+
+  const triggerAfter = await familyEntry.boundingBox()
+  expect(triggerAfter).not.toBeNull()
+  expect(triggerAfter?.x).toBeCloseTo(triggerBefore?.x ?? 0, 0)
+  expect(triggerAfter?.y).toBeCloseTo(triggerBefore?.y ?? 0, 0)
+
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible()
+  await expect(familyTrigger).toBeFocused()
+
+  await page.setViewportSize({ width: 768, height: 900 })
+  await familyTrigger.click()
+  await expect(dialog).toBeVisible()
+  const tabletDialogBounds = await dialog.boundingBox()
+  expect(tabletDialogBounds).not.toBeNull()
+  expect(tabletDialogBounds?.x).toBeGreaterThanOrEqual(15)
+  expect(
+    768 - ((tabletDialogBounds?.x ?? 0) + (tabletDialogBounds?.width ?? 768)),
+  ).toBeGreaterThanOrEqual(15)
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible()
+
+  await page.setViewportSize({ width: 320, height: 800 })
+  const mobileEntryHeights = await entries.evaluateAll((items) =>
+    items.map((item) => item.getBoundingClientRect().height),
+  )
+  expect(
+    Math.max(...mobileEntryHeights) - Math.min(...mobileEntryHeights),
+  ).toBeLessThan(1)
+  await familyTrigger.click()
+  await expect(dialog).toBeVisible()
+  const variantPositions = await dialog
+    .locator('[data-knife-card]')
+    .evaluateAll((items) =>
+      items.map((item) => {
+        const bounds = item.getBoundingClientRect()
+        return { x: bounds.x, y: bounds.y }
+      }),
+    )
+  expect(variantPositions).toHaveLength(2)
+  expect(variantPositions[0]?.x).toBeCloseTo(variantPositions[1]?.x ?? 0, 0)
+  expect(variantPositions[1]?.y).toBeGreaterThan(variantPositions[0]?.y ?? 0)
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true)
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible()
+
+  await page.goto('/collection?view=families&bladeMaterial=S35VN')
+  await page.locator('#collection-sort').selectOption('model')
+  const filteredFamilyTrigger = page.getByRole('button', {
+    name: 'Workshop Bravo · 1 of 2 variants match',
+  })
+  await expect(filteredFamilyTrigger).toBeVisible()
+  const filteredEntryHeights = await entries.evaluateAll((items) =>
+    items.map((item) => item.getBoundingClientRect().height),
+  )
+  expect(
+    Math.max(...filteredEntryHeights) - Math.min(...filteredEntryHeights),
+  ).toBeLessThan(1)
+  await filteredFamilyTrigger.click()
+  await expect(dialog).toContainText(
+    'Showing 1 of 2 variants matching the current filters.',
+  )
+  await expect(dialog.locator('[data-knife-card]')).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible()
+
+  await page.getByRole('button', { name: 'Preview Workshop Alpha A-1' }).click()
+  await expect(page.locator('[data-collection-inspector]')).toContainText(
+    'Alpha',
+  )
+  await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
 test('keeps the selected knife inspector open across collection controls', async ({
@@ -199,4 +332,61 @@ test('keeps the selected knife inspector open across collection controls', async
   await inspector.getByRole('link', { name: 'Open full page →' }).click()
   await expect(page).toHaveURL(`/collection/${second.knife.id}`)
   await expect(page).not.toHaveURL(`/collection/${first.knife.id}`)
+})
+
+test('uses the available desktop width beside the selected knife inspector', async ({
+  page,
+  request,
+}) => {
+  await page.setViewportSize({ width: 2560, height: 1440 })
+
+  for (let index = 1; index <= 12; index += 1) {
+    await seedKnife(request, {
+      name: `Wide ${String(index).padStart(2, '0')}`,
+      brand: 'Screen Test',
+      specs: { modelNumber: `W-${index}` },
+    })
+  }
+
+  await page.goto('/collection')
+  await page
+    .getByRole('button', { name: 'Preview Screen Test Wide 01 W-1' })
+    .click()
+
+  const content = page.locator('[data-collection-content]')
+  const grid = page.locator('[data-collection-grid]')
+  const inspector = page.locator('[data-collection-inspector]')
+  await expect(inspector).toBeVisible()
+
+  const [contentBounds, gridBounds, inspectorBounds] = await Promise.all([
+    content.boundingBox(),
+    grid.boundingBox(),
+    inspector.boundingBox(),
+  ])
+  expect(contentBounds).not.toBeNull()
+  expect(gridBounds).not.toBeNull()
+  expect(inspectorBounds).not.toBeNull()
+  expect(contentBounds?.width).toBeGreaterThan(2000)
+  expect(
+    (inspectorBounds?.x ?? 0) -
+      ((gridBounds?.x ?? 0) + (gridBounds?.width ?? 0)),
+  ).toBeLessThanOrEqual(24)
+
+  const firstRowCount = await grid
+    .locator(':scope > *')
+    .evaluateAll((items) => {
+      const firstTop = items[0]?.getBoundingClientRect().top ?? 0
+      return items.filter(
+        (item) => Math.abs(item.getBoundingClientRect().top - firstTop) < 1,
+      ).length
+    })
+  expect(firstRowCount).toBeGreaterThanOrEqual(5)
+  const firstCardBounds = await grid.locator(':scope > *').first().boundingBox()
+  expect(firstCardBounds).not.toBeNull()
+  expect(firstCardBounds?.width).toBeGreaterThanOrEqual(304)
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true)
 })

@@ -524,9 +524,10 @@ function CollectionContent() {
     <div
       className={cn(
         'mx-auto w-full flex-1 p-4 sm:p-6 lg:p-8',
-        activeKnife ? 'max-w-[100rem] xl:pr-[28rem]' : 'max-w-7xl',
+        activeKnife ? 'max-w-none xl:pr-[28rem]' : 'max-w-7xl',
         isSelectionMode && 'pb-28 lg:pb-28',
       )}
+      data-collection-content
     >
       <PageHeader
         title={
@@ -830,9 +831,11 @@ function CollectionContent() {
                 : 'grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5',
               density === 'gallery' &&
                 (activeKnife
-                  ? 'xl:grid-cols-2'
+                  ? 'xl:grid-cols-[repeat(auto-fit,minmax(19rem,1fr))]'
                   : 'sm:grid-cols-2 lg:grid-cols-3'),
-              density === 'compact' && activeKnife && 'xl:grid-cols-3',
+              density === 'compact' &&
+                activeKnife &&
+                'xl:grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]',
             )}
             data-collection-grid
             data-density={density}
@@ -841,22 +844,13 @@ function CollectionContent() {
               ? filteredFamilies.slice(0, visibleCount).map((family, index) => {
                   const allVariants =
                     familiesByKey.get(family.key) ?? family.knives
-                  return allVariants.length > 1 ? (
+                  return (
                     <KnifeFamilyCard
                       key={family.key}
                       family={family}
                       allVariants={allVariants}
                       eager={index === 0}
                       activeKnifeId={activeKnifeId ?? undefined}
-                      density={density}
-                      onOpen={(knife) => setActiveKnifeId(knife.id)}
-                    />
-                  ) : (
-                    <KnifeCard
-                      key={family.key}
-                      knife={family.knives[0]}
-                      eager={index === 0}
-                      active={family.knives[0].id === activeKnifeId}
                       density={density}
                       onOpen={(knife) => setActiveKnifeId(knife.id)}
                     />
