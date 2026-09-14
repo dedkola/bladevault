@@ -202,7 +202,7 @@ export function GlobalKnifeSearch() {
             onClick={() => setOpen(true)}
             aria-label="Search knives"
             aria-keyshortcuts="/"
-            className="absolute inset-0 flex w-full min-w-0 animate-in items-center justify-center gap-2 overflow-hidden px-2 text-[11px] font-medium text-muted-foreground fade-in-0 duration-200 hover:bg-[color:var(--bladevault-surface-soft)]/55 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:scale-[0.98] min-[380px]:px-3 motion-reduce:animate-none"
+            className="absolute inset-0 flex w-full min-w-0 animate-in items-center justify-center gap-2 overflow-hidden rounded-full px-2 text-[11px] font-medium text-muted-foreground fade-in-0 duration-200 hover:bg-[color:var(--bladevault-surface-soft)]/55 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:scale-[0.98] min-[380px]:px-3 motion-reduce:animate-none"
           >
             <Search
               className="size-3.5 text-[var(--bladevault-title)]"
