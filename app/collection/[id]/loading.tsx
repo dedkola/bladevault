@@ -8,11 +8,7 @@ function SkeletonBlock({ className = '' }: { className?: string }) {
 
 export default function KnifeDetailLoading() {
   return (
-    <div
-      className="flex-1 p-6 lg:p-8 w-full max-w-7xl 2xl:max-w-[100rem] mx-auto"
-      role="status"
-      aria-live="polite"
-    >
+    <div className="flex-1 p-6 lg:p-8 w-full" role="status" aria-live="polite">
       <span className="sr-only">Loading knife details</span>
 
       <div className="motion-safe:animate-pulse" aria-hidden="true">

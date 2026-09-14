@@ -79,7 +79,13 @@ test('records and displays create, update, and delete events', async ({
   ).toContainText(`${formatShortDate(new Date())} · `)
 
   await page.goto('/collection')
-  await page.getByRole('link', { name: new RegExp(name, 'i') }).click()
+  await page
+    .getByRole('button', { name: new RegExp(`Preview ${brand} ${name}`, 'i') })
+    .click()
+  await page
+    .locator('[data-collection-inspector]')
+    .getByRole('link', { name: 'Open full page →' })
+    .click()
   await page.getByRole('button', { name: 'Edit' }).click()
   await page.getByPlaceholder('e.g. Sebenza 31').fill(updatedName)
   await page.getByRole('button', { name: 'Save Changes' }).click()
@@ -90,7 +96,15 @@ test('records and displays create, update, and delete events', async ({
   ).toBeVisible()
 
   await page.goto('/collection')
-  await page.getByRole('link', { name: new RegExp(updatedName, 'i') }).click()
+  await page
+    .getByRole('button', {
+      name: new RegExp(`Preview ${brand} ${updatedName}`, 'i'),
+    })
+    .click()
+  await page
+    .locator('[data-collection-inspector]')
+    .getByRole('link', { name: 'Open full page →' })
+    .click()
   page.once('dialog', (dialog) => dialog.accept())
   await page.getByRole('button', { name: 'Delete' }).click()
 

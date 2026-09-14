@@ -13,6 +13,8 @@ import Link from 'next/link'
 import {
   CheckSquare2,
   ChevronDown,
+  Grid3X3,
+  LayoutGrid,
   PencilLine,
   Pin,
   PinOff,
@@ -26,14 +28,15 @@ import {
 import { matchesCollection, rangeDefinitions } from '@/lib/smart-collections'
 import { PageHeader } from '@/components/page-header'
 import { BulkEditDialog } from '@/components/bulk-edit-dialog'
-import { KnifeCard } from '@/components/knife-card'
+import { KnifeCard, type CollectionCardDensity } from '@/components/knife-card'
 import { KnifeFamilyCard } from '@/components/knife-family-card'
+import { CollectionKnifeInspector } from '@/components/collection-knife-inspector'
 import { EmptyState } from '@/components/empty-state'
 import { FilterMultiSelect } from '@/components/filter-multi-select'
 import { SearchField } from '@/components/search-field'
 import { useKnives } from '@/components/providers/knives-provider'
 import { Knife, prioritizePinnedKnives } from '@/lib/data'
-import { groupKnifeFamilies } from '@/lib/knife-families'
+import { getKnifeFamilyKey, groupKnifeFamilies } from '@/lib/knife-families'
 import { CustomFieldType } from '@/lib/settings-shared'
 import { useDebouncedValue } from '@/lib/use-debounced-value'
 import { cn } from '@/lib/utils'
@@ -52,6 +55,8 @@ import {
 } from '@/lib/collection-filters'
 
 const PAGE_SIZE = 24
+type CollectionView = 'knives' | 'families' | 'pinned'
+type CollectionSort = 'newest' | 'model' | 'brand'
 type CustomFilterKey = `custom:${string}`
 type FilterKey = BuiltInFilterKey | CustomFilterKey
 
@@ -105,14 +110,22 @@ function CollectionContent() {
   const query = searchParams.get('q') ?? ''
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
-  const [isDesktopFiltersOpen, setIsDesktopFiltersOpen] = useState(false)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
   const [isBulkPinning, setIsBulkPinning] = useState(false)
+  const [density, setDensity] = useState<CollectionCardDensity>('gallery')
+  const [sortOrder, setSortOrder] = useState<CollectionSort>('newest')
+  const [activeKnifeId, setActiveKnifeId] = useState<string | null>(null)
   const debouncedQuery = useDebouncedValue(query, 200)
-  const isFamilyView =
-    searchParams.get('view') === 'families' && !isSelectionMode
+  const requestedView = searchParams.get('view')
+  const collectionView: CollectionView = isSelectionMode
+    ? 'knives'
+    : requestedView === 'families' || requestedView === 'pinned'
+      ? requestedView
+      : 'knives'
+  const isFamilyView = collectionView === 'families'
+  const isPinnedView = collectionView === 'pinned'
 
   const replaceParams = useCallback(
     (
@@ -148,6 +161,14 @@ function CollectionContent() {
     },
     [replaceParams],
   )
+
+  const setCollectionView = (view: CollectionView) => {
+    replaceParams((params) => {
+      if (view === 'knives') params.delete('view')
+      else params.set('view', view)
+    })
+    setVisibleCount(PAGE_SIZE)
+  }
 
   const filterDefinitions = useMemo(
     () => [
@@ -234,11 +255,32 @@ function CollectionContent() {
 
   const filteredKnives = useMemo(() => {
     const params = new URLSearchParams(searchParamsKey)
+    params.delete('view')
     params.set('q', debouncedQuery)
-    const matches = knives.filter((knife) => matchesCollection(knife, params))
+    const matches = knives.filter(
+      (knife) =>
+        matchesCollection(knife, params) && (!isPinnedView || knife.pinned),
+    )
+    const sorted = [...matches].sort((left, right) => {
+      if (sortOrder === 'model') return left.name.localeCompare(right.name)
+      if (sortOrder === 'brand') {
+        return (
+          left.brand.localeCompare(right.brand) ||
+          left.name.localeCompare(right.name)
+        )
+      }
+      return Date.parse(right.addedAt) - Date.parse(left.addedAt)
+    })
 
-    return prioritizePinnedKnives(matches, pinnedItemsFirst)
-  }, [knives, debouncedQuery, searchParamsKey, pinnedItemsFirst])
+    return prioritizePinnedKnives(sorted, pinnedItemsFirst && !isPinnedView)
+  }, [
+    knives,
+    debouncedQuery,
+    searchParamsKey,
+    pinnedItemsFirst,
+    isPinnedView,
+    sortOrder,
+  ])
 
   const setFilterValues = (key: FilterKey, values: string[]) => {
     replaceParams((params) => {
@@ -261,6 +303,13 @@ function CollectionContent() {
     () => groupKnifeFamilies(filteredKnives),
     [filteredKnives],
   )
+  const activeKnife = useMemo(
+    () => knives.find((knife) => knife.id === activeKnifeId) ?? null,
+    [activeKnifeId, knives],
+  )
+  const activeKnifeSiblings = activeKnife
+    ? (familiesByKey.get(getKnifeFamilyKey(activeKnife)) ?? [activeKnife])
+    : []
   const resultCount = isFamilyView
     ? filteredFamilies.length
     : filteredKnives.length
@@ -473,10 +522,20 @@ function CollectionContent() {
 
   return (
     <div
-      className={`flex-1 p-6 lg:p-8 w-full max-w-7xl mx-auto ${isSelectionMode ? 'pb-28 lg:pb-28' : ''}`}
+      className={cn(
+        'w-full flex-1 p-4 sm:p-6 lg:p-8',
+        activeKnife && 'xl:pr-[28rem]',
+        isSelectionMode && 'pb-28 lg:pb-28',
+      )}
+      data-collection-content
     >
       <PageHeader
-        title="Collection"
+        title={
+          <span className="text-3xl font-semibold tracking-[-0.045em] sm:text-4xl">
+            Your collection.
+          </span>
+        }
+        description={`${knives.length} ${knives.length === 1 ? 'knife' : 'knives'}, each with a story. All in one place.`}
         actions={
           <SmartCollectionControls
             params={new URLSearchParams(searchParamsKey)}
@@ -491,131 +550,152 @@ function CollectionContent() {
       />
 
       {knives.length > 0 && (
-        <div className="mb-4 flex flex-wrap items-center justify-center gap-3 rounded-xl border border-[var(--bladevault-line)]/80 bg-[color:var(--bladevault-surface-soft)]/35 p-3">
-          <SearchField
-            value={query}
-            onChange={setQuery}
-            placeholder="Search model name…"
-            className="mx-0 max-w-sm basis-full sm:basis-96"
-            inputRef={searchInputRef}
-            shortcutHint="/"
-          />
-          <span className="text-xs tabular-nums text-muted-foreground">
-            {isSelectionMode
-              ? `${selectedIds.size} selected · ${filteredKnives.length} ${filteredKnives.length === 1 ? 'match' : 'matches'}`
-              : filteredKnives.length === knives.length
-                ? `${knives.length} ${knives.length === 1 ? 'knife' : 'knives'}`
-                : `${filteredKnives.length} of ${knives.length} knives`}
-          </span>
-          <div
-            className="flex rounded-lg border border-border p-0.5"
-            role="group"
-            aria-label="Collection view"
-          >
-            {(['knives', 'families'] as const).map((view) => (
-              <Button
-                key={view}
-                size="sm"
-                variant={
-                  (view === 'families') === isFamilyView ? 'secondary' : 'ghost'
-                }
-                aria-pressed={(view === 'families') === isFamilyView}
-                disabled={isSelectionMode}
-                onClick={() => {
-                  replaceParams((params) => {
-                    if (view === 'families') params.set('view', view)
-                    else params.delete('view')
-                  })
-                  setVisibleCount(PAGE_SIZE)
-                }}
-              >
-                {view === 'families' ? 'Families' : 'Knives'}
-              </Button>
-            ))}
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (isSelectionMode) {
-                exitSelectionMode()
-              } else {
-                setIsSelectionMode(true)
-              }
-            }}
-          >
-            {isSelectionMode ? (
-              <X className="mr-1.5 size-3.5" />
-            ) : (
-              <CheckSquare2 className="mr-1.5 size-3.5" />
-            )}
-            {isSelectionMode ? 'Cancel selection' : 'Select'}
-          </Button>
-        </div>
+        <nav
+          aria-label="Collection grouping"
+          className="mb-5 flex gap-6 border-b border-border"
+        >
+          {(
+            [
+              ['knives', 'All knives', knives.length],
+              ['families', 'Model families', familiesByKey.size],
+              [
+                'pinned',
+                'Pinned',
+                knives.filter((knife) => knife.pinned).length,
+              ],
+            ] as const
+          ).map(([view, label, count]) => (
+            <button
+              key={view}
+              type="button"
+              onClick={() => setCollectionView(view)}
+              disabled={isSelectionMode}
+              aria-current={collectionView === view ? 'page' : undefined}
+              className={cn(
+                'relative flex items-center gap-2 pb-3 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50',
+                collectionView === view &&
+                  'font-semibold text-foreground after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-[var(--bladevault-gold)]',
+              )}
+            >
+              {label}
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-foreground">
+                {count}
+              </span>
+            </button>
+          ))}
+        </nav>
       )}
 
       {knives.length > 0 && (
         <div
           data-collection-filter-panel
-          className={cn(
-            'mb-6 rounded-xl border border-border/80 bg-muted/20',
-            isFiltersOpen ? 'p-3' : 'p-2',
-            isDesktopFiltersOpen ? 'sm:p-4' : 'sm:p-2',
-          )}
+          className="mb-5 rounded-xl border border-[var(--bladevault-line)]/80 bg-[color:var(--bladevault-surface-soft)]/25 p-3"
         >
-          <button
-            type="button"
-            onClick={() => setIsFiltersOpen((current) => !current)}
-            aria-expanded={isFiltersOpen}
-            aria-controls="collection-filters"
-            className="flex min-h-8 w-full items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden"
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-            Filters
-            {activeFilters.length + extraFilters.length > 0 ? (
-              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold leading-none text-foreground tabular-nums">
-                {activeFilters.length + extraFilters.length}
-              </span>
-            ) : null}
-            <ChevronDown
-              className={cn(
-                'ml-auto h-3.5 w-3.5 transition-transform',
-                isFiltersOpen && 'rotate-180',
-              )}
-              aria-hidden="true"
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchField
+              value={query}
+              onChange={setQuery}
+              placeholder="Search model name…"
+              className="mx-0 max-w-lg basis-full sm:basis-80 lg:basis-96"
+              inputRef={searchInputRef}
+              shortcutHint="/"
             />
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsDesktopFiltersOpen((current) => !current)}
-            aria-expanded={isDesktopFiltersOpen}
-            aria-controls="collection-filters"
-            className={cn(
-              'hidden min-h-8 w-full items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex',
-              isDesktopFiltersOpen && 'mb-3',
-            )}
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-            Filters
-            {activeFilters.length + extraFilters.length > 0 ? (
-              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold leading-none text-foreground tabular-nums">
-                {activeFilters.length + extraFilters.length}
-              </span>
-            ) : null}
-            <ChevronDown
-              className={cn(
-                'ml-auto h-3.5 w-3.5 transition-transform',
-                isDesktopFiltersOpen && 'rotate-180',
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsFiltersOpen((current) => !current)}
+              aria-expanded={isFiltersOpen}
+              aria-controls="collection-filters"
+            >
+              <SlidersHorizontal className="size-3.5" aria-hidden="true" />
+              Filters
+              {activeFilters.length + extraFilters.length > 0 && (
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold tabular-nums">
+                  {activeFilters.length + extraFilters.length}
+                </span>
               )}
-              aria-hidden="true"
-            />
-          </button>
+              <ChevronDown
+                className={cn(
+                  'size-3 transition-transform',
+                  isFiltersOpen && 'rotate-180',
+                )}
+                aria-hidden="true"
+              />
+            </Button>
+            <span className="text-xs tabular-nums text-muted-foreground sm:ml-auto">
+              {isSelectionMode
+                ? `${selectedIds.size} selected · ${filteredKnives.length} matches`
+                : `${filteredKnives.length} ${filteredKnives.length === 1 ? 'knife' : 'knives'}`}
+            </span>
+            <label className="sr-only" htmlFor="collection-sort">
+              Sort collection
+            </label>
+            <select
+              id="collection-sort"
+              value={sortOrder}
+              onChange={(event) => {
+                setSortOrder(event.target.value as CollectionSort)
+                setVisibleCount(PAGE_SIZE)
+              }}
+              className="h-7 rounded-md border border-border bg-background px-2 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="newest">Newest added</option>
+              <option value="model">Model A–Z</option>
+              <option value="brand">Brand A–Z</option>
+            </select>
+            <div
+              className="flex rounded-lg border border-border bg-background p-0.5"
+              role="group"
+              aria-label="Card density"
+            >
+              <Button
+                type="button"
+                variant={density === 'gallery' ? 'secondary' : 'ghost'}
+                size="icon-sm"
+                onClick={() => setDensity('gallery')}
+                aria-pressed={density === 'gallery'}
+                aria-label="Gallery view"
+              >
+                <LayoutGrid className="size-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant={density === 'compact' ? 'secondary' : 'ghost'}
+                size="icon-sm"
+                onClick={() => setDensity('compact')}
+                aria-pressed={density === 'compact'}
+                aria-label="Compact view"
+              >
+                <Grid3X3 className="size-3.5" />
+              </Button>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (isSelectionMode) {
+                  exitSelectionMode()
+                } else {
+                  setActiveKnifeId(null)
+                  setIsSelectionMode(true)
+                }
+              }}
+            >
+              {isSelectionMode ? (
+                <X className="size-3.5" />
+              ) : (
+                <CheckSquare2 className="size-3.5" />
+              )}
+              {isSelectionMode ? 'Cancel selection' : 'Select'}
+            </Button>
+          </div>
+
           <div
             id="collection-filters"
             className={cn(
-              'mt-3 gap-2 sm:mt-0 sm:grid-cols-2 lg:gap-2.5 xl:grid-cols-4',
+              'mt-3 gap-2 sm:grid-cols-2 lg:gap-2.5 xl:grid-cols-4',
               isFiltersOpen ? 'grid' : 'hidden',
-              isDesktopFiltersOpen ? 'sm:grid' : 'sm:hidden',
             )}
           >
             {filterDefinitions.map((definition) => (
@@ -744,25 +824,33 @@ function CollectionContent() {
       ) : (
         <div className="space-y-6">
           <div
-            className="grid grid-cols-1 gap-6 [overflow-anchor:none] sm:grid-cols-2 lg:grid-cols-3"
+            className={cn(
+              'grid [overflow-anchor:none]',
+              density === 'gallery'
+                ? 'grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4'
+                : 'grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5',
+              density === 'gallery' &&
+                'xl:grid-cols-[repeat(auto-fit,minmax(19rem,min(100%,22rem)))]',
+              density === 'compact' &&
+                activeKnife &&
+                'xl:grid-cols-[repeat(auto-fit,minmax(15rem,min(100%,18rem)))]',
+            )}
             data-collection-grid
+            data-density={density}
           >
             {isFamilyView
               ? filteredFamilies.slice(0, visibleCount).map((family, index) => {
                   const allVariants =
                     familiesByKey.get(family.key) ?? family.knives
-                  return allVariants.length > 1 ? (
+                  return (
                     <KnifeFamilyCard
                       key={family.key}
                       family={family}
                       allVariants={allVariants}
                       eager={index === 0}
-                    />
-                  ) : (
-                    <KnifeCard
-                      key={family.key}
-                      knife={family.knives[0]}
-                      eager={index === 0}
+                      activeKnifeId={activeKnifeId ?? undefined}
+                      density={density}
+                      onOpen={(knife) => setActiveKnifeId(knife.id)}
                     />
                   )
                 })
@@ -775,7 +863,10 @@ function CollectionContent() {
                       eager={index === 0}
                       selectionMode={isSelectionMode}
                       selected={selectedIds.has(knife.id)}
+                      active={knife.id === activeKnifeId}
+                      density={density}
                       onSelect={toggleKnifeSelection}
+                      onOpen={(knife) => setActiveKnifeId(knife.id)}
                     />
                   ))}
           </div>
@@ -788,6 +879,15 @@ function CollectionContent() {
             />
           )}
         </div>
+      )}
+
+      {activeKnife && !isSelectionMode && (
+        <CollectionKnifeInspector
+          key={activeKnife.id}
+          knife={activeKnife}
+          siblings={activeKnifeSiblings}
+          onSelect={(knife) => setActiveKnifeId(knife.id)}
+        />
       )}
 
       {isSelectionMode && (
@@ -869,10 +969,10 @@ export default function CollectionPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex-1 p-6 lg:p-8 w-full max-w-7xl mx-auto">
+        <div className="flex-1 p-6 lg:p-8 w-full">
           <PageHeader
-            title="My Library"
-            description="Manage and browse your complete knife inventory."
+            title="Your collection."
+            description="Browse and manage every knife in your collection."
           />
           <div className="h-96 rounded-xl border border-dashed bg-muted/50" />
         </div>
