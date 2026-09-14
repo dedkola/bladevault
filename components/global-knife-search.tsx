@@ -5,12 +5,6 @@ import { usePathname, useRouter } from 'next/navigation'
 import { ImageIcon, Search, X } from 'lucide-react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useKnives } from '@/components/providers/knives-provider'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { getImageUrl, matchesKnifeSearch, type Knife } from '@/lib/data'
 import { cn } from '@/lib/utils'
 
@@ -29,6 +23,8 @@ export function GlobalKnifeSearch() {
   const router = useRouter()
   const pathname = usePathname()
   const { knives, isLoading } = useKnives()
+  const islandRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listboxId = useId()
   const [open, setOpen] = useState(false)
@@ -42,21 +38,41 @@ export function GlobalKnifeSearch() {
   }, [knives, query])
   const results = matchingKnives.slice(0, MAX_RESULTS)
 
-  const handleOpenChange = useCallback((nextOpen: boolean) => {
-    setOpen(nextOpen)
-    if (!nextOpen) {
-      setQuery('')
-      setActiveIndex(0)
+  const closeSearch = useCallback((restoreFocus = false) => {
+    inputRef.current?.blur()
+    setOpen(false)
+    setQuery('')
+    setActiveIndex(0)
+
+    if (restoreFocus) {
+      requestAnimationFrame(() => triggerRef.current?.focus())
     }
   }, [])
 
   const selectKnife = useCallback(
     (knife: Knife) => {
-      handleOpenChange(false)
+      closeSearch()
       router.push(`/collection/${encodeURIComponent(knife.id)}`)
     },
-    [handleOpenChange, router],
+    [closeSearch, router],
   )
+
+  useEffect(() => {
+    if (!open) return
+
+    const frame = requestAnimationFrame(() => inputRef.current?.focus())
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!islandRef.current?.contains(event.target as Node)) {
+        closeSearch()
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => {
+      cancelAnimationFrame(frame)
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [closeSearch, open])
 
   useEffect(() => {
     if (!showGlobalSearch) return
@@ -87,6 +103,12 @@ export function GlobalKnifeSearch() {
   }, [showGlobalSearch])
 
   const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closeSearch(true)
+      return
+    }
+
     if (results.length === 0) return
 
     if (event.key === 'ArrowDown') {
@@ -107,37 +129,30 @@ export function GlobalKnifeSearch() {
   if (!showGlobalSearch) return null
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      {!open && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Search knives"
-          aria-keyshortcuts="/"
-          className="fixed top-2 right-16 z-40 flex h-8 items-center gap-2 rounded-full border border-[var(--bladevault-line)]/80 bg-popover/90 px-2 text-[11px] font-medium text-muted-foreground shadow-[0_6px_24px_rgba(31,27,17,0.14)] backdrop-blur-md transition-[color,background-color,box-shadow,transform] hover:bg-popover hover:text-foreground hover:shadow-[0_8px_28px_rgba(31,27,17,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.98] min-[380px]:px-3 md:right-auto md:left-1/2 md:-translate-x-1/2 print:hidden"
-        >
-          <Search
-            className="size-3.5 text-[var(--bladevault-title)]"
-            aria-hidden="true"
-          />
-          <span className="min-[380px]:hidden">Find</span>
-          <span className="hidden min-[380px]:inline">Find a knife</span>
-          <kbd className="hidden rounded-md border border-[var(--bladevault-line)]/65 bg-[color:var(--bladevault-surface-soft)]/75 px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground min-[380px]:inline-flex">
-            /
-          </kbd>
-        </button>
+    <div
+      ref={islandRef}
+      data-global-knife-search
+      data-state={open ? 'open' : 'closed'}
+      className={cn(
+        'fixed top-2 z-40 overflow-hidden border border-[var(--bladevault-line)]/80 bg-popover text-popover-foreground print:hidden motion-reduce:transition-none',
+        'transition-[left,right,width,border-radius,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+        open
+          ? 'right-2 left-2 w-auto rounded-[1.2rem] shadow-[0_16px_48px_rgba(31,27,17,0.22)] md:right-auto md:left-1/2 md:w-[22rem] md:-translate-x-1/2'
+          : 'right-16 w-16 rounded-full shadow-[0_6px_24px_rgba(31,27,17,0.14)] min-[380px]:w-[8.5rem] md:right-auto md:left-1/2 md:-translate-x-1/2',
       )}
-      {open && (
-        <DialogContent
-          showCloseButton={false}
-          className="top-3 w-[calc(100%-1.5rem)] max-w-xl translate-y-0 gap-0 overflow-hidden rounded-[1.65rem] border border-[var(--bladevault-line)]/80 bg-popover/95 p-0 shadow-[0_22px_70px_rgba(31,27,17,0.28)] ring-0 supports-backdrop-filter:backdrop-blur-xl sm:top-6"
-        >
-          <DialogTitle className="sr-only">Find a knife</DialogTitle>
-          <DialogDescription className="sr-only">
-            Search your collection by model name and open a knife.
-          </DialogDescription>
-
-          <div className="flex h-14 items-center gap-3 px-4">
+    >
+      <div
+        className={cn(
+          'relative transition-[height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+          open ? 'h-10' : 'h-8',
+        )}
+      >
+        {open ? (
+          <div
+            role="search"
+            aria-label="Find a knife"
+            className="absolute inset-0 flex animate-in items-center gap-2.5 px-3 fade-in-0 slide-in-from-bottom-1 duration-200 motion-reduce:animate-none"
+          >
             <Search
               className="size-4 shrink-0 text-[var(--bladevault-title)]"
               aria-hidden="true"
@@ -146,7 +161,6 @@ export function GlobalKnifeSearch() {
               ref={inputRef}
               type="search"
               role="combobox"
-              autoFocus
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value)
@@ -165,112 +179,139 @@ export function GlobalKnifeSearch() {
             />
             <button
               type="button"
-              onClick={() => handleOpenChange(false)}
+              onClick={() => closeSearch(true)}
               aria-label="Close search"
-              className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <X className="size-4" />
+              <X className="size-3.5" />
             </button>
           </div>
+        ) : (
+          <button
+            ref={triggerRef}
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label="Search knives"
+            aria-keyshortcuts="/"
+            className="absolute inset-0 flex w-full min-w-0 animate-in items-center justify-center gap-2 overflow-hidden px-2 text-[11px] font-medium text-muted-foreground fade-in-0 duration-200 hover:bg-[color:var(--bladevault-surface-soft)]/55 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:scale-[0.98] min-[380px]:px-3 motion-reduce:animate-none"
+          >
+            <Search
+              className="size-3.5 text-[var(--bladevault-title)]"
+              aria-hidden="true"
+            />
+            <span className="min-[380px]:hidden">Find</span>
+            <span className="hidden min-[380px]:inline">Find a knife</span>
+            <kbd className="hidden rounded-md border border-[var(--bladevault-line)]/65 bg-[color:var(--bladevault-surface-soft)]/75 px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground min-[380px]:inline-flex">
+              /
+            </kbd>
+          </button>
+        )}
+      </div>
 
-          {hasQuery && (
-            <div className="border-t border-[var(--bladevault-line)]/55">
-              <div
-                id={listboxId}
-                role="listbox"
-                aria-label="Knife search results"
-                className="max-h-[min(25rem,calc(100dvh-7rem))] overflow-y-auto p-1.5"
-              >
-                {isLoading ? (
-                  <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-                    Loading collection…
-                  </div>
-                ) : results.length > 0 ? (
-                  results.map((knife, index) => {
-                    const isActive = index === activeIndex
-
-                    return (
-                      <button
-                        key={knife.id}
-                        id={`${listboxId}-${knife.id}`}
-                        type="button"
-                        role="option"
-                        aria-selected={isActive}
-                        onMouseEnter={() => setActiveIndex(index)}
-                        onClick={() => selectKnife(knife)}
-                        className={cn(
-                          'relative flex w-full items-center gap-3 overflow-hidden rounded-xl px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
-                          isActive
-                            ? 'bg-[color:var(--bladevault-surface-hover)]/70'
-                            : 'hover:bg-[color:var(--bladevault-surface-soft)]/70',
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            'absolute inset-y-2 left-0 w-0.5 rounded-full bg-[var(--bladevault-gold)] transition-opacity',
-                            isActive ? 'opacity-100' : 'opacity-0',
-                          )}
-                          aria-hidden="true"
-                        />
-                        <span className="relative h-11 w-14 shrink-0 overflow-hidden rounded-lg border border-[var(--bladevault-line)]/60 bg-white">
-                          {knife.images.length > 0 ? (
-                            <Image
-                              src={getImageUrl(knife.images[0])}
-                              alt=""
-                              fill
-                              sizes="56px"
-                              className="object-contain"
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : (
-                            <span className="flex h-full w-full items-center justify-center bg-muted/30">
-                              <ImageIcon className="size-4 text-muted-foreground/45" />
-                            </span>
-                          )}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-                            {knife.brand}
-                          </span>
-                          <span className="block truncate text-sm font-medium text-foreground">
-                            {knife.name}
-                          </span>
-                        </span>
-                        {isActive && (
-                          <span className="hidden items-center gap-1 text-[10px] text-muted-foreground sm:flex">
-                            Open
-                            <kbd className="rounded-md border border-[var(--bladevault-line)]/70 bg-background px-1.5 py-0.5 font-mono text-[9px]">
-                              ↵
-                            </kbd>
-                          </span>
-                        )}
-                      </button>
-                    )
-                  })
-                ) : (
-                  <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-                    No model matches “{query.trim()}”.
-                  </div>
-                )}
+      <div
+        aria-hidden={!hasQuery}
+        className={cn(
+          'grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+          open && hasQuery
+            ? 'grid-rows-[1fr] border-t border-[var(--bladevault-line)]/55 opacity-100'
+            : 'grid-rows-[0fr] opacity-0',
+        )}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div
+            id={listboxId}
+            role="listbox"
+            aria-label="Knife search results"
+            className="max-h-[min(25rem,calc(100dvh-4.5rem))] overflow-y-auto p-1.5"
+          >
+            {isLoading ? (
+              <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+                Loading collection…
               </div>
+            ) : results.length > 0 ? (
+              results.map((knife, index) => {
+                const isActive = index === activeIndex
 
-              {results.length > 0 && (
-                <div className="flex items-center justify-between border-t border-[var(--bladevault-line)]/45 px-4 py-2 text-[10px] text-muted-foreground">
-                  <span>
-                    {results.length}
-                    {matchingKnives.length > MAX_RESULTS ? '+' : ''}{' '}
-                    {results.length === 1 ? 'match' : 'matches'}
-                  </span>
-                  <span className="hidden items-center gap-2 sm:flex">
-                    <span>↑↓ choose</span>
-                    <span>esc close</span>
-                  </span>
-                </div>
-              )}
+                return (
+                  <button
+                    key={knife.id}
+                    id={`${listboxId}-${knife.id}`}
+                    type="button"
+                    role="option"
+                    aria-selected={isActive}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onClick={() => selectKnife(knife)}
+                    className={cn(
+                      'relative flex w-full items-center gap-3 overflow-hidden rounded-xl px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                      isActive
+                        ? 'bg-[color:var(--bladevault-surface-hover)]/70'
+                        : 'hover:bg-[color:var(--bladevault-surface-soft)]/70',
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'absolute inset-y-2 left-0 w-0.5 rounded-full bg-[var(--bladevault-gold)] transition-opacity',
+                        isActive ? 'opacity-100' : 'opacity-0',
+                      )}
+                      aria-hidden="true"
+                    />
+                    <span className="relative h-11 w-14 shrink-0 overflow-hidden rounded-lg border border-[var(--bladevault-line)]/60 bg-white">
+                      {knife.images.length > 0 ? (
+                        <Image
+                          src={getImageUrl(knife.images[0])}
+                          alt=""
+                          fill
+                          sizes="56px"
+                          className="object-contain"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <span className="flex h-full w-full items-center justify-center bg-muted/30">
+                          <ImageIcon className="size-4 text-muted-foreground/45" />
+                        </span>
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+                        {knife.brand}
+                      </span>
+                      <span className="block truncate text-sm font-medium text-foreground">
+                        {knife.name}
+                      </span>
+                    </span>
+                    {isActive && (
+                      <span className="hidden items-center gap-1 text-[10px] text-muted-foreground sm:flex">
+                        Open
+                        <kbd className="rounded-md border border-[var(--bladevault-line)]/70 bg-background px-1.5 py-0.5 font-mono text-[9px]">
+                          ↵
+                        </kbd>
+                      </span>
+                    )}
+                  </button>
+                )
+              })
+            ) : (
+              <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+                No model matches “{query.trim()}”.
+              </div>
+            )}
+          </div>
+
+          {results.length > 0 && (
+            <div className="flex items-center justify-between border-t border-[var(--bladevault-line)]/45 px-4 py-2 text-[10px] text-muted-foreground">
+              <span>
+                {results.length}
+                {matchingKnives.length > MAX_RESULTS ? '+' : ''}{' '}
+                {results.length === 1 ? 'match' : 'matches'}
+              </span>
+              <span className="hidden items-center gap-2 sm:flex">
+                <span>↑↓ choose</span>
+                <span>esc close</span>
+              </span>
             </div>
           )}
-        </DialogContent>
-      )}
-    </Dialog>
+        </div>
+      </div>
+    </div>
   )
 }

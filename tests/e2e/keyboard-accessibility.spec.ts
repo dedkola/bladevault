@@ -9,6 +9,7 @@ test('keeps the global search pill clear of mobile header controls', async ({
   page,
 }) => {
   await page.goto('/logs')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
 
   for (const width of [320, 390, 480]) {
     await page.setViewportSize({ width, height: 800 })
@@ -120,11 +121,19 @@ test('finds and opens knives from insights and knife details', async ({
   await page.goto('/')
   await page.getByRole('button', { name: 'Search knives' }).click()
 
-  const dialog = page.getByRole('dialog', { name: 'Find a knife' })
-  const search = dialog.getByRole('combobox', {
+  const searchIsland = page.locator('[data-global-knife-search]')
+  const search = searchIsland.getByRole('combobox', {
     name: 'Find a knife by model name',
   })
   await expect(search).toBeFocused()
+  await expect(searchIsland).toHaveAttribute('data-state', 'open')
+  await expect(page.locator('[data-slot="dialog-overlay"]')).toHaveCount(0)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+
+  const expandedBox = await searchIsland.boundingBox()
+  expect(expandedBox).not.toBeNull()
+  expect(expandedBox!.width).toBeLessThanOrEqual(360)
+
   await search.fill('bugout')
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(`/collection/${bugout.knife.id}`)
