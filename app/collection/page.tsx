@@ -830,10 +830,10 @@ function CollectionContent() {
                 ? 'grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4'
                 : 'grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5',
               density === 'gallery' &&
-                'xl:grid-cols-[repeat(auto-fit,minmax(19rem,1fr))]',
+                'xl:grid-cols-[repeat(auto-fit,minmax(19rem,min(100%,22rem)))]',
               density === 'compact' &&
                 activeKnife &&
-                'xl:grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]',
+                'xl:grid-cols-[repeat(auto-fit,minmax(15rem,min(100%,18rem)))]',
             )}
             data-collection-grid
             data-density={density}
