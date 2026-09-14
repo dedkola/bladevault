@@ -201,11 +201,6 @@ export function CollectionKnifeInspector({
               {inCompare ? 'Remove from compare' : 'Add to compare'}
             </Button>
           </div>
-
-          <p className="mt-4 text-xs leading-5 text-muted-foreground">
-            This selection stays open while you search, filter, scroll, or
-            change views. Choose another knife to replace it.
-          </p>
         </div>
       </div>
     </aside>

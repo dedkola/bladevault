@@ -123,13 +123,13 @@ export const KnifeCard = memo(function KnifeCard({
 
   return (
     <article
-      className="group/card relative min-w-0"
+      className="group/card relative h-full min-w-0"
       data-knife-card={knife.id}
       data-active={active || undefined}
     >
       <Card
         className={cn(
-          'gap-0 overflow-hidden p-0 transition-[box-shadow,transform] hover:shadow-sm',
+          'h-full gap-0 overflow-hidden p-0 transition-[box-shadow,transform] hover:shadow-sm',
           (active || selected) &&
             'ring-2 ring-[var(--bladevault-gold)] shadow-sm',
         )}
@@ -230,7 +230,7 @@ export const KnifeCard = memo(function KnifeCard({
           ) : null}
         </CardContent>
 
-        <div className="flex min-h-9 items-center border-t border-border px-3 pr-24 text-[10px] text-muted-foreground">
+        <div className="mt-auto flex min-h-9 items-center border-t border-border px-3 pr-24 text-[10px] text-muted-foreground">
           <span className="truncate">
             {bladeLength ? `${bladeLength} blade` : 'Blade length not recorded'}
           </span>

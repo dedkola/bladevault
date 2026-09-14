@@ -60,6 +60,65 @@ test('keeps newest compare item first and filters matching rows', async ({
   ).toHaveCount(1)
 })
 
+test('keeps sparse card actions inside equal-height cards', async ({
+  page,
+  request,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await seedKnife(request, {
+    name: 'Sparse',
+    brand: 'Workshop',
+  })
+  await seedKnife(request, {
+    name: 'Detailed',
+    brand: 'Workshop',
+    specs: {
+      bladeLength: '3.25\" | 82.55 mm',
+      bladeMaterial: 'S35VN',
+      bladeCoating: 'Satin',
+      lockingMechanism: 'Crossbar Lock',
+    },
+  })
+
+  await page.goto('/collection')
+  await page.locator('#collection-sort').selectOption('model')
+
+  const cards = page.locator('[data-knife-card]')
+  await expect(cards).toHaveCount(2)
+  const metrics = await cards.evaluateAll((items) =>
+    items.map((item) => {
+      const card = item.querySelector<HTMLElement>('[data-slot="card"]')
+      const compare = item.querySelector<HTMLElement>(
+        'button[aria-label*="to compare"]',
+      )
+      if (!card || !compare) throw new Error('Expected card and compare action')
+
+      const articleBounds = item.getBoundingClientRect()
+      const cardBounds = card.getBoundingClientRect()
+      const compareBounds = compare.getBoundingClientRect()
+      return {
+        articleHeight: articleBounds.height,
+        cardHeight: cardBounds.height,
+        cardBottomGap: articleBounds.bottom - cardBounds.bottom,
+        compareBottomInset: cardBounds.bottom - compareBounds.bottom,
+      }
+    }),
+  )
+
+  expect(
+    Math.max(...metrics.map((metric) => metric.cardHeight)) -
+      Math.min(...metrics.map((metric) => metric.cardHeight)),
+  ).toBeLessThan(1)
+  expect(
+    metrics.every(
+      (metric) =>
+        Math.abs(metric.articleHeight - metric.cardHeight) < 1 &&
+        Math.abs(metric.cardBottomGap) < 1 &&
+        metric.compareBottomInset >= 0,
+    ),
+  ).toBe(true)
+})
+
 test('groups model variants and switches between their detail pages', async ({
   page,
   request,
