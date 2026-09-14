@@ -19,7 +19,13 @@ test('adds, reloads, edits, and deletes a knife through the UI', async ({
   await expect(page.getByText('Test Knife', { exact: true })).toBeVisible()
 
   await page.reload()
-  await page.locator('a[href="/collection/test-knife"]').click()
+  await page
+    .getByRole('button', { name: /Preview Test Maker Test Knife/ })
+    .click()
+  await page
+    .locator('[data-collection-inspector]')
+    .getByRole('link', { name: 'Open full page →' })
+    .click()
   await expect(
     page.getByRole('heading', { name: 'Test Maker Test Knife' }),
   ).toBeVisible()
