@@ -523,8 +523,8 @@ function CollectionContent() {
   return (
     <div
       className={cn(
-        'mx-auto w-full flex-1 p-4 sm:p-6 lg:p-8',
-        activeKnife ? 'max-w-none xl:pr-[28rem]' : 'max-w-7xl',
+        'w-full flex-1 p-4 sm:p-6 lg:p-8',
+        activeKnife && 'xl:pr-[28rem]',
         isSelectionMode && 'pb-28 lg:pb-28',
       )}
       data-collection-content
@@ -827,12 +827,10 @@ function CollectionContent() {
             className={cn(
               'grid [overflow-anchor:none]',
               density === 'gallery'
-                ? 'grid-cols-2 gap-3 sm:gap-4'
+                ? 'grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4'
                 : 'grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5',
               density === 'gallery' &&
-                (activeKnife
-                  ? 'xl:grid-cols-[repeat(auto-fit,minmax(19rem,1fr))]'
-                  : 'sm:grid-cols-2 lg:grid-cols-3'),
+                'xl:grid-cols-[repeat(auto-fit,minmax(19rem,1fr))]',
               density === 'compact' &&
                 activeKnife &&
                 'xl:grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]',
@@ -971,7 +969,7 @@ export default function CollectionPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex-1 p-6 lg:p-8 w-full max-w-7xl mx-auto">
+        <div className="flex-1 p-6 lg:p-8 w-full">
           <PageHeader
             title="Your collection."
             description="Browse and manage every knife in your collection."

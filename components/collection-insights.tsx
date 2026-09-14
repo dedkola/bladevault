@@ -1010,7 +1010,7 @@ export function CollectionInsights() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto w-full max-w-7xl flex-1 p-6 lg:p-8">
+      <div className="w-full flex-1 p-6 lg:p-8">
         <div className="h-28 animate-pulse rounded-xl bg-muted" />
         <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {Array.from({ length: 4 }, (_, index) => (
@@ -1026,7 +1026,7 @@ export function CollectionInsights() {
 
   if (knives.length === 0) {
     return (
-      <div className="mx-auto w-full max-w-7xl flex-1 p-6 lg:p-8">
+      <div className="w-full flex-1 p-6 lg:p-8">
         <PageHeader title="Collection Insights" />
         <Card className="border-dashed bg-muted/40">
           <CardContent className="flex flex-col items-center py-16 text-center">
@@ -1048,7 +1048,7 @@ export function CollectionInsights() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl flex-1 p-6 print:max-w-none print:p-0 lg:p-8">
+    <div className="w-full flex-1 p-6 print:p-0 lg:p-8">
       <PageHeader title="Collection Insights" />
 
       {stats.total === 0 ? (

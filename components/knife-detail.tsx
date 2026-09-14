@@ -247,7 +247,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
 
   if (isEditing) {
     return (
-      <div className="flex flex-col min-h-0 flex-1 p-6 lg:p-8 w-full max-w-7xl mx-auto">
+      <div className="flex flex-col min-h-0 flex-1 p-6 lg:p-8 w-full">
         <KnifeScrapeEditor
           mode="edit"
           initialData={knifeToFormData(knife, customFields)}
@@ -342,7 +342,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
     .filter(Boolean)
 
   return (
-    <div className="flex-1 p-6 lg:p-8 w-full max-w-7xl 2xl:max-w-[100rem] mx-auto">
+    <div className="flex-1 p-6 lg:p-8 w-full">
       <PageHeader
         title={
           <span className="inline-flex items-center gap-2">
