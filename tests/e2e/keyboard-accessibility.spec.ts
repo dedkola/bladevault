@@ -17,18 +17,22 @@ test('keeps the global search pill clear of mobile header controls', async ({
     const logo = page.getByRole('link', {
       name: 'BladeVault logo BladeVault',
     })
+    const searchIsland = page.locator('[data-global-knife-search]')
     const search = page.getByRole('button', { name: 'Search knives' })
     const menu = page.getByRole('button', { name: 'Open navigation' })
 
-    const [logoBox, searchBox, menuBox] = await Promise.all([
+    const [logoBox, searchIslandBox, searchBox, menuBox] = await Promise.all([
       logo.boundingBox(),
+      searchIsland.boundingBox(),
       search.boundingBox(),
       menu.boundingBox(),
     ])
 
     expect(logoBox).not.toBeNull()
+    expect(searchIslandBox).not.toBeNull()
     expect(searchBox).not.toBeNull()
     expect(menuBox).not.toBeNull()
+    expect(searchIslandBox!.height).toBe(34)
     expect(searchBox!.x).toBeGreaterThanOrEqual(logoBox!.x + logoBox!.width + 4)
     expect(searchBox!.x + searchBox!.width).toBeLessThanOrEqual(menuBox!.x - 4)
   }

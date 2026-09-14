@@ -94,6 +94,40 @@ export function matchesKnifeSearch(knife: Knife, query: string): boolean {
   return getKnifeSearchableText(knife).includes(q)
 }
 
+export type GlobalKnifeSearchQuery =
+  | { mode: 'model-name'; value: string }
+  | { mode: 'model-number'; value: string }
+
+export function parseGlobalKnifeSearchQuery(
+  query: string,
+): GlobalKnifeSearchQuery {
+  const value = query.trim()
+  const modelNumberCommand = /^\/model(?:\s+(.*))?$/i.exec(value)
+
+  if (modelNumberCommand) {
+    return {
+      mode: 'model-number',
+      value: (modelNumberCommand[1] ?? '').trim(),
+    }
+  }
+
+  return { mode: 'model-name', value }
+}
+
+export function matchesGlobalKnifeSearch(knife: Knife, query: string): boolean {
+  const parsedQuery = parseGlobalKnifeSearchQuery(query)
+
+  if (parsedQuery.mode === 'model-number') {
+    if (!parsedQuery.value) return false
+
+    return (knife.specs.modelNumber ?? '')
+      .toLowerCase()
+      .includes(parsedQuery.value.toLowerCase())
+  }
+
+  return matchesKnifeSearch(knife, parsedQuery.value)
+}
+
 export type MaintenanceType =
   | 'cleaning'
   | 'lubrication'

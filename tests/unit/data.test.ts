@@ -4,7 +4,9 @@ import {
   getKnifeSearchableText,
   isMaintenanceType,
   maintenanceTypeLabel,
+  matchesGlobalKnifeSearch,
   matchesKnifeSearch,
+  parseGlobalKnifeSearchQuery,
   prioritizePinnedKnives,
 } from '@/lib/data'
 import { createKnife } from '@/tests/fixtures/knife'
@@ -40,6 +42,32 @@ describe('collection data helpers', () => {
     const text = getKnifeSearchableText(knife)
 
     expect(text).toBe('bugout')
+  })
+
+  it('supports explicit global model-number searches', () => {
+    const matchingNumber = createKnife({
+      name: 'Pyrite',
+      specs: { ...createKnife().specs, modelNumber: 'A4301-B' },
+    })
+    const matchingNameOnly = createKnife({
+      name: 'A4301',
+      specs: { ...createKnife().specs, modelNumber: 'J1942' },
+    })
+
+    expect(parseGlobalKnifeSearchQuery('/model A4301')).toEqual({
+      mode: 'model-number',
+      value: 'A4301',
+    })
+    expect(parseGlobalKnifeSearchQuery('  /MODEL   a4301  ')).toEqual({
+      mode: 'model-number',
+      value: 'a4301',
+    })
+    expect(matchesGlobalKnifeSearch(matchingNumber, '/model a4301')).toBe(true)
+    expect(matchesGlobalKnifeSearch(matchingNameOnly, '/model A4301')).toBe(
+      false,
+    )
+    expect(matchesGlobalKnifeSearch(matchingNumber, 'Pyrite')).toBe(true)
+    expect(matchesGlobalKnifeSearch(matchingNumber, '/model')).toBe(false)
   })
 
   it('moves pinned knives first stably without mutating the source array', () => {

@@ -5,7 +5,12 @@ import { usePathname, useRouter } from 'next/navigation'
 import { ImageIcon, Search, X } from 'lucide-react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useKnives } from '@/components/providers/knives-provider'
-import { getImageUrl, matchesKnifeSearch, type Knife } from '@/lib/data'
+import {
+  getImageUrl,
+  matchesGlobalKnifeSearch,
+  parseGlobalKnifeSearchQuery,
+  type Knife,
+} from '@/lib/data'
 import { cn } from '@/lib/utils'
 
 const MAX_RESULTS = 7
@@ -27,15 +32,17 @@ export function GlobalKnifeSearch() {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listboxId = useId()
+  const searchHintId = useId()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const showGlobalSearch = pathname !== '/collection' && pathname !== '/compare'
+  const parsedQuery = useMemo(() => parseGlobalKnifeSearchQuery(query), [query])
 
   const matchingKnives = useMemo(() => {
-    if (!query.trim()) return []
-    return knives.filter((knife) => matchesKnifeSearch(knife, query))
-  }, [knives, query])
+    if (!parsedQuery.value) return []
+    return knives.filter((knife) => matchesGlobalKnifeSearch(knife, query))
+  }, [knives, parsedQuery.value, query])
   const results = matchingKnives.slice(0, MAX_RESULTS)
 
   const closeSearch = useCallback((restoreFocus = false) => {
@@ -123,7 +130,8 @@ export function GlobalKnifeSearch() {
     }
   }
 
-  const hasQuery = query.trim().length > 0
+  const hasSearchTerm = parsedQuery.value.length > 0
+  const isModelNumberSearch = parsedQuery.mode === 'model-number'
   const activeResult = results[activeIndex]
 
   if (!showGlobalSearch) return null
@@ -169,9 +177,10 @@ export function GlobalKnifeSearch() {
               onKeyDown={handleInputKeyDown}
               placeholder="Find a model…"
               aria-label="Find a knife by model name"
+              aria-describedby={searchHintId}
               aria-autocomplete="list"
-              aria-controls={hasQuery ? listboxId : undefined}
-              aria-expanded={hasQuery}
+              aria-controls={hasSearchTerm ? listboxId : undefined}
+              aria-expanded={hasSearchTerm}
               aria-activedescendant={
                 activeResult ? `${listboxId}-${activeResult.id}` : undefined
               }
@@ -209,10 +218,47 @@ export function GlobalKnifeSearch() {
       </div>
 
       <div
-        aria-hidden={!hasQuery}
+        aria-hidden={!open}
         className={cn(
           'grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
-          open && hasQuery
+          open
+            ? 'grid-rows-[1fr] border-t border-[var(--bladevault-line)]/55 opacity-100'
+            : 'grid-rows-[0fr] opacity-0',
+        )}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div
+            id={searchHintId}
+            className="flex items-center gap-2 px-3 py-2 text-[10px] text-muted-foreground"
+          >
+            {isModelNumberSearch ? (
+              <>
+                <span className="font-medium text-[var(--bladevault-title)]">
+                  Model number mode
+                </span>
+                <span>Type a model number to search.</span>
+              </>
+            ) : (
+              <>
+                <span>Tip</span>
+                <span>
+                  Use{' '}
+                  <kbd className="rounded border border-[var(--bladevault-line)]/70 bg-background px-1.5 py-0.5 font-mono text-[9px] text-foreground">
+                    /model A4301
+                  </kbd>{' '}
+                  to search model numbers only.
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div
+        aria-hidden={!hasSearchTerm}
+        className={cn(
+          'grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+          open && hasSearchTerm
             ? 'grid-rows-[1fr] border-t border-[var(--bladevault-line)]/55 opacity-100'
             : 'grid-rows-[0fr] opacity-0',
         )}
@@ -222,7 +268,7 @@ export function GlobalKnifeSearch() {
             id={listboxId}
             role="listbox"
             aria-label="Knife search results"
-            className="max-h-[min(25rem,calc(100dvh-4.5rem))] overflow-y-auto p-1.5"
+            className="max-h-[min(25rem,calc(100dvh-6.5rem))] overflow-y-auto p-1.5"
           >
             {isLoading ? (
               <div className="px-3 py-8 text-center text-sm text-muted-foreground">
@@ -275,8 +321,15 @@ export function GlobalKnifeSearch() {
                       <span className="block truncate text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
                         {knife.brand}
                       </span>
-                      <span className="block truncate text-sm font-medium text-foreground">
-                        {knife.name}
+                      <span className="flex min-w-0 items-baseline gap-2">
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                          {knife.name}
+                        </span>
+                        {isModelNumberSearch && knife.specs.modelNumber && (
+                          <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                            {knife.specs.modelNumber}
+                          </span>
+                        )}
                       </span>
                     </span>
                     {isActive && (
@@ -292,7 +345,8 @@ export function GlobalKnifeSearch() {
               })
             ) : (
               <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-                No model matches “{query.trim()}”.
+                No {isModelNumberSearch ? 'model number' : 'model'} matches “
+                {parsedQuery.value}”.
               </div>
             )}
           </div>
