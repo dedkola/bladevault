@@ -2,7 +2,13 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { ChevronDown, ImageIcon, Scale } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ImageIcon,
+  Scale,
+} from 'lucide-react'
 import { useState } from 'react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -31,6 +37,12 @@ export function CollectionKnifeInspector({
   const [isMobileExpanded, setIsMobileExpanded] = useState(true)
   const inCompare = compareIds.includes(knife.id)
   const image = knife.images[imageIndex]
+  const nextImage = () =>
+    setImageIndex((current) => (current + 1) % knife.images.length)
+  const prevImage = () =>
+    setImageIndex(
+      (current) => (current - 1 + knife.images.length) % knife.images.length,
+    )
 
   const toggleCompare = async () => {
     setIsUpdatingCompare(true)
@@ -107,17 +119,24 @@ export function CollectionKnifeInspector({
             </div>
           )}
           {knife.images.length > 1 && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setImageIndex((current) => (current + 1) % knife.images.length)
-              }
-              className="absolute bottom-3 right-3 bg-background/95"
-            >
-              Photo {imageIndex + 1} / {knife.images.length} →
-            </Button>
+            <>
+              <button
+                type="button"
+                onClick={prevImage}
+                className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center text-[var(--bladevault-gold)] transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)]"
+                aria-label="Previous image"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={nextImage}
+                className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center text-[var(--bladevault-gold)] transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)]"
+                aria-label="Next image"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </>
           )}
         </div>
 
