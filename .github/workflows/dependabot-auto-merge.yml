@@ -20,7 +20,12 @@ jobs:
 
       - name: Enable auto-merge for non-major updates
         if: steps.metadata.outputs.update-type != 'version-update:semver-major'
-        run: gh pr merge --auto --squash "$PR_URL"
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::error::Add AUTO_MERGE_TOKEN as a Dependabot secret before enabling auto-merge."
+            exit 1
+          fi
+          gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN }}
