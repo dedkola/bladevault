@@ -50,6 +50,9 @@ RUN apt-get update && \
   apt-get install -y --no-install-recommends xvfb && \
   rm -rf /var/lib/apt/lists/*
 
+# npm is needed only in the build stages; the runtime starts directly with node.
+RUN rm -rf /usr/lib/node_modules/npm /usr/bin/npm /usr/bin/npx
+
 RUN mkdir -p /app/data
 
 EXPOSE 3000
