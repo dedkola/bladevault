@@ -23,3 +23,15 @@ updates:
     labels:
       - dependencies
       - github-actions
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: tuesday
+      time: '09:00'
+    assignees:
+      - dedkola
+    labels:
+      - dependencies
+      - docker
