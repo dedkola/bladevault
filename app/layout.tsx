@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { SmartCollectionsProvider } from '@/components/providers/smart-collections-provider'
 import { SidebarShell } from '@/components/sidebar-shell'
@@ -8,6 +8,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { cn } from '@/lib/utils'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
+import { ThemeColorSync } from '@/components/theme-color-sync'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-sans' })
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono' })
@@ -15,6 +16,12 @@ const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono' })
 export const metadata: Metadata = {
   title: 'BladeVault | Knife Collection',
   description: 'Manage your local knife collection.',
+}
+
+export function generateViewport(): Viewport {
+  return {
+    themeColor: getInitialTheme() === 'dark' ? '#18150f' : '#fcfcfb',
+  }
 }
 
 export const dynamic = 'force-dynamic'
@@ -45,14 +52,13 @@ export default function RootLayout({
       )}
       suppressHydrationWarning
     >
-      <body className="bg-background text-foreground flex h-dvh min-h-0 w-full flex-col overflow-hidden font-sans print:h-auto print:overflow-visible md:flex-row">
+      <body className="bg-background text-foreground flex min-h-dvh w-full flex-col font-sans md:flex-row">
+        <ThemeColorSync />
         <KnivesProvider>
           <SmartCollectionsProvider>
             <TooltipProvider>
               <SidebarShell />
-              <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain print:overflow-visible">
-                {children}
-              </main>
+              <main className="flex min-w-0 flex-1 flex-col">{children}</main>
               <GlobalKnifeSearch />
             </TooltipProvider>
           </SmartCollectionsProvider>

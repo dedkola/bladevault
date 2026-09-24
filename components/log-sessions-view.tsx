@@ -291,12 +291,11 @@ export function LogSessionsView() {
     const row = entryButtons.current
       .get(pending.id)
       ?.closest<HTMLElement>('[data-log-entry]')
-    const scrollContainer = row?.closest<HTMLElement>('main')
-    if (!row || !scrollContainer) return
+    if (!row) return
 
     // Keep the clicked row fixed when details above it leave the table.
     const offset = row.getBoundingClientRect().top - pending.top
-    if (Math.abs(offset) > 0.5) scrollContainer.scrollTop += offset
+    if (Math.abs(offset) > 0.5) window.scrollBy(0, offset)
   }, [selectedId])
 
   useEffect(() => {

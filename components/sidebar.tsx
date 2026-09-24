@@ -150,7 +150,7 @@ export function Sidebar() {
           'flex min-h-0 flex-col bg-sidebar text-sidebar-foreground print:hidden',
           isMobile
             ? 'h-dvh max-h-dvh w-[min(20rem,calc(100vw-2.5rem))] max-w-full border-r border-sidebar-border shadow-2xl'
-            : 'hidden h-full w-60 shrink-0 border-r border-sidebar-border md:flex',
+            : 'hidden h-dvh w-60 shrink-0 border-r border-sidebar-border md:sticky md:top-0 md:flex',
         )}
       >
         <div className="flex items-center justify-between gap-3 px-4 py-4">
@@ -575,7 +575,7 @@ export function Sidebar() {
         </defs>
       </svg>
 
-      <div className="flex items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 print:hidden md:hidden">
+      <div className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 print:hidden md:hidden">
         <Link href="/" className="flex min-w-0 items-center gap-2.5">
           <div className="relative h-10 w-10 shrink-0">
             <Image
