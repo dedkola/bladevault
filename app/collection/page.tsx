@@ -1,5 +1,7 @@
 'use client'
 
+import { useComparisons } from '@/components/providers/comparisons-provider'
+
 import {
   Suspense,
   useCallback,
@@ -111,6 +113,11 @@ function CollectionContent() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
+  const {
+    choose: chooseComparisons,
+    loading: comparisonsLoading,
+    busy: comparisonsBusy,
+  } = useComparisons()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
   const [isBulkPinning, setIsBulkPinning] = useState(false)
@@ -914,6 +921,26 @@ function CollectionContent() {
                 {allFilteredSelected
                   ? 'Deselect matches'
                   : `Select all ${filteredKnives.length}`}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={
+                  !selectedIds.size || comparisonsLoading || comparisonsBusy
+                }
+                onClick={() =>
+                  void chooseComparisons([...selectedIds], true).catch(
+                    (error) =>
+                      showFeedback(
+                        error instanceof Error
+                          ? error.message
+                          : 'Could not add to comparisons.',
+                        'error',
+                      ),
+                  )
+                }
+              >
+                Compare selected
               </Button>
               {selectedIds.size > 0 && (
                 <Button

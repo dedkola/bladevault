@@ -11,6 +11,7 @@ export type BreadcrumbItemData = {
 
 type PageHeaderProps = {
   title: React.ReactNode
+  titleAction?: React.ReactNode
   description?: string
   breadcrumbs?: BreadcrumbItemData[]
   actions?: React.ReactNode
@@ -18,6 +19,7 @@ type PageHeaderProps = {
 
 export function PageHeader({
   title,
+  titleAction,
   description,
   breadcrumbs = [],
   actions,
@@ -42,9 +44,12 @@ export function PageHeader({
       )}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-xl font-medium tracking-tight text-[var(--bladevault-title)]">
-            {title}
-          </h1>
+          <div className="flex min-w-0 items-center gap-2">
+            <h1 className="min-w-0 text-xl font-medium tracking-tight text-[var(--bladevault-title)]">
+              {title}
+            </h1>
+            {titleAction}
+          </div>
           {description && (
             <p className="mt-1 text-sm text-muted-foreground">{description}</p>
           )}

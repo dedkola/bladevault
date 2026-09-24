@@ -1,3 +1,4 @@
+import { getComparisons, mutateComparison } from '@/lib/comparison-storage'
 import { createWriteStream } from 'fs'
 import fs from 'fs/promises'
 import os from 'os'
@@ -99,6 +100,11 @@ describe('local backup archive route', () => {
     let storage = new LocalStorage()
     const knife = await storage.createKnife(input)
     await storage.addToCompare(knife.id)
+    mutateComparison({
+      action: 'create',
+      name: 'Travel comparison',
+      ids: [knife.id],
+    })
     await storage.addMaintenanceEvent(knife.id, {
       type: 'sharpening',
       occurredAt: '2026-08-20T12:00:00.000Z',
@@ -139,7 +145,7 @@ describe('local backup archive route', () => {
       formatVersion: 1,
       knifeCount: 1,
       imageCount: 1,
-      schemaVersion: 4,
+      schemaVersion: 5,
     })
 
     const inspected = await localBackupRoute.POST(
@@ -180,6 +186,11 @@ describe('local backup archive route', () => {
       name: 'Portable Backup Knife',
     })
     expect(await storage.getCompareList()).toEqual([knife.id])
+    expect(getComparisons()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'Travel comparison', ids: [knife.id] }),
+      ]),
+    )
     expect(getSettings().theme).toBe('dark')
     expect(getSettings().timeFormat).toBe('24h')
     await expect(storage.getMaintenanceEvents(knife.id)).resolves.toEqual([

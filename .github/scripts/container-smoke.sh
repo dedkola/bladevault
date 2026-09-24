@@ -60,11 +60,18 @@ created_payload="$(curl --fail --silent --show-error \
   "$base_url/api/knives")"
 created_id="$(node -e "const payload = JSON.parse(process.argv[1]); if (!payload.knife?.id) process.exit(1); process.stdout.write(payload.knife.id)" "$created_payload")"
 
+comparison_request="$(node -e "process.stdout.write(JSON.stringify({action:'create',name:'Container comparison',ids:[process.argv[1]]}))" "$created_id")"
+comparison_payload="$(curl --fail --silent --show-error --request POST --header 'Content-Type: application/json' --data "$comparison_request" "$base_url/api/comparisons")"
+comparison_id="$(node -e "const payload=JSON.parse(process.argv[1]); if(!payload.listId) process.exit(1); process.stdout.write(payload.listId)" "$comparison_payload")"
+
 docker rm -f "$container_name" >/dev/null
 start_container
 
 persisted_payload="$(curl --fail --silent --show-error "$base_url/api/knives")"
 node -e "const payload = JSON.parse(process.argv[1]); if (!payload.knives?.some((knife) => knife.id === process.argv[2])) process.exit(1)" "$persisted_payload" "$created_id"
 
+persisted_comparisons="$(curl --fail --silent --show-error "$base_url/api/comparisons")"
+node -e "const payload=JSON.parse(process.argv[1]); const list=payload.lists?.find(list=>list.id===process.argv[2]); if(list?.name!=='Container comparison'||list.ids.length!==1||list.ids[0]!==process.argv[3]) process.exit(1)" "$persisted_comparisons" "$comparison_id" "$created_id"
+
 curl --fail --silent --show-error "$base_url/" >/dev/null
-echo 'Container smoke passed: startup, API, static app, and SQLite persistence after restart.'
+echo 'Container smoke passed: startup, API, static app, and named comparison SQLite persistence after restart.'

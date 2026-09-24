@@ -1,5 +1,6 @@
 'use client'
 
+import { COMPARISONS_REFRESH_EVENT } from '@/lib/comparisons'
 import { AlertCircle, CheckCircle2, Cloud } from 'lucide-react'
 import {
   createContext,
@@ -384,6 +385,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       throw new Error(compareData.error ?? 'Failed to refresh compare list')
     }
 
+    window.dispatchEvent(new Event(COMPARISONS_REFRESH_EVENT))
     setKnives(Array.isArray(knivesData.knives) ? knivesData.knives : [])
     setCompareIds(
       Array.isArray(compareData.compareIds) ? compareData.compareIds : [],
@@ -550,6 +552,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
         throw new Error(data.error ?? 'Failed to delete knife')
       }
 
+      window.dispatchEvent(new Event(COMPARISONS_REFRESH_EVENT))
       setKnives((prev) => prev.filter((k) => k.id !== id))
       setCompareIds((prev) => prev.filter((cid) => cid !== id))
       if (isCloudSyncEnabled && isAutoBackupEnabled) {
@@ -559,7 +562,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     [isAutoBackupEnabled, isCloudSyncEnabled, scheduleAutoBackup],
   )
 
-  // Comparison is transient UI state and intentionally never triggers backup.
+  // Legacy comparison calls remain local and intentionally never trigger backup.
   const addToCompare = useCallback(async (id: string): Promise<void> => {
     const response = await fetch('/api/compare', {
       method: 'POST',
@@ -575,6 +578,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     const data = await response.json()
     if (Array.isArray(data.compareIds)) {
       setCompareIds(data.compareIds)
+      window.dispatchEvent(new Event(COMPARISONS_REFRESH_EVENT))
     }
   }, [])
 
@@ -593,6 +597,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     const data = await response.json()
     if (Array.isArray(data.compareIds)) {
       setCompareIds(data.compareIds)
+      window.dispatchEvent(new Event(COMPARISONS_REFRESH_EVENT))
     }
   }, [])
 
@@ -611,6 +616,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     const data = await response.json()
     if (Array.isArray(data.compareIds)) {
       setCompareIds(data.compareIds)
+      window.dispatchEvent(new Event(COMPARISONS_REFRESH_EVENT))
     }
   }, [])
 
@@ -627,6 +633,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     const data = await response.json()
     if (Array.isArray(data.compareIds)) {
       setCompareIds(data.compareIds)
+      window.dispatchEvent(new Event(COMPARISONS_REFRESH_EVENT))
     }
   }, [])
 

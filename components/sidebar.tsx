@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { ComparisonNavigation } from '@/components/comparison-navigation'
 import { useSmartCollections } from '@/components/providers/smart-collections-provider'
 import { matchesCollection } from '@/lib/smart-collections'
 import Image from 'next/image'
@@ -65,7 +66,7 @@ export function Sidebar() {
   const searchParamsKey = searchParams.toString()
   const selectedBrands = searchParams.getAll('brand')
   const routeKey = searchParamsKey ? `${pathname}?${searchParamsKey}` : pathname
-  const { knives, compareIds, isAutoBackupActive } = useKnives()
+  const { knives, isAutoBackupActive } = useKnives()
   const { update, downloadUpdate } = useDesktopUpdates()
   const [brandsOpen, setBrandsOpen] = useState(true)
   const [pinnedOpen, setPinnedOpen] = useState(true)
@@ -235,6 +236,13 @@ export function Sidebar() {
             Main
           </div>
           {links.map((link) => {
+            if (link.href === '/compare')
+              return (
+                <ComparisonNavigation
+                  key={link.href}
+                  onNavigate={handleNavigate}
+                />
+              )
             const Icon = link.icon
             const isActive =
               pathname === link.href ||
@@ -256,8 +264,7 @@ export function Sidebar() {
                 <Icon className="h-4 w-4" />
                 <span className="flex flex-1 items-center justify-between gap-2">
                   <span>{link.label}</span>
-                  {(link.href === '/collection' && knives.length > 0) ||
-                  (link.href === '/compare' && compareIds.length > 0) ? (
+                  {link.href === '/collection' && knives.length > 0 ? (
                     <span
                       className={cn(
                         'inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none',
@@ -266,9 +273,7 @@ export function Sidebar() {
                           : 'bg-muted text-foreground',
                       )}
                     >
-                      {link.href === '/collection'
-                        ? knives.length
-                        : compareIds.length}
+                      {knives.length}
                     </span>
                   ) : null}
                 </span>
@@ -330,7 +335,16 @@ export function Sidebar() {
                         <span className="min-w-0 truncate">
                           {collection.name}
                         </span>
-                        <span className="shrink-0 tabular-nums">{count}</span>
+                        <span
+                          className={cn(
+                            'inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none',
+                            active
+                              ? 'bg-[var(--bladevault-gold)] text-[var(--bladevault-olive)]'
+                              : 'bg-muted text-foreground',
+                          )}
+                        >
+                          {count}
+                        </span>
                       </Link>
                     )
                   })}

@@ -128,6 +128,7 @@ export function validateLocalDatabase(dbPath: string): ValidatedLocalDatabase {
       'settings',
       ...(schemaVersion >= 3 ? ['audit_log'] : []),
       ...(schemaVersion >= 4 ? ['maintenance_events'] : []),
+      ...(schemaVersion >= 5 ? ['comparison_lists', 'comparison_items'] : []),
     ]
     const tableRows = database
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")

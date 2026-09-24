@@ -1,5 +1,9 @@
 'use client'
 
+import { useComparisons } from '@/components/providers/comparisons-provider'
+import { useSearchParams } from 'next/navigation'
+import { MoreHorizontal, Plus, Pencil } from 'lucide-react'
+
 import {
   type ReactNode,
   useCallback,
@@ -20,12 +24,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
 import { EmptyState } from '@/components/empty-state'
-import {
-  getImageUrl,
-  Knife,
-  matchesKnifeSearch,
-  prioritizePinnedKnives,
-} from '@/lib/data'
+import { getImageUrl, Knife, matchesKnifeSearch } from '@/lib/data'
 import { useKnives } from '@/components/providers/knives-provider'
 import { SearchField } from '@/components/search-field'
 import { getHourCycle } from '@/lib/time-format'
@@ -179,6 +178,7 @@ function buildPrintableHtml(
   comparedKnives: Knife[],
   generatedAt: string,
   compareRows: { label: string; key: CompareRowKey }[],
+  comparisonName: string,
 ) {
   const headerCells = comparedKnives
     .map((knife) => `<th>${escapeHtml(`${knife.brand} ${knife.name}`)}</th>`)
@@ -198,7 +198,7 @@ function buildPrintableHtml(
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BladeVault Comparison</title>
+  <title>${escapeHtml(comparisonName)} — BladeVault</title>
   <style>
     body {
       margin: 24px;
@@ -252,7 +252,7 @@ function buildPrintableHtml(
   </style>
 </head>
 <body>
-  <h1>BladeVault Comparison</h1>
+  <h1>${escapeHtml(comparisonName)} — BladeVault</h1>
   <p>Generated ${escapeHtml(generatedAt)}</p>
   <table>
     <thead>
@@ -272,11 +272,6 @@ function buildPrintableHtml(
 export default function ComparePage() {
   const {
     knives,
-    compareIds,
-    addToCompare,
-    addManyToCompare,
-    removeFromCompare,
-    clearCompare,
     pinnedItemsFirst,
     timeFormat,
     customFieldDefinitions,
@@ -286,7 +281,29 @@ export default function ComparePage() {
     knifeId: string
     rowKey: CompareRowKey
   } | null>(null)
-  const [showDifferencesOnly, setShowDifferencesOnly] = useState(false)
+  const {
+    lists,
+    active,
+    loading: comparisonsLoading,
+    error: comparisonsError,
+    busy: comparisonsBusy,
+    refresh: refreshComparisons,
+    mutate,
+    open,
+    navigate,
+  } = useComparisons()
+  const requestedList = useSearchParams().get('list')
+  const compareIds = useMemo(() => active?.ids ?? [], [active])
+  const showDifferencesOnly = Boolean(active?.differencesOnly)
+  const setShowDifferencesOnly = (value: boolean) => {
+    if (active)
+      void mutate({
+        action: 'preference',
+        id: active.id,
+        expectedRevision: active.revision,
+        differencesOnly: value,
+      }).catch((error) => showFeedback(error.message, 'error'))
+  }
   const [query, setQuery] = useState('')
   const [isBulkAdding, setIsBulkAdding] = useState(false)
   const printFrameRef = useRef<HTMLIFrameElement | null>(null)
@@ -340,12 +357,9 @@ export default function ComparePage() {
     return () => window.removeEventListener('keydown', handleSearchShortcut)
   }, [query])
 
-  const comparedKnives = prioritizePinnedKnives(
-    compareIds
-      .map((id) => knives.find((k) => k.id === id))
-      .filter((k): k is Knife => Boolean(k)),
-    pinnedItemsFirst,
-  )
+  const comparedKnives = compareIds
+    .map((id) => knives.find((knife) => knife.id === id))
+    .filter((knife): knife is Knife => Boolean(knife))
   const availableKnives = useMemo(
     () =>
       knives
@@ -376,8 +390,14 @@ export default function ComparePage() {
     if (!id) return
     if (compareIds.includes(id)) return
     try {
-      await addToCompare(id)
-      showFeedback('Added to compare')
+      if (!active) return
+      await mutate({
+        action: 'add',
+        id: active.id,
+        expectedRevision: active.revision,
+        ids: [id],
+      })
+      showFeedback(`Added to ${active.name}`)
     } catch (error) {
       showFeedback(
         error instanceof Error ? error.message : 'Could not add to compare.',
@@ -392,7 +412,13 @@ export default function ComparePage() {
 
     try {
       setIsBulkAdding(true)
-      await addManyToCompare(ids)
+      if (!active) return
+      await mutate({
+        action: 'add',
+        id: active.id,
+        expectedRevision: active.revision,
+        ids,
+      })
       showFeedback(
         `Added ${ids.length} ${ids.length === 1 ? 'knife' : 'knives'} to compare`,
       )
@@ -409,11 +435,16 @@ export default function ComparePage() {
   }
 
   const handleRemove = (id: string) => {
-    removeFromCompare(id)
-  }
-
-  const handleClearCompare = () => {
-    void clearCompare()
+    if (active)
+      void mutate(
+        {
+          action: 'remove',
+          id: active.id,
+          expectedRevision: active.revision,
+          ids: [id],
+        },
+        `Removed from ${active.name}`,
+      ).catch((error) => showFeedback(error.message, 'error'))
   }
 
   const hasComparedKnives = comparedKnives.length > 0
@@ -442,7 +473,7 @@ export default function ComparePage() {
       format: 'a4',
     })
 
-    const title = 'BladeVault Comparison Table'
+    const title = `BladeVault — ${active?.name ?? 'Comparison'}`
     const head = [
       [
         'Feature',
@@ -483,7 +514,7 @@ export default function ComparePage() {
     })
 
     doc.save(
-      `bladevault-comparison-${new Date().toISOString().slice(0, 10)}.pdf`,
+      `bladevault-${(active?.name ?? 'comparison').replace(/[^\p{L}\p{N}-]+/gu, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.pdf`,
     )
   }
 
@@ -499,6 +530,7 @@ export default function ComparePage() {
       comparedKnives,
       generatedAt,
       visibleCompareRows,
+      active?.name ?? 'Comparison',
     )
 
     printFrameRef.current?.remove()
@@ -558,20 +590,74 @@ export default function ComparePage() {
   }
 
   return (
-    <div className="flex-1 p-6 lg:p-8 w-full">
+    <div className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 w-full">
+      {requestedList &&
+        !comparisonsLoading &&
+        !lists.some((list) => list.id === requestedList) && (
+          <p
+            role="status"
+            className="mb-3 rounded-lg border bg-muted p-3 text-sm"
+          >
+            This comparison no longer exists.{' '}
+            {active
+              ? 'Showing another saved comparison.'
+              : 'Create a new comparison to get started.'}
+          </p>
+        )}
+      {lists.length > 0 && (
+        <label className="mb-4 block md:hidden">
+          <span className="sr-only">Switch comparison</span>
+          <select
+            aria-label="Switch comparison"
+            value={active?.id ?? ''}
+            onChange={(event) => navigate(event.target.value)}
+            className="w-full rounded-md border bg-background p-2 text-sm"
+          >
+            {lists.map((list) => (
+              <option key={list.id} value={list.id}>
+                {list.name} ({list.ids.length})
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <PageHeader
-        title="Compare"
+        title={<span className="break-all">{active?.name ?? 'Compare'}</span>}
+        titleAction={
+          active ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => open({ kind: 'rename', id: active.id })}
+              aria-label="Rename comparison"
+            >
+              <Pencil className="size-4" />
+            </Button>
+          ) : undefined
+        }
+        description={
+          active
+            ? `${active.ids.length} ${active.ids.length === 1 ? 'knife' : 'knives'} · Saved comparison`
+            : undefined
+        }
         actions={
-          knives.length > 0 ? (
+          active ? (
             <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
               <Button
-                variant="outline"
                 size="sm"
-                onClick={handleClearCompare}
-                disabled={!hasComparedKnives}
+                onClick={() => open({ kind: 'add', id: active.id })}
+                disabled={comparisonsBusy}
               >
-                <ArchiveX className="mr-2 h-4 w-4" />
-                Clear
+                <Plus className="size-4" />
+                Add knives
+              </Button>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                onClick={() => open({ kind: 'options', id: active.id })}
+                aria-label="Comparison options"
+              >
+                <MoreHorizontal className="size-4" />
               </Button>
               <Button
                 variant="outline"
@@ -579,7 +665,7 @@ export default function ComparePage() {
                 onClick={() => {
                   void handleExportPdf()
                 }}
-                disabled={!hasComparedKnives}
+                disabled={!hasComparedKnives || comparisonsBusy}
               >
                 <FileDown className="mr-2 h-4 w-4" />
                 Export PDF
@@ -588,7 +674,7 @@ export default function ComparePage() {
                 variant="outline"
                 size="sm"
                 onClick={handlePrint}
-                disabled={!hasComparedKnives}
+                disabled={!hasComparedKnives || comparisonsBusy}
               >
                 <Printer className="mr-2 h-4 w-4" />
                 Print
@@ -598,7 +684,30 @@ export default function ComparePage() {
         }
       />
 
-      {knives.length === 0 ? (
+      {comparisonsLoading ? (
+        <p role="status" className="animate-pulse rounded-lg bg-muted p-6">
+          Loading comparisons…
+        </p>
+      ) : comparisonsError ? (
+        <div role="alert" className="p-4 text-destructive">
+          {comparisonsError}
+          <Button variant="outline" onClick={() => void refreshComparisons()}>
+            Retry
+          </Button>
+        </div>
+      ) : !active ? (
+        <EmptyState
+          title="A place for every shortlist"
+          description="Create a comparison, give it a name, and start adding knives."
+          icon={<ArchiveX className="size-8" />}
+          action={
+            <Button onClick={() => open({ kind: 'create' })}>
+              <Plus className="size-4" />
+              New comparison
+            </Button>
+          }
+        />
+      ) : knives.length === 0 ? (
         <EmptyState
           title="Nothing to compare"
           description="Add at least one knife to use the comparison tool."
@@ -617,7 +726,7 @@ export default function ComparePage() {
             <CardContent className="space-y-3 p-4">
               <div>
                 <div className="text-sm font-medium text-foreground">
-                  Compare Lineup
+                  Add to {active.name}
                 </div>
               </div>
 
@@ -657,11 +766,12 @@ export default function ComparePage() {
                             }}
                             disabled={
                               filteredAvailableKnives.length === 0 ||
-                              isBulkAdding
+                              isBulkAdding ||
+                              comparisonsBusy
                             }
                           >
                             <ListPlus className="mr-1.5 h-4 w-4" />
-                            {isBulkAdding
+                            {isBulkAdding || comparisonsBusy
                               ? 'Adding…'
                               : `Add all ${filteredAvailableKnives.length}`}
                           </Button>
@@ -728,7 +838,7 @@ export default function ComparePage() {
                               onClick={() => {
                                 void handleSelect(knife.id)
                               }}
-                              disabled={isBulkAdding}
+                              disabled={isBulkAdding || comparisonsBusy}
                               aria-label={`Add ${knife.brand} ${knife.name} to compare`}
                             >
                               Add
@@ -780,8 +890,8 @@ export default function ComparePage() {
 
           {comparedKnives.length === 0 ? (
             <EmptyState
-              title="Select knives to compare"
-              description="Search above to find knives or add them from your collection."
+              title="Start this comparison"
+              description="Search above to find knives or add them from your collection. Each comparison has its own selection."
               icon={<ArchiveX className="h-8 w-8" />}
               action={
                 <Button
@@ -813,6 +923,7 @@ export default function ComparePage() {
                     <Checkbox
                       id="differences-only"
                       checked={showDifferencesOnly}
+                      disabled={comparedKnives.length < 2 || comparisonsBusy}
                       onCheckedChange={(checked) =>
                         setShowDifferencesOnly(checked === true)
                       }
@@ -826,7 +937,7 @@ export default function ComparePage() {
                   className="rounded-xl"
                   viewportClassName="max-h-[72vh] overflow-auto rounded-xl border border-[var(--bladevault-line)]/80 bg-[color:var(--bladevault-surface-soft)]/30"
                 >
-                  <Table className="min-w-full" containerClassName="contents">
+                  <Table className="w-auto" containerClassName="contents">
                     <TableHeader>
                       <TableRow className="bg-[color:var(--bladevault-surface-soft)]/70 hover:bg-[color:var(--bladevault-surface-soft)]/70">
                         <TableHead className="sticky left-0 top-0 z-30 w-28 min-w-28 max-w-28 whitespace-normal border-r border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] text-[10px] uppercase tracking-wider text-[var(--bladevault-title)] shadow-[1px_0_0_0_var(--bladevault-line)] sm:w-44 sm:min-w-44 sm:max-w-44">
@@ -836,7 +947,7 @@ export default function ComparePage() {
                           <TableHead
                             key={knife.id}
                             className={cn(
-                              'sticky top-0 z-20 min-w-[200px] border-r border-[var(--bladevault-line)]/70 bg-background align-top transition-colors last:border-r-0',
+                              'sticky top-0 z-20 w-[200px] min-w-[200px] max-w-[200px] border-r border-[var(--bladevault-line)]/70 bg-background align-top transition-colors last:border-r-0',
                               hoveredCell?.knifeId === knife.id &&
                                 'bg-[color:var(--bladevault-surface-hover)]/55',
                             )}
@@ -860,7 +971,7 @@ export default function ComparePage() {
                                 <button
                                   type="button"
                                   onClick={() => handleRemove(knife.id)}
-                                  className="absolute right-1.5 top-1.5 z-10 rounded-full bg-background/90 p-0.5 text-red-500 opacity-0 transition-opacity group-hover/image:opacity-100 hover:text-red-600 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                                  className="absolute right-1.5 top-1.5 z-10 rounded-md border bg-background p-1 text-muted-foreground transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                                   aria-label={`Remove ${knife.brand} ${knife.name} from compare`}
                                   title="Remove"
                                 >
@@ -877,6 +988,11 @@ export default function ComparePage() {
                                 <div className="text-[10px] uppercase tracking-wider text-[var(--bladevault-title)] whitespace-normal">
                                   {knife.brand}
                                 </div>
+                                {knife.specs.modelNumber && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {knife.specs.modelNumber}
+                                  </div>
+                                )}
                               </Link>
                             </div>
                           </TableHead>
@@ -884,6 +1000,16 @@ export default function ComparePage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
+                      {visibleCompareRows.length === 0 && (
+                        <TableRow>
+                          <TableCell
+                            colSpan={comparedKnives.length + 1}
+                            className="py-8 text-center text-muted-foreground"
+                          >
+                            No differences in the displayed specifications.
+                          </TableCell>
+                        </TableRow>
+                      )}
                       {visibleCompareRows.map((row, idx) => (
                         <TableRow
                           key={row.key}
