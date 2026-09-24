@@ -37,6 +37,7 @@ test('keeps newest compare item first and filters matching rows', async ({
   const first = await seedKnife(request, {
     name: 'First',
     brand: 'Alpha',
+    pinned: true,
     specs: { bladeMaterial: 'S30V', country: 'USA' },
   })
   const second = await seedKnife(request, {

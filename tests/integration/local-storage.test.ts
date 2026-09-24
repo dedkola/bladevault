@@ -141,6 +141,8 @@ describe('LocalStorage', () => {
     vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
     const storage = new LocalStorage()
 
+    await storage.migrateKnife(createKnife({ id: 'first' }), [])
+    await storage.migrateKnife(createKnife({ id: 'second' }), [])
     await storage.addToCompare('first')
     await storage.addToCompare('second')
 

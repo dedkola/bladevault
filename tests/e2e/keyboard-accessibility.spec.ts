@@ -103,6 +103,9 @@ test('supports collection search and filter keyboard focus', async ({
   await expect(brandTrigger).toBeFocused()
   await expect(brandTrigger).toHaveAttribute('aria-expanded', 'false')
 
+  await request.post('/api/comparisons', {
+    data: { action: 'create', name: 'Keyboard comparison' },
+  })
   await page.goto('/compare')
   await expect(page.getByRole('button', { name: 'Search knives' })).toHaveCount(
     0,

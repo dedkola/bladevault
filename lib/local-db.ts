@@ -14,7 +14,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 4
+export const LOCAL_DB_SCHEMA_VERSION = 5
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -379,6 +379,50 @@ function migrateSchema(database: Database.Database) {
         added_at TEXT NOT NULL
       );
     `)
+  }
+
+  // The table-existence guard makes migration repeat-safe, even before user_version
+  // is advanced. Clear legacy rows in the same transaction to avoid resurrection.
+  if (!tables.some((table) => table.name === 'comparison_lists')) {
+    database.transaction(() => {
+      database.exec(`
+        CREATE TABLE comparison_lists (
+          id TEXT PRIMARY KEY, name TEXT NOT NULL, name_key TEXT NOT NULL UNIQUE,
+          created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+          differences_only INTEGER NOT NULL DEFAULT 0, revision INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE comparison_items (
+          list_id TEXT NOT NULL REFERENCES comparison_lists(id) ON DELETE CASCADE,
+          knife_id TEXT NOT NULL REFERENCES knives(id) ON DELETE CASCADE,
+          position INTEGER NOT NULL,
+          PRIMARY KEY (list_id, knife_id)
+        );
+        CREATE INDEX comparison_items_knife ON comparison_items(knife_id);
+        CREATE INDEX comparison_items_order ON comparison_items(list_id, position DESC);
+      `)
+      const legacy = database
+        .prepare(
+          `SELECT c.knife_id FROM compare_list c
+        JOIN knives k ON k.id = c.knife_id ORDER BY c.added_at DESC, c.rowid DESC`,
+        )
+        .all() as Array<{ knife_id: string }>
+      if (legacy.length) {
+        const now = new Date().toISOString()
+        database
+          .prepare(
+            `INSERT INTO comparison_lists (id,name,name_key,created_at,updated_at)
+          VALUES ('default-comparison','My comparison','my comparison',?,?)`,
+          )
+          .run(now, now)
+        const insert =
+          database.prepare(`INSERT INTO comparison_items (list_id,knife_id,position)
+          VALUES ('default-comparison',?,?)`)
+        legacy.forEach((item, index) =>
+          insert.run(item.knife_id, legacy.length - index),
+        )
+      }
+      database.prepare('DELETE FROM compare_list').run()
+    })()
   }
 
   const hasKnifeActivity = tables.some((t) => t.name === 'knife_activity')

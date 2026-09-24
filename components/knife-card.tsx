@@ -1,3 +1,4 @@
+import { useComparisons } from '@/components/providers/comparisons-provider'
 import Image from 'next/image'
 import { memo, useCallback, useState } from 'react'
 import { Check, ImageIcon, Pin, Scale } from 'lucide-react'
@@ -45,16 +46,21 @@ export const KnifeCard = memo(function KnifeCard({
 }) {
   const {
     updateKnife,
-    compareIds,
-    addToCompare,
-    removeFromCompare,
     pinnedItemsFirst,
     cardFields,
     customFieldDefinitions,
     showFeedback,
   } = useKnives()
   const pinned = knife.pinned
-  const inCompare = compareIds.includes(knife.id)
+  const {
+    choose,
+    membershipCount,
+    lists: comparisonLists,
+    loading: comparisonsLoading,
+    error: comparisonsError,
+  } = useComparisons()
+  const comparisonCount = membershipCount(knife.id)
+  const inCompare = comparisonCount > 0
   const [isTogglingPin, setIsTogglingPin] = useState(false)
   const [isTogglingCompare, setIsTogglingCompare] = useState(false)
   const visibleCardFields = cardFields
@@ -100,13 +106,7 @@ export const KnifeCard = memo(function KnifeCard({
       event.stopPropagation()
       try {
         setIsTogglingCompare(true)
-        if (inCompare) {
-          await removeFromCompare(knife.id)
-          showFeedback('Removed from compare')
-        } else {
-          await addToCompare(knife.id)
-          showFeedback('Added to compare')
-        }
+        await choose([knife.id])
       } catch (error) {
         showFeedback(
           error instanceof Error
@@ -118,7 +118,7 @@ export const KnifeCard = memo(function KnifeCard({
         setIsTogglingCompare(false)
       }
     },
-    [addToCompare, removeFromCompare, knife.id, inCompare, showFeedback],
+    [choose, knife.id, showFeedback],
   )
 
   return (
@@ -270,16 +270,26 @@ export const KnifeCard = memo(function KnifeCard({
             variant="ghost"
             size="xs"
             onClick={handleCompareClick}
-            disabled={isTogglingCompare}
+            disabled={
+              isTogglingCompare ||
+              comparisonsLoading ||
+              Boolean(comparisonsError)
+            }
             className={cn(
               'absolute bottom-1.5 right-2 z-20 gap-1 px-1.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground',
               inCompare && activeKnifeFloatingClassName,
             )}
             style={inCompare ? activeKnifeActionStyle : undefined}
-            aria-label={`${inCompare ? 'Remove' : 'Add'} ${knife.brand} ${knife.name} ${inCompare ? 'from' : 'to'} compare`}
+            aria-label={
+              comparisonLists.length > 1
+                ? `Choose comparisons for ${knife.brand} ${knife.name}`
+                : `${inCompare ? 'Remove' : 'Add'} ${knife.brand} ${knife.name} ${inCompare ? 'from' : 'to'} compare`
+            }
           >
             <Scale className="size-3" />
-            {inCompare ? 'Added' : 'Compare'}
+            {inCompare
+              ? `In ${comparisonCount} ${comparisonCount === 1 ? 'list' : 'lists'}`
+              : 'Compare'}
           </Button>
         </>
       )}

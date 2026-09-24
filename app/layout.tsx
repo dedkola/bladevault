@@ -1,3 +1,5 @@
+import { Suspense } from 'react'
+import { ComparisonsProvider } from '@/components/providers/comparisons-provider'
 import type { Metadata } from 'next'
 import './globals.css'
 import { SmartCollectionsProvider } from '@/components/providers/smart-collections-provider'
@@ -47,15 +49,22 @@ export default function RootLayout({
     >
       <body className="bg-background text-foreground flex h-dvh min-h-0 w-full flex-col overflow-hidden font-sans print:h-auto print:overflow-visible md:flex-row">
         <KnivesProvider>
-          <SmartCollectionsProvider>
-            <TooltipProvider>
-              <SidebarShell />
-              <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain print:overflow-visible">
-                {children}
-              </main>
-              <GlobalKnifeSearch />
-            </TooltipProvider>
-          </SmartCollectionsProvider>
+          <Suspense>
+            <ComparisonsProvider>
+              <SmartCollectionsProvider>
+                <TooltipProvider>
+                  <SidebarShell />
+                  <main
+                    tabIndex={-1}
+                    className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain print:overflow-visible"
+                  >
+                    {children}
+                  </main>
+                  <GlobalKnifeSearch />
+                </TooltipProvider>
+              </SmartCollectionsProvider>
+            </ComparisonsProvider>
+          </Suspense>
         </KnivesProvider>
       </body>
     </html>

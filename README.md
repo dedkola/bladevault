@@ -34,7 +34,7 @@
 - Keep detailed knife records with specifications, pricing, provenance, notes, links, and a local image gallery.
 - Search, filter, pin, group, and bulk-edit your collection—including reusable custom text, number, and date fields.
 - Import product details from supported retailer URLs, with an interactive browser fallback for pages that need it.
-- Compare any number of knives side by side, focus on differences, and export or print the table as a landscape PDF.
+- Create any number of named comparisons under Compare in the sidebar. Add knives to one or several lists, rename or duplicate a shortlist, and remove items independently. Each table supports differences-only viewing, custom fields, and named PDF/print exports. Existing comparison selections migrate to My comparison. Saved comparisons travel with full-vault backups; editing a comparison does not trigger an automatic cloud backup.
 - See collection insights such as recent additions, maker distribution, and acquisition activity.
 - Connect local AI clients through MCP to search and analyze the collection, find missing data or duplicates, and apply optional audited metadata updates.
 - Run completely locally with SQLite, or opt into cloud backup when a BladeVault backup service is configured.
