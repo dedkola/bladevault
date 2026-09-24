@@ -9,6 +9,12 @@ export async function resetVault(request: APIRequestContext) {
   }
 
   await request.delete('/api/compare')
+  const comparisons = await (await request.get('/api/comparisons')).json()
+  for (const list of comparisons.lists ?? []) {
+    await request.post('/api/comparisons', {
+      data: { action: 'delete', id: list.id },
+    })
+  }
   await request.post('/api/settings', {
     data: {
       theme: 'light',

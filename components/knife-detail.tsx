@@ -1,5 +1,7 @@
 'use client'
 
+import { useComparisons } from '@/components/providers/comparisons-provider'
+
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -93,19 +95,19 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
   const router = useRouter()
-  const {
-    knives,
-    updateKnife,
-    deleteKnife,
-    compareIds,
-    addToCompare,
-    removeFromCompare,
-  } = useKnives()
+  const { knives, updateKnife, deleteKnife } = useKnives()
 
   const knife = knives.find((k) => k.id === initialKnife.id) ?? initialKnife
   const safeSourceUrl = getSafeExternalUrl(knife.sourceUrl)
   const pinned = knife.pinned
-  const inCompare = compareIds.includes(knife.id)
+  const {
+    choose,
+    membershipCount,
+    loading: comparisonsLoading,
+    error: comparisonsError,
+  } = useComparisons()
+  const comparisonCount = membershipCount(knife.id)
+  const inCompare = comparisonCount > 0
   const knifeBreadcrumbs = [
     { label: 'Collection', href: '/collection' },
     ...(knife.brand
@@ -172,11 +174,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
     setIsTogglingCompare(true)
     setError(null)
     try {
-      if (inCompare) {
-        await removeFromCompare(knife.id)
-      } else {
-        await addToCompare(knife.id)
-      }
+      await choose([knife.id])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update compare')
     } finally {
@@ -265,7 +263,12 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
                 variant="outline"
                 size="sm"
                 onClick={handleToggleCompare}
-                disabled={isSaving || isTogglingCompare}
+                disabled={
+                  isSaving ||
+                  isTogglingCompare ||
+                  comparisonsLoading ||
+                  Boolean(comparisonsError)
+                }
                 className={cn(
                   'text-[var(--bladevault-olive)] hover:text-[var(--bladevault-olive)] dark:text-[var(--bladevault-gold)] dark:hover:text-[var(--bladevault-gold)]',
                   inCompare && activeKnifeOutlineClassName,
@@ -277,7 +280,9 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
                 ) : (
                   <Scale className="h-3.5 w-3.5" />
                 )}
-                {inCompare ? 'Comparing' : 'Compare'}
+                {inCompare
+                  ? `In ${comparisonCount} ${comparisonCount === 1 ? 'list' : 'lists'}`
+                  : 'Compare'}
               </Button>
               <Button
                 variant="outline"
@@ -357,7 +362,11 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
               variant="outline"
               size="sm"
               onClick={handleToggleCompare}
-              disabled={isTogglingCompare}
+              disabled={
+                isTogglingCompare ||
+                comparisonsLoading ||
+                Boolean(comparisonsError)
+              }
               className={cn(
                 'text-[var(--bladevault-olive)] hover:text-[var(--bladevault-olive)] dark:text-[var(--bladevault-gold)] dark:hover:text-[var(--bladevault-gold)]',
                 inCompare && activeKnifeOutlineClassName,
@@ -369,7 +378,9 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
               ) : (
                 <Scale className="h-3.5 w-3.5" />
               )}
-              {inCompare ? 'Comparing' : 'Compare'}
+              {inCompare
+                ? `In ${comparisonCount} ${comparisonCount === 1 ? 'list' : 'lists'}`
+                : 'Compare'}
             </Button>
             <Button
               variant="outline"

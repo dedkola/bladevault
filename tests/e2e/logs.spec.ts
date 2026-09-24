@@ -36,7 +36,9 @@ test.beforeEach(async ({ request }) => {
 test('shows logs last in the primary sidebar navigation', async ({ page }) => {
   await page.goto('/')
 
-  const primaryLinks = page.locator('aside:visible nav > a')
+  const primaryLinks = page.locator(
+    'aside:visible nav > a, aside:visible nav > div > div:first-child > a',
+  )
   await expect(primaryLinks).toHaveText([
     'Insights',
     'Collection',

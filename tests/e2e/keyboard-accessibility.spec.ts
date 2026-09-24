@@ -10,6 +10,7 @@ test('keeps the global search pill clear of mobile header controls', async ({
 }) => {
   await page.goto('/logs')
   await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect(page.locator('aside:visible nav')).toBeVisible()
 
   for (const width of [320, 390, 480]) {
     await page.setViewportSize({ width, height: 800 })
@@ -103,6 +104,9 @@ test('supports collection search and filter keyboard focus', async ({
   await expect(brandTrigger).toBeFocused()
   await expect(brandTrigger).toHaveAttribute('aria-expanded', 'false')
 
+  await request.post('/api/comparisons', {
+    data: { action: 'create', name: 'Keyboard comparison' },
+  })
   await page.goto('/compare')
   await expect(page.getByRole('button', { name: 'Search knives' })).toHaveCount(
     0,
@@ -123,6 +127,9 @@ test('finds and opens knives from insights and knife details', async ({
   })
 
   await page.goto('/')
+  await expect(
+    page.getByRole('heading', { name: 'Collection Insights' }),
+  ).toBeVisible()
   await page.getByRole('button', { name: 'Search knives' }).click()
 
   const searchIsland = page.locator('[data-global-knife-search]')

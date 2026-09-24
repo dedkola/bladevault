@@ -1,5 +1,7 @@
 'use client'
 
+import { useComparisons } from '@/components/providers/comparisons-provider'
+
 import Image from 'next/image'
 import Link from 'next/link'
 import {
@@ -30,12 +32,19 @@ export function CollectionKnifeInspector({
   siblings: Knife[]
   onSelect: (knife: Knife) => void
 }) {
-  const { compareIds, addToCompare, removeFromCompare, showFeedback } =
-    useKnives()
+  const { showFeedback } = useKnives()
   const [imageIndex, setImageIndex] = useState(0)
   const [isUpdatingCompare, setIsUpdatingCompare] = useState(false)
   const [isMobileExpanded, setIsMobileExpanded] = useState(true)
-  const inCompare = compareIds.includes(knife.id)
+  const {
+    choose,
+    membershipCount,
+    lists: comparisonLists,
+    loading: comparisonsLoading,
+    error: comparisonsError,
+  } = useComparisons()
+  const comparisonCount = membershipCount(knife.id)
+  const inCompare = comparisonCount > 0
   const image = knife.images[imageIndex]
   const nextImage = () =>
     setImageIndex((current) => (current + 1) % knife.images.length)
@@ -47,13 +56,7 @@ export function CollectionKnifeInspector({
   const toggleCompare = async () => {
     setIsUpdatingCompare(true)
     try {
-      if (inCompare) {
-        await removeFromCompare(knife.id)
-        showFeedback('Removed from compare')
-      } else {
-        await addToCompare(knife.id)
-        showFeedback('Added to compare')
-      }
+      await choose([knife.id])
     } catch (error) {
       showFeedback(
         error instanceof Error ? error.message : 'Could not update comparison.',
@@ -214,10 +217,20 @@ export function CollectionKnifeInspector({
               variant="outline"
               size="sm"
               onClick={toggleCompare}
-              disabled={isUpdatingCompare}
+              disabled={
+                isUpdatingCompare ||
+                comparisonsLoading ||
+                Boolean(comparisonsError)
+              }
             >
               <Scale className="size-3.5" />
-              {inCompare ? 'Remove from compare' : 'Add to compare'}
+              {comparisonLists.length > 1
+                ? inCompare
+                  ? `In ${comparisonCount} ${comparisonCount === 1 ? 'list' : 'lists'}`
+                  : 'Add to compare'
+                : inCompare
+                  ? 'Remove from compare'
+                  : 'Add to compare'}
             </Button>
           </div>
         </div>

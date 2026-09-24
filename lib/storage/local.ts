@@ -1,3 +1,9 @@
+import {
+  getComparisons,
+  mutateComparison,
+  ensureLegacyComparison,
+} from '@/lib/comparison-storage'
+import { LEGACY_COMPARISON_ID } from '@/lib/comparisons'
 import fs from 'fs/promises'
 import { createReadStream } from 'fs'
 import path from 'path'
@@ -1041,6 +1047,15 @@ export class LocalStorage implements Storage {
         .run(id)
       database.prepare('DELETE FROM knife_activity WHERE knife_id = ?').run(id)
       database.prepare('DELETE FROM compare_list WHERE knife_id = ?').run(id)
+      database
+        .prepare(
+          `UPDATE comparison_lists SET revision = revision + 1, updated_at = ?
+        WHERE id IN (SELECT list_id FROM comparison_items WHERE knife_id = ?)`,
+        )
+        .run(occurredAt, id)
+      database
+        .prepare('DELETE FROM comparison_items WHERE knife_id = ?')
+        .run(id)
       database.prepare('DELETE FROM knives WHERE id = ?').run(id)
     })
     remove()
@@ -1054,29 +1069,28 @@ export class LocalStorage implements Storage {
   }
 
   async getCompareList(): Promise<string[]> {
-    const rows = getDb()
-      .prepare(
-        'SELECT knife_id FROM compare_list ORDER BY added_at DESC, rowid DESC',
-      )
-      .all() as Array<{ knife_id: string }>
-    return rows.map((r) => r.knife_id)
+    return (
+      getComparisons().find((list) => list.id === LEGACY_COMPARISON_ID)?.ids ??
+      []
+    )
   }
 
   async addToCompare(id: string): Promise<void> {
-    const addedAt = new Date().toISOString()
-    getDb()
-      .prepare(
-        'INSERT OR IGNORE INTO compare_list (knife_id, added_at) VALUES (?, ?)',
-      )
-      .run(id, addedAt)
+    mutateComparison({ action: 'add', id: ensureLegacyComparison(), ids: [id] })
   }
 
   async removeFromCompare(id: string): Promise<void> {
-    getDb().prepare('DELETE FROM compare_list WHERE knife_id = ?').run(id)
+    if (getComparisons().some((list) => list.id === LEGACY_COMPARISON_ID))
+      mutateComparison({
+        action: 'remove',
+        id: LEGACY_COMPARISON_ID,
+        ids: [id],
+      })
   }
 
   async clearCompareList(): Promise<void> {
-    getDb().prepare('DELETE FROM compare_list').run()
+    if (getComparisons().some((list) => list.id === LEGACY_COMPARISON_ID))
+      mutateComparison({ action: 'clear', id: LEGACY_COMPARISON_ID })
   }
 
   private rowToMaintenanceEvent(
@@ -1391,7 +1405,7 @@ export class LocalStorage implements Storage {
   }
 
   async migrateCompareList(ids: string[]): Promise<void> {
-    for (const id of ids) {
+    for (const id of [...ids].reverse()) {
       try {
         await this.addToCompare(id)
       } catch {
@@ -1442,7 +1456,8 @@ export class LocalStorage implements Storage {
       await this.migrateKnife(knife, importedImages)
     }
 
-    await this.clearCompareList()
+    getDb().prepare('DELETE FROM comparison_items').run()
+    getDb().prepare('DELETE FROM comparison_lists').run()
     await this.migrateCompareList(compareIds)
   }
 

@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getStorage } from '@/lib/storage'
+import {
+  ensureLegacyComparison,
+  mutateComparison,
+} from '@/lib/comparison-storage'
 
 export async function GET() {
   try {
@@ -36,9 +40,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Knife not found' }, { status: 404 })
     }
 
-    for (const id of [...ids].reverse()) {
-      await storage.addToCompare(id)
-    }
+    mutateComparison({ action: 'add', id: ensureLegacyComparison(), ids })
     const compareIds = await storage.getCompareList()
     return NextResponse.json({ compareIds })
   } catch (error) {

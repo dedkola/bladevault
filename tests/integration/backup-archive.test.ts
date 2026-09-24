@@ -1,3 +1,4 @@
+import { getComparisons, mutateComparison } from '@/lib/comparison-storage'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
@@ -41,6 +42,11 @@ describe('backup archive route', () => {
     let storage = new LocalStorage()
     const knife = await storage.createKnife(input)
     await storage.addToCompare(knife.id)
+    mutateComparison({
+      action: 'create',
+      name: 'Travel comparison',
+      ids: [knife.id],
+    })
     saveSettings({ theme: 'dark', timeFormat: '24h' })
 
     const exported = await archiveRoute.GET()
@@ -67,6 +73,11 @@ describe('backup archive route', () => {
       images: ['backup-knife/image-01.png'],
     })
     expect(await storage.getCompareList()).toEqual([knife.id])
+    expect(getComparisons()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'Travel comparison', ids: [knife.id] }),
+      ]),
+    )
     expect(getSettings().theme).toBe('dark')
     expect(getSettings().timeFormat).toBe('24h')
     await expect(

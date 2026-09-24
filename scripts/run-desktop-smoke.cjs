@@ -214,6 +214,7 @@ async function main() {
     window.on('pageerror', (error) => pageErrors.push(error.message))
     await window.waitForLoadState('domcontentloaded')
     assert.equal(await window.title(), 'BladeVault | Knife Collection')
+    await window.getByRole('heading', { name: 'Collection Insights' }).waitFor()
 
     const boundary = await window.evaluate(() => ({
       bridgeKeys: Object.keys(window.bladevaultDesktop ?? {}).sort(),
@@ -265,7 +266,23 @@ async function main() {
     assert.equal(created.status, 200)
     assert.equal(created.body.knife.id, 'electron-smoke')
 
+    const savedComparisons = await window.evaluate(async () => {
+      const response = await fetch('/api/comparisons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create',
+          name: 'Desktop comparison',
+          ids: ['electron-smoke'],
+        }),
+      })
+      return { body: await response.json(), status: response.status }
+    })
+    assert.equal(savedComparisons.status, 200)
+    assert.deepEqual(savedComparisons.body.lists[0].ids, ['electron-smoke'])
+
     await window.reload({ waitUntil: 'domcontentloaded' })
+    await window.getByRole('heading', { name: 'Collection Insights' }).waitFor()
     const persisted = await window.evaluate(async () => {
       const response = await fetch('/api/knives', { cache: 'no-store' })
       return { body: await response.json(), status: response.status }
@@ -330,10 +347,22 @@ async function main() {
       assert.equal(new URL(window.url()).origin, initialOrigin)
     }
 
+    const restoredComparisons = await window.evaluate(async () => {
+      const response = await fetch('/api/comparisons', { cache: 'no-store' })
+      return response.json()
+    })
+    assert.deepEqual(
+      restoredComparisons.lists.map((list) => ({
+        name: list.name,
+        ids: list.ids,
+      })),
+      [{ name: 'Desktop comparison', ids: ['electron-smoke'] }],
+    )
+
     assert.deepEqual(pageErrors, [])
 
     console.log(
-      'Desktop smoke passed: API, native SQLite, restore, reload, and preload boundary.',
+      'Desktop smoke passed: API, named comparisons, native SQLite, restore, reload, and preload boundary.',
     )
   } finally {
     if (electronApp) {
