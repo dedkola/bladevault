@@ -49,10 +49,10 @@ export default function RootLayout({
     >
       <body className="bg-background text-foreground flex h-dvh min-h-0 w-full flex-col overflow-hidden font-sans print:h-auto print:overflow-visible md:flex-row">
         <KnivesProvider>
-          <Suspense>
-            <ComparisonsProvider>
-              <SmartCollectionsProvider>
-                <TooltipProvider>
+          <SmartCollectionsProvider>
+            <TooltipProvider>
+              <Suspense>
+                <ComparisonsProvider>
                   <SidebarShell />
                   <main
                     tabIndex={-1}
@@ -60,11 +60,11 @@ export default function RootLayout({
                   >
                     {children}
                   </main>
-                  <GlobalKnifeSearch />
-                </TooltipProvider>
-              </SmartCollectionsProvider>
-            </ComparisonsProvider>
-          </Suspense>
+                </ComparisonsProvider>
+              </Suspense>
+              <GlobalKnifeSearch />
+            </TooltipProvider>
+          </SmartCollectionsProvider>
         </KnivesProvider>
       </body>
     </html>

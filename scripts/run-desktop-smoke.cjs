@@ -214,6 +214,7 @@ async function main() {
     window.on('pageerror', (error) => pageErrors.push(error.message))
     await window.waitForLoadState('domcontentloaded')
     assert.equal(await window.title(), 'BladeVault | Knife Collection')
+    await window.getByRole('heading', { name: 'Collection Insights' }).waitFor()
 
     const boundary = await window.evaluate(() => ({
       bridgeKeys: Object.keys(window.bladevaultDesktop ?? {}).sort(),
@@ -281,6 +282,7 @@ async function main() {
     assert.deepEqual(savedComparisons.body.lists[0].ids, ['electron-smoke'])
 
     await window.reload({ waitUntil: 'domcontentloaded' })
+    await window.getByRole('heading', { name: 'Collection Insights' }).waitFor()
     const persisted = await window.evaluate(async () => {
       const response = await fetch('/api/knives', { cache: 'no-store' })
       return { body: await response.json(), status: response.status }
