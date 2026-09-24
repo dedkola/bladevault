@@ -135,6 +135,7 @@
   }
   html {
     @apply font-sans;
+    background: var(--background);
   }
   ::selection {
     background: var(--ring);

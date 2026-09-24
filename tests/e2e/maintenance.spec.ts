@@ -190,15 +190,14 @@ test('keeps the maintenance controls in place after a quick add', async ({
   }
 
   await page.goto(`/collection/${knife.id}`)
-  const main = page.getByRole('main')
   const quickAdd = page.getByRole('button', { name: 'Cleaned' })
   await quickAdd.scrollIntoViewIfNeeded()
-  const scrollTopBefore = await main.evaluate((element) => element.scrollTop)
+  const scrollTopBefore = await page.evaluate(() => window.scrollY)
 
   await quickAdd.click()
   await expect(timelineLocator(page).locator('li')).toHaveCount(13)
 
-  const scrollTopAfter = await main.evaluate((element) => element.scrollTop)
+  const scrollTopAfter = await page.evaluate(() => window.scrollY)
   expect(Math.abs(scrollTopAfter - scrollTopBefore)).toBeLessThanOrEqual(1)
   await expect(quickAdd).toBeFocused()
 })

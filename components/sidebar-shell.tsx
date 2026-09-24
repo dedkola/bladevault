@@ -8,8 +8,8 @@ export const SidebarShell = dynamic(
     ssr: false,
     loading: () => (
       <>
-        <div className="h-16 border-b border-sidebar-border bg-sidebar print:hidden md:hidden" />
-        <aside className="hidden h-full min-h-0 w-60 flex-shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground print:hidden md:flex" />
+        <div className="sticky top-0 z-30 h-16 border-b border-sidebar-border bg-sidebar print:hidden md:hidden" />
+        <aside className="hidden h-dvh min-h-0 w-60 flex-shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground print:hidden md:sticky md:top-0 md:flex" />
       </>
     ),
   },
