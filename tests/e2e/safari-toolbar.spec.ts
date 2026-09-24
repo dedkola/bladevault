@@ -45,6 +45,14 @@ test('scrolls the document and follows the saved color theme', async ({
   expect(collectionMenu!.y).toBeLessThan(80)
 
   await page.goto('/settings')
+  await page.setViewportSize({ width: 390, height: 360 })
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.documentElement.scrollHeight - window.innerHeight,
+      ),
+    )
+    .toBeGreaterThan(0)
   await page
     .getByRole('button', { name: 'Save Folder' })
     .scrollIntoViewIfNeeded()
