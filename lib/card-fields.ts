@@ -131,3 +131,18 @@ export function getCardFieldDisplayValue(
 
   return formattedValue
 }
+
+export function getVisibleCardFields(
+  knife: Knife,
+  fields: readonly CardField[],
+  customFields: CustomField[],
+): { key: CardField; label: string; value: string }[] {
+  return fields
+    .filter((field) => field !== 'specs.modelNumber')
+    .map((field) => ({
+      key: field,
+      label: getCardFieldLabel(field, customFields),
+      value: getCardFieldDisplayValue(knife, field, customFields),
+    }))
+    .filter((field) => field.value)
+}
