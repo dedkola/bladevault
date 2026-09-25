@@ -30,9 +30,10 @@ export function ComparisonNavigation({
     <div>
       <div
         className={cn(
-          'flex items-center rounded-lg transition-colors',
+          'group flex w-full items-center rounded-lg transition-colors',
           selected &&
             'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)]',
+          !selected && 'hover:bg-accent',
         )}
       >
         <Link
@@ -46,7 +47,7 @@ export function ComparisonNavigation({
             'flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors',
             selected
               ? 'text-[var(--bladevault-gold)]'
-              : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+              : 'text-muted-foreground group-hover:text-foreground',
           )}
         >
           <Scale className="size-4" />
