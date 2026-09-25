@@ -12,7 +12,7 @@ import {
   activeKnifeActionStyle,
   activeKnifeFloatingClassName,
 } from '@/lib/knife-action-styles'
-import { getCardFieldDisplayValue, getCardFieldLabel } from '@/lib/card-fields'
+import { getVisibleCardFields } from '@/lib/card-fields'
 
 export type CollectionCardDensity = 'gallery' | 'compact'
 
@@ -63,13 +63,11 @@ export const KnifeCard = memo(function KnifeCard({
   const inCompare = comparisonCount > 0
   const [isTogglingPin, setIsTogglingPin] = useState(false)
   const [isTogglingCompare, setIsTogglingCompare] = useState(false)
-  const visibleCardFields = cardFields
-    .filter((field) => field !== 'specs.modelNumber')
-    .map((field) => ({
-      label: getCardFieldLabel(field, customFieldDefinitions),
-      value: getCardFieldDisplayValue(knife, field, customFieldDefinitions),
-    }))
-    .filter((field) => field.value)
+  const visibleCardFields = getVisibleCardFields(
+    knife,
+    cardFields,
+    customFieldDefinitions,
+  )
   const bladeLength = preferredMetric(knife.specs.bladeLength)
   const modelNumber = knife.specs.modelNumber?.trim()
   const isCompact = density === 'compact'
@@ -214,7 +212,7 @@ export const KnifeCard = memo(function KnifeCard({
               )}
             >
               {visibleCardFields.map((field) => (
-                <div key={`${field.label}-${field.value}`} className="min-w-0">
+                <div key={field.key} className="min-w-0">
                   <dt className="truncate text-[9px] text-muted-foreground">
                     {field.label}
                   </dt>

@@ -26,11 +26,8 @@ import {
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import {
-  getKnifeFamilyKey,
-  getKnifeVariantLabel,
-  groupKnifeFamilies,
-} from '@/lib/knife-families'
+import { getKnifeFamilyKey, groupKnifeFamilies } from '@/lib/knife-families'
+import { getVisibleCardFields } from '@/lib/card-fields'
 import { useKnives } from '@/components/providers/knives-provider'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -66,7 +63,8 @@ export function Sidebar() {
   const searchParamsKey = searchParams.toString()
   const selectedBrands = searchParams.getAll('brand')
   const routeKey = searchParamsKey ? `${pathname}?${searchParamsKey}` : pathname
-  const { knives, isAutoBackupActive } = useKnives()
+  const { knives, cardFields, customFieldDefinitions, isAutoBackupActive } =
+    useKnives()
   const { update, downloadUpdate } = useDesktopUpdates()
   const [brandsOpen, setBrandsOpen] = useState(true)
   const [pinnedOpen, setPinnedOpen] = useState(true)
@@ -379,17 +377,34 @@ export function Sidebar() {
                     const isKnifeActive = pathname === knifeHref
                     const siblings =
                       familiesByKey.get(getKnifeFamilyKey(knife)) ?? []
-                    const variantLabel =
-                      siblings.length > 1
-                        ? getKnifeVariantLabel(knife, siblings)
-                        : ''
+                    const getDetails = (item: typeof knife) =>
+                      [
+                        item.specs.modelNumber?.trim(),
+                        ...getVisibleCardFields(
+                          item,
+                          cardFields,
+                          customFieldDefinitions,
+                        ).map((field) => field.value),
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')
+                    const details = getDetails(knife)
+                    const ambiguous = siblings.some(
+                      (sibling) =>
+                        sibling.id !== knife.id &&
+                        getDetails(sibling) === details,
+                    )
+                    const detailLine =
+                      ambiguous || (!details && siblings.length > 1)
+                        ? [details, knife.id].filter(Boolean).join(' · ')
+                        : details
 
                     return (
                       <Link
                         key={knife.id}
                         href={knifeHref}
                         onClick={handleNavigate}
-                        title={variantLabel || undefined}
+                        title={detailLine || undefined}
                         aria-current={isKnifeActive ? 'page' : undefined}
                         className={cn(
                           'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors',
@@ -431,9 +446,9 @@ export function Sidebar() {
                               {knife.name}
                             </span>
                           </span>
-                          {variantLabel && (
+                          {detailLine && (
                             <span className="mt-0.5 line-clamp-2 text-[10px] leading-4 opacity-80 [overflow-wrap:anywhere]">
-                              {variantLabel}
+                              {detailLine}
                             </span>
                           )}
                         </span>

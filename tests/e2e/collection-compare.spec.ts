@@ -5,6 +5,59 @@ test.beforeEach(async ({ request }) => {
   await resetVault(request)
 })
 
+test('keeps pinned sidebar details in sync with collection card settings', async ({
+  page,
+  request,
+}) => {
+  const { knife } = await seedKnife(request, {
+    name: 'Abrams',
+    brand: 'Kizer',
+    pinned: true,
+    specs: {
+      modelNumber: '1133A3',
+      lockingMechanism: 'Fix',
+      bladeMaterial: '14C28N',
+      bladeCoating: 'Satin',
+    },
+    customFields: { edition: 'Limited run' },
+  })
+  await request.post('/api/settings', {
+    data: {
+      cardFields: [
+        'specs.lockingMechanism',
+        'specs.bladeMaterial',
+        'specs.bladeCoating',
+      ],
+      customFields: [{ id: 'edition', name: 'Edition', type: 'text' }],
+    },
+  })
+
+  await page.goto('/collection')
+  const pinnedLink = page.locator(`nav a[href="/collection/${knife.id}"]`)
+  await expect(pinnedLink).toHaveAttribute(
+    'title',
+    '1133A3 · Fix · 14C28N · Satin',
+  )
+  await expect(page.locator('[data-knife-card] dl dt')).toHaveText([
+    'Locking mechanism',
+    'Blade material',
+    'Blade coating / finish',
+  ])
+
+  await request.post('/api/settings', {
+    data: { cardFields: ['custom:edition', 'specs.bladeMaterial'] },
+  })
+  await page.reload()
+  await expect(pinnedLink).toHaveAttribute(
+    'title',
+    '1133A3 · Limited run · 14C28N',
+  )
+  await expect(page.locator('[data-knife-card] dl dt')).toHaveText([
+    'Edition',
+    'Blade material',
+  ])
+})
+
 test('loads more collection and brand results automatically on scroll', async ({
   page,
   request,

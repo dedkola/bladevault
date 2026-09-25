@@ -1855,7 +1855,7 @@ export default function SettingsView() {
                   </SettingsSection>
                   <SettingsSection
                     title="Card fields"
-                    description="Choose any structured or custom details to show on knife cards."
+                    description="Choose any structured or custom details to show on knife cards and pinned sidebar items."
                   >
                     <div className="grid gap-5 py-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-start">
                       <CardFieldsPreview
