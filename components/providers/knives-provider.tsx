@@ -12,7 +12,13 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Knife, KnifeDraft, KnifeUpdates } from '@/lib/data'
+import {
+  hydrateKnifeListItem,
+  Knife,
+  KnifeDraft,
+  type KnifeListItem,
+  KnifeUpdates,
+} from '@/lib/data'
 import type { BulkEditFieldKey } from '@/lib/bulk-edit'
 import { CLOUD_AUTH_STATE_EVENT, getCloudAuthState } from '@/lib/cloud-backup'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
@@ -345,11 +351,13 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
           fetch('/api/knives'),
           fetch('/api/compare'),
         ])
-        const knivesData = await knivesResponse.json()
+        const knivesData = (await knivesResponse.json()) as {
+          knives?: KnifeListItem[]
+        }
         const compareData = await compareResponse.json()
         if (!cancelled) {
           if (Array.isArray(knivesData.knives)) {
-            setKnives(knivesData.knives)
+            setKnives(knivesData.knives.map(hydrateKnifeListItem))
           }
           if (Array.isArray(compareData.compareIds)) {
             setCompareIds(compareData.compareIds)
@@ -375,7 +383,10 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       fetch('/api/knives', { cache: 'no-store' }),
       fetch('/api/compare', { cache: 'no-store' }),
     ])
-    const knivesData = await knivesResponse.json()
+    const knivesData = (await knivesResponse.json()) as {
+      knives?: KnifeListItem[]
+      error?: string
+    }
     const compareData = await compareResponse.json()
 
     if (!knivesResponse.ok) {
@@ -386,7 +397,11 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     }
 
     window.dispatchEvent(new Event(COMPARISONS_REFRESH_EVENT))
-    setKnives(Array.isArray(knivesData.knives) ? knivesData.knives : [])
+    setKnives(
+      Array.isArray(knivesData.knives)
+        ? knivesData.knives.map(hydrateKnifeListItem)
+        : [],
+    )
     setCompareIds(
       Array.isArray(compareData.compareIds) ? compareData.compareIds : [],
     )

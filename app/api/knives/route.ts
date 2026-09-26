@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
+import { toKnifeListItem } from '@/lib/data'
 import { getStorage } from '@/lib/storage'
 
 export async function GET() {
   try {
     const storage = getStorage()
-    const knives = await storage.getAllKnives()
+    const knives = (await storage.getAllKnives()).map(toKnifeListItem)
     return NextResponse.json({ knives })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'

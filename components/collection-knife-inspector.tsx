@@ -11,10 +11,10 @@ import {
   ImageIcon,
   Scale,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { useKnives } from '@/components/providers/knives-provider'
-import { getImageUrl, type Knife } from '@/lib/data'
+import { getImageUrl, getKnifeImageCount, type Knife } from '@/lib/data'
 import { getKnifeVariantLabel } from '@/lib/knife-families'
 import { cn } from '@/lib/utils'
 
@@ -34,6 +34,7 @@ export function CollectionKnifeInspector({
 }) {
   const { showFeedback } = useKnives()
   const [imageIndex, setImageIndex] = useState(0)
+  const [fullImages, setFullImages] = useState<string[] | null>(null)
   const [isUpdatingCompare, setIsUpdatingCompare] = useState(false)
   const [isMobileExpanded, setIsMobileExpanded] = useState(true)
   const {
@@ -45,13 +46,34 @@ export function CollectionKnifeInspector({
   } = useComparisons()
   const comparisonCount = membershipCount(knife.id)
   const inCompare = comparisonCount > 0
-  const image = knife.images[imageIndex]
+  const imageCount = getKnifeImageCount(knife)
+  const images = fullImages ?? knife.images
+  const image = images[imageIndex]
   const nextImage = () =>
-    setImageIndex((current) => (current + 1) % knife.images.length)
+    setImageIndex((current) => (current + 1) % images.length)
   const prevImage = () =>
-    setImageIndex(
-      (current) => (current - 1 + knife.images.length) % knife.images.length,
-    )
+    setImageIndex((current) => (current - 1 + images.length) % images.length)
+
+  useEffect(() => {
+    if (imageCount <= knife.images.length) return
+
+    const controller = new AbortController()
+    void fetch(`/api/knives/${encodeURIComponent(knife.id)}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) return
+        const data = (await response.json()) as { knife?: Knife }
+        if (Array.isArray(data.knife?.images)) {
+          setFullImages(data.knife.images)
+        }
+      })
+      .catch(() => {
+        // Keep the list thumbnail available if detail loading fails.
+      })
+
+    return () => controller.abort()
+  }, [imageCount, knife.id, knife.images.length])
 
   const toggleCompare = async () => {
     setIsUpdatingCompare(true)
@@ -121,7 +143,7 @@ export function CollectionKnifeInspector({
               <ImageIcon className="size-10" aria-hidden="true" />
             </div>
           )}
-          {knife.images.length > 1 && (
+          {images.length > 1 && (
             <>
               <button
                 type="button"

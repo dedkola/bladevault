@@ -2,6 +2,25 @@ import { NextResponse } from 'next/server'
 import { KnifeUpdates } from '@/lib/data'
 import { getStorage } from '@/lib/storage'
 
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params
+    const knife = await getStorage().getKnifeById(id)
+
+    if (!knife) {
+      return NextResponse.json({ error: 'Knife not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({ knife })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },

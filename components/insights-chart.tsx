@@ -84,7 +84,7 @@ export function InsightsChart({
       chart?.setOption(buildOptionRef.current(getPalette()), true)
     }
 
-    void import('echarts').then((echarts) => {
+    void import('@/lib/echarts-client').then((echarts) => {
       if (!chartRef.current || cancelled) return
       chart = echarts.init(chartRef.current, undefined, { renderer: 'svg' })
       chartInstanceRef.current = chart
