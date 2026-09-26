@@ -2,7 +2,7 @@ import { useComparisons } from '@/components/providers/comparisons-provider'
 import Image from 'next/image'
 import { memo, useCallback, useState } from 'react'
 import { Check, ImageIcon, Pin, Scale } from 'lucide-react'
-import { getImageUrl, Knife } from '@/lib/data'
+import { getImageUrl, getKnifeImageCount, Knife } from '@/lib/data'
 import { cn } from '@/lib/utils'
 import { ImageCountBadge } from '@/components/image-count-badge'
 import { Button } from '@/components/ui/button'
@@ -70,6 +70,7 @@ export const KnifeCard = memo(function KnifeCard({
   )
   const bladeLength = preferredMetric(knife.specs.bladeLength)
   const modelNumber = knife.specs.modelNumber?.trim()
+  const imageCount = getKnifeImageCount(knife)
   const isCompact = density === 'compact'
 
   const handlePinClick = useCallback(
@@ -170,7 +171,7 @@ export const KnifeCard = memo(function KnifeCard({
           )}
           {knife.images.length > 0 && (
             <ImageCountBadge
-              count={knife.images.length}
+              count={imageCount}
               size="sm"
               className="absolute bottom-2 right-2 z-20"
             />

@@ -96,8 +96,17 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
   const router = useRouter()
   const { knives, updateKnife, deleteKnife } = useKnives()
-
-  const knife = knives.find((k) => k.id === initialKnife.id) ?? initialKnife
+  const [detailKnife, setDetailKnife] = useState(initialKnife)
+  const collectionKnife = knives.find((k) => k.id === initialKnife.id)
+  const knife = collectionKnife
+    ? {
+        ...detailKnife,
+        ...collectionKnife,
+        description: detailKnife.description,
+        images: detailKnife.images,
+        sourceUrl: detailKnife.sourceUrl,
+      }
+    : detailKnife
   const safeSourceUrl = getSafeExternalUrl(knife.sourceUrl)
   const pinned = knife.pinned
   const {
@@ -162,7 +171,8 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
     setIsTogglingPin(true)
     setError(null)
     try {
-      await updateKnife(knife.id, { pinned: !pinned })
+      const updatedKnife = await updateKnife(knife.id, { pinned: !pinned })
+      setDetailKnife(updatedKnife)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update pin')
     } finally {
@@ -215,7 +225,8 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
         },
         customFields: form.customFields,
       }
-      await updateKnife(knife.id, updates)
+      const updatedKnife = await updateKnife(knife.id, updates)
+      setDetailKnife(updatedKnife)
       setIsEditing(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save changes')

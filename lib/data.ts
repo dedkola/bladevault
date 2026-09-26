@@ -28,6 +28,45 @@ export type Knife = {
   pinned: boolean
 }
 
+export type KnifeListItem = Omit<
+  Knife,
+  'description' | 'sourceUrl' | 'images'
+> & {
+  images: string[]
+  imageCount: number
+}
+
+export function toKnifeListItem(knife: Knife): KnifeListItem {
+  return {
+    id: knife.id,
+    name: knife.name,
+    brand: knife.brand,
+    bladeStyle: knife.bladeStyle,
+    handleMaterial: knife.handleMaterial,
+    images: knife.images.slice(0, 1),
+    imageCount: knife.images.length,
+    specs: knife.specs,
+    customFields: knife.customFields,
+    addedAt: knife.addedAt,
+    updatedAt: knife.updatedAt,
+    pinned: knife.pinned,
+  }
+}
+
+export function hydrateKnifeListItem(knife: KnifeListItem): Knife {
+  return {
+    ...knife,
+    description: '',
+    sourceUrl: '',
+  }
+}
+
+export function getKnifeImageCount(
+  knife: Pick<Knife, 'images'> & { imageCount?: number },
+): number {
+  return knife.imageCount ?? knife.images.length
+}
+
 export type KnifeActivityType = 'created' | 'updated' | 'maintained'
 
 export type KnifeActivityEvent = {

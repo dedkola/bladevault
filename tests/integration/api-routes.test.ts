@@ -53,8 +53,26 @@ describe('knife API routes', () => {
     })
 
     const list = await knivesRoute.GET()
-    const listPayload = (await list.json()) as { knives: Array<{ id: string }> }
+    const listPayload = (await list.json()) as {
+      knives: Array<Record<string, unknown> & { id: string }>
+    }
     expect(listPayload.knives.map((knife) => knife.id)).toEqual(['native-5'])
+    expect(listPayload.knives[0]).not.toHaveProperty('description')
+    expect(listPayload.knives[0]).not.toHaveProperty('sourceUrl')
+    expect(listPayload.knives[0]).toMatchObject({ imageCount: 0, images: [] })
+
+    const detail = await knifeRoute.GET(
+      new Request('http://localhost/api/knives/native-5'),
+      { params: Promise.resolve({ id: 'native-5' }) },
+    )
+    expect(detail.status).toBe(200)
+    await expect(detail.json()).resolves.toEqual({
+      knife: expect.objectContaining({
+        id: 'native-5',
+        description: '',
+        sourceUrl: '',
+      }),
+    })
 
     const activity = (await (await activityRoute.GET()).json()) as {
       activity: Array<{ knifeId: string; type: string }>
@@ -96,6 +114,12 @@ describe('knife API routes', () => {
       { params: Promise.resolve({ id: 'missing' }) },
     )
     expect(missing.status).toBe(404)
+
+    const missingDetail = await knifeRoute.GET(
+      new Request('http://localhost/api/knives/missing'),
+      { params: Promise.resolve({ id: 'missing' }) },
+    )
+    expect(missingDetail.status).toBe(404)
   })
 
   it('validates bulk fields, persists compare mutations, and exposes audit log events', async () => {

@@ -1,17 +1,40 @@
 import { describe, expect, it } from 'vitest'
 import {
   getImageUrl,
+  getKnifeImageCount,
   getKnifeSearchableText,
+  hydrateKnifeListItem,
   isMaintenanceType,
   maintenanceTypeLabel,
   matchesGlobalKnifeSearch,
   matchesKnifeSearch,
   parseGlobalKnifeSearchQuery,
   prioritizePinnedKnives,
+  toKnifeListItem,
 } from '@/lib/data'
 import { createKnife } from '@/tests/fixtures/knife'
 
 describe('collection data helpers', () => {
+  it('keeps detail-only text out of collection list payloads', () => {
+    const knife = createKnife({
+      description: 'A long private note',
+      images: ['one.webp', 'two.webp', 'three.webp'],
+      sourceUrl: 'https://example.com/knife',
+    })
+
+    const listItem = toKnifeListItem(knife)
+
+    expect(listItem).not.toHaveProperty('description')
+    expect(listItem).not.toHaveProperty('sourceUrl')
+    expect(listItem.images).toEqual(['one.webp'])
+    expect(getKnifeImageCount(listItem)).toBe(3)
+    expect(hydrateKnifeListItem(listItem)).toMatchObject({
+      id: knife.id,
+      description: '',
+      sourceUrl: '',
+    })
+  })
+
   it('searches only the model name', () => {
     const porcupine = createKnife({
       name: 'Porcupine',

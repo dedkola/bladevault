@@ -250,7 +250,7 @@ function EventIcon({ event }: { event: ViewEvent }) {
 
 export function LogSessionsView() {
   const { knives, timeFormat, isLoading: knivesLoading } = useKnives()
-  const [events, setEvents] = useState<ViewEvent[]>([])
+  const [rawEvents, setRawEvents] = useState<AuditLogEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -312,16 +312,8 @@ export function LogSessionsView() {
         if (!response.ok) {
           throw new Error(getApiErrorMessage(data, 'Failed to load log events'))
         }
-        const loaded = (data.events ?? []).map((event) => ({
-          ...event,
-          title: eventTitle(event),
-          shortDate: formatEventShortDate(event.occurredAt),
-          time: formatEventTime(event.occurredAt, timeFormat),
-          rowTime: formatEventTime(event.occurredAt, timeFormat, false),
-          ...getEventDate(event.occurredAt),
-        }))
         if (!cancelled) {
-          setEvents(loaded)
+          setRawEvents(data.events ?? [])
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -341,7 +333,20 @@ export function LogSessionsView() {
     return () => {
       cancelled = true
     }
-  }, [timeFormat, loadAttempt])
+  }, [loadAttempt])
+
+  const events = useMemo<ViewEvent[]>(
+    () =>
+      rawEvents.map((event) => ({
+        ...event,
+        title: eventTitle(event),
+        shortDate: formatEventShortDate(event.occurredAt),
+        time: formatEventTime(event.occurredAt, timeFormat),
+        rowTime: formatEventTime(event.occurredAt, timeFormat, false),
+        ...getEventDate(event.occurredAt),
+      })),
+    [rawEvents, timeFormat],
+  )
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(min-width: 768px)')
