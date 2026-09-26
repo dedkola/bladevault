@@ -113,7 +113,7 @@ export function KnifeFamilyCard({
             {summaryContent}
           </DialogTrigger>
           <DialogContent
-            className="flex max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-6xl flex-col gap-0 overflow-hidden p-0 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)]"
+            className="flex max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-6xl flex-col gap-0 overflow-hidden p-0 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] lg:w-[80vw] lg:max-w-[80vw]"
             data-family-variants-dialog
           >
             <DialogHeader className="shrink-0 border-b border-border px-4 py-4 pr-14 sm:px-5 sm:py-5 sm:pr-14">

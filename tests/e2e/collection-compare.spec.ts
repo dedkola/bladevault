@@ -311,6 +311,10 @@ test('keeps family entries aligned and opens single knives directly', async ({
   await familyTrigger.click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
+  const desktopDialogWidth = await dialog.evaluate((element) =>
+    Number.parseFloat(window.getComputedStyle(element).width),
+  )
+  expect(desktopDialogWidth).toBeCloseTo(1440 * 0.8, 0)
   await expect(
     dialog.getByRole('button', { name: /Preview Workshop Bravo B-1/ }),
   ).toBeVisible()
