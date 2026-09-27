@@ -104,10 +104,7 @@ export function ScreenshotBackfill() {
   const completed = items.filter((item) => item.status === 'completed').length
   const skipped = items.filter((item) => item.status === 'skipped').length
   return (
-    <SettingsSection
-      title="Capture missing webpage screenshots"
-      description="For items saved before webpage screenshots were introduced. Captures show the website as it looks today."
-    >
+    <SettingsSection title="Capture missing webpage screenshots">
       <div className="space-y-3 py-4">
         <p className="text-sm" aria-live="polite">
           {remaining.length} remaining · {completed} captured · {skipped}{' '}
