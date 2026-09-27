@@ -2,7 +2,11 @@ import fs from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { getLocalDb, getLocalImagesDirPath } from '@/lib/local-db'
+import { getLocalDb } from '@/lib/local-db'
+import {
+  resolveLocalImageDirectory,
+  resolveLocalImagePath,
+} from '@/lib/local-image-path'
 import {
   isWebpageScreenshot,
   isScreenshotDraft,
@@ -22,8 +26,13 @@ export function getScreenshotMetadata(
     const row = getLocalDb()
       .prepare('SELECT metadata FROM webpage_screenshots WHERE path = ?')
       .get(image) as { metadata: string } | undefined
-    if (row && existsSync(path.join(getLocalImagesDirPath(), image)))
-      return JSON.parse(row.metadata) as WebpageScreenshot
+    if (!row) continue
+    try {
+      if (existsSync(resolveLocalImagePath(image)))
+        return JSON.parse(row.metadata) as WebpageScreenshot
+    } catch {
+      // Ignore malformed paths from restored or manually edited databases.
+    }
   }
 }
 
@@ -32,12 +41,11 @@ export async function saveScreenshotDraft(
   metadata: Omit<WebpageScreenshot, 'path'>,
 ): Promise<string> {
   const database = getLocalDb()
-  const root = getLocalImagesDirPath()
   await cleanupScreenshotDrafts()
   if (getLocalDb() !== database)
     throw new Error('The active vault changed. Please retry.')
   const relativePath = `${DRAFT_PREFIX}webpage-${randomUUID()}.png`
-  const destination = path.join(root, relativePath)
+  const destination = resolveLocalImagePath(relativePath)
   await fs.mkdir(path.dirname(destination), { recursive: true })
   await fs.writeFile(destination, buffer)
   if (getLocalDb() !== database)
@@ -62,9 +70,11 @@ export async function promoteScreenshotDraft(
     throw new Error('Screenshot preview expired. Please scrape the page again.')
   }
   const finalPath = `${knifeId}/${path.basename(src)}`
-  const root = getLocalImagesDirPath()
-  await fs.mkdir(path.join(root, knifeId), { recursive: true })
-  await fs.copyFile(path.join(root, src), path.join(root, finalPath))
+  const directory = resolveLocalImageDirectory(knifeId)
+  const source = resolveLocalImagePath(src)
+  const destination = resolveLocalImagePath(finalPath)
+  await fs.mkdir(directory, { recursive: true })
+  await fs.copyFile(source, destination)
   if (getLocalDb() !== database)
     throw new Error('The active vault changed. Please retry.')
   database
@@ -77,7 +87,6 @@ export async function promoteScreenshotDraft(
 
 export async function cleanupScreenshotDrafts(): Promise<void> {
   const database = getLocalDb()
-  const root = getLocalImagesDirPath()
   const rows = database
     .prepare(
       "SELECT path, metadata FROM webpage_screenshots WHERE path LIKE '__webpage_drafts/%'",
@@ -88,7 +97,7 @@ export async function cleanupScreenshotDrafts(): Promise<void> {
     const metadata = JSON.parse(row.metadata) as WebpageScreenshot
     if (Date.now() - Date.parse(metadata.capturedAt) <= DRAFT_TTL_MS) continue
     if (getLocalDb() !== database) return
-    await fs.unlink(path.join(root, row.path)).catch(() => {})
+    await fs.unlink(resolveLocalImagePath(row.path)).catch(() => {})
     if (getLocalDb() !== database) return
     database
       .prepare('DELETE FROM webpage_screenshots WHERE path = ?')

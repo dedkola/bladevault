@@ -8,6 +8,7 @@ import {
   saveScreenshotDraft,
   cleanupScreenshotDrafts,
   getScreenshotMetadata,
+  promoteScreenshotDraft,
 } from '@/lib/webpage-screenshot-store'
 import {
   captureKnifeScreenshot,
@@ -216,5 +217,33 @@ describe('webpage screenshots', () => {
     await expect(
       fs.access(path.join(vault.dataDir, 'images', second.images[1])),
     ).resolves.toBeUndefined()
+  })
+
+  it('rejects image and screenshot paths that escape the vault image directory', async () => {
+    vault = await createTempVault()
+    const storage = new LocalStorage()
+    const screenshotName = 'webpage-00000000-0000-4000-8000-000000000000.png'
+    const outsidePath = `../${screenshotName}`
+    await fs.writeFile(path.join(vault.dataDir, screenshotName), 'outside')
+    getLocalDb()
+      .prepare('INSERT INTO webpage_screenshots(path, metadata) VALUES (?, ?)')
+      .run(outsidePath, JSON.stringify({ ...metadata, path: outsidePath }))
+
+    expect(getScreenshotMetadata([outsidePath])).toBeUndefined()
+    const knife = await storage.createKnife(input)
+    await expect(
+      storage.updateKnife(knife.id, { images: [outsidePath] }),
+    ).rejects.toThrow('Invalid image path')
+    await expect(
+      storage.saveDataUrl('data:image/png;base64,aGVsbG8=', '../outside', 0),
+    ).rejects.toThrow('Invalid image directory')
+
+    const preview = await draft()
+    await expect(promoteScreenshotDraft(preview, '../outside')).rejects.toThrow(
+      'Invalid image directory',
+    )
+    await expect(
+      fs.access(path.join(vault.dataDir, 'outside')),
+    ).rejects.toThrow()
   })
 })

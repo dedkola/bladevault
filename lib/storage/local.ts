@@ -8,6 +8,10 @@ import {
   screenshotsLast,
 } from '@/lib/webpage-screenshot-shared'
 import {
+  resolveLocalImageDirectory,
+  resolveLocalImagePath,
+} from '@/lib/local-image-path'
+import {
   getComparisons,
   mutateComparison,
   ensureLegacyComparison,
@@ -32,7 +36,7 @@ import {
   maintenanceTypeName,
 } from '@/lib/data'
 import { normalizeKnifeTextFields } from '@/lib/knife-text'
-import { getLocalDb, getLocalImagesDirPath } from '@/lib/local-db'
+import { getLocalDb } from '@/lib/local-db'
 import { fetchExternalUrl, validateExternalUrl } from '@/lib/url-validation'
 import {
   type BulkKnifeUpdateItem,
@@ -142,10 +146,6 @@ export function getNextImageIndex(images: string[]): number {
 
 function getDb() {
   return getLocalDb()
-}
-
-function getImagesDir() {
-  return getLocalImagesDirPath()
 }
 
 function nextUpdatedAt(previous: string): string {
@@ -491,11 +491,11 @@ export class LocalStorage implements Storage {
       ext = extensionFromMimeType(contentType)
     }
 
-    const dir = path.join(getImagesDir(), knifeId)
+    const dir = resolveLocalImageDirectory(knifeId)
     await fs.mkdir(dir, { recursive: true })
 
     const filename = `image-${String(index + 1).padStart(2, '0')}.${ext}`
-    const filePath = path.join(dir, filename)
+    const filePath = resolveLocalImagePath(`${knifeId}/${filename}`)
     await fs.writeFile(filePath, buffer)
 
     return `${knifeId}/${filename}`
@@ -515,11 +515,11 @@ export class LocalStorage implements Storage {
     const buffer = Buffer.from(base64, 'base64')
     const ext = extensionFromDataUrl(dataUrl)
 
-    const dir = path.join(getImagesDir(), knifeId)
+    const dir = resolveLocalImageDirectory(knifeId)
     await fs.mkdir(dir, { recursive: true })
 
     const filename = `image-${String(index + 1).padStart(2, '0')}.${ext}`
-    const filePath = path.join(dir, filename)
+    const filePath = resolveLocalImagePath(`${knifeId}/${filename}`)
     await fs.writeFile(filePath, buffer)
 
     return `${knifeId}/${filename}`
@@ -687,6 +687,7 @@ export class LocalStorage implements Storage {
           }
         }
       } else {
+        resolveLocalImagePath(src)
         processedImages.push(src)
       }
     }
@@ -802,15 +803,10 @@ export class LocalStorage implements Storage {
         !img.startsWith('https://')
       ) {
         try {
-          const filePath = path.join(getImagesDir(), img)
-          const resolved = path.resolve(filePath)
-          const base = path.resolve(getImagesDir())
-          if (resolved === base || resolved.startsWith(`${base}${path.sep}`)) {
-            await fs.unlink(resolved)
-            getDb()
-              .prepare('DELETE FROM webpage_screenshots WHERE path = ?')
-              .run(img)
-          }
+          await fs.unlink(resolveLocalImagePath(img))
+          getDb()
+            .prepare('DELETE FROM webpage_screenshots WHERE path = ?')
+            .run(img)
         } catch {
           // ignore cleanup errors
         }
@@ -1093,7 +1089,7 @@ export class LocalStorage implements Storage {
     remove()
 
     try {
-      const dir = path.join(getImagesDir(), id)
+      const dir = resolveLocalImageDirectory(id)
       await fs.rm(dir, { recursive: true, force: true })
     } catch {
       // ignore cleanup errors
@@ -1504,13 +1500,7 @@ export class LocalStorage implements Storage {
     resolved: string
     contentType: string
   } {
-    const filePath = path.join(getImagesDir(), relativePath)
-    const resolved = path.resolve(filePath)
-    const base = path.resolve(getImagesDir())
-
-    if (resolved !== base && !resolved.startsWith(`${base}${path.sep}`)) {
-      throw new Error('Invalid image path')
-    }
+    const resolved = resolveLocalImagePath(relativePath)
 
     const ext = path.extname(resolved).toLowerCase()
     const contentType =
