@@ -1,3 +1,4 @@
+import { saveScreenshotDraft } from '@/lib/webpage-screenshot-store'
 import { getComparisons, mutateComparison } from '@/lib/comparison-storage'
 import { createWriteStream } from 'fs'
 import fs from 'fs/promises'
@@ -95,6 +96,46 @@ afterEach(async () => {
 })
 
 describe('local backup archive route', () => {
+  it('restores screenshot metadata and original bytes while excluding temporary previews', async () => {
+    vault = await createTempVault('bladevault-screenshot-backup-')
+    const storage = new LocalStorage()
+    const preview = await saveScreenshotDraft(
+      Buffer.from('original-page-bytes'),
+      {
+        sourceUrl: 'https://example.com/item',
+        capturedAt: new Date().toISOString(),
+        width: 1366,
+        height: 6400,
+      },
+    )
+    const knife = await storage.createKnife({
+      ...input,
+      imageUrls: [...input.imageUrls, preview],
+    })
+    const exported = await localBackupRoute.GET()
+    const archive = Buffer.from(await exported.arrayBuffer())
+    const entries = await unzipper.Open.buffer(archive)
+    expect(
+      entries.files.some((file) => file.path.includes('__webpage_drafts')),
+    ).toBe(false)
+    await storage.deleteKnife(knife.id)
+    const restored = await localBackupRoute.PUT(
+      new Request('http://localhost/api/local-backup/archive', {
+        method: 'PUT',
+        body: archive,
+      }),
+    )
+    expect(restored.status).toBe(200)
+    const result = await new LocalStorage().getKnifeById(knife.id)
+    expect(result?.webpageScreenshot).toEqual(knife.webpageScreenshot)
+    expect(
+      await fs.readFile(
+        path.join(vault.dataDir, 'images', result!.webpageScreenshot!.path),
+        'utf8',
+      ),
+    ).toBe('original-page-bytes')
+  })
+
   it('exports, inspects, and restores the full portable vault', async () => {
     vault = await createTempVault('bladevault-local-backup-')
     let storage = new LocalStorage()
@@ -145,7 +186,7 @@ describe('local backup archive route', () => {
       formatVersion: 1,
       knifeCount: 1,
       imageCount: 1,
-      schemaVersion: 5,
+      schemaVersion: 6,
     })
 
     const inspected = await localBackupRoute.POST(

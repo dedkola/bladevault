@@ -381,3 +381,14 @@ BladeVault is released under the [MIT License](LICENSE).
 <div align="center">
   <sub>Built with precision for knife enthusiasts.</sub>
 </div>
+## Webpage screenshots
+
+URL imports automatically capture the rendered source webpage as a full-page PNG, selected by default as the last image. Interactive imports capture the browser after verification. Product photos stay first; the screenshot viewer supports scrolling, original size, downloading, and a dated source link.
+
+If a website blocks capture or is unavailable, importing product details can still succeed. The warning explains why the screenshot is missing. Open the saved item, choose **Edit**, and use **Capture webpage screenshot** in the Images section to retry, or **Replace webpage screenshot** to explicitly take a newer capture. A backfilled or replacement screenshot shows the website as it looks today.
+
+After upgrading an existing vault, **Settings → Local storage → Capture missing webpage screenshots** appears for older items with source URLs. Keep the panel open while it processes one page at a time. You can stop after the current item, leave and resume, retry failures, or skip unavailable pages. Progress survives restarts; the panel disappears when the backlog is complete. New installations do not have this bulk action. Restoring an older backup establishes its own backlog.
+
+Screenshots are stored with local images and included in local and cloud backups. Abandoned import previews expire after 24 hours and are cleaned on subsequent captures. Capture limits are 4,096 pixels wide, 30,000 pixels tall, 60 million pixels total, and 30 MB per PNG; oversized pages report an error instead of being silently cropped. Capture uses a 1,366-pixel desktop viewport. Pages requiring login, security verification, or unusual rendering may need interactive import or may be unavailable.
+
+Docker includes Chromium. Source installations need `npx playwright install chromium`. Desktop captures can fall back to installed Google Chrome or Microsoft Edge if Playwright's Chromium is unavailable. Screenshot failure does not prevent saving an item.

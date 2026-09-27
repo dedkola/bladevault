@@ -14,7 +14,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 5
+export const LOCAL_DB_SCHEMA_VERSION = 6
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -725,6 +725,30 @@ function initSchema(database: Database.Database) {
   `)
 
   migrateSchema(database)
+
+  // Seed the legacy backlog only when this schema is first introduced, including
+  // after restoring a pre-screenshot backup. New items never enter this queue.
+  if (
+    !database
+      .prepare(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'webpage_screenshots'",
+      )
+      .get()
+  ) {
+    database.transaction(() => {
+      database.exec(`
+        CREATE TABLE webpage_screenshots (path TEXT PRIMARY KEY, metadata TEXT NOT NULL);
+        CREATE TABLE screenshot_backfill (
+          knife_id TEXT PRIMARY KEY REFERENCES knives(id) ON DELETE CASCADE,
+          status TEXT NOT NULL DEFAULT 'pending',
+          error TEXT,
+          lease_until INTEGER NOT NULL DEFAULT 0
+        );
+        INSERT INTO screenshot_backfill(knife_id)
+          SELECT id FROM knives WHERE trim(source_url) <> '';
+      `)
+    })()
+  }
 
   const currentSchemaVersion = Number(
     database.pragma('user_version', { simple: true }),

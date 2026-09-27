@@ -1,4 +1,17 @@
 import {
+  getScreenshotMetadata,
+  isScreenshotDraft,
+  promoteScreenshotDraft,
+} from '@/lib/webpage-screenshot-store'
+import {
+  isWebpageScreenshot,
+  screenshotsLast,
+} from '@/lib/webpage-screenshot-shared'
+import {
+  resolveLocalImageDirectory,
+  resolveLocalImagePath,
+} from '@/lib/local-image-path'
+import {
   getComparisons,
   mutateComparison,
   ensureLegacyComparison,
@@ -23,7 +36,7 @@ import {
   maintenanceTypeName,
 } from '@/lib/data'
 import { normalizeKnifeTextFields } from '@/lib/knife-text'
-import { getLocalDb, getLocalImagesDirPath } from '@/lib/local-db'
+import { getLocalDb } from '@/lib/local-db'
 import { fetchExternalUrl, validateExternalUrl } from '@/lib/url-validation'
 import {
   type BulkKnifeUpdateItem,
@@ -74,6 +87,7 @@ function extensionFromDataUrl(dataUrl: string): string {
 
 export function rowToKnife(row: Record<string, unknown>): Knife {
   const addedAt = String(row.added_at)
+  const images = (JSON.parse(String(row.images)) as string[] | null) ?? []
 
   return {
     id: String(row.id),
@@ -81,7 +95,8 @@ export function rowToKnife(row: Record<string, unknown>): Knife {
     brand: String(row.brand),
     bladeStyle: String(row.blade_style),
     handleMaterial: String(row.handle_material),
-    images: (JSON.parse(String(row.images)) as string[] | null) ?? [],
+    images,
+    webpageScreenshot: getScreenshotMetadata(images),
     specs:
       (JSON.parse(String(row.specs)) as Knife['specs'] | null) ??
       ({} as Knife['specs']),
@@ -131,10 +146,6 @@ export function getNextImageIndex(images: string[]): number {
 
 function getDb() {
   return getLocalDb()
-}
-
-function getImagesDir() {
-  return getLocalImagesDirPath()
 }
 
 function nextUpdatedAt(previous: string): string {
@@ -480,11 +491,11 @@ export class LocalStorage implements Storage {
       ext = extensionFromMimeType(contentType)
     }
 
-    const dir = path.join(getImagesDir(), knifeId)
+    const dir = resolveLocalImageDirectory(knifeId)
     await fs.mkdir(dir, { recursive: true })
 
     const filename = `image-${String(index + 1).padStart(2, '0')}.${ext}`
-    const filePath = path.join(dir, filename)
+    const filePath = resolveLocalImagePath(`${knifeId}/${filename}`)
     await fs.writeFile(filePath, buffer)
 
     return `${knifeId}/${filename}`
@@ -504,11 +515,11 @@ export class LocalStorage implements Storage {
     const buffer = Buffer.from(base64, 'base64')
     const ext = extensionFromDataUrl(dataUrl)
 
-    const dir = path.join(getImagesDir(), knifeId)
+    const dir = resolveLocalImageDirectory(knifeId)
     await fs.mkdir(dir, { recursive: true })
 
     const filename = `image-${String(index + 1).padStart(2, '0')}.${ext}`
-    const filePath = path.join(dir, filename)
+    const filePath = resolveLocalImagePath(`${knifeId}/${filename}`)
     await fs.writeFile(filePath, buffer)
 
     return `${knifeId}/${filename}`
@@ -520,19 +531,25 @@ export class LocalStorage implements Storage {
     const addedAt = new Date().toISOString()
     const updatedAt = addedAt
 
+    if (normalizedInput.imageUrls.filter(isWebpageScreenshot).length > 1)
+      throw new Error('Only one webpage screenshot can be saved per item.')
+    const orderedImages = screenshotsLast(normalizedInput.imageUrls)
     const imagePaths: string[] = []
     for (let i = 0; i < normalizedInput.imageUrls.length; i++) {
       try {
-        const src = normalizedInput.imageUrls[i]
+        const src = orderedImages[i]
         let relativePath: string
-        if (src.startsWith('data:image')) {
+        if (isScreenshotDraft(src)) {
+          relativePath = await promoteScreenshotDraft(src, id)
+        } else if (src.startsWith('data:image')) {
           relativePath = await this.saveDataUrl(src, id, i)
         } else {
           relativePath = await this.downloadImage(src, id, i)
         }
         imagePaths.push(relativePath)
-      } catch {
-        // Skip images that fail to download.
+      } catch (error) {
+        if (isScreenshotDraft(orderedImages[i])) throw error
+        // Skip product images that fail to download.
       }
     }
 
@@ -549,6 +566,7 @@ export class LocalStorage implements Storage {
       bladeStyle: normalizedInput.bladeStyle,
       handleMaterial: normalizedInput.handleMaterial,
       images: imagePaths,
+      webpageScreenshot: getScreenshotMetadata(imagePaths),
       specs: normalizedInput.specs,
       customFields,
       description: normalizedInput.description,
@@ -632,6 +650,8 @@ export class LocalStorage implements Storage {
     const normalizedUpdates = normalizeKnifeTextFields(updates)
 
     const incomingImages = normalizedUpdates.images ?? existing.images
+    if (incomingImages.filter(isWebpageScreenshot).length > 1)
+      throw new Error('Only one webpage screenshot can be saved per item.')
     const existingExternalUrls = new Set(
       existing.images.filter(
         (src) => src.startsWith('http://') || src.startsWith('https://'),
@@ -641,7 +661,11 @@ export class LocalStorage implements Storage {
     let nextIndex = getNextImageIndex(existing.images)
     const processedImages: string[] = []
 
-    for (const src of incomingImages) {
+    for (const src of screenshotsLast(incomingImages)) {
+      if (isScreenshotDraft(src)) {
+        processedImages.push(await promoteScreenshotDraft(src, id))
+        continue
+      }
       if (src.startsWith('data:image')) {
         try {
           const relativePath = await this.saveDataUrl(src, id, nextIndex)
@@ -663,26 +687,8 @@ export class LocalStorage implements Storage {
           }
         }
       } else {
+        resolveLocalImagePath(src)
         processedImages.push(src)
-      }
-    }
-
-    for (const img of existing.images) {
-      if (
-        !processedImages.includes(img) &&
-        !img.startsWith('http://') &&
-        !img.startsWith('https://')
-      ) {
-        try {
-          const filePath = path.join(getImagesDir(), img)
-          const resolved = path.resolve(filePath)
-          const base = path.resolve(getImagesDir())
-          if (resolved === base || resolved.startsWith(`${base}${path.sep}`)) {
-            await fs.unlink(resolved)
-          }
-        } catch {
-          // ignore cleanup errors
-        }
       }
     }
 
@@ -699,6 +705,7 @@ export class LocalStorage implements Storage {
       description: normalizedUpdates.description ?? existing.description,
       sourceUrl: normalizedUpdates.sourceUrl ?? existing.sourceUrl,
       images: processedImages,
+      webpageScreenshot: getScreenshotMetadata(processedImages),
       pinned: normalizedUpdates.pinned ?? existing.pinned,
       updatedAt,
       specs: {
@@ -789,6 +796,23 @@ export class LocalStorage implements Storage {
     })
     update()
 
+    for (const img of existing.images) {
+      if (
+        !processedImages.includes(img) &&
+        !img.startsWith('http://') &&
+        !img.startsWith('https://')
+      ) {
+        try {
+          await fs.unlink(resolveLocalImagePath(img))
+          getDb()
+            .prepare('DELETE FROM webpage_screenshots WHERE path = ?')
+            .run(img)
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+    }
+
     return updated
   }
 
@@ -847,7 +871,7 @@ export class LocalStorage implements Storage {
             normalizedUpdates.handleMaterial ?? existing.handleMaterial,
           description: normalizedUpdates.description ?? existing.description,
           sourceUrl: normalizedUpdates.sourceUrl ?? existing.sourceUrl,
-          images: normalizedUpdates.images ?? existing.images,
+          images: screenshotsLast(normalizedUpdates.images ?? existing.images),
           pinned: normalizedUpdates.pinned ?? existing.pinned,
           updatedAt,
           specs: {
@@ -1056,12 +1080,16 @@ export class LocalStorage implements Storage {
       database
         .prepare('DELETE FROM comparison_items WHERE knife_id = ?')
         .run(id)
+      for (const image of knife.images)
+        database
+          .prepare('DELETE FROM webpage_screenshots WHERE path = ?')
+          .run(image)
       database.prepare('DELETE FROM knives WHERE id = ?').run(id)
     })
     remove()
 
     try {
-      const dir = path.join(getImagesDir(), id)
+      const dir = resolveLocalImageDirectory(id)
       await fs.rm(dir, { recursive: true, force: true })
     } catch {
       // ignore cleanup errors
@@ -1472,13 +1500,7 @@ export class LocalStorage implements Storage {
     resolved: string
     contentType: string
   } {
-    const filePath = path.join(getImagesDir(), relativePath)
-    const resolved = path.resolve(filePath)
-    const base = path.resolve(getImagesDir())
-
-    if (resolved !== base && !resolved.startsWith(`${base}${path.sep}`)) {
-      throw new Error('Invalid image path')
-    }
+    const resolved = resolveLocalImagePath(relativePath)
 
     const ext = path.extname(resolved).toLowerCase()
     const contentType =

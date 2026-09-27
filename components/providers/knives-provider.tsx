@@ -1,5 +1,6 @@
 'use client'
 
+import { isScreenshotDraft } from '@/lib/webpage-screenshot-shared'
 import { COMPARISONS_REFRESH_EVENT } from '@/lib/comparisons'
 import { AlertCircle, CheckCircle2, Cloud } from 'lucide-react'
 import {
@@ -77,7 +78,9 @@ function toImageUrls(draft: KnifeDraft): string[] {
   return draft.images.filter(
     (src): src is string =>
       typeof src === 'string' &&
-      (src.startsWith('http') || src.startsWith('data:image')),
+      (src.startsWith('http') ||
+        src.startsWith('data:image') ||
+        isScreenshotDraft(src)),
   )
 }
 

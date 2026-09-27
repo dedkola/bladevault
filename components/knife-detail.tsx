@@ -95,7 +95,13 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
   const router = useRouter()
-  const { knives, updateKnife, deleteKnife } = useKnives()
+  const {
+    knives,
+    updateKnife,
+    deleteKnife,
+    refreshVault,
+    scheduleVaultBackup,
+  } = useKnives()
   const [detailKnife, setDetailKnife] = useState(initialKnife)
   const collectionKnife = knives.find((k) => k.id === initialKnife.id)
   const knife = collectionKnife
@@ -268,6 +274,12 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
           onCancel={handleCancel}
           isSaving={isSaving}
           saveError={error}
+          screenshotKnife={knife}
+          onScreenshotCaptured={(updatedKnife) => {
+            setDetailKnife(updatedKnife)
+            scheduleVaultBackup()
+            void refreshVault()
+          }}
           actions={
             <>
               <Button
@@ -449,7 +461,10 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.25fr_380px] 2xl:grid-cols-[1.5fr_420px]">
         <div className="contents lg:flex lg:flex-col lg:gap-6">
           <div className="order-1 lg:order-none">
-            <Gallery images={knife.images} />
+            <Gallery
+              images={knife.images}
+              screenshot={knife.webpageScreenshot}
+            />
           </div>
           <div className="order-3 lg:order-none">
             <MaintenanceSection knifeId={knife.id} />

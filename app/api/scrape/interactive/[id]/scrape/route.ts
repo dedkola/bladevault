@@ -8,9 +8,11 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const { html, finalUrl } = await captureInteractiveSession(id)
+    const { html, finalUrl, screenshot, screenshotWarning } =
+      await captureInteractiveSession(id)
     const result = await scrapeAndEnrichProduct(html, finalUrl, finalUrl)
-    return NextResponse.json(result)
+    if (screenshot) result.product.images.push(screenshot)
+    return NextResponse.json({ ...result, screenshotWarning })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })

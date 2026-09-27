@@ -1,3 +1,4 @@
+import { tryCaptureWebpageScreenshot } from '@/lib/webpage-screenshot-capture'
 import { chromium, Browser, BrowserContext, Page } from 'playwright'
 import { isSecurityChallengePage } from '@/lib/scrape'
 import { validateExternalUrl } from '@/lib/url-validation'
@@ -120,17 +121,9 @@ export async function startInteractiveSession(url: string): Promise<string> {
     screen: { width: 1280, height: 800 },
     locale: 'en-US',
     timezoneId: 'America/New_York',
-    extraHTTPHeaders: {
-      Accept:
-        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.9',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Upgrade-Insecure-Requests': '1',
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Site': 'none',
-      'Sec-Fetch-User': '?1',
-    },
+    serviceWorkers: 'block',
+    // Let Chromium choose Accept and Sec-Fetch headers for each resource type.
+    extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
   })
 
   await context.addInitScript(() => {
@@ -235,6 +228,8 @@ export async function getInteractiveSessionStatus(id: string): Promise<{
 export type InteractiveCapture = {
   html: string
   finalUrl: string
+  screenshot?: string
+  screenshotWarning?: string
 }
 
 export async function captureInteractiveSession(
@@ -257,9 +252,10 @@ export async function captureInteractiveSession(
     const html = await session.page.content()
     const finalUrl = session.page.url()
 
+    const capture = await tryCaptureWebpageScreenshot(session.page)
     await closeSession(id, 'completed')
 
-    return { html, finalUrl }
+    return { html, finalUrl, ...capture }
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'Failed to capture page'

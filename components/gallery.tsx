@@ -1,6 +1,12 @@
 'use client'
 
 import Image from 'next/image'
+import {
+  isWebpageScreenshot,
+  screenshotsLast,
+  type WebpageScreenshot,
+} from '@/lib/webpage-screenshot-shared'
+import { getSafeExternalUrl } from '@/lib/external-url'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { getImageUrl } from '@/lib/data'
@@ -17,13 +23,16 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 
 export function Gallery({
   images,
+  screenshot,
   editable = false,
   onReorder,
 }: {
   images: string[]
+  screenshot?: WebpageScreenshot
   editable?: boolean
   onReorder?: (newImages: string[]) => void
 }) {
+  const [originalSize, setOriginalSize] = useState(false)
   const [activeIdx, setActiveIdx] = useState(0)
   const [isFullScreen, setIsFullScreen] = useState(false)
   const fullscreenThumbnailRefs = useRef<(HTMLButtonElement | null)[]>([])
@@ -78,7 +87,7 @@ export function Gallery({
       setActiveIdx(activeIdx + 1)
     }
 
-    onReorder(reordered)
+    onReorder(screenshotsLast(reordered))
   }
 
   return (
@@ -158,7 +167,11 @@ export function Gallery({
                       ? 'border-2 border-[var(--bladevault-title)]'
                       : 'border border-foreground/10',
                   )}
-                  aria-label={`Select thumbnail ${idx + 1}`}
+                  aria-label={
+                    isWebpageScreenshot(img)
+                      ? 'Select webpage screenshot'
+                      : `Select thumbnail ${idx + 1}`
+                  }
                   aria-pressed={activeIdx === idx}
                 />
                 <Image
@@ -169,7 +182,12 @@ export function Gallery({
                   className="object-cover"
                   referrerPolicy="no-referrer"
                 />
-                {editable && (
+                {isWebpageScreenshot(img) && (
+                  <span className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-black/70 px-1 py-0.5 text-center text-[9px] text-white">
+                    Webpage
+                  </span>
+                )}
+                {editable && !isWebpageScreenshot(img) && (
                   <>
                     <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-center py-1 bg-gradient-to-b from-black/50 to-transparent opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                       <GripHorizontal className="h-4 w-4 text-white" />
@@ -248,28 +266,88 @@ export function Gallery({
           <div className="h-full w-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.055),transparent_58%)] px-2 pb-28 pt-16 sm:px-20 sm:pb-36 sm:pt-20">
             <div className="relative h-full w-full">
               {images.length > 0 ? (
-                images.map((image, index) => (
-                  <Image
-                    key={`${image}-${index}`}
-                    src={getImageUrl(image)}
-                    alt={
-                      index === activeIdx
-                        ? `Knife image ${index + 1} of ${images.length}, fullscreen`
-                        : ''
-                    }
-                    aria-hidden={index !== activeIdx}
-                    fill
-                    loading="eager"
-                    sizes="100vw"
-                    className={cn(
-                      'object-contain',
-                      index === activeIdx
-                        ? 'z-10 opacity-100'
-                        : 'z-0 opacity-0',
-                    )}
-                    referrerPolicy="no-referrer"
-                  />
-                ))
+                isWebpageScreenshot(images[activeIdx] || '') ? (
+                  <div className="flex h-full min-w-0 flex-col gap-3">
+                    <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+                      <span>
+                        Webpage screenshot
+                        {screenshot
+                          ? ` · ${new Date(screenshot.capturedAt).toLocaleDateString()}`
+                          : ''}
+                      </span>
+                      <button
+                        className="underline"
+                        onClick={() => setOriginalSize(!originalSize)}
+                      >
+                        {originalSize ? 'Fit to width' : 'Original size'}
+                      </button>
+                      <a
+                        className="underline"
+                        href={getImageUrl(images[activeIdx])}
+                        download
+                      >
+                        Download PNG
+                      </a>
+                      {screenshot &&
+                        getSafeExternalUrl(screenshot.sourceUrl) && (
+                          <a
+                            className="underline"
+                            href={getSafeExternalUrl(screenshot.sourceUrl)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Source webpage
+                          </a>
+                        )}
+                    </div>
+                    <div
+                      key={`${images[activeIdx]}-${originalSize}`}
+                      className="min-h-0 flex-1 overflow-auto"
+                      tabIndex={0}
+                      role="region"
+                      aria-label="Scrollable webpage screenshot"
+                    >
+                      {/* The original must bypass thumbnail resizing to keep webpage text readable. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={getImageUrl(images[activeIdx])}
+                        alt="Full webpage screenshot"
+                        style={{
+                          width: originalSize
+                            ? screenshot?.width || 1366
+                            : '100%',
+                          maxWidth: 'none',
+                          height: 'auto',
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  images
+                    .filter((image) => !isWebpageScreenshot(image))
+                    .map((image, index) => (
+                      <Image
+                        key={`${image}-${index}`}
+                        src={getImageUrl(image)}
+                        alt={
+                          index === activeIdx
+                            ? `Knife image ${index + 1} of ${images.length}, fullscreen`
+                            : ''
+                        }
+                        aria-hidden={index !== activeIdx}
+                        fill
+                        loading="eager"
+                        sizes="100vw"
+                        className={cn(
+                          'object-contain',
+                          index === activeIdx
+                            ? 'z-10 opacity-100'
+                            : 'z-0 opacity-0',
+                        )}
+                        referrerPolicy="no-referrer"
+                      />
+                    ))
+                )
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
                   <ImageIcon className="h-16 w-16 text-white/35" />

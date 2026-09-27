@@ -66,6 +66,7 @@ import {
   formatCloudBackupError,
   uploadCloudBackupArchive,
 } from '@/lib/cloud-backup-client'
+import { ScreenshotBackfill } from '@/components/screenshot-backfill'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -1424,6 +1425,7 @@ export default function SettingsView() {
             <div className="min-h-0 flex-1 overflow-y-auto bg-background p-4 sm:p-5">
               {activeTab === 'general' && (
                 <div className="mx-auto max-w-3xl space-y-3">
+                  <ScreenshotBackfill />
                   <SettingsSection>
                     <SettingsRow
                       label="Current data folder"

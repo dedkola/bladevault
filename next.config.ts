@@ -14,6 +14,14 @@ const nextConfig: NextConfig = {
     remotePatterns: [{ protocol: 'https', hostname: '**' }],
   },
   allowedDevOrigins: ['192.168.0.155'],
+  outputFileTracingIncludes: {
+    '/api/scrape': ['./node_modules/playwright-core/**/*'],
+    '/api/knives/*/screenshot': ['./node_modules/playwright-core/**/*'],
+    '/api/settings/webpage-screenshots': [
+      './node_modules/playwright-core/**/*',
+    ],
+    '/api/scrape/interactive/*': ['./node_modules/playwright-core/**/*'],
+  },
   serverExternalPackages: ['unzipper', 'yazl'],
   // Vercel supplies its own deployment adapter; standalone output is only
   // needed by BladeVault's self-hosted and desktop builds.
