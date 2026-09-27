@@ -2,11 +2,11 @@
 
   <img src="./public/logo.svg" alt="BladeVault logo" width="120" />
 
-  # BladeVault
+# BladeVault
 
-  **A sharp, local-first knife collection manager.**
+**A sharp, local-first knife collection manager.**
 
-  Catalog your knives, compare them side by side, and keep your collection data under your control.
+Catalog your knives, compare them side by side, and keep your collection data under your control.
 
   <p>
     <img src="https://img.shields.io/badge/Next.js-000000?logo=nextdotjs&logoColor=white&style=flat-square" alt="Next.js" />
@@ -29,49 +29,64 @@
 
 ---
 
+[Install](#choose-a-setup) · [Screenshots](#screenshots) · [MCP](#model-context-protocol-mcp) · [Backups](#local-backup-and-restore) · [Development](#run-from-source)
+
 ## What it does
 
-- Keep detailed knife records with specifications, pricing, provenance, notes, links, and a local image gallery.
-- Search, filter, pin, group, and bulk-edit your collection—including reusable custom text, number, and date fields.
-- Import product details from supported retailer URLs, with an interactive browser fallback for pages that need it.
-- Create any number of named comparisons under Compare in the sidebar. Add knives to one or several lists, rename or duplicate a shortlist, and remove items independently. Each table supports differences-only viewing, custom fields, and named PDF/print exports. Existing comparison selections migrate to My comparison. Saved comparisons travel with full-vault backups; editing a comparison does not trigger an automatic cloud backup.
-- See collection insights such as recent additions, maker distribution, and acquisition activity.
-- Connect local AI clients through MCP to search and analyze the collection, find missing data or duplicates, and apply optional audited metadata updates.
-- Run completely locally with SQLite, or opt into cloud backup when a BladeVault backup service is configured.
+- **Catalog:** Keep specifications, pricing, provenance, notes, links, and local photos for every knife. Import product details from supported retailer URLs, with an interactive browser fallback.
+- **Capture source pages:** Save a full-page screenshot with URL imports, view or download it later, retry failed captures, and backfill screenshots for older records. Captures are included in local and cloud backups.
+- **Organize:** Search, filter, pin, and bulk-edit records. Add custom text, number, and date fields, and choose which details appear on collection cards and in the pinned sidebar.
+- **Browse:** Save filters as Smart Collections that update with your records, or browse variants together in Model families. Global search supports model names and `/model A4301` for model numbers.
+- **Compare:** Create named shortlists, add a knife to several lists, show only differences, and print or export comparisons as PDF.
+- **Maintain:** Log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes and sharpening details. Review maintenance history and collection changes in Logs.
+- **Understand:** Explore makers, materials, dimensions, completeness, and activity through collection insights. Open chart details to inspect matching knives or print the Overview as a report.
+- **Connect:** Use MCP to search and analyze your collection from an AI client, with optional metadata updates and maintenance logging.
+- **Keep control:** Store your vault locally in SQLite, create portable ZIP backups, and optionally sign in for cloud backup.
+
+[Download the latest release](https://github.com/dedkola/bladevault/releases/latest) or browse the [full release history](https://github.com/dedkola/bladevault/releases).
+
+## Choose a setup
+
+| Option           | Best for                             | Start here                                                                           |
+| ---------------- | ------------------------------------ | ------------------------------------------------------------------------------------ |
+| Desktop app      | A native macOS or Windows experience | [Download the latest release](https://github.com/dedkola/bladevault/releases/latest) |
+| Docker or Podman | A self-hosted local instance         | [Run a container](#run-in-a-container)                                               |
+| Kubernetes       | k3s or another Kubernetes cluster    | [Install with Helm](#install-with-helm)                                              |
+| Source           | Development and customization        | [Run from source](#run-from-source)                                                  |
 
 ## Screenshots
 
 <div align="center">
+  <img src="assets/screenshots/collection.png" alt="BladeVault collection with Smart Collections, model-family browsing, and configurable knife cards" width="100%" />
+  <p><sub>Collection — organize knives, browse model families, and save filters</sub></p>
+</div>
 
-  <img src="assets/screenshots/insights.png" alt="BladeVault collection insights showing maker, material, dimension, and data completeness analytics" width="80%" />
+<details>
+<summary>More screenshots: insights, knife details, comparisons, and URL import</summary>
+
+<div align="center">
+
+  <img src="assets/screenshots/insights.png" alt="BladeVault collection insights showing maker, material, dimension, and data completeness analytics" width="100%" />
   <p><sub>Insights — patterns, dimensions, materials, and collection health</sub></p>
 
-  <img src="assets/screenshots/collection.png" alt="BladeVault collection showing search, filters, pinned knives, and image-rich records" width="80%" />
-  <p><sub>Collection — search, filter, pin, and browse every knife</sub></p>
-
-  <img src="assets/screenshots/detail.png" alt="Knife detail page with specifications and image gallery" width="80%" />
+  <img src="assets/screenshots/detail.png" alt="Knife detail page with specifications and image gallery" width="100%" />
   <p><sub>Knife detail — specifications, notes, and image gallery</sub></p>
 
-  <img src="assets/screenshots/compare.png" alt="Side-by-side knife comparison table" width="80%" />
-  <p><sub>Compare — the details that matter, side by side</sub></p>
+  <img src="assets/screenshots/compare.png" alt="Saved knife comparison list with specifications, differences-only viewing, and PDF export" width="100%" />
+  <p><sub>Compare — saved shortlists and specifications side by side</sub></p>
 
-  <img src="assets/screenshots/add.png" alt="Add knife page with URL import and manual entry options" width="80%" />
+  <img src="assets/screenshots/add.png" alt="Add knife page with URL import and manual entry options" width="100%" />
   <p><sub>Add knife — import a product URL or enter it yourself</sub></p>
 
 </div>
 
-## Choose a setup
-
-| Option | Best for | Start here |
-| --- | --- | --- |
-| Desktop app | A native macOS or Windows experience | [Download the latest release](https://github.com/dedkola/bladevault/releases/latest) |
-| Docker or Podman | A self-hosted local instance | [Run a container](#run-in-a-container) |
-| Kubernetes | k3s or another Kubernetes cluster | [Install with Helm](#install-with-helm) |
-| Source | Development and customization | [Run from source](#run-from-source) |
+</details>
 
 ## Run in a container
 
-The prebuilt image stores the database and downloaded images in `/app/data`. Mount a host folder to keep that data when the container is replaced.
+The prebuilt image stores the database and local images in `/app/data`. Mount a host folder to keep that data when the container is replaced.
+
+The examples use `:latest`, which follows successful builds of `main` and can include changes newer than the published release. For a specific release, use its version tag, such as `ghcr.io/dedkola/bladevault:v1.2.1`.
 
 ### Docker on macOS or Linux
 
@@ -114,13 +129,15 @@ docker run -d `
 
 ### Docker Compose
 
-The included Compose file builds this checkout and uses a named Docker volume:
+The included Compose file builds the source and uses a named Docker volume. From a new checkout:
 
 ```bash
+git clone https://github.com/dedkola/bladevault.git
+cd bladevault
 docker compose up -d --build
 ```
 
-It is available at [http://localhost:5500](http://localhost:5500). To stop it without deleting the persistent volume, run `docker compose down`.
+If you already have a checkout, run the Compose command from its root directory. Open [http://localhost:5500](http://localhost:5500). To stop it without deleting the persistent volume, run `docker compose down`.
 
 ### Build the image yourself
 
@@ -174,7 +191,7 @@ helm upgrade bladevault bladevault/bladevault --namespace bladevault --wait
 ```
 
 The chart version, displayed app version, and default image tag match the
-BladeVault release. For example, chart `0.2.46` installs image `v0.2.46`.
+BladeVault release. For example, chart `1.2.1` installs image `v1.2.1`.
 
 If you explicitly override `image.tag=latest`, recreate the pod after a new
 image is published because the mutable tag does not change the Deployment:
@@ -224,36 +241,49 @@ Download [BladeVault-Setup.exe](https://github.com/dedkola/bladevault/releases/l
 
 Windows SmartScreen may show a warning for an unsigned build. Choose **More info** → **Run anyway** only if you trust the release source.
 
+Check for updates in **Settings → About**. Download an available update, then select **Restart to update** to install it.
+
 ## Run from source
 
-**Prerequisites:** Node.js 24 LTS. The repository pins Node.js 24.20.0 for local development and CI. Install Chromium as well if you want to use URL import.
+**Prerequisites:** Node.js 24 LTS. The repository pins Node.js 24.21.0 in [`.nvmrc`](.nvmrc) for local development and CI. Install Chromium as well if you want to use URL import and webpage capture.
 
 ```bash
 git clone https://github.com/dedkola/bladevault.git
 cd bladevault
-npm install
+npm ci
 npx playwright install chromium
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
 
+### Production server
+
+Build the app, copy its public files and static assets into the standalone output, then start the generated server:
+
+```bash
+npm run build
+node -e "const fs = require('node:fs'); for (const dir of ['public', '.next/static']) fs.cpSync(dir, '.next/standalone/' + dir, { recursive: true });"
+node .next/standalone/server.js
+```
+
+Open [http://localhost:3000](http://localhost:3000). This project uses Next.js standalone output; use the generated server for production.
+
 ### Useful commands
 
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Start the Next.js development server. |
-| `npm run build` | Create a production build. |
-| `npm run start` | Serve the production build after `npm run build`. |
-| `npm run lint` | Run ESLint. |
-| `npm run format:check` | Check formatting with Prettier. |
-| `npm run test` | Run the unit and integration suite once. |
-| `npm run test:watch` | Run unit and integration tests in watch mode. |
-| `npm run test:e2e` | Build the web app and run Chromium smoke tests. |
-| `npm run test:e2e:ui` | Open Playwright's interactive test runner. |
-| `npm run desktop:dev` | Run the Electron desktop shell in development. |
-| `npm run desktop:smoke` | Build and smoke-test the desktop runtime. |
-| `npm run dist:desktop` | Package desktop installers without publishing them. |
+| Command                 | Purpose                                             |
+| ----------------------- | --------------------------------------------------- |
+| `npm run dev`           | Start the Next.js development server.               |
+| `npm run build`         | Create a production build.                          |
+| `npm run lint`          | Run ESLint.                                         |
+| `npm run format:check`  | Check formatting with Prettier.                     |
+| `npm run test`          | Run the unit and integration suite once.            |
+| `npm run test:watch`    | Run unit and integration tests in watch mode.       |
+| `npm run test:e2e`      | Build the web app and run Chromium smoke tests.     |
+| `npm run test:e2e:ui`   | Open Playwright's interactive test runner.          |
+| `npm run desktop:dev`   | Run the Electron desktop shell in development.      |
+| `npm run desktop:smoke` | Build and smoke-test the desktop runtime.           |
+| `npm run dist:desktop`  | Package desktop installers without publishing them. |
 
 ## Model Context Protocol (MCP)
 
@@ -261,30 +291,31 @@ BladeVault exposes its existing local collection to MCP clients such as LM
 Studio, Codex, Claude Desktop, and Cursor. No separate database or cloud account
 is required.
 
-| Tool | Ability | Access |
-| --- | --- | --- |
-| `search_knives` | Search text and exact BladeVault fields | Read-only |
-| `get_knife` | Retrieve one complete knife record | Read-only |
-| `get_collection_stats` | Summarize completeness, categories, measurements, and recent records | Read-only |
-| `find_missing_fields` | Find knives with missing built-in or custom fields | Read-only |
-| `find_duplicates` | Score possible duplicate records without merging or deleting | Read-only |
-| `propose_changes` | Validate suggested values without modifying the collection | Read-only |
-| `update_knife` | Apply a timestamp-checked metadata update to one knife | Write mode |
-| `bulk_update_knives` | Preview and atomically apply explicit multi-knife updates | Write mode |
-| `get_knife_maintenance` | Retrieve maintenance history for one knife | Read-only |
-| `add_maintenance_event` | Log a maintenance event for one knife | Write mode |
+| Tool                    | Ability                                                              | Access     |
+| ----------------------- | -------------------------------------------------------------------- | ---------- |
+| `search_knives`         | Search text and exact BladeVault fields                              | Read-only  |
+| `get_knife`             | Retrieve one complete knife record                                   | Read-only  |
+| `get_collection_stats`  | Summarize completeness, categories, measurements, and recent records | Read-only  |
+| `find_missing_fields`   | Find knives with missing built-in or custom fields                   | Read-only  |
+| `find_duplicates`       | Score possible duplicate records without merging or deleting         | Read-only  |
+| `propose_changes`       | Validate suggested values without modifying the collection           | Read-only  |
+| `update_knife`          | Apply a timestamp-checked metadata update to one knife               | Write mode |
+| `bulk_update_knives`    | Preview and atomically apply explicit multi-knife updates            | Write mode |
+| `get_knife_maintenance` | Retrieve maintenance history for one knife                           | Read-only  |
+| `add_maintenance_event` | Log a maintenance event for one knife                                | Write mode |
 
 Open **Settings → AI / MCP** to review activity, copy the local client
-configuration, enable or disable HTTP access, and allow or deny metadata
-writes. Write mode is off by default. Applied changes use optimistic locking
-and are recorded in `knife_change_log`; MCP cannot replace IDs, timestamps,
-images, or entire records.
+configuration, enable or disable HTTP access, and allow or deny write access. Write mode is off by default. Metadata updates require the expected
+record timestamp to prevent overwriting newer edits and are recorded in the
+change log. Maintenance writes append dated events to a knife's history. MCP
+cannot replace knife IDs, record timestamps, images, or entire records.
 
 ### Connect an MCP client
 
-Every URL-based connection uses the same configuration shape. Open
-**Settings → AI / MCP** through the address you want to use and select **Copy
-config**, or add the displayed URL and token manually:
+Client configuration formats differ. Open **Settings → AI / MCP** through the
+address you want to use and select **Copy config**, or copy the displayed URL
+and token into your client's settings. For clients that accept an `mcpServers`
+JSON configuration:
 
 ```json
 {
@@ -299,12 +330,12 @@ config**, or add the displayed URL and token manually:
 }
 ```
 
-| BladeVault runtime | MCP URL |
-| --- | --- |
-| Docker or Podman on the same computer | `http://localhost:5500/mcp` |
-| Unraid or another LAN server | `http://<SERVER_IP>:5500/mcp` |
-| macOS or Windows desktop app | `http://127.0.0.1:5501/mcp` |
-| Source checkout | `http://localhost:3000/mcp` |
+| BladeVault runtime                    | MCP URL                       |
+| ------------------------------------- | ----------------------------- |
+| Docker or Podman on the same computer | `http://localhost:5500/mcp`   |
+| Unraid or another LAN server          | `http://<SERVER_IP>:5500/mcp` |
+| macOS or Windows desktop app          | `http://127.0.0.1:5501/mcp`   |
+| Source checkout                       | `http://localhost:3000/mcp`   |
 
 Replace the example URL when needed and replace the token placeholder with the
 value shown in BladeVault Settings. The copy buttons work on plain HTTP LAN
@@ -330,11 +361,7 @@ an environment variable containing the raw token, not `Bearer` followed by the
 token itself. The `http_headers` example above matches BladeVault's copied
 client configuration directly.
 
-For Docker or Podman, start the included Compose setup with:
-
-```bash
-docker compose up -d --build
-```
+For container setup, see [Run in a container](#run-in-a-container).
 
 For Unraid, map host port `5500` to container port `3000`. Keep the desktop app
 running while its MCP connection is in use. If desktop port `5501` is busy,
@@ -356,23 +383,33 @@ corresponding app control.
 
 BladeVault is local-first: it works without an account or API key.
 
-| Runtime | Default data location |
-| --- | --- |
-| Source | `~/BladeVault/data` |
-| Docker or Podman | `/app/data` inside the container; mount it to a host folder for persistence |
-| Desktop development | `~/.bladevault-desktop-dev/data` |
+| Runtime                         | Default data location                                                       |
+| ------------------------------- | --------------------------------------------------------------------------- |
+| Source or installed desktop app | `~/BladeVault/data` (`%USERPROFILE%\BladeVault\data` on Windows)            |
+| Docker or Podman                | `/app/data` inside the container; mount it to a host folder for persistence |
+| Desktop development             | `~/.bladevault-desktop-dev/data`                                            |
 
-The data directory contains `bladevault.sqlite` and downloaded images. Back up the whole folder to preserve the collection.
+The data directory contains `bladevault.sqlite` and local images. **Settings → Local storage** shows the active folder.
 
-Set `BLADEVAULT_DATA_DIR` to choose a different directory for a source or container runtime. Existing installations that use the legacy repo-local `data/bladevault.sqlite` continue using it until the database is moved or `BLADEVAULT_DATA_DIR` is set.
+Set `BLADEVAULT_DATA_DIR` to choose a different directory for a source or container runtime. Without an explicit folder setting, BladeVault checks the default folder and legacy locations, including repo-local `data/bladevault.sqlite` and older macOS app folders, and uses the existing database with the most knives.
 
 The desktop app can also move its local data folder from Settings when the location is not managed by `BLADEVAULT_DATA_DIR`.
 
+### Local backup and restore
+
+Open **Settings → Backup & Restore → Download ZIP** to save a portable full-vault backup without a cloud account. The archive includes the database, collection settings, Smart Collections, saved comparisons, history, and local images.
+
+Use **Restore from local ZIP** in the same panel to validate an archive and review its contents before replacing the current vault. BladeVault creates a safety copy of the current data before restoring. The panel also offers **Print Report** to open the Overview for printing or saving as a PDF.
+
+Saved comparisons are included in full-vault backups, but changing a comparison list does not trigger an automatic cloud backup. When upgrading from before v1.2.0, the old comparison selection becomes **My comparison**.
+
+For a manual filesystem backup, stop BladeVault and copy the whole data folder so the database and images stay together.
+
 ## Optional cloud backup
 
-Cloud backup is opt-in and leaves local storage as the source of truth. When the app is configured with BladeVault authentication and backup service URLs, sign in from **Settings → Cloud Backup** to upload or restore a complete archive, including images. Automatic backups can run hourly and after collection changes.
+Cloud backup is opt-in and leaves local storage as the source of truth. BladeVault uses `https://auth.bladevault.pro` and `https://backup.bladevault.pro` by default. Sign in from **Settings → Cloud Backup** to upload or restore a complete archive, including images. Enable automatic backup to run hourly and after collection changes.
 
-Self-hosted deployments can omit those service URLs; the rest of BladeVault works entirely locally.
+Deployments can override the service endpoints with `NEXT_PUBLIC_BLADEVAULT_AUTH_URL` and `NEXT_PUBLIC_BLADEVAULT_BACKUP_URL`. Leaving them unset uses the built-in defaults. You can use the local vault and ZIP backups without signing in.
 
 ## License
 
@@ -381,14 +418,3 @@ BladeVault is released under the [MIT License](LICENSE).
 <div align="center">
   <sub>Built with precision for knife enthusiasts.</sub>
 </div>
-## Webpage screenshots
-
-URL imports automatically capture the rendered source webpage as a full-page PNG, selected by default as the last image. Interactive imports capture the browser after verification. Product photos stay first; the screenshot viewer supports scrolling, original size, downloading, and a dated source link.
-
-If a website blocks capture or is unavailable, importing product details can still succeed. The warning explains why the screenshot is missing. Open the saved item, choose **Edit**, and use **Capture webpage screenshot** in the Images section to retry, or **Replace webpage screenshot** to explicitly take a newer capture. A backfilled or replacement screenshot shows the website as it looks today.
-
-After upgrading an existing vault, **Settings → Local storage → Capture missing webpage screenshots** appears for older items with source URLs. Keep the panel open while it processes one page at a time. You can stop after the current item, leave and resume, retry failures, or skip unavailable pages. Progress survives restarts; the panel disappears when the backlog is complete. New installations do not have this bulk action. Restoring an older backup establishes its own backlog.
-
-Screenshots are stored with local images and included in local and cloud backups. Abandoned import previews expire after 24 hours and are cleaned on subsequent captures. Capture limits are 4,096 pixels wide, 30,000 pixels tall, 60 million pixels total, and 30 MB per PNG; oversized pages report an error instead of being silently cropped. Capture uses a 1,366-pixel desktop viewport. Pages requiring login, security verification, or unusual rendering may need interactive import or may be unavailable.
-
-Docker includes Chromium. Source installations need `npx playwright install chromium`. Desktop captures can fall back to installed Google Chrome or Microsoft Edge if Playwright's Chromium is unavailable. Screenshot failure does not prevent saving an item.
