@@ -405,6 +405,7 @@ async function collectImageFiles(
 
   const files: Array<{ absolutePath: string; archivePath: string }> = []
   for (const entry of entries) {
+    if (entry.name === '__webpage_drafts') continue
     if (shouldIgnoreEntry(entry.name)) continue
     const nextRelativePath = path.join(relativeDir, entry.name)
     const absolutePath = path.join(directory, nextRelativePath)

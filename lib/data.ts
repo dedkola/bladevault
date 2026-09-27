@@ -1,3 +1,4 @@
+import type { WebpageScreenshot } from '@/lib/webpage-screenshot-shared'
 export type Knife = {
   id: string
   name: string
@@ -5,6 +6,7 @@ export type Knife = {
   bladeStyle: string
   handleMaterial: string
   images: string[]
+  webpageScreenshot?: WebpageScreenshot
   specs: {
     weight: string
     overallLength: string

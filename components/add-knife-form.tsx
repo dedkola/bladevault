@@ -1,5 +1,7 @@
 'use client'
 
+import { screenshotsLast } from '@/lib/webpage-screenshot-shared'
+
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -130,7 +132,10 @@ export function AddKnifeForm() {
     field: K,
     value: KnifeFormData[K],
   ) => {
-    setForm((prev) => ({ ...prev, [field]: value }))
+    setForm((prev) => ({
+      ...prev,
+      [field]: field === 'images' ? screenshotsLast(value as string[]) : value,
+    }))
   }
 
   const addImageUrl = () => {
@@ -151,10 +156,10 @@ export function AddKnifeForm() {
 
     setForm((prev) => ({
       ...prev,
-      images: [
+      images: screenshotsLast([
         ...prev.images,
         ...dataUrls.filter((dataUrl) => !prev.images.includes(dataUrl)),
-      ],
+      ]),
     }))
     setSelectedImages((prev) => {
       const next = new Set(prev)
@@ -249,9 +254,12 @@ export function AddKnifeForm() {
     setShowPreview(true)
   }
 
+  const [screenshotWarning, setScreenshotWarning] = useState('')
+
   const handleScrape = async () => {
     if (!url.trim()) return
     setIsScraping(true)
+    setScreenshotWarning('')
     setScrapeError(null)
     setHasScraped(false)
     setScrapedHtml('')
@@ -267,6 +275,7 @@ export function AddKnifeForm() {
         error?: string
         product: ScrapedProduct
         html?: string
+        screenshotWarning?: string
         finalUrl?: string
       }>(response)
 
@@ -276,6 +285,7 @@ export function AddKnifeForm() {
         )
       }
 
+      setScreenshotWarning(data.screenshotWarning || '')
       applyScrapedProduct(
         data.product,
         typeof data.html === 'string' ? data.html : '',
@@ -358,6 +368,7 @@ export function AddKnifeForm() {
         error?: string
         product: ScrapedProduct
         html?: string
+        screenshotWarning?: string
         finalUrl?: string
       }>(response)
 
@@ -367,6 +378,7 @@ export function AddKnifeForm() {
         )
       }
 
+      setScreenshotWarning(data.screenshotWarning || '')
       applyScrapedProduct(
         data.product,
         typeof data.html === 'string' ? data.html : '',
@@ -485,6 +497,14 @@ export function AddKnifeForm() {
           </div>
         </div>
 
+        {screenshotWarning && (
+          <p
+            role="status"
+            className="text-sm text-amber-700 dark:text-amber-400"
+          >
+            Webpage screenshot unavailable: {screenshotWarning}
+          </p>
+        )}
         {scrapeError && (
           <div className="space-y-2">
             <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">

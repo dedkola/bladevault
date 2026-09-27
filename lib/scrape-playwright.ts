@@ -1,3 +1,5 @@
+import { getLocalDb } from '@/lib/local-db'
+import { tryCaptureWebpageScreenshot } from '@/lib/webpage-screenshot-capture'
 import { chromium } from 'playwright'
 import type { Browser, BrowserContext } from 'playwright'
 import { validateExternalUrl } from '@/lib/url-validation'
@@ -5,27 +7,21 @@ import { validateExternalUrl } from '@/lib/url-validation'
 export type RenderedPage = {
   html: string
   finalUrl: string
+  screenshot?: string
+  screenshotWarning?: string
 }
 
 type BrowserState = {
   browser: Browser
   context: BrowserContext
-  refs: number
 }
-
-let state: BrowserState | null = null
 
 function userAgent(): string {
   return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
 }
 
 async function acquireBrowser(): Promise<BrowserState> {
-  if (state) {
-    state.refs += 1
-    return state
-  }
-
-  const browser = await chromium.launch({
+  const launchOptions = {
     headless: true,
     args: [
       '--no-sandbox',
@@ -35,6 +31,13 @@ async function acquireBrowser(): Promise<BrowserState> {
       '--disable-gpu',
       '--disable-blink-features=AutomationControlled',
     ],
+  }
+  // Desktop installs may use an installed browser when bundled Chromium is absent.
+  const browser = await chromium.launch(launchOptions).catch(async (error) => {
+    if (process.env.BLADEVAULT_DESKTOP_RUNTIME !== '1') throw error
+    return chromium
+      .launch({ ...launchOptions, channel: 'chrome' })
+      .catch(() => chromium.launch({ ...launchOptions, channel: 'msedge' }))
   })
 
   const context = await browser.newContext({
@@ -43,17 +46,9 @@ async function acquireBrowser(): Promise<BrowserState> {
     screen: { width: 1366, height: 768 },
     locale: 'en-US',
     timezoneId: 'America/New_York',
-    extraHTTPHeaders: {
-      Accept:
-        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.9',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Upgrade-Insecure-Requests': '1',
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Site': 'none',
-      'Sec-Fetch-User': '?1',
-    },
+    serviceWorkers: 'block',
+    // Let Chromium choose Accept and Sec-Fetch headers for each resource type.
+    extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
   })
 
   await context.addInitScript(() => {
@@ -75,29 +70,14 @@ async function acquireBrowser(): Promise<BrowserState> {
     delete w.__pw_manual
   })
 
-  state = { browser, context, refs: 1 }
-
-  browser.on('disconnected', () => {
-    state = null
-  })
-
-  return state
-}
-
-async function releaseBrowser(): Promise<void> {
-  if (!state) return
-  state.refs -= 1
-  if (state.refs <= 0) {
-    const { browser } = state
-    state = null
-    await browser.close().catch(() => {
-      // ignore close errors
-    })
-  }
+  return { browser, context }
 }
 
 export async function fetchRenderedHtml(url: string): Promise<RenderedPage> {
-  const { context } = await acquireBrowser()
+  const database = getLocalDb()
+  const validation = await validateExternalUrl(url)
+  if (!validation.ok) throw new Error(validation.reason)
+  const { browser, context } = await acquireBrowser()
   const page = await context.newPage()
 
   try {
@@ -106,7 +86,7 @@ export async function fetchRenderedHtml(url: string): Promise<RenderedPage> {
     // "domcontentloaded" and wait for the primary product heading instead.
     await page.route('**/*', async (route) => {
       const type = route.request().resourceType()
-      if (['image', 'font', 'media', 'stylesheet'].includes(type)) {
+      if (['media'].includes(type)) {
         await route.abort()
         return
       }
@@ -120,10 +100,13 @@ export async function fetchRenderedHtml(url: string): Promise<RenderedPage> {
       await route.continue()
     })
 
-    await page.goto(url, {
+    const response = await page.goto(url, {
       waitUntil: 'domcontentloaded',
       timeout: 60000,
     })
+
+    if (response && !response.ok())
+      throw new Error(`Website returned HTTP ${response.status()}`)
 
     // Wait for any meaningful page element before assuming content is present.
     await page
@@ -163,11 +146,20 @@ export async function fetchRenderedHtml(url: string): Promise<RenderedPage> {
       }
     }
 
-    return { html, finalUrl }
+    if (getLocalDb() !== database)
+      return {
+        html,
+        finalUrl,
+        screenshotWarning:
+          'The active vault changed during scraping. Please retry.',
+      }
+    const capture = await tryCaptureWebpageScreenshot(page)
+    return { html, finalUrl, ...capture }
   } finally {
     await page.close().catch(() => {
       // ignore close errors
     })
-    await releaseBrowser()
+    await context.close().catch(() => {})
+    await browser.close().catch(() => {})
   }
 }

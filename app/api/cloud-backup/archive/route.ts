@@ -15,7 +15,12 @@ import { closeLocalDb, getLocalDataDirPath } from '@/lib/local-db'
 import { replaceLocalDataFromDirectory } from '@/lib/local-data-restore'
 
 function shouldIgnoreBackupEntry(name: string): boolean {
-  return name === '.DS_Store' || name === '__MACOSX' || name.startsWith('._')
+  return (
+    name === '__webpage_drafts' ||
+    name === '.DS_Store' ||
+    name === '__MACOSX' ||
+    name.startsWith('._')
+  )
 }
 
 function isTarGzipFile(buffer: Buffer): boolean {

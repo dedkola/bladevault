@@ -1,5 +1,10 @@
 'use client'
 
+import {
+  isWebpageScreenshot,
+  screenshotsLast,
+} from '@/lib/webpage-screenshot-shared'
+
 import { useId, useRef, useState } from 'react'
 import Image from 'next/image'
 import {
@@ -25,6 +30,7 @@ import { escapeHtmlAttribute, getSafeExternalUrl } from '@/lib/external-url'
 import { ScrapedProduct } from '@/lib/scrape'
 import { CustomField, CustomFieldType } from '@/lib/settings-shared'
 import { PageHeader, BreadcrumbItemData } from '@/components/page-header'
+import { WebpageScreenshotAction } from '@/components/webpage-screenshot-action'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -196,6 +202,7 @@ type KnifeFormFieldsProps = {
   selectAllImages: () => void
   deselectAllImages: () => void
   removeImage: (index: number) => void
+  imageActions?: React.ReactNode
 }
 
 function inputTypeForCustomField(type: CustomFieldType): string {
@@ -253,6 +260,7 @@ export function KnifeFormFields({
   selectAllImages,
   deselectAllImages,
   removeImage,
+  imageActions,
 }: KnifeFormFieldsProps) {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const formId = useId()
@@ -265,7 +273,13 @@ export function KnifeFormFields({
 
   const reorderImage = (index: number, direction: -1 | 1) => {
     const newIndex = index + direction
-    if (newIndex < 0 || newIndex >= form.images.length) return
+    if (
+      newIndex < 0 ||
+      newIndex >= form.images.length ||
+      isWebpageScreenshot(form.images[index]) ||
+      isWebpageScreenshot(form.images[newIndex])
+    )
+      return
 
     const reordered = [...form.images]
     const [moved] = reordered.splice(index, 1)
@@ -274,7 +288,7 @@ export function KnifeFormFields({
   }
 
   const setFirstImage = (index: number) => {
-    if (index <= 0) return
+    if (index <= 0 || isWebpageScreenshot(form.images[index])) return
     const reordered = [
       form.images[index],
       ...form.images.filter((_, i) => i !== index),
@@ -404,7 +418,7 @@ export function KnifeFormFields({
 
       <FormSection title="Images">
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
               Image Library
               {form.images.length > 0 && (
@@ -413,25 +427,28 @@ export function KnifeFormFields({
                 </span>
               )}
             </div>
-            {form.images.length > 0 && (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={selectAllImages}
-                  className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  Select all
-                </button>
-                <span className="text-border">|</span>
-                <button
-                  type="button"
-                  onClick={deselectAllImages}
-                  className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  Deselect all
-                </button>
-              </div>
-            )}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {imageActions}
+              {form.images.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={selectAllImages}
+                    className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Select all
+                  </button>
+                  <span className="text-border">|</span>
+                  <button
+                    type="button"
+                    onClick={deselectAllImages}
+                    className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Deselect all
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-col gap-2 rounded-lg border border-[var(--bladevault-line)]/70 bg-[color:var(--bladevault-surface-soft)]/45 p-2 sm:flex-row">
@@ -527,7 +544,8 @@ export function KnifeFormFields({
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
               {form.images.map((src, index) => {
                 const isSelected = selectedImages.has(src)
-                const isFirst = index === 0
+                const isScreenshot = isWebpageScreenshot(src)
+                const isFirst = index === 0 && !isScreenshot
                 return (
                   <div
                     key={`${src}-${index}`}
@@ -540,7 +558,11 @@ export function KnifeFormFields({
                   >
                     <Image
                       src={getImageUrl(src)}
-                      alt={`Scraped image ${index + 1}`}
+                      alt={
+                        isScreenshot
+                          ? 'Webpage screenshot'
+                          : `Scraped image ${index + 1}`
+                      }
                       fill
                       sizes="(max-width: 640px) 33vw, 25vw"
                       className="object-cover"
@@ -567,6 +589,11 @@ export function KnifeFormFields({
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
+                    {isScreenshot && (
+                      <span className="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-1 text-center text-[10px] text-white">
+                        Webpage screenshot
+                      </span>
+                    )}
                     {isFirst && (
                       <div className="absolute top-1 left-1/2 z-10 -translate-x-1/2 rounded bg-emerald-500 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-white">
                         Cover
@@ -579,14 +606,14 @@ export function KnifeFormFields({
                           e.stopPropagation()
                           reorderImage(index, -1)
                         }}
-                        disabled={index === 0}
+                        disabled={index === 0 || isScreenshot}
                         className="rounded-full bg-white/90 p-1 text-foreground transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-2 disabled:opacity-30 disabled:hover:bg-white/90"
                         aria-label="Move image earlier"
                         title="Move earlier"
                       >
                         <ChevronLeft className="h-3.5 w-3.5" />
                       </button>
-                      {!isFirst && (
+                      {!isFirst && !isScreenshot && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -606,7 +633,11 @@ export function KnifeFormFields({
                           e.stopPropagation()
                           reorderImage(index, 1)
                         }}
-                        disabled={index === form.images.length - 1}
+                        disabled={
+                          index === form.images.length - 1 ||
+                          isScreenshot ||
+                          isWebpageScreenshot(form.images[index + 1] || '')
+                        }
                         className="rounded-full bg-white/90 p-1 text-foreground transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-2 disabled:opacity-30 disabled:hover:bg-white/90"
                         aria-label="Move image later"
                         title="Move later"
@@ -653,6 +684,8 @@ type KnifeScrapeEditorProps = {
   isSaving?: boolean
   saveError?: string | null
   actions?: React.ReactNode
+  screenshotKnife?: Knife
+  onScreenshotCaptured?: (knife: Knife) => void
 }
 
 function getKnifeFormSnapshot(
@@ -677,6 +710,8 @@ export function KnifeScrapeEditor({
   isSaving = false,
   saveError = null,
   actions,
+  screenshotKnife,
+  onScreenshotCaptured,
 }: KnifeScrapeEditorProps) {
   const editorId = useId()
   const [form, setForm] = useState<KnifeFormData>(initialData)
@@ -710,7 +745,10 @@ export function KnifeScrapeEditor({
     field: K,
     value: KnifeFormData[K],
   ) => {
-    setForm((prev) => ({ ...prev, [field]: value }))
+    setForm((prev) => ({
+      ...prev,
+      [field]: field === 'images' ? screenshotsLast(value as string[]) : value,
+    }))
   }
 
   const addImageUrl = () => {
@@ -731,10 +769,10 @@ export function KnifeScrapeEditor({
 
     setForm((prev) => ({
       ...prev,
-      images: [
+      images: screenshotsLast([
         ...prev.images,
         ...dataUrls.filter((dataUrl) => !prev.images.includes(dataUrl)),
-      ],
+      ]),
     }))
     setSelectedImages((prev) => {
       const next = new Set(prev)
@@ -827,7 +865,21 @@ export function KnifeScrapeEditor({
   }
 
   const applyScrapedImages = (product: ScrapedProduct) => {
-    const newImages = Array.isArray(product.images) ? product.images : []
+    const existingScreenshot = form.images.find(isWebpageScreenshot)
+    const scrapedImages = Array.isArray(product.images) ? product.images : []
+    const replace =
+      existingScreenshot && scrapedImages.some(isWebpageScreenshot)
+        ? window.confirm(
+            'Replace the saved webpage screenshot with this new capture?',
+          )
+        : false
+    const newImages =
+      existingScreenshot && !replace
+        ? [
+            ...scrapedImages.filter((image) => !isWebpageScreenshot(image)),
+            existingScreenshot,
+          ]
+        : screenshotsLast(scrapedImages)
     setForm((prev) => ({
       ...prev,
       images: newImages,
@@ -835,9 +887,12 @@ export function KnifeScrapeEditor({
     setSelectedImages(new Set(newImages))
   }
 
+  const [screenshotWarning, setScreenshotWarning] = useState('')
+
   const handleScrape = async () => {
     if (!url.trim()) return
     setIsScraping(true)
+    setScreenshotWarning('')
     setScrapeError(null)
     setHasScraped(false)
     setScrapedHtml('')
@@ -853,6 +908,7 @@ export function KnifeScrapeEditor({
         error?: string
         product: ScrapedProduct
         html?: string
+        screenshotWarning?: string
         finalUrl?: string
       }>(response)
 
@@ -862,6 +918,7 @@ export function KnifeScrapeEditor({
         )
       }
 
+      setScreenshotWarning(data.screenshotWarning || '')
       const product = data.product
       setLastScrapedProduct(product)
 
@@ -886,6 +943,27 @@ export function KnifeScrapeEditor({
   const handleSave = async () => {
     if (!form.name.trim()) return
     await onSave(form, selectedImages)
+  }
+
+  const handleScreenshotCaptured = (updatedKnife: Knife) => {
+    const screenshotPath = updatedKnife.webpageScreenshot?.path
+    if (!screenshotPath) return
+
+    setForm((previous) => ({
+      ...previous,
+      images: screenshotsLast([
+        ...previous.images.filter((image) => !isWebpageScreenshot(image)),
+        screenshotPath,
+      ]),
+    }))
+    setSelectedImages((previous) => {
+      const next = new Set(
+        Array.from(previous).filter((image) => !isWebpageScreenshot(image)),
+      )
+      next.add(screenshotPath)
+      return next
+    })
+    onScreenshotCaptured?.(updatedKnife)
   }
 
   const canSave = form.name.trim().length > 0
@@ -954,6 +1032,14 @@ export function KnifeScrapeEditor({
               </div>
             </div>
 
+            {screenshotWarning && (
+              <p
+                role="status"
+                className="text-sm text-amber-700 dark:text-amber-400"
+              >
+                Webpage screenshot unavailable: {screenshotWarning}
+              </p>
+            )}
             {scrapeError && (
               <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
@@ -1029,6 +1115,14 @@ export function KnifeScrapeEditor({
                 selectAllImages={selectAllImages}
                 deselectAllImages={deselectAllImages}
                 removeImage={removeImage}
+                imageActions={
+                  mode === 'edit' && screenshotKnife ? (
+                    <WebpageScreenshotAction
+                      knife={screenshotKnife}
+                      onCaptured={handleScreenshotCaptured}
+                    />
+                  ) : undefined
+                }
               />
             </div>
 

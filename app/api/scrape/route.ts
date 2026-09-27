@@ -20,12 +20,16 @@ export async function POST(request: Request) {
 
     let html: string
     let finalUrl: string
+    let screenshot: string | undefined
+    let screenshotWarning: string | undefined
 
     try {
       const { fetchRenderedHtml } = await import('@/lib/scrape-playwright')
       const rendered = await fetchRenderedHtml(normalizedUrl)
       html = rendered.html
       finalUrl = rendered.finalUrl
+      screenshot = rendered.screenshot
+      screenshotWarning = rendered.screenshotWarning
     } catch (renderError) {
       // Playwright can time out on pages with heavy/never-ending network activity.
       // Many Shopify stores still render the product HTML server-side, so fall
@@ -44,12 +48,15 @@ export async function POST(request: Request) {
         throw renderError
       }
 
+      screenshotWarning =
+        'Product details were imported using the HTML fallback. A webpage screenshot could not be captured; you can retry from the saved item.'
       html = await response.text()
       finalUrl = response.url
     }
 
     const result = await scrapeAndEnrichProduct(html, finalUrl, normalizedUrl)
-    return NextResponse.json(result)
+    if (screenshot) result.product.images.push(screenshot)
+    return NextResponse.json({ ...result, screenshotWarning })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
