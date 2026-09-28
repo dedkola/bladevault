@@ -11,7 +11,11 @@ import { InsightDetailShell } from '@/components/insight-pages/insight-detail-sh
 import { LibraryDetail } from '@/components/insight-pages/library-detail'
 import { MeasurementDetail } from '@/components/insight-pages/measurement-detail'
 import { RecentDetail } from '@/components/insight-pages/recent-detail'
-import { getHorizontalBarOption } from '@/components/collection-insights'
+import {
+  getHorizontalBarOption,
+  getLockTypeOption,
+  getMakerOption,
+} from '@/components/collection-insights'
 import type { InsightsChartPalette } from '@/components/insights-chart'
 import type { Knife } from '@/lib/data'
 import {
@@ -129,6 +133,45 @@ describe('InsightDetailShell', () => {
 })
 
 describe('CategoryDetail', () => {
+  it('renders compact overview tooltips above cards without executing HTML', () => {
+    const categories = [
+      {
+        name: '<img src=x onerror="window.__bladevaultXss=1">',
+        count: 64,
+        percent: 38,
+        knifeIds: ['knife'],
+      },
+    ]
+    const options = [
+      {
+        option: getMakerOption(categories, 1, chartPalette),
+        expected: `${categories[0].name}: 64 (38%)`,
+      },
+      {
+        option: getLockTypeOption(categories, 1, chartPalette),
+        expected: `${categories[0].name}: 64 knives (38%)`,
+      },
+    ]
+
+    for (const { option, expected } of options) {
+      expect(option.tooltip).toMatchObject({
+        renderMode: 'html',
+        appendTo: '#insights-chart-tooltip-portal',
+        confine: false,
+      })
+
+      const formatter = (
+        option.tooltip as {
+          formatter: (params: { dataIndex: number }) => HTMLElement
+        }
+      ).formatter
+      const content = formatter({ dataIndex: 0 })
+      expect(content).toBeInstanceOf(HTMLElement)
+      expect(content.textContent).toBe(expected)
+      expect(content.querySelector('img')).toBeNull()
+    }
+  })
+
   it('uses non-HTML tooltips for persisted category names', () => {
     const option = getHorizontalBarOption(
       [
