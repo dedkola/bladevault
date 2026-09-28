@@ -162,6 +162,39 @@ function getTooltipAppearance(palette: InsightsChartPalette) {
   }
 }
 
+function getOverlayTooltipAppearance(palette: InsightsChartPalette) {
+  return {
+    renderMode: 'html' as const,
+    appendTo: '#insights-chart-tooltip-portal',
+    confine: false,
+    backgroundColor: palette.card,
+    borderColor: palette.gold,
+    borderWidth: 1,
+    textStyle: { color: palette.foreground, fontSize: 11 },
+    extraCssText:
+      'z-index: 9999999; border-radius: 8px; box-shadow: 0 8px 24px rgba(46, 52, 23, 0.16); pointer-events: none;',
+  }
+}
+
+function getCategoryTooltipFormatter(
+  categories: CategoryStat[],
+  countLabel = '',
+) {
+  return (params: unknown) => {
+    const item = Array.isArray(params) ? params[0] : params
+    const index =
+      typeof item === 'object' && item && 'dataIndex' in item
+        ? Number(item.dataIndex)
+        : -1
+    const category = categories[index]
+    if (!category) return ''
+
+    const content = document.createElement('span')
+    content.textContent = `${category.name}: ${category.count}${countLabel} (${category.percent}%)`
+    return content
+  }
+}
+
 function getPieEmphasis(palette: InsightsChartPalette) {
   return {
     itemStyle: {
@@ -222,7 +255,7 @@ export function getLibraryOption(
   }
 }
 
-function getMakerOption(
+export function getMakerOption(
   categories: CategoryStat[],
   makerCount: number,
   palette: InsightsChartPalette,
@@ -232,8 +265,8 @@ function getMakerOption(
     color: getChartColors(palette),
     tooltip: {
       trigger: 'item',
-      formatter: '{b}: {c} ({d}%)',
-      ...getTooltipAppearance(palette),
+      formatter: getCategoryTooltipFormatter(categories),
+      ...getOverlayTooltipAppearance(palette),
     },
     series: [
       {
@@ -263,7 +296,7 @@ function getMakerOption(
   }
 }
 
-function getLockTypeOption(
+export function getLockTypeOption(
   categories: CategoryStat[],
   lockTypeCount: number,
   palette: InsightsChartPalette,
@@ -273,8 +306,8 @@ function getLockTypeOption(
     color: getChartColors(palette),
     tooltip: {
       trigger: 'item',
-      formatter: '{b}: {c} knives ({d}%)',
-      ...getTooltipAppearance(palette),
+      formatter: getCategoryTooltipFormatter(categories, ' knives'),
+      ...getOverlayTooltipAppearance(palette),
     },
     series: [
       {
@@ -1049,6 +1082,11 @@ export function CollectionInsights() {
 
   return (
     <div className="w-full flex-1 p-6 print:p-0 lg:p-8">
+      <div
+        id="insights-chart-tooltip-portal"
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-[9999999] overflow-hidden print:hidden"
+      />
       <PageHeader title="Collection Insights" />
 
       {stats.total === 0 ? (

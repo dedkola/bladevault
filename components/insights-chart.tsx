@@ -80,9 +80,12 @@ export function InsightsChart({
     let themeObserver: MutationObserver | undefined
     let cancelled = false
 
+    const hideTooltip = () => chart?.dispatchAction({ type: 'hideTip' })
     const updateOption = () => {
       chart?.setOption(buildOptionRef.current(getPalette()), true)
     }
+
+    window.addEventListener('resize', hideTooltip)
 
     void import('@/lib/echarts-client').then((echarts) => {
       if (!chartRef.current || cancelled) return
@@ -105,7 +108,10 @@ export function InsightsChart({
         areaClickHandlerRef.current({ dataIndex })
       })
 
-      resizeObserver = new ResizeObserver(() => chart?.resize())
+      resizeObserver = new ResizeObserver(() => {
+        hideTooltip()
+        chart?.resize()
+      })
       resizeObserver.observe(chartRef.current)
 
       themeObserver = new MutationObserver(updateOption)
@@ -117,6 +123,7 @@ export function InsightsChart({
 
     return () => {
       cancelled = true
+      window.removeEventListener('resize', hideTooltip)
       resizeObserver?.disconnect()
       themeObserver?.disconnect()
       chart?.dispose()
