@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 import { getStorage } from '@/lib/storage'
+import { dockerJsonResponse } from '@/lib/server-json-response'
 
-export async function GET() {
+export async function GET(request = new Request('http://localhost/api/logs')) {
   try {
     const events = await getStorage().getAuditLog()
-    return NextResponse.json(
+    return await dockerJsonResponse(
+      request,
       { events },
       { headers: { 'Cache-Control': 'private, no-store' } },
     )

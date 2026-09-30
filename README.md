@@ -129,7 +129,8 @@ docker run -d `
 
 ### Docker Compose
 
-The included Compose file builds the source and uses a named Docker volume. From a new checkout:
+The included Compose file builds the source and uses named Docker volumes for
+the vault data and the bounded optimized-image cache. From a new checkout:
 
 ```bash
 git clone https://github.com/dedkola/bladevault.git

@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import fs from 'fs/promises'
 import path from 'path'
 import { clearStorageCache } from '@/lib/storage'
+import { clearDockerImageCache } from '@/lib/docker-image-cache'
 import {
   beginLocalRestore,
   closeLocalDb,
@@ -175,6 +176,7 @@ export async function replaceLocalDataFromDirectory(sourceDir: string) {
     await copyDirectoryContents(currentDataDir, safetyBackupDir, true)
     safetyBackupCreated = (await listDataEntries(safetyBackupDir)).length > 0
 
+    await clearDockerImageCache()
     try {
       await removeDirectoryContents(currentDataDir)
       await copyDirectoryContents(sourceDir, currentDataDir)

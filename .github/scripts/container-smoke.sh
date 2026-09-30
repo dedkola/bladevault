@@ -50,6 +50,8 @@ start_container() {
 
 start_container
 
+docker exec "$container_name" node -e "const config=require('./.next/required-server-files.json').config; if(process.env.BLADEVAULT_DOCKER_RUNTIME!=='1'||config.images.maximumDiskCacheSize!==500000000) process.exit(1)"
+
 initial_payload="$(curl --fail --silent --show-error "$base_url/api/knives")"
 node -e "const payload = JSON.parse(process.argv[1]); if (!Array.isArray(payload.knives) || payload.knives.length !== 0) process.exit(1)" "$initial_payload"
 

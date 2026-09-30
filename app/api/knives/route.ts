@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server'
 import { toKnifeListItem } from '@/lib/data'
 import { getStorage } from '@/lib/storage'
+import { dockerJsonResponse } from '@/lib/server-json-response'
 
-export async function GET() {
+export async function GET(
+  request = new Request('http://localhost/api/knives'),
+) {
   try {
     const storage = getStorage()
     const knives = (await storage.getAllKnives()).map(toKnifeListItem)
-    return NextResponse.json({ knives })
+    return await dockerJsonResponse(request, { knives })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })

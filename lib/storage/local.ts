@@ -37,6 +37,7 @@ import {
 } from '@/lib/data'
 import { normalizeKnifeTextFields } from '@/lib/knife-text'
 import { getLocalDb } from '@/lib/local-db'
+import { clearDockerImageCache } from '@/lib/docker-image-cache'
 import { fetchExternalUrl, validateExternalUrl } from '@/lib/url-validation'
 import {
   type BulkKnifeUpdateItem,
@@ -496,6 +497,7 @@ export class LocalStorage implements Storage {
 
     const filename = `image-${String(index + 1).padStart(2, '0')}.${ext}`
     const filePath = resolveLocalImagePath(`${knifeId}/${filename}`)
+    await clearDockerImageCache()
     await fs.writeFile(filePath, buffer)
 
     return `${knifeId}/${filename}`
@@ -520,6 +522,7 @@ export class LocalStorage implements Storage {
 
     const filename = `image-${String(index + 1).padStart(2, '0')}.${ext}`
     const filePath = resolveLocalImagePath(`${knifeId}/${filename}`)
+    await clearDockerImageCache()
     await fs.writeFile(filePath, buffer)
 
     return `${knifeId}/${filename}`

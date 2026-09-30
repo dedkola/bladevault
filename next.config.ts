@@ -8,9 +8,13 @@ const nextConfig: NextConfig = {
 
   images: {
     // The desktop server runs from the installed application directory. Keep
-    // Next's image optimizer in memory so runtime cache files never make that
-    // directory mutable or create Windows paths too long for NSIS upgrades.
+    // its image cache disabled so runtime files never make that directory
+    // mutable or create Windows paths too long for NSIS upgrades. Docker uses
+    // a bounded cache mounted outside the application image.
     maximumDiskCacheSize: 0,
+    ...(process.env.BLADEVAULT_DOCKER_RUNTIME === '1'
+      ? { maximumDiskCacheSize: 500_000_000 }
+      : {}),
     remotePatterns: [{ protocol: 'https', hostname: '**' }],
   },
   allowedDevOrigins: ['192.168.0.155'],
