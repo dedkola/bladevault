@@ -78,7 +78,9 @@ export function InsightsChart({
     let chart: ECharts | undefined
     let resizeObserver: ResizeObserver | undefined
     let themeObserver: MutationObserver | undefined
+    let visibilityObserver: IntersectionObserver | undefined
     let cancelled = false
+    let started = false
 
     const hideTooltip = () => chart?.dispatchAction({ type: 'hideTip' })
     const updateOption = () => {
@@ -87,43 +89,62 @@ export function InsightsChart({
 
     window.addEventListener('resize', hideTooltip)
 
-    void import('@/lib/echarts-client').then((echarts) => {
-      if (!chartRef.current || cancelled) return
-      chart = echarts.init(chartRef.current, undefined, { renderer: 'svg' })
-      chartInstanceRef.current = chart
-      updateOption()
-      chart.on('click', (event) => {
-        clickHandlerRef.current?.(event as InsightsChartClick)
-      })
-      chart.getZr().on('click', (event) => {
-        if (!chart || !areaClickHandlerRef.current) return
-        const point = [event.offsetX, event.offsetY]
-        if (!chart.containPixel({ gridIndex: 0 }, point)) return
-        const converted = chart.convertFromPixel({ gridIndex: 0 }, point)
-        const category = Array.isArray(converted)
-          ? converted[areaClickCategoryAxisRef.current === 'x' ? 0 : 1]
-          : converted
-        const dataIndex = Number(category)
-        if (!Number.isInteger(dataIndex)) return
-        areaClickHandlerRef.current({ dataIndex })
-      })
+    const start = () => {
+      if (started || cancelled) return
+      started = true
+      visibilityObserver?.disconnect()
 
-      resizeObserver = new ResizeObserver(() => {
-        hideTooltip()
-        chart?.resize()
-      })
-      resizeObserver.observe(chartRef.current)
+      void import('@/lib/echarts-client').then((echarts) => {
+        if (!chartRef.current || cancelled) return
+        chart = echarts.init(chartRef.current, undefined, { renderer: 'svg' })
+        chartInstanceRef.current = chart
+        updateOption()
+        chart.on('click', (event) => {
+          clickHandlerRef.current?.(event as InsightsChartClick)
+        })
+        chart.getZr().on('click', (event) => {
+          if (!chart || !areaClickHandlerRef.current) return
+          const point = [event.offsetX, event.offsetY]
+          if (!chart.containPixel({ gridIndex: 0 }, point)) return
+          const converted = chart.convertFromPixel({ gridIndex: 0 }, point)
+          const category = Array.isArray(converted)
+            ? converted[areaClickCategoryAxisRef.current === 'x' ? 0 : 1]
+            : converted
+          const dataIndex = Number(category)
+          if (!Number.isInteger(dataIndex)) return
+          areaClickHandlerRef.current({ dataIndex })
+        })
 
-      themeObserver = new MutationObserver(updateOption)
-      themeObserver.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ['class'],
+        resizeObserver = new ResizeObserver(() => {
+          hideTooltip()
+          chart?.resize()
+        })
+        resizeObserver.observe(chartRef.current)
+
+        themeObserver = new MutationObserver(updateOption)
+        themeObserver.observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ['class'],
+        })
       })
-    })
+    }
+
+    if (typeof IntersectionObserver === 'undefined') {
+      start()
+    } else if (chartRef.current) {
+      visibilityObserver = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) start()
+        },
+        { rootMargin: '300px 0px' },
+      )
+      visibilityObserver.observe(chartRef.current)
+    }
 
     return () => {
       cancelled = true
       window.removeEventListener('resize', hideTooltip)
+      visibilityObserver?.disconnect()
       resizeObserver?.disconnect()
       themeObserver?.disconnect()
       chart?.dispose()

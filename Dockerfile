@@ -15,6 +15,8 @@ FROM mcr.microsoft.com/playwright:v1.63.0-noble AS builder
 
 WORKDIR /app
 
+ENV BLADEVAULT_DOCKER_RUNTIME=1
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
@@ -30,6 +32,7 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV BLADEVAULT_DATA_DIR=/app/data
+ENV BLADEVAULT_DOCKER_RUNTIME=1
 # Tell Playwright's interactive scraper to use a virtual display when no real
 # X server is available (e.g. inside Docker).
 ENV DISPLAY=:99
@@ -54,6 +57,7 @@ RUN apt-get update && \
 RUN rm -rf /usr/lib/node_modules/npm /usr/bin/npm /usr/bin/npx
 
 RUN mkdir -p /app/data
+RUN mkdir -p /app/.next/cache/images
 
 EXPOSE 3000
 
