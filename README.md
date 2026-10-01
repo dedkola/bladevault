@@ -86,7 +86,7 @@ Catalog your knives, compare them side by side, and keep your collection data un
 
 The prebuilt image stores the database and local images in `/app/data`. Mount a host folder to keep that data when the container is replaced.
 
-The examples use `:latest`, which follows successful builds of `main` and can include changes newer than the published release. For a specific release, use its version tag, such as `ghcr.io/dedkola/bladevault:v1.2.1`.
+The examples use `:latest`, which follows successful builds of `main` and can include changes newer than the published release. For a specific release, use its version tag, such as `ghcr.io/dedkola/bladevault:v1.3.1`.
 
 ### Docker on macOS or Linux
 
@@ -192,7 +192,7 @@ helm upgrade bladevault bladevault/bladevault --namespace bladevault --wait
 ```
 
 The chart version, displayed app version, and default image tag match the
-BladeVault release. For example, chart `1.2.1` installs image `v1.2.1`.
+BladeVault release. For example, chart `1.3.1` installs image `v1.3.1`.
 
 If you explicitly override `image.tag=latest`, recreate the pod after a new
 image is published because the mutable tag does not change the Deployment:
@@ -282,6 +282,8 @@ Open [http://localhost:3000](http://localhost:3000). This project uses Next.js s
 | `npm run test:watch`    | Run unit and integration tests in watch mode.       |
 | `npm run test:e2e`      | Build the web app and run Chromium smoke tests.     |
 | `npm run test:e2e:ui`   | Open Playwright's interactive test runner.          |
+| `npm run mcp:build`     | Build the MCP stdio entry point.                    |
+| `npm run mcp`           | Build and start the MCP stdio server.               |
 | `npm run desktop:dev`   | Run the Electron desktop shell in development.      |
 | `npm run desktop:smoke` | Build and smoke-test the desktop runtime.           |
 | `npm run dist:desktop`  | Package desktop installers without publishing them. |
@@ -379,6 +381,37 @@ HTTP connections.
 `MCP_ENABLED` and `MCP_WRITE_ENABLED` remain available for administrators who
 explicitly add deployment overrides. Setting either variable locks its
 corresponding app control.
+
+### Connect over stdio from source
+
+For clients that launch a local MCP process, build the stdio entry point from
+your source checkout:
+
+```bash
+npm run mcp:build
+```
+
+Configure your client to run the built entry point directly:
+
+```json
+{
+  "mcpServers": {
+    "bladevault": {
+      "command": "node",
+      "args": ["/absolute/path/to/bladevault/dist/mcp/bladevault.mjs", "mcp"],
+      "env": {
+        "BLADEVAULT_DATA_DIR": "/absolute/path/to/BladeVault/data"
+      }
+    }
+  }
+}
+```
+
+Replace both paths with your checkout and existing vault data folder. Use an
+absolute path to your Node.js 24 executable if your client cannot find `node`.
+The client starts the process, so the web or desktop app does not need to be
+running. Stdio uses the same local database and write-access settings and does
+not require an HTTP token. To start the stdio server manually, run `npm run mcp`.
 
 ## Your data
 
