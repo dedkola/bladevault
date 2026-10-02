@@ -1,3 +1,4 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import { captureInteractiveSession } from '@/lib/scrape-interactive'
 import { scrapeAndEnrichProduct } from '@/lib/scrape'
@@ -6,6 +7,9 @@ export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const locked = requireAppUnlock(_request)
+  if (locked) return locked
+
   try {
     const { id } = await params
     const { html, finalUrl, screenshot, screenshotWarning } =

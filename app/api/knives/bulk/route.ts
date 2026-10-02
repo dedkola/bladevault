@@ -1,3 +1,4 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import {
   type BulkEditFieldKey,
@@ -9,6 +10,9 @@ import { getSettings } from '@/lib/settings'
 import { getStorage } from '@/lib/storage'
 
 export async function PATCH(request: Request) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     const body = (await request.json()) as Record<string, unknown>
     const ids = Array.isArray(body.ids)

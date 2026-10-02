@@ -1,3 +1,4 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import { captureKnifeScreenshot } from '@/lib/webpage-screenshot-service'
 
@@ -7,6 +8,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     const { id } = await params
     const body = await request.json()

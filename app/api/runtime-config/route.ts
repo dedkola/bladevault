@@ -1,3 +1,4 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import {
   FALLBACK_CLOUD_AUTH_URL,
@@ -10,7 +11,10 @@ function readPublicEnv(
   return process.env[name]?.trim() || ''
 }
 
-export async function GET() {
+export async function GET(request = new Request('http://localhost')) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   return NextResponse.json(
     {
       authUrl:

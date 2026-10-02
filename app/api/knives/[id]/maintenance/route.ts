@@ -1,3 +1,4 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import {
   isMaintenanceType,
@@ -86,6 +87,9 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const locked = requireAppUnlock(_request)
+  if (locked) return locked
+
   try {
     const { id } = await params
     const result = await getKnifeMaintenance(id)
@@ -101,6 +105,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     const { id } = await params
     const body = await request.json()

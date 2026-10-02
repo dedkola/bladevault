@@ -429,6 +429,20 @@ Set `BLADEVAULT_DATA_DIR` to choose a different directory for a source or contai
 
 The desktop app can also move its local data folder from Settings when the location is not managed by `BLADEVAULT_DATA_DIR`.
 
+### Optional App lock
+
+Open **Settings → App lock** to set a password for the local vault. App lock is off by default and works offline in the desktop app and Docker. Once enabled, new browser sessions and desktop launches show a password screen. Reloading stays unlocked for the current session; restarting the server requires the password again. Use **Lock now**, **Change password**, or **Disable lock** in the same panel.
+
+This is a simple access lock. The password is stored as plain text in SQLite, and the collection is not encrypted. Full-vault backups include the lock setting; restoring one uses its password and clears existing unlock sessions. HTTP MCP clients need the existing MCP bearer token while App lock is enabled, including localhost clients. Local stdio MCP continues to use direct database access.
+
+If you forget the password, stop BladeVault or its container and open `bladevault.sqlite` in the active data folder using a SQLite editor. Run this statement, then restart and set a new password:
+
+```sql
+DELETE FROM settings WHERE key = 'app_lock_password';
+```
+
+You can also change that setting's value directly to choose a replacement password.
+
 ### Local backup and restore
 
 Open **Settings → Backup & Restore → Download ZIP** to save a portable full-vault backup without a cloud account. The archive includes the database, collection settings, Smart Collections, saved comparisons, history, and local images.

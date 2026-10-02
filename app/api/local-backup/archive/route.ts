@@ -1,3 +1,4 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { createReadStream, createWriteStream } from 'fs'
 import fs from 'fs/promises'
 import os from 'os'
@@ -557,7 +558,10 @@ function errorResponse(error: unknown) {
   )
 }
 
-export async function GET() {
+export async function GET(request = new Request('http://localhost')) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   const tempRoot = await fs.mkdtemp(
     path.join(os.tmpdir(), 'bladevault-local-backup-export-'),
   )
@@ -587,6 +591,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   const tempRoot = await fs.mkdtemp(
     path.join(os.tmpdir(), 'bladevault-local-backup-inspect-'),
   )
@@ -610,6 +617,9 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   const tempRoot = await fs.mkdtemp(
     path.join(os.tmpdir(), 'bladevault-local-backup-restore-'),
   )

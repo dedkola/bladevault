@@ -190,26 +190,28 @@ async function main() {
   try {
     const executablePath = await ensureElectronExecutable()
     console.log('Launching Electron smoke application...')
-    electronApp = await electron.launch({
-      args: [
-        '.',
-        ...(process.platform === 'win32'
-          ? ['--disable-gpu', '--disable-software-rasterizer']
-          : []),
-      ],
-      cwd: projectRoot,
-      executablePath,
-      env: {
-        ...process.env,
-        BLADEVAULT_DATA_DIR: dataDir,
-        BLADEVAULT_DESKTOP_PORT: '0',
-        BLADEVAULT_FORCE_PROD_SERVER: '1',
-        BLADEVAULT_SKIP_UPDATE_CHECK: '1',
-        NEXT_TELEMETRY_DISABLED: '1',
-      },
-      timeout: 120000,
-    })
+    const launch = () =>
+      electron.launch({
+        args: [
+          '.',
+          ...(process.platform === 'win32'
+            ? ['--disable-gpu', '--disable-software-rasterizer']
+            : []),
+        ],
+        cwd: projectRoot,
+        executablePath,
+        env: {
+          ...process.env,
+          BLADEVAULT_DATA_DIR: dataDir,
+          BLADEVAULT_DESKTOP_PORT: '0',
+          BLADEVAULT_FORCE_PROD_SERVER: '1',
+          BLADEVAULT_SKIP_UPDATE_CHECK: '1',
+          NEXT_TELEMETRY_DISABLED: '1',
+        },
+        timeout: 120000,
+      })
 
+    electronApp = await launch()
     let window = await electronApp.firstWindow({ timeout: 60000 })
     window.on('pageerror', (error) => pageErrors.push(error.message))
     await window.waitForLoadState('domcontentloaded')
@@ -359,10 +361,62 @@ async function main() {
       [{ name: 'Desktop comparison', ids: ['electron-smoke'] }],
     )
 
+    console.log('Checking App lock and authenticated desktop backup...')
+    const enableLock = await window.evaluate(async () => {
+      const response = await fetch('/api/app-lock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'set-password',
+          password: 'desktop-test',
+          confirmPassword: 'desktop-test',
+        }),
+      })
+      return response.status
+    })
+    assert.equal(enableLock, 200)
+
+    const lockedBackupPath = path.join(dataDir, 'desktop-lock-backup.zip')
+    await electronApp.evaluate(({ dialog }, filePath) => {
+      dialog.showSaveDialog = async () => ({ canceled: false, filePath })
+    }, lockedBackupPath)
+    assert.equal(
+      await window.evaluate(() =>
+        window.bladevaultDesktop.saveBackupFile('lock-backup.zip'),
+      ),
+      true,
+    )
+    assert.equal(fs.statSync(lockedBackupPath).size > 0, true)
+    fs.unlinkSync(lockedBackupPath)
+
+    console.log('Relaunching desktop with App lock enabled...')
+    await electronApp.close()
+    electronApp = await launch()
+    window = await electronApp.firstWindow({ timeout: 60000 })
+    window.on('pageerror', (error) => pageErrors.push(error.message))
+    await window.getByRole('heading', { name: 'Unlock BladeVault' }).waitFor()
+    assert.equal(
+      (
+        await window
+          .context()
+          .request.get(new URL('/api/knives', window.url()).toString())
+      ).status(),
+      401,
+    )
+    await window.getByLabel('Password', { exact: true }).fill('wrong')
+    await window.getByRole('button', { name: 'Unlock', exact: true }).click()
+    await window
+      .getByRole('alert')
+      .filter({ hasText: 'Incorrect password.' })
+      .waitFor()
+    await window.getByLabel('Password', { exact: true }).fill('desktop-test')
+    await window.getByRole('button', { name: 'Unlock', exact: true }).click()
+    await window.getByRole('heading', { name: 'Collection Insights' }).waitFor()
+
     assert.deepEqual(pageErrors, [])
 
     console.log(
-      'Desktop smoke passed: API, named comparisons, native SQLite, restore, reload, and preload boundary.',
+      'Desktop smoke passed: API, comparisons, SQLite, restore, reload, App lock restart/unlock, authenticated backup, and preload boundary.',
     )
   } finally {
     if (electronApp) {
@@ -390,6 +444,6 @@ async function main() {
 const run = process.argv.includes(smokeWorkerFlag) ? main : runSmokeWithRetries
 
 run().catch((error) => {
-  console.error(error instanceof Error ? error.message : error)
+  console.error(error instanceof Error ? error.stack : error)
   process.exit(1)
 })

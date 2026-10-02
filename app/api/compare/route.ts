@@ -1,3 +1,4 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import { getStorage } from '@/lib/storage'
 import {
@@ -5,7 +6,10 @@ import {
   mutateComparison,
 } from '@/lib/comparison-storage'
 
-export async function GET() {
+export async function GET(request = new Request('http://localhost')) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     const storage = getStorage()
     const compareIds = await storage.getCompareList()
@@ -17,6 +21,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     const body = await request.json()
     const requestedIds = Array.isArray(body.ids) ? body.ids : [body.id]
@@ -50,6 +57,9 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     let id: string | null = null
     try {

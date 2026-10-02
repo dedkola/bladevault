@@ -1,8 +1,12 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import { getStorage } from '@/lib/storage'
 import { dockerJsonResponse } from '@/lib/server-json-response'
 
 export async function GET(request = new Request('http://localhost/api/logs')) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     const events = await getStorage().getAuditLog()
     return await dockerJsonResponse(

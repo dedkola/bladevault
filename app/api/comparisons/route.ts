@@ -1,3 +1,4 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import { comparisonCommandSchema } from '@/lib/comparisons'
 import {
@@ -6,7 +7,9 @@ import {
   mutateComparison,
 } from '@/lib/comparison-storage'
 
-export function GET() {
+export function GET(request = new Request('http://localhost')) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
   try {
     return NextResponse.json({ lists: getComparisons() })
   } catch {
@@ -17,6 +20,9 @@ export function GET() {
   }
 }
 export async function POST(request: Request) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   let body: unknown
   try {
     body = await request.json()

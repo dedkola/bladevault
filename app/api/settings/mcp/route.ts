@@ -1,3 +1,4 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { z } from 'zod/v4'
 import {
   getMcpRuntimeStatus,
@@ -19,7 +20,10 @@ const updateSchema = z
     { message: 'Provide an MCP setting to update.' },
   )
 
-export async function GET() {
+export async function GET(request = new Request('http://localhost')) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     return Response.json(
       { mcp: getMcpRuntimeStatus() },
@@ -33,6 +37,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   const parsed = updateSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) {
     return Response.json(
