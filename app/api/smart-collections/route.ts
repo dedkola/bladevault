@@ -1,3 +1,4 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { collectionQuery, rangeError } from '@/lib/smart-collections'
@@ -12,7 +13,10 @@ const inputSchema = z.object({
   name: z.string().trim().min(1).max(80),
   query: z.string().max(16000),
 })
-export async function GET() {
+export async function GET(request = new Request('http://localhost')) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     return NextResponse.json({ collections: getSmartCollections() })
   } catch {
@@ -23,6 +27,9 @@ export async function GET() {
   }
 }
 export async function POST(request: Request) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   const parsed = inputSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success)
     return NextResponse.json(
@@ -57,6 +64,9 @@ export async function POST(request: Request) {
   }
 }
 export async function DELETE(request: Request) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   const parsed = z
     .object({ id: z.string().uuid() })
     .safeParse(await request.json().catch(() => null))

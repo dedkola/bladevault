@@ -1,3 +1,4 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import {
   getDockerHostDataMountPath,
@@ -13,6 +14,9 @@ type UpdateLocalDataPathRequest = {
 }
 
 export async function POST(request: Request) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   if (!isDesktopRuntime()) {
     return NextResponse.json(
       {

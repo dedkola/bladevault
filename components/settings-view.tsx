@@ -67,6 +67,7 @@ import {
   uploadCloudBackupArchive,
 } from '@/lib/cloud-backup-client'
 import { ScreenshotBackfill } from '@/components/screenshot-backfill'
+import { AppLockSettings } from '@/components/app-lock-settings'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -97,6 +98,7 @@ type LocalBackupManifest = {
   imageCount: number
 }
 type SettingsTab =
+  | 'app-lock'
   | 'general'
   | 'cloud-backup'
   | 'restore-database'
@@ -363,7 +365,7 @@ function CardFieldsPreview({
 export default function SettingsView() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const requestedTab = ['cloud-backup', 'mcp'].includes(
+  const requestedTab = ['cloud-backup', 'mcp', 'app-lock'].includes(
     searchParams.get('tab') || '',
   )
     ? (searchParams.get('tab') as SettingsTab)
@@ -508,6 +510,7 @@ export default function SettingsView() {
   const tabs = useMemo(
     () => [
       { id: 'general' as const, label: 'Local storage', icon: Database },
+      { id: 'app-lock' as const, label: 'App lock', icon: Lock },
       { id: 'cloud-backup' as const, label: 'Cloud Backup', icon: Cloud },
       {
         id: 'restore-database' as const,
@@ -1423,6 +1426,7 @@ export default function SettingsView() {
           {/* Main content */}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
             <div className="min-h-0 flex-1 overflow-y-auto bg-background p-4 sm:p-5">
+              {activeTab === 'app-lock' && <AppLockSettings />}
               {activeTab === 'general' && (
                 <div className="mx-auto max-w-3xl space-y-3">
                   <ScreenshotBackfill />

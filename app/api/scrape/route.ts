@@ -1,8 +1,12 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import { scrapeAndEnrichProduct } from '@/lib/scrape'
 import { fetchExternalUrl, validateExternalUrl } from '@/lib/url-validation'
 
 export async function POST(request: Request) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     const body = await request.json()
     const url = typeof body.url === 'string' ? body.url.trim() : ''

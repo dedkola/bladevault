@@ -1,3 +1,4 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import { toKnifeListItem } from '@/lib/data'
 import { getStorage } from '@/lib/storage'
@@ -6,6 +7,9 @@ import { dockerJsonResponse } from '@/lib/server-json-response'
 export async function GET(
   request = new Request('http://localhost/api/knives'),
 ) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     const storage = getStorage()
     const knives = (await storage.getAllKnives()).map(toKnifeListItem)
@@ -17,6 +21,9 @@ export async function GET(
 }
 
 export async function POST(request: Request) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     const body = await request.json()
 

@@ -1,3 +1,4 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import {
   getConfiguredLocalDataDirPath,
@@ -9,7 +10,10 @@ import {
 } from '@/lib/local-db'
 import { AppSettings, getSettings, saveSettings } from '@/lib/settings'
 
-export async function GET() {
+export async function GET(request = new Request('http://localhost')) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     const settings = getSettings()
     const configuredLocalDataPath = getConfiguredLocalDataDirPath()
@@ -40,6 +44,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     const body = (await request.json()) as Partial<AppSettings>
     const settings = saveSettings(body)

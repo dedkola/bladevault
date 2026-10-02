@@ -11,6 +11,11 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { cn } from '@/lib/utils'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import { ThemeColorSync } from '@/components/theme-color-sync'
+import { cookies } from 'next/headers'
+import { isAppUnlocked } from '@/lib/app-lock'
+import { APP_LOCK_COOKIE } from '@/lib/app-lock-shared'
+import { AppUnlockForm } from '@/components/app-unlock-form'
+import { AppLockSession } from '@/components/app-lock-session'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-sans' })
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono' })
@@ -36,12 +41,13 @@ function getInitialTheme() {
   }
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   const theme = getInitialTheme()
+  const unlocked = isAppUnlocked((await cookies()).get(APP_LOCK_COOKIE)?.value)
 
   return (
     <html
@@ -56,21 +62,31 @@ export default function RootLayout({
     >
       <body className="bg-background text-foreground flex min-h-dvh w-full flex-col font-sans md:flex-row">
         <ThemeColorSync />
-        <KnivesProvider>
-          <SmartCollectionsProvider>
-            <TooltipProvider>
-              <Suspense>
-                <ComparisonsProvider>
-                  <SidebarShell />
-                  <main tabIndex={-1} className="flex min-w-0 flex-1 flex-col">
-                    {children}
-                  </main>
-                </ComparisonsProvider>
-              </Suspense>
-              <GlobalKnifeSearch />
-            </TooltipProvider>
-          </SmartCollectionsProvider>
-        </KnivesProvider>
+        {!unlocked ? (
+          <AppUnlockForm />
+        ) : (
+          <>
+            <AppLockSession />
+            <KnivesProvider>
+              <SmartCollectionsProvider>
+                <TooltipProvider>
+                  <Suspense>
+                    <ComparisonsProvider>
+                      <SidebarShell />
+                      <main
+                        tabIndex={-1}
+                        className="flex min-w-0 flex-1 flex-col"
+                      >
+                        {children}
+                      </main>
+                    </ComparisonsProvider>
+                  </Suspense>
+                  <GlobalKnifeSearch />
+                </TooltipProvider>
+              </SmartCollectionsProvider>
+            </KnivesProvider>
+          </>
+        )}
       </body>
     </html>
   )

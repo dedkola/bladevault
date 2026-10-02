@@ -3,6 +3,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import { clearStorageCache } from '@/lib/storage'
 import { clearDockerImageCache } from '@/lib/docker-image-cache'
+import { invalidateAppLockSessions, isAppLockEnabled } from '@/lib/app-lock'
 import {
   beginLocalRestore,
   closeLocalDb,
@@ -195,6 +196,8 @@ export async function replaceLocalDataFromDirectory(sourceDir: string) {
   } finally {
     endLocalRestore()
   }
+
+  if (isAppLockEnabled()) invalidateAppLockSessions()
 
   return {
     ok: true,

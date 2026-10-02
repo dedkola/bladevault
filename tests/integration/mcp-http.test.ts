@@ -7,6 +7,7 @@ import {
   updateMcpRuntimeSettings,
 } from '@/lib/mcp/config'
 import { getSettings, saveSettings } from '@/lib/settings'
+import { setAppLockPassword } from '@/lib/app-lock'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 const previous = {
@@ -71,6 +72,17 @@ function initializeRequest(
 }
 
 describe('MCP HTTP transport', () => {
+  it('requires the existing bearer token on localhost when App lock is enabled', async () => {
+    setAppLockPassword('test')
+    expect((await handleMcpHttpRequest(initializeRequest())).status).toBe(401)
+    expect(
+      (await handleMcpHttpRequest(initializeRequest('wrong'))).status,
+    ).toBe(401)
+    const token = getMcpRuntimeStatus().http.authToken
+    expect((await handleMcpHttpRequest(initializeRequest(token))).status).toBe(
+      200,
+    )
+  })
   it('persists access controls and turns writes off when MCP is disabled', () => {
     expect(getMcpRuntimeStatus()).toMatchObject({
       enabled: true,

@@ -1,3 +1,4 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import {
   MaintenanceEventUpdate,
@@ -98,6 +99,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string; eventId: string }> },
 ) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     const { id, eventId: eventIdParam } = await params
     const eventId = parseEventId(eventIdParam)
@@ -121,6 +125,9 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string; eventId: string }> },
 ) {
+  const locked = requireAppUnlock(_request)
+  if (locked) return locked
+
   try {
     const { id, eventId: eventIdParam } = await params
     const eventId = parseEventId(eventIdParam)

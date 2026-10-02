@@ -1112,13 +1112,24 @@ ipcMain.handle('bladevault:save-backup-file', async (_event, defaultName) => {
     return false
   }
 
-  if (!serverOrigin) {
+  if (!serverOrigin || !mainWindow || mainWindow.isDestroyed()) {
     throw new Error('BladeVault local server is not ready.')
   }
 
+  const unlockCookies = await mainWindow.webContents.session.cookies.get({
+    url: serverOrigin,
+    name: 'bladevault_unlock',
+  })
   const response = await fetch(
     new URL('/api/local-backup/archive', serverOrigin),
-    { cache: 'no-store' },
+    {
+      cache: 'no-store',
+      headers: {
+        Cookie: unlockCookies
+          .map(({ name, value }) => `${name}=${value}`)
+          .join('; '),
+      },
+    },
   )
   if (!response.ok || !response.body) {
     let details = ''

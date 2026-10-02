@@ -1,3 +1,4 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import { KnifeUpdates } from '@/lib/data'
 import { getStorage } from '@/lib/storage'
@@ -6,6 +7,9 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const locked = requireAppUnlock(_request)
+  if (locked) return locked
+
   try {
     const { id } = await params
     const knife = await getStorage().getKnifeById(id)
@@ -25,6 +29,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     const { id } = await params
     const body = await request.json()
@@ -109,6 +116,9 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const locked = requireAppUnlock(_request)
+  if (locked) return locked
+
   try {
     const { id } = await params
     const storage = getStorage()

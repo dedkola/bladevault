@@ -1,3 +1,4 @@
+import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import {
   getScreenshotBackfill,
@@ -7,7 +8,10 @@ import { getLocalDb } from '@/lib/local-db'
 
 export const runtime = 'nodejs'
 
-export async function GET() {
+export async function GET(request = new Request('http://localhost')) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     return NextResponse.json({ items: getScreenshotBackfill() })
   } catch (error) {
@@ -24,6 +28,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+
   try {
     const body = await request.json()
     if (typeof body.id !== 'string')

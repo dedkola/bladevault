@@ -3,6 +3,7 @@ import { createMcpHandler } from '@modelcontextprotocol/server'
 import { createBladeVaultMcpServer } from '@/lib/mcp/create-server'
 import { recordMcpHttpRequest } from '@/lib/mcp/activity'
 import { getMcpAuthToken, isMcpEnabled } from '@/lib/mcp/config'
+import { isAppLockEnabled } from '@/lib/app-lock'
 
 const handler = createMcpHandler(() => createBladeVaultMcpServer('http'), {
   onerror(error) {
@@ -91,7 +92,10 @@ export async function handleMcpHttpRequest(
   const isLocal = localHost(request)
 
   if (!allowedHost(request) && !authenticated) return unauthorized()
-  if ((auth.managedByEnvironment || !isLocal) && !authenticated) {
+  if (
+    (auth.managedByEnvironment || !isLocal || isAppLockEnabled()) &&
+    !authenticated
+  ) {
     return unauthorized()
   }
 
