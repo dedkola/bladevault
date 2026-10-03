@@ -22,6 +22,56 @@ describe('collection statistics', () => {
     expect(parseWeightToOunces('')).toBeUndefined()
   })
 
+  it.each([
+    ['.090 inches', 2.286],
+    ['.090"', 2.286],
+    [',090 in', 2.286],
+    ['-.090 in', -2.286],
+    ['.5 mm', 0.5],
+    ['.25 cm', 2.5],
+    ['1/8 in', 3.175],
+    ['3 1/2 in', 88.9],
+    ['-3 1/2 in', -88.9],
+  ])('interprets the complete length in %s', (value, millimeters) => {
+    expect(parseLengthToMillimeters(value)).toBeCloseTo(millimeters)
+    expect(parseLengthToInches(value)).toBeCloseTo(millimeters / 25.4)
+  })
+
+  it.each([
+    ['.5 oz', 0.5],
+    [',5 ounces', 0.5],
+    ['.1 kg', 3.527396195],
+    ['.5 lb', 8],
+    ['.5 grams', 0.0176369809748],
+    ['1/2 oz', 0.5],
+    ['1 1/2 oz', 1.5],
+  ])('interprets the complete weight in %s', (value, ounces) => {
+    expect(parseWeightToOunces(value)).toBeCloseTo(ounces)
+  })
+
+  it.each(['1/0 in', '1..25 in', '1e3 in', '3 inventory'])(
+    'does not turn unsupported length notation %s into a different number',
+    (value) => {
+      expect(parseLengthToInches(value)).toBeUndefined()
+      expect(parseLengthToMillimeters(value)).toBeUndefined()
+    },
+  )
+
+  it('bins a retailer thickness correctly without changing the source text', () => {
+    const knife = createKnife({
+      specs: { ...createKnife().specs, bladeThickness: '.090 inches' },
+    })
+    const measurement = createCollectionStats([knife], 'all').measurements
+      .bladeThickness
+
+    expect(measurement.min).toBeCloseTo(2.286)
+    expect(measurement.max).toBeCloseTo(2.286)
+    expect(measurement.bins.find(({ count }) => count === 1)?.label).toBe(
+      '2.25–2.5 mm',
+    )
+    expect(knife.specs.bladeThickness).toBe('.090 inches')
+  })
+
   it('filters entries by the selected addition period', () => {
     const knives = [
       createKnife({ id: 'old', addedAt: '2024-10-01T12:00:00.000Z' }),
