@@ -815,27 +815,42 @@ export function KnifeScrapeEditor({
   }
 
   const applyScrapedProduct = (product: ScrapedProduct) => {
+    const applyValue = (current: string, scraped: string) =>
+      mode === 'edit' && current.trim() ? current : scraped || current
+
     setForm((prev) => ({
       ...prev,
-      brand: product.brand || prev.brand,
-      name: product.name || prev.name,
-      handleMaterial: product.handleMaterial || prev.handleMaterial,
-      bladeStyle: product.bladeStyle || prev.bladeStyle,
-      description: product.description || prev.description,
-      weight: product.specs.weight || prev.weight,
-      overallLength: product.specs.overallLength || prev.overallLength,
-      bladeLength: product.specs.bladeLength || prev.bladeLength,
-      bladeThickness: product.specs.bladeThickness || prev.bladeThickness,
-      bladeCoating: product.specs.bladeCoating || prev.bladeCoating,
-      bladeMaterial: product.specs.bladeMaterial || prev.bladeMaterial,
-      lockingMechanism: product.specs.lockingMechanism || prev.lockingMechanism,
-      designer: product.specs.designer || prev.designer,
-      modelNumber: product.specs.modelNumber || prev.modelNumber,
-      handleLength: product.specs.handleLength || prev.handleLength,
-      hardness: product.specs.hardness || prev.hardness,
-      price: product.specs.price || prev.price,
-      country: product.specs.country || prev.country,
-      sourceUrl: product.sourceUrl || prev.sourceUrl,
+      brand: applyValue(prev.brand, product.brand),
+      name: applyValue(prev.name, product.name),
+      handleMaterial: applyValue(prev.handleMaterial, product.handleMaterial),
+      bladeStyle: applyValue(prev.bladeStyle, product.bladeStyle),
+      description: applyValue(prev.description, product.description),
+      weight: applyValue(prev.weight, product.specs.weight),
+      overallLength: applyValue(
+        prev.overallLength,
+        product.specs.overallLength,
+      ),
+      bladeLength: applyValue(prev.bladeLength, product.specs.bladeLength),
+      bladeThickness: applyValue(
+        prev.bladeThickness,
+        product.specs.bladeThickness,
+      ),
+      bladeCoating: applyValue(prev.bladeCoating, product.specs.bladeCoating),
+      bladeMaterial: applyValue(
+        prev.bladeMaterial,
+        product.specs.bladeMaterial,
+      ),
+      lockingMechanism: applyValue(
+        prev.lockingMechanism,
+        product.specs.lockingMechanism,
+      ),
+      designer: applyValue(prev.designer, product.specs.designer),
+      modelNumber: applyValue(prev.modelNumber, product.specs.modelNumber),
+      handleLength: applyValue(prev.handleLength, product.specs.handleLength),
+      hardness: applyValue(prev.hardness, product.specs.hardness),
+      price: applyValue(prev.price, product.specs.price),
+      country: applyValue(prev.country, product.specs.country),
+      sourceUrl: applyValue(prev.sourceUrl, product.sourceUrl),
     }))
   }
 
