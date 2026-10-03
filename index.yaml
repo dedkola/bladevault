@@ -2,8 +2,30 @@ apiVersion: v1
 entries:
   bladevault:
   - apiVersion: v2
+    appVersion: 1.4.0
+    created: "2026-10-03T17:09:47.493681407Z"
+    description: A Helm chart for the BladeVault local-first knife collection manager
+    digest: 9ae717f26651d520336519a4093c5f3b08cbc520a0233cc9185e70ed9f497f4e
+    home: https://www.bladevault.pro
+    icon: https://raw.githubusercontent.com/dedkola/bladevault/main/public/logo.png
+    keywords:
+    - bladevault
+    - collection
+    - sqlite
+    - nextjs
+    maintainers:
+    - name: dedkola
+      url: https://github.com/dedkola
+    name: bladevault
+    sources:
+    - https://github.com/dedkola/bladevault
+    type: application
+    urls:
+    - https://dedkola.github.io/bladevault/bladevault-1.4.0.tgz
+    version: 1.4.0
+  - apiVersion: v2
     appVersion: 1.3.1
-    created: "2026-09-30T10:49:04.259913109Z"
+    created: "2026-10-03T17:09:47.493233272Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: be442467e61f20c1ede848154314e565bbbba549ce2a9bdfd7d497fd24b2a045
     home: https://www.bladevault.pro
@@ -25,7 +47,7 @@ entries:
     version: 1.3.1
   - apiVersion: v2
     appVersion: 1.3.0
-    created: "2026-09-30T10:49:04.259505171Z"
+    created: "2026-10-03T17:09:47.492832596Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: b3da7a6647a7d957d8f0c1740ae8d9081c567be918b95f8f361cb5bd8574d854
     home: https://www.bladevault.pro
@@ -47,7 +69,7 @@ entries:
     version: 1.3.0
   - apiVersion: v2
     appVersion: 1.2.1
-    created: "2026-09-30T10:49:04.259119085Z"
+    created: "2026-10-03T17:09:47.492396464Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: 26f48ae7154b1c2b20146996a55847baf98dfcadccc9b1db6706f88d299e2d0e
     home: https://www.bladevault.pro
@@ -69,7 +91,7 @@ entries:
     version: 1.2.1
   - apiVersion: v2
     appVersion: 1.2.0
-    created: "2026-09-30T10:49:04.258723716Z"
+    created: "2026-10-03T17:09:47.49199717Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: c5240ad59188257cc73ad385c81a5f64d582c40132b1ea16a9c933723d561786
     home: https://www.bladevault.pro
@@ -91,7 +113,7 @@ entries:
     version: 1.2.0
   - apiVersion: v2
     appVersion: 1.1.5
-    created: "2026-09-30T10:49:04.258314336Z"
+    created: "2026-10-03T17:09:47.491565375Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: ecbbb8c751327edc44ba8e3992f6bdb3d97c303422515f72536e24177a990152
     home: https://www.bladevault.pro
@@ -113,7 +135,7 @@ entries:
     version: 1.1.5
   - apiVersion: v2
     appVersion: 1.1.4
-    created: "2026-09-30T10:49:04.257924726Z"
+    created: "2026-10-03T17:09:47.491118783Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: 922c5278777ad04e1ede3cdbdf11158c8508970f73a0409aac0a2d55b612138c
     home: https://www.bladevault.pro
@@ -135,7 +157,7 @@ entries:
     version: 1.1.4
   - apiVersion: v2
     appVersion: 1.1.3
-    created: "2026-09-30T10:49:04.257510018Z"
+    created: "2026-10-03T17:09:47.490699242Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: c50e7d0d8e0e5222cc12cfbf246c441fa69669367e47d2a49c6f18287bb3b923
     home: https://www.bladevault.pro
@@ -157,7 +179,7 @@ entries:
     version: 1.1.3
   - apiVersion: v2
     appVersion: 1.1.2
-    created: "2026-09-30T10:49:04.257121859Z"
+    created: "2026-10-03T17:09:47.490227814Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: e2f85fae4dd5de7d7314181dcfdfbc6b5da9597f79aab10dd0590f6f0e41c3c2
     home: https://www.bladevault.pro
@@ -179,7 +201,7 @@ entries:
     version: 1.1.2
   - apiVersion: v2
     appVersion: 1.1.1
-    created: "2026-09-30T10:49:04.256736375Z"
+    created: "2026-10-03T17:09:47.489780541Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: ff75cc9a1744013308c96b4b333612b8502b2f0fc8c68a435bf87ba626e799bd
     home: https://www.bladevault.pro
@@ -201,7 +223,7 @@ entries:
     version: 1.1.1
   - apiVersion: v2
     appVersion: 1.1.0
-    created: "2026-09-30T10:49:04.256328457Z"
+    created: "2026-10-03T17:09:47.489283996Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: 5da34dc7166f99533958739f8b194186fe0e621c60fa7db0e6dd66a43880f94c
     home: https://www.bladevault.pro
@@ -223,7 +245,7 @@ entries:
     version: 1.1.0
   - apiVersion: v2
     appVersion: 1.0.16
-    created: "2026-09-30T10:49:04.251820164Z"
+    created: "2026-10-03T17:09:47.484389539Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: 4535dcc9df77aa5085d3b3e5063e54383624a2205ae6ca93519a47cbcdb01a19
     home: https://www.bladevault.pro
@@ -245,7 +267,7 @@ entries:
     version: 1.0.16
   - apiVersion: v2
     appVersion: 1.0.15
-    created: "2026-09-30T10:49:04.25138833Z"
+    created: "2026-10-03T17:09:47.483982851Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: e60af91abec69cc00a76a76e3106f31d112cb3734e6623c5136d0288a5f07f23
     home: https://www.bladevault.pro
@@ -267,7 +289,7 @@ entries:
     version: 1.0.15
   - apiVersion: v2
     appVersion: 1.0.14
-    created: "2026-09-30T10:49:04.250969186Z"
+    created: "2026-10-03T17:09:47.483578839Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: bb343c1168607c547282954de8710294812ebf64b2c0324bb8073d23366b196f
     home: https://www.bladevault.pro
@@ -289,7 +311,7 @@ entries:
     version: 1.0.14
   - apiVersion: v2
     appVersion: 1.0.13
-    created: "2026-09-30T10:49:04.250493407Z"
+    created: "2026-10-03T17:09:47.483135703Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: bcf0220ec7c8e894136266aa5a9eea0f8707bfd8c5f676f34c6257ff8bca2d50
     home: https://www.bladevault.pro
@@ -311,7 +333,7 @@ entries:
     version: 1.0.13
   - apiVersion: v2
     appVersion: 1.0.12
-    created: "2026-09-30T10:49:04.250083065Z"
+    created: "2026-10-03T17:09:47.482721382Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: 0b26cb464be59c358ee6285342ac1eff3d972d5553e1dd2448ff5d1530661d81
     home: https://www.bladevault.pro
@@ -333,7 +355,7 @@ entries:
     version: 1.0.12
   - apiVersion: v2
     appVersion: 1.0.11
-    created: "2026-09-30T10:49:04.249666855Z"
+    created: "2026-10-03T17:09:47.4822538Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: eb0ba3d97ac4f5006e0292a76fd9de35b7e619dff1214c061cb5df1df0e9d213
     home: https://www.bladevault.pro
@@ -355,7 +377,7 @@ entries:
     version: 1.0.11
   - apiVersion: v2
     appVersion: 1.0.10
-    created: "2026-09-30T10:49:04.249228722Z"
+    created: "2026-10-03T17:09:47.481814192Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: b034ce40d17740bf3fe668426dd40465336c412711c3e954ff97b79c0af4dca1
     home: https://www.bladevault.pro
@@ -377,7 +399,7 @@ entries:
     version: 1.0.10
   - apiVersion: v2
     appVersion: 1.0.9
-    created: "2026-09-30T10:49:04.255936182Z"
+    created: "2026-10-03T17:09:47.488804713Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: 492ba38b4feebd74df034b70457be8149f9df7911791b4960620f6dbfb20cdd1
     home: https://www.bladevault.pro
@@ -399,7 +421,7 @@ entries:
     version: 1.0.9
   - apiVersion: v2
     appVersion: 1.0.8
-    created: "2026-09-30T10:49:04.255516196Z"
+    created: "2026-10-03T17:09:47.487430233Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: 42053d3df8aa00228aed5073d7bb9d8d2c1bee3995e3525f4a9d1dc7b6e2f454
     home: https://www.bladevault.pro
@@ -421,7 +443,7 @@ entries:
     version: 1.0.8
   - apiVersion: v2
     appVersion: 1.0.7
-    created: "2026-09-30T10:49:04.255119876Z"
+    created: "2026-10-03T17:09:47.48702588Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: 0ba379f550800dce4735c8b532cbc59270159fea81ffe08b547e913c510a7e2f
     home: https://www.bladevault.pro
@@ -443,7 +465,7 @@ entries:
     version: 1.0.7
   - apiVersion: v2
     appVersion: 1.0.6
-    created: "2026-09-30T10:49:04.254704216Z"
+    created: "2026-10-03T17:09:47.486602261Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: 82887131e9d34b0cc55734074776352f0fbdec6bd038b42b63169303f7bbbb11
     home: https://www.bladevault.pro
@@ -465,7 +487,7 @@ entries:
     version: 1.0.6
   - apiVersion: v2
     appVersion: 1.0.5
-    created: "2026-09-30T10:49:04.25403855Z"
+    created: "2026-10-03T17:09:47.486130632Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: e981ddcb6fa00090a39e0297a0b4fd8023d3910d58d3d99d6bf6236c6cbac31e
     home: https://www.bladevault.pro
@@ -487,7 +509,7 @@ entries:
     version: 1.0.5
   - apiVersion: v2
     appVersion: 1.0.4
-    created: "2026-09-30T10:49:04.25303895Z"
+    created: "2026-10-03T17:09:47.485702395Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: c57c174fe36f1f230e0d471b3cc4061525ec6012410577a0277b7d5cba281a35
     home: https://www.bladevault.pro
@@ -509,7 +531,7 @@ entries:
     version: 1.0.4
   - apiVersion: v2
     appVersion: 1.0.3
-    created: "2026-09-30T10:49:04.25263621Z"
+    created: "2026-10-03T17:09:47.485257015Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: fd445c568f142983453a771b43d2b5b4da339c8378df58b41560fbb4268b403d
     home: https://www.bladevault.pro
@@ -531,7 +553,7 @@ entries:
     version: 1.0.3
   - apiVersion: v2
     appVersion: 1.0.2
-    created: "2026-09-30T10:49:04.252224987Z"
+    created: "2026-10-03T17:09:47.484820522Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: 2c262f07b58555c3f96d2814e70928653119433d9359636525bf90cf5671fe5d
     home: https://www.bladevault.pro
@@ -553,7 +575,7 @@ entries:
     version: 1.0.2
   - apiVersion: v2
     appVersion: 1.0.1
-    created: "2026-09-30T10:49:04.248796578Z"
+    created: "2026-10-03T17:09:47.480986519Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: 0b9da864504c330764f8e4ad5660fb3aa0f6c6ae315ad628f06ddd4f2ae216f9
     home: https://www.bladevault.pro
@@ -575,7 +597,7 @@ entries:
     version: 1.0.1
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2026-09-30T10:49:04.248349963Z"
+    created: "2026-10-03T17:09:47.47996705Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: 909688cdad9b171b65bf01a2aeba5d2b0360415a37b8d481e6090d66dcb9c970
     home: https://www.bladevault.pro
@@ -597,7 +619,7 @@ entries:
     version: 1.0.0
   - apiVersion: v2
     appVersion: 0.2.50
-    created: "2026-09-30T10:49:04.247926131Z"
+    created: "2026-10-03T17:09:47.479492657Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: a7f0b75baffb3a49bbd307a63a47d5ccb312eef08918004ebcca83807ed24a4f
     home: https://www.bladevault.pro
@@ -619,7 +641,7 @@ entries:
     version: 0.2.50
   - apiVersion: v2
     appVersion: 0.2.49
-    created: "2026-09-30T10:49:04.24744203Z"
+    created: "2026-10-03T17:09:47.479079537Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: 111f5ec7488f6a602f417022fbaf617f6ff971e677bd08f416081098d4b8f30f
     home: https://www.bladevault.pro
@@ -641,7 +663,7 @@ entries:
     version: 0.2.49
   - apiVersion: v2
     appVersion: 0.2.48
-    created: "2026-09-30T10:49:04.246685086Z"
+    created: "2026-10-03T17:09:47.478636512Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: d1618e4941d7334c234ba12947ba96703016b4c649cb4787aab205c1afc27e53
     home: https://www.bladevault.pro
@@ -663,7 +685,7 @@ entries:
     version: 0.2.48
   - apiVersion: v2
     appVersion: 0.2.47
-    created: "2026-09-30T10:49:04.245693258Z"
+    created: "2026-10-03T17:09:47.478155956Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: ffbef7b690b5d242ec8bd8d33a9e011466fb9cd546796e11a5c6b71d53d3570c
     home: https://www.bladevault.pro
@@ -685,7 +707,7 @@ entries:
     version: 0.2.47
   - apiVersion: v2
     appVersion: 0.2.46
-    created: "2026-09-30T10:49:04.245254314Z"
+    created: "2026-10-03T17:09:47.477676924Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: 2b1a2cb57de916d36fcea165de0b7449a7e548ff67b8154fa5e556d5996d8d08
     home: https://www.bladevault.pro
@@ -707,7 +729,7 @@ entries:
     version: 0.2.46
   - apiVersion: v2
     appVersion: 0.2.41
-    created: "2026-09-30T10:49:04.244748871Z"
+    created: "2026-10-03T17:09:47.477179958Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: 8d61972235c3b5e2e093463a9b75ec8a2e607abc798321528c7a7a9c6d1e6fa0
     home: https://www.bladevault.pro
@@ -729,7 +751,7 @@ entries:
     version: 0.1.1
   - apiVersion: v2
     appVersion: 0.2.41
-    created: "2026-09-30T10:49:04.244297368Z"
+    created: "2026-10-03T17:09:47.476716906Z"
     description: A Helm chart for the BladeVault local-first knife collection manager
     digest: ffdc143d8c5b6538d7ff7eeee83fe628df71194a1e9cd79dfcb7dd79dfec1f51
     home: https://www.bladevault.pro
@@ -749,4 +771,4 @@ entries:
     urls:
     - https://dedkola.github.io/bladevault/bladevault-0.1.0.tgz
     version: 0.1.0
-generated: "2026-09-30T10:49:04.243677054Z"
+generated: "2026-10-03T17:09:47.476077885Z"
