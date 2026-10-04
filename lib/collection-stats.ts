@@ -32,6 +32,7 @@ export type MeasurementStats = {
   unit: 'in' | 'oz' | 'mm'
   knownCount: number
   missingCount: number
+  uninterpretableCount: number
   min?: number
   q1?: number
   median?: number
@@ -394,13 +395,19 @@ function buildMeasurementStats(
   definition: MeasurementDefinition,
 ): MeasurementStats {
   const values: Array<{ value: number; knifeId: string }> = []
+  let missingCount = 0
+  let uninterpretableCount = 0
 
   for (const knife of knives) {
     const rawValue = definition.getValue(knife)?.trim()
-    if (!rawValue) continue
+    if (!rawValue) {
+      missingCount += 1
+      continue
+    }
     const value = definition.parse(rawValue)
-    if (value !== undefined && value >= 0)
+    if (value !== undefined && Number.isFinite(value) && value >= 0)
       values.push({ value, knifeId: knife.id })
+    else uninterpretableCount += 1
   }
 
   values.sort((left, right) => left.value - right.value)
@@ -426,7 +433,8 @@ function buildMeasurementStats(
     label: definition.label,
     unit: definition.unit,
     knownCount: values.length,
-    missingCount: knives.length - values.length,
+    missingCount,
+    uninterpretableCount,
     min: sortedValues[0],
     q1: quantile(sortedValues, 0.25),
     median: quantile(sortedValues, 0.5),

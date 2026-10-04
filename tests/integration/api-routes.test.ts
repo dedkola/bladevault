@@ -25,6 +25,52 @@ afterEach(async () => {
 })
 
 describe('knife API routes', () => {
+  it('validates reviewed versions and returns conflict without changing a stale record', async () => {
+    vault = await createTempVault()
+    const created = await knivesRoute.POST(
+      jsonRequest('http://localhost/api/knives', 'POST', {
+        name: 'Reviewed',
+        handleMaterial: 'G10',
+      }),
+    )
+    const { knife } = await created.json()
+    const body = { ids: [knife.id], field: 'handleMaterial', value: 'G-10' }
+    for (const expectedUpdatedAt of [
+      null,
+      [],
+      {},
+      { [knife.id]: 42 },
+      { [knife.id]: '' },
+    ]) {
+      const response = await bulkRoute.PATCH(
+        jsonRequest('http://localhost/api/knives/bulk', 'PATCH', {
+          ...body,
+          expectedUpdatedAt,
+        }),
+      )
+      expect(response.status).toBe(400)
+    }
+    const stale = await bulkRoute.PATCH(
+      jsonRequest('http://localhost/api/knives/bulk', 'PATCH', {
+        ...body,
+        expectedUpdatedAt: { [knife.id]: 'stale' },
+      }),
+    )
+    expect(stale.status).toBe(409)
+    const unchanged = await knifeRoute.GET(
+      new Request('http://localhost/api/knives/reviewed'),
+      { params: Promise.resolve({ id: knife.id }) },
+    )
+    expect((await unchanged.json()).knife.handleMaterial).toBe('G10')
+    const applied = await bulkRoute.PATCH(
+      jsonRequest('http://localhost/api/knives/bulk', 'PATCH', {
+        ...body,
+        expectedUpdatedAt: { [knife.id]: knife.updatedAt },
+      }),
+    )
+    expect(applied.status).toBe(200)
+    expect((await applied.json()).knives[0].handleMaterial).toBe('G-10')
+  })
   it('rejects empty normalized names and creates a valid knife', async () => {
     vault = await createTempVault()
 

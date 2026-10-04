@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import { InsightsChart } from '@/components/insights-chart'
 import {
   formatMetric,
@@ -74,6 +75,22 @@ export function MeasurementDetail({
                     </Card>
                   ))}
                 </div>
+
+                {measurement.uninterpretableCount > 0 && (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    {measurement.uninterpretableCount} populated{' '}
+                    {measurement.uninterpretableCount === 1
+                      ? 'value'
+                      : 'values'}{' '}
+                    cannot be interpreted and are excluded from this chart.{' '}
+                    <Link
+                      href="/insights/completeness"
+                      className="underline underline-offset-4"
+                    >
+                      Review in Completeness
+                    </Link>
+                  </p>
+                )}
 
                 {measurement.knownCount === 0 ? (
                   <p className="mt-6 text-center text-sm text-muted-foreground">

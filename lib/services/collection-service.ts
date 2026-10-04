@@ -162,6 +162,7 @@ function compactMeasurements(
     {
       knownCount: number
       missingCount: number
+      uninterpretableCount: number
       min?: number
       median?: number
       max?: number
@@ -175,6 +176,7 @@ function compactMeasurements(
       {
         knownCount: measurement.knownCount,
         missingCount: measurement.missingCount,
+        uninterpretableCount: measurement.uninterpretableCount,
         min: measurement.min,
         median: measurement.median,
         max: measurement.max,

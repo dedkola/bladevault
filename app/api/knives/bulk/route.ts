@@ -26,6 +26,27 @@ export async function PATCH(request: Request) {
       : []
     const field = typeof body.field === 'string' ? body.field : ''
     const value = typeof body.value === 'string' ? body.value.trim() : ''
+    let expectedUpdatedAt: Record<string, string> | undefined
+    if ('expectedUpdatedAt' in body) {
+      const expected = body.expectedUpdatedAt
+      if (
+        !expected ||
+        typeof expected !== 'object' ||
+        Array.isArray(expected) ||
+        !ids.every(
+          (id) =>
+            Object.hasOwn(expected, id) &&
+            typeof (expected as Record<string, unknown>)[id] === 'string' &&
+            (expected as Record<string, string>)[id].length > 0,
+        )
+      ) {
+        return NextResponse.json(
+          { error: 'Include the reviewed version of every selected knife' },
+          { status: 400 },
+        )
+      }
+      expectedUpdatedAt = expected as Record<string, string>
+    }
 
     if (ids.length === 0) {
       return NextResponse.json(
@@ -57,11 +78,19 @@ export async function PATCH(request: Request) {
     const knives = await storage.bulkUpdateKnives(
       ids,
       createBulkKnifeUpdates(field as BulkEditFieldKey, value),
+      expectedUpdatedAt,
     )
 
     return NextResponse.json({ knives })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json(
+      { error: message },
+      {
+        status: message.startsWith('The collection changed after this review.')
+          ? 409
+          : 500,
+      },
+    )
   }
 }

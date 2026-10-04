@@ -690,7 +690,8 @@ function MeasurementRows({
       </div>
       <p className="mt-2 text-muted-foreground">
         Percentages use {measurement.knownCount} known values;{' '}
-        {measurement.missingCount} missing.
+        {measurement.missingCount} missing; {measurement.uninterpretableCount}{' '}
+        uninterpretable.
       </p>
     </details>
   )
