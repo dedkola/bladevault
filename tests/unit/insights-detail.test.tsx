@@ -299,17 +299,23 @@ describe('CompletenessDetail', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows the all-complete message when nothing is missing', () => {
+  it('shows the populated-fields message when all reviewed fields are present', () => {
     setKnives([
       createKnife({
         id: 'a',
-        specs: { ...createKnife().specs, designer: 'Designer' },
+        specs: {
+          ...createKnife().specs,
+          designer: 'Designer',
+          bladeCoating: 'Stonewash',
+        },
         handleMaterial: 'G10',
       }),
     ])
     render(<CompletenessDetail />)
 
-    expect(screen.getByText('All fields complete')).toBeInTheDocument()
+    expect(
+      screen.getByText('All reviewed fields populated'),
+    ).toBeInTheDocument()
   })
 })
 

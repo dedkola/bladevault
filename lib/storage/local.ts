@@ -695,9 +695,7 @@ export class LocalStorage implements Storage {
       }
     }
 
-    const updatedAt = options.expectedUpdatedAt
-      ? nextUpdatedAt(existing.updatedAt)
-      : new Date().toISOString()
+    const updatedAt = nextUpdatedAt(existing.updatedAt)
     const updated: Knife = {
       ...existing,
       name: normalizedUpdates.name ?? existing.name,
@@ -822,6 +820,7 @@ export class LocalStorage implements Storage {
   async bulkUpdateKnives(
     ids: string[],
     updates: KnifeUpdates,
+    expectedUpdatedAt?: Record<string, string>,
   ): Promise<Knife[]> {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
@@ -841,13 +840,6 @@ export class LocalStorage implements Storage {
     }
 
     const normalizedUpdates = normalizeKnifeTextFields(updates)
-    const rowsById = new Map(
-      rows.map((row) => {
-        const knife = rowToKnife(row)
-        return [knife.id, knife]
-      }),
-    )
-    const updatedAt = new Date().toISOString()
     const updateStatement = database.prepare(
       `UPDATE knives
        SET name = ?, brand = ?, steel = ?, blade_style = ?, handle_material = ?, images = ?, specs = ?, custom_fields = ?, description = ?, updated_at = ?, source_url = ?, pinned = ?
@@ -860,9 +852,18 @@ export class LocalStorage implements Storage {
 
     const updateAll = database.transaction(() =>
       uniqueIds.map((id) => {
-        const existing = rowsById.get(id)
+        // Re-read inside the transaction so a reviewed preview cannot overwrite
+        // a record changed in another tab or by an MCP client.
+        const row = selectStatement.get(id) as
+          Record<string, unknown> | undefined
+        const existing = row ? rowToKnife(row) : undefined
         if (!existing) {
           throw new Error(`Knife with id "${id}" not found`)
+        }
+        if (expectedUpdatedAt && existing.updatedAt !== expectedUpdatedAt[id]) {
+          throw new Error(
+            'The collection changed after this review. Reload and review it again before saving.',
+          )
         }
 
         const updated: Knife = {
@@ -876,7 +877,7 @@ export class LocalStorage implements Storage {
           sourceUrl: normalizedUpdates.sourceUrl ?? existing.sourceUrl,
           images: screenshotsLast(normalizedUpdates.images ?? existing.images),
           pinned: normalizedUpdates.pinned ?? existing.pinned,
-          updatedAt,
+          updatedAt: nextUpdatedAt(existing.updatedAt),
           specs: {
             ...existing.specs,
             ...(normalizedUpdates.specs ?? {}),

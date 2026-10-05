@@ -62,7 +62,8 @@ const SLUG_META: Record<
   completeness: {
     eyebrow: 'Collection health',
     title: 'Data completeness',
-    description: 'Every missing field across the collection.',
+    description:
+      'Missing fields, measurement review, and consistent collection labels.',
   },
   activity: {
     eyebrow: 'Activity',

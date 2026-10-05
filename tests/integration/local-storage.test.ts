@@ -33,6 +33,76 @@ afterEach(async () => {
 })
 
 describe('LocalStorage', () => {
+  it('detects edits made in the same millisecond as a cleanup preview', async () => {
+    vault = await createTempVault()
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-04T10:00:00.000Z'))
+    const storage = new LocalStorage()
+    const knife = await storage.createKnife(baseInput)
+    const edited = await storage.updateKnife(knife.id, {
+      handleMaterial: 'Titanium',
+    })
+    expect(edited.updatedAt > knife.updatedAt).toBe(true)
+    await expect(
+      storage.bulkUpdateKnives(
+        [knife.id],
+        { handleMaterial: 'G-10' },
+        { [knife.id]: knife.updatedAt },
+      ),
+    ).rejects.toThrow('collection changed')
+    const [bulkEdited] = await storage.bulkUpdateKnives([knife.id], {
+      handleMaterial: 'Micarta',
+    })
+    expect(bulkEdited.updatedAt > edited.updatedAt).toBe(true)
+    await expect(
+      storage.bulkUpdateKnives(
+        [knife.id],
+        { handleMaterial: 'G-10' },
+        { [knife.id]: edited.updatedAt },
+      ),
+    ).rejects.toThrow('collection changed')
+    expect((await storage.getKnifeById(knife.id))?.handleMaterial).toBe(
+      'Micarta',
+    )
+  })
+  it('rolls back reviewed bulk edits when any record has changed, including audit events', async () => {
+    vault = await createTempVault()
+    const storage = new LocalStorage()
+    const first = await storage.createKnife(baseInput)
+    const second = await storage.createKnife({ ...baseInput, name: 'Second' })
+    const logCount = (await storage.getAuditLog()).length
+    await expect(
+      storage.bulkUpdateKnives(
+        [first.id, second.id],
+        { handleMaterial: 'G-10' },
+        { [first.id]: first.updatedAt, [second.id]: 'stale' },
+      ),
+    ).rejects.toThrow('collection changed')
+    expect((await storage.getKnifeById(first.id))?.handleMaterial).toBe(
+      'Grivory',
+    )
+    expect((await storage.getKnifeById(second.id))?.handleMaterial).toBe(
+      'Grivory',
+    )
+    expect(await storage.getAuditLog()).toHaveLength(logCount)
+    const [updated] = await storage.bulkUpdateKnives(
+      [first.id],
+      { specs: { bladeThickness: '.090 inches' } },
+      { [first.id]: first.updatedAt },
+    )
+    expect(updated.specs).toMatchObject({
+      bladeThickness: '.090 inches',
+      weight: '1.85 oz',
+    })
+    expect(updated.updatedAt > first.updatedAt).toBe(true)
+    await expect(
+      storage.bulkUpdateKnives(
+        [first.id],
+        { handleMaterial: 'G-10' },
+        { [first.id]: first.updatedAt },
+      ),
+    ).rejects.toThrow('collection changed')
+  })
   it('creates normalized unique records and persists embedded images', async () => {
     vault = await createTempVault()
     const storage = new LocalStorage()
@@ -96,7 +166,9 @@ describe('LocalStorage', () => {
 
     vi.setSystemTime(new Date('2026-08-11T12:00:00.000Z'))
     await storage.updateKnife(first.id, { brand: 'Updated' })
-    await storage.updateKnife(first.id, { description: 'Updated again' })
+    const secondEdit = await storage.updateKnife(first.id, {
+      description: 'Updated again',
+    })
 
     vi.setSystemTime(new Date('2026-08-12T12:00:00.000Z'))
     await storage.bulkUpdateKnives([first.id, second.id], { pinned: true })
@@ -120,7 +192,7 @@ describe('LocalStorage', () => {
       expect.objectContaining({
         knifeId: first.id,
         type: 'updated',
-        occurredAt: '2026-08-11T12:00:00.000Z',
+        occurredAt: secondEdit.updatedAt,
       }),
       expect.objectContaining({
         knifeId: first.id,

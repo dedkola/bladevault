@@ -61,7 +61,11 @@ export interface Storage {
     updates: KnifeUpdates,
     options?: KnifeUpdateOptions,
   ): Promise<Knife>
-  bulkUpdateKnives(ids: string[], updates: KnifeUpdates): Promise<Knife[]>
+  bulkUpdateKnives(
+    ids: string[],
+    updates: KnifeUpdates,
+    expectedUpdatedAt?: Record<string, string>,
+  ): Promise<Knife[]>
   bulkUpdateKnifeItems(
     items: BulkKnifeUpdateItem[],
     context: Omit<KnifeMutationContext, 'changes'>,

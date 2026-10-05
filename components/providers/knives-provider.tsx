@@ -47,6 +47,7 @@ type KnivesContextValue = {
     ids: string[],
     field: BulkEditFieldKey,
     value: string,
+    expectedUpdatedAt?: Record<string, string>,
   ) => Promise<Knife[]>
   bulkPinKnives: (ids: string[], pinned: boolean) => Promise<Knife[]>
   deleteKnife: (id: string) => Promise<void>
@@ -507,11 +508,12 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       ids: string[],
       field: BulkEditFieldKey,
       value: string,
+      expectedUpdatedAt?: Record<string, string>,
     ): Promise<Knife[]> => {
       const response = await fetch('/api/knives/bulk', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids, field, value }),
+        body: JSON.stringify({ ids, field, value, expectedUpdatedAt }),
       })
 
       if (!response.ok) {
