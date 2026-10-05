@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
-  affectedMaterialCollections,
+  affectedLabelCollections,
+  cleanupLabelFields,
+  getCombinedSteelKnives,
   formatInterpretedMeasurement,
-  getMaterialAliasGroups,
+  getLabelAliasGroups,
   measurementIssue,
   readCleanupQueue,
 } from '@/lib/collection-cleanup'
@@ -73,7 +75,7 @@ describe('collection cleanup', () => {
       'Micarta',
       'Canvas Micarta',
     ]
-    const groups = getMaterialAliasGroups(
+    const groups = getLabelAliasGroups(
       materials.map((handleMaterial, index) =>
         createKnife({ id: `${index}`, handleMaterial }),
       ),
@@ -89,7 +91,7 @@ describe('collection cleanup', () => {
       expect.arrayContaining(['Titanium', 'titanium']),
     )
     expect(
-      getMaterialAliasGroups([createKnife({ handleMaterial: 'G10' })]),
+      getLabelAliasGroups([createKnife({ handleMaterial: 'G10' })]),
     ).toEqual([])
   })
 
@@ -110,10 +112,98 @@ describe('collection cleanup', () => {
       },
     ]
     expect(
-      affectedMaterialCollections(collections, ['G10']).map(
-        (collection) => collection.id,
-      ),
+      affectedLabelCollections(
+        collections,
+        cleanupLabelFields.find((field) => field.key === 'handleMaterial')!,
+        ['G10'],
+      ).map((collection) => collection.id),
     ).toEqual(['a', 'b'])
+  })
+
+  it.each(cleanupLabelFields)(
+    'finds case and whitespace variants in $label without crossing fields',
+    (field) => {
+      const make = (id: string, value: string) => {
+        const knife = createKnife({ id })
+        if (field.field.startsWith('specs.'))
+          knife.specs = { ...knife.specs, [field.key]: value }
+        else Object.assign(knife, { [field.field]: value })
+        return knife
+      }
+      const knives = [
+        make('a', 'Example Label'),
+        make('b', ' example   LABEL '),
+        make('c', 'Example Label'),
+      ]
+      const groups = getLabelAliasGroups(knives)
+      expect(groups).toHaveLength(1)
+      expect(groups[0]).toMatchObject({
+        field,
+        suggestedValue: 'Example Label',
+      })
+      expect(groups[0].values.map((item) => item.value)).toContain(
+        ' example   LABEL ',
+      )
+      expect(
+        affectedLabelCollections(
+          [
+            {
+              id: 'target',
+              name: 'Target',
+              query: `${field.key}=+example+++LABEL+`,
+            },
+            {
+              id: 'wrong-field',
+              name: 'Other',
+              query: `${field.key === 'country' ? 'designer' : 'country'}=+example+++LABEL+`,
+            },
+            { id: 'search', name: 'Search', query: 'q=Example+Label' },
+          ],
+          field,
+          [' example   LABEL '],
+        ).map((collection) => collection.id),
+      ).toEqual(['target'])
+    },
+  )
+
+  it('reviews a single dirty value and preserves steel notation, combined facts and distinct countries', () => {
+    const knives = [
+      createKnife({
+        id: 'a',
+        handleMaterial: ' Wood ',
+        specs: {
+          ...createKnife().specs,
+          country: 'China',
+          bladeMaterial: 'CPM-S35VN',
+        },
+      }),
+      createKnife({
+        id: 'b',
+        specs: {
+          ...createKnife().specs,
+          country: 'Italy',
+          bladeMaterial: 'CPM S35VN',
+        },
+      }),
+      createKnife({
+        id: 'c',
+        specs: { ...createKnife().specs, bladeMaterial: 'Magnacut 63-64 HRC' },
+      }),
+      createKnife({
+        id: 'd',
+        specs: { ...createKnife().specs, bladeMaterial: 'Magnacut' },
+      }),
+    ]
+    const groups = getLabelAliasGroups(knives)
+    expect(groups).toHaveLength(1)
+    expect(groups[0]).toMatchObject({
+      suggestedValue: 'Wood',
+      values: [{ value: ' Wood ' }],
+    })
+    expect(getCombinedSteelKnives(knives).map((knife) => knife.id)).toEqual([
+      'c',
+    ])
+    expect(knives[2].specs.bladeMaterial).toBe('Magnacut 63-64 HRC')
   })
 
   it('rejects damaged session queues and preserves valid progress', () => {

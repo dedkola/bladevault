@@ -38,7 +38,10 @@ import {
   type MeasurementKey,
   type MeasurementStats,
 } from '@/lib/collection-stats'
-import { NOT_SET_FILTER_VALUE } from '@/lib/collection-filters'
+import {
+  NOT_SET_FILTER_VALUE,
+  type BuiltInFilterKey,
+} from '@/lib/collection-filters'
 import { cn } from '@/lib/utils'
 import { getMaintenanceRecency } from '@/lib/maintenance-recency'
 
@@ -204,7 +207,7 @@ function getPieEmphasis(palette: InsightsChartPalette) {
   }
 }
 
-export function missingHref(key: CategoryKey | MeasurementKey) {
+export function missingHref(key: BuiltInFilterKey) {
   const params = new URLSearchParams()
   params.set(key, NOT_SET_FILTER_VALUE)
   return `/collection?${params.toString()}`

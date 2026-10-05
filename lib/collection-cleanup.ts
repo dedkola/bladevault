@@ -4,6 +4,9 @@ import {
   parseWeightToOunces,
 } from '@/lib/collection-stats'
 import type { SmartCollection } from '@/lib/smart-collections'
+import { getBulkEditFieldValue, type BulkEditFieldKey } from '@/lib/bulk-edit'
+import type { BuiltInFilterKey } from '@/lib/collection-filters'
+import { normalizeSingleLineText } from '@/lib/knife-text'
 
 export const cleanupMeasurements = [
   { key: 'bladeThickness', label: 'Blade thickness', unit: 'mm' },
@@ -53,50 +56,105 @@ export function formatInterpretedMeasurement(
   return `${Number(value.toFixed(3))} ${unit} — understood`
 }
 
-export type MaterialAliasGroup = {
+export const cleanupLabelFields = [
+  { key: 'country', field: 'specs.country', label: 'Country' },
+  { key: 'designer', field: 'specs.designer', label: 'Designer' },
+  {
+    key: 'bladeMaterial',
+    field: 'specs.bladeMaterial',
+    label: 'Blade material',
+  },
+  { key: 'bladeStyle', field: 'bladeStyle', label: 'Blade style' },
+  { key: 'brand', field: 'brand', label: 'Brand / Maker' },
+  { key: 'handleMaterial', field: 'handleMaterial', label: 'Handle material' },
+  {
+    key: 'lockingMechanism',
+    field: 'specs.lockingMechanism',
+    label: 'Locking mechanism',
+  },
+  {
+    key: 'bladeCoating',
+    field: 'specs.bladeCoating',
+    label: 'Blade coating / Finish',
+  },
+] as const satisfies readonly {
+  key: BuiltInFilterKey
+  field: BulkEditFieldKey
+  label: string
+}[]
+
+export type CleanupLabelField = (typeof cleanupLabelFields)[number]
+export type LabelAliasGroup = {
   key: string
+  field: CleanupLabelField
   suggestedValue: string
   values: Array<{ value: string; knives: Knife[] }>
 }
 
-export function getMaterialAliasGroups(knives: Knife[]): MaterialAliasGroup[] {
-  const groups = new Map<string, Map<string, Knife[]>>()
-  for (const knife of knives) {
-    const value = knife.handleMaterial.trim()
-    if (!value) continue
-    // Only case variants and the known whole-field G10/G-10 spelling.
-    // Composite materials and similar-looking names remain independent.
-    const key = /^g-?10$/i.test(value) ? 'g-10' : value.toLowerCase()
-    const values = groups.get(key) ?? new Map<string, Knife[]>()
-    values.set(value, [...(values.get(value) ?? []), knife])
-    groups.set(key, values)
-  }
-  return [...groups.entries()]
-    .filter(([, values]) => values.size > 1)
-    .map(([key, entries]) => {
-      const values = [...entries.entries()]
-        .map(([value, knives]) => ({ value, knives }))
-        .sort(
-          (a, b) =>
-            b.knives.length - a.knives.length || a.value.localeCompare(b.value),
-        )
-      return {
-        key,
-        suggestedValue: key === 'g-10' ? 'G-10' : values[0].value,
-        values,
-      }
-    })
-    .sort((a, b) => a.key.localeCompare(b.key))
+export function getLabelAliasGroups(knives: Knife[]): LabelAliasGroup[] {
+  return cleanupLabelFields.flatMap((field) => {
+    const groups = new Map<string, Map<string, Knife[]>>()
+    for (const knife of knives) {
+      // Retain the exact stored value for previews and saved-filter checks.
+      const original = getBulkEditFieldValue(knife, field.field)
+      const normalized = normalizeSingleLineText(original)
+      if (!normalized) continue
+      // Only the handle field has a known spelling alias. Do not remove
+      // punctuation from steels, merge composites, or strip hardness values.
+      const key =
+        field.key === 'handleMaterial' && /^g-?10$/i.test(normalized)
+          ? 'g-10'
+          : normalized.toLowerCase()
+      const values = groups.get(key) ?? new Map<string, Knife[]>()
+      values.set(original, [...(values.get(original) ?? []), knife])
+      groups.set(key, values)
+    }
+    return [...groups.entries()]
+      .filter(
+        ([, values]) =>
+          values.size > 1 ||
+          [...values.keys()].some(
+            (value) => value !== normalizeSingleLineText(value),
+          ),
+      )
+      .map(([key, entries]) => {
+        const values = [...entries.entries()]
+          .map(([value, knives]) => ({ value, knives }))
+          .sort(
+            (a, b) =>
+              b.knives.length - a.knives.length ||
+              a.value.localeCompare(b.value),
+          )
+        return {
+          key: `${field.key}:${key}`,
+          field,
+          suggestedValue:
+            field.key === 'handleMaterial' && key === 'g-10'
+              ? 'G-10'
+              : normalizeSingleLineText(values[0].value),
+          values,
+        }
+      })
+      .sort((a, b) => a.key.localeCompare(b.key))
+  })
 }
 
-export function affectedMaterialCollections(
+export function affectedLabelCollections(
   collections: SmartCollection[],
+  field: CleanupLabelField,
   from: string[],
 ): SmartCollection[] {
   return collections.filter((collection) =>
     new URLSearchParams(collection.query)
-      .getAll('handleMaterial')
+      .getAll(field.key)
       .some((value) => from.includes(value)),
+  )
+}
+
+export function getCombinedSteelKnives(knives: Knife[]): Knife[] {
+  // A review hint, never an inferred correction or automatic field split.
+  return knives.filter((knife) =>
+    /\b(?:HRC|Rockwell)\b/i.test(knife.specs.bladeMaterial ?? ''),
   )
 }
 

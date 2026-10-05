@@ -13,18 +13,18 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  affectedMaterialCollections,
-  type MaterialAliasGroup,
+  affectedLabelCollections,
+  type LabelAliasGroup,
 } from '@/lib/collection-cleanup'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
 import { normalizeSingleLineText } from '@/lib/knife-text'
 import type { SmartCollection } from '@/lib/smart-collections'
 
-export function MaterialAliasReview({
+export function LabelAliasReview({
   group,
   onClose,
 }: {
-  group: MaterialAliasGroup
+  group: LabelAliasGroup
   onClose: () => void
 }) {
   const { bulkUpdateKnives, refreshVault, showFeedback } = useKnives()
@@ -36,8 +36,9 @@ export function MaterialAliasReview({
   const target = normalizeSingleLineText(value)
   const changed = group.values.filter((item) => item.value !== target)
   const affectedKnives = changed.flatMap((item) => item.knives)
-  const affectedCollections = affectedMaterialCollections(
+  const affectedCollections = affectedLabelCollections(
     collections ?? [],
+    group.field,
     changed.map((item) => item.value),
   )
 
@@ -83,21 +84,21 @@ export function MaterialAliasReview({
     try {
       await bulkUpdateKnives(
         affectedKnives.map((knife) => knife.id),
-        'handleMaterial',
+        group.field.field,
         target,
         Object.fromEntries(
           affectedKnives.map((knife) => [knife.id, knife.updatedAt]),
         ),
       )
       showFeedback(
-        `Updated handle material for ${affectedKnives.length} ${affectedKnives.length === 1 ? 'knife' : 'knives'}.`,
+        `Updated ${group.field.label.toLowerCase()} for ${affectedKnives.length} ${affectedKnives.length === 1 ? 'knife' : 'knives'}.`,
       )
       onClose()
     } catch (reason) {
       setError(
         reason instanceof Error
           ? reason.message
-          : 'Could not update these materials.',
+          : 'Could not update these labels.',
       )
       void refreshVault().catch(() =>
         showFeedback('Could not reload the collection.', 'error'),
@@ -119,17 +120,19 @@ export function MaterialAliasReview({
         showCloseButton={!saving}
       >
         <DialogHeader>
-          <DialogTitle>Review handle material labels</DialogTitle>
+          <DialogTitle>
+            Review {group.field.label.toLowerCase()} labels
+          </DialogTitle>
           <DialogDescription>
             Choose one label, then review exactly which knives will change.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
-          <label htmlFor="cleanup-material" className="text-sm font-medium">
+          <label htmlFor="cleanup-label" className="text-sm font-medium">
             Use this label
           </label>
           <Input
-            id="cleanup-material"
+            id="cleanup-label"
             value={value}
             disabled={saving}
             onChange={(event) => {
@@ -158,11 +161,48 @@ export function MaterialAliasReview({
           >
             {affectedKnives.map((knife) => (
               <li key={knife.id} className="break-words">
-                {knife.brand} {knife.name} · {knife.handleMaterial}
+                <Link
+                  href={`/collection/${encodeURIComponent(knife.id)}`}
+                  target="_blank"
+                  className="underline underline-offset-4"
+                >
+                  {knife.brand} {knife.name}
+                </Link>{' '}
+                ·{' '}
+                {
+                  group.values.find((item) =>
+                    item.knives.some((entry) => entry.id === knife.id),
+                  )!.value
+                }
               </li>
             ))}
           </ul>
         </div>
+        <details className="text-sm space-y-2">
+          <summary className="cursor-pointer">
+            Inspect all knives in this group
+          </summary>
+          <p className="text-muted-foreground">
+            Compare source pages and saved notes before changing a factual
+            value.
+          </p>
+          <ul className="max-h-40 overflow-y-auto space-y-1">
+            {group.values.flatMap((item) =>
+              item.knives.map((knife) => (
+                <li key={knife.id} className="break-words">
+                  <Link
+                    href={`/collection/${encodeURIComponent(knife.id)}`}
+                    target="_blank"
+                    className="underline underline-offset-4"
+                  >
+                    {knife.brand} {knife.name}
+                  </Link>{' '}
+                  · {item.value}
+                </li>
+              )),
+            )}
+          </ul>
+        </details>
         {collections === null && !error && (
           <p role="status" className="text-sm">
             Checking saved filters…

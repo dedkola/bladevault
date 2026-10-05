@@ -13,6 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CompletenessDetail } from '@/components/insight-pages/completeness-detail'
 import { createKnife } from '@/tests/fixtures/knife'
 import type { Knife } from '@/lib/data'
+import { cleanupLabelFields } from '@/lib/collection-cleanup'
+import { createBulkKnifeUpdates } from '@/lib/bulk-edit'
 
 const state = vi.hoisted(() => ({
   knives: [] as Knife[],
@@ -194,7 +196,9 @@ describe('guided cleanup review', () => {
       within(dialog).getByRole('list', { name: 'Knives to update' }),
     ).toHaveTextContent('Benchmade Old')
     expect(
-      within(dialog).queryByText(/Benchmade Keep|Composite/),
+      within(
+        within(dialog).getByRole('list', { name: 'Knives to update' }),
+      ).queryByText(/Benchmade Keep|Composite/),
     ).not.toBeInTheDocument()
     const apply = within(dialog).getByRole('button', {
       name: 'Apply to 1 knife',
@@ -227,5 +231,153 @@ describe('guided cleanup review', () => {
       'G10',
       'G-10',
     ])
+  })
+  it.each(cleanupLabelFields)(
+    'previews and writes only $label with the right saved-filter key and version',
+    async (field) => {
+      const user = userEvent.setup()
+      const make = (id: string, value: string) => {
+        const changes = createBulkKnifeUpdates(field.field, value)
+        return createKnife({
+          id,
+          ...changes,
+          customFields: createKnife().customFields,
+          specs: { ...createKnife().specs, ...changes.specs },
+        })
+      }
+      state.knives = [
+        make('old', 'example label'),
+        make('keep', 'Example Label'),
+        make('also-keep', 'Example Label'),
+      ]
+      vi.mocked(fetch).mockResolvedValue(
+        Response.json({
+          collections: [
+            {
+              id: 'saved',
+              name: 'Affected filter',
+              query: `${field.key}=example+label`,
+            },
+            {
+              id: 'other',
+              name: 'Unrelated filter',
+              query: `${field.key === 'country' ? 'designer' : 'country'}=example+label`,
+            },
+          ],
+        }),
+      )
+      render(<CompletenessDetail />)
+      await user.click(
+        screen.getByRole('button', {
+          name: new RegExp(`Review labels for ${field.label.toLowerCase()}:`),
+        }),
+      )
+      const dialog = screen.getByRole('dialog')
+      expect(within(dialog).getByRole('heading')).toHaveTextContent(
+        `Review ${field.label.toLowerCase()} labels`,
+      )
+      await within(dialog).findByRole('link', { name: 'Affected filter' })
+      expect(
+        within(dialog).queryByRole('link', { name: 'Unrelated filter' }),
+      ).not.toBeInTheDocument()
+      const list = within(dialog).getByRole('list', {
+        name: 'Knives to update',
+      })
+      expect(within(list).getByRole('link')).toHaveAttribute(
+        'href',
+        '/collection/old',
+      )
+      expect(list).toHaveTextContent('example label')
+      const apply = within(dialog).getByRole('button', {
+        name: 'Apply to 1 knife',
+      })
+      expect(apply).toBeDisabled()
+      await user.click(within(dialog).getByRole('checkbox'))
+      await user.click(apply)
+      expect(state.bulkUpdateKnives).toHaveBeenCalledWith(
+        ['old'],
+        field.field,
+        'Example Label',
+        { old: state.knives[0].updatedAt },
+      )
+    },
+  )
+
+  it('shows optional missing fields and keeps combined steel values in source review', () => {
+    state.knives = [
+      createKnife({
+        id: 'relative',
+        name: 'Relative',
+        specs: {
+          ...createKnife().specs,
+          country: '',
+          bladeCoating: '',
+          bladeMaterial: 'Magnacut 63-64 HRC',
+        },
+      }),
+    ]
+    render(<CompletenessDetail />)
+    expect(
+      screen.getByRole('link', { name: /Country missing\s*1/ }),
+    ).toHaveAttribute('href', '/collection?country=__not_set__')
+    expect(
+      screen.getByRole('link', { name: /Blade coating \/ Finish missing\s*1/ }),
+    ).toHaveAttribute('href', '/collection?bladeCoating=__not_set__')
+    expect(
+      screen.getByText(/The score counts populated core fields/),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Review source and fields' }),
+    ).toHaveAttribute('href', '/collection/relative')
+    expect(
+      screen.queryByRole('button', { name: /Review labels/ }),
+    ).not.toBeInTheDocument()
+    expect(state.bulkUpdateKnives).not.toHaveBeenCalled()
+  })
+
+  it('blocks label changes if saved filters cannot be checked', async () => {
+    const user = userEvent.setup()
+    state.knives = [
+      createKnife({ id: 'a', handleMaterial: 'G10' }),
+      createKnife({ id: 'b', handleMaterial: 'G-10' }),
+    ]
+    vi.mocked(fetch).mockResolvedValue(
+      Response.json(
+        { error: 'Could not check saved filters.' },
+        { status: 500 },
+      ),
+    )
+    render(<CompletenessDetail />)
+    await user.click(screen.getByRole('button', { name: /Review labels/ }))
+    await screen.findByRole('alert')
+    expect(
+      screen.getByRole('button', { name: 'Apply to 1 knife' }),
+    ).toBeDisabled()
+    expect(state.bulkUpdateKnives).not.toHaveBeenCalled()
+  })
+
+  it('refreshes and blocks a stale country preview after a failed write', async () => {
+    const user = userEvent.setup()
+    state.knives = ['china', 'China', 'China'].map((country, index) =>
+      createKnife({
+        id: String(index),
+        specs: { ...createKnife().specs, country },
+      }),
+    )
+    state.bulkUpdateKnives.mockRejectedValue(
+      new Error('The collection changed after this review.'),
+    )
+    render(<CompletenessDetail />)
+    await user.click(
+      screen.getByRole('button', { name: /Review labels for country/ }),
+    )
+    const apply = await screen.findByRole('button', {
+      name: 'Apply to 1 knife',
+    })
+    await waitFor(() => expect(apply).toBeEnabled())
+    await user.click(apply)
+    await screen.findByRole('alert')
+    expect(apply).toBeDisabled()
+    expect(state.refreshVault).toHaveBeenCalledTimes(1)
   })
 })

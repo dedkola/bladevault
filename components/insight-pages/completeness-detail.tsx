@@ -6,13 +6,15 @@ import { Button } from '@/components/ui/button'
 import { useCleanupQueue } from '@/hooks/use-cleanup-queue'
 import {
   cleanupMeasurements,
-  getMaterialAliasGroups,
+  cleanupLabelFields,
+  getCombinedSteelKnives,
+  getLabelAliasGroups,
   measurementIssue,
   type CleanupMeasurementKey,
-  type MaterialAliasGroup,
+  type LabelAliasGroup,
   type MeasurementIssue,
 } from '@/lib/collection-cleanup'
-import { MaterialAliasReview } from '@/components/insight-pages/material-alias-review'
+import { LabelAliasReview } from '@/components/insight-pages/label-alias-review'
 import { MeasurementReview } from '@/components/insight-pages/measurement-review'
 import { InsightsChart } from '@/components/insights-chart'
 import {
@@ -21,11 +23,13 @@ import {
 } from '@/components/collection-insights'
 import { useKnives } from '@/components/providers/knives-provider'
 import { createCollectionStats } from '@/lib/collection-stats'
+import { getBulkEditFieldValue } from '@/lib/bulk-edit'
+import type { BuiltInFilterKey } from '@/lib/collection-filters'
 
 export function CompletenessDetail() {
   const { knives } = useKnives()
   const stats = useMemo(() => createCollectionStats(knives, 'all'), [knives])
-  const aliases = useMemo(() => getMaterialAliasGroups(knives), [knives])
+  const aliases = useMemo(() => getLabelAliasGroups(knives), [knives])
   const measurements = useMemo(
     () =>
       cleanupMeasurements.map((field) => ({
@@ -43,7 +47,47 @@ export function CompletenessDetail() {
       })),
     [knives],
   )
-  const [alias, setAlias] = useState<MaterialAliasGroup | null>(null)
+  const combinedSteelKnives = useMemo(
+    () => getCombinedSteelKnives(knives),
+    [knives],
+  )
+  const missingFields = useMemo(() => {
+    const fields = new Map<
+      BuiltInFilterKey,
+      {
+        key: BuiltInFilterKey
+        label: string
+        count: number
+        knifeIds: string[]
+      }
+    >(stats.missingFields.map((field) => [field.key, field]))
+    for (const field of cleanupLabelFields) {
+      const knifeIds = knives
+        .filter((knife) => !getBulkEditFieldValue(knife, field.field).trim())
+        .map((knife) => knife.id)
+      if (knifeIds.length)
+        fields.set(field.key, {
+          key: field.key,
+          label: field.label,
+          count: knifeIds.length,
+          knifeIds,
+        })
+    }
+    const handleLength = measurements.find(
+      (field) => field.key === 'handleLength',
+    )!
+    if (handleLength.missing.length)
+      fields.set('handleLength', {
+        key: 'handleLength',
+        label: handleLength.label,
+        count: handleLength.missing.length,
+        knifeIds: handleLength.missing.map((knife) => knife.id),
+      })
+    return [...fields.values()].sort(
+      (a, b) => b.count - a.count || a.label.localeCompare(b.label),
+    )
+  }, [knives, measurements, stats.missingFields])
+  const [alias, setAlias] = useState<LabelAliasGroup | null>(null)
   const [queue, setQueue] = useCleanupQueue()
   const [reviewOpen, setReviewOpen] = useState(false)
   const startReview = (
@@ -70,6 +114,11 @@ export function CompletenessDetail() {
         />
       </div>
 
+      <p className="text-center text-sm text-muted-foreground">
+        The score counts populated core fields, not accuracy or consistent
+        labels. Country, finish and handle length are reviewed separately.
+      </p>
+
       <section
         aria-labelledby="cleanup-heading"
         className="space-y-4 rounded-xl border p-4"
@@ -79,13 +128,16 @@ export function CompletenessDetail() {
             Guided collection cleanup
           </h2>
           <p className="text-sm text-muted-foreground">
-            Completeness counts populated fields. Review measurement readability
-            and consistent material labels here.
+            Review missing values, measurement readability and consistent labels
+            across country, designer, materials, blade style, brand, lock and
+            finish.
           </p>
         </div>
         <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
           <div className="flex items-start justify-between gap-4 sm:block">
-            <dt className="text-muted-foreground">Missing measurements</dt>
+            <dt className="text-muted-foreground">
+              Missing measurement values
+            </dt>
             <dd className="mt-1 text-lg font-medium">
               {measurements.reduce(
                 (sum, field) => sum + field.missing.length,
@@ -95,7 +147,7 @@ export function CompletenessDetail() {
           </div>
           <div className="flex items-start justify-between gap-4 sm:block">
             <dt className="text-muted-foreground">
-              Uninterpretable measurements
+              Uninterpretable measurement values
             </dt>
             <dd className="mt-1 text-lg font-medium">
               {measurements.reduce(
@@ -105,13 +157,14 @@ export function CompletenessDetail() {
             </dd>
           </div>
           <div className="flex items-start justify-between gap-4 sm:block">
-            <dt className="text-muted-foreground">Label suggestions</dt>
+            <dt className="text-muted-foreground">Label groups to review</dt>
             <dd className="mt-1 text-lg font-medium">{aliases.length}</dd>
           </div>
         </dl>
         <p className="text-xs text-muted-foreground">
-          Select a count to review those knives. Values with units are
-          interpreted without rewriting their source text.
+          Measurement counts are field values, not unique knives. Select a count
+          to review those knives. Values with units are interpreted without
+          rewriting their source text.
         </p>
         {queue && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted p-3">
@@ -176,7 +229,7 @@ export function CompletenessDetail() {
           </tbody>
         </table>
         <div className="space-y-2">
-          <h3 className="text-sm font-medium">Handle material labels</h3>
+          <h3 className="text-sm font-medium">Field label consistency</h3>
           {aliases.length ? (
             aliases.map((group) => (
               <div
@@ -184,6 +237,7 @@ export function CompletenessDetail() {
                 className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted p-3"
               >
                 <p className="min-w-0 text-sm break-words">
+                  <span className="font-medium">{group.field.label}: </span>
                   {group.values
                     .map((item) => `${item.value} (${item.knives.length})`)
                     .join(' · ')}
@@ -191,7 +245,7 @@ export function CompletenessDetail() {
                 <Button
                   size="sm"
                   variant="outline"
-                  aria-label={`Review labels ${group.values.map((item) => item.value).join(', ')}`}
+                  aria-label={`Review labels for ${group.field.label.toLowerCase()}: ${group.values.map((item) => item.value).join(', ')}`}
                   onClick={() => setAlias(group)}
                 >
                   Review labels
@@ -200,14 +254,69 @@ export function CompletenessDetail() {
             ))
           ) : (
             <p className="text-sm text-muted-foreground">
-              No equivalent label variants found.
+              No case, whitespace or known spelling variants found across the
+              eight fields.
             </p>
           )}
         </div>
       </section>
 
+      <section
+        aria-labelledby="source-review-heading"
+        className="space-y-3 rounded-xl border p-4"
+      >
+        <h2
+          id="source-review-heading"
+          className="font-heading text-lg font-medium"
+        >
+          Source review
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Label matching cannot verify facts such as country of manufacture.
+          Open a knife to compare its source and saved notes, then use Edit to
+          correct the fields individually.
+        </p>
+        {combinedSteelKnives.length ? (
+          <>
+            <p className="text-sm font-medium">
+              {combinedSteelKnives.length}{' '}
+              {combinedSteelKnives.length === 1 ? 'knife has' : 'knives have'}{' '}
+              hardness information in the blade material field.
+            </p>
+            <ul className="space-y-2 text-sm">
+              {combinedSteelKnives.map((knife) => (
+                <li
+                  key={knife.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted p-3"
+                >
+                  <span className="min-w-0 break-words">
+                    {knife.brand} {knife.name} · {knife.specs.bladeMaterial}
+                  </span>
+                  <Link
+                    href={`/collection/${encodeURIComponent(knife.id)}`}
+                    className="shrink-0 underline underline-offset-4"
+                  >
+                    Review source and fields
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No hardness information found in blade material labels.
+          </p>
+        )}
+        <Link
+          href="/collection"
+          className="inline-block text-sm underline underline-offset-4"
+        >
+          Browse collection for source review
+        </Link>
+      </section>
+
       {alias && (
-        <MaterialAliasReview group={alias} onClose={() => setAlias(null)} />
+        <LabelAliasReview group={alias} onClose={() => setAlias(null)} />
       )}
       {queue && (
         <MeasurementReview
@@ -218,13 +327,27 @@ export function CompletenessDetail() {
         />
       )}
 
-      {stats.missingFields.length === 0 ? (
+      {missingFields.length === 0 ? (
         <p className="text-center text-sm font-medium text-muted-foreground">
-          All fields complete
+          All reviewed fields populated
         </p>
       ) : (
-        <div className="grid gap-2">
-          {stats.missingFields.map((field) => {
+        <section
+          aria-labelledby="missing-fields-heading"
+          className="grid gap-2"
+        >
+          <h2
+            id="missing-fields-heading"
+            className="font-heading text-lg font-medium"
+          >
+            Missing fields
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Includes country, finish and handle length even though they do not
+            affect the core completeness score. A blank field may be optional or
+            not applicable.
+          </p>
+          {missingFields.map((field) => {
             const percent =
               stats.total === 0
                 ? 0
@@ -252,7 +375,7 @@ export function CompletenessDetail() {
               </Link>
             )
           })}
-        </div>
+        </section>
       )}
     </div>
   )
