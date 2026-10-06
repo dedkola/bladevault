@@ -997,10 +997,7 @@ export default function CollectionPage() {
     <Suspense
       fallback={
         <div className="flex-1 p-6 lg:p-8 w-full">
-          <PageHeader
-            title="Your collection."
-            description="Browse and manage every knife in your collection."
-          />
+          <PageHeader title="Your collection." />
           <div className="h-96 rounded-xl border border-dashed bg-muted/50" />
         </div>
       }

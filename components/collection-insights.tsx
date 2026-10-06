@@ -1941,7 +1941,6 @@ export function CollectionInsights() {
               eyebrow="Latest"
               title="Recently added"
               detailHref="/insights/recent"
-              description="Kept compact so insights stay primary"
               action={
                 <Button
                   variant="ghost"

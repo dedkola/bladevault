@@ -1431,17 +1431,11 @@ export default function SettingsView() {
                 <div className="mx-auto max-w-3xl space-y-3">
                   <ScreenshotBackfill />
                   <SettingsSection>
-                    <SettingsRow
-                      label="Current data folder"
-                      description="The active vault used by BladeVault right now."
-                    >
+                    <SettingsRow label="Current data folder">
                       <MonoValue>{localDataPath || 'Unavailable'}</MonoValue>
                     </SettingsRow>
 
-                    <SettingsRow
-                      label="Change local data folder"
-                      description="Change where images and the database are stored."
-                    >
+                    <SettingsRow label="Change local data folder">
                       <div className="flex w-full gap-2 sm:w-auto">
                         <Input
                           value={pendingLocalDataPath}
@@ -1601,10 +1595,7 @@ export default function SettingsView() {
                   </SettingsSection>
 
                   <SettingsSection title="Backup">
-                    <SettingsRow
-                      label="Back up now"
-                      description="Upload this device's local vault to the cloud."
-                    >
+                    <SettingsRow label="Back up now">
                       <Button
                         variant="outline"
                         size="sm"
@@ -1645,10 +1636,7 @@ export default function SettingsView() {
                         Sign in above before restoring from the cloud.
                       </div>
                     ) : null}
-                    <SettingsRow
-                      label="Restore from cloud"
-                      description="Download the latest cloud backup and replace this device's local vault."
-                    >
+                    <SettingsRow label="Restore from cloud">
                       <Button
                         variant="outline"
                         size="sm"
@@ -1709,12 +1697,9 @@ export default function SettingsView() {
                 <div className="mx-auto max-w-3xl space-y-3">
                   <SettingsSection
                     title="Local backup"
-                    description="Create or restore a portable ZIP on this device. No cloud account is required."
+                    description="No cloud account is required."
                   >
-                    <SettingsRow
-                      label="Download full backup"
-                      description="Save the database, collection settings, history, compare list, and local images in one ZIP file."
-                    >
+                    <SettingsRow label="Download full backup">
                       <Button
                         variant="outline"
                         size="sm"
@@ -1762,13 +1747,10 @@ export default function SettingsView() {
                     </div>
                   </SettingsSection>
 
-                  <SettingsSection
-                    title="Print"
-                    description="Create a readable report of your full collection."
-                  >
+                  <SettingsSection title="Print">
                     <SettingsRow
                       label="Collection report"
-                      description="Open the Overview and use your system print dialog to print it or save it as a PDF."
+                      description="Use your system print dialog to print it or save it as a PDF."
                     >
                       <Button
                         variant="outline"
@@ -1788,10 +1770,7 @@ export default function SettingsView() {
               {activeTab === 'appearance' && (
                 <div className="mx-auto max-w-3xl space-y-3">
                   <SettingsSection title="Appearance">
-                    <SettingsRow
-                      label="Theme"
-                      description="Choose how BladeVault looks on this device."
-                    >
+                    <SettingsRow label="Theme">
                       <Select
                         value={settings.theme}
                         onValueChange={handleThemeChange}
@@ -1816,10 +1795,7 @@ export default function SettingsView() {
                         </SelectContent>
                       </Select>
                     </SettingsRow>
-                    <SettingsRow
-                      label="Time format"
-                      description="Choose how clock times are shown."
-                    >
+                    <SettingsRow label="Time format">
                       <Select
                         value={settings.timeFormat}
                         onValueChange={handleTimeFormatChange}
