@@ -609,7 +609,6 @@ export function AddKnifeForm() {
     >
       <PageHeader
         title="Add Knife"
-        description="Scrape a product page or enter details manually."
         breadcrumbs={[{ label: 'Add' }]}
         actions={
           <Button variant="outline" size="sm" onClick={handleCancel}>

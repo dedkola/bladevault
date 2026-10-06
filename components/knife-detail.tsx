@@ -268,7 +268,6 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
           initialData={knifeToFormData(knife, customFields)}
           customFieldDefinitions={customFields}
           title="Edit Knife"
-          description="Edit knife details manually. Scrape loads a page preview without changing fields."
           breadcrumbs={knifeBreadcrumbs}
           onSave={handleSave}
           onCancel={handleCancel}

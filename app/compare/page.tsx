@@ -698,7 +698,6 @@ export default function ComparePage() {
       ) : !active ? (
         <EmptyState
           title="A place for every shortlist"
-          description="Create a comparison, give it a name, and start adding knives."
           icon={<ArchiveX className="size-8" />}
           action={
             <Button onClick={() => open({ kind: 'create' })}>
@@ -891,7 +890,7 @@ export default function ComparePage() {
           {comparedKnives.length === 0 ? (
             <EmptyState
               title="Start this comparison"
-              description="Search above to find knives or add them from your collection. Each comparison has its own selection."
+              description="Each comparison has its own selection."
               icon={<ArchiveX className="h-8 w-8" />}
               action={
                 <Button

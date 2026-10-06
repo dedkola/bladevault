@@ -94,10 +94,7 @@ export function AppLockSettings() {
   return (
     <div className="mx-auto max-w-3xl space-y-3">
       <SettingsSection title="App lock">
-        <SettingsRow
-          label="Password required"
-          description="Ask for a password when opening this vault."
-        >
+        <SettingsRow label="Password required">
           <span className="text-sm text-muted-foreground">
             {status ? (status.enabled ? 'Enabled' : 'Disabled') : 'Loading…'}
           </span>

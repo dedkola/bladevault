@@ -364,10 +364,7 @@ export function KnifeFormFields({
       </FormSection>
 
       {customFieldDefinitions.length > 0 && (
-        <FormSection
-          title="Custom Fields"
-          description="Team-specific metadata configured in settings."
-        >
+        <FormSection title="Custom Fields">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {customFieldDefinitions.map((field) => (
               <div key={field.id} className="space-y-2">
