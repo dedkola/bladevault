@@ -69,10 +69,19 @@ test('logs maintenance events from the knife detail page', async ({
   await expect(
     page.getByRole('heading', { name: 'Collection activity' }),
   ).toBeVisible()
-  await expect(page.getByText(/1 knife maintained/).first()).toBeVisible()
   await expect(
-    page.getByRole('heading', { name: 'Maintained' }).first(),
+    page
+      .getByRole('region', { name: 'Active days', exact: true })
+      .getByText(/1 knife maintained/),
   ).toBeVisible()
+  const recordedMaintenance = page
+    .getByRole('region', { name: 'Recorded events', exact: true })
+    .getByRole('link')
+    .filter({ has: page.getByText('Maintained', { exact: true }) })
+  await expect(recordedMaintenance).toHaveCount(4)
+  for (const event of await recordedMaintenance.all()) {
+    await expect(event).toHaveAttribute('href', `/collection/${knife.id}`)
+  }
 
   await page.goto('/logs')
   const maintenanceEntries = page.locator('[data-log-entry]').filter({
