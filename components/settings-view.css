@@ -1,0 +1,157 @@
+/* Settings — layout and control system.
+ *
+ * Layout
+ *   The page used to cap itself twice: max-w-7xl on the page and
+ *   mx-auto max-w-3xl per tab (768px). On a 2560px display that left the form
+ *   using 30% of the viewport with ~550px dead gutters either side. The surface
+ *   now fills the main column, anchored to the content edge, and each tab's
+ *   panels flow into a responsive grid.
+ *
+ *   auto-fit (not repeat(n, 1fr)) is deliberate: it collapses unused tracks, so
+ *   a tab with one panel gets a full-width panel instead of a lone card in the
+ *   left third, two panels split the row, three fill it, and so on — balanced
+ *   without per-tab layout classes.
+ *
+ * Controls
+ *   Inputs and selects render at h-8 (2rem). Buttons used size="sm" (h-7), so a
+ *   button sitting next to a field was visibly shorter. Buttons now use the
+ *   default size and --sv-control-h is the single height they all resolve to.
+ */
+
+.settings-surface {
+  /* one control height for the whole surface */
+  --sv-control-h: 2rem;
+}
+
+/* ---------------------------------------------------------------- grid --- */
+.settings-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  min-width: 0;
+}
+
+/* Each panel is its own container, so a row reacts to the width of the card it
+   actually sits in rather than the width of the viewport. */
+.settings-grid > * {
+  min-width: 0;
+  container-type: inline-size;
+}
+
+/* A tab that renders a single panel: cap it. Left-anchored, still ~1.4x the old
+   768px, but not stretched into a 2000px card whose right half is empty. */
+.settings-grid > *:only-child {
+  max-width: 68rem;
+}
+
+/* Row-spanning rows inside the grid (status strips, wide tables). */
+.settings-grid > .settings-full {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 900px) {
+  .settings-grid {
+    grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+  }
+}
+
+@media (min-width: 1800px) {
+  .settings-grid {
+    grid-template-columns: repeat(auto-fit, minmax(28rem, 1fr));
+    gap: 1.125rem;
+  }
+}
+
+/* --------------------------------------------------------- section head --- */
+/* The tab rail says where you are; this says what the page is for. */
+.settings-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0 0 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--bladevault-line);
+}
+
+.settings-head h2 {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  color: var(--foreground);
+}
+
+.settings-head p {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+/* --------------------------------------------------------------- rows --- */
+/* In a wide card, put each control next to its label instead of flinging it to
+   the far edge — a 1000px row with the control pinned right leaves a dead
+   middle the eye has to cross to connect a label with its control. Narrow cards
+   keep the original stacked/justified row. */
+@container (min-width: 560px) {
+  .settings-grid .settings-row {
+    display: grid;
+    grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
+    align-items: center;
+    column-gap: 1.5rem;
+    row-gap: 0.5rem;
+  }
+
+  .settings-grid .settings-row > :last-child {
+    justify-self: start;
+    min-width: 0;
+  }
+}
+
+/* ------------------------------------------------------------ controls --- */
+/* One height, one focus ring, for everything interactive in the surface.
+   min-height as well as height: in a column flex container a `flex-1` child
+   gets flex-basis:0, which overrides an explicit height and lets the control
+   collapse to its content box (the custom-field input did exactly that below
+   640px, rendering 28px next to 32px siblings). min-height is not overridden
+   by flex sizing, so the baseline holds at every width. */
+.settings-grid [data-slot='button'],
+.settings-grid [data-slot='input'],
+.settings-grid [data-slot='select-trigger'] {
+  height: var(--sv-control-h);
+  min-height: var(--sv-control-h);
+}
+
+.settings-grid [data-slot='button']:focus-visible,
+.settings-grid [data-slot='input']:focus-visible,
+.settings-grid [data-slot='select-trigger']:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ----------------------------------------------------------- empty state --- */
+.settings-empty {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+  padding: 1.25rem 0;
+  color: var(--muted-foreground);
+}
+
+.settings-empty svg {
+  width: 1.375rem;
+  height: 1.375rem;
+  color: var(--muted-foreground);
+}
+
+.settings-empty strong {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.settings-empty p {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 0.8125rem;
+}

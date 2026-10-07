@@ -87,6 +87,7 @@ import { cn } from '@/lib/utils'
 import pkg from '@/package.json'
 import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
 import { useKnives } from '@/components/providers/knives-provider'
+import './settings-view.css'
 
 type StatusTone = 'idle' | 'loading' | 'success' | 'error'
 type LocalBackupManifest = {
@@ -509,25 +510,60 @@ export default function SettingsView() {
 
   const tabs = useMemo(
     () => [
-      { id: 'general' as const, label: 'Local storage', icon: Database },
-      { id: 'app-lock' as const, label: 'App lock', icon: Lock },
-      { id: 'cloud-backup' as const, label: 'Cloud Backup', icon: Cloud },
+      {
+        id: 'general' as const,
+        label: 'Local storage',
+        icon: Database,
+        blurb: 'Where this vault keeps its database and images.',
+      },
+      {
+        id: 'app-lock' as const,
+        label: 'App lock',
+        icon: Lock,
+        blurb: 'Require a password before the vault opens on this device.',
+      },
+      {
+        id: 'cloud-backup' as const,
+        label: 'Cloud Backup',
+        icon: Cloud,
+        blurb:
+          'Optional off-device backup. Not required for a local-only vault.',
+      },
       {
         id: 'restore-database' as const,
         label: 'Backup & Restore',
         icon: Download,
+        blurb: 'Portable ZIPs you own — no account needed.',
       },
-      { id: 'appearance' as const, label: 'Appearance', icon: Palette },
+      {
+        id: 'appearance' as const,
+        label: 'Appearance',
+        icon: Palette,
+        blurb: 'How BladeVault looks and which details appear on cards.',
+      },
       {
         id: 'fields' as const,
         label: 'Custom Fields',
         icon: SlidersHorizontal,
+        blurb: 'Extra fields that apply to every knife in this vault.',
       },
-      { id: 'mcp' as const, label: 'AI / MCP', icon: Plug },
-      { id: 'about' as const, label: 'About', icon: Info },
+      {
+        id: 'mcp' as const,
+        label: 'AI / MCP',
+        icon: Plug,
+        blurb: 'Let an assistant read or write this vault over MCP.',
+      },
+      {
+        id: 'about' as const,
+        label: 'About',
+        icon: Info,
+        blurb: 'Version, updates and licensing.',
+      },
     ],
     [],
   )
+
+  const activeTabMeta = tabs.find((tab) => tab.id === activeTab) ?? tabs[0]
 
   const refreshCloudConfig = useCallback(async (force = false) => {
     const nextConfig = await loadCloudRuntimeConfig(force)
@@ -1376,7 +1412,6 @@ export default function SettingsView() {
 
           <div className="flex items-center justify-end gap-2">
             <Button
-              size="sm"
               className={`${settingsPrimaryButtonClassName} rounded-lg`}
               onClick={() => setLoadAttemptKey((current) => current + 1)}
             >
@@ -1385,10 +1420,13 @@ export default function SettingsView() {
           </div>
         </div>
       ) : (
-        <div className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border border-[var(--bladevault-line)] bg-background xl:flex-row">
+        <div className="settings-surface flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border border-[var(--bladevault-line)] bg-background xl:flex-row">
           {/* Sidebar */}
-          <aside className="flex w-full shrink-0 border-b border-[var(--bladevault-line)] bg-background xl:w-56 xl:flex-col xl:border-r xl:border-b-0">
-            <nav className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto p-2 xl:min-h-0 xl:flex-col xl:overflow-x-hidden xl:overflow-y-auto">
+          <aside className="flex w-full shrink-0 border-b border-[var(--bladevault-line)] bg-background xl:w-60 xl:flex-col xl:border-r xl:border-b-0 2xl:w-64">
+            <nav
+              data-settings-rail
+              className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto p-2 xl:min-h-0 xl:flex-col xl:overflow-x-hidden xl:overflow-y-auto"
+            >
               {tabs.map((tab) => {
                 const isActive = tab.id === activeTab
                 return (
@@ -1425,10 +1463,14 @@ export default function SettingsView() {
 
           {/* Main content */}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
-            <div className="min-h-0 flex-1 overflow-y-auto bg-background p-4 sm:p-5">
+            <div className="min-h-0 flex-1 overflow-y-auto bg-background p-4 sm:p-5 2xl:p-6">
+              <div className="settings-head">
+                <h2>{activeTabMeta.label}</h2>
+                <p>{activeTabMeta.blurb}</p>
+              </div>
               {activeTab === 'app-lock' && <AppLockSettings />}
               {activeTab === 'general' && (
-                <div className="mx-auto max-w-3xl space-y-3">
+                <div className="settings-grid">
                   <ScreenshotBackfill />
                   <SettingsSection>
                     <SettingsRow label="Current data folder">
@@ -1454,7 +1496,7 @@ export default function SettingsView() {
                           <Button
                             type="button"
                             variant="outline"
-                            className={`${settingsSecondaryButtonClassName} h-8 rounded-lg`}
+                            className={`${settingsSecondaryButtonClassName} rounded-lg`}
                             onClick={handleChooseLocalDataFolder}
                             disabled={dataDirManagedByEnv}
                           >
@@ -1520,7 +1562,6 @@ export default function SettingsView() {
                       />
                       <Button
                         type="button"
-                        size="sm"
                         className={`${settingsPrimaryButtonClassName} rounded-lg sm:self-auto`}
                         onClick={handleSaveLocalDataFolder}
                         disabled={
@@ -1540,7 +1581,7 @@ export default function SettingsView() {
               )}
 
               {activeTab === 'cloud-backup' && (
-                <div className="mx-auto max-w-2xl space-y-3">
+                <div className="settings-grid">
                   <SettingsSection title="Account">
                     {cloudSession ? (
                       <SettingsRow
@@ -1549,8 +1590,7 @@ export default function SettingsView() {
                       >
                         <Button
                           variant="outline"
-                          size="sm"
-                          className={`${settingsSecondaryButtonClassName} h-8 rounded-lg`}
+                          className={`${settingsSecondaryButtonClassName} rounded-lg`}
                           onClick={handleLogout}
                         >
                           <LogOut className="h-3.5 w-3.5" />
@@ -1572,8 +1612,7 @@ export default function SettingsView() {
                           description="Sign in to back up this vault to the cloud."
                         >
                           <Button
-                            size="sm"
-                            className={`${settingsPrimaryButtonClassName} h-8 rounded-lg`}
+                            className={`${settingsPrimaryButtonClassName} rounded-lg`}
                             onClick={handleGoogleSignIn}
                             disabled={Boolean(cloudConfigError)}
                           >
@@ -1598,8 +1637,7 @@ export default function SettingsView() {
                     <SettingsRow label="Back up now">
                       <Button
                         variant="outline"
-                        size="sm"
-                        className={`${settingsSecondaryButtonClassName} h-8 rounded-lg`}
+                        className={`${settingsSecondaryButtonClassName} rounded-lg`}
                         onClick={handleBackup}
                         disabled={!cloudSession || backupStatus === 'loading'}
                       >
@@ -1639,8 +1677,7 @@ export default function SettingsView() {
                     <SettingsRow label="Restore from cloud">
                       <Button
                         variant="outline"
-                        size="sm"
-                        className={`${settingsSecondaryButtonClassName} h-8 rounded-lg`}
+                        className={`${settingsSecondaryButtonClassName} rounded-lg`}
                         onClick={handleRestore}
                         disabled={!cloudSession || restoreStatus === 'loading'}
                       >
@@ -1694,7 +1731,7 @@ export default function SettingsView() {
               )}
 
               {activeTab === 'restore-database' && (
-                <div className="mx-auto max-w-3xl space-y-3">
+                <div className="settings-grid">
                   <SettingsSection
                     title="Local backup"
                     description="No cloud account is required."
@@ -1702,8 +1739,7 @@ export default function SettingsView() {
                     <SettingsRow label="Download full backup">
                       <Button
                         variant="outline"
-                        size="sm"
-                        className={`${settingsSecondaryButtonClassName} h-8 rounded-lg`}
+                        className={`${settingsSecondaryButtonClassName} rounded-lg`}
                         onClick={handleLocalBackupDownload}
                         disabled={localBackupStatus === 'loading'}
                       >
@@ -1729,8 +1765,7 @@ export default function SettingsView() {
                       />
                       <Button
                         variant="outline"
-                        size="sm"
-                        className={`${settingsSecondaryButtonClassName} h-8 rounded-lg`}
+                        className={`${settingsSecondaryButtonClassName} rounded-lg`}
                         onClick={() => localRestoreInputRef.current?.click()}
                         disabled={localBackupStatus === 'loading'}
                       >
@@ -1754,8 +1789,7 @@ export default function SettingsView() {
                     >
                       <Button
                         variant="outline"
-                        size="sm"
-                        className={`${settingsSecondaryButtonClassName} h-8 rounded-lg`}
+                        className={`${settingsSecondaryButtonClassName} rounded-lg`}
                         onClick={handlePrintCollectionReport}
                         disabled={knives.length === 0}
                       >
@@ -1768,7 +1802,7 @@ export default function SettingsView() {
               )}
 
               {activeTab === 'appearance' && (
-                <div className="mx-auto max-w-3xl space-y-3">
+                <div className="settings-grid">
                   <SettingsSection title="Appearance">
                     <SettingsRow label="Theme">
                       <Select
@@ -1909,7 +1943,7 @@ export default function SettingsView() {
               )}
 
               {activeTab === 'fields' && (
-                <div className="mx-auto max-w-3xl space-y-3">
+                <div className="settings-grid">
                   <SettingsSection
                     title="Custom Fields"
                     description="Define extra fields that apply to every knife. They appear in the add/edit form and as collection filters."
@@ -2042,8 +2076,7 @@ export default function SettingsView() {
                         </Select>
                         <Button
                           type="button"
-                          size="sm"
-                          className={`${settingsPrimaryButtonClassName} h-8 rounded-lg sm:self-auto`}
+                          className={`${settingsPrimaryButtonClassName} rounded-lg sm:self-auto`}
                           onClick={handleAddField}
                           disabled={!newFieldName.trim()}
                         >
@@ -2056,9 +2089,9 @@ export default function SettingsView() {
               )}
 
               {activeTab === 'mcp' && (
-                <div className="mx-auto max-w-3xl space-y-3">
+                <div className="settings-grid">
                   {mcpUpdateStatus !== 'idle' ? (
-                    <div className="flex justify-end">
+                    <div className="settings-full flex justify-end">
                       <StatusPill
                         status={mcpUpdateStatus}
                         message={mcpUpdateMessage}
@@ -2124,8 +2157,7 @@ export default function SettingsView() {
                         <Button
                           type="button"
                           variant="outline"
-                          size="sm"
-                          className={`${settingsSecondaryButtonClassName} h-8 rounded-lg`}
+                          className={`${settingsSecondaryButtonClassName} rounded-lg`}
                           onClick={() => void handleCopyMcpToken()}
                           disabled={!mcpStatus}
                         >
@@ -2142,8 +2174,7 @@ export default function SettingsView() {
                         <Button
                           type="button"
                           variant="outline"
-                          size="sm"
-                          className={`${settingsSecondaryButtonClassName} h-8 rounded-lg`}
+                          className={`${settingsSecondaryButtonClassName} rounded-lg`}
                           onClick={() => void handleCopyMcpConfig()}
                           disabled={!mcpClientConfig}
                         >
@@ -2166,8 +2197,7 @@ export default function SettingsView() {
                         <Button
                           type="button"
                           variant="ghost"
-                          size="sm"
-                          className="h-7 rounded-lg px-2 text-xs"
+                          className="rounded-lg px-2 text-xs"
                           onClick={() => void refreshMcpStatus()}
                           disabled={mcpUpdateStatus === 'loading'}
                         >
@@ -2219,11 +2249,10 @@ export default function SettingsView() {
               )}
 
               {activeTab === 'about' && (
-                <div className="mx-auto max-w-3xl space-y-3">
+                <div className="settings-grid">
                   <SettingsSection title="BladeVault">
                     <SettingsRow label="Version" description={pkg.version}>
                       <Button
-                        size="sm"
                         className={`${settingsSecondaryButtonClassName} rounded-lg`}
                         onClick={handleUpdateAction}
                         disabled={
