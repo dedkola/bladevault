@@ -53,7 +53,7 @@ function DetailSection({
       aria-label={title}
       className="mx-5 border-t border-border/60 py-5 first:border-t-0"
     >
-      <h3 className="mb-4 flex items-center gap-2 text-xs font-semibold text-foreground">
+      <h3 className="mb-4 flex items-center gap-2 text-xs xl:text-lg font-semibold text-foreground">
         <Icon
           aria-hidden="true"
           className="size-3.5 shrink-0 text-[var(--bladevault-title)] dark:text-[var(--bladevault-gold)]"
@@ -71,10 +71,10 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
   return (
     <div className="min-w-0">
-      <dt className="mb-1 text-[10px] leading-relaxed text-muted-foreground">
+      <dt className="mb-1 text-[10px] xl:text-xs leading-relaxed text-muted-foreground">
         {label}
       </dt>
-      <dd className="text-[13px] leading-relaxed font-medium text-foreground tabular-nums [overflow-wrap:anywhere]">
+      <dd className="text-[13px] xl:text-sm leading-relaxed font-medium text-foreground tabular-nums [overflow-wrap:anywhere]">
         {isMissing ? (
           <>
             <span
@@ -449,7 +449,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
       />
 
       {error && (
-        <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs xl:text-sm text-destructive">
           <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
           <span>{error}</span>
         </div>
@@ -476,7 +476,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
               {safeSourceUrl ? (
                 <div className="flex items-center justify-between gap-3 px-5 py-4">
                   <div className="min-w-0">
-                    <h3 className="mb-1 text-[10px] text-muted-foreground">
+                    <h3 className="mb-1 text-[10px] xl:text-xs text-muted-foreground">
                       Source
                     </h3>
                     <Link
@@ -484,7 +484,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
                       target="_blank"
                       rel="noopener noreferrer"
                       title={safeSourceUrl}
-                      className="inline-flex max-w-full items-center gap-2 rounded-sm text-xs font-medium text-foreground hover:text-[var(--bladevault-title)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring dark:hover:text-[var(--bladevault-gold)]"
+                      className="inline-flex max-w-full items-center gap-2 rounded-sm text-xs xl:text-sm font-medium text-foreground hover:text-[var(--bladevault-title)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring dark:hover:text-[var(--bladevault-gold)]"
                     >
                       <span className="min-w-0 [overflow-wrap:anywhere]">
                         {new URL(safeSourceUrl).hostname}
@@ -533,13 +533,13 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
                       .map((paragraph, index) => (
                         <p
                           key={index}
-                          className="whitespace-pre-line text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]"
+                          className="whitespace-pre-line text-xs xl:text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]"
                         >
                           {paragraph}
                         </p>
                       ))
                   ) : (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs xl:text-sm text-muted-foreground">
                       No description provided.
                     </p>
                   )}

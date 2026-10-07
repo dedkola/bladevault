@@ -6,6 +6,7 @@ import { MoreHorizontal, Plus, Pencil } from 'lucide-react'
 
 import {
   type ReactNode,
+  type CSSProperties,
   useCallback,
   useEffect,
   useMemo,
@@ -902,11 +903,19 @@ export default function ComparePage() {
               }
             />
           ) : (
-            <Card className="border-[var(--bladevault-line)]/80 bg-background shadow-none">
+            <Card
+              className="min-w-0 border-[var(--bladevault-line)]/80 bg-background shadow-none xl:max-w-[var(--comparison-panel-width)]"
+              style={
+                {
+                  '--comparison-panel-width': `${comparedKnives.length * 288 + 242}px`,
+                } as CSSProperties
+              }
+              data-comparison-matrix
+            >
               <CardContent className="space-y-3 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-medium text-foreground">
+                    <div className="text-sm font-medium text-foreground xl:text-lg">
                       Comparison Matrix
                     </div>
                     {comparedKnives.length > 1 ? (
@@ -936,17 +945,20 @@ export default function ComparePage() {
                   className="rounded-xl"
                   viewportClassName="max-h-[72vh] overflow-auto rounded-xl border border-[var(--bladevault-line)]/80 bg-[color:var(--bladevault-surface-soft)]/30"
                 >
-                  <Table className="w-auto" containerClassName="contents">
+                  <Table
+                    className="w-auto xl:w-full"
+                    containerClassName="contents"
+                  >
                     <TableHeader>
                       <TableRow className="bg-[color:var(--bladevault-surface-soft)]/70 hover:bg-[color:var(--bladevault-surface-soft)]/70">
-                        <TableHead className="sticky left-0 top-0 z-30 w-28 min-w-28 max-w-28 whitespace-normal border-r border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] text-[10px] uppercase tracking-wider text-[var(--bladevault-title)] shadow-[1px_0_0_0_var(--bladevault-line)] sm:w-44 sm:min-w-44 sm:max-w-44">
+                        <TableHead className="sticky left-0 top-0 z-30 w-28 min-w-28 max-w-28 whitespace-normal border-r border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] text-[10px] uppercase tracking-wider text-[var(--bladevault-title)] shadow-[1px_0_0_0_var(--bladevault-line)] sm:w-44 sm:min-w-44 sm:max-w-44 xl:w-52 xl:min-w-52 xl:max-w-52 xl:text-xs">
                           Feature
                         </TableHead>
                         {comparedKnives.map((knife) => (
                           <TableHead
                             key={knife.id}
                             className={cn(
-                              'sticky top-0 z-20 w-[200px] min-w-[200px] max-w-[200px] border-r border-[var(--bladevault-line)]/70 bg-background align-top transition-colors last:border-r-0',
+                              'sticky top-0 z-20 w-[200px] min-w-[200px] max-w-[200px] border-r border-[var(--bladevault-line)]/70 bg-background align-top transition-colors last:border-r-0 xl:w-72 xl:min-w-72 xl:max-w-72',
                               hoveredCell?.knifeId === knife.id &&
                                 'bg-[color:var(--bladevault-surface-hover)]/55',
                             )}
@@ -958,7 +970,7 @@ export default function ComparePage() {
                                     src={getImageUrl(knife.images[0])}
                                     alt={knife.name}
                                     fill
-                                    sizes="(max-width: 640px) 100vw, 200px"
+                                    sizes="(min-width: 1280px) 288px, (max-width: 640px) 100vw, 200px"
                                     className="object-contain"
                                     referrerPolicy="no-referrer"
                                   />
@@ -981,10 +993,10 @@ export default function ComparePage() {
                                 href={`/collection/${knife.id}`}
                                 className="block space-y-0.5 hover:underline"
                               >
-                                <div className="text-sm font-medium leading-tight whitespace-normal">
+                                <div className="text-sm font-medium leading-tight whitespace-normal xl:text-base">
                                   {knife.name}
                                 </div>
-                                <div className="text-[10px] uppercase tracking-wider text-[var(--bladevault-title)] whitespace-normal">
+                                <div className="text-[10px] uppercase tracking-wider text-[var(--bladevault-title)] whitespace-normal xl:text-xs">
                                   {knife.brand}
                                 </div>
                                 {knife.specs.modelNumber && (
@@ -1022,7 +1034,7 @@ export default function ComparePage() {
                         >
                           <TableCell
                             className={cn(
-                              'sticky left-0 z-10 w-28 min-w-28 max-w-28 whitespace-normal border-r border-[var(--bladevault-line)] text-[11px] leading-tight font-medium uppercase tracking-wider text-[var(--bladevault-title)] shadow-[1px_0_0_0_var(--bladevault-line)] transition-colors sm:w-44 sm:min-w-44 sm:max-w-44',
+                              'sticky left-0 z-10 w-28 min-w-28 max-w-28 whitespace-normal border-r border-[var(--bladevault-line)] text-[11px] leading-tight font-medium uppercase tracking-wider text-[var(--bladevault-title)] shadow-[1px_0_0_0_var(--bladevault-line)] transition-colors sm:w-44 sm:min-w-44 sm:max-w-44 xl:w-52 xl:min-w-52 xl:max-w-52 xl:text-xs',
                               idx % 2 === 0
                                 ? 'bg-background'
                                 : 'bg-[var(--bladevault-surface-soft)]',
@@ -1059,16 +1071,6 @@ export default function ComparePage() {
                           })}
                         </TableRow>
                       ))}
-                      {visibleCompareRows.length === 0 && (
-                        <TableRow>
-                          <TableCell
-                            colSpan={comparedKnives.length + 1}
-                            className="py-8 text-center text-sm text-muted-foreground"
-                          >
-                            All selected knives have matching values.
-                          </TableCell>
-                        </TableRow>
-                      )}
                     </TableBody>
                   </Table>
                 </HorizontalScrollArea>

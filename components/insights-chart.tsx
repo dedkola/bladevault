@@ -23,6 +23,7 @@ export type InsightsChartPalette = {
   highlightWash: string
   chartPrimary: string
   chartSecondary: string
+  labelFontSize?: number
 }
 
 function getPalette(): InsightsChartPalette {
@@ -31,6 +32,9 @@ function getPalette(): InsightsChartPalette {
     style.getPropertyValue(name).trim() || fallback
 
   return {
+    labelFontSize: window.matchMedia?.('(min-width: 1280px)').matches
+      ? 12
+      : undefined,
     card: get('--card', '#fffdf8'),
     foreground: get('--foreground', '#2f2a20'),
     muted: get('--muted-foreground', '#6f6751'),
@@ -86,6 +90,8 @@ export function InsightsChart({
     const updateOption = () => {
       chart?.setOption(buildOptionRef.current(getPalette()), true)
     }
+    const desktopQuery = window.matchMedia?.('(min-width: 1280px)')
+    desktopQuery?.addEventListener('change', updateOption)
 
     window.addEventListener('resize', hideTooltip)
 
@@ -144,6 +150,7 @@ export function InsightsChart({
     return () => {
       cancelled = true
       window.removeEventListener('resize', hideTooltip)
+      desktopQuery?.removeEventListener('change', updateOption)
       visibilityObserver?.disconnect()
       resizeObserver?.disconnect()
       themeObserver?.disconnect()

@@ -161,7 +161,10 @@ function getTooltipAppearance(palette: InsightsChartPalette) {
     backgroundColor: palette.card,
     borderColor: palette.gold,
     borderWidth: 1,
-    textStyle: { color: palette.foreground, fontSize: 11 },
+    textStyle: {
+      color: palette.foreground,
+      fontSize: palette.labelFontSize ?? 11,
+    },
   }
 }
 
@@ -173,7 +176,10 @@ function getOverlayTooltipAppearance(palette: InsightsChartPalette) {
     backgroundColor: palette.card,
     borderColor: palette.gold,
     borderWidth: 1,
-    textStyle: { color: palette.foreground, fontSize: 11 },
+    textStyle: {
+      color: palette.foreground,
+      fontSize: palette.labelFontSize ?? 11,
+    },
     extraCssText:
       'z-index: 9999999; border-radius: 8px; box-shadow: 0 8px 24px rgba(46, 52, 23, 0.16); pointer-events: none;',
   }
@@ -243,7 +249,7 @@ export function getLibraryOption(
         title: {
           offsetCenter: [0, '27%'],
           color: palette.muted,
-          fontSize: 9,
+          fontSize: palette.labelFontSize ?? 9,
         },
         detail: {
           offsetCenter: [0, '-10%'],
@@ -288,7 +294,10 @@ export function getMakerOption(
               fontWeight: 600,
               lineHeight: 27,
             },
-            small: { color: palette.muted, fontSize: 8 },
+            small: {
+              color: palette.muted,
+              fontSize: palette.labelFontSize ?? 8,
+            },
           },
         },
         labelLine: { show: false },
@@ -329,7 +338,10 @@ export function getLockTypeOption(
               fontWeight: 600,
               lineHeight: 27,
             },
-            small: { color: palette.muted, fontSize: 8 },
+            small: {
+              color: palette.muted,
+              fontSize: palette.labelFontSize ?? 8,
+            },
           },
         },
         labelLine: { show: false },
@@ -370,7 +382,7 @@ export function getCompletenessOption(
         title: {
           offsetCenter: [0, '27%'],
           color: palette.muted,
-          fontSize: 8,
+          fontSize: palette.labelFontSize ?? 8,
         },
         detail: {
           offsetCenter: [0, '-10%'],
@@ -422,7 +434,7 @@ export function getHorizontalBarOption(
       axisTick: { show: false },
       axisLabel: {
         color: palette.foreground,
-        fontSize: 11,
+        fontSize: palette.labelFontSize ?? 11,
         fontWeight: 600,
       },
     },
@@ -445,7 +457,7 @@ export function getHorizontalBarOption(
           position: 'right',
           distance: 12,
           color: palette.muted,
-          fontSize: 10,
+          fontSize: palette.labelFontSize ?? 10,
           formatter: (params: { dataIndex?: number }) => {
             const category = categories[params.dataIndex ?? -1]
             return category ? `${category.count} · ${category.percent}%` : ''
@@ -486,7 +498,10 @@ function getPieOption(
               fontWeight: 600,
               lineHeight: 29,
             },
-            small: { color: palette.muted, fontSize: 8 },
+            small: {
+              color: palette.muted,
+              fontSize: palette.labelFontSize ?? 8,
+            },
           },
         },
         labelLine: { show: false },
@@ -531,7 +546,7 @@ export function getHistogramOption(
       axisLine: { lineStyle: { color: palette.line } },
       axisLabel: {
         color: palette.muted,
-        fontSize: 11,
+        fontSize: palette.labelFontSize ?? 11,
         interval: 0,
         lineHeight: 13,
       },
@@ -556,7 +571,7 @@ export function getHistogramOption(
           show: true,
           position: 'top',
           color: palette.foreground,
-          fontSize: 10,
+          fontSize: palette.labelFontSize ?? 10,
           fontWeight: 600,
         },
       },
@@ -587,10 +602,10 @@ function InsightPanel({
     >
       <div className="flex flex-col items-start justify-between gap-3 px-5 pt-5 sm:flex-row sm:gap-4">
         <div className="min-w-0">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)]">
+          <span className="text-[10px] xl:text-xs font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)]">
             {eyebrow}
           </span>
-          <h2 className="mt-1 text-base font-semibold tracking-tight">
+          <h2 className="mt-1 text-base font-semibold tracking-tight xl:text-lg">
             {detailHref ? (
               <Link
                 href={detailHref}
@@ -603,7 +618,9 @@ function InsightPanel({
             )}
           </h2>
           {description ? (
-            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+            <p className="mt-1 text-xs xl:text-sm text-muted-foreground">
+              {description}
+            </p>
           ) : null}
         </div>
         {action}
@@ -633,7 +650,7 @@ function CategoryRows({
           key={category.name}
           type="button"
           onClick={() => onSelect(category)}
-          className="flex min-h-8 w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex min-h-8 w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs xl:text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {showColors && (
             <span
@@ -664,7 +681,7 @@ function MeasurementRows({
   onSelect: (bin: MeasurementStats['bins'][number]) => void
 }) {
   return (
-    <details className="mt-3 text-xs">
+    <details className="mt-3 text-xs xl:text-sm">
       <summary className="w-fit cursor-pointer rounded-sm py-1 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         View data<span className="sr-only">: {measurement.label}</span>
       </summary>
@@ -721,17 +738,17 @@ export function RecentKnife({ knife }: { knife: Knife }) {
         )}
       </span>
       <span className="min-w-0">
-        <strong className="block truncate text-xs font-semibold">
+        <strong className="block truncate text-xs xl:text-sm font-semibold">
           {knife.brand} {knife.name}
         </strong>
-        <small className="block truncate text-[10px] text-muted-foreground">
+        <small className="block truncate text-[10px] xl:text-xs text-muted-foreground">
           {[knife.specs.bladeMaterial, knife.bladeStyle]
             .filter(Boolean)
             .join(' · ') || 'Details not set'}
         </small>
       </span>
       <time
-        className="text-[9px] text-muted-foreground"
+        className="text-[9px] xl:text-xs text-muted-foreground"
         dateTime={knife.addedAt}
       >
         {new Date(knife.addedAt).toLocaleDateString(undefined, {
@@ -764,10 +781,10 @@ export function DrilldownKnife({ knife }: { knife: Knife }) {
         )}
       </span>
       <span className="min-w-0">
-        <strong className="block truncate text-sm">
+        <strong className="block truncate text-sm xl:text-base">
           {knife.brand} {knife.name}
         </strong>
-        <span className="block truncate text-xs text-muted-foreground">
+        <span className="block truncate text-xs xl:text-sm text-muted-foreground">
           {[knife.specs.bladeMaterial, knife.bladeStyle]
             .filter(Boolean)
             .join(' · ') || 'Details not set'}
@@ -1068,7 +1085,7 @@ export function CollectionInsights() {
         <Card className="border-dashed bg-muted/40">
           <CardContent className="flex flex-col items-center py-16 text-center">
             <h2 className="font-medium">No collection data yet</h2>
-            <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+            <p className="mt-1 max-w-sm text-sm xl:text-base text-muted-foreground">
               Add your first knife to start revealing collection patterns.
             </p>
             <Button
@@ -1097,7 +1114,7 @@ export function CollectionInsights() {
         <Card className="border-dashed bg-muted/40">
           <CardContent className="flex flex-col items-center py-14 text-center">
             <h2 className="font-medium">No knives in this period</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 text-sm xl:text-base text-muted-foreground">
               Add a knife to start building collection insights.
             </p>
             <Button
@@ -1119,7 +1136,7 @@ export function CollectionInsights() {
               <CardContent className="flex h-full flex-col p-4">
                 <Link
                   href="/insights/library"
-                  className="block h-4 w-fit text-[10px] font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)] hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="block h-4 w-fit text-[10px] xl:text-xs font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)] hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   Library
                 </Link>
@@ -1130,16 +1147,16 @@ export function CollectionInsights() {
                   <strong className="text-4xl font-semibold tracking-tight tabular-nums">
                     {stats.total}
                   </strong>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs xl:text-sm text-muted-foreground">
                     knives catalogued
                   </span>
                 </Link>
-                <div className="mt-4 grid grid-cols-3 gap-2 border-y border-border/70 py-3 text-xs">
+                <div className="mt-4 grid grid-cols-3 gap-2 border-y border-border/70 py-3 text-xs xl:text-sm">
                   <div>
                     <strong className="block text-base tabular-nums">
                       +{libraryMonths[5].knifeIds.length}
                     </strong>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-[10px] xl:text-xs text-muted-foreground">
                       This month
                     </span>
                   </div>
@@ -1147,7 +1164,7 @@ export function CollectionInsights() {
                     <strong className="block text-base tabular-nums">
                       +{stats.addedThisYear}
                     </strong>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-[10px] xl:text-xs text-muted-foreground">
                       In {now.getFullYear()}
                     </span>
                   </div>
@@ -1169,13 +1186,13 @@ export function CollectionInsights() {
                     <strong className="block text-base tabular-nums">
                       {stats.pinnedCount}
                     </strong>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-[10px] xl:text-xs text-muted-foreground">
                       Pinned →
                     </span>
                   </button>
                 </div>
                 <div className="mt-auto pt-3">
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-[10px] xl:text-xs text-muted-foreground">
                     Added by month · last 6 months
                   </p>
                   <div
@@ -1198,7 +1215,7 @@ export function CollectionInsights() {
                         }
                         className="group flex min-w-0 flex-col items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
                       >
-                        <span className="text-[10px] tabular-nums">
+                        <span className="text-[10px] xl:text-xs tabular-nums">
                           {month.knifeIds.length}
                         </span>
                         <span
@@ -1219,7 +1236,7 @@ export function CollectionInsights() {
                             )}
                           />
                         </span>
-                        <span className="mt-1 text-[10px] text-muted-foreground">
+                        <span className="mt-1 text-[10px] xl:text-xs text-muted-foreground">
                           {month.label}
                         </span>
                       </button>
@@ -1230,15 +1247,15 @@ export function CollectionInsights() {
             </Card>
 
             <Card className="min-h-44 gap-0 py-0 print:break-inside-avoid">
-              <CardContent className="grid h-full grid-cols-[minmax(0,1fr)_7rem] grid-rows-[auto_1fr] items-start gap-x-2 gap-y-1 p-4">
+              <CardContent className="grid h-full grid-cols-[minmax(0,1fr)_7rem] xl:grid-cols-[minmax(0,1fr)_9rem] grid-rows-[auto_1fr] items-start gap-x-2 gap-y-1 p-4">
                 <div>
                   <Link
                     href="/insights/makers"
-                    className="block h-4 w-fit text-[10px] font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="block h-4 w-fit text-[10px] xl:text-xs font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     Maker mix
                   </Link>
-                  <p className="mt-4 text-xs text-muted-foreground">
+                  <p className="mt-4 text-xs xl:text-sm text-muted-foreground">
                     The top two hold{' '}
                     <strong className="text-foreground">
                       {topTwoMakerShare}%
@@ -1255,7 +1272,7 @@ export function CollectionInsights() {
                     )
                   }
                   ariaLabel={`${stats.categories.brand.length} makers represented`}
-                  className="h-24 w-24 cursor-pointer justify-self-end"
+                  className="h-24 w-24 xl:h-32 xl:w-32 cursor-pointer justify-self-end"
                   onChartClick={(event) =>
                     openChartCategory(event, 'Brand', 'brand', makerCategories)
                   }
@@ -1274,24 +1291,26 @@ export function CollectionInsights() {
 
             <Card className="min-h-44 gap-0 py-0 print:break-inside-avoid">
               <CardContent className="flex h-full flex-col p-4">
-                <h2 className="h-4 text-[10px] font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)]">
+                <h2 className="h-4 text-[10px] xl:text-xs font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)]">
                   Maintenance
                 </h2>
-                <p className="mt-3 text-sm font-semibold">Last recorded care</p>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-3 text-sm xl:text-base font-semibold">
+                  Last recorded care
+                </p>
+                <p className="mt-1 text-xs xl:text-sm text-muted-foreground">
                   Knives by most recent maintenance
                 </p>
                 {!isActivityLoaded ? (
                   <p
                     role="status"
-                    className="mt-4 text-xs text-muted-foreground"
+                    className="mt-4 text-xs xl:text-sm text-muted-foreground"
                   >
                     Loading maintenance history…
                   </p>
                 ) : !maintenanceGroups ? (
                   <p
                     role="status"
-                    className="mt-4 text-xs text-muted-foreground"
+                    className="mt-4 text-xs xl:text-sm text-muted-foreground"
                   >
                     Maintenance history unavailable. Reload to try again.
                   </p>
@@ -1315,7 +1334,7 @@ export function CollectionInsights() {
                         }
                         className="group rounded-md px-1 py-2 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
                       >
-                        <span className="flex items-start justify-between gap-2 text-xs">
+                        <span className="flex items-start justify-between gap-2 text-xs xl:text-sm">
                           <span>{group.label}</span>
                           <span className="shrink-0 tabular-nums text-muted-foreground">
                             {group.count} · {group.percent}%
@@ -1346,11 +1365,11 @@ export function CollectionInsights() {
             </Card>
 
             <Card className="min-h-44 gap-0 py-0 print:break-inside-avoid">
-              <CardContent className="grid h-full grid-cols-[minmax(0,1fr)_7rem] grid-rows-[auto_1fr] items-start gap-2 p-4">
+              <CardContent className="grid h-full grid-cols-[minmax(0,1fr)_7rem] xl:grid-cols-[minmax(0,1fr)_9rem] grid-rows-[auto_1fr] items-start gap-2 p-4">
                 <div>
                   <Link
                     href="/insights/locks"
-                    className="block h-4 w-fit text-[10px] font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="block h-4 w-fit text-[10px] xl:text-xs font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     Lock types
                   </Link>
@@ -1364,16 +1383,16 @@ export function CollectionInsights() {
                           stats.categories.lockingMechanism[0],
                         )
                       }
-                      className="mt-4 block text-left text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="mt-4 block text-left text-xs xl:text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      <strong className="block truncate text-sm text-foreground">
+                      <strong className="block truncate text-sm xl:text-base text-foreground">
                         {stats.categories.lockingMechanism[0].name}
                       </strong>
                       {stats.categories.lockingMechanism[0].count} knives ·{' '}
                       {stats.categories.lockingMechanism[0].percent}%
                     </button>
                   ) : (
-                    <p className="mt-4 text-xs text-muted-foreground">
+                    <p className="mt-4 text-xs xl:text-sm text-muted-foreground">
                       No lock types recorded
                     </p>
                   )}
@@ -1387,7 +1406,7 @@ export function CollectionInsights() {
                     )
                   }
                   ariaLabel={`${stats.categories.lockingMechanism.length} lock types represented`}
-                  className="h-28 w-28 cursor-pointer"
+                  className="h-28 w-28 xl:h-36 xl:w-36 cursor-pointer"
                   onChartClick={(event) =>
                     openChartCategory(
                       event,
@@ -1460,7 +1479,7 @@ export function CollectionInsights() {
                   )
                 }
               />
-              <details className="mt-3 text-xs">
+              <details className="mt-3 text-xs xl:text-sm">
                 <summary className="w-fit cursor-pointer rounded-sm py-1 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   View data<span className="sr-only">: Blade steels</span>
                 </summary>
@@ -1516,7 +1535,7 @@ export function CollectionInsights() {
                       stats.categories.lockingMechanism[0],
                     )
                   }
-                  className="mt-2 flex w-full items-center justify-between rounded-lg bg-muted px-3 py-2 text-left text-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="mt-2 flex w-full items-center justify-between rounded-lg bg-muted px-3 py-2 text-left text-xs xl:text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span className="text-muted-foreground">
                     Most common lock
@@ -1548,7 +1567,7 @@ export function CollectionInsights() {
                       <TabsTrigger
                         key={key}
                         value={key}
-                        className="text-[10px] data-active:bg-[var(--bladevault-gold)] data-active:text-[var(--bladevault-olive)] dark:data-active:border-[var(--bladevault-gold)] dark:data-active:bg-[var(--bladevault-gold)] dark:data-active:text-[var(--bladevault-olive)]"
+                        className="text-[10px] xl:text-xs data-active:bg-[var(--bladevault-gold)] data-active:text-[var(--bladevault-olive)] dark:data-active:border-[var(--bladevault-gold)] dark:data-active:bg-[var(--bladevault-gold)] dark:data-active:text-[var(--bladevault-olive)]"
                       >
                         {key === 'bladeLength'
                           ? 'Blade'
@@ -1584,7 +1603,7 @@ export function CollectionInsights() {
                   }
                 />
               </div>
-              <p className="mt-1 text-[11px] text-muted-foreground sm:hidden">
+              <p className="mt-1 text-[11px] xl:text-xs text-muted-foreground sm:hidden">
                 Swipe chart for all ranges, or open View data.
               </p>
               <MeasurementRows
@@ -1592,7 +1611,7 @@ export function CollectionInsights() {
                 measurement={measurement}
                 onSelect={(bin) => openMeasurementBin(measurement, bin)}
               />
-              <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
+              <div className="mt-2 flex justify-between text-[10px] xl:text-xs text-muted-foreground">
                 <span>
                   Most common{' '}
                   <strong className="text-foreground">
@@ -1638,7 +1657,7 @@ export function CollectionInsights() {
                         collectionHref: missingHref(field.key),
                       })
                     }
-                    className="flex items-center justify-between rounded-md bg-muted px-3 py-2 text-xs hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex items-center justify-between rounded-md bg-muted px-3 py-2 text-xs xl:text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <span>{field.label} missing</span>
                     <strong>{field.count}</strong>
@@ -1660,13 +1679,13 @@ export function CollectionInsights() {
                       key={category.name}
                       type="button"
                       onClick={() => openCategory('Brand', 'brand', category)}
-                      className="grid w-full grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-1 py-2.5 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="grid w-full grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-1 py-2.5 text-left text-xs xl:text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <span className="font-serif text-muted-foreground">
                         {String(index + 1).padStart(2, '0')}
                       </span>
                       <strong className="truncate">{category.name}</strong>
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-[10px] xl:text-xs text-muted-foreground">
                         {category.count} · {category.percent}%
                       </span>
                     </button>
@@ -1698,7 +1717,7 @@ export function CollectionInsights() {
                         category,
                       )
                     }
-                    className="rounded-full border border-[var(--bladevault-line)] px-3 py-1.5 text-[10px] font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="rounded-full border border-[var(--bladevault-line)] px-3 py-1.5 text-[10px] xl:text-xs font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {category.name}{' '}
                     <span className="text-[var(--bladevault-title)]">
@@ -1708,7 +1727,7 @@ export function CollectionInsights() {
                 ))}
               </div>
               <div className="mt-5 border-t border-border pt-4">
-                <span className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
+                <span className="text-[9px] xl:text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                   Lock types
                 </span>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -1727,7 +1746,7 @@ export function CollectionInsights() {
                           category,
                         )
                       }
-                      className="rounded-full border border-[var(--bladevault-line)] px-3 py-1.5 text-[10px] font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="rounded-full border border-[var(--bladevault-line)] px-3 py-1.5 text-[10px] xl:text-xs font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {category.name}{' '}
                       <span className="text-[var(--bladevault-title)]">
@@ -1757,13 +1776,13 @@ export function CollectionInsights() {
                     onClick={() =>
                       openCategory('Designer', 'designer', category)
                     }
-                    className="grid w-full grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-1 py-2.5 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="grid w-full grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-1 py-2.5 text-left text-xs xl:text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <span className="font-serif text-muted-foreground">
                       {String(index + 1).padStart(2, '0')}
                     </span>
                     <strong className="truncate">{category.name}</strong>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-[10px] xl:text-xs text-muted-foreground">
                       {category.count}
                     </span>
                   </button>
@@ -1785,7 +1804,7 @@ export function CollectionInsights() {
                       collectionHref: missingHref('designer'),
                     })
                   }}
-                  className="mt-2 flex w-full justify-between rounded-md px-1 py-2 text-xs text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="mt-2 flex w-full justify-between rounded-md px-1 py-2 text-xs xl:text-sm text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span>— &nbsp; Not set</span>
                   <strong>
@@ -1807,7 +1826,7 @@ export function CollectionInsights() {
             >
               <div className="overflow-x-auto pb-2">
                 <div className="min-w-[42rem]">
-                  <div className="ml-8 grid grid-cols-[repeat(52,minmax(0,1fr))] gap-[3px] text-[8px] text-muted-foreground">
+                  <div className="ml-8 grid grid-cols-[repeat(52,minmax(0,1fr))] gap-[3px] text-[8px] xl:text-xs text-muted-foreground xl:ml-10">
                     {activityWeeks.map((week, index) => {
                       const month = week[0]?.date.getMonth()
                       const previousMonth =
@@ -1823,8 +1842,8 @@ export function CollectionInsights() {
                       )
                     })}
                   </div>
-                  <div className="mt-2 grid grid-cols-[1.5rem_minmax(0,1fr)] gap-2">
-                    <div className="grid grid-rows-7 gap-[3px] text-[8px] leading-[11px] text-muted-foreground">
+                  <div className="mt-2 grid grid-cols-[1.5rem_minmax(0,1fr)] gap-2 xl:grid-cols-[2rem_minmax(0,1fr)]">
+                    <div className="grid grid-rows-7 gap-[3px] text-[8px] xl:text-xs leading-[11px] text-muted-foreground xl:items-center">
                       <span>Mon</span>
                       <span />
                       <span>Wed</span>
@@ -1896,7 +1915,7 @@ export function CollectionInsights() {
                                       : undefined
                                   }
                                   className={cn(
-                                    'h-[11px] min-w-[10px] rounded-[2px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                    'h-[11px] min-w-[10px] rounded-[2px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:aspect-square xl:h-auto',
                                     day.count === 0 && 'bg-muted',
                                     level === 1 &&
                                       'bg-[#b7bd86] dark:bg-[#66552c]',
@@ -1910,7 +1929,7 @@ export function CollectionInsights() {
                                 />
                                 <TooltipContent
                                   sideOffset={8}
-                                  className="whitespace-normal border border-[var(--bladevault-line)] bg-[#f7f1e5] text-sm font-semibold text-[var(--bladevault-olive)] shadow-[0_8px_24px_rgba(46,52,23,0.14)] [&>[aria-hidden=true]]:bg-[#f7f1e5] [&>[aria-hidden=true]]:fill-[#f7f1e5]"
+                                  className="whitespace-normal border border-[var(--bladevault-line)] bg-[#f7f1e5] text-sm xl:text-base font-semibold text-[var(--bladevault-olive)] shadow-[0_8px_24px_rgba(46,52,23,0.14)] [&>[aria-hidden=true]]:bg-[#f7f1e5] [&>[aria-hidden=true]]:fill-[#f7f1e5]"
                                 >
                                   {activityLabel}
                                 </TooltipContent>
@@ -1923,7 +1942,7 @@ export function CollectionInsights() {
                   </div>
                 </div>
               </div>
-              <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-[9px] text-muted-foreground">
+              <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-[9px] xl:text-xs text-muted-foreground">
                 <span>Last 52 weeks</span>
                 <span className="flex items-center gap-1">
                   Less
@@ -1969,7 +1988,7 @@ export function CollectionInsights() {
       >
         <DialogContent className="top-0 right-0 bottom-0 left-auto flex h-dvh max-h-dvh w-full max-w-md translate-x-0 translate-y-0 flex-col gap-0 rounded-none p-0 data-open:slide-in-from-right-4 data-open:zoom-in-100 data-closed:slide-out-to-right-4 data-closed:zoom-out-100 sm:max-w-md">
           <DialogHeader className="border-b p-5 pr-14">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)]">
+            <span className="text-[10px] xl:text-xs font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)]">
               {drilldown?.eyebrow}
             </span>
             <DialogTitle className="font-serif text-2xl">
@@ -2006,7 +2025,7 @@ export function CollectionInsights() {
                   )}
                 >
                   <div className="flex items-center justify-between px-1">
-                    <h3 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">
+                    <h3 className="flex items-center gap-2 text-[10px] xl:text-xs font-semibold uppercase tracking-[0.14em] text-foreground">
                       <span
                         aria-hidden="true"
                         className={cn(
@@ -2018,7 +2037,7 @@ export function CollectionInsights() {
                       />
                       {group.label}
                     </h3>
-                    <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                    <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] xl:text-xs font-semibold text-muted-foreground">
                       {group.knives.length}
                     </span>
                   </div>

@@ -35,6 +35,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+import { cn } from '@/lib/utils'
 
 const TABS = ['Scrape URL', 'Manual'] as const
 type Tab = (typeof TABS)[number]
@@ -50,6 +51,7 @@ function hasKnifeFormContent(form: KnifeFormData): boolean {
 export function AddKnifeForm() {
   const router = useRouter()
   const formId = useId()
+  const previewToggleRef = useRef<HTMLButtonElement>(null)
   const { addKnife } = useKnives()
   const [activeTab, setActiveTab] = useState<Tab>('Scrape URL')
   const [form, setForm] = useState<KnifeFormData>(EMPTY_KNIFE_FORM)
@@ -462,6 +464,13 @@ export function AddKnifeForm() {
   const previewHtml = scrapedHtml
     ? `${safePreviewBaseUrl ? `<base href="${escapeHtmlAttribute(safePreviewBaseUrl)}">\n` : ''}${scrapedHtml}`
     : ''
+  const isPreviewVisible = Boolean(previewHtml) && showPreview
+  const togglePreview = (visible: boolean) => {
+    setShowPreview(visible)
+    requestAnimationFrame(() =>
+      previewToggleRef.current?.focus({ preventScroll: true }),
+    )
+  }
 
   const scrapeInput = (
     <Card size="sm">
@@ -469,7 +478,7 @@ export function AddKnifeForm() {
         <div className="space-y-1.5">
           <label
             htmlFor={`${formId}-product-url`}
-            className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+            className="text-[10px] xl:text-xs font-medium uppercase tracking-wider text-muted-foreground"
           >
             Product URL
           </label>
@@ -500,14 +509,14 @@ export function AddKnifeForm() {
         {screenshotWarning && (
           <p
             role="status"
-            className="text-sm text-amber-700 dark:text-amber-400"
+            className="text-sm xl:text-base text-amber-700 dark:text-amber-400"
           >
             Webpage screenshot unavailable: {screenshotWarning}
           </p>
         )}
         {scrapeError && (
           <div className="space-y-2">
-            <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs xl:text-sm text-destructive">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <span>{scrapeError}</span>
             </div>
@@ -533,7 +542,7 @@ export function AddKnifeForm() {
         {(interactiveStatus === 'waiting' ||
           interactiveStatus === 'scraping') && (
           <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 space-y-2">
-            <div className="flex items-start gap-2 text-xs">
+            <div className="flex items-start gap-2 text-xs xl:text-sm">
               <Monitor className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
               <div className="space-y-1">
                 <p>
@@ -581,7 +590,7 @@ export function AddKnifeForm() {
         )}
 
         {interactiveError && (
-          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs xl:text-sm text-destructive">
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
             <span>{interactiveError}</span>
           </div>
@@ -591,7 +600,7 @@ export function AddKnifeForm() {
           !scrapeError &&
           !isScraping &&
           interactiveStatus === null && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs xl:text-sm text-muted-foreground">
               Paste a knife product page URL and hit Scrape. The app will pull
               the title, brand, images, and specs when available. You can edit
               everything before saving.
@@ -611,9 +620,22 @@ export function AddKnifeForm() {
         title="Add Knife"
         breadcrumbs={[{ label: 'Add' }]}
         actions={
-          <Button variant="outline" size="sm" onClick={handleCancel}>
-            Cancel
-          </Button>
+          <>
+            {previewHtml && !showPreview && (
+              <Button
+                variant="outline"
+                size="sm"
+                ref={previewToggleRef}
+                onClick={() => togglePreview(true)}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Show preview
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={handleCancel}>
+              Cancel
+            </Button>
+          </>
         }
       />
 
@@ -637,7 +659,12 @@ export function AddKnifeForm() {
         {activeTab === 'Scrape URL' && scrapeInput}
 
         {hasScraped ? (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 flex-1 min-h-0">
+          <div
+            className={cn(
+              'grid grid-cols-1 gap-6 flex-1 min-h-0',
+              isPreviewVisible && 'lg:grid-cols-2',
+            )}
+          >
             <div className="flex flex-col min-h-0 overflow-y-auto space-y-4 pr-1">
               <KnifeFormFields
                 form={seededForm}
@@ -655,57 +682,49 @@ export function AddKnifeForm() {
               />
             </div>
 
-            <Card className="flex flex-col overflow-hidden h-full min-h-0">
-              <CardHeader className="border-b flex flex-row items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                  <CardTitle className="text-sm">
-                    Scraped page preview
-                  </CardTitle>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() => setShowPreview((prev) => !prev)}
-                    title={showPreview ? 'Hide preview' : 'Show preview'}
-                    aria-label={showPreview ? 'Hide preview' : 'Show preview'}
-                  >
-                    {showPreview ? (
-                      <EyeOff className="h-3.5 w-3.5" />
-                    ) : (
-                      <Eye className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                  {safeSourceUrl ? (
-                    <a
-                      href={safeSourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+            {isPreviewVisible && (
+              <Card className="flex flex-col overflow-hidden h-full min-h-[32rem] lg:min-h-0">
+                <CardHeader className="border-b flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                    <CardTitle className="text-sm xl:text-base">
+                      Scraped page preview
+                    </CardTitle>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      ref={previewToggleRef}
+                      onClick={() => togglePreview(false)}
+                      title="Hide preview"
+                      aria-label="Hide preview"
                     >
-                      Open
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  ) : null}
-                </div>
-              </CardHeader>
-              <CardContent className="relative flex-1 min-h-0 p-0">
-                {showPreview && previewHtml ? (
+                      <EyeOff className="h-3.5 w-3.5" />
+                    </Button>
+                    {safeSourceUrl ? (
+                      <a
+                        href={safeSourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[10px] xl:text-xs font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Open
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    ) : null}
+                  </div>
+                </CardHeader>
+                <CardContent className="relative flex-1 min-h-0 p-0">
                   <iframe
                     title="Scraped page preview"
                     srcDoc={previewHtml}
                     sandbox=""
                     className="absolute inset-0 w-full h-full border-0 bg-white"
                   />
-                ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground">
-                    <EyeOff className="h-8 w-8 mb-3 opacity-40" />
-                    <span className="text-xs">Preview hidden</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
           </div>
         ) : (
           activeTab === 'Manual' && (
@@ -728,13 +747,13 @@ export function AddKnifeForm() {
       </Tabs>
 
       {saveError && (
-        <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs xl:text-sm text-destructive">
           <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
           <span>{saveError}</span>
         </div>
       )}
 
-      <div className="mt-6 flex items-center justify-end gap-2">
+      <div className="mt-6 flex items-center justify-end gap-2 xl:sticky xl:bottom-0 xl:z-10 xl:border-t xl:border-[var(--bladevault-line)] xl:bg-background/95 xl:py-3 xl:backdrop-blur-sm">
         <Button variant="outline" size="sm" onClick={handleCancel}>
           Cancel
         </Button>

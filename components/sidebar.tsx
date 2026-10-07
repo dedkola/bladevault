@@ -244,6 +244,7 @@ export function Sidebar() {
             const Icon = link.icon
             const isActive =
               pathname === link.href ||
+              (link.href === '/' && pathname.startsWith('/insights/')) ||
               (link.href !== '/' && pathname.startsWith(link.href))
 
             return (

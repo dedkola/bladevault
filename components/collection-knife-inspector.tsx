@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ImageIcon,
   Scale,
+  X,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -27,10 +28,12 @@ export function CollectionKnifeInspector({
   knife,
   siblings,
   onSelect,
+  onClose,
 }: {
   knife: Knife
   siblings: Knife[]
   onSelect: (knife: Knife) => void
+  onClose: () => void
 }) {
   const { showFeedback } = useKnives()
   const [imageIndex, setImageIndex] = useState(0)
@@ -124,6 +127,16 @@ export function CollectionKnifeInspector({
               !isMobileExpanded && 'rotate-180',
             )}
           />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onClose}
+          aria-label="Close selected knife"
+          className="hidden shrink-0 xl:flex"
+        >
+          <X className="size-4" aria-hidden="true" />
         </Button>
       </div>
 
