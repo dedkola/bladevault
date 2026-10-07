@@ -1,16 +1,14 @@
 'use client'
 
-import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { InsightsChart } from '@/components/insights-chart'
-import {
-  formatMetric,
-  getHistogramOption,
-  MEASUREMENT_KEYS,
-} from '@/components/collection-insights'
+import { useMemo, useState } from 'react'
+import { formatMetric } from '@/components/collection-insights'
 import { useKnives } from '@/components/providers/knives-provider'
-import { Card, CardContent } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  InsightPanel,
+  InsightRecordPreview,
+  type InsightSelection,
+} from '@/components/insight-pages/detail-primitives'
 import {
   createCollectionStats,
   type MeasurementKey,
@@ -21,95 +19,91 @@ export function MeasurementDetail({
 }: {
   initialTab?: MeasurementKey
 }) {
-  const { knives } = useKnives()
-  const stats = useMemo(() => createCollectionStats(knives, 'all'), [knives])
-  const [selectedKey, setSelectedKey] = useState<MeasurementKey>(() =>
-    initialTab && MEASUREMENT_KEYS.includes(initialTab)
-      ? initialTab
-      : 'bladeLength',
-  )
-  const measurement = stats.measurements[selectedKey]
-
-  const summary = [
-    { label: 'Known', value: measurement.knownCount },
-    { label: 'Missing', value: measurement.missingCount },
-    { label: 'Min', value: formatMetric(measurement.min, measurement.unit) },
-    { label: 'Q1', value: formatMetric(measurement.q1, measurement.unit) },
-    {
-      label: 'Median',
-      value: formatMetric(measurement.median, measurement.unit),
-    },
-    { label: 'Q3', value: formatMetric(measurement.q3, measurement.unit) },
-    { label: 'Max', value: formatMetric(measurement.max, measurement.unit) },
-  ]
-
+  const { knives } = useKnives(),
+    stats = useMemo(() => createCollectionStats(knives, 'all'), [knives])
+  const [selection, setSelection] = useState<InsightSelection | null>(null)
   return (
-    <div className="space-y-6">
-      <Tabs
-        value={selectedKey}
-        onValueChange={(value) => setSelectedKey(value as MeasurementKey)}
-      >
-        <TabsList>
-          {MEASUREMENT_KEYS.map((key) => (
-            <TabsTrigger key={key} value={key}>
-              {stats.measurements[key].label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        {MEASUREMENT_KEYS.map((key) => (
-          <TabsContent key={key} value={key}>
-            {key === selectedKey && (
-              <>
-                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-                  {summary.map((item) => (
-                    <Card key={item.label}>
-                      <CardContent className="p-3">
-                        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                          {item.label}
-                        </span>
-                        <p className="mt-1 text-lg font-semibold tabular-nums">
-                          {item.value}
-                        </p>
-                      </CardContent>
-                    </Card>
+    <>
+      <div className="id-grid id-two">
+        {Object.values(stats.measurements).map((measurement) => {
+          const max = Math.max(1, ...measurement.bins.map((bin) => bin.count))
+          return (
+            <InsightPanel
+              key={measurement.key}
+              id={`measurement-${measurement.key}`}
+              title={measurement.label}
+              ariaLabel={`${measurement.label} distribution`}
+              className={
+                initialTab === measurement.key
+                  ? 'id-selected-measurement'
+                  : undefined
+              }
+              description={`${measurement.knownCount} interpreted · ${measurement.missingCount} missing · ${measurement.uninterpretableCount} unreadable`}
+            >
+              <dl className="id-measurement-summary">
+                {[
+                  { label: 'Min', value: measurement.min },
+                  { label: 'Q1', value: measurement.q1 },
+                  { label: 'Median', value: measurement.median },
+                  { label: 'Q3', value: measurement.q3 },
+                  { label: 'Max', value: measurement.max },
+                ].map((item) => (
+                  <div key={item.label}>
+                    <dt>{item.label}</dt>
+                    <dd>{formatMetric(item.value, measurement.unit)}</dd>
+                  </div>
+                ))}
+              </dl>
+              {measurement.knownCount ? (
+                <div
+                  className="id-histogram"
+                  aria-label={`${measurement.label} ranges`}
+                >
+                  {measurement.bins.map((bin) => (
+                    <button
+                      key={bin.label}
+                      type="button"
+                      className="id-bin"
+                      disabled={!bin.count}
+                      aria-label={`${measurement.label} ${bin.label}: ${bin.count} knives`}
+                      onClick={() =>
+                        setSelection({
+                          title: `${measurement.label} · ${bin.label}`,
+                          knifeIds: bin.knifeIds,
+                        })
+                      }
+                    >
+                      <strong>{bin.count}</strong>
+                      <i
+                        aria-hidden="true"
+                        style={{ height: `${(bin.count / max) * 96}px` }}
+                      />
+                      <span>{bin.label}</span>
+                    </button>
                   ))}
                 </div>
-
-                {measurement.uninterpretableCount > 0 && (
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    {measurement.uninterpretableCount} populated{' '}
-                    {measurement.uninterpretableCount === 1
-                      ? 'value'
-                      : 'values'}{' '}
-                    cannot be interpreted and are excluded from this chart.{' '}
-                    <Link
-                      href="/insights/completeness"
-                      className="underline underline-offset-4"
-                    >
-                      Review in Completeness
-                    </Link>
-                  </p>
-                )}
-
-                {measurement.knownCount === 0 ? (
-                  <p className="mt-6 text-center text-sm text-muted-foreground">
-                    Not enough data
-                  </p>
-                ) : (
-                  <InsightsChart
-                    buildOption={(palette) =>
-                      getHistogramOption(measurement, palette)
-                    }
-                    ariaLabel={`${measurement.label} distribution`}
-                    className="mt-6 h-80 w-full"
-                  />
-                )}
-              </>
-            )}
-          </TabsContent>
-        ))}
-      </Tabs>
-    </div>
+              ) : (
+                <p className="py-12 text-center text-sm text-muted-foreground">
+                  Not enough data
+                </p>
+              )}
+              <p className="id-note">
+                Units: {measurement.unit}.{' '}
+                {measurement.uninterpretableCount
+                  ? `${measurement.uninterpretableCount} populated values excluded because their units cannot be interpreted.`
+                  : 'All populated values can be interpreted.'}{' '}
+                <Link href="/insights/completeness#measurement-review">
+                  Review values →
+                </Link>
+              </p>
+            </InsightPanel>
+          )
+        })}
+      </div>
+      <InsightRecordPreview
+        selection={selection}
+        onClose={() => setSelection(null)}
+      />
+    </>
   )
 }

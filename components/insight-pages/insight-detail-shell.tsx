@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import './insight-detail.css'
 
 export function InsightDetailShell({
   eyebrow,
@@ -18,9 +19,8 @@ export function InsightDetailShell({
   children: React.ReactNode
 }) {
   const { knives, isLoading } = useKnives()
-
   return (
-    <div className="w-full flex-1 p-6 lg:p-8">
+    <div className="insight-detail">
       <Button
         variant="outline"
         size="sm"
@@ -29,21 +29,19 @@ export function InsightDetailShell({
       >
         <ArrowLeft className="size-4" /> Back to insights
       </Button>
-
-      <header className="mt-6 mb-6">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--bladevault-title)]">
-          {eyebrow}
-        </span>
-        <h1 className="mt-1 text-4xl font-medium tracking-[-0.04em] text-[var(--bladevault-title)] sm:text-5xl">
-          {title}
-        </h1>
-        {description ? (
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            {description}
-          </p>
-        ) : null}
+      <header className="id-page-head">
+        <div>
+          <span className="id-eyebrow">{eyebrow}</span>
+          <h1>{title}</h1>
+          {description && <p>{description}</p>}
+        </div>
+        {!isLoading && knives.length > 0 && (
+          <span className="id-collection-count">
+            {knives.length} {knives.length === 1 ? 'knife' : 'knives'} in
+            collection
+          </span>
+        )}
       </header>
-
       {isLoading ? (
         <div className="h-96 animate-pulse rounded-xl bg-muted" />
       ) : knives.length === 0 ? (

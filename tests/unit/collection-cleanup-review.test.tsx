@@ -326,8 +326,9 @@ describe('guided cleanup review', () => {
     expect(
       screen.getByText(/The score counts populated core fields/),
     ).toBeInTheDocument()
+    screen.getByText(/Source review ·/).click()
     expect(
-      screen.getByRole('link', { name: 'Review source and fields' }),
+      screen.getByRole('link', { name: /Review source and fields/ }),
     ).toHaveAttribute('href', '/collection/relative')
     expect(
       screen.queryByRole('button', { name: /Review labels/ }),
