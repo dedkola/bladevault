@@ -21,7 +21,7 @@ const SLUG_META: Record<
   library: {
     eyebrow: 'Library',
     title: 'Collection library',
-    description: 'Totals, yearly additions, and pinned count.',
+    description: 'Totals, additions over time, and your pinned knives.',
   },
   makers: {
     eyebrow: 'Brands',
@@ -68,12 +68,12 @@ const SLUG_META: Record<
   activity: {
     eyebrow: 'Activity',
     title: 'Collection activity',
-    description: 'Full 52-week activity heatmap and daily lists.',
+    description: 'Additions, edits, and maintenance across the last 52 weeks.',
   },
   recent: {
     eyebrow: 'Latest',
     title: 'Recently added',
-    description: 'Recently added knives.',
+    description: 'Your collection, ordered by the date each knife was added.',
   },
 }
 
@@ -101,6 +101,16 @@ export default async function InsightStatPage({
 
   const meta = SLUG_META[stat]
 
+  if (isInsightCategorySlug(stat)) {
+    return (
+      <CategoryDetail
+        categoryKey={INSIGHT_CATEGORY_SLUGS[stat]}
+        title={meta.title}
+        eyebrow={meta.eyebrow}
+      />
+    )
+  }
+
   return (
     <InsightDetailShell
       eyebrow={meta.eyebrow}
@@ -112,12 +122,6 @@ export default async function InsightStatPage({
       {stat === 'completeness' && <CompletenessDetail />}
       {stat === 'activity' && <ActivityDetail />}
       {stat === 'recent' && <RecentDetail />}
-      {isInsightCategorySlug(stat) && (
-        <CategoryDetail
-          categoryKey={INSIGHT_CATEGORY_SLUGS[stat]}
-          title={meta.title}
-        />
-      )}
     </InsightDetailShell>
   )
 }

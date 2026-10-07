@@ -19,7 +19,7 @@ test('navigates from an overview block title to its detail page', async ({
   ).toBeVisible()
 })
 
-test('renders persisted category tooltip content without executing HTML', async ({
+test('renders persisted category names in the distribution and index without executing HTML', async ({
   page,
   request,
 }) => {
@@ -27,8 +27,13 @@ test('renders persisted category tooltip content without executing HTML', async 
   await seedKnife(request, { brand: payload, name: 'Tooltip safety test' })
   await page.goto('/insights/makers')
 
-  const chart = page.getByRole('img', { name: 'Makers distribution' })
-  await expect(chart).toBeVisible()
+  const chart = page.getByRole('region', { name: 'Makers distribution' })
+  await expect(chart.getByText(payload, { exact: true })).toBeVisible()
+  await expect(
+    page
+      .getByRole('region', { name: 'All makers' })
+      .getByText(payload, { exact: true }),
+  ).toBeVisible()
   await page.evaluate(() => {
     ;(window as Window & { __bladevaultXss?: number }).__bladevaultXss = 0
   })
@@ -48,6 +53,38 @@ test('renders persisted category tooltip content without executing HTML', async 
       ),
     )
     .toBe(0)
+})
+
+test('keeps every category available on mobile and opens the filtered collection with the keyboard', async ({
+  page,
+  request,
+}) => {
+  for (let index = 0; index < 10; index++) {
+    await seedKnife(request, {
+      name: `Steel sample ${index}`,
+      specs: { bladeMaterial: `Steel ${index}`, bladeLength: '3 in' },
+    })
+  }
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/insights/blade-steels')
+  const chart = page.getByRole('region', { name: 'Blade steels distribution' })
+  const index = page.getByRole('region', { name: 'All steels' })
+  await expect(chart.getByRole('link')).toHaveCount(8)
+  await expect(
+    index.locator('a[href^="/collection?bladeMaterial="]'),
+  ).toHaveCount(10)
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true)
+  const steel = index.getByRole('link', { name: /Steel 9/ })
+  await steel.focus()
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(/\/collection\?bladeMaterial=Steel\+9$/)
+  await expect(
+    page.getByRole('heading', { name: 'Steel sample 9', exact: true }),
+  ).toBeVisible()
 })
 
 test('expands Other steels into categories before opening knives with the keyboard', async ({
@@ -204,4 +241,75 @@ test('opens maintenance recency groups and distinguishes unavailable history', a
     page.getByText('Maintenance history unavailable. Reload to try again.'),
   ).toBeVisible()
   await expect(groups).toHaveCount(0)
+})
+
+test('uses the available desktop width and stacks every detail page on mobile', async ({
+  page,
+  request,
+}) => {
+  await seedKnife(request, { pinned: true })
+  const slugs = [
+    'library',
+    'makers',
+    'blade-steels',
+    'blade-shapes',
+    'locks',
+    'handle-materials',
+    'designers',
+    'measurements',
+    'completeness',
+    'activity',
+    'recent',
+  ]
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  await page.goto('/insights/blade-shapes')
+  await expect(
+    page.getByText('1 knife in collection', { exact: true }),
+  ).toBeVisible()
+  const bounds = await page.locator('.insight-detail').boundingBox()
+  expect(bounds!.width).toBeGreaterThan(1500)
+  await page.setViewportSize({ width: 390, height: 844 })
+  for (const slug of slugs) {
+    await page.goto(`/insights/${slug}`)
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    await expect(
+      page.getByText('1 knife in collection', { exact: true }),
+    ).toBeVisible()
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      )
+      .toBe(true)
+  }
+})
+
+test('shows all four measurement distributions and opens matching knives from a range', async ({
+  page,
+  request,
+}) => {
+  const { knife } = await seedKnife(request)
+  await page.goto('/insights/measurements?tab=weight')
+  for (const label of [
+    'Blade length',
+    'Overall length',
+    'Weight',
+    'Blade thickness',
+  ])
+    await expect(
+      page.getByRole('region', { name: `${label} distribution`, exact: true }),
+    ).toBeVisible()
+  const ranges = page.getByLabel('Blade length ranges', { exact: true })
+  await ranges
+    .getByRole('button')
+    .filter({ hasText: '1' })
+    .filter({ hasNot: page.locator('[disabled]') })
+    .first()
+    .click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByRole('link')).toHaveAttribute(
+    'href',
+    `/collection/${knife.id}`,
+  )
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible()
 })

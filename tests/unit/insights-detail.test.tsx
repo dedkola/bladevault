@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ActivityDetail } from '@/components/insight-pages/activity-detail'
@@ -210,14 +210,59 @@ describe('CategoryDetail', () => {
     ])
     render(<CategoryDetail categoryKey="brand" title="Makers" />)
 
-    expect(screen.getByRole('link', { name: /benchmade/i })).toHaveAttribute(
+    const index = within(screen.getByRole('region', { name: 'All makers' }))
+    expect(index.getByRole('link', { name: /benchmade/i })).toHaveAttribute(
       'href',
       '/collection?brand=Benchmade',
     )
-    expect(screen.getByRole('link', { name: /spyderco/i })).toHaveAttribute(
+    expect(index.getByRole('link', { name: /spyderco/i })).toHaveAttribute(
       'href',
       '/collection?brand=Spyderco',
     )
+  })
+
+  it('keeps the full directory available beside the eight leading categories', () => {
+    setKnives(
+      Array.from({ length: 10 }, (_, index) =>
+        createKnife({ id: String(index), brand: `Maker ${index}` }),
+      ),
+    )
+    render(<CategoryDetail categoryKey="brand" title="Makers" />)
+    const distribution = within(
+      screen.getByRole('region', { name: 'Makers distribution' }),
+    )
+    const index = within(screen.getByRole('region', { name: 'All makers' }))
+    expect(distribution.getAllByRole('link')).toHaveLength(8)
+    expect(
+      index
+        .getAllByRole('link')
+        .filter((link) =>
+          link.getAttribute('href')?.startsWith('/collection?brand='),
+        ),
+    ).toHaveLength(10)
+  })
+
+  it('uses the whole collection for shares and explains missing categories', () => {
+    setKnives([
+      createKnife({ id: 'known', bladeStyle: 'Drop Point' }),
+      createKnife({ id: 'missing', bladeStyle: '' }),
+    ])
+    render(<CategoryDetail categoryKey="bladeStyle" title="Blade shapes" />)
+
+    const distribution = within(
+      screen.getByRole('region', { name: 'Blade shapes distribution' }),
+    )
+    expect(
+      distribution.getByRole('link', {
+        name: 'Drop Point: 1 knife, 50% of collection',
+      }),
+    ).toHaveAttribute('href', '/collection?bladeStyle=Drop+Point')
+    expect(
+      screen.getByText(/1 knife has no blade shape recorded/),
+    ).toHaveTextContent('Shares include all 2 knives.')
+    expect(
+      screen.queryByRole('button', { name: 'Show full distribution' }),
+    ).not.toBeInTheDocument()
   })
 
   it('renders a "Not set" row for designers when missing', () => {
@@ -234,33 +279,39 @@ describe('CategoryDetail', () => {
 })
 
 describe('MeasurementDetail', () => {
-  it('renders all four tabs and switches the active measurement', async () => {
+  it('shows all four distributions and opens the matching records for a populated bin', async () => {
     const user = userEvent.setup()
     setKnives([createKnife()])
     render(<MeasurementDetail />)
-
-    expect(screen.getByRole('tablist')).toBeInTheDocument()
-    expect(screen.getAllByRole('tab')).toHaveLength(4)
-    expect(screen.getByTestId('insights-chart')).toHaveAttribute(
-      'aria-label',
-      'Blade length distribution',
-    )
-
-    await user.click(screen.getByRole('tab', { name: /weight/i }))
-    expect(screen.getByTestId('insights-chart')).toHaveAttribute(
-      'aria-label',
-      'Weight distribution',
-    )
+    for (const label of [
+      'Blade length',
+      'Overall length',
+      'Weight',
+      'Blade thickness',
+    ])
+      expect(
+        screen.getByRole('region', { name: `${label} distribution` }),
+      ).toBeInTheDocument()
+    const bins = within(
+      screen.getByLabelText('Blade length ranges'),
+    ).getAllByRole('button')
+    expect(bins).toHaveLength(10)
+    const populated = bins.find((bin) => !bin.hasAttribute('disabled'))!
+    await user.click(populated)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('dialog')).getByRole('link'),
+    ).toHaveAttribute('href', '/collection/benchmade-bugout')
   })
-
-  it('respects the initial tab from the query parameter', () => {
+  it('highlights the requested measurement while keeping the other distributions visible', () => {
     setKnives([createKnife()])
     render(<MeasurementDetail initialTab="weight" />)
-
-    expect(screen.getByTestId('insights-chart')).toHaveAttribute(
-      'aria-label',
-      'Weight distribution',
-    )
+    expect(
+      screen.getByRole('region', { name: 'Weight distribution' }),
+    ).toHaveClass('id-selected-measurement')
+    expect(
+      screen.getByRole('region', { name: 'Blade length distribution' }),
+    ).toBeInTheDocument()
   })
 })
 
@@ -272,15 +323,15 @@ describe('LibraryDetail', () => {
     ])
     render(<LibraryDetail />)
 
-    expect(screen.getByText('Total knives').parentElement).toHaveTextContent(
-      /Total knives\s*2/,
-    )
-    expect(screen.getByText('Added this year').parentElement).toHaveTextContent(
-      /Added this year\s*2/,
-    )
-    expect(screen.getByText('Pinned').parentElement).toHaveTextContent(
-      /Pinned\s*1/,
-    )
+    for (const [label, value] of [
+      ['Total knives', '2'],
+      ['Added this year', '2'],
+      ['Pinned', '1'],
+    ]) {
+      expect(
+        screen.getByText(label).closest('.id-metric')?.querySelector('dd'),
+      ).toHaveTextContent(value)
+    }
   })
 })
 
@@ -325,7 +376,9 @@ describe('ActivityDetail', () => {
     render(<ActivityDetail />)
 
     expect(screen.getByText('Last 52 weeks')).toBeInTheDocument()
-    expect(screen.getByText('Added')).toBeInTheDocument()
+    expect(
+      screen.getByRole('region', { name: 'Active days' }),
+    ).toHaveTextContent('1 knife added')
   })
 })
 
@@ -337,7 +390,9 @@ describe('RecentDetail', () => {
     ])
     render(<RecentDetail />)
 
-    const links = screen.getAllByRole('link')
+    const links = within(
+      screen.getByRole('region', { name: 'All additions' }),
+    ).getAllByRole('link')
     expect(links[0]).toHaveAttribute('href', '/collection/newer')
     expect(links[1]).toHaveAttribute('href', '/collection/older')
   })
