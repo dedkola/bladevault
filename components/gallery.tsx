@@ -94,7 +94,7 @@ export function Gallery({
     <>
       <div className="space-y-4">
         <Card className="group/gallery overflow-hidden p-0">
-          <div className="relative aspect-video lg:aspect-[4/3] w-full bg-white">
+          <div className="relative aspect-video lg:aspect-[4/3] lg:max-h-[min(64dvh,64rem)] w-full bg-white">
             {images.length > 0 ? (
               <>
                 <Image

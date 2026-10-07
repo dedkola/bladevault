@@ -132,8 +132,10 @@ export function KnifeFamilyCard({
             </DialogHeader>
             <div
               className={cn(
-                'grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto overscroll-contain p-3 sm:grid-cols-2 sm:p-4 lg:grid-cols-3',
-                isCompact && 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4',
+                'grid min-h-0 flex-1 content-start grid-cols-1 gap-3 overflow-y-auto overscroll-contain p-3 sm:grid-cols-2 sm:p-4 lg:grid-cols-3',
+                isCompact
+                  ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[repeat(auto-fit,minmax(15rem,min(100%,18rem)))]'
+                  : 'xl:grid-cols-[repeat(auto-fit,minmax(19rem,min(100%,22rem)))]',
               )}
               data-family-variant-grid
             >
@@ -145,8 +147,8 @@ export function KnifeFamilyCard({
                   density={density}
                   imageSizes={
                     isCompact
-                      ? '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
-                      : '(max-width: 640px) calc(100vw - 2rem), (max-width: 1024px) 50vw, 33vw'
+                      ? '(min-width: 1280px) 18rem, (max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
+                      : '(min-width: 1280px) 22rem, (max-width: 640px) calc(100vw - 2rem), (max-width: 1024px) 50vw, 33vw'
                   }
                   onOpen={(selectedKnife) => {
                     setOpen(false)

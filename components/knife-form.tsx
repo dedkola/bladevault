@@ -203,6 +203,7 @@ type KnifeFormFieldsProps = {
   deselectAllImages: () => void
   removeImage: (index: number) => void
   imageActions?: React.ReactNode
+  wideLayout?: boolean
 }
 
 function inputTypeForCustomField(type: CustomFieldType): string {
@@ -235,9 +236,11 @@ function FormSection({
       )}
     >
       <div className="border-b border-[var(--bladevault-line)] bg-[color:var(--bladevault-surface-soft)]/70 px-4 py-3 dark:border-[#d3c097]/30">
-        <div className="text-sm font-medium text-foreground">{title}</div>
+        <div className="text-sm xl:text-base font-medium text-foreground xl:text-lg">
+          {title}
+        </div>
         {description ? (
-          <div className="mt-0.5 text-xs text-muted-foreground">
+          <div className="mt-0.5 text-xs xl:text-sm text-muted-foreground">
             {description}
           </div>
         ) : null}
@@ -261,6 +264,7 @@ export function KnifeFormFields({
   deselectAllImages,
   removeImage,
   imageActions,
+  wideLayout = false,
 }: KnifeFormFieldsProps) {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const formId = useId()
@@ -308,7 +312,7 @@ export function KnifeFormFields({
       <div className={cn('space-y-2', span === 2 && 'sm:col-span-2')}>
         <label
           htmlFor={inputId}
-          className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+          className="text-[10px] xl:text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground"
         >
           {label}
         </label>
@@ -326,7 +330,13 @@ export function KnifeFormFields({
   }
 
   return (
-    <div className="space-y-5">
+    <div
+      className={cn(
+        'space-y-5',
+        wideLayout &&
+          'xl:grid xl:grid-cols-2 xl:items-start xl:gap-5 xl:space-y-0',
+      )}
+    >
       <FormSection title="Identity">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {inputField('Brand / Maker', 'brand', 'e.g. Chris Reeve Knives', 2)}
@@ -348,8 +358,16 @@ export function KnifeFormFields({
         </div>
       </FormSection>
 
-      <FormSection title="Construction">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <FormSection
+        title="Construction"
+        className={wideLayout ? 'xl:col-span-2' : undefined}
+      >
+        <div
+          className={cn(
+            'grid grid-cols-1 gap-4 sm:grid-cols-2',
+            wideLayout && 'xl:grid-cols-3',
+          )}
+        >
           {inputField('Blade Material', 'bladeMaterial', 'e.g. AEB-L')}
           {inputField('Blade Style', 'bladeStyle', 'e.g. Drop Point')}
           {inputField('Blade Coating / Finish', 'bladeCoating', 'e.g. Satin')}
@@ -364,13 +382,21 @@ export function KnifeFormFields({
       </FormSection>
 
       {customFieldDefinitions.length > 0 && (
-        <FormSection title="Custom Fields">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <FormSection
+          title="Custom Fields"
+          className={wideLayout ? 'xl:col-span-2' : undefined}
+        >
+          <div
+            className={cn(
+              'grid grid-cols-1 gap-4 sm:grid-cols-2',
+              wideLayout && 'xl:grid-cols-3',
+            )}
+          >
             {customFieldDefinitions.map((field) => (
               <div key={field.id} className="space-y-2">
                 <label
                   htmlFor={`${formId}-custom-${field.id}`}
-                  className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                  className="text-[10px] xl:text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground"
                 >
                   {field.name}
                 </label>
@@ -394,11 +420,14 @@ export function KnifeFormFields({
         </FormSection>
       )}
 
-      <FormSection title="Notes">
+      <FormSection
+        title="Notes"
+        className={wideLayout ? 'xl:col-span-2' : undefined}
+      >
         <div className="space-y-2">
           <label
             htmlFor={`${formId}-description`}
-            className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+            className="text-[10px] xl:text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground"
           >
             Description
           </label>
@@ -408,18 +437,21 @@ export function KnifeFormFields({
             onChange={(e) => updateField('description', e.target.value)}
             rows={5}
             placeholder="Short description of the knife..."
-            className="bg-background/80"
+            className="bg-background/80 xl:max-h-96 xl:overflow-y-auto"
           />
         </div>
       </FormSection>
 
-      <FormSection title="Images">
+      <FormSection
+        title="Images"
+        className={wideLayout ? 'xl:col-span-2' : undefined}
+      >
         <div className="space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            <div className="text-[10px] xl:text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
               Image Library
               {form.images.length > 0 && (
-                <span className="ml-2 font-sans text-[10px] font-normal normal-case text-muted-foreground/70">
+                <span className="ml-2 font-sans text-[10px] xl:text-xs font-normal normal-case text-muted-foreground/70">
                   {selectedImages.size} of {form.images.length} selected
                 </span>
               )}
@@ -431,7 +463,7 @@ export function KnifeFormFields({
                   <button
                     type="button"
                     onClick={selectAllImages}
-                    className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
+                    className="text-[10px] xl:text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
                   >
                     Select all
                   </button>
@@ -439,7 +471,7 @@ export function KnifeFormFields({
                   <button
                     type="button"
                     onClick={deselectAllImages}
-                    className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
+                    className="text-[10px] xl:text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
                   >
                     Deselect all
                   </button>
@@ -527,18 +559,18 @@ export function KnifeFormFields({
             <span className="flex size-9 items-center justify-center rounded-full border border-[var(--bladevault-line)] bg-[color:var(--bladevault-surface-soft)] text-[var(--bladevault-olive)] transition-transform group-hover:-translate-y-0.5 dark:text-[var(--bladevault-gold)]">
               <Upload className="size-4" aria-hidden="true" />
             </span>
-            <span className="text-sm font-medium text-foreground">
+            <span className="text-sm xl:text-base font-medium text-foreground">
               {isDraggingImages
                 ? 'Drop images to add them'
                 : 'Drop images here or choose files'}
             </span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs xl:text-sm text-muted-foreground">
               Select multiple images, or paste from the clipboard
             </span>
           </button>
 
           {form.images.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-[repeat(auto-fill,minmax(9rem,12rem))]">
               {form.images.map((src, index) => {
                 const isSelected = selectedImages.has(src)
                 const isScreenshot = isWebpageScreenshot(src)
@@ -561,7 +593,7 @@ export function KnifeFormFields({
                           : `Scraped image ${index + 1}`
                       }
                       fill
-                      sizes="(max-width: 640px) 33vw, 25vw"
+                      sizes="(min-width: 1280px) 192px, (max-width: 640px) 33vw, 25vw"
                       className="object-cover"
                       referrerPolicy="no-referrer"
                       unoptimized
@@ -587,12 +619,12 @@ export function KnifeFormFields({
                       <Trash2 className="h-3 w-3" />
                     </button>
                     {isScreenshot && (
-                      <span className="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-1 text-center text-[10px] text-white">
+                      <span className="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-1 text-center text-[10px] xl:text-xs text-white">
                         Webpage screenshot
                       </span>
                     )}
                     {isFirst && (
-                      <div className="absolute top-1 left-1/2 z-10 -translate-x-1/2 rounded bg-emerald-500 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-white">
+                      <div className="absolute top-1 left-1/2 z-10 -translate-x-1/2 rounded bg-emerald-500 px-1.5 py-0.5 text-[9px] xl:text-xs font-medium uppercase tracking-wide text-white">
                         Cover
                       </div>
                     )}
@@ -617,7 +649,7 @@ export function KnifeFormFields({
                             e.stopPropagation()
                             setFirstImage(index)
                           }}
-                          className="rounded-full bg-white/90 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-foreground transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-2"
+                          className="rounded-full bg-white/90 px-1.5 py-0.5 text-[9px] xl:text-xs font-medium uppercase tracking-wide text-foreground transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-2"
                           aria-label="Set as cover image"
                           title="Set as cover"
                         >
@@ -654,10 +686,10 @@ export function KnifeFormFields({
           ) : (
             <div className="flex w-full justify-center rounded-xl border border-dashed border-[var(--bladevault-line)] bg-[color:var(--bladevault-surface-soft)]/45 px-6 py-10">
               <div className="text-center">
-                <div className="text-sm font-medium text-foreground/80">
+                <div className="text-sm xl:text-base font-medium text-foreground/80">
                   No images yet
                 </div>
-                <div className="mt-1 text-xs text-muted-foreground/70">
+                <div className="mt-1 text-xs xl:text-sm text-muted-foreground/70">
                   Scrape a URL or paste image URLs above
                 </div>
               </div>
@@ -711,6 +743,7 @@ export function KnifeScrapeEditor({
   onScreenshotCaptured,
 }: KnifeScrapeEditorProps) {
   const editorId = useId()
+  const previewToggleRef = useRef<HTMLButtonElement>(null)
   const [form, setForm] = useState<KnifeFormData>(initialData)
   const [imageUrlInput, setImageUrlInput] = useState('')
   const [url, setUrl] = useState(initialData.sourceUrl)
@@ -986,6 +1019,13 @@ export function KnifeScrapeEditor({
   const previewHtml = scrapedHtml
     ? `${safePreviewBaseUrl ? `<base href="${escapeHtmlAttribute(safePreviewBaseUrl)}">\n` : ''}${scrapedHtml}`
     : ''
+  const isPreviewVisible = Boolean(previewHtml) && showPreview
+  const togglePreview = (visible: boolean) => {
+    setShowPreview(visible)
+    requestAnimationFrame(() =>
+      previewToggleRef.current?.focus({ preventScroll: true }),
+    )
+  }
 
   return (
     <div className="flex flex-col min-h-0 flex-1 w-full">
@@ -996,6 +1036,17 @@ export function KnifeScrapeEditor({
         actions={
           <>
             {actions}
+            {previewHtml && !showPreview && (
+              <Button
+                variant="outline"
+                size="sm"
+                ref={previewToggleRef}
+                onClick={() => togglePreview(true)}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Show preview
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -1014,7 +1065,7 @@ export function KnifeScrapeEditor({
             <div className="space-y-1.5">
               <label
                 htmlFor={`${editorId}-product-url`}
-                className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+                className="text-[10px] xl:text-xs font-medium uppercase tracking-wider text-muted-foreground"
               >
                 Product URL
               </label>
@@ -1047,20 +1098,20 @@ export function KnifeScrapeEditor({
             {screenshotWarning && (
               <p
                 role="status"
-                className="text-sm text-amber-700 dark:text-amber-400"
+                className="text-sm xl:text-base text-amber-700 dark:text-amber-400"
               >
                 Webpage screenshot unavailable: {screenshotWarning}
               </p>
             )}
             {scrapeError && (
-              <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs xl:text-sm text-destructive">
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                 <span>{scrapeError}</span>
               </div>
             )}
 
             {mode === 'add' && !hasScraped && !scrapeError && !isScraping && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs xl:text-sm text-muted-foreground">
                 Paste a knife product page URL and hit Scrape. The app will pull
                 the title, brand, images, and specs when available. You can edit
                 everything before saving.
@@ -1068,7 +1119,7 @@ export function KnifeScrapeEditor({
             )}
 
             {mode === 'edit' && !hasScraped && !scrapeError && !isScraping && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs xl:text-sm text-muted-foreground">
                 Paste a product URL to load a preview of the source page.
                 Existing fields are not changed.
               </p>
@@ -1076,7 +1127,7 @@ export function KnifeScrapeEditor({
 
             {mode === 'edit' && hasScraped && lastScrapedProduct && (
               <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                <span className="text-[10px] xl:text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   Apply scraped data:
                 </span>
                 <Button
@@ -1112,9 +1163,17 @@ export function KnifeScrapeEditor({
         </Card>
 
         {showForm && (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 flex-1 min-h-0">
+          <div
+            className={cn(
+              'grid grid-cols-1 gap-6 flex-1 min-h-0',
+              isPreviewVisible
+                ? 'lg:grid-cols-2 xl:grid-cols-[minmax(0,72rem)_minmax(0,1fr)]'
+                : 'xl:max-w-[120rem]',
+            )}
+          >
             <div className="flex flex-col min-h-0 overflow-y-auto space-y-4 pr-1">
               <KnifeFormFields
+                wideLayout={!isPreviewVisible}
                 form={form}
                 updateField={updateField}
                 customFieldDefinitions={customFieldDefinitions}
@@ -1138,73 +1197,66 @@ export function KnifeScrapeEditor({
               />
             </div>
 
-            <Card className="flex flex-col overflow-hidden h-full min-h-0">
-              <CardHeader className="border-b flex flex-row items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                  <CardTitle className="text-sm">
-                    Scraped page preview
-                  </CardTitle>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() => setShowPreview((prev) => !prev)}
-                    title={showPreview ? 'Hide preview' : 'Show preview'}
-                    aria-label={showPreview ? 'Hide preview' : 'Show preview'}
-                  >
-                    {showPreview ? (
-                      <EyeOff className="h-3.5 w-3.5" />
-                    ) : (
-                      <Eye className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                  {safeSourceUrl && (
-                    <a
-                      href={safeSourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+            {isPreviewVisible && (
+              <Card className="flex flex-col overflow-hidden h-full min-h-[32rem] lg:min-h-0">
+                <CardHeader className="border-b flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                    <CardTitle className="text-sm xl:text-base">
+                      Scraped page preview
+                    </CardTitle>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      ref={previewToggleRef}
+                      onClick={() => togglePreview(false)}
+                      title="Hide preview"
+                      aria-label="Hide preview"
                     >
-                      Open
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="relative flex-1 min-h-0 p-0">
-                {showPreview && previewHtml ? (
+                      <EyeOff className="h-3.5 w-3.5" />
+                    </Button>
+                    {safeSourceUrl && (
+                      <a
+                        href={safeSourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[10px] xl:text-xs font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Open
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="relative flex-1 min-h-0 p-0">
                   <iframe
                     title="Scraped page preview"
                     srcDoc={previewHtml}
                     sandbox=""
                     className="absolute inset-0 w-full h-full border-0 bg-white"
                   />
-                ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground">
-                    <EyeOff className="h-8 w-8 mb-3 opacity-40" />
-                    <span className="text-xs">
-                      {hasScraped
-                        ? 'Preview hidden'
-                        : 'Scrape a URL to see the page preview'}
-                    </span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
       </div>
 
       {(saveError || scrapeError) && (
-        <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs xl:text-sm text-destructive">
           <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
           <span>{saveError ?? scrapeError}</span>
         </div>
       )}
 
-      <div className="mt-6 flex items-center justify-end gap-2">
+      <div
+        className={cn(
+          'mt-6 flex items-center justify-end gap-2 xl:sticky xl:bottom-0 xl:z-10 xl:w-full xl:border-t xl:border-[var(--bladevault-line)] xl:bg-background/95 xl:py-3 xl:backdrop-blur-sm',
+          isPreviewVisible ? 'xl:max-w-6xl' : 'xl:max-w-[120rem]',
+        )}
+      >
         <Button
           variant="outline"
           size="sm"

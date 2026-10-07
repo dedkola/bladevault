@@ -538,7 +538,7 @@ function CollectionContent() {
     >
       <PageHeader
         title={
-          <span className="text-3xl font-semibold tracking-[-0.045em] sm:text-4xl">
+          <span className="text-3xl font-semibold tracking-[-0.045em] sm:text-4xl xl:text-[length:var(--bladevault-page-title-size)] xl:tracking-tight">
             Your collection.
           </span>
         }
@@ -839,7 +839,6 @@ function CollectionContent() {
               density === 'gallery' &&
                 'xl:grid-cols-[repeat(auto-fit,minmax(19rem,min(100%,22rem)))]',
               density === 'compact' &&
-                activeKnife &&
                 'xl:grid-cols-[repeat(auto-fit,minmax(15rem,min(100%,18rem)))]',
             )}
             data-collection-grid
@@ -872,6 +871,11 @@ function CollectionContent() {
                       selected={selectedIds.has(knife.id)}
                       active={knife.id === activeKnifeId}
                       density={density}
+                      imageSizes={
+                        density === 'compact'
+                          ? '(min-width: 1280px) 18rem, (max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
+                          : '(min-width: 1280px) 22rem, (max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
+                      }
                       onSelect={toggleKnifeSelection}
                       onOpen={(knife) => setActiveKnifeId(knife.id)}
                     />
@@ -894,6 +898,10 @@ function CollectionContent() {
           knife={activeKnife}
           siblings={activeKnifeSiblings}
           onSelect={(knife) => setActiveKnifeId(knife.id)}
+          onClose={() => {
+            setActiveKnifeId(null)
+            searchInputRef.current?.focus({ preventScroll: true })
+          }}
         />
       )}
 

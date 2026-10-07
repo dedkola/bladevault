@@ -49,6 +49,7 @@
 }
 
 :root {
+  --bladevault-page-title-size: clamp(1.75rem, 1vw, 2rem);
   --bladevault-olive: #2e3417;
   --bladevault-gold: #c89c3d;
   --bladevault-line: #d3c097;

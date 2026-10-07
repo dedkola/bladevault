@@ -683,6 +683,66 @@
   color: var(--muted-foreground);
   margin-top: 12px;
 }
+@media (min-width: 1280px) {
+  .id-page-head h1 {
+    font-size: var(--bladevault-page-title-size);
+    letter-spacing: -0.025em;
+  }
+  .id-panel h2 {
+    font-size: 18px;
+  }
+  .id-eyebrow,
+  .id-collection-count,
+  .id-panel-head p,
+  .id-panel-foot,
+  .id-share,
+  .id-months,
+  .id-legend,
+  .id-metric p,
+  .id-table-caption,
+  .id-rank,
+  .id-callout p,
+  .id-ring small,
+  .id-health-tile small,
+  .id-review-table th,
+  .id-alias small,
+  .id-alias p,
+  .id-pill,
+  .id-measurement-summary dt,
+  .id-bin strong,
+  .id-bin span,
+  .id-knife-meta small,
+  .id-knife-row time,
+  .id-knife-card small,
+  .id-knife-card time,
+  .id-knife-card p,
+  .id-activity-day p,
+  .id-growth-item span,
+  .id-note,
+  .id-hint {
+    font-size: 12px;
+  }
+  .id-bar-label,
+  .id-directory-row,
+  .id-review-table,
+  .id-callout,
+  .id-search,
+  .id-alias strong,
+  .id-knife-meta strong,
+  .id-knife-card strong,
+  .id-health-tile span,
+  .id-activity-day strong,
+  .id-growth-item strong {
+    font-size: 14px;
+  }
+  .id-day {
+    height: auto;
+    aspect-ratio: 1;
+  }
+  .id-heatmap-inner {
+    max-width: 1448px;
+  }
+}
 @media (min-width: 1800px) {
   .id-directory {
     display: grid;
@@ -700,9 +760,6 @@
 @media (min-width: 2600px) {
   .insight-detail {
     padding: 30px 36px;
-  }
-  .id-page-head h1 {
-    font-size: 56px;
   }
   .id-panel-body {
     padding: 24px;
@@ -757,7 +814,7 @@
     font-size: 12px;
   }
   .id-bin span {
-    font-size: 11px;
+    font-size: 12px;
   }
   .id-card-image {
     height: 180px;
@@ -773,9 +830,6 @@
   .id-alias p,
   .id-health p {
     font-size: 13px;
-  }
-  .id-day {
-    height: 24px;
   }
   .id-alias {
     padding: 16px 0;
