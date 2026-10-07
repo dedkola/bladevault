@@ -87,6 +87,7 @@ import { cn } from '@/lib/utils'
 import pkg from '@/package.json'
 import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
 import { useKnives } from '@/components/providers/knives-provider'
+import './settings-view.css'
 
 type StatusTone = 'idle' | 'loading' | 'success' | 'error'
 type LocalBackupManifest = {
@@ -1387,7 +1388,7 @@ export default function SettingsView() {
       ) : (
         <div className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border border-[var(--bladevault-line)] bg-background xl:flex-row">
           {/* Sidebar */}
-          <aside className="flex w-full shrink-0 border-b border-[var(--bladevault-line)] bg-background xl:w-56 xl:flex-col xl:border-r xl:border-b-0">
+          <aside className="flex w-full shrink-0 border-b border-[var(--bladevault-line)] bg-background xl:w-60 xl:flex-col xl:border-r xl:border-b-0 2xl:w-64">
             <nav className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto p-2 xl:min-h-0 xl:flex-col xl:overflow-x-hidden xl:overflow-y-auto">
               {tabs.map((tab) => {
                 const isActive = tab.id === activeTab
@@ -1425,10 +1426,10 @@ export default function SettingsView() {
 
           {/* Main content */}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
-            <div className="min-h-0 flex-1 overflow-y-auto bg-background p-4 sm:p-5">
+            <div className="min-h-0 flex-1 overflow-y-auto bg-background p-4 sm:p-5 2xl:p-6">
               {activeTab === 'app-lock' && <AppLockSettings />}
               {activeTab === 'general' && (
-                <div className="mx-auto max-w-3xl space-y-3">
+                <div className="settings-grid">
                   <ScreenshotBackfill />
                   <SettingsSection>
                     <SettingsRow label="Current data folder">
@@ -1540,7 +1541,7 @@ export default function SettingsView() {
               )}
 
               {activeTab === 'cloud-backup' && (
-                <div className="mx-auto max-w-2xl space-y-3">
+                <div className="settings-grid">
                   <SettingsSection title="Account">
                     {cloudSession ? (
                       <SettingsRow
@@ -1694,7 +1695,7 @@ export default function SettingsView() {
               )}
 
               {activeTab === 'restore-database' && (
-                <div className="mx-auto max-w-3xl space-y-3">
+                <div className="settings-grid">
                   <SettingsSection
                     title="Local backup"
                     description="No cloud account is required."
@@ -1768,7 +1769,7 @@ export default function SettingsView() {
               )}
 
               {activeTab === 'appearance' && (
-                <div className="mx-auto max-w-3xl space-y-3">
+                <div className="settings-grid">
                   <SettingsSection title="Appearance">
                     <SettingsRow label="Theme">
                       <Select
@@ -1909,7 +1910,7 @@ export default function SettingsView() {
               )}
 
               {activeTab === 'fields' && (
-                <div className="mx-auto max-w-3xl space-y-3">
+                <div className="settings-grid">
                   <SettingsSection
                     title="Custom Fields"
                     description="Define extra fields that apply to every knife. They appear in the add/edit form and as collection filters."
@@ -2056,9 +2057,9 @@ export default function SettingsView() {
               )}
 
               {activeTab === 'mcp' && (
-                <div className="mx-auto max-w-3xl space-y-3">
+                <div className="settings-grid">
                   {mcpUpdateStatus !== 'idle' ? (
-                    <div className="flex justify-end">
+                    <div className="settings-full flex justify-end">
                       <StatusPill
                         status={mcpUpdateStatus}
                         message={mcpUpdateMessage}
@@ -2219,7 +2220,7 @@ export default function SettingsView() {
               )}
 
               {activeTab === 'about' && (
-                <div className="mx-auto max-w-3xl space-y-3">
+                <div className="settings-grid">
                   <SettingsSection title="BladeVault">
                     <SettingsRow label="Version" description={pkg.version}>
                       <Button

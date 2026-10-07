@@ -1,0 +1,72 @@
+/* Settings layout — big-screen responsive grid.
+ *
+ * Before: the page capped itself at max-w-7xl and every tab then capped its
+ * content again at mx-auto max-w-3xl (768px). On a 2560px display that left the
+ * settings form using 30% of the viewport with ~550px dead gutters either side.
+ *
+ * Now: the surface fills the main column, anchored to the content edge, and each
+ * tab's panels flow into a responsive grid.
+ *
+ * auto-fit (not repeat(n, 1fr)) is deliberate: it collapses the unused tracks, so
+ * a tab with one panel gets a full-width panel instead of a lone card in the left
+ * third, two panels split the row, three fill it, and so on — balanced without
+ * per-tab layout classes.
+ */
+
+.settings-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  min-width: 0;
+}
+
+/* Each panel is its own container, so a row can react to the width of the card
+   it actually sits in rather than the viewport. */
+.settings-grid > * {
+  min-width: 0;
+  container-type: inline-size;
+}
+
+/* A tab that renders a single panel: cap it. Left-anchored, still ~1.4x the old
+   768px, but not stretched into a 2000px card whose right half is empty. */
+.settings-grid > *:only-child {
+  max-width: 1100px;
+}
+
+/* Row-spanning rows inside the grid (status strips, wide tables). */
+.settings-grid > .settings-full {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 900px) {
+  .settings-grid {
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  }
+}
+
+@media (min-width: 1800px) {
+  .settings-grid {
+    grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+    gap: 18px;
+  }
+}
+
+/* In a wide card, put each control next to its label instead of flinging it to
+   the far edge — a 1000px row with the control pinned right leaves a dead middle
+   the eye has to cross to connect a label with its control. Narrow cards keep
+   the original stacked/justified row. */
+@container (min-width: 560px) {
+  .settings-row {
+    display: grid;
+    grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+    align-items: center;
+    column-gap: 24px;
+    row-gap: 8px;
+  }
+
+  .settings-row > :last-child {
+    justify-self: start;
+    min-width: 0;
+  }
+}
