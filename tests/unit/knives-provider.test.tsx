@@ -1,20 +1,28 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   KnivesProvider,
   useKnives,
 } from '@/components/providers/knives-provider'
+import {
+  IDLE_CLOUD_BACKUP_JOB,
+  type CloudBackupJobState,
+} from '@/lib/cloud-backup-shared'
+import { SETTINGS_UPDATED_EVENT } from '@/lib/settings-shared'
 import { createKnife } from '@/tests/fixtures/knife'
 
-const uploadCloudBackupArchive = vi.hoisted(() => vi.fn())
+const { getCloudBackupJob, startCloudBackupArchive } = vi.hoisted(() => ({
+  getCloudBackupJob: vi.fn(),
+  startCloudBackupArchive: vi.fn(),
+}))
 
 vi.mock('@/lib/cloud-backup-client', () => ({
   canAttemptSilentCloudBackup: () => true,
-  uploadCloudBackupArchive,
+  getCloudBackupJob,
+  startCloudBackupArchive,
 }))
 
 vi.mock('@/lib/cloud-backup', async (importOriginal) => {
@@ -37,13 +45,21 @@ function jsonResponse(body: unknown, status = 200) {
   })
 }
 
-function ProviderConsumer() {
-  const { addToCompare, isLoading, scheduleVaultBackup, updateKnife } =
-    useKnives()
+function ProviderConsumer({ page = 'Settings' }: { page?: string }) {
+  const {
+    addToCompare,
+    cloudBackupJob,
+    isLoading,
+    scheduleVaultBackup,
+    startVaultBackup,
+    updateKnife,
+  } = useKnives()
 
   return (
     <div>
+      <h1>{page}</h1>
       <span>{isLoading ? 'loading' : 'ready'}</span>
+      <span data-testid="backup-status">{cloudBackupJob.status}</span>
       <button onClick={() => void updateKnife('knife', { brand: 'Changed' })}>
         Edit
       </button>
@@ -52,15 +68,61 @@ function ProviderConsumer() {
       </button>
       <button onClick={() => void addToCompare('knife')}>Compare</button>
       <button onClick={scheduleVaultBackup}>Maintenance mutation</button>
+      <button onClick={() => void startVaultBackup()}>Backup now</button>
     </div>
   )
 }
 
-describe('KnivesProvider backup side effects', () => {
+async function renderProvider() {
+  let rendered: ReturnType<typeof render> | undefined
+  await act(async () => {
+    rendered = render(
+      <KnivesProvider>
+        <ProviderConsumer />
+      </KnivesProvider>,
+    )
+  })
+  expect(screen.getByText('ready')).toBeInTheDocument()
+  return rendered!
+}
+
+async function clickButton(name: string) {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name }))
+  })
+}
+
+async function advanceTime(milliseconds: number) {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(milliseconds)
+  })
+}
+
+async function disableAutomaticBackup() {
+  await act(async () => {
+    window.dispatchEvent(
+      new CustomEvent(SETTINGS_UPDATED_EVENT, {
+        detail: { cloudAutoBackupEnabled: false },
+      }),
+    )
+  })
+}
+
+describe('KnivesProvider background backup', () => {
+  let serverJob: CloudBackupJobState
+
   beforeEach(() => {
-    uploadCloudBackupArchive.mockReset()
-    uploadCloudBackupArchive.mockResolvedValue({
-      syncedAt: '2026-01-01T00:00:00.000Z',
+    vi.useFakeTimers()
+    serverJob = { ...IDLE_CLOUD_BACKUP_JOB }
+    getCloudBackupJob.mockReset().mockImplementation(async () => serverJob)
+    startCloudBackupArchive.mockReset().mockImplementation(async () => {
+      serverJob = {
+        ...IDLE_CLOUD_BACKUP_JOB,
+        id: `backup-${startCloudBackupArchive.mock.calls.length}`,
+        status: 'running',
+        phase: 'preparing',
+      }
+      return { job: serverJob, started: true }
     })
 
     const knife = createKnife({ id: 'knife' })
@@ -78,6 +140,9 @@ describe('KnivesProvider backup side effects', () => {
               customFields: [],
             },
           })
+        }
+        if (url === '/api/cloud-backup/job') {
+          return jsonResponse({ job: serverJob })
         }
         if (url === '/api/knives' && !init?.method) {
           return jsonResponse({ knives: [knife] })
@@ -100,89 +165,196 @@ describe('KnivesProvider backup side effects', () => {
     )
   })
 
-  it('backs up content edits but not pin-only or compare mutations', async () => {
-    const user = userEvent.setup()
-    const scheduledBackupCallbacks: Array<() => void> = []
-    const nativeSetTimeout = window.setTimeout.bind(window)
-    const nativeClearTimeout = window.clearTimeout.bind(window)
-    const backupTimerIdBase = 1_000_000_000
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
 
-    vi.spyOn(window, 'setTimeout').mockImplementation(((
-      handler: TimerHandler,
-      timeout?: number,
-      ...args: unknown[]
-    ) => {
-      if (timeout === 30_000 && typeof handler === 'function') {
-        scheduledBackupCallbacks.push(() => handler(...args))
-        return backupTimerIdBase + scheduledBackupCallbacks.length
+  function finishServerJob() {
+    serverJob = {
+      ...serverJob,
+      status: 'success',
+      phase: null,
+      syncedAt: '2026-10-08T11:00:00.000Z',
+    }
+  }
+
+  it('coalesces content edits into one backup after 30 quiet seconds', async () => {
+    await renderProvider()
+
+    await clickButton('Edit')
+    await advanceTime(20_000)
+    await clickButton('Maintenance mutation')
+    await advanceTime(29_999)
+    expect(startCloudBackupArchive).not.toHaveBeenCalled()
+
+    await advanceTime(1)
+    expect(startCloudBackupArchive).toHaveBeenCalledOnce()
+    expect(screen.getByTestId('backup-status')).toHaveTextContent('running')
+  })
+
+  it('does not schedule a backup for pin-only or comparison changes', async () => {
+    await renderProvider()
+
+    await clickButton('Pin')
+    await clickButton('Compare')
+    await advanceTime(60_000)
+
+    expect(startCloudBackupArchive).not.toHaveBeenCalled()
+  })
+
+  it('finishes automatic backup without a success toast', async () => {
+    await renderProvider()
+    await clickButton('Edit')
+    await advanceTime(30_000)
+    expect(startCloudBackupArchive).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+
+    finishServerJob()
+    await advanceTime(5_000)
+
+    expect(screen.getByTestId('backup-status')).toHaveTextContent('success')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('uses one job when a manual backup takes over a scheduled automatic backup', async () => {
+    await renderProvider()
+    await clickButton('Edit')
+    await clickButton('Backup now')
+    await clickButton('Backup now')
+    expect(startCloudBackupArchive).toHaveBeenCalledOnce()
+
+    finishServerJob()
+    await advanceTime(5_000)
+    await advanceTime(30_000)
+
+    expect(startCloudBackupArchive).toHaveBeenCalledOnce()
+  })
+
+  it('does not duplicate a running automatic job when Backup now is selected', async () => {
+    await renderProvider()
+    await clickButton('Edit')
+    await advanceTime(30_000)
+    await clickButton('Backup now')
+
+    expect(screen.getByTestId('backup-status')).toHaveTextContent('running')
+    expect(startCloudBackupArchive).toHaveBeenCalledOnce()
+  })
+
+  it('keeps an accepted job running when the Settings child is replaced', async () => {
+    const rendered = await renderProvider()
+    await clickButton('Backup now')
+    expect(screen.getByTestId('backup-status')).toHaveTextContent('running')
+
+    await act(async () => {
+      rendered.rerender(
+        <KnivesProvider>
+          <ProviderConsumer key="collection" page="Collection" />
+        </KnivesProvider>,
+      )
+    })
+    expect(
+      screen.getByRole('heading', { name: 'Collection' }),
+    ).toBeInTheDocument()
+    expect(screen.getByTestId('backup-status')).toHaveTextContent('running')
+
+    finishServerJob()
+    await advanceTime(5_000)
+
+    expect(screen.getByTestId('backup-status')).toHaveTextContent('success')
+    expect(startCloudBackupArchive).toHaveBeenCalledOnce()
+  })
+
+  it('coalesces edits during a running job into one delayed follow-up backup', async () => {
+    await renderProvider()
+    await clickButton('Backup now')
+    await clickButton('Edit')
+    await clickButton('Maintenance mutation')
+    await advanceTime(30_000)
+    expect(startCloudBackupArchive).toHaveBeenCalledOnce()
+
+    finishServerJob()
+    await advanceTime(5_000)
+    expect(screen.getByTestId('backup-status')).toHaveTextContent('success')
+    expect(startCloudBackupArchive).toHaveBeenCalledOnce()
+    await advanceTime(29_999)
+    expect(startCloudBackupArchive).toHaveBeenCalledOnce()
+
+    await advanceTime(1)
+    expect(startCloudBackupArchive).toHaveBeenCalledTimes(2)
+    await advanceTime(30_000)
+    expect(startCloudBackupArchive).toHaveBeenCalledTimes(2)
+  })
+
+  it('backs up recent edits after joining an older job from another window', async () => {
+    await renderProvider()
+    startCloudBackupArchive.mockImplementationOnce(async () => {
+      serverJob = {
+        ...IDLE_CLOUD_BACKUP_JOB,
+        id: 'other-window-backup',
+        status: 'running',
+        phase: 'uploading',
       }
-
-      return nativeSetTimeout(handler, timeout, ...args)
-    }) as typeof window.setTimeout)
-    const clearTimeoutSpy = vi
-      .spyOn(window, 'clearTimeout')
-      .mockImplementation((timerId) => {
-        if (Number(timerId) >= backupTimerIdBase) return
-        nativeClearTimeout(timerId)
-      })
-
-    render(
-      <KnivesProvider>
-        <ProviderConsumer />
-      </KnivesProvider>,
-    )
-    await screen.findByText('ready')
-
-    await user.click(screen.getByRole('button', { name: 'Edit' }))
-    await waitFor(() => expect(scheduledBackupCallbacks).toHaveLength(1))
-    expect(uploadCloudBackupArchive).not.toHaveBeenCalled()
-
-    await user.click(
-      screen.getByRole('button', { name: 'Maintenance mutation' }),
-    )
-    await waitFor(() => expect(scheduledBackupCallbacks).toHaveLength(2))
-    expect(clearTimeoutSpy).toHaveBeenCalledWith(backupTimerIdBase + 1)
-    expect(uploadCloudBackupArchive).not.toHaveBeenCalled()
-
-    await act(async () => {
-      scheduledBackupCallbacks.at(-1)?.()
+      return { job: serverJob, started: false }
     })
-    await waitFor(() =>
-      expect(uploadCloudBackupArchive).toHaveBeenCalledTimes(1),
-    )
+    await clickButton('Edit')
+    await advanceTime(30_000)
+    expect(startCloudBackupArchive).toHaveBeenCalledOnce()
+    expect(screen.getByTestId('backup-status')).toHaveTextContent('running')
 
-    uploadCloudBackupArchive.mockClear()
-    await user.click(screen.getByRole('button', { name: 'Pin' }))
-    await waitFor(() =>
-      expect(fetch).toHaveBeenCalledWith(
-        '/api/knives/knife',
-        expect.objectContaining({ method: 'PATCH' }),
-      ),
-    )
-    await new Promise((resolve) => window.setTimeout(resolve, 20))
-    expect(uploadCloudBackupArchive).not.toHaveBeenCalled()
+    finishServerJob()
+    await advanceTime(5_000)
+    expect(screen.getByTestId('backup-status')).toHaveTextContent('success')
+    await advanceTime(29_999)
+    expect(startCloudBackupArchive).toHaveBeenCalledOnce()
 
-    await user.click(screen.getByRole('button', { name: 'Compare' }))
-    await waitFor(() =>
-      expect(fetch).toHaveBeenCalledWith(
-        '/api/compare',
-        expect.objectContaining({ method: 'POST' }),
-      ),
-    )
-    await new Promise((resolve) => window.setTimeout(resolve, 20))
-    expect(uploadCloudBackupArchive).not.toHaveBeenCalled()
+    await advanceTime(1)
+    expect(startCloudBackupArchive).toHaveBeenCalledTimes(2)
+    finishServerJob()
+    await advanceTime(60_000)
+    expect(startCloudBackupArchive).toHaveBeenCalledTimes(2)
+  })
 
-    await user.click(
-      screen.getByRole('button', { name: 'Maintenance mutation' }),
-    )
-    await waitFor(() => expect(scheduledBackupCallbacks).toHaveLength(3))
-    expect(uploadCloudBackupArchive).not.toHaveBeenCalled()
+  it('cancels a scheduled backup when automatic backup is disabled', async () => {
+    await renderProvider()
+    await clickButton('Edit')
+    await disableAutomaticBackup()
+    await advanceTime(60_000)
 
-    await act(async () => {
-      scheduledBackupCallbacks.at(-1)?.()
-    })
-    await waitFor(() =>
-      expect(uploadCloudBackupArchive).toHaveBeenCalledTimes(1),
-    )
+    expect(startCloudBackupArchive).not.toHaveBeenCalled()
+  })
+
+  it('discards a pending follow-up when automatic backup is disabled', async () => {
+    await renderProvider()
+    await clickButton('Backup now')
+    await clickButton('Edit')
+    await advanceTime(30_000)
+    await disableAutomaticBackup()
+
+    finishServerJob()
+    await advanceTime(60_000)
+
+    expect(screen.getByTestId('backup-status')).toHaveTextContent('success')
+    expect(startCloudBackupArchive).toHaveBeenCalledOnce()
+  })
+
+  it('cancels queued browser idle work when automatic backup is disabled', async () => {
+    const requestIdleCallback = vi.fn(() => 17)
+    const cancelIdleCallback = vi.fn()
+    vi.stubGlobal('requestIdleCallback', requestIdleCallback)
+    vi.stubGlobal('cancelIdleCallback', cancelIdleCallback)
+    await renderProvider()
+    await clickButton('Edit')
+    await advanceTime(30_000)
+
+    expect(requestIdleCallback).toHaveBeenCalledOnce()
+    expect(startCloudBackupArchive).not.toHaveBeenCalled()
+    await disableAutomaticBackup()
+    expect(cancelIdleCallback).toHaveBeenCalledWith(17)
+    await advanceTime(60_000)
+
+    expect(startCloudBackupArchive).not.toHaveBeenCalled()
   })
 })

@@ -50,6 +50,21 @@ import {
   type Storage,
 } from './types'
 
+async function replaceImageFile(filePath: string, buffer: Buffer) {
+  // Publish complete images atomically so a background snapshot never copies a
+  // partially overwritten file. The private temporary name is ignored by backups.
+  const temporaryPath = path.join(
+    path.dirname(filePath),
+    `._bladevault-image-${randomUUID()}.tmp`,
+  )
+  try {
+    await fs.writeFile(temporaryPath, buffer, { flag: 'wx' })
+    await fs.rename(temporaryPath, filePath)
+  } finally {
+    await fs.rm(temporaryPath, { force: true }).catch(() => {})
+  }
+}
+
 function extensionFromMimeType(contentType: string): string {
   const type = contentType.split(';')[0].trim().toLowerCase()
   const map: Record<string, string> = {
@@ -498,7 +513,7 @@ export class LocalStorage implements Storage {
     const filename = `image-${String(index + 1).padStart(2, '0')}.${ext}`
     const filePath = resolveLocalImagePath(`${knifeId}/${filename}`)
     await clearDockerImageCache()
-    await fs.writeFile(filePath, buffer)
+    await replaceImageFile(filePath, buffer)
 
     return `${knifeId}/${filename}`
   }
@@ -523,7 +538,7 @@ export class LocalStorage implements Storage {
     const filename = `image-${String(index + 1).padStart(2, '0')}.${ext}`
     const filePath = resolveLocalImagePath(`${knifeId}/${filename}`)
     await clearDockerImageCache()
-    await fs.writeFile(filePath, buffer)
+    await replaceImageFile(filePath, buffer)
 
     return `${knifeId}/${filename}`
   }

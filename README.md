@@ -455,7 +455,9 @@ For a manual filesystem backup, stop BladeVault and copy the whole data folder s
 
 ## Optional cloud backup
 
-Cloud backup is opt-in and leaves local storage as the source of truth. BladeVault uses `https://auth.bladevault.pro` and `https://backup.bladevault.pro` by default. Sign in from **Settings → Cloud Backup** to upload or restore a complete archive, including images. Enable automatic backup to run hourly and after collection changes.
+Cloud backup is opt-in and leaves local storage as the source of truth. BladeVault uses `https://auth.bladevault.pro` and `https://backup.bladevault.pro` by default. Sign in from **Settings → Cloud Backup** to upload or restore a complete archive, including images.
+
+Manual and automatic backups run quietly on the local server. You can switch pages or reload the browser while an upload continues; check its status and last successful backup in Cloud Backup settings. Keep the desktop app or self-hosted server running until it finishes. Automatic backups wait at least 30 seconds after edits settle and use a browser idle slot to start. During an open app session, changes made during a backup are grouped into a later backup. Archive creation and uploads are paced to reduce their impact on normal use, and completion does not show a popup.
 
 Deployments can override the service endpoints with `NEXT_PUBLIC_BLADEVAULT_AUTH_URL` and `NEXT_PUBLIC_BLADEVAULT_BACKUP_URL`. Leaving them unset uses the built-in defaults. You can use the local vault and ZIP backups without signing in.
 

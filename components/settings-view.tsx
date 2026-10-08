@@ -62,10 +62,7 @@ import {
   refreshCloudBackupAccessToken,
   setCloudAuthState,
 } from '@/lib/cloud-backup'
-import {
-  formatCloudBackupError,
-  uploadCloudBackupArchive,
-} from '@/lib/cloud-backup-client'
+import { formatCloudBackupError } from '@/lib/cloud-backup-client'
 import { ScreenshotBackfill } from '@/components/screenshot-backfill'
 import { AppLockSettings } from '@/components/app-lock-settings'
 import { Button } from '@/components/ui/button'
@@ -187,16 +184,22 @@ async function copyTextToClipboard(value: string): Promise<void> {
 function StatusPill({
   status,
   message,
+  quiet = false,
 }: {
   status: StatusTone
   message?: string
+  quiet?: boolean
 }) {
   if (status === 'idle') return null
 
   if (status === 'loading') {
     return (
       <span className="inline-flex max-w-full items-start gap-1.5 text-xs text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        {quiet ? (
+          <Cloud className="h-3.5 w-3.5 shrink-0" />
+        ) : (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        )}
         <span className="min-w-0 break-words">{message || 'Working...'}</span>
       </span>
     )
@@ -373,7 +376,7 @@ export default function SettingsView() {
     : null
   const { update, checkForUpdates, downloadUpdate, installUpdate } =
     useDesktopUpdates()
-  const { knives, refreshVault } = useKnives()
+  const { knives, refreshVault, cloudBackupJob, startVaultBackup } = useKnives()
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [localDataPath, setLocalDataPath] = useState('')
   const [configuredLocalDataPath, setConfiguredLocalDataPath] = useState('')
@@ -394,8 +397,15 @@ export default function SettingsView() {
 
   const [authStatus, setAuthStatus] = useState<StatusTone>('idle')
   const [authMessage, setAuthMessage] = useState('')
-  const [backupStatus, setBackupStatus] = useState<StatusTone>('idle')
-  const [backupMessage, setBackupMessage] = useState('')
+  const backupStatus: StatusTone =
+    cloudBackupJob.status === 'running' ? 'loading' : cloudBackupJob.status
+  const backupMessage =
+    cloudBackupJob.status === 'running'
+      ? 'Backing up in the background. You can leave this page.'
+      : cloudBackupJob.status === 'error'
+        ? cloudBackupJob.message ||
+          'Cloud backup failed. Try again when connected.'
+        : 'Cloud backup is up to date.'
   const [restoreStatus, setRestoreStatus] = useState<StatusTone>('idle')
   const [restoreMessage, setRestoreMessage] = useState('')
   const [localBackupStatus, setLocalBackupStatus] = useState<StatusTone>('idle')
@@ -960,27 +970,6 @@ export default function SettingsView() {
       clearCloudAuthState()
     } catch {
       // Leave the current session intact when remote sign-out fails.
-    }
-  }
-
-  const handleBackup = async () => {
-    if (!settings) return
-
-    setBackupStatus('loading')
-    setBackupMessage('Uploading your local data folder...')
-
-    try {
-      const { syncedAt } = await uploadCloudBackupArchive()
-      setSettings((prev) =>
-        prev ? { ...prev, cloudBackupLastSyncedAt: syncedAt } : prev,
-      )
-      setBackupStatus('success')
-      setBackupMessage('Cloud backup is up to date.')
-    } catch (error) {
-      setBackupStatus('error')
-      setBackupMessage(
-        formatCloudBackupError(error, getCloudRuntimeConfig().backupUrl),
-      )
     }
   }
 
@@ -1566,6 +1555,7 @@ export default function SettingsView() {
                         onClick={handleSaveLocalDataFolder}
                         disabled={
                           dataDirManagedByEnv ||
+                          backupStatus === 'loading' ||
                           !normalizedPendingLocalDataPath ||
                           !isLocalDataFolderDirty
                         }
@@ -1638,7 +1628,8 @@ export default function SettingsView() {
                       <SettingsRow
                         label="Cloud connection"
                         description={`Last backup: ${formatSyncTime(
-                          settings.cloudBackupLastSyncedAt,
+                          cloudBackupJob.syncedAt ||
+                            settings.cloudBackupLastSyncedAt,
                           settings.timeFormat,
                         )}`}
                       >
@@ -1659,6 +1650,7 @@ export default function SettingsView() {
                           <StatusPill
                             status={backupStatus}
                             message={backupMessage}
+                            quiet
                           />
                         </div>
                       ) : null}
@@ -1666,25 +1658,29 @@ export default function SettingsView() {
                   </div>
                   <div className="settings-stack">
                     <SettingsSection title="Backup">
-                      <SettingsRow label="Back up now">
+                      <SettingsRow
+                        label="Back up now"
+                        description="Runs quietly while you continue using your vault."
+                      >
                         <Button
                           variant="outline"
                           className={`${settingsSecondaryButtonClassName} rounded-lg`}
-                          onClick={handleBackup}
-                          disabled={!cloudSession || backupStatus === 'loading'}
+                          onClick={() => void startVaultBackup()}
+                          disabled={
+                            !cloudSession ||
+                            backupStatus === 'loading' ||
+                            restoreStatus === 'loading' ||
+                            localBackupStatus === 'loading'
+                          }
                         >
-                          {backupStatus === 'loading' ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Upload className="h-3.5 w-3.5" />
-                          )}
+                          <Upload className="h-3.5 w-3.5" />
                           Backup
                         </Button>
                       </SettingsRow>
 
                       <SettingsRow
                         label="Automatic backup"
-                        description="Upload changes automatically after edits."
+                        description="Back up quietly after edits settle, without notifications."
                       >
                         <Checkbox
                           checked={settings.cloudAutoBackupEnabled}
@@ -1712,7 +1708,9 @@ export default function SettingsView() {
                           className={`${settingsSecondaryButtonClassName} rounded-lg`}
                           onClick={handleRestore}
                           disabled={
-                            !cloudSession || restoreStatus === 'loading'
+                            !cloudSession ||
+                            restoreStatus === 'loading' ||
+                            backupStatus === 'loading'
                           }
                         >
                           {restoreStatus === 'loading' ? (
@@ -1748,7 +1746,10 @@ export default function SettingsView() {
                         variant="outline"
                         className={`${settingsSecondaryButtonClassName} rounded-lg`}
                         onClick={handleLocalBackupDownload}
-                        disabled={localBackupStatus === 'loading'}
+                        disabled={
+                          localBackupStatus === 'loading' ||
+                          backupStatus === 'loading'
+                        }
                       >
                         {localBackupStatus === 'loading' ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1774,7 +1775,10 @@ export default function SettingsView() {
                         variant="outline"
                         className={`${settingsSecondaryButtonClassName} rounded-lg`}
                         onClick={() => localRestoreInputRef.current?.click()}
-                        disabled={localBackupStatus === 'loading'}
+                        disabled={
+                          localBackupStatus === 'loading' ||
+                          backupStatus === 'loading'
+                        }
                       >
                         <Upload className="h-3.5 w-3.5" />
                         Choose ZIP
