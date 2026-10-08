@@ -9,7 +9,8 @@ import { resetVault } from './helpers'
  *      large display the form used ~30% of the viewport with dead gutters;
  *   2. buttons rendered at h-7 while inputs/selects rendered at h-8, so a button
  *      sitting next to a field was visibly shorter;
- *   3. panels could overflow their container and introduce a horizontal scrollbar.
+ *   3. panels could overflow their container or clip controls inside their borders;
+ *   4. card-field options could split into cramped columns based on viewport width.
  */
 
 const VIEWPORTS = [
@@ -79,6 +80,57 @@ async function layoutMetrics(page: Page) {
       ),
     ]
     const gridWidth = grid.getBoundingClientRect().width
+    const controlBounds = [
+      ...grid.querySelectorAll(
+        'button, input, [role="combobox"], [role="checkbox"]',
+      ),
+    ].flatMap((control) => {
+      // Base UI renders a clipped, aria-hidden native input beside the visible
+      // checkbox. Only the rendered control belongs to the panel layout.
+      if (
+        control.matches('input[type="hidden"], input[aria-hidden="true"]') ||
+        !control.checkVisibility({
+          checkOpacity: true,
+          checkVisibilityCSS: true,
+        })
+      ) {
+        return []
+      }
+
+      const panel = control.closest('.settings-section')
+      const rect = control.getBoundingClientRect()
+      if (!panel || !rect.width || !rect.height) return []
+
+      const panelRect = panel.getBoundingClientRect()
+      let scrollsVertically = false
+      for (
+        let ancestor = control.parentElement;
+        ancestor && ancestor !== panel;
+        ancestor = ancestor.parentElement
+      ) {
+        if (
+          /auto|scroll/.test(getComputedStyle(ancestor).overflowY) &&
+          ancestor.scrollHeight > ancestor.clientHeight
+        ) {
+          scrollsVertically = true
+          break
+        }
+      }
+
+      return [
+        {
+          name:
+            control.getAttribute('aria-label') ||
+            control.textContent?.trim() ||
+            control.getAttribute('data-slot'),
+          left: rect.left - panelRect.left,
+          right: panelRect.right - rect.right,
+          top: rect.top - panelRect.top,
+          bottom: panelRect.bottom - rect.bottom,
+          scrollsVertically,
+        },
+      ]
+    })
     return {
       docOverflowX:
         document.documentElement.scrollWidth -
@@ -90,6 +142,7 @@ async function layoutMetrics(page: Page) {
       panelWidths: [...grid.children].map(
         (child) => (child as HTMLElement).getBoundingClientRect().width,
       ),
+      controlBounds,
       controlHeights: [
         ...new Set(
           controls.map((control) =>
@@ -97,6 +150,32 @@ async function layoutMetrics(page: Page) {
           ),
         ),
       ],
+    }
+  })
+}
+
+async function cardFieldsLayout(page: Page) {
+  return page.locator('.settings-card-fields').evaluate((panel) => {
+    const layout = panel.querySelector(
+      '.settings-card-fields-layout',
+    ) as HTMLElement
+    const preview = layout.firstElementChild as HTMLElement
+    const options = panel.querySelector(
+      '.settings-card-fields-options',
+    ) as HTMLElement
+    const previewRect = preview.getBoundingClientRect()
+    const optionsRect = options.getBoundingClientRect()
+    return {
+      sideBySide:
+        panel.clientWidth >=
+        36 * parseFloat(getComputedStyle(document.documentElement).fontSize),
+      previewRight: previewRect.right,
+      previewTop: previewRect.top,
+      previewBottom: previewRect.bottom,
+      optionsLeft: optionsRect.left,
+      optionsTop: optionsRect.top,
+      optionsWidth: optionsRect.width,
+      layoutWidth: layout.getBoundingClientRect().width,
     }
   })
 }
@@ -125,6 +204,18 @@ for (const viewport of VIEWPORTS) {
         expect(metrics.surfaceRight).toBeLessThanOrEqual(
           metrics.viewportWidth + 1,
         )
+
+        for (const bounds of metrics.controlBounds) {
+          const label = `${tab}: ${bounds.name} must fit inside its panel`
+          expect(bounds.left, label).toBeGreaterThanOrEqual(-1)
+          expect(bounds.right, label).toBeGreaterThanOrEqual(-1)
+          // The card-field list deliberately scrolls; its off-screen options
+          // still need to fit horizontally, while other controls fit in full.
+          if (!bounds.scrollsVertically) {
+            expect(bounds.top, label).toBeGreaterThanOrEqual(-1)
+            expect(bounds.bottom, label).toBeGreaterThanOrEqual(-1)
+          }
+        }
 
         // the section heading is present so the tab has a stated purpose
         await expect(page.locator('.settings-head')).toBeVisible()
@@ -161,6 +252,25 @@ for (const viewport of VIEWPORTS) {
             `${tab}: a panel is wider than the grid`,
           ).toBeLessThanOrEqual(gridWidth + 1)
         }
+
+        if (tab === 'Appearance') {
+          const fields = await cardFieldsLayout(page)
+          if (fields.sideBySide) {
+            expect(fields.previewRight).toBeLessThanOrEqual(
+              fields.optionsLeft + 1,
+            )
+            expect(
+              Math.abs(fields.previewTop - fields.optionsTop),
+            ).toBeLessThanOrEqual(1)
+          } else {
+            expect(fields.optionsTop).toBeGreaterThanOrEqual(
+              fields.previewBottom - 1,
+            )
+            expect(
+              Math.abs(fields.optionsWidth - fields.layoutWidth),
+            ).toBeLessThanOrEqual(1)
+          }
+        }
       }
     })
   })
@@ -179,9 +289,51 @@ test.describe('column behaviour', () => {
       ).toBeGreaterThanOrEqual(2)
     }
 
-    // the headline case: Appearance's three panels sit side by side
+    // Compact preferences sit beside the wider preview and field list.
     await openTab(page, 'Appearance')
-    expect(await gridColumns(page)).toBe(3)
+    expect(await gridColumns(page)).toBe(2)
+    const { gridWidth, panelWidths } = await layoutMetrics(page)
+    expect(panelWidths).toHaveLength(2)
+    expect(panelWidths[0]).toBeLessThanOrEqual(352)
+    expect(panelWidths[1]).toBeGreaterThan(panelWidths[0])
+    expect(panelWidths[0] + panelWidths[1]).toBeGreaterThan(gridWidth - 24)
+  })
+
+  test('keeps Cloud Backup in two compact columns without empty restore feedback', async ({
+    page,
+  }) => {
+    for (const width of [1920, 2560]) {
+      await page.setViewportSize({ width, height: 1080 })
+      await page.goto('/settings')
+      await openTab(page, 'Cloud Backup')
+
+      expect(await gridColumns(page)).toBe(2)
+      const { gridWidth, panelWidths } = await layoutMetrics(page)
+      expect(gridWidth).toBeLessThanOrEqual(1280)
+      expect(panelWidths).toHaveLength(2)
+      await expect(
+        page.locator('.settings-cloud .settings-section'),
+      ).toHaveCount(4)
+      expect(
+        Math.max(...panelWidths) - Math.min(...panelWidths),
+      ).toBeLessThanOrEqual(1)
+
+      const restore = page.locator('.settings-cloud .settings-section').filter({
+        has: page.getByRole('button', { name: 'Restore', exact: true }),
+      })
+      const idleRestore = await restore.evaluate((panel) => {
+        const body = panel.lastElementChild as HTMLElement
+        const row = body.querySelector('.settings-row') as HTMLElement
+        return {
+          rowIsLast: body.lastElementChild === row,
+          spaceAfterRow:
+            body.getBoundingClientRect().bottom -
+            row.getBoundingClientRect().bottom,
+        }
+      })
+      expect(idleRestore.rowIsLast).toBe(true)
+      expect(Math.abs(idleRestore.spaceAfterRow)).toBeLessThanOrEqual(1)
+    }
   })
 
   test('collapses to a single column on a phone', async ({ page }) => {

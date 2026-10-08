@@ -7,10 +7,8 @@
  *   now fills the main column, anchored to the content edge, and each tab's
  *   panels flow into a responsive grid.
  *
- *   auto-fit (not repeat(n, 1fr)) is deliberate: it collapses unused tracks, so
- *   a tab with one panel gets a full-width panel instead of a lone card in the
- *   left third, two panels split the row, three fill it, and so on — balanced
- *   without per-tab layout classes.
+ *   Most tabs use auto-fit tracks. Cloud Backup keeps two balanced columns;
+ *   Appearance gives compact preferences a narrow column beside Card fields.
  *
  * Controls
  *   Inputs and selects render at h-8 (2rem). Buttons used size="sm" (h-7), so a
@@ -21,6 +19,10 @@
 .settings-surface {
   /* one control height for the whole surface */
   --sv-control-h: 2rem;
+}
+
+.settings-content {
+  container: settings-content / inline-size;
 }
 
 /* ---------------------------------------------------------------- grid --- */
@@ -36,7 +38,10 @@
    actually sits in rather than the width of the viewport. */
 .settings-grid > * {
   min-width: 0;
-  container-type: inline-size;
+}
+
+.settings-section {
+  container: settings-panel / inline-size;
 }
 
 /* A tab that renders a single panel: cap it. Left-anchored, still ~1.4x the old
@@ -60,6 +65,71 @@
   .settings-grid {
     grid-template-columns: repeat(auto-fit, minmax(28rem, 1fr));
     gap: 1.125rem;
+  }
+}
+
+/* Keep short cloud panels readable even when the surface fills a 4K display.
+   Two columns also avoid an isolated fourth panel beneath a three-card row. */
+.settings-cloud {
+  max-width: 80rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.settings-appearance {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.settings-stack {
+  display: grid;
+  align-content: start;
+  gap: inherit;
+}
+
+@container settings-content (min-width: 48rem) {
+  .settings-cloud {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-appearance {
+    grid-template-columns: minmax(17rem, 22rem) minmax(0, 1fr);
+  }
+}
+
+.settings-preferences .settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.settings-preferences .settings-row-control {
+  justify-self: end;
+}
+
+/* The card's width, not the viewport, determines whether preview and options
+   fit beside each other. Narrow cards retain a full-width field list. */
+@container settings-panel (min-width: 36rem) {
+  .settings-card-fields-layout {
+    grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
+  }
+}
+
+.settings-card-fields-options label {
+  padding-block: 0.625rem;
+}
+
+.settings-card-fields-options {
+  container: settings-field-options / inline-size;
+}
+
+@container settings-field-options (min-width: 38rem) {
+  .settings-card-field-groups {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .settings-card-field-groups > :not(:nth-child(3n + 1)) {
+    border-left: 1px solid var(--bladevault-line);
   }
 }
 
@@ -89,22 +159,27 @@
 }
 
 /* --------------------------------------------------------------- rows --- */
-/* In a wide card, put each control next to its label instead of flinging it to
-   the far edge — a 1000px row with the control pinned right leaves a dead
-   middle the eye has to cross to connect a label with its control. Narrow cards
-   keep the original stacked/justified row. */
-@container (min-width: 560px) {
+/* Rows follow their panel width. A proportional label track leaves enough
+   room for actions at intermediate widths; wide panels cap the label track
+   to keep controls close to the setting they change. */
+@container settings-panel (min-width: 30rem) {
   .settings-grid .settings-row {
     display: grid;
-    grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
     align-items: center;
-    column-gap: 1.5rem;
+    column-gap: 1rem;
     row-gap: 0.5rem;
   }
 
-  .settings-grid .settings-row > :last-child {
+  .settings-grid .settings-row-control {
     justify-self: start;
     min-width: 0;
+  }
+}
+
+@container settings-panel (min-width: 42rem) {
+  .settings-grid .settings-row {
+    grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
   }
 }
 

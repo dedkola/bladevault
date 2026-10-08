@@ -1463,7 +1463,7 @@ export default function SettingsView() {
 
           {/* Main content */}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
-            <div className="min-h-0 flex-1 overflow-y-auto bg-background p-4 sm:p-5 2xl:p-6">
+            <div className="settings-content min-h-0 flex-1 overflow-y-auto bg-background p-4 sm:p-5 2xl:p-6">
               <div className="settings-head">
                 <h2>{activeTabMeta.label}</h2>
                 <p>{activeTabMeta.blurb}</p>
@@ -1581,152 +1581,159 @@ export default function SettingsView() {
               )}
 
               {activeTab === 'cloud-backup' && (
-                <div className="settings-grid">
-                  <SettingsSection title="Account">
-                    {cloudSession ? (
+                <div className="settings-grid settings-cloud">
+                  <div className="settings-stack">
+                    <SettingsSection title="Account">
+                      {cloudSession ? (
+                        <SettingsRow
+                          label={cloudSession.user.email}
+                          description="Cloud backup account"
+                        >
+                          <Button
+                            variant="outline"
+                            className={`${settingsSecondaryButtonClassName} rounded-lg`}
+                            onClick={handleLogout}
+                          >
+                            <LogOut className="h-3.5 w-3.5" />
+                            Sign Out
+                          </Button>
+                        </SettingsRow>
+                      ) : (
+                        <>
+                          {cloudConfigError ? (
+                            <div className="py-3">
+                              <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-3 text-sm text-destructive">
+                                {cloudConfigError}
+                              </div>
+                            </div>
+                          ) : null}
+
+                          <SettingsRow
+                            label="No account connected"
+                            description="Sign in to back up this vault to the cloud."
+                          >
+                            <Button
+                              className={`${settingsPrimaryButtonClassName} rounded-lg`}
+                              onClick={handleGoogleSignIn}
+                              disabled={Boolean(cloudConfigError)}
+                            >
+                              <FcGoogle className="h-4 w-4" />
+                              Continue With Google
+                            </Button>
+                          </SettingsRow>
+
+                          {authStatus !== 'idle' ? (
+                            <div className="py-3">
+                              <StatusPill
+                                status={authStatus}
+                                message={authMessage}
+                              />
+                            </div>
+                          ) : null}
+                        </>
+                      )}
+                    </SettingsSection>
+
+                    <SettingsSection title="Status">
                       <SettingsRow
-                        label={cloudSession.user.email}
-                        description="Cloud backup account"
+                        label="Cloud connection"
+                        description={`Last backup: ${formatSyncTime(
+                          settings.cloudBackupLastSyncedAt,
+                          settings.timeFormat,
+                        )}`}
                       >
+                        {cloudSession ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--bladevault-local)] dark:text-[var(--bladevault-gold)]">
+                            <ShieldCheck className="h-3.5 w-3.5" />
+                            Connected
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            Not connected
+                          </span>
+                        )}
+                      </SettingsRow>
+
+                      {backupStatus !== 'idle' ? (
+                        <div className="py-3">
+                          <StatusPill
+                            status={backupStatus}
+                            message={backupMessage}
+                          />
+                        </div>
+                      ) : null}
+                    </SettingsSection>
+                  </div>
+                  <div className="settings-stack">
+                    <SettingsSection title="Backup">
+                      <SettingsRow label="Back up now">
                         <Button
                           variant="outline"
                           className={`${settingsSecondaryButtonClassName} rounded-lg`}
-                          onClick={handleLogout}
+                          onClick={handleBackup}
+                          disabled={!cloudSession || backupStatus === 'loading'}
                         >
-                          <LogOut className="h-3.5 w-3.5" />
-                          Sign Out
+                          {backupStatus === 'loading' ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Upload className="h-3.5 w-3.5" />
+                          )}
+                          Backup
                         </Button>
                       </SettingsRow>
-                    ) : (
-                      <>
-                        {cloudConfigError ? (
-                          <div className="py-3">
-                            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-3 text-sm text-destructive">
-                              {cloudConfigError}
-                            </div>
-                          </div>
-                        ) : null}
 
-                        <SettingsRow
-                          label="No account connected"
-                          description="Sign in to back up this vault to the cloud."
-                        >
-                          <Button
-                            className={`${settingsPrimaryButtonClassName} rounded-lg`}
-                            onClick={handleGoogleSignIn}
-                            disabled={Boolean(cloudConfigError)}
-                          >
-                            <FcGoogle className="h-4 w-4" />
-                            Continue With Google
-                          </Button>
-                        </SettingsRow>
-
-                        {authStatus !== 'idle' ? (
-                          <div className="py-3">
-                            <StatusPill
-                              status={authStatus}
-                              message={authMessage}
-                            />
-                          </div>
-                        ) : null}
-                      </>
-                    )}
-                  </SettingsSection>
-
-                  <SettingsSection title="Backup">
-                    <SettingsRow label="Back up now">
-                      <Button
-                        variant="outline"
-                        className={`${settingsSecondaryButtonClassName} rounded-lg`}
-                        onClick={handleBackup}
-                        disabled={!cloudSession || backupStatus === 'loading'}
+                      <SettingsRow
+                        label="Automatic backup"
+                        description="Upload changes automatically after edits."
                       >
-                        {backupStatus === 'loading' ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Upload className="h-3.5 w-3.5" />
-                        )}
-                        Backup
-                      </Button>
-                    </SettingsRow>
-
-                    <SettingsRow
-                      label="Automatic backup"
-                      description="Upload changes automatically after edits."
-                    >
-                      <Checkbox
-                        checked={settings.cloudAutoBackupEnabled}
-                        onCheckedChange={(checked) =>
-                          handleAutoBackupToggle(checked === true)
-                        }
-                        disabled={!cloudSession}
-                        aria-label="Enable automatic backup"
-                      />
-                    </SettingsRow>
-                  </SettingsSection>
-
-                  <SettingsSection
-                    title="Restore"
-                    description="Restore the latest cloud backup to this device. This replaces the local data."
-                  >
-                    {!cloudSession ? (
-                      <div className="py-3 text-sm text-muted-foreground">
-                        Sign in above before restoring from the cloud.
-                      </div>
-                    ) : null}
-                    <SettingsRow label="Restore from cloud">
-                      <Button
-                        variant="outline"
-                        className={`${settingsSecondaryButtonClassName} rounded-lg`}
-                        onClick={handleRestore}
-                        disabled={!cloudSession || restoreStatus === 'loading'}
-                      >
-                        {restoreStatus === 'loading' ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Download className="h-3.5 w-3.5" />
-                        )}
-                        Restore
-                      </Button>
-                    </SettingsRow>
-
-                    <div className="py-3">
-                      <StatusPill
-                        status={restoreStatus}
-                        message={restoreMessage}
-                      />
-                    </div>
-                  </SettingsSection>
-
-                  <SettingsSection title="Status">
-                    <SettingsRow
-                      label="Cloud connection"
-                      description={`Last backup: ${formatSyncTime(
-                        settings.cloudBackupLastSyncedAt,
-                        settings.timeFormat,
-                      )}`}
-                    >
-                      {cloudSession ? (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--bladevault-local)] dark:text-[var(--bladevault-gold)]">
-                          <ShieldCheck className="h-3.5 w-3.5" />
-                          Connected
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          Not connected
-                        </span>
-                      )}
-                    </SettingsRow>
-
-                    {backupStatus !== 'idle' ? (
-                      <div className="py-3">
-                        <StatusPill
-                          status={backupStatus}
-                          message={backupMessage}
+                        <Checkbox
+                          checked={settings.cloudAutoBackupEnabled}
+                          onCheckedChange={(checked) =>
+                            handleAutoBackupToggle(checked === true)
+                          }
+                          disabled={!cloudSession}
+                          aria-label="Enable automatic backup"
                         />
-                      </div>
-                    ) : null}
-                  </SettingsSection>
+                      </SettingsRow>
+                    </SettingsSection>
+
+                    <SettingsSection
+                      title="Restore"
+                      description="Restore the latest cloud backup to this device. This replaces the local data."
+                    >
+                      {!cloudSession ? (
+                        <div className="py-3 text-sm text-muted-foreground">
+                          Sign in above before restoring from the cloud.
+                        </div>
+                      ) : null}
+                      <SettingsRow label="Restore from cloud">
+                        <Button
+                          variant="outline"
+                          className={`${settingsSecondaryButtonClassName} rounded-lg`}
+                          onClick={handleRestore}
+                          disabled={
+                            !cloudSession || restoreStatus === 'loading'
+                          }
+                        >
+                          {restoreStatus === 'loading' ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Download className="h-3.5 w-3.5" />
+                          )}
+                          Restore
+                        </Button>
+                      </SettingsRow>
+
+                      {restoreStatus !== 'idle' ? (
+                        <div className="py-3">
+                          <StatusPill
+                            status={restoreStatus}
+                            message={restoreMessage}
+                          />
+                        </div>
+                      ) : null}
+                    </SettingsSection>
+                  </div>
                 </div>
               )}
 
@@ -1774,12 +1781,14 @@ export default function SettingsView() {
                       </Button>
                     </SettingsRow>
 
-                    <div className="py-3">
-                      <StatusPill
-                        status={localBackupStatus}
-                        message={localBackupMessage}
-                      />
-                    </div>
+                    {localBackupStatus !== 'idle' ? (
+                      <div className="py-3">
+                        <StatusPill
+                          status={localBackupStatus}
+                          message={localBackupMessage}
+                        />
+                      </div>
+                    ) : null}
                   </SettingsSection>
 
                   <SettingsSection title="Print">
@@ -1802,8 +1811,11 @@ export default function SettingsView() {
               )}
 
               {activeTab === 'appearance' && (
-                <div className="settings-grid">
-                  <SettingsSection title="Appearance">
+                <div className="settings-grid settings-appearance">
+                  <SettingsSection
+                    title="Appearance"
+                    className="settings-preferences"
+                  >
                     <SettingsRow label="Theme">
                       <Select
                         value={settings.theme}
@@ -1812,7 +1824,7 @@ export default function SettingsView() {
                         <SelectTrigger
                           size="sm"
                           aria-label="Theme"
-                          className="h-8 min-w-[8rem] rounded-lg border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)]"
+                          className="h-8 w-32 rounded-lg border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)]"
                         >
                           <SelectValue />
                         </SelectTrigger>
@@ -1837,7 +1849,7 @@ export default function SettingsView() {
                         <SelectTrigger
                           size="sm"
                           aria-label="Time format"
-                          className="h-8 min-w-[8rem] rounded-lg border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)]"
+                          className="h-8 w-32 rounded-lg border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)]"
                         >
                           <SelectValue>
                             {(value: TimeFormat) =>
@@ -1854,8 +1866,6 @@ export default function SettingsView() {
                         </SelectContent>
                       </Select>
                     </SettingsRow>
-                  </SettingsSection>
-                  <SettingsSection title="Collection">
                     <SettingsRow
                       label="Keep pinned knives first"
                       description="Place pinned knives before other items in the Dashboard, Collection, and Compare views."
@@ -1872,14 +1882,15 @@ export default function SettingsView() {
                   <SettingsSection
                     title="Card fields"
                     description="Choose any structured or custom details to show on knife cards and pinned sidebar items."
+                    className="settings-card-fields"
                   >
-                    <div className="grid gap-5 py-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-start">
+                    <div className="settings-card-fields-layout grid items-start gap-4 py-4">
                       <CardFieldsPreview
                         fields={settings.cardFields}
                         customFields={settings.customFields}
                       />
                       <div
-                        className="max-h-[28rem] overflow-y-auto rounded-lg border border-[var(--bladevault-line)]/70 bg-background"
+                        className="settings-card-fields-options max-h-[24rem] overflow-y-auto rounded-lg border border-[var(--bladevault-line)]/70 bg-background"
                         aria-busy={isSavingCardFields}
                       >
                         <div className="flex items-center justify-between gap-3 border-b border-[var(--bladevault-line)]/60 px-3 py-2.5">
@@ -1904,38 +1915,40 @@ export default function SettingsView() {
                           </div>
                           <Lock className="size-3.5 text-muted-foreground" />
                         </div>
-                        {getCardFieldGroups(settings.customFields).map(
-                          (group) => (
-                            <div key={group.label}>
-                              <div className="sticky top-0 z-10 border-b border-[var(--bladevault-line)]/60 bg-[var(--bladevault-surface-soft)] px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                                {group.label}
-                              </div>
-                              {group.fields.map((field) => (
-                                <label
-                                  key={field.key}
-                                  className="flex cursor-pointer items-center justify-between gap-3 border-b border-[var(--bladevault-line)]/60 px-3 py-3 last:border-b-0"
-                                >
-                                  <span className="text-sm font-medium text-foreground">
-                                    {field.label}
-                                  </span>
-                                  <Checkbox
-                                    checked={settings.cardFields.includes(
-                                      field.key,
-                                    )}
-                                    disabled={isSavingCardFields}
-                                    onCheckedChange={(checked) =>
-                                      handleCardFieldToggle(
+                        <div className="settings-card-field-groups">
+                          {getCardFieldGroups(settings.customFields).map(
+                            (group) => (
+                              <div key={group.label}>
+                                <div className="sticky top-0 z-10 border-b border-[var(--bladevault-line)]/60 bg-[var(--bladevault-surface-soft)] px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                                  {group.label}
+                                </div>
+                                {group.fields.map((field) => (
+                                  <label
+                                    key={field.key}
+                                    className="flex cursor-pointer items-center justify-between gap-3 border-b border-[var(--bladevault-line)]/60 px-3 py-3 last:border-b-0"
+                                  >
+                                    <span className="min-w-0 text-sm font-medium text-foreground [overflow-wrap:anywhere]">
+                                      {field.label}
+                                    </span>
+                                    <Checkbox
+                                      checked={settings.cardFields.includes(
                                         field.key,
-                                        checked === true,
-                                      )
-                                    }
-                                    aria-label={`Show ${field.label} on cards`}
-                                  />
-                                </label>
-                              ))}
-                            </div>
-                          ),
-                        )}
+                                      )}
+                                      disabled={isSavingCardFields}
+                                      onCheckedChange={(checked) =>
+                                        handleCardFieldToggle(
+                                          field.key,
+                                          checked === true,
+                                        )
+                                      }
+                                      aria-label={`Show ${field.label} on cards`}
+                                    />
+                                  </label>
+                                ))}
+                              </div>
+                            ),
+                          )}
+                        </div>
                       </div>
                     </div>
                   </SettingsSection>
