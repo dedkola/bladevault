@@ -4,13 +4,13 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 const panelClassName =
-  'overflow-hidden rounded-xl border border-[var(--bladevault-line)] bg-background shadow-none'
+  'settings-section overflow-hidden rounded-xl border border-[var(--bladevault-line)] bg-background shadow-none'
 
 const headerClassName =
   'border-b border-[var(--bladevault-line)] bg-background px-4 py-2.5 dark:border-[#d3c097]/30'
 
 const rowClassName =
-  'flex flex-col gap-2 border-b border-[var(--bladevault-line)]/60 py-3 last:border-b-0 xl:flex-row xl:items-center xl:justify-between xl:gap-4'
+  'settings-row flex flex-col gap-2 border-b border-[var(--bladevault-line)]/60 py-3 last:border-b-0'
 
 export function SettingsSection({
   title,
@@ -55,7 +55,7 @@ export function SettingsRow({
 }) {
   return (
     <div className={cn(rowClassName, className)}>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">
         <div className="text-sm font-medium text-foreground">{label}</div>
         {description ? (
           <div className="mt-0.5 text-xs text-muted-foreground">
@@ -64,7 +64,7 @@ export function SettingsRow({
         ) : null}
       </div>
       {children ? (
-        <div className="flex min-w-0 items-center gap-2 xl:shrink-0 xl:justify-end">
+        <div className="settings-row-control flex min-w-0 flex-wrap items-center gap-2">
           {children}
         </div>
       ) : null}

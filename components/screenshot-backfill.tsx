@@ -176,7 +176,6 @@ export function ScreenshotBackfill() {
                     </p>
                   </div>
                   <Button
-                    size="sm"
                     variant="ghost"
                     disabled={running}
                     onClick={() => void skip(item.id)}

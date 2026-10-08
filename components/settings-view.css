@@ -1,0 +1,232 @@
+/* Settings — layout and control system.
+ *
+ * Layout
+ *   The page used to cap itself twice: max-w-7xl on the page and
+ *   mx-auto max-w-3xl per tab (768px). On a 2560px display that left the form
+ *   using 30% of the viewport with ~550px dead gutters either side. The surface
+ *   now fills the main column, anchored to the content edge, and each tab's
+ *   panels flow into a responsive grid.
+ *
+ *   Most tabs use auto-fit tracks. Cloud Backup keeps two balanced columns;
+ *   Appearance gives compact preferences a narrow column beside Card fields.
+ *
+ * Controls
+ *   Inputs and selects render at h-8 (2rem). Buttons used size="sm" (h-7), so a
+ *   button sitting next to a field was visibly shorter. Buttons now use the
+ *   default size and --sv-control-h is the single height they all resolve to.
+ */
+
+.settings-surface {
+  /* one control height for the whole surface */
+  --sv-control-h: 2rem;
+}
+
+.settings-content {
+  container: settings-content / inline-size;
+}
+
+/* ---------------------------------------------------------------- grid --- */
+.settings-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  min-width: 0;
+}
+
+/* Each panel is its own container, so a row reacts to the width of the card it
+   actually sits in rather than the width of the viewport. */
+.settings-grid > * {
+  min-width: 0;
+}
+
+.settings-section {
+  container: settings-panel / inline-size;
+}
+
+/* A tab that renders a single panel: cap it. Left-anchored, still ~1.4x the old
+   768px, but not stretched into a 2000px card whose right half is empty. */
+.settings-grid > *:only-child {
+  max-width: 68rem;
+}
+
+/* Row-spanning rows inside the grid (status strips, wide tables). */
+.settings-grid > .settings-full {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 900px) {
+  .settings-grid {
+    grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+  }
+}
+
+@media (min-width: 1800px) {
+  .settings-grid {
+    grid-template-columns: repeat(auto-fit, minmax(28rem, 1fr));
+    gap: 1.125rem;
+  }
+}
+
+/* Keep short cloud panels readable even when the surface fills a 4K display.
+   Two columns also avoid an isolated fourth panel beneath a three-card row. */
+.settings-cloud {
+  max-width: 80rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.settings-appearance {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.settings-stack {
+  display: grid;
+  align-content: start;
+  gap: inherit;
+}
+
+@container settings-content (min-width: 48rem) {
+  .settings-cloud {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-appearance {
+    grid-template-columns: minmax(17rem, 22rem) minmax(0, 1fr);
+  }
+}
+
+.settings-preferences .settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.settings-preferences .settings-row-control {
+  justify-self: end;
+}
+
+/* The card's width, not the viewport, determines whether preview and options
+   fit beside each other. Narrow cards retain a full-width field list. */
+@container settings-panel (min-width: 36rem) {
+  .settings-card-fields-layout {
+    grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
+  }
+}
+
+.settings-card-fields-options label {
+  padding-block: 0.625rem;
+}
+
+.settings-card-fields-options {
+  container: settings-field-options / inline-size;
+}
+
+@container settings-field-options (min-width: 38rem) {
+  .settings-card-field-groups {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .settings-card-field-groups > :not(:nth-child(3n + 1)) {
+    border-left: 1px solid var(--bladevault-line);
+  }
+}
+
+/* --------------------------------------------------------- section head --- */
+/* The tab rail says where you are; this says what the page is for. */
+.settings-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0 0 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--bladevault-line);
+}
+
+.settings-head h2 {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  color: var(--foreground);
+}
+
+.settings-head p {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+/* --------------------------------------------------------------- rows --- */
+/* Rows follow their panel width. A proportional label track leaves enough
+   room for actions at intermediate widths; wide panels cap the label track
+   to keep controls close to the setting they change. */
+@container settings-panel (min-width: 30rem) {
+  .settings-grid .settings-row {
+    display: grid;
+    grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
+    align-items: center;
+    column-gap: 1rem;
+    row-gap: 0.5rem;
+  }
+
+  .settings-grid .settings-row-control {
+    justify-self: start;
+    min-width: 0;
+  }
+}
+
+@container settings-panel (min-width: 42rem) {
+  .settings-grid .settings-row {
+    grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+  }
+}
+
+/* ------------------------------------------------------------ controls --- */
+/* One height, one focus ring, for everything interactive in the surface.
+   min-height as well as height: in a column flex container a `flex-1` child
+   gets flex-basis:0, which overrides an explicit height and lets the control
+   collapse to its content box (the custom-field input did exactly that below
+   640px, rendering 28px next to 32px siblings). min-height is not overridden
+   by flex sizing, so the baseline holds at every width. */
+.settings-grid [data-slot='button'],
+.settings-grid [data-slot='input'],
+.settings-grid [data-slot='select-trigger'] {
+  height: var(--sv-control-h);
+  min-height: var(--sv-control-h);
+}
+
+.settings-grid [data-slot='button']:focus-visible,
+.settings-grid [data-slot='input']:focus-visible,
+.settings-grid [data-slot='select-trigger']:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ----------------------------------------------------------- empty state --- */
+.settings-empty {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+  padding: 1.25rem 0;
+  color: var(--muted-foreground);
+}
+
+.settings-empty svg {
+  width: 1.375rem;
+  height: 1.375rem;
+  color: var(--muted-foreground);
+}
+
+.settings-empty strong {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.settings-empty p {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 0.8125rem;
+}

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SettingsSection, SettingsRow } from '@/components/settings-panels'
 import type { AppLockStatus } from '@/lib/app-lock-shared'
+import './settings-view.css'
 
 export function AppLockSettings() {
   const [status, setStatus] = useState<AppLockStatus | null>(null)
@@ -92,7 +93,7 @@ export function AppLockSettings() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-3">
+    <div className="settings-grid">
       <SettingsSection title="App lock">
         <SettingsRow label="Password required">
           <span className="text-sm text-muted-foreground">
@@ -101,7 +102,6 @@ export function AppLockSettings() {
           {status?.enabled && (
             <Button
               variant="outline"
-              size="sm"
               disabled={pending}
               onClick={() => void update('lock')}
             >
@@ -195,7 +195,6 @@ export function AppLockSettings() {
           {!status && (
             <Button
               variant="outline"
-              size="sm"
               className="ml-3"
               onClick={() => setAttempt((value) => value + 1)}
             >
