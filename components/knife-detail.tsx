@@ -93,7 +93,13 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
+export default function KnifeDetail({
+  knife: initialKnife,
+  initialEditing = false,
+}: {
+  knife: Knife
+  initialEditing?: boolean
+}) {
   const router = useRouter()
   const {
     knives,
@@ -136,7 +142,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
     { label: knife.name },
   ]
 
-  const [isEditing, setIsEditing] = useState(false)
+  const [isEditing, setIsEditing] = useState(initialEditing)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isTogglingPin, setIsTogglingPin] = useState(false)
@@ -168,9 +174,16 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
     }
   }, [])
 
+  const finishEditing = () => {
+    setIsEditing(false)
+    if (initialEditing) {
+      router.replace(`/collection/${knife.id}`, { scroll: false })
+    }
+  }
+
   const handleCancel = () => {
     setError(null)
-    setIsEditing(false)
+    finishEditing()
   }
 
   const handleTogglePin = async () => {
@@ -233,7 +246,7 @@ export default function KnifeDetail({ knife: initialKnife }: { knife: Knife }) {
       }
       const updatedKnife = await updateKnife(knife.id, updates)
       setDetailKnife(updatedKnife)
-      setIsEditing(false)
+      finishEditing()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save changes')
       throw err
