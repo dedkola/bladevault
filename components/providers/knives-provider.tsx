@@ -2,7 +2,7 @@
 
 import { isScreenshotDraft } from '@/lib/webpage-screenshot-shared'
 import { COMPARISONS_REFRESH_EVENT } from '@/lib/comparisons'
-import { AlertCircle, CheckCircle2, Cloud } from 'lucide-react'
+import { AlertCircle, CheckCircle2 } from 'lucide-react'
 import {
   createContext,
   startTransition,
@@ -35,8 +35,13 @@ import {
 } from '@/lib/settings-shared'
 import {
   canAttemptSilentCloudBackup,
-  uploadCloudBackupArchive,
+  getCloudBackupJob,
+  startCloudBackupArchive,
 } from '@/lib/cloud-backup-client'
+import {
+  IDLE_CLOUD_BACKUP_JOB,
+  type CloudBackupJobState,
+} from '@/lib/cloud-backup-shared'
 
 type KnivesContextValue = {
   knives: Knife[]
@@ -66,13 +71,14 @@ type KnivesContextValue = {
   customFieldDefinitions: CustomField[]
   showFeedback: (message: string, tone?: FeedbackTone) => void
   scheduleVaultBackup: () => void
+  cloudBackupJob: CloudBackupJobState
+  startVaultBackup: () => Promise<void>
 }
 
 type FeedbackTone = 'success' | 'error'
 
 const KnivesContext = createContext<KnivesContextValue | null>(null)
 const AUTO_BACKUP_DEBOUNCE_MS = 30_000
-const BACKUP_NOTICE_DURATION_MS = 3200
 const FEEDBACK_DURATION_MS = 3200
 
 function toImageUrls(draft: KnifeDraft): string[] {
@@ -89,10 +95,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
   const [knives, setKnives] = useState<Knife[]>([])
   const [compareIds, setCompareIds] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [backupNotice, setBackupNotice] = useState<{
-    id: number
-    message: string
-  } | null>(null)
+  const [cloudBackupJob, setCloudBackupJob] = useState(IDLE_CLOUD_BACKUP_JOB)
   const [feedback, setFeedback] = useState<{
     id: number
     message: string
@@ -117,11 +120,12 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     CustomField[]
   >(DEFAULT_SETTINGS.customFields)
   const backupInFlightRef = useRef(false)
+  const cloudBackupJobRef = useRef(IDLE_CLOUD_BACKUP_JOB)
   const pendingBackupRef = useRef(false)
   const scheduledBackupTimerRef = useRef<number | null>(null)
-  const runAutoBackupRef = useRef<
-    (reason: 'mutation' | 'queued') => Promise<void>
-  >(async () => {})
+  const scheduledBackupIdleRef = useRef<number | null>(null)
+  const autoBackupAllowedRef = useRef(false)
+  const scheduleAutoBackupRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     let cancelled = false
@@ -249,15 +253,6 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const showBackupNotice = useCallback((message: string) => {
-    startTransition(() => {
-      setBackupNotice({
-        id: Date.now(),
-        message,
-      })
-    })
-  }, [])
-
   const showFeedback = useCallback(
     (message: string, tone: FeedbackTone = 'success') => {
       startTransition(() => {
@@ -271,78 +266,171 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     [],
   )
 
-  const runAutoBackup = useCallback(
-    async (_reason: 'mutation' | 'queued') => {
-      if (!canAttemptSilentCloudBackup()) {
-        return
-      }
+  const backupRequestRef = useRef(false)
+  const backupRequestVersionRef = useRef(0)
 
-      if (backupInFlightRef.current) {
-        pendingBackupRef.current = true
-        return
-      }
-
-      backupInFlightRef.current = true
-
-      try {
-        await uploadCloudBackupArchive()
-        showBackupNotice('Backup complete')
-      } catch (error) {
-        console.error('Automatic cloud backup failed', error)
-      } finally {
-        backupInFlightRef.current = false
-
-        if (pendingBackupRef.current) {
-          pendingBackupRef.current = false
-          window.setTimeout(() => {
-            void runAutoBackupRef.current('queued')
-          }, 0)
-        }
-      }
-    },
-    [showBackupNotice],
-  )
-
-  useEffect(() => {
-    runAutoBackupRef.current = runAutoBackup
-  }, [runAutoBackup])
-
-  const scheduleAutoBackup = useCallback(
-    (reason: 'mutation') => {
-      if (scheduledBackupTimerRef.current !== null) {
-        window.clearTimeout(scheduledBackupTimerRef.current)
-      }
-
-      scheduledBackupTimerRef.current = window.setTimeout(() => {
-        scheduledBackupTimerRef.current = null
-        void runAutoBackup(reason)
-      }, AUTO_BACKUP_DEBOUNCE_MS)
-    },
-    [runAutoBackup],
-  )
-
-  useEffect(() => {
-    if (isCloudSyncEnabled && isAutoBackupEnabled) return
-
+  const clearScheduledBackup = useCallback(() => {
     if (scheduledBackupTimerRef.current !== null) {
       window.clearTimeout(scheduledBackupTimerRef.current)
       scheduledBackupTimerRef.current = null
     }
-    pendingBackupRef.current = false
-  }, [isAutoBackupEnabled, isCloudSyncEnabled])
+    if (scheduledBackupIdleRef.current !== null) {
+      window.cancelIdleCallback(scheduledBackupIdleRef.current)
+      scheduledBackupIdleRef.current = null
+    }
+  }, [])
 
-  useEffect(
-    () => () => {
-      if (scheduledBackupTimerRef.current !== null) {
-        window.clearTimeout(scheduledBackupTimerRef.current)
+  const applyBackupJob = useCallback((job: CloudBackupJobState) => {
+    const previous = cloudBackupJobRef.current
+    cloudBackupJobRef.current = job
+    backupInFlightRef.current = job.status === 'running'
+    startTransition(() => {
+      setCloudBackupJob((current) =>
+        current.id === job.id &&
+        current.status === job.status &&
+        current.phase === job.phase &&
+        current.syncedAt === job.syncedAt &&
+        current.message === job.message
+          ? current
+          : job,
+      )
+    })
+
+    if (previous.status === 'running' && job.status !== 'running') {
+      if (pendingBackupRef.current && autoBackupAllowedRef.current) {
+        pendingBackupRef.current = false
+        scheduleAutoBackupRef.current()
       }
-    },
-    [],
-  )
+    }
+  }, [])
+
+  const startVaultBackup = useCallback(async () => {
+    if (backupInFlightRef.current || backupRequestRef.current) return
+
+    clearScheduledBackup()
+    pendingBackupRef.current = false
+    backupRequestRef.current = true
+    backupRequestVersionRef.current += 1
+    applyBackupJob({
+      ...IDLE_CLOUD_BACKUP_JOB,
+      status: 'running',
+      phase: 'preparing',
+      syncedAt: cloudBackupJobRef.current.syncedAt,
+    })
+
+    try {
+      const { job, started } = await startCloudBackupArchive()
+      // Another window may already be archiving an older snapshot. Preserve a
+      // follow-up so the edits that prompted this request are also backed up.
+      if (!started && autoBackupAllowedRef.current) {
+        pendingBackupRef.current = true
+      }
+      applyBackupJob(job)
+    } catch (error) {
+      applyBackupJob({
+        ...IDLE_CLOUD_BACKUP_JOB,
+        status: 'error',
+        syncedAt: cloudBackupJobRef.current.syncedAt,
+        message:
+          error instanceof Error ? error.message : 'Could not start backup.',
+      })
+    } finally {
+      backupRequestRef.current = false
+    }
+  }, [applyBackupJob, clearScheduledBackup])
+
+  const runAutoBackup = useCallback(() => {
+    if (!autoBackupAllowedRef.current) return
+    if (!canAttemptSilentCloudBackup()) {
+      pendingBackupRef.current = true
+      return
+    }
+    if (backupInFlightRef.current || backupRequestRef.current) {
+      pendingBackupRef.current = true
+      return
+    }
+    void startVaultBackup()
+  }, [startVaultBackup])
+
+  const scheduleAutoBackup = useCallback(() => {
+    clearScheduledBackup()
+    scheduledBackupTimerRef.current = window.setTimeout(() => {
+      scheduledBackupTimerRef.current = null
+      // Wait for a browser idle slot before starting non-urgent automatic work.
+      if (typeof window.requestIdleCallback === 'function') {
+        scheduledBackupIdleRef.current = window.requestIdleCallback(
+          () => {
+            scheduledBackupIdleRef.current = null
+            runAutoBackup()
+          },
+          { timeout: 10_000 },
+        )
+      } else {
+        runAutoBackup()
+      }
+    }, AUTO_BACKUP_DEBOUNCE_MS)
+  }, [clearScheduledBackup, runAutoBackup])
+
+  useEffect(() => {
+    scheduleAutoBackupRef.current = scheduleAutoBackup
+  }, [scheduleAutoBackup])
+
+  useEffect(() => {
+    autoBackupAllowedRef.current = isCloudSyncEnabled && isAutoBackupEnabled
+    if (autoBackupAllowedRef.current) return
+    clearScheduledBackup()
+    pendingBackupRef.current = false
+  }, [clearScheduledBackup, isAutoBackupEnabled, isCloudSyncEnabled])
+
+  useEffect(() => clearScheduledBackup, [clearScheduledBackup])
+
+  useEffect(() => {
+    const onOnline = () => {
+      if (autoBackupAllowedRef.current && pendingBackupRef.current) {
+        scheduleAutoBackupRef.current()
+      }
+    }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [])
+
+  useEffect(() => {
+    if (!isCloudSyncEnabled && cloudBackupJob.status !== 'running') return
+    let cancelled = false
+    let timer: number | undefined
+
+    const refreshBackupJob = async () => {
+      if (backupRequestRef.current) return
+      const requestVersion = backupRequestVersionRef.current
+      try {
+        const job = await getCloudBackupJob()
+        if (!cancelled && requestVersion === backupRequestVersionRef.current) {
+          applyBackupJob(job)
+        }
+      } catch {
+        // A temporary connection failure does not cancel the server's upload.
+      }
+    }
+    const poll = async () => {
+      await refreshBackupJob()
+      if (!cancelled && cloudBackupJobRef.current.status === 'running') {
+        timer = window.setTimeout(() => void poll(), 5_000)
+      }
+    }
+    const onFocus = () => void refreshBackupJob()
+
+    void poll()
+    window.addEventListener('focus', onFocus)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [applyBackupJob, cloudBackupJob.status, isCloudSyncEnabled])
 
   const scheduleVaultBackup = useCallback(() => {
     if (isCloudSyncEnabled && isAutoBackupEnabled) {
-      scheduleAutoBackup('mutation')
+      scheduleAutoBackup()
     }
   }, [isAutoBackupEnabled, isCloudSyncEnabled, scheduleAutoBackup])
 
@@ -412,22 +500,6 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
-    if (!backupNotice) return
-
-    const timeout = window.setTimeout(() => {
-      startTransition(() => {
-        setBackupNotice((current) =>
-          current?.id === backupNotice.id ? null : current,
-        )
-      })
-    }, BACKUP_NOTICE_DURATION_MS)
-
-    return () => {
-      window.clearTimeout(timeout)
-    }
-  }, [backupNotice])
-
-  useEffect(() => {
     if (!feedback) return
 
     const timeout = window.setTimeout(() => {
@@ -469,7 +541,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       const knife = data.knife as Knife
       setKnives((prev) => [knife, ...prev])
       if (isCloudSyncEnabled && isAutoBackupEnabled) {
-        scheduleAutoBackup('mutation')
+        scheduleAutoBackup()
       }
       return knife
     },
@@ -496,7 +568,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
         (field) => field !== 'pinned',
       )
       if (hasBackupWorthyUpdate && isCloudSyncEnabled && isAutoBackupEnabled) {
-        scheduleAutoBackup('mutation')
+        scheduleAutoBackup()
       }
       return knife
     },
@@ -530,7 +602,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
         prev.map((knife) => updatedById.get(knife.id) ?? knife),
       )
       if (isCloudSyncEnabled && isAutoBackupEnabled) {
-        scheduleAutoBackup('mutation')
+        scheduleAutoBackup()
       }
       return updatedKnives
     },
@@ -576,7 +648,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       setKnives((prev) => prev.filter((k) => k.id !== id))
       setCompareIds((prev) => prev.filter((cid) => cid !== id))
       if (isCloudSyncEnabled && isAutoBackupEnabled) {
-        scheduleAutoBackup('mutation')
+        scheduleAutoBackup()
       }
     },
     [isAutoBackupEnabled, isCloudSyncEnabled, scheduleAutoBackup],
@@ -681,6 +753,8 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       customFieldDefinitions,
       showFeedback,
       scheduleVaultBackup,
+      cloudBackupJob,
+      startVaultBackup,
     }),
     [
       knives,
@@ -704,6 +778,8 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       customFieldDefinitions,
       showFeedback,
       scheduleVaultBackup,
+      cloudBackupJob,
+      startVaultBackup,
     ],
   )
 
@@ -737,22 +813,6 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
               )}
             </div>
             <span className="font-medium">{feedback.message}</span>
-          </div>
-        )}
-        {backupNotice && (
-          <div className="flex items-center gap-3 rounded-xl border border-[var(--bladevault-line)] bg-background/95 px-3 py-2.5 text-sm text-foreground shadow-md backdrop-blur">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bladevault-surface-soft)] text-[var(--bladevault-local)] dark:text-[var(--bladevault-gold)]">
-              <CheckCircle2 className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 font-medium">
-                <Cloud className="h-4 w-4 text-[var(--bladevault-local)] dark:text-[var(--bladevault-gold)]" />
-                <span>{backupNotice.message}</span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Your vault was synced in the background.
-              </p>
-            </div>
           </div>
         )}
       </div>

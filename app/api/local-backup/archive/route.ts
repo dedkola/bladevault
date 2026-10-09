@@ -1,3 +1,4 @@
+import { withVaultOperation } from '@/lib/vault-operation'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { createReadStream, createWriteStream } from 'fs'
 import fs from 'fs/promises'
@@ -558,7 +559,7 @@ function errorResponse(error: unknown) {
   )
 }
 
-export async function GET(request = new Request('http://localhost')) {
+async function downloadLocalBackup(request = new Request('http://localhost')) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
 
@@ -616,7 +617,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+async function restoreLocalBackup(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
 
@@ -645,4 +646,16 @@ export async function PUT(request: Request) {
   } finally {
     await fs.rm(tempRoot, { recursive: true, force: true })
   }
+}
+
+export async function GET(request = new Request('http://localhost')) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+  return withVaultOperation(() => downloadLocalBackup(request))
+}
+
+export async function PUT(request: Request) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+  return withVaultOperation(() => restoreLocalBackup(request))
 }

@@ -5,13 +5,9 @@ import {
   getCloudRuntimeConfig,
   loadCloudRuntimeConfig,
   parseApiError,
-  refreshCloudBackupAccessToken,
 } from '@/lib/cloud-backup'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
-
-export type CloudBackupUploadResult = {
-  syncedAt: string
-}
+import type { CloudBackupJobState } from '@/lib/cloud-backup-shared'
 
 export function canAttemptSilentCloudBackup() {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -37,54 +33,45 @@ export function formatCloudBackupError(error: unknown, baseUrl: string) {
   return message
 }
 
-async function updateBackupSyncTime(value: string) {
-  const response = await fetch('/api/settings', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cloudBackupLastSyncedAt: value }),
-  })
-
-  const data = await readJsonResponse<{ error?: string }>(response)
-  if (!response.ok) {
-    throw new Error(
-      getApiErrorMessage(data, 'Failed to update backup timestamp'),
-    )
-  }
-}
-
-export async function uploadCloudBackupArchive(): Promise<CloudBackupUploadResult> {
+export async function startCloudBackupArchive(): Promise<{
+  job: CloudBackupJobState
+  started: boolean
+}> {
   const nextConfig = await loadCloudRuntimeConfig()
   if (!nextConfig.backupUrl) {
     throw new Error('NEXT_PUBLIC_BLADEVAULT_BACKUP_URL is not configured.')
   }
 
-  const accessToken = await refreshCloudBackupAccessToken()
+  const sessionToken = getCloudAuthState()?.sessionToken
+  if (!sessionToken) throw new Error('Sign in before starting a cloud backup.')
 
-  const archiveResponse = await fetch('/api/cloud-backup/archive', {
-    cache: 'no-store',
-  })
-  if (!archiveResponse.ok) {
-    throw new Error(await parseApiError(archiveResponse))
-  }
-
-  const archiveBlob = await archiveResponse.blob()
-  const response = await fetch(`${nextConfig.backupUrl}/backup/latest`, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/gzip',
-      'X-Backup-Filename': 'bladevault-data.tar.gz',
-    },
-    body: archiveBlob,
+  const response = await fetch('/api/cloud-backup/job', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionToken }),
   })
 
   if (!response.ok) {
-    const details = await response.text().catch(() => '')
-    throw new Error(details || `Backup upload failed (${response.status})`)
+    throw new Error(await parseApiError(response))
   }
 
-  const syncedAt = new Date().toISOString()
-  await updateBackupSyncTime(syncedAt)
+  const data = await readJsonResponse<{
+    job?: CloudBackupJobState
+    started?: boolean
+  }>(response)
+  if (!data.job) throw new Error('Backup server did not return a job status.')
+  return { job: data.job, started: data.started === true }
+}
 
-  return { syncedAt }
+export async function getCloudBackupJob(): Promise<CloudBackupJobState> {
+  const response = await fetch('/api/cloud-backup/job', { cache: 'no-store' })
+  const data = await readJsonResponse<{
+    job?: CloudBackupJobState
+    error?: string
+  }>(response)
+  if (!response.ok || !data.job) {
+    throw new Error(getApiErrorMessage(data, 'Failed to read backup status'))
+  }
+
+  return data.job
 }

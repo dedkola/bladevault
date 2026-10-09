@@ -1,3 +1,4 @@
+import { withVaultOperation } from '@/lib/vault-operation'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import {
@@ -13,7 +14,7 @@ type UpdateLocalDataPathRequest = {
   path?: string
 }
 
-export async function POST(request: Request) {
+async function saveLocalDataPath(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
 
@@ -51,4 +52,10 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
   }
+}
+
+export async function POST(request: Request) {
+  const locked = requireAppUnlock(request)
+  if (locked) return locked
+  return withVaultOperation(() => saveLocalDataPath(request))
 }
