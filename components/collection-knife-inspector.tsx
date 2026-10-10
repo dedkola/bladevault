@@ -9,6 +9,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ImageIcon,
+  Pencil,
+  Pin,
   Scale,
   X,
 } from 'lucide-react'
@@ -18,6 +20,10 @@ import { useKnives } from '@/components/providers/knives-provider'
 import { getImageUrl, getKnifeImageCount, type Knife } from '@/lib/data'
 import { getKnifeVariantLabel } from '@/lib/knife-families'
 import { cn } from '@/lib/utils'
+import {
+  activeKnifeActionStyle,
+  activeKnifeOutlineClassName,
+} from '@/lib/knife-action-styles'
 
 function preferredMetric(value?: string): string {
   if (!value) return 'Not recorded'
@@ -35,10 +41,11 @@ export function CollectionKnifeInspector({
   onSelect: (knife: Knife) => void
   onClose: () => void
 }) {
-  const { showFeedback } = useKnives()
+  const { updateKnife, pinnedItemsFirst, showFeedback } = useKnives()
   const [imageIndex, setImageIndex] = useState(0)
   const [fullImages, setFullImages] = useState<string[] | null>(null)
   const [isUpdatingCompare, setIsUpdatingCompare] = useState(false)
+  const [isUpdatingPin, setIsUpdatingPin] = useState(false)
   const [isMobileExpanded, setIsMobileExpanded] = useState(true)
   const {
     choose,
@@ -77,6 +84,27 @@ export function CollectionKnifeInspector({
 
     return () => controller.abort()
   }, [imageCount, knife.id, knife.images.length])
+
+  const togglePin = async () => {
+    setIsUpdatingPin(true)
+    try {
+      await updateKnife(knife.id, { pinned: !knife.pinned })
+      showFeedback(
+        knife.pinned
+          ? 'Unpinned'
+          : pinnedItemsFirst
+            ? 'Pinned — moved to top'
+            : 'Pinned',
+      )
+    } catch (error) {
+      showFeedback(
+        error instanceof Error ? error.message : 'Could not update pin.',
+        'error',
+      )
+    } finally {
+      setIsUpdatingPin(false)
+    }
+  }
 
   const toggleCompare = async () => {
     setIsUpdatingCompare(true)
@@ -267,6 +295,26 @@ export function CollectionKnifeInspector({
                   ? 'Remove from compare'
                   : 'Add to compare'}
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={togglePin}
+              disabled={isUpdatingPin}
+              aria-pressed={Boolean(knife.pinned)}
+              className={cn(knife.pinned && activeKnifeOutlineClassName)}
+              style={knife.pinned ? activeKnifeActionStyle : undefined}
+            >
+              <Pin className="size-3.5" />
+              {knife.pinned ? 'Unpin' : 'Pin'}
+            </Button>
+            <Link
+              href={`/collection/${knife.id}?edit=1`}
+              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
+            >
+              <Pencil className="size-3.5" />
+              Edit
+            </Link>
           </div>
         </div>
       </div>

@@ -5,8 +5,10 @@ import { requireUnlockedPage } from '@/lib/app-lock-page'
 
 export default async function KnifeDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ edit?: string | string[] }>
 }) {
   await requireUnlockedPage()
   const { id } = await params
@@ -15,5 +17,13 @@ export default async function KnifeDetailPage({
 
   if (!knife) return notFound()
 
-  return <KnifeDetail key={knife.id} knife={knife} />
+  const query = await searchParams
+
+  return (
+    <KnifeDetail
+      key={knife.id}
+      knife={knife}
+      initialEditing={query.edit === '1'}
+    />
+  )
 }
