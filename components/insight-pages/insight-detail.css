@@ -22,11 +22,11 @@
   color: var(--bladevault-title);
 }
 .id-page-head h1 {
-  font-size: 44px;
-  letter-spacing: -1.8px;
-  line-height: 1.1;
+  font-size: var(--bladevault-page-title-size);
+  letter-spacing: -0.025em;
+  line-height: 1.25;
   color: var(--bladevault-title);
-  font-weight: 650;
+  font-weight: 600;
   margin: 8px 0 10px;
 }
 .id-page-head p {
@@ -684,10 +684,6 @@
   margin-top: 12px;
 }
 @media (min-width: 1280px) {
-  .id-page-head h1 {
-    font-size: var(--bladevault-page-title-size);
-    letter-spacing: -0.025em;
-  }
   .id-panel h2 {
     font-size: 18px;
   }
@@ -954,10 +950,6 @@
 @media (max-width: 520px) {
   .insight-detail {
     padding: 18px 14px;
-  }
-  .id-page-head h1 {
-    font-size: 34px;
-    letter-spacing: -1.2px;
   }
   .id-page-head p {
     font-size: 12px;

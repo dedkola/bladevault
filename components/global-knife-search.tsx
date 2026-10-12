@@ -145,8 +145,8 @@ export function GlobalKnifeSearch() {
         'fixed top-2 z-40 overflow-hidden border border-[var(--bladevault-line)]/80 bg-popover text-popover-foreground print:hidden motion-reduce:transition-none',
         'transition-[left,right,width,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
         open
-          ? 'right-2 w-[calc(100dvw-1rem)] rounded-[1.2rem] shadow-[0_16px_48px_rgba(31,27,17,0.22)] md:right-auto md:left-1/2 md:w-[22rem] md:-translate-x-1/2'
-          : 'right-16 w-16 rounded-[1.2rem] shadow-[0_6px_24px_rgba(31,27,17,0.14)] min-[380px]:w-[8.5rem] md:right-auto md:left-1/2 md:-translate-x-1/2',
+          ? 'right-2 w-[calc(100dvw-1rem)] rounded-[1.2rem] shadow-[0_16px_48px_rgba(31,27,17,0.22)] md:right-6 md:w-[22rem] xl:right-auto xl:left-[calc(50%+7.5rem)] xl:-translate-x-1/2'
+          : 'right-16 w-16 rounded-[1.2rem] shadow-[0_6px_24px_rgba(31,27,17,0.14)] min-[380px]:w-[8.5rem] md:right-6 xl:right-auto xl:left-[calc(50%+7.5rem)] xl:-translate-x-1/2',
       )}
     >
       <div

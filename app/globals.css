@@ -49,7 +49,7 @@
 }
 
 :root {
-  --bladevault-page-title-size: clamp(1.75rem, 1vw, 2rem);
+  --bladevault-page-title-size: 1.5rem;
   --bladevault-olive: #2e3417;
   --bladevault-gold: #c89c3d;
   --bladevault-line: #d3c097;
@@ -92,6 +92,7 @@
 }
 
 .dark {
+  --bladevault-title: #d4ab55;
   --bladevault-surface-soft: #2d2618;
   --bladevault-surface-hover: #382f1d;
   --background: #18150f;
@@ -149,5 +150,18 @@
   input[type='search']::-webkit-search-cancel-button {
     -webkit-appearance: none;
     appearance: none;
+  }
+}
+
+@media (min-width: 640px) {
+  :root {
+    --bladevault-page-title-size: clamp(1.75rem, 1vw, 2rem);
+  }
+}
+
+/* Give tablet search its own header space above page titles and back links. */
+@media screen and (min-width: 768px) and (max-width: 1279px) {
+  body:has([data-global-knife-search]) main {
+    padding-top: 3rem;
   }
 }

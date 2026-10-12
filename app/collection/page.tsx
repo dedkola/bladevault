@@ -537,11 +537,7 @@ function CollectionContent() {
       data-collection-content
     >
       <PageHeader
-        title={
-          <span className="text-3xl font-semibold tracking-[-0.045em] sm:text-4xl xl:text-[length:var(--bladevault-page-title-size)] xl:tracking-tight">
-            Your collection.
-          </span>
-        }
+        title="Your collection."
         description={`${knives.length} ${knives.length === 1 ? 'knife' : 'knives'}, each with a story. All in one place.`}
         actions={
           <SmartCollectionControls
@@ -610,7 +606,7 @@ function CollectionContent() {
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="default"
               onClick={() => setIsFiltersOpen((current) => !current)}
               aria-expanded={isFiltersOpen}
               aria-controls="collection-filters"
@@ -645,21 +641,21 @@ function CollectionContent() {
                 setSortOrder(event.target.value as CollectionSort)
                 setVisibleCount(PAGE_SIZE)
               }}
-              className="h-7 rounded-md border border-border bg-background px-2 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="newest">Newest added</option>
               <option value="model">Model A–Z</option>
               <option value="brand">Brand A–Z</option>
             </select>
             <div
-              className="flex rounded-lg border border-border bg-background p-0.5"
+              className="flex h-8 items-center rounded-lg border border-border bg-background p-0.5"
               role="group"
               aria-label="Card density"
             >
               <Button
                 type="button"
                 variant={density === 'gallery' ? 'secondary' : 'ghost'}
-                size="icon-sm"
+                size="icon-xs"
                 onClick={() => setDensity('gallery')}
                 aria-pressed={density === 'gallery'}
                 aria-label="Gallery view"
@@ -669,7 +665,7 @@ function CollectionContent() {
               <Button
                 type="button"
                 variant={density === 'compact' ? 'secondary' : 'ghost'}
-                size="icon-sm"
+                size="icon-xs"
                 onClick={() => setDensity('compact')}
                 aria-pressed={density === 'compact'}
                 aria-label="Compact view"
@@ -679,7 +675,7 @@ function CollectionContent() {
             </div>
             <Button
               variant="outline"
-              size="sm"
+              size="default"
               onClick={() => {
                 if (isSelectionMode) {
                   exitSelectionMode()
