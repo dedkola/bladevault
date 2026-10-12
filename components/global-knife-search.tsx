@@ -1,6 +1,6 @@
 'use client'
 
-import Image from 'next/image'
+import Image from '@/components/vault-image'
 import { usePathname, useRouter } from 'next/navigation'
 import { ImageIcon, Search, X } from 'lucide-react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'

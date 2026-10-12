@@ -1,4 +1,6 @@
 import { withVaultOperation } from '@/lib/vault-operation'
+import { withLocalRestoreLease } from '@/lib/local-data-restore'
+import type { VaultRestoreLease } from '@/lib/vault-access'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { createReadStream, createWriteStream } from 'fs'
 import fs from 'fs/promises'
@@ -617,7 +619,7 @@ export async function POST(request: Request) {
   }
 }
 
-async function restoreLocalBackup(request: Request) {
+async function restoreLocalBackup(request: Request, lease: VaultRestoreLease) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
 
@@ -639,7 +641,9 @@ async function restoreLocalBackup(request: Request) {
     } catch (error) {
       throw toBackupValidationError(error)
     }
-    const result = await replaceLocalDataFromDirectory(restoredDataDir)
+    const result = await replaceLocalDataFromDirectory(restoredDataDir, {
+      lease,
+    })
     return Response.json({ ...result, manifest })
   } catch (error) {
     return errorResponse(error)
@@ -657,5 +661,9 @@ export async function GET(request = new Request('http://localhost')) {
 export async function PUT(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
-  return withVaultOperation(() => restoreLocalBackup(request))
+  return withVaultOperation(() =>
+    withLocalRestoreLease(request, (lease) =>
+      restoreLocalBackup(request, lease),
+    ),
+  )
 }

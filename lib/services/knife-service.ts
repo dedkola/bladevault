@@ -1,3 +1,4 @@
+import { withVaultWrite } from '@/lib/vault-access'
 import { createHash, randomUUID } from 'node:crypto'
 import type { Knife } from '@/lib/data'
 import {
@@ -124,34 +125,36 @@ export async function updateKnifeMetadata({
   changes: KnifeChangeInput[]
   transport: McpTransport
 }) {
-  const storage = getStorage()
-  const existing = await storage.getKnifeById(knifeId)
-  if (!existing) throw new Error(`Knife with id "${knifeId}" not found`)
-  if (existing.updatedAt !== expectedUpdatedAt) {
-    throw new Error(
-      `Knife "${knifeId}" changed after it was read; fetch it again before updating`,
-    )
-  }
+  return withVaultWrite(async () => {
+    const storage = getStorage()
+    const existing = await storage.getKnifeById(knifeId)
+    if (!existing) throw new Error(`Knife with id "${knifeId}" not found`)
+    if (existing.updatedAt !== expectedUpdatedAt) {
+      throw new Error(
+        `Knife "${knifeId}" changed after it was read; fetch it again before updating`,
+      )
+    }
 
-  const validated = validateKnifeChanges({
-    knife: existing,
-    changes,
-    customFields: getSettings().customFields,
-  })
-  if (validated.changes.length === 0) {
-    return { changed: false, changes: [], knife: existing }
-  }
+    const validated = validateKnifeChanges({
+      knife: existing,
+      changes,
+      customFields: getSettings().customFields,
+    })
+    if (validated.changes.length === 0) {
+      return { changed: false, changes: [], knife: existing }
+    }
 
-  const knife = await storage.updateKnife(knifeId, validated.updates, {
-    expectedUpdatedAt,
-    mutation: {
-      operationId: randomUUID(),
-      source: 'mcp',
-      transport,
-      changes: validated.changes,
-    },
+    const knife = await storage.updateKnife(knifeId, validated.updates, {
+      expectedUpdatedAt,
+      mutation: {
+        operationId: randomUUID(),
+        source: 'mcp',
+        transport,
+        changes: validated.changes,
+      },
+    })
+    return { changed: true, changes: validated.changes, knife }
   })
-  return { changed: true, changes: validated.changes, knife }
 }
 
 async function validateBulkItems(items: BulkKnifeChangeInput[]) {
@@ -240,51 +243,54 @@ export async function bulkUpdateKnifeMetadata({
   previewHash?: string
   transport: McpTransport
 }) {
-  const validation = await validateBulkItems(items)
-  const invalidCount = validation.results.filter(
-    (item) => item.valid === false,
-  ).length
+  const run = async () => {
+    const validation = await validateBulkItems(items)
+    const invalidCount = validation.results.filter(
+      (item) => item.valid === false,
+    ).length
 
-  if (!apply) {
-    return {
-      applied: false,
-      previewHash: validation.previewHash,
-      validCount: validation.results.length - invalidCount,
-      invalidCount,
-      items: validation.results,
+    if (!apply) {
+      return {
+        applied: false,
+        previewHash: validation.previewHash,
+        validCount: validation.results.length - invalidCount,
+        invalidCount,
+        items: validation.results,
+      }
     }
-  }
 
-  if (invalidCount > 0) {
-    throw new Error('Bulk update was not applied because validation failed')
-  }
-  if (!previewHash || previewHash !== validation.previewHash) {
-    throw new Error(
-      'Bulk update preview is missing or stale; preview the exact update again',
+    if (invalidCount > 0) {
+      throw new Error('Bulk update was not applied because validation failed')
+    }
+    if (!previewHash || previewHash !== validation.previewHash) {
+      throw new Error(
+        'Bulk update preview is missing or stale; preview the exact update again',
+      )
+    }
+    if (validation.validItems.length === 0) {
+      return {
+        applied: false,
+        changedCount: 0,
+        previewHash: validation.previewHash,
+        items: validation.results,
+      }
+    }
+
+    const operationId = randomUUID()
+    const knives = await getStorage().bulkUpdateKnifeItems(
+      validation.validItems,
+      {
+        operationId,
+        source: 'mcp',
+        transport,
+      },
     )
-  }
-  if (validation.validItems.length === 0) {
     return {
-      applied: false,
-      changedCount: 0,
-      previewHash: validation.previewHash,
-      items: validation.results,
+      applied: true,
+      operationId,
+      changedCount: knives.length,
+      knives,
     }
   }
-
-  const operationId = randomUUID()
-  const knives = await getStorage().bulkUpdateKnifeItems(
-    validation.validItems,
-    {
-      operationId,
-      source: 'mcp',
-      transport,
-    },
-  )
-  return {
-    applied: true,
-    operationId,
-    changedCount: knives.length,
-    knives,
-  }
+  return apply ? withVaultWrite(run) : run()
 }

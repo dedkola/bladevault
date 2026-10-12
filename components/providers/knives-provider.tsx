@@ -12,6 +12,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react'
 import {
   hydrateKnifeListItem,
@@ -42,6 +43,11 @@ import {
   IDLE_CLOUD_BACKUP_JOB,
   type CloudBackupJobState,
 } from '@/lib/cloud-backup-shared'
+import {
+  getVaultClientState,
+  INITIAL_VAULT_CLIENT_STATE,
+  subscribeVaultClientState,
+} from '@/lib/vault-client-state'
 
 type KnivesContextValue = {
   knives: Knife[]
@@ -92,6 +98,11 @@ function toImageUrls(draft: KnifeDraft): string[] {
 }
 
 export function KnivesProvider({ children }: { children: React.ReactNode }) {
+  const { readOnly: isVaultReadOnly } = useSyncExternalStore(
+    subscribeVaultClientState,
+    getVaultClientState,
+    () => INITIAL_VAULT_CLIENT_STATE,
+  )
   const [knives, setKnives] = useState<Knife[]>([])
   const [compareIds, setCompareIds] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -297,7 +308,11 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
     })
 
     if (previous.status === 'running' && job.status !== 'running') {
-      if (pendingBackupRef.current && autoBackupAllowedRef.current) {
+      if (
+        pendingBackupRef.current &&
+        autoBackupAllowedRef.current &&
+        !getVaultClientState().readOnly
+      ) {
         pendingBackupRef.current = false
         scheduleAutoBackupRef.current()
       }
@@ -305,6 +320,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const startVaultBackup = useCallback(async () => {
+    if (getVaultClientState().readOnly) return
     if (backupInFlightRef.current || backupRequestRef.current) return
 
     clearScheduledBackup()
@@ -340,6 +356,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
   }, [applyBackupJob, clearScheduledBackup])
 
   const runAutoBackup = useCallback(() => {
+    if (getVaultClientState().readOnly) return
     if (!autoBackupAllowedRef.current) return
     if (!canAttemptSilentCloudBackup()) {
       pendingBackupRef.current = true
@@ -354,6 +371,10 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
 
   const scheduleAutoBackup = useCallback(() => {
     clearScheduledBackup()
+    if (getVaultClientState().readOnly) {
+      pendingBackupRef.current = false
+      return
+    }
     scheduledBackupTimerRef.current = window.setTimeout(() => {
       scheduledBackupTimerRef.current = null
       // Wait for a browser idle slot before starting non-urgent automatic work.
@@ -376,11 +397,17 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
   }, [scheduleAutoBackup])
 
   useEffect(() => {
-    autoBackupAllowedRef.current = isCloudSyncEnabled && isAutoBackupEnabled
+    autoBackupAllowedRef.current =
+      isCloudSyncEnabled && isAutoBackupEnabled && !isVaultReadOnly
     if (autoBackupAllowedRef.current) return
     clearScheduledBackup()
     pendingBackupRef.current = false
-  }, [clearScheduledBackup, isAutoBackupEnabled, isCloudSyncEnabled])
+  }, [
+    clearScheduledBackup,
+    isAutoBackupEnabled,
+    isCloudSyncEnabled,
+    isVaultReadOnly,
+  ])
 
   useEffect(() => clearScheduledBackup, [clearScheduledBackup])
 
@@ -746,7 +773,8 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       clearCompare,
       isCloudSyncEnabled,
       isAutoBackupEnabled,
-      isAutoBackupActive: isCloudSyncEnabled && isAutoBackupEnabled,
+      isAutoBackupActive:
+        isCloudSyncEnabled && isAutoBackupEnabled && !isVaultReadOnly,
       pinnedItemsFirst,
       timeFormat,
       cardFields,
@@ -772,6 +800,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       clearCompare,
       isCloudSyncEnabled,
       isAutoBackupEnabled,
+      isVaultReadOnly,
       pinnedItemsFirst,
       timeFormat,
       cardFields,

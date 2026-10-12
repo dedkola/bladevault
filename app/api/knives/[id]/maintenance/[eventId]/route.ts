@@ -1,3 +1,4 @@
+import { withVaultMutationRequest } from '@/lib/vault-mutation-request'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import {
@@ -99,44 +100,48 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string; eventId: string }> },
 ) {
-  const locked = requireAppUnlock(request)
-  if (locked) return locked
+  return withVaultMutationRequest(request, async () => {
+    const locked = requireAppUnlock(request)
+    if (locked) return locked
 
-  try {
-    const { id, eventId: eventIdParam } = await params
-    const eventId = parseEventId(eventIdParam)
-    const body = await request.json()
-    const input = parsePartialMaintenanceInput(body)
+    try {
+      const { id, eventId: eventIdParam } = await params
+      const eventId = parseEventId(eventIdParam)
+      const body = await request.json()
+      const input = parsePartialMaintenanceInput(body)
 
-    const event = await updateMaintenanceEvent({
-      knifeId: id,
-      eventId,
-      ...input,
-    })
-    return NextResponse.json({ event })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    const status = message.includes('not found') ? 404 : 400
-    return NextResponse.json({ error: message }, { status })
-  }
+      const event = await updateMaintenanceEvent({
+        knifeId: id,
+        eventId,
+        ...input,
+      })
+      return NextResponse.json({ event })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      const status = message.includes('not found') ? 404 : 400
+      return NextResponse.json({ error: message }, { status })
+    }
+  })
 }
 
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string; eventId: string }> },
 ) {
-  const locked = requireAppUnlock(_request)
-  if (locked) return locked
+  return withVaultMutationRequest(_request, async () => {
+    const locked = requireAppUnlock(_request)
+    if (locked) return locked
 
-  try {
-    const { id, eventId: eventIdParam } = await params
-    const eventId = parseEventId(eventIdParam)
+    try {
+      const { id, eventId: eventIdParam } = await params
+      const eventId = parseEventId(eventIdParam)
 
-    await deleteMaintenanceEvent(id, eventId)
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    const status = message.includes('not found') ? 404 : 400
-    return NextResponse.json({ error: message }, { status })
-  }
+      await deleteMaintenanceEvent(id, eventId)
+      return NextResponse.json({ success: true })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      const status = message.includes('not found') ? 404 : 400
+      return NextResponse.json({ error: message }, { status })
+    }
+  })
 }

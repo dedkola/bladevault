@@ -5,6 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SettingsSection, SettingsRow } from '@/components/settings-panels'
 import type { AppLockStatus } from '@/lib/app-lock-shared'
+import {
+  getVaultClientState,
+  setVaultClientState,
+} from '@/lib/vault-client-state'
 import './settings-view.css'
 
 export function AppLockSettings() {
@@ -24,6 +28,10 @@ export function AppLockSettings() {
         if (!response.ok) throw new Error('Could not load App lock settings.')
         const data: AppLockStatus = await response.json()
         if (active) {
+          setVaultClientState({
+            ...getVaultClientState(),
+            appLockEnabled: data.enabled,
+          })
           setStatus(data)
           setError('')
         }
@@ -63,6 +71,12 @@ export function AppLockSettings() {
       const data = await response.json()
       if (!response.ok)
         throw new Error(data.error || 'Could not update App lock.')
+      if (typeof data.enabled === 'boolean') {
+        setVaultClientState({
+          ...getVaultClientState(),
+          appLockEnabled: data.enabled,
+        })
+      }
       if (action === 'lock') {
         window.location.replace('/unlock')
         return

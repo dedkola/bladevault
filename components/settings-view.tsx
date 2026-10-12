@@ -59,7 +59,6 @@ import {
   getCloudRuntimeConfig,
   loadCloudRuntimeConfig,
   parseApiError,
-  refreshCloudBackupAccessToken,
   setCloudAuthState,
 } from '@/lib/cloud-backup'
 import { formatCloudBackupError } from '@/lib/cloud-backup-client'
@@ -84,6 +83,7 @@ import { cn } from '@/lib/utils'
 import pkg from '@/package.json'
 import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
 import { useKnives } from '@/components/providers/knives-provider'
+import { useVaultRestore } from '@/components/providers/vault-restore-provider'
 import './settings-view.css'
 
 type StatusTone = 'idle' | 'loading' | 'success' | 'error'
@@ -377,6 +377,11 @@ export default function SettingsView() {
   const { update, checkForUpdates, downloadUpdate, installUpdate } =
     useDesktopUpdates()
   const { knives, refreshVault, cloudBackupJob, startVaultBackup } = useKnives()
+  const {
+    job: restoreJob,
+    readOnly: isVaultReadOnly,
+    startRestore,
+  } = useVaultRestore()
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [localDataPath, setLocalDataPath] = useState('')
   const [configuredLocalDataPath, setConfiguredLocalDataPath] = useState('')
@@ -406,8 +411,19 @@ export default function SettingsView() {
         ? cloudBackupJob.message ||
           'Cloud backup failed. Try again when connected.'
         : 'Cloud backup is up to date.'
-  const [restoreStatus, setRestoreStatus] = useState<StatusTone>('idle')
-  const [restoreMessage, setRestoreMessage] = useState('')
+  const restoreStatus: StatusTone =
+    restoreJob.status === 'running' ? 'loading' : restoreJob.status
+  const restoreMessage =
+    restoreJob.status === 'running'
+      ? restoreJob.phase === 'applying'
+        ? 'Applying restored vault…'
+        : restoreJob.phase === 'validating'
+          ? 'Checking your backup. You can keep browsing; editing is paused.'
+          : 'Downloading in the background. You can leave this page; editing is paused.'
+      : restoreJob.status === 'error'
+        ? restoreJob.message ||
+          'Cloud restore failed. Your vault was not replaced.'
+        : 'Cloud backup restored successfully.'
   const [localBackupStatus, setLocalBackupStatus] = useState<StatusTone>('idle')
   const [localBackupMessage, setLocalBackupMessage] = useState('')
   const [localDataStatus, setLocalDataStatus] = useState<StatusTone>('idle')
@@ -977,54 +993,13 @@ export default function SettingsView() {
     if (!settings) return
     if (
       !window.confirm(
-        'Restore the latest cloud backup and replace the local database on this device?',
+        'Restore the latest cloud backup and replace the local database on this device? You can keep browsing while editing is temporarily paused.',
       )
     ) {
       return
     }
 
-    setRestoreStatus('loading')
-    setRestoreMessage('Downloading your cloud backup...')
-
-    try {
-      const nextConfig = await refreshCloudConfig()
-      if (!nextConfig.backupUrl) {
-        throw new Error('NEXT_PUBLIC_BLADEVAULT_BACKUP_URL is not configured.')
-      }
-
-      const accessToken = await refreshCloudBackupAccessToken()
-
-      const importResponse = await fetch('/api/cloud-backup/archive', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          backupUrl: nextConfig.backupUrl,
-          accessToken,
-        }),
-      })
-
-      const importData = await readJsonResponse<{ error?: string }>(
-        importResponse,
-      )
-      if (!importResponse.ok) {
-        throw new Error(
-          getApiErrorMessage(
-            importData,
-            'Failed to restore cloud backup locally',
-          ),
-        )
-      }
-
-      await refreshVault()
-      await refreshRestoredSettings()
-      setRestoreStatus('success')
-      setRestoreMessage('Cloud backup restored successfully.')
-    } catch (error) {
-      setRestoreStatus('error')
-      setRestoreMessage(
-        formatCloudBackupError(error, getCloudRuntimeConfig().backupUrl),
-      )
-    }
+    await startRestore()
   }
 
   const handleLocalBackupDownload = async () => {
@@ -1668,6 +1643,7 @@ export default function SettingsView() {
                           onClick={() => void startVaultBackup()}
                           disabled={
                             !cloudSession ||
+                            isVaultReadOnly ||
                             backupStatus === 'loading' ||
                             restoreStatus === 'loading' ||
                             localBackupStatus === 'loading'
@@ -1687,7 +1663,7 @@ export default function SettingsView() {
                           onCheckedChange={(checked) =>
                             handleAutoBackupToggle(checked === true)
                           }
-                          disabled={!cloudSession}
+                          disabled={!cloudSession || isVaultReadOnly}
                           aria-label="Enable automatic backup"
                         />
                       </SettingsRow>
@@ -1695,7 +1671,7 @@ export default function SettingsView() {
 
                     <SettingsSection
                       title="Restore"
-                      description="Restore the latest cloud backup to this device. This replaces the local data."
+                      description="Restore the latest cloud backup to this device. You can keep browsing while editing is paused. This replaces the local data."
                     >
                       {!cloudSession ? (
                         <div className="py-3 text-sm text-muted-foreground">
@@ -1709,6 +1685,7 @@ export default function SettingsView() {
                           onClick={handleRestore}
                           disabled={
                             !cloudSession ||
+                            isVaultReadOnly ||
                             restoreStatus === 'loading' ||
                             backupStatus === 'loading'
                           }
@@ -1727,6 +1704,7 @@ export default function SettingsView() {
                           <StatusPill
                             status={restoreStatus}
                             message={restoreMessage}
+                            quiet
                           />
                         </div>
                       ) : null}

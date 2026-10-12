@@ -2,7 +2,7 @@
 
 import { useComparisons } from '@/components/providers/comparisons-provider'
 
-import Image from 'next/image'
+import Image from '@/components/vault-image'
 import Link from 'next/link'
 import {
   ChevronDown,

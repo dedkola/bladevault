@@ -14,7 +14,11 @@ import {
 } from '@/lib/cloud-backup-server'
 import { clearStorageCache } from '@/lib/storage'
 import { closeLocalDb, getLocalDataDirPath } from '@/lib/local-db'
-import { replaceLocalDataFromDirectory } from '@/lib/local-data-restore'
+import {
+  replaceLocalDataFromDirectory,
+  withLocalRestoreLease,
+} from '@/lib/local-data-restore'
+import type { VaultRestoreLease } from '@/lib/vault-access'
 
 function shouldIgnoreBackupEntry(name: string): boolean {
   return (
@@ -104,7 +108,10 @@ async function validateArchive(archivePath: string): Promise<string> {
   return expectedTopDir
 }
 
-async function restoreArchiveFromPath(archivePath: string) {
+async function restoreArchiveFromPath(
+  archivePath: string,
+  lease: VaultRestoreLease,
+) {
   const tempRoot = await fs.mkdtemp(
     path.join(os.tmpdir(), 'bladevault-backup-import-'),
   )
@@ -117,7 +124,9 @@ async function restoreArchiveFromPath(archivePath: string) {
 
     const extractedDataDir = path.join(extractRoot, archivedTopDir)
     await fs.access(extractedDataDir)
-    const result = await replaceLocalDataFromDirectory(extractedDataDir)
+    const result = await replaceLocalDataFromDirectory(extractedDataDir, {
+      lease,
+    })
 
     const stat = await fs.stat(archivePath)
     return {
@@ -195,7 +204,10 @@ async function downloadCloudArchive(request = new Request('http://localhost')) {
   }
 }
 
-async function restoreUploadedCloudArchive(request: Request) {
+async function restoreUploadedCloudArchive(
+  request: Request,
+  lease: VaultRestoreLease,
+) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
 
@@ -223,7 +235,7 @@ async function restoreUploadedCloudArchive(request: Request) {
     }
 
     await fs.writeFile(archivePath, buffer)
-    const result = await restoreArchiveFromPath(archivePath)
+    const result = await restoreArchiveFromPath(archivePath, lease)
     return NextResponse.json(result)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
@@ -233,7 +245,7 @@ async function restoreUploadedCloudArchive(request: Request) {
   }
 }
 
-async function restoreCloudArchive(request: Request) {
+async function restoreCloudArchive(request: Request, lease: VaultRestoreLease) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
 
@@ -285,7 +297,7 @@ async function restoreCloudArchive(request: Request) {
 
     await downloadArchiveToPath(downloadUrl, accessToken, archivePath)
 
-    const result = await restoreArchiveFromPath(archivePath)
+    const result = await restoreArchiveFromPath(archivePath, lease)
     return NextResponse.json(result)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
@@ -304,11 +316,19 @@ export async function GET(request = new Request('http://localhost')) {
 export async function PUT(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
-  return withVaultOperation(() => restoreUploadedCloudArchive(request))
+  return withVaultOperation(() =>
+    withLocalRestoreLease(request, (lease) =>
+      restoreUploadedCloudArchive(request, lease),
+    ),
+  )
 }
 
 export async function POST(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
-  return withVaultOperation(() => restoreCloudArchive(request))
+  return withVaultOperation(() =>
+    withLocalRestoreLease(request, (lease) =>
+      restoreCloudArchive(request, lease),
+    ),
+  )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import Image from 'next/image'
+import Image from '@/components/vault-image'
 import { useState } from 'react'
 import { ChevronRight, ImageIcon, Layers } from 'lucide-react'
 import { KnifeCard, type CollectionCardDensity } from '@/components/knife-card'

@@ -1,4 +1,9 @@
 import { getLocalDataDirPath } from '@/lib/local-db'
+import {
+  getVaultAccessState,
+  vaultAccessErrorResponse,
+  VaultAccessError,
+} from '@/lib/vault-access'
 
 const VAULT_OPERATIONS = Symbol.for('bladevault.vault-operations')
 const BUSY_MESSAGE =
@@ -11,6 +16,7 @@ export class VaultOperationBusyError extends Error {
 }
 
 export function tryBeginVaultOperation(): (() => void) | null {
+  if (getVaultAccessState().readOnly) return null
   const runtime = globalThis as typeof globalThis & {
     [VAULT_OPERATIONS]?: Map<string, symbol>
   }
@@ -27,6 +33,11 @@ export function tryBeginVaultOperation(): (() => void) | null {
 export async function withVaultOperation<T>(
   action: () => Promise<T>,
 ): Promise<T | Response> {
+  const state = getVaultAccessState()
+  if (state.readOnly)
+    return vaultAccessErrorResponse(
+      new VaultAccessError('VAULT_RESTORE_BUSY', state),
+    )!
   const release = tryBeginVaultOperation()
   if (!release) {
     return Response.json({ error: BUSY_MESSAGE }, { status: 409 })

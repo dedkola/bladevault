@@ -7,6 +7,13 @@ import {
   savePersistedLocalDataDirPreference,
 } from '@/lib/local-data-config'
 import { normalizeKnifeTextFields } from '@/lib/knife-text'
+import {
+  assertVaultReadable,
+  getVaultAccessState,
+  registerVaultConnection,
+  VaultAccessError,
+  withVaultWriteSync,
+} from '@/lib/vault-access'
 
 function joinProjectPath(...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ process.cwd(), ...segments)
@@ -149,6 +156,8 @@ type LocalDbRuntimeState = {
   db: Database.Database | null
   activeDbPath: string | null
   restoreInProgress: boolean
+  dbGeneration?: string | null
+  releaseConnection?: (() => void) | null
 }
 
 const LOCAL_DB_RUNTIME_STATE_KEY = Symbol.for(
@@ -297,41 +306,71 @@ export function getDockerHostDataMountPath(): string | null {
 
 export function getLocalDb(): Database.Database {
   const state = getLocalDbRuntimeState()
+  const access = getVaultAccessState()
+
+  if (
+    state.db &&
+    (!state.dbGeneration ||
+      access.phase === 'switching' ||
+      (state.dbGeneration && state.dbGeneration !== access.generation))
+  )
+    closeLocalDb()
+  assertVaultReadable()
 
   if (state.restoreInProgress) {
-    throw new Error(
-      'Local database restore is in progress. Please try again in a moment.',
-    )
+    throw new VaultAccessError('VAULT_RESTORE_BUSY', {
+      ...access,
+      phase: 'switching',
+      readOnly: true,
+    })
   }
 
   const nextDbPath = getLocalDbPath()
   if (state.db && state.activeDbPath && state.activeDbPath !== nextDbPath) {
-    state.db.close()
-    state.db = null
-    state.activeDbPath = null
+    closeLocalDb()
   }
 
   if (!state.db) {
-    fs.mkdirSync(path.dirname(nextDbPath), { recursive: true })
-    state.db = new Database(nextDbPath)
-    state.db.pragma('journal_mode = WAL')
-    initSchema(state.db)
-    state.activeDbPath = nextDbPath
+    const release = registerVaultConnection(closeLocalDb)
+    state.releaseConnection = release
+    try {
+      fs.mkdirSync(path.dirname(nextDbPath), { recursive: true })
+      state.db = new Database(nextDbPath)
+      if (
+        access.phase !== 'preparing' ||
+        Number(state.db.pragma('user_version', { simple: true })) !==
+          LOCAL_DB_SCHEMA_VERSION
+      ) {
+        withVaultWriteSync(() => {
+          state.db!.pragma('journal_mode = WAL')
+          initSchema(state.db!)
+        })
+      }
+      state.activeDbPath = nextDbPath
+      state.dbGeneration = access.generation
+    } catch (error) {
+      closeLocalDb()
+      throw error
+    }
   }
   return state.db
 }
 
 export function closeLocalDb(): void {
   const state = getLocalDbRuntimeState()
-  if (!state.db) return
-  try {
-    state.db.pragma('wal_checkpoint(RESTART)')
-  } catch {
-    // Best effort: checkpoint when possible, but always close.
+  if (state.db) {
+    try {
+      state.db.pragma('wal_checkpoint(RESTART)')
+    } catch {
+      // Best effort: checkpoint when possible, but always close.
+    }
+    state.db.close()
   }
-  state.db.close()
   state.db = null
   state.activeDbPath = null
+  state.dbGeneration = null
+  state.releaseConnection?.()
+  state.releaseConnection = null
 }
 
 function migrateSchema(database: Database.Database) {

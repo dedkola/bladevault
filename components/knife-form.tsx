@@ -6,7 +6,7 @@ import {
 } from '@/lib/webpage-screenshot-shared'
 
 import { useId, useRef, useState } from 'react'
-import Image from 'next/image'
+import Image from '@/components/vault-image'
 import {
   Loader2,
   Link2,

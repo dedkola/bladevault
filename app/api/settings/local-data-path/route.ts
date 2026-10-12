@@ -1,4 +1,5 @@
 import { withVaultOperation } from '@/lib/vault-operation'
+import { withVaultMutationRequest } from '@/lib/vault-mutation-request'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import {
@@ -57,5 +58,7 @@ async function saveLocalDataPath(request: Request) {
 export async function POST(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
-  return withVaultOperation(() => saveLocalDataPath(request))
+  return withVaultMutationRequest(request, () =>
+    withVaultOperation(() => saveLocalDataPath(request)),
+  )
 }

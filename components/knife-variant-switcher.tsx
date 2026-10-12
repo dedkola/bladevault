@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
+import Image from '@/components/vault-image'
 import { ChevronDown, Check, ImageIcon, Layers } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useKnifeFamilyPanel } from '@/components/providers/knife-family-panel-provider'
