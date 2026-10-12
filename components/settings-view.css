@@ -129,7 +129,7 @@
   }
 
   .settings-card-field-groups > :not(:nth-child(3n + 1)) {
-    border-left: 1px solid var(--bladevault-line);
+    border-left: 1px solid var(--border);
   }
 }
 
@@ -142,7 +142,7 @@
   gap: 0.75rem;
   margin: 0 0 1.25rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--bladevault-line);
+  border-bottom: 1px solid var(--border);
 }
 
 .settings-head h2 {

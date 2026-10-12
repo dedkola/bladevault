@@ -26,6 +26,7 @@ import {
   Printer,
   RefreshCw,
   ShieldCheck,
+  Scale,
   SlidersHorizontal,
   Trash2,
   Upload,
@@ -65,6 +66,8 @@ import { formatCloudBackupError } from '@/lib/cloud-backup-client'
 import { ScreenshotBackfill } from '@/components/screenshot-backfill'
 import { AppLockSettings } from '@/components/app-lock-settings'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { KnifeCardDetails } from '@/components/knife-card-details'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   SettingsSection,
@@ -138,7 +141,7 @@ const settingsTabTriggerClassName =
   'flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors xl:w-full'
 
 const settingsSecondaryButtonClassName =
-  'border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] text-foreground hover:bg-[var(--bladevault-surface-hover)] hover:text-foreground dark:border-[#d3c097]/30 dark:bg-[#382f1d] dark:text-[var(--bladevault-gold)] dark:hover:bg-[#4a3f25] dark:hover:text-[var(--bladevault-gold)]'
+  'border-border bg-[var(--bladevault-surface-soft)] text-foreground hover:bg-[var(--bladevault-surface-hover)] hover:text-foreground dark:border-input dark:bg-[#382f1d] dark:text-[var(--bladevault-gold)] dark:hover:bg-[#4a3f25] dark:hover:text-[var(--bladevault-gold)]'
 
 const settingsPrimaryButtonClassName =
   'border-[var(--bladevault-gold)] bg-[var(--bladevault-gold)] text-[var(--bladevault-olive)] hover:bg-[var(--bladevault-title)] hover:text-[var(--bladevault-olive)]'
@@ -328,36 +331,59 @@ function CardFieldsPreview({
   fields: CardField[]
   customFields: CustomField[]
 }) {
-  const selectedLabels = fields.map((field) =>
-    getCardFieldLabel(field, customFields),
-  )
-  const hiddenCount = Math.max(0, selectedLabels.length - 3)
-  const optionalDetails = [
-    ...selectedLabels.slice(0, 3),
-    hiddenCount > 0 ? `+${hiddenCount} more` : '',
-  ].filter(Boolean)
+  const exampleValues: Record<string, string> = {
+    bladeStyle: 'Drop point',
+    handleMaterial: 'Micarta',
+    'specs.designer': 'In-house design',
+    'specs.country': 'USA',
+    'specs.price': '$145',
+    'specs.bladeMaterial': '154CM',
+    'specs.bladeCoating': 'Satin',
+    'specs.lockingMechanism': 'Crossbar lock',
+    'specs.hardness': '60 HRC',
+    'specs.overallLength': '190 mm',
+    'specs.bladeLength': '80 mm',
+    'specs.bladeThickness': '3 mm',
+    'specs.handleLength': '110 mm',
+    'specs.weight': '95 g',
+  }
+  const previewFields = fields
+    .filter((field) => field !== 'specs.modelNumber')
+    .map((field) => ({
+      key: field,
+      label: getCardFieldLabel(field, customFields),
+      value: exampleValues[field] ?? 'Example value',
+    }))
 
   return (
-    <div className="mx-auto w-full max-w-[15rem]">
-      <div className="overflow-hidden rounded-xl border border-[var(--bladevault-line)] bg-card shadow-sm">
-        <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-white dark:bg-[#f4f1e8]">
+    <div
+      className="mx-auto w-full max-w-[15rem]"
+      role="group"
+      aria-label="Card appearance preview"
+    >
+      <Card className="@container/knife-card gap-0 p-0">
+        <div className="relative flex aspect-video items-center justify-center overflow-hidden bg-white">
           <div className="relative h-7 w-32 -rotate-[24deg]" aria-hidden="true">
             <div className="absolute right-0 top-0 h-7 w-14 rounded-r-md bg-[var(--bladevault-olive)] shadow-sm" />
             <div className="absolute left-0 top-1 h-5 w-[4.75rem] rounded-l-full border border-[#aaa59b] bg-gradient-to-b from-[#f0f0ed] to-[#c9c9c4] shadow-sm [clip-path:polygon(0_50%,18%_0,100%_0,100%_100%,18%_100%)]" />
           </div>
         </div>
-        <div className="min-h-[6.6rem] border-t border-[var(--bladevault-line)]/50 bg-card px-3.5 py-3">
-          <div className="mb-2 inline-flex rounded-full bg-secondary px-2.5 py-1 text-[9px] font-medium uppercase tracking-wide text-secondary-foreground">
-            Brand
-          </div>
-          <div className="text-sm font-medium text-foreground">Model</div>
-          {optionalDetails.length > 0 ? (
-            <div className="mt-0.5 text-[11px] text-muted-foreground">
-              {optionalDetails.join(' · ')}
-            </div>
-          ) : null}
-        </div>
-      </div>
+        <KnifeCardDetails
+          brand="BladeVault"
+          name="Sample knife"
+          modelNumber="BV-01"
+          fields={previewFields}
+          bladeLength="80 mm"
+          footerAction={
+            <span
+              className="absolute right-2 inline-flex items-center gap-1"
+              aria-hidden="true"
+            >
+              <Scale className="size-3" /> Compare
+            </span>
+          }
+        />
+      </Card>
       <div className="mt-2 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
         <Lock className="size-3" />
         Brand and model are always shown
@@ -550,7 +576,7 @@ export default function SettingsView() {
       },
       {
         id: 'cloud-backup' as const,
-        label: 'Cloud Backup',
+        label: 'Cloud backup',
         icon: Cloud,
         blurb:
           'Optional off-device backup. Not required for a local-only vault.',
@@ -569,7 +595,7 @@ export default function SettingsView() {
       },
       {
         id: 'fields' as const,
-        label: 'Custom Fields',
+        label: 'Custom fields',
         icon: SlidersHorizontal,
         blurb: 'Extra fields that apply to every knife in this vault.',
       },
@@ -1384,9 +1410,9 @@ export default function SettingsView() {
           </div>
         </div>
       ) : (
-        <div className="settings-surface flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border border-[var(--bladevault-line)] bg-background xl:flex-row">
+        <div className="settings-surface flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border border-border bg-background xl:flex-row">
           {/* Sidebar */}
-          <aside className="flex w-full shrink-0 border-b border-[var(--bladevault-line)] bg-background xl:w-60 xl:flex-col xl:border-r xl:border-b-0 2xl:w-64">
+          <aside className="flex w-full shrink-0 border-b border-border bg-background xl:w-60 xl:flex-col xl:border-r xl:border-b-0 2xl:w-64">
             <nav
               data-settings-rail
               className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto p-2 xl:min-h-0 xl:flex-col xl:overflow-x-hidden xl:overflow-y-auto"
@@ -1413,7 +1439,7 @@ export default function SettingsView() {
                           'flex h-4 shrink-0 items-center rounded-full border px-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]',
                           isActive
                             ? 'border-[var(--bladevault-gold)] bg-[var(--bladevault-gold)] text-[var(--bladevault-olive)]'
-                            : 'border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] text-[var(--bladevault-olive)] dark:border-[var(--bladevault-gold)] dark:bg-[var(--bladevault-gold)] dark:text-[var(--bladevault-olive)]',
+                            : 'border-border bg-[var(--bladevault-surface-soft)] text-[var(--bladevault-olive)] dark:border-[var(--bladevault-gold)] dark:bg-[var(--bladevault-gold)] dark:text-[var(--bladevault-olive)]',
                         )}
                       >
                         Beta
@@ -1454,7 +1480,7 @@ export default function SettingsView() {
                             defaultLocalDataPath || '/Users/you/BladeVault/data'
                           }
                           disabled={dataDirManagedByEnv}
-                          className="h-8 min-w-[10rem] rounded-lg border-[var(--bladevault-line)] bg-background font-mono text-xs shadow-none dark:border-[#d3c097]/30"
+                          className="h-8 min-w-[10rem] rounded-lg border-border bg-background font-mono text-xs shadow-none dark:border-input"
                         />
                         {canChooseLocalDataFolder ? (
                           <Button
@@ -1806,7 +1832,7 @@ export default function SettingsView() {
                         <SelectTrigger
                           size="sm"
                           aria-label="Theme"
-                          className="h-8 w-32 rounded-lg border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)]"
+                          className="h-8 w-32 rounded-lg border-border bg-[var(--bladevault-surface-soft)]"
                         >
                           <SelectValue />
                         </SelectTrigger>
@@ -1831,7 +1857,7 @@ export default function SettingsView() {
                         <SelectTrigger
                           size="sm"
                           aria-label="Time format"
-                          className="h-8 w-32 rounded-lg border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)]"
+                          className="h-8 w-32 rounded-lg border-border bg-[var(--bladevault-surface-soft)]"
                         >
                           <SelectValue>
                             {(value: TimeFormat) =>
@@ -1872,10 +1898,10 @@ export default function SettingsView() {
                         customFields={settings.customFields}
                       />
                       <div
-                        className="settings-card-fields-options max-h-[24rem] overflow-y-auto rounded-lg border border-[var(--bladevault-line)]/70 bg-background"
+                        className="settings-card-fields-options max-h-[24rem] overflow-y-auto rounded-lg border border-border/70 bg-background"
                         aria-busy={isSavingCardFields}
                       >
-                        <div className="flex items-center justify-between gap-3 border-b border-[var(--bladevault-line)]/60 px-3 py-2.5">
+                        <div className="flex items-center justify-between gap-3 border-b border-border/60 px-3 py-2.5">
                           <div>
                             <div className="text-sm font-medium text-foreground">
                               Brand
@@ -1886,7 +1912,7 @@ export default function SettingsView() {
                           </div>
                           <Lock className="size-3.5 text-muted-foreground" />
                         </div>
-                        <div className="flex items-center justify-between gap-3 border-b border-[var(--bladevault-line)]/60 px-3 py-2.5">
+                        <div className="flex items-center justify-between gap-3 border-b border-border/60 px-3 py-2.5">
                           <div>
                             <div className="text-sm font-medium text-foreground">
                               Model
@@ -1901,13 +1927,13 @@ export default function SettingsView() {
                           {getCardFieldGroups(settings.customFields).map(
                             (group) => (
                               <div key={group.label}>
-                                <div className="sticky top-0 z-10 border-b border-[var(--bladevault-line)]/60 bg-[var(--bladevault-surface-soft)] px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                                <div className="sticky top-0 z-10 border-b border-border/60 bg-[var(--bladevault-surface-soft)] px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
                                   {group.label}
                                 </div>
                                 {group.fields.map((field) => (
                                   <label
                                     key={field.key}
-                                    className="flex cursor-pointer items-center justify-between gap-3 border-b border-[var(--bladevault-line)]/60 px-3 py-3 last:border-b-0"
+                                    className="flex cursor-pointer items-center justify-between gap-3 border-b border-border/60 px-3 py-3 last:border-b-0"
                                   >
                                     <span className="min-w-0 text-sm font-medium text-foreground [overflow-wrap:anywhere]">
                                       {field.label}
@@ -1940,7 +1966,7 @@ export default function SettingsView() {
               {activeTab === 'fields' && (
                 <div className="settings-grid">
                   <SettingsSection
-                    title="Custom Fields"
+                    title="Custom fields"
                     description="Define extra fields that apply to every knife. They appear in the add/edit form and as collection filters."
                   >
                     {settings.customFields.length === 0 ? (
@@ -1949,7 +1975,7 @@ export default function SettingsView() {
                         your library.
                       </div>
                     ) : (
-                      <div className="divide-y divide-[var(--bladevault-line)]/60">
+                      <div className="divide-y divide-[var(--border)]/60">
                         {settings.customFields.map((field, index) => (
                           <div
                             key={field.id}
@@ -1968,7 +1994,7 @@ export default function SettingsView() {
                                 )
                               }}
                               placeholder="Field name"
-                              className="h-8 flex-1 rounded-lg border-[var(--bladevault-line)] bg-background text-sm shadow-none dark:border-[#d3c097]/30"
+                              className="h-8 flex-1 rounded-lg border-border bg-background text-sm shadow-none dark:border-input"
                             />
                             <Select
                               value={field.type}
@@ -1986,7 +2012,7 @@ export default function SettingsView() {
                             >
                               <SelectTrigger
                                 size="sm"
-                                className="h-8 w-full rounded-lg border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] sm:w-28"
+                                className="h-8 w-full rounded-lg border-border bg-[var(--bladevault-surface-soft)] sm:w-28"
                               >
                                 <SelectValue />
                               </SelectTrigger>
@@ -2023,7 +2049,7 @@ export default function SettingsView() {
                       </div>
                     )}
 
-                    <div className="border-t border-[var(--bladevault-line)]/60 py-3">
+                    <div className="border-t border-border/60 py-3">
                       <div className="mb-2 text-xs text-muted-foreground">
                         Add a field to show on every knife.
                       </div>
@@ -2040,7 +2066,7 @@ export default function SettingsView() {
                             }
                           }}
                           placeholder="New field name, e.g. Sold or Sell price"
-                          className="h-8 flex-1 rounded-lg border-[var(--bladevault-line)] bg-background text-sm shadow-none dark:border-[#d3c097]/30"
+                          className="h-8 flex-1 rounded-lg border-border bg-background text-sm shadow-none dark:border-input"
                         />
                         <Select
                           value={newFieldType}
@@ -2053,7 +2079,7 @@ export default function SettingsView() {
                         >
                           <SelectTrigger
                             size="sm"
-                            className="h-8 w-full rounded-lg border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] sm:w-28"
+                            className="h-8 w-full rounded-lg border-border bg-[var(--bladevault-surface-soft)] sm:w-28"
                           >
                             <SelectValue />
                           </SelectTrigger>
@@ -2177,7 +2203,7 @@ export default function SettingsView() {
                           {copiedMcpConfig ? 'Copied' : 'Copy config'}
                         </Button>
                       </div>
-                      <pre className="max-h-64 overflow-auto rounded-lg border border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] p-3 text-xs text-foreground dark:border-[#d3c097]/30">
+                      <pre className="max-h-64 overflow-auto rounded-lg border border-border bg-[var(--bladevault-surface-soft)] p-3 text-xs text-foreground dark:border-input">
                         <code>
                           {mcpClientConfig || 'Loading configuration…'}
                         </code>
@@ -2285,7 +2311,7 @@ export default function SettingsView() {
                         href={pkg.repository?.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex h-8 items-center rounded-lg border border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-[var(--bladevault-surface-hover)]"
+                        className="inline-flex h-8 items-center rounded-lg border border-border bg-[var(--bladevault-surface-soft)] px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-[var(--bladevault-surface-hover)]"
                       >
                         View on GitHub
                       </a>

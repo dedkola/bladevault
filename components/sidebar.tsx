@@ -199,7 +199,7 @@ export function Sidebar() {
             nativeButton={false}
           >
             <PlusCircle className="h-3.5 w-3.5" />
-            Add Knife
+            Add knife
           </Button>
         </div>
 
@@ -549,11 +549,11 @@ export function Sidebar() {
             <Button
               variant="outline"
               size="sm"
-              aria-label="Cloud Backup"
+              aria-label="Cloud backup"
               title={
                 isAutoBackupActive
-                  ? 'Cloud auto backup is active. Open Cloud Backup settings.'
-                  : 'Cloud auto backup is inactive. Open Cloud Backup settings.'
+                  ? 'Cloud auto backup is active. Open Cloud backup settings.'
+                  : 'Cloud auto backup is inactive. Open Cloud backup settings.'
               }
               className={cn(
                 'flex-1',

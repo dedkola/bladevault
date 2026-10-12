@@ -6,7 +6,8 @@ import { getImageUrl, getKnifeImageCount, Knife } from '@/lib/data'
 import { cn } from '@/lib/utils'
 import { ImageCountBadge } from '@/components/image-count-badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
+import { KnifeCardDetails } from '@/components/knife-card-details'
 import { useKnives } from '@/components/providers/knives-provider'
 import {
   activeKnifeActionStyle,
@@ -128,7 +129,7 @@ export const KnifeCard = memo(function KnifeCard({
     >
       <Card
         className={cn(
-          'h-full gap-0 overflow-hidden p-0 transition-[box-shadow,transform] hover:shadow-sm',
+          '@container/knife-card h-full gap-0 overflow-hidden p-0 transition-[box-shadow,transform] hover:shadow-sm',
           (active || selected) &&
             'ring-2 ring-[var(--bladevault-gold)] shadow-sm',
         )}
@@ -178,62 +179,15 @@ export const KnifeCard = memo(function KnifeCard({
           )}
         </div>
 
-        <CardContent
-          className={cn(
-            'min-w-0 border-t border-border/60',
-            isCompact ? 'px-3 pb-3 pt-2.5' : 'px-3 pb-4 pt-3 sm:px-4',
-          )}
-        >
-          <div className="flex min-w-0 items-baseline justify-between gap-2">
-            <span className="truncate text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              {knife.brand}
-            </span>
-            <span className="shrink-0 font-mono text-[9px] text-muted-foreground">
-              {modelNumber || '—'}
-            </span>
-          </div>
-          <h2
-            className={cn(
-              'mt-1 line-clamp-2 font-medium leading-tight tracking-tight text-foreground',
-              isCompact ? 'min-h-10 text-base' : 'min-h-10 text-lg sm:text-xl',
-            )}
-            title={`${knife.brand} ${knife.name}`}
-          >
-            {knife.name}
-          </h2>
-          {variantLabel ? (
-            <p className="mt-2 line-clamp-2 min-h-8 text-[11px] leading-4 text-muted-foreground [overflow-wrap:anywhere]">
-              {variantLabel}
-            </p>
-          ) : visibleCardFields.length > 0 ? (
-            <dl
-              className={cn(
-                'mt-3 grid grid-cols-2 gap-x-3 gap-y-2',
-                isCompact && '[&>div:nth-child(n+3)]:hidden max-sm:hidden',
-              )}
-            >
-              {visibleCardFields.map((field) => (
-                <div key={field.key} className="min-w-0">
-                  <dt className="truncate text-[9px] text-muted-foreground">
-                    {field.label}
-                  </dt>
-                  <dd
-                    className="truncate text-[11px] font-medium text-foreground"
-                    title={field.value}
-                  >
-                    {field.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          ) : null}
-        </CardContent>
-
-        <div className="mt-auto flex min-h-9 items-center border-t border-border px-3 pr-24 text-[10px] text-muted-foreground">
-          <span className="truncate">
-            {bladeLength ? `${bladeLength} blade` : 'Blade length not recorded'}
-          </span>
-        </div>
+        <KnifeCardDetails
+          brand={knife.brand}
+          name={knife.name}
+          modelNumber={modelNumber}
+          fields={visibleCardFields}
+          bladeLength={bladeLength}
+          compact={isCompact}
+          variantLabel={variantLabel}
+        />
       </Card>
 
       <button
@@ -275,7 +229,7 @@ export const KnifeCard = memo(function KnifeCard({
               Boolean(comparisonsError)
             }
             className={cn(
-              'absolute bottom-1.5 right-2 z-20 gap-1 px-1.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground',
+              'absolute bottom-1.5 right-2 z-20 gap-1 px-1.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground',
               inCompare && activeKnifeFloatingClassName,
             )}
             style={inCompare ? activeKnifeActionStyle : undefined}

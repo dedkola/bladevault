@@ -45,7 +45,7 @@ export function PageHeader({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex min-w-0 items-center gap-2">
-            <h1 className="min-w-0 text-xl font-medium tracking-tight text-[var(--bladevault-title)] xl:text-[length:var(--bladevault-page-title-size)] xl:font-semibold xl:leading-tight">
+            <h1 className="min-w-0 text-[length:var(--bladevault-page-title-size)] font-semibold leading-tight tracking-tight text-[var(--bladevault-title)]">
               {title}
             </h1>
             {titleAction}

@@ -147,14 +147,21 @@ export function CategoryDetail({
             )}
           </InsightPanel>
         </div>
-        <div className="id-callout">
-          <strong>Missing values</strong>
-          <p>
-            {missing} {missing === 1 ? 'knife has' : 'knives have'} no{' '}
-            {labels.singular} recorded. Shares include all {stats.total} knives.
+        {missing > 0 ? (
+          <div className="id-callout">
+            <strong>Missing values</strong>
+            <p>
+              {missing} {missing === 1 ? 'knife has' : 'knives have'} no{' '}
+              {labels.singular} recorded. Shares include all {stats.total}{' '}
+              knives.
+            </p>
+            <Link href={missingHref(categoryKey)}>View {missing} knives →</Link>
+          </div>
+        ) : (
+          <p className="id-note">
+            All knives have a {labels.singular} recorded.
           </p>
-          <Link href={missingHref(categoryKey)}>View {missing} knives →</Link>
-        </div>
+        )}
       </div>
     </InsightDetailShell>
   )

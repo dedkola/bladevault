@@ -617,7 +617,7 @@ export function AddKnifeForm() {
       }`}
     >
       <PageHeader
-        title="Add Knife"
+        title="Add knife"
         breadcrumbs={[{ label: 'Add' }]}
         actions={
           <>

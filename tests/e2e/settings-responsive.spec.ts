@@ -27,17 +27,17 @@ const VIEWPORTS = [
 const TABS = [
   'Local storage',
   'App lock',
-  'Cloud Backup',
+  'Cloud backup',
   'Backup & Restore',
   'Appearance',
-  'Custom Fields',
+  'Custom fields',
   'AI / MCP',
   'About',
 ] as const
 
 /** Tabs that render more than one panel, and so should tile on a wide screen. */
 const MULTI_PANEL_TABS = [
-  'Cloud Backup',
+  'Cloud backup',
   'Backup & Restore',
   'Appearance',
   'AI / MCP',
@@ -50,7 +50,7 @@ test.beforeEach(async ({ request }) => {
 async function openTab(page: Page, tab: string) {
   // Scoped to the settings rail and matched on the label prefix: the Cloud
   // Backup tab carries a "Beta" badge, so its accessible name is
-  // "Cloud Backup Beta" on some viewports and an exact match would miss it.
+  // "Cloud backup Beta" on some viewports and an exact match would miss it.
   const label = new RegExp(`^${tab.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
   await page
     .locator('[data-settings-rail]')
@@ -299,13 +299,13 @@ test.describe('column behaviour', () => {
     expect(panelWidths[0] + panelWidths[1]).toBeGreaterThan(gridWidth - 24)
   })
 
-  test('keeps Cloud Backup in two compact columns without empty restore feedback', async ({
+  test('keeps Cloud backup in two compact columns without empty restore feedback', async ({
     page,
   }) => {
     for (const width of [1920, 2560]) {
       await page.setViewportSize({ width, height: 1080 })
       await page.goto('/settings')
-      await openTab(page, 'Cloud Backup')
+      await openTab(page, 'Cloud backup')
 
       expect(await gridColumns(page)).toBe(2)
       const { gridWidth, panelWidths } = await layoutMetrics(page)
@@ -355,8 +355,8 @@ test.describe('column behaviour', () => {
     await page.setViewportSize({ width: 2560, height: 1440 })
     await page.goto('/settings')
 
-    // Local storage / App lock / Custom Fields / About each render one panel.
-    for (const tab of ['Local storage', 'App lock', 'Custom Fields', 'About']) {
+    // Local storage / App lock / Custom fields / About each render one panel.
+    for (const tab of ['Local storage', 'App lock', 'Custom fields', 'About']) {
       await openTab(page, tab)
       const { panelWidths } = await layoutMetrics(page)
       expect(panelWidths.length, `${tab} should render one panel`).toBe(1)
