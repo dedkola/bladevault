@@ -1,3 +1,4 @@
+import { withVaultMutationRequest } from '@/lib/vault-mutation-request'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -27,65 +28,69 @@ export async function GET(request = new Request('http://localhost')) {
   }
 }
 export async function POST(request: Request) {
-  const locked = requireAppUnlock(request)
-  if (locked) return locked
+  return withVaultMutationRequest(request, async () => {
+    const locked = requireAppUnlock(request)
+    if (locked) return locked
 
-  const parsed = inputSchema.safeParse(await request.json().catch(() => null))
-  if (!parsed.success)
-    return NextResponse.json(
-      { error: 'Enter a name (1–80 characters) and valid filters.' },
-      { status: 400 },
-    )
-  const params = new URLSearchParams(parsed.data.query)
-  const query = collectionQuery(params)
-  const error = rangeError(params)
-  if (
-    !query ||
-    error ||
-    (params.has('missingSpecs') && params.get('missingSpecs') !== '1')
-  )
-    return NextResponse.json(
-      { error: error ?? 'Choose at least one valid filter or search.' },
-      { status: 400 },
-    )
-  try {
-    const collection = saveSmartCollection({ ...parsed.data, query })
-    if (!collection)
+    const parsed = inputSchema.safeParse(await request.json().catch(() => null))
+    if (!parsed.success)
       return NextResponse.json(
-        { error: 'Smart collection no longer exists.' },
-        { status: 404 },
+        { error: 'Enter a name (1–80 characters) and valid filters.' },
+        { status: 400 },
       )
-    return NextResponse.json({ collection })
-  } catch {
-    return NextResponse.json(
-      { error: 'Could not save smart collection.' },
-      { status: 500 },
+    const params = new URLSearchParams(parsed.data.query)
+    const query = collectionQuery(params)
+    const error = rangeError(params)
+    if (
+      !query ||
+      error ||
+      (params.has('missingSpecs') && params.get('missingSpecs') !== '1')
     )
-  }
+      return NextResponse.json(
+        { error: error ?? 'Choose at least one valid filter or search.' },
+        { status: 400 },
+      )
+    try {
+      const collection = saveSmartCollection({ ...parsed.data, query })
+      if (!collection)
+        return NextResponse.json(
+          { error: 'Smart collection no longer exists.' },
+          { status: 404 },
+        )
+      return NextResponse.json({ collection })
+    } catch {
+      return NextResponse.json(
+        { error: 'Could not save smart collection.' },
+        { status: 500 },
+      )
+    }
+  })
 }
 export async function DELETE(request: Request) {
-  const locked = requireAppUnlock(request)
-  if (locked) return locked
+  return withVaultMutationRequest(request, async () => {
+    const locked = requireAppUnlock(request)
+    if (locked) return locked
 
-  const parsed = z
-    .object({ id: z.string().uuid() })
-    .safeParse(await request.json().catch(() => null))
-  if (!parsed.success)
-    return NextResponse.json(
-      { error: 'A valid collection ID is required.' },
-      { status: 400 },
-    )
-  try {
-    if (!deleteSmartCollection(parsed.data.id))
+    const parsed = z
+      .object({ id: z.string().uuid() })
+      .safeParse(await request.json().catch(() => null))
+    if (!parsed.success)
       return NextResponse.json(
-        { error: 'Smart collection no longer exists.' },
-        { status: 404 },
+        { error: 'A valid collection ID is required.' },
+        { status: 400 },
       )
-    return NextResponse.json({ success: true })
-  } catch {
-    return NextResponse.json(
-      { error: 'Could not delete smart collection.' },
-      { status: 500 },
-    )
-  }
+    try {
+      if (!deleteSmartCollection(parsed.data.id))
+        return NextResponse.json(
+          { error: 'Smart collection no longer exists.' },
+          { status: 404 },
+        )
+      return NextResponse.json({ success: true })
+    } catch {
+      return NextResponse.json(
+        { error: 'Could not delete smart collection.' },
+        { status: 500 },
+      )
+    }
+  })
 }

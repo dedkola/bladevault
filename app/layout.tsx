@@ -12,10 +12,12 @@ import { cn } from '@/lib/utils'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import { ThemeColorSync } from '@/components/theme-color-sync'
 import { cookies } from 'next/headers'
-import { isAppUnlocked } from '@/lib/app-lock'
+import { isAppLockEnabled, isAppUnlocked } from '@/lib/app-lock'
 import { APP_LOCK_COOKIE } from '@/lib/app-lock-shared'
 import { AppUnlockForm } from '@/components/app-unlock-form'
 import { AppLockSession } from '@/components/app-lock-session'
+import { VaultRestoreProvider } from '@/components/providers/vault-restore-provider'
+import { getVaultAccessState } from '@/lib/vault-access'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-sans' })
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono' })
@@ -47,6 +49,10 @@ export default async function RootLayout({
   children: React.ReactNode
 }) {
   const theme = getInitialTheme()
+  const vaultStatus = {
+    ...getVaultAccessState(),
+    appLockEnabled: isAppLockEnabled(),
+  }
   const unlocked = isAppUnlocked((await cookies()).get(APP_LOCK_COOKIE)?.value)
 
   return (
@@ -67,24 +73,26 @@ export default async function RootLayout({
         ) : (
           <>
             <AppLockSession />
-            <KnivesProvider>
-              <SmartCollectionsProvider>
-                <TooltipProvider>
-                  <Suspense>
-                    <ComparisonsProvider>
-                      <SidebarShell />
-                      <main
-                        tabIndex={-1}
-                        className="flex min-w-0 flex-1 flex-col"
-                      >
-                        {children}
-                      </main>
-                    </ComparisonsProvider>
-                  </Suspense>
-                  <GlobalKnifeSearch />
-                </TooltipProvider>
-              </SmartCollectionsProvider>
-            </KnivesProvider>
+            <VaultRestoreProvider initialStatus={vaultStatus}>
+              <KnivesProvider>
+                <SmartCollectionsProvider>
+                  <TooltipProvider>
+                    <Suspense>
+                      <ComparisonsProvider>
+                        <SidebarShell />
+                        <main
+                          tabIndex={-1}
+                          className="flex min-w-0 flex-1 flex-col"
+                        >
+                          {children}
+                        </main>
+                      </ComparisonsProvider>
+                    </Suspense>
+                    <GlobalKnifeSearch />
+                  </TooltipProvider>
+                </SmartCollectionsProvider>
+              </KnivesProvider>
+            </VaultRestoreProvider>
           </>
         )}
       </body>

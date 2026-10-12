@@ -1,5 +1,5 @@
 import { useComparisons } from '@/components/providers/comparisons-provider'
-import Image from 'next/image'
+import Image from '@/components/vault-image'
 import { memo, useCallback, useState } from 'react'
 import { Check, ImageIcon, Pin, Scale } from 'lucide-react'
 import { getImageUrl, getKnifeImageCount, Knife } from '@/lib/data'

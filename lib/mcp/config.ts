@@ -4,6 +4,7 @@ import path from 'node:path'
 import { getLocalDataDirPath, getLocalDb } from '@/lib/local-db'
 import { getMcpActivity } from '@/lib/mcp/activity'
 import { getSettings, saveSettings } from '@/lib/settings'
+import { withVaultWriteSync } from '@/lib/vault-access'
 
 type McpRuntimeSettingsUpdate = {
   enabled?: boolean
@@ -58,11 +59,13 @@ function getPersistedMcpAuthToken(): string | null {
 }
 
 function createPersistedMcpAuthToken(): string {
-  const token = `bv_mcp_${randomBytes(32).toString('base64url')}`
-  getLocalDb()
-    .prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)')
-    .run(MCP_AUTH_TOKEN_SETTING_KEY, token)
-  return getPersistedMcpAuthToken() || token
+  return withVaultWriteSync(() => {
+    const token = `bv_mcp_${randomBytes(32).toString('base64url')}`
+    getLocalDb()
+      .prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)')
+      .run(MCP_AUTH_TOKEN_SETTING_KEY, token)
+    return getPersistedMcpAuthToken() || token
+  })
 }
 
 export function getMcpAuthToken(): McpAuthToken {

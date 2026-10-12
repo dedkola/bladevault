@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { ComparisonNavigation } from '@/components/comparison-navigation'
 import { useSmartCollections } from '@/components/providers/smart-collections-provider'
 import { matchesCollection } from '@/lib/smart-collections'
-import Image from 'next/image'
+import Image from '@/components/vault-image'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import {

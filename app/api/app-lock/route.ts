@@ -8,6 +8,8 @@ import {
   setAppLockPassword,
 } from '@/lib/app-lock'
 import { APP_LOCK_COOKIE } from '@/lib/app-lock-shared'
+import { assertVaultGeneration, getVaultGeneration } from '@/lib/vault-access'
+import { withVaultMutationRequest } from '@/lib/vault-mutation-request'
 
 const inputSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('unlock'), password: z.string().max(1024) }),
@@ -31,6 +33,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const generation = getVaultGeneration()
   const origin = request.headers.get('origin')
   const host = request.headers.get('host') || new URL(request.url).host
   if (origin && new URL(origin).host !== host)
@@ -45,60 +48,70 @@ export async function POST(request: Request) {
       { status: 400 },
     )
   const input = parsed.data
-  const status = getAppLockStatus(request)
+  const applyAction = async () => {
+    const status = getAppLockStatus(request)
 
-  if (input.action === 'unlock') {
-    if (status.enabled && !appLockPasswordMatches(input.password))
-      return NextResponse.json(
-        { error: 'Incorrect password.' },
-        { status: 401 },
-      )
-  } else {
-    const locked = requireAppUnlock(request)
-    if (locked) return locked
-    if (input.action === 'set-password' || input.action === 'disable') {
-      if (
-        status.enabled &&
-        !appLockPasswordMatches(input.currentPassword || '')
-      )
+    if (input.action === 'unlock') {
+      if (status.enabled && !appLockPasswordMatches(input.password))
         return NextResponse.json(
-          { error: 'Incorrect current password.' },
+          { error: 'Incorrect password.' },
           { status: 401 },
         )
-      if (
-        input.action === 'set-password' &&
-        input.password !== input.confirmPassword
-      )
-        return NextResponse.json(
-          { error: 'Passwords do not match.' },
-          { status: 400 },
+    } else {
+      const locked = requireAppUnlock(request)
+      if (locked) return locked
+      if (input.action === 'set-password' || input.action === 'disable') {
+        if (
+          status.enabled &&
+          !appLockPasswordMatches(input.currentPassword || '')
         )
-      setAppLockPassword(input.action === 'disable' ? '' : input.password)
+          return NextResponse.json(
+            { error: 'Incorrect current password.' },
+            { status: 401 },
+          )
+        if (
+          input.action === 'set-password' &&
+          input.password !== input.confirmPassword
+        )
+          return NextResponse.json(
+            { error: 'Passwords do not match.' },
+            { status: 400 },
+          )
+        setAppLockPassword(input.action === 'disable' ? '' : input.password)
+      }
     }
-  }
 
-  const enabled =
-    input.action === 'disable'
-      ? false
-      : input.action === 'set-password'
-        ? true
-        : status.enabled
-  const unlocked = input.action !== 'lock'
-  const response = NextResponse.json(
-    { enabled, unlocked },
-    { headers: { 'Cache-Control': 'no-store' } },
-  )
-  response.cookies.set(
-    APP_LOCK_COOKIE,
-    enabled && unlocked ? createAppUnlockToken() : '',
-    {
-      httpOnly: true,
-      sameSite: 'strict',
-      secure:
-        (origin ? new URL(origin) : new URL(request.url)).protocol === 'https:',
-      path: '/',
-      ...(!enabled || !unlocked ? { maxAge: 0 } : {}),
-    },
-  )
-  return response
+    const enabled =
+      input.action === 'disable'
+        ? false
+        : input.action === 'set-password'
+          ? true
+          : status.enabled
+    const unlocked = input.action !== 'lock'
+    const response = NextResponse.json(
+      { enabled, unlocked },
+      { headers: { 'Cache-Control': 'no-store' } },
+    )
+    response.cookies.set(
+      APP_LOCK_COOKIE,
+      enabled && unlocked ? createAppUnlockToken() : '',
+      {
+        httpOnly: true,
+        sameSite: 'strict',
+        secure:
+          (origin ? new URL(origin) : new URL(request.url)).protocol ===
+          'https:',
+        path: '/',
+        ...(!enabled || !unlocked ? { maxAge: 0 } : {}),
+      },
+    )
+    return response
+  }
+  if (input.action === 'set-password' || input.action === 'disable') {
+    return withVaultMutationRequest(request, async () => {
+      assertVaultGeneration(generation)
+      return applyAction()
+    })
+  }
+  return applyAction()
 }

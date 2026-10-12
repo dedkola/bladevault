@@ -2,6 +2,11 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { performance } from 'node:perf_hooks'
 import { getLocalDb, getLocalDbPath } from '@/lib/local-db'
 import {
+  getVaultAccessState,
+  VaultAccessError,
+  withVaultWriteSync,
+} from '@/lib/vault-access'
+import {
   APP_LOCK_COOKIE,
   APP_LOCK_HEADER,
   type AppLockStatus,
@@ -9,16 +14,45 @@ import {
 
 const PASSWORD_KEY = 'app_lock_password'
 const SECRET_KEY = 'app_lock_session_secret'
+const SNAPSHOTS = Symbol.for('bladevault.app-lock-access-snapshots')
+
+type LockSnapshot = {
+  generation: string
+  password: string
+  secret: string
+}
+
+function getSnapshots() {
+  const runtime = globalThis as typeof globalThis & {
+    [SNAPSHOTS]?: Map<string, LockSnapshot>
+  }
+  return (runtime[SNAPSHOTS] ??= new Map())
+}
 
 function getLockSettings() {
+  const access = getVaultAccessState()
+  const databasePath = getLocalDbPath()
+  if (access.phase === 'switching') {
+    const snapshot = getSnapshots().get(databasePath)
+    if (!snapshot || snapshot.generation !== access.generation)
+      throw new VaultAccessError('VAULT_RESTORE_BUSY', access)
+    return snapshot
+  }
   const rows = getLocalDb()
     .prepare('SELECT key, value FROM settings WHERE key IN (?, ?)')
     .all(PASSWORD_KEY, SECRET_KEY) as Array<{ key: string; value: string }>
   const values = new Map(rows.map(({ key, value }) => [key, value]))
-  return {
+  const snapshot = {
+    generation: access.generation,
     password: values.get(PASSWORD_KEY) || '',
     secret: values.get(SECRET_KEY) || '',
   }
+  getSnapshots().set(databasePath, snapshot)
+  return snapshot
+}
+
+export function captureAppLockAccessSnapshot(): void {
+  getLockSettings()
 }
 
 export function isAppLockEnabled(): boolean {
@@ -30,12 +64,18 @@ export function appLockPasswordMatches(password: string): boolean {
 }
 
 export function invalidateAppLockSessions(): void {
-  getLocalDb()
-    .prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
-    .run(SECRET_KEY, randomBytes(32).toString('base64url'))
+  withVaultWriteSync(() => {
+    getLocalDb()
+      .prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
+      .run(SECRET_KEY, randomBytes(32).toString('base64url'))
+  })
 }
 
 export function setAppLockPassword(password: string): void {
+  return withVaultWriteSync(() => setAppLockPasswordInternal(password))
+}
+
+function setAppLockPasswordInternal(password: string): void {
   const database = getLocalDb()
   database.transaction(() => {
     if (password) {

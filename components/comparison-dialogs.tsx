@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import Image from 'next/image'
+import Image from '@/components/vault-image'
 import { Copy, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import { useKnives } from '@/components/providers/knives-provider'

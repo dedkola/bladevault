@@ -5,6 +5,7 @@ import {
   processScreenshotBackfill,
 } from '@/lib/webpage-screenshot-service'
 import { getLocalDb } from '@/lib/local-db'
+import { withVaultMutationRequest } from '@/lib/vault-mutation-request'
 
 export const runtime = 'nodejs'
 
@@ -27,7 +28,7 @@ export async function GET(request = new Request('http://localhost')) {
   }
 }
 
-export async function POST(request: Request) {
+async function updateScreenshots(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
 
@@ -57,4 +58,8 @@ export async function POST(request: Request) {
       { status: 400 },
     )
   }
+}
+
+export async function POST(request: Request) {
+  return withVaultMutationRequest(request, () => updateScreenshots(request))
 }

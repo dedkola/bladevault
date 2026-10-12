@@ -6,6 +6,31 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { getUnlockDestination } from '@/lib/app-lock-shared'
 
+export async function resolveUnlockedDestination(
+  value: string | null,
+  fetcher: typeof fetch = fetch,
+): Promise<string> {
+  const destination = getUnlockDestination(value)
+  const pathname = new URL(destination, 'http://bladevault.local').pathname
+  const detail = pathname.match(/^\/collection\/([^/]+)\/?$/)
+  if (!detail) return destination
+
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), 3_000)
+  try {
+    const response = await fetcher(`/api/knives/${detail[1]}`, {
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    return response.status === 404 ? '/collection' : destination
+  } catch {
+    // A temporarily unavailable record route can retry after navigation.
+    return destination
+  } finally {
+    window.clearTimeout(timeout)
+  }
+}
+
 export function AppUnlockForm() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -26,7 +51,7 @@ export function AppUnlockForm() {
         throw new Error(data.error || 'Could not unlock BladeVault.')
       const url = new URL(window.location.href)
       window.location.replace(
-        getUnlockDestination(
+        await resolveUnlockedDestination(
           url.pathname === '/unlock'
             ? url.searchParams.get('next')
             : `${url.pathname}${url.search}${url.hash}`,

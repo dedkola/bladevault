@@ -1,3 +1,4 @@
+import { withVaultMutationRequest } from '@/lib/vault-mutation-request'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import {
@@ -105,19 +106,21 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const locked = requireAppUnlock(request)
-  if (locked) return locked
+  return withVaultMutationRequest(request, async () => {
+    const locked = requireAppUnlock(request)
+    if (locked) return locked
 
-  try {
-    const { id } = await params
-    const body = await request.json()
-    const input = parseMaintenanceInput(body)
-    const event = await addMaintenanceEvent({ knifeId: id, ...input })
+    try {
+      const { id } = await params
+      const body = await request.json()
+      const input = parseMaintenanceInput(body)
+      const event = await addMaintenanceEvent({ knifeId: id, ...input })
 
-    return NextResponse.json({ event }, { status: 201 })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    const status = message.includes('not found') ? 404 : 400
-    return NextResponse.json({ error: message }, { status })
-  }
+      return NextResponse.json({ event }, { status: 201 })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      const status = message.includes('not found') ? 404 : 400
+      return NextResponse.json({ error: message }, { status })
+    }
+  })
 }

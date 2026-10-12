@@ -13,6 +13,10 @@ import {
 } from '@/lib/cloud-backup-shared'
 import { SETTINGS_UPDATED_EVENT } from '@/lib/settings-shared'
 import { createKnife } from '@/tests/fixtures/knife'
+import {
+  INITIAL_VAULT_CLIENT_STATE,
+  setVaultClientState,
+} from '@/lib/vault-client-state'
 
 const { getCloudBackupJob, startCloudBackupArchive } = vi.hoisted(() => ({
   getCloudBackupJob: vi.fn(),
@@ -113,6 +117,7 @@ describe('KnivesProvider background backup', () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
+    setVaultClientState(INITIAL_VAULT_CLIENT_STATE)
     serverJob = { ...IDLE_CLOUD_BACKUP_JOB }
     getCloudBackupJob.mockReset().mockImplementation(async () => serverJob)
     startCloudBackupArchive.mockReset().mockImplementation(async () => {
@@ -167,6 +172,7 @@ describe('KnivesProvider background backup', () => {
 
   afterEach(() => {
     cleanup()
+    setVaultClientState(INITIAL_VAULT_CLIENT_STATE)
     vi.useRealTimers()
     vi.unstubAllGlobals()
   })
@@ -202,6 +208,55 @@ describe('KnivesProvider background backup', () => {
     await advanceTime(60_000)
 
     expect(startCloudBackupArchive).not.toHaveBeenCalled()
+  })
+
+  it('cancels scheduled backups during restore without uploading after it finishes', async () => {
+    await renderProvider()
+    await clickButton('Edit')
+    await act(async () => {
+      setVaultClientState({
+        generation: 'before',
+        phase: 'preparing',
+        readOnly: true,
+      })
+    })
+    await advanceTime(60_000)
+    await clickButton('Backup now')
+    expect(startCloudBackupArchive).not.toHaveBeenCalled()
+    await act(async () => {
+      setVaultClientState({
+        generation: 'after',
+        phase: 'idle',
+        readOnly: false,
+      })
+    })
+    await advanceTime(60_000)
+    expect(startCloudBackupArchive).not.toHaveBeenCalled()
+  })
+
+  it('drops pending follow-up backups when a restore takes over', async () => {
+    await renderProvider()
+    await clickButton('Backup now')
+    await clickButton('Edit')
+    await advanceTime(30_000)
+    await act(async () => {
+      setVaultClientState({
+        generation: 'before',
+        phase: 'preparing',
+        readOnly: true,
+      })
+    })
+    finishServerJob()
+    await advanceTime(5_000)
+    await act(async () => {
+      setVaultClientState({
+        generation: 'after',
+        phase: 'idle',
+        readOnly: false,
+      })
+    })
+    await advanceTime(60_000)
+    expect(startCloudBackupArchive).toHaveBeenCalledOnce()
   })
 
   it('finishes automatic backup without a success toast', async () => {

@@ -1,3 +1,4 @@
+import { withVaultMutationRequest } from '@/lib/vault-mutation-request'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { z } from 'zod/v4'
 import {
@@ -37,28 +38,32 @@ export async function GET(request = new Request('http://localhost')) {
 }
 
 export async function POST(request: Request) {
-  const locked = requireAppUnlock(request)
-  if (locked) return locked
+  return withVaultMutationRequest(request, async () => {
+    const locked = requireAppUnlock(request)
+    if (locked) return locked
 
-  const parsed = updateSchema.safeParse(await request.json().catch(() => null))
-  if (!parsed.success) {
-    return Response.json(
-      { error: parsed.error.issues[0]?.message || 'Invalid MCP settings.' },
-      { status: 400 },
+    const parsed = updateSchema.safeParse(
+      await request.json().catch(() => null),
     )
-  }
+    if (!parsed.success) {
+      return Response.json(
+        { error: parsed.error.issues[0]?.message || 'Invalid MCP settings.' },
+        { status: 400 },
+      )
+    }
 
-  try {
-    return Response.json(
-      { mcp: updateMcpRuntimeSettings(parsed.data) },
-      { headers: { 'Cache-Control': 'no-store' } },
-    )
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Failed to save MCP settings.'
-    return Response.json(
-      { error: message },
-      { status: error instanceof McpSettingManagedError ? 409 : 500 },
-    )
-  }
+    try {
+      return Response.json(
+        { mcp: updateMcpRuntimeSettings(parsed.data) },
+        { headers: { 'Cache-Control': 'no-store' } },
+      )
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to save MCP settings.'
+      return Response.json(
+        { error: message },
+        { status: error instanceof McpSettingManagedError ? 409 : 500 },
+      )
+    }
+  })
 }

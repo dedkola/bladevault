@@ -1,3 +1,4 @@
+import { withVaultWrite } from '@/lib/vault-access'
 import {
   isMaintenanceType,
   MaintenanceEvent,
@@ -79,60 +80,66 @@ function validateMaintenanceInput(
 }
 
 export async function addMaintenanceEvent(input: AddMaintenanceInput) {
-  const storage = getStorage()
-  const knife = await storage.getKnifeById(input.knifeId)
-  if (!knife) {
-    throw new Error(`Knife with id "${input.knifeId}" not found`)
-  }
+  return withVaultWrite(async () => {
+    const storage = getStorage()
+    const knife = await storage.getKnifeById(input.knifeId)
+    if (!knife) {
+      throw new Error(`Knife with id "${input.knifeId}" not found`)
+    }
 
-  const validated = validateMaintenanceInput(input)
-  return storage.addMaintenanceEvent(input.knifeId, validated, {
-    actor: input.origin === 'mcp' ? 'MCP client' : 'You',
-    source:
-      input.origin === 'mcp' ? 'MCP / add_maintenance_event' : 'Maintenance',
+    const validated = validateMaintenanceInput(input)
+    return storage.addMaintenanceEvent(input.knifeId, validated, {
+      actor: input.origin === 'mcp' ? 'MCP client' : 'You',
+      source:
+        input.origin === 'mcp' ? 'MCP / add_maintenance_event' : 'Maintenance',
+    })
   })
 }
 
 export async function updateMaintenanceEvent(input: UpdateMaintenanceInput) {
-  const storage = getStorage()
-  const events = await storage.getMaintenanceEvents(input.knifeId)
-  if (!events.some((event) => event.id === input.eventId)) {
-    throw new Error(
-      `Maintenance event with id "${input.eventId}" not found for knife "${input.knifeId}"`,
-    )
-  }
-
-  const partial: MaintenanceEventUpdate = {}
-
-  if (input.type !== undefined) {
-    if (!isMaintenanceType(input.type)) {
-      throw new Error(`Invalid maintenance type: ${input.type}`)
+  return withVaultWrite(async () => {
+    const storage = getStorage()
+    const events = await storage.getMaintenanceEvents(input.knifeId)
+    if (!events.some((event) => event.id === input.eventId)) {
+      throw new Error(
+        `Maintenance event with id "${input.eventId}" not found for knife "${input.knifeId}"`,
+      )
     }
-    partial.type = input.type
-  }
 
-  if (input.occurredAt !== undefined) {
-    partial.occurredAt = input.occurredAt.trim() || new Date().toISOString()
-  }
+    const partial: MaintenanceEventUpdate = {}
 
-  if (input.notes !== undefined) {
-    partial.notes = input.notes.trim()
-  }
+    if (input.type !== undefined) {
+      if (!isMaintenanceType(input.type)) {
+        throw new Error(`Invalid maintenance type: ${input.type}`)
+      }
+      partial.type = input.type
+    }
 
-  if (input.sharpeningDetails !== undefined) {
-    partial.sharpeningDetails = input.sharpeningDetails
-  }
+    if (input.occurredAt !== undefined) {
+      partial.occurredAt = input.occurredAt.trim() || new Date().toISOString()
+    }
 
-  return storage.updateMaintenanceEvent(input.eventId, partial)
+    if (input.notes !== undefined) {
+      partial.notes = input.notes.trim()
+    }
+
+    if (input.sharpeningDetails !== undefined) {
+      partial.sharpeningDetails = input.sharpeningDetails
+    }
+
+    return storage.updateMaintenanceEvent(input.eventId, partial)
+  })
 }
 
 export async function deleteMaintenanceEvent(knifeId: string, eventId: number) {
-  const storage = getStorage()
-  const events = await storage.getMaintenanceEvents(knifeId)
-  if (!events.some((event) => event.id === eventId)) {
-    throw new Error(
-      `Maintenance event with id "${eventId}" not found for knife "${knifeId}"`,
-    )
-  }
-  await storage.deleteMaintenanceEvent(eventId)
+  return withVaultWrite(async () => {
+    const storage = getStorage()
+    const events = await storage.getMaintenanceEvents(knifeId)
+    if (!events.some((event) => event.id === eventId)) {
+      throw new Error(
+        `Maintenance event with id "${eventId}" not found for knife "${knifeId}"`,
+      )
+    }
+    await storage.deleteMaintenanceEvent(eventId)
+  })
 }

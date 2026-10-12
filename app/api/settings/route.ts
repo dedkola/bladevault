@@ -1,3 +1,4 @@
+import { withVaultMutationRequest } from '@/lib/vault-mutation-request'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import {
@@ -44,35 +45,37 @@ export async function GET(request = new Request('http://localhost')) {
 }
 
 export async function POST(request: Request) {
-  const locked = requireAppUnlock(request)
-  if (locked) return locked
+  return withVaultMutationRequest(request, async () => {
+    const locked = requireAppUnlock(request)
+    if (locked) return locked
 
-  try {
-    const body = (await request.json()) as Partial<AppSettings>
-    const settings = saveSettings(body)
-    const configuredLocalDataPath = getConfiguredLocalDataDirPath()
-    const defaultLocalDataPath = getDefaultLocalDataDirPath()
-    const localDataPath = getLocalDataDirPath()
-    const dockerHostDataMountPath = getDockerHostDataMountPath()
-    const isContainerized = isContainerizedRuntime()
-    return NextResponse.json(
-      {
-        configuredLocalDataPath,
-        dataDirManagedByEnv: isLocalDataDirManagedByEnv(),
-        defaultLocalDataPath,
-        settings,
-        localDataPath,
-        dockerHostDataMountPath,
-        isContainerized,
-      },
-      {
-        headers: {
-          'Cache-Control': 'no-store',
+    try {
+      const body = (await request.json()) as Partial<AppSettings>
+      const settings = saveSettings(body)
+      const configuredLocalDataPath = getConfiguredLocalDataDirPath()
+      const defaultLocalDataPath = getDefaultLocalDataDirPath()
+      const localDataPath = getLocalDataDirPath()
+      const dockerHostDataMountPath = getDockerHostDataMountPath()
+      const isContainerized = isContainerizedRuntime()
+      return NextResponse.json(
+        {
+          configuredLocalDataPath,
+          dataDirManagedByEnv: isLocalDataDirManagedByEnv(),
+          defaultLocalDataPath,
+          settings,
+          localDataPath,
+          dockerHostDataMountPath,
+          isContainerized,
         },
-      },
-    )
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
+        {
+          headers: {
+            'Cache-Control': 'no-store',
+          },
+        },
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      return NextResponse.json({ error: message }, { status: 500 })
+    }
+  })
 }

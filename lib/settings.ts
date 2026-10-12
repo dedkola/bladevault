@@ -1,3 +1,4 @@
+import { withVaultWriteSync } from '@/lib/vault-access'
 import { getLocalDb } from './local-db'
 import {
   APP_THEMES,
@@ -133,39 +134,41 @@ export function getSettings(): AppSettings {
 }
 
 export function saveSettings(settings: Partial<AppSettings>): AppSettings {
-  const current = getSettings()
-  const next = {
-    ...current,
-    ...settings,
-    cardFields:
-      settings.cardFields === undefined
-        ? current.cardFields
-        : normalizeCardFields(settings.cardFields, current.cardFields),
-    timeFormat: normalizeTimeFormat(settings.timeFormat, current.timeFormat),
-  }
-
-  const insert = getDb().prepare(
-    'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-  )
-
-  const entries: Array<[keyof AppSettings, string]> = [
-    ['theme', next.theme],
-    ['timeFormat', next.timeFormat],
-    ['pinnedItemsFirst', next.pinnedItemsFirst ? '1' : '0'],
-    ['cardFields', JSON.stringify(next.cardFields)],
-    ['cloudBackupLastSyncedAt', next.cloudBackupLastSyncedAt],
-    ['cloudAutoBackupEnabled', next.cloudAutoBackupEnabled ? '1' : '0'],
-    ['mcpEnabled', next.mcpEnabled ? '1' : '0'],
-    ['mcpWriteEnabled', next.mcpWriteEnabled ? '1' : '0'],
-    ['customFields', JSON.stringify(next.customFields)],
-  ]
-
-  const transaction = getDb().transaction(() => {
-    for (const [key, value] of entries) {
-      insert.run(SETTINGS_KEYS[key], value)
+  return withVaultWriteSync(() => {
+    const current = getSettings()
+    const next = {
+      ...current,
+      ...settings,
+      cardFields:
+        settings.cardFields === undefined
+          ? current.cardFields
+          : normalizeCardFields(settings.cardFields, current.cardFields),
+      timeFormat: normalizeTimeFormat(settings.timeFormat, current.timeFormat),
     }
-  })
 
-  transaction()
-  return next
+    const insert = getDb().prepare(
+      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+    )
+
+    const entries: Array<[keyof AppSettings, string]> = [
+      ['theme', next.theme],
+      ['timeFormat', next.timeFormat],
+      ['pinnedItemsFirst', next.pinnedItemsFirst ? '1' : '0'],
+      ['cardFields', JSON.stringify(next.cardFields)],
+      ['cloudBackupLastSyncedAt', next.cloudBackupLastSyncedAt],
+      ['cloudAutoBackupEnabled', next.cloudAutoBackupEnabled ? '1' : '0'],
+      ['mcpEnabled', next.mcpEnabled ? '1' : '0'],
+      ['mcpWriteEnabled', next.mcpWriteEnabled ? '1' : '0'],
+      ['customFields', JSON.stringify(next.customFields)],
+    ]
+
+    const transaction = getDb().transaction(() => {
+      for (const [key, value] of entries) {
+        insert.run(SETTINGS_KEYS[key], value)
+      }
+    })
+
+    transaction()
+    return next
+  })
 }

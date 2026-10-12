@@ -7,6 +7,11 @@ const nextConfig: NextConfig = {
   },
 
   images: {
+    localPatterns: [
+      { pathname: '/**', search: '' },
+      // Restore changes the vault version even when an image reuses its path.
+      { pathname: '/api/images/**' },
+    ],
     // The desktop server runs from the installed application directory. Keep
     // its image cache disabled so runtime files never make that directory
     // mutable or create Windows paths too long for NSIS upgrades. Docker uses

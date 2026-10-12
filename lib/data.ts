@@ -1,4 +1,5 @@
 import type { WebpageScreenshot } from '@/lib/webpage-screenshot-shared'
+import { getVaultClientState } from '@/lib/vault-client-state'
 export type Knife = {
   id: string
   name: string
@@ -121,7 +122,9 @@ export type KnifeUpdates = Partial<
 export function getImageUrl(path: string): string {
   if (path.startsWith('http://') || path.startsWith('https://')) return path
   if (path.startsWith('data:image')) return path
-  return `/api/images/${path}`
+  const generation = getVaultClientState().generation
+  const url = `/api/images/${path}`
+  return generation ? `${url}?vault=${encodeURIComponent(generation)}` : url
 }
 
 export function getKnifeSearchableText(knife: Knife): string {
