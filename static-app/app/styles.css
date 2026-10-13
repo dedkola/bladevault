@@ -1,0 +1,12 @@
+@media (min-width: 768px) {
+  .static-preview-layout > aside {
+    top: 2rem;
+    height: calc(100dvh - 2rem);
+  }
+}
+
+@media (max-width: 767px) {
+  .static-preview-layout > .sticky {
+    top: 2rem;
+  }
+}

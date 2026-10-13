@@ -10,3 +10,6 @@ dist
 node_modules
 package-lock.json
 app/.DS_Store
+static-app/out
+static-app/public
+.wrangler
