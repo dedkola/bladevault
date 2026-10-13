@@ -39,3 +39,7 @@ data/images/*/
 AGENTS.md
 /tsconfig.tsbuildinfo
 /compose.override.yaml
+/static-app/out/
+/static-app/public/
+/static-app/tsconfig.tsbuildinfo
+/.wrangler/

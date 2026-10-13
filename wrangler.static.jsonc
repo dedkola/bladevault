@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "bladevault",
+  "account_id": "73026fc18aa364a3cc60305b6c6fb75c",
+  "compatibility_date": "2026-10-13",
+  "workers_dev": false,
+  "preview_urls": true,
+  "assets": {
+    "directory": "./static-app/out",
+    "not_found_handling": "single-page-application",
+  },
+  "routes": [{ "pattern": "bladevault.tkweb.dev", "custom_domain": true }],
+  "build": { "command": "npm run build:static" },
+  "previews": {},
+}

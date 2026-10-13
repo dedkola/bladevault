@@ -46,6 +46,9 @@ jobs:
       - name: Run unit and integration tests
         run: npm run test
 
+      - name: Build Cloudflare static app
+        run: npm run build:static
+
       - name: Install Chromium and system dependencies
         run: npx playwright install --with-deps chromium
 
