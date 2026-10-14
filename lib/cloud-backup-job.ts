@@ -3,7 +3,7 @@ import { constants, createReadStream, createWriteStream } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { Transform, type TransformCallback } from 'node:stream'
+import { PassThrough } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { createGzip } from 'node:zlib'
 import Database from 'better-sqlite3'
@@ -11,7 +11,6 @@ import * as tar from 'tar'
 import { getConfiguredCloudBackupUrl } from '@/lib/cloud-backup-server'
 import { DEFAULT_CLOUD_AUTH_URL, normalizeCloudUrl } from '@/lib/cloud-backup'
 import {
-  BACKUP_UPLOAD_BYTES_PER_SECOND,
   IDLE_CLOUD_BACKUP_JOB,
   type CloudBackupJobState,
 } from '@/lib/cloud-backup-shared'
@@ -37,37 +36,6 @@ function getSavedSyncTime(database: Database.Database): string | null {
     .prepare('SELECT value FROM settings WHERE key = ?')
     .get('cloud_backup_last_synced_at') as { value?: string } | undefined
   return row?.value || null
-}
-
-// Keep both file reads/compression and upload gentle. Backpressure bounds memory,
-// and each small chunk yields to foreground requests instead of monopolizing I/O.
-class PacedBackupStream extends Transform {
-  private timer: ReturnType<typeof setTimeout> | null = null
-
-  constructor() {
-    super({ highWaterMark: 64 * 1024 })
-  }
-
-  _transform(
-    chunk: Buffer,
-    _encoding: BufferEncoding,
-    callback: TransformCallback,
-  ) {
-    const delay = Math.max(
-      1,
-      Math.ceil((chunk.length / BACKUP_UPLOAD_BYTES_PER_SECOND) * 1000),
-    )
-    this.timer = setTimeout(() => {
-      this.timer = null
-      callback(null, chunk)
-    }, delay)
-  }
-
-  _destroy(error: Error | null, callback: (error?: Error | null) => void) {
-    if (this.timer) clearTimeout(this.timer)
-    this.timer = null
-    callback(error)
-  }
 }
 
 function shouldIgnoreEntry(name: string) {
@@ -123,11 +91,9 @@ async function stageBackupFiles(
         ) {
           throw error
         }
-        // Docker volumes and other filesystems may not support clones. Keep
-        // their fallback reads and writes bounded instead of doing a bulk copy.
+        // Stream fallback copies with backpressure when clones are unsupported.
         await pipeline(
           createReadStream(sourcePath, { highWaterMark: 64 * 1024 }),
-          new PacedBackupStream(),
           createWriteStream(destinationPath, { mode: 0o600 }),
         )
       }
@@ -155,7 +121,7 @@ async function createSnapshotArchive(
   const snapshotPath = path.join(snapshotDir, 'bladevault.sqlite')
   const liveDatabasePath = path.join(dataDir, 'bladevault.sqlite')
   // Copy-on-write clones protect the archive from subsequent image replacements
-  // and deletion. Unsupported filesystems use a bounded, paced stream copy.
+  // and deletion. Unsupported filesystems use a stream copy with backpressure.
   // A mutation between the database snapshot and staging may remove a referenced
   // file; retry a fresh snapshot rather than upload an incomplete backup.
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -205,7 +171,6 @@ async function createSnapshotArchive(
 
   await pipeline(
     archive,
-    new PacedBackupStream(),
     createGzip({ level: 1 }),
     createWriteStream(archivePath, { mode: 0o600 }),
   )
@@ -286,16 +251,9 @@ async function refreshJobAccessToken(sessionToken: string): Promise<string> {
 
 async function uploadArchive(archivePath: string, accessToken: string) {
   const { size } = await fs.stat(archivePath)
-  const timeoutMs = Math.min(
-    24 * 60 * 60 * 1000,
-    Math.max(
-      30 * 60 * 1000,
-      (size / BACKUP_UPLOAD_BYTES_PER_SECOND) * 3000 + 5 * 60 * 1000,
-    ),
-  )
-  const signal = AbortSignal.timeout(Math.ceil(timeoutMs))
+  const signal = AbortSignal.timeout(24 * 60 * 60 * 1000)
   const source = createReadStream(archivePath, { highWaterMark: 64 * 1024 })
-  const body = new PacedBackupStream()
+  const body = new PassThrough({ highWaterMark: 64 * 1024 })
   const transfer = pipeline(source, body, { signal })
   // Attach a handler immediately: the disk stream can fail before fetch settles.
   void transfer.catch(() => {})

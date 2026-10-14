@@ -13,5 +13,3 @@ export const IDLE_CLOUD_BACKUP_JOB: CloudBackupJobState = {
   syncedAt: null,
   message: null,
 }
-
-export const BACKUP_UPLOAD_BYTES_PER_SECOND = 2 * 1024 * 1024

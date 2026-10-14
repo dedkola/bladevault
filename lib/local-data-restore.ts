@@ -21,7 +21,6 @@ import {
   rollbackLocalRestore,
   type LocalRestoreJournal,
 } from '@/lib/local-restore-recovery'
-import { PacedRestoreStream } from '@/lib/paced-restore-stream'
 import {
   beginLocalRestore,
   closeLocalDb,
@@ -93,7 +92,6 @@ async function copyDirectoryContents(
           throw error
         await pipeline(
           createReadStream(source, { highWaterMark: 64 * 1024 }),
-          new PacedRestoreStream(),
           createWriteStream(destination, { mode: 0o600 }),
         )
       }
