@@ -7,7 +7,7 @@ import { pipeline } from 'node:stream/promises'
 import * as tar from 'tar'
 import { getConfiguredCloudBackupUrl } from '@/lib/cloud-backup-server'
 import { validateLocalDatabase } from '@/lib/local-data-restore'
-import { PacedRestoreStream } from '@/lib/paced-restore-stream'
+import { RestoreSizeLimitStream } from '@/lib/restore-size-limit-stream'
 
 const MAX_ARCHIVE_BYTES = 20 * 1024 * 1024 * 1024
 const MAX_EXTRACTED_BYTES = 50 * 1024 * 1024 * 1024
@@ -65,7 +65,7 @@ export async function downloadCloudRestoreArchive(
   }
   await pipeline(
     Readable.fromWeb(response.body as import('node:stream/web').ReadableStream),
-    new PacedRestoreStream(MAX_ARCHIVE_BYTES),
+    new RestoreSizeLimitStream(MAX_ARCHIVE_BYTES),
     createWriteStream(archivePath, { mode: 0o600 }),
     { signal },
   )
@@ -105,7 +105,6 @@ export async function prepareCloudRestoreArchive(
   })
   await pipeline(
     createReadStream(archivePath, { highWaterMark: 64 * 1024 }),
-    new PacedRestoreStream(),
     list,
   )
   if (invalid) throw new Error(invalid)
@@ -122,7 +121,6 @@ export async function prepareCloudRestoreArchive(
   })
   await pipeline(
     createReadStream(archivePath, { highWaterMark: 64 * 1024 }),
-    new PacedRestoreStream(),
     extract,
   )
   const dataDir = path.join(extractRoot, topDir)
