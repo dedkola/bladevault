@@ -478,8 +478,8 @@ export function AddKnifeForm() {
           >
             Product URL
           </label>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
+          <div className="flex flex-wrap gap-2 sm:flex-nowrap">
+            <div className="relative min-w-0 basis-full sm:basis-auto sm:flex-1">
               <Link2 className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id={`${formId}-product-url`}

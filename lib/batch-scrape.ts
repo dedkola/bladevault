@@ -40,12 +40,31 @@ const EDGE_PUNCTUATION = new Set([
   '.',
 ])
 
+const CLOSING_BRACKETS: Record<string, string> = {
+  ')': '(',
+  ']': '[',
+  '}': '{',
+}
+
 function stripEdgePunctuation(token: string): string {
   let start = 0
   let end = token.length
 
   while (start < end && EDGE_PUNCTUATION.has(token[start])) start += 1
-  while (end > start && EDGE_PUNCTUATION.has(token[end - 1])) end -= 1
+  while (end > start && EDGE_PUNCTUATION.has(token[end - 1])) {
+    const closing = token[end - 1]
+    const opening = CLOSING_BRACKETS[closing]
+    if (opening) {
+      let balance = 0
+      for (const character of token.slice(start, end)) {
+        if (character === opening) balance += 1
+        if (character === closing) balance -= 1
+      }
+      // A balanced bracket belongs to the URL, such as an IPv6 host or SKU.
+      if (balance >= 0) break
+    }
+    end -= 1
+  }
 
   return token.slice(start, end)
 }

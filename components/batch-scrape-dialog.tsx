@@ -52,6 +52,7 @@ export function BatchScrapeDialog({
   const [input, setInput] = useState('')
   const [items, setItems] = useState<BatchScrapeItem[]>([])
   const [isRunning, setIsRunning] = useState(false)
+  const [isStopping, setIsStopping] = useState(false)
   const [isCopied, setIsCopied] = useState(false)
   const stopRef = useRef(false)
   const runningRef = useRef(false)
@@ -59,6 +60,7 @@ export function BatchScrapeDialog({
   const parsed = useMemo(() => parseBatchLinks(input), [input])
   const failedItems = items.filter((item) => item.status === 'failed')
   const savedCount = items.filter((item) => item.status === 'saved').length
+  const pendingItems = items.filter((item) => item.status === 'pending')
   const handledCount = savedCount + failedItems.length
   const needsInteractive = failedItems.some((item) =>
     isBotProtectionMessage(item.error),
@@ -103,6 +105,7 @@ export function BatchScrapeDialog({
     runningRef.current = true
     stopRef.current = false
     setIsCopied(false)
+    setIsStopping(false)
     setIsRunning(true)
 
     try {
@@ -119,6 +122,7 @@ export function BatchScrapeDialog({
     } finally {
       runningRef.current = false
       setIsRunning(false)
+      setIsStopping(false)
     }
   }
 
@@ -134,6 +138,7 @@ export function BatchScrapeDialog({
 
   const handleStop = () => {
     stopRef.current = true
+    setIsStopping(true)
   }
 
   const handleCopyFailed = async () => {
@@ -149,15 +154,15 @@ export function BatchScrapeDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] grid-cols-1 overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Layers className="h-4 w-4 text-muted-foreground" />
             Batch scrape
           </DialogTitle>
           <DialogDescription>
-            Paste one link per line. Links are imported one at a time — never in
-            parallel — so retailers do not block the run.
+            Paste one link per line. Each link is scraped and saved before the
+            next one starts. Retailers may still require verification.
           </DialogDescription>
         </DialogHeader>
 
@@ -190,8 +195,8 @@ export function BatchScrapeDialog({
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
               <p className="font-medium">Not imported:</p>
               <ul className="mt-1 space-y-0.5 break-all">
-                {parsed.invalid.slice(0, 5).map((entry) => (
-                  <li key={entry}>{entry}</li>
+                {parsed.invalid.slice(0, 5).map((entry, index) => (
+                  <li key={index}>{entry}</li>
                 ))}
               </ul>
               {parsed.invalid.length > 5 && (
@@ -208,9 +213,14 @@ export function BatchScrapeDialog({
                 {handledCount} of {items.length} handled · {savedCount} added
               </p>
               {isRunning && (
-                <Button variant="outline" size="sm" onClick={handleStop}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleStop}
+                  disabled={isStopping}
+                >
                   <Square className="h-3.5 w-3.5" />
-                  Stop
+                  {isStopping ? 'Stopping after this link' : 'Stop'}
                 </Button>
               )}
             </div>
@@ -272,7 +282,7 @@ export function BatchScrapeDialog({
                   {failedItems.length === 1 ? 'link was' : 'links were'} not
                   added.
                 </p>
-                <ul className="space-y-0.5 break-all">
+                <ul className="max-h-28 space-y-0.5 overflow-y-auto break-all">
                   {failedItems.map((item) => (
                     <li key={item.id}>{item.url}</li>
                   ))}
@@ -322,6 +332,11 @@ export function BatchScrapeDialog({
           >
             Close
           </Button>
+          {!isRunning && pendingItems.length > 0 && (
+            <Button size="sm" onClick={() => void run(pendingItems)}>
+              Resume batch
+            </Button>
+          )}
           <Button
             size="sm"
             onClick={handleStart}

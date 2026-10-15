@@ -87,6 +87,19 @@ describe('parseBatchLinks', () => {
       invalid: [],
     })
   })
+
+  it('preserves balanced URL brackets while removing surrounding punctuation', () => {
+    const parsed = parseBatchLinks(
+      '(https://retailer.com/knife-(black)),\nhttps://retailer.com/knife-(black)\nhttps://[2606:4700:4700::1111]',
+    )
+
+    expect(parsed.urls).toEqual([
+      'https://retailer.com/knife-(black)',
+      'https://[2606:4700:4700::1111]/',
+    ])
+    expect(parsed.invalid).toEqual([])
+    expect(parsed.duplicates).toBe(1)
+  })
 })
 
 describe('scrapedProductToKnifeDraft', () => {
@@ -283,5 +296,26 @@ describe('runBatchScrape', () => {
     expect(scrape).toHaveBeenCalledTimes(1)
     expect(results[0].status).toBe('saved')
     expect(results[1].status).toBe('pending')
+  })
+
+  it('continues after a save failure and uses the final URL as the source', async () => {
+    const items = createBatchItems(['https://a.com/one', 'https://b.com/two'])
+    const save = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Vault is read-only'))
+      .mockResolvedValueOnce({})
+
+    const results = await runBatchScrape(items, {
+      scrape: async (url) => ({
+        product: product({ sourceUrl: '' }),
+        finalUrl: `${url}/redirected`,
+      }),
+      save,
+      onUpdate: vi.fn(),
+    })
+
+    expect(results.map((item) => item.status)).toEqual(['failed', 'saved'])
+    expect(results[0].error).toBe('Vault is read-only')
+    expect(save.mock.calls[1][0].sourceUrl).toBe('https://b.com/two/redirected')
   })
 })

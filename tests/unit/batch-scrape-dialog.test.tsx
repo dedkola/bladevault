@@ -59,7 +59,13 @@ async function track(label: string) {
   inFlight -= 1
 }
 
-function installFetch({ failing = [] as string[] } = {}) {
+function installFetch({
+  failing = [],
+  onScrape = async () => {},
+}: {
+  failing?: string[]
+  onScrape?: (target: string) => Promise<void>
+} = {}) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -80,6 +86,7 @@ function installFetch({ failing = [] as string[] } = {}) {
           url: string
         }
         await track(`scrape:${target}`)
+        await onScrape(target)
         if (failing.includes(target)) {
           return jsonResponse(
             {
@@ -112,17 +119,17 @@ function installFetch({ failing = [] as string[] } = {}) {
   )
 }
 
-async function renderDialog() {
-  render(
+async function renderDialog(onOpenChange: (open: boolean) => void = () => {}) {
+  const view = render(
     <KnivesProvider>
-      <BatchScrapeDialog open onOpenChange={() => {}} />
+      <BatchScrapeDialog open onOpenChange={onOpenChange} />
     </KnivesProvider>,
   )
 
   const textarea = await screen.findByRole('textbox', {
     name: 'Product links',
   })
-  return textarea
+  return { textarea, unmount: view.unmount }
 }
 
 describe('BatchScrapeDialog', () => {
@@ -146,7 +153,7 @@ describe('BatchScrapeDialog', () => {
   it('imports pasted links one at a time and never in parallel', async () => {
     installFetch()
     const user = userEvent.setup()
-    const textarea = await renderDialog()
+    const { textarea } = await renderDialog()
 
     await user.type(textarea, 'https://a.com/one\nhttps://b.com/two')
     expect(screen.getByText(/2 links ready/)).toBeInTheDocument()
@@ -171,7 +178,7 @@ describe('BatchScrapeDialog', () => {
     installFetch({ failing: ['https://a.com/one'] })
     const user = userEvent.setup()
     const clipboardWrite = vi.spyOn(navigator.clipboard, 'writeText')
-    const textarea = await renderDialog()
+    const { textarea } = await renderDialog()
 
     await user.type(textarea, 'https://a.com/one https://b.com/two')
     await user.click(screen.getByRole('button', { name: 'Start batch' }))
@@ -197,5 +204,100 @@ describe('BatchScrapeDialog', () => {
       ).toBeInTheDocument(),
     )
     expect(clipboardWrite).toHaveBeenCalledWith('https://a.com/one')
+  })
+
+  it('resumes only waiting links after stopping, without duplicating saved knives', async () => {
+    let finishScrape!: () => void
+    const firstScrape = new Promise<void>((resolve) => {
+      finishScrape = resolve
+    })
+    installFetch({
+      onScrape: async (url) => {
+        if (url === 'https://a.com/one') await firstScrape
+      },
+    })
+    const user = userEvent.setup()
+    const { textarea } = await renderDialog()
+    await user.type(textarea, 'https://a.com/one\nhttps://b.com/two')
+    await user.click(screen.getByRole('button', { name: 'Start batch' }))
+    await user.click(screen.getByRole('button', { name: 'Stop' }))
+    finishScrape()
+
+    await waitFor(() =>
+      expect(screen.getByText(/1 of 2 handled/)).toBeInTheDocument(),
+    )
+    expect(calls).toEqual(['scrape:https://a.com/one', 'save:Knife One'])
+    await user.click(screen.getByRole('button', { name: 'Resume batch' }))
+    await waitFor(() =>
+      expect(screen.getByText(/2 of 2 handled/)).toBeInTheDocument(),
+    )
+    expect(calls).toEqual([
+      'scrape:https://a.com/one',
+      'save:Knife One',
+      'scrape:https://b.com/two',
+      'save:Knife Two',
+    ])
+  })
+
+  it('retries only failed links and keeps previously saved results', async () => {
+    const failing = ['https://a.com/one']
+    installFetch({ failing })
+    const user = userEvent.setup()
+    const { textarea } = await renderDialog()
+    await user.type(textarea, 'https://a.com/one\nhttps://b.com/two')
+    await user.click(screen.getByRole('button', { name: 'Start batch' }))
+    await screen.findByText('1 link was not added.')
+    failing.length = 0
+
+    await user.click(screen.getByRole('button', { name: 'Retry failed' }))
+    await waitFor(() => expect(screen.getByText(/2 added/)).toBeInTheDocument())
+    expect(calls).toEqual([
+      'scrape:https://a.com/one',
+      'scrape:https://b.com/two',
+      'save:Knife Two',
+      'scrape:https://a.com/one',
+      'save:Knife One',
+    ])
+  })
+
+  it('prevents dismissal during a run and allows closing when it completes', async () => {
+    let finishScrape!: () => void
+    installFetch({
+      onScrape: () =>
+        new Promise<void>((resolve) => {
+          finishScrape = resolve
+        }),
+    })
+    const onOpenChange = vi.fn()
+    const user = userEvent.setup()
+    const { textarea } = await renderDialog(onOpenChange)
+    await user.type(textarea, 'https://a.com/one')
+    await user.click(screen.getByRole('button', { name: 'Start batch' }))
+    await waitFor(() => expect(finishScrape).toBeDefined())
+    await user.keyboard('{Escape}')
+    expect(onOpenChange).not.toHaveBeenCalled()
+    finishScrape()
+    await screen.findByText(/1 of 1 handled/)
+    await user.click(screen.getAllByRole('button', { name: 'Close' })[0])
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('does not start another link after the Add page unmounts', async () => {
+    let finishScrape!: () => void
+    installFetch({
+      onScrape: () =>
+        new Promise<void>((resolve) => {
+          finishScrape = resolve
+        }),
+    })
+    const user = userEvent.setup()
+    const { textarea, unmount } = await renderDialog()
+    await user.type(textarea, 'https://a.com/one\nhttps://b.com/two')
+    await user.click(screen.getByRole('button', { name: 'Start batch' }))
+    await waitFor(() => expect(finishScrape).toBeDefined())
+    unmount()
+    finishScrape()
+    await waitFor(() => expect(calls).toContain('save:Knife One'))
+    expect(calls).toEqual(['scrape:https://a.com/one', 'save:Knife One'])
   })
 })
