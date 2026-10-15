@@ -12,6 +12,7 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  Layers,
   Monitor,
   X,
   RefreshCw,
@@ -26,6 +27,8 @@ import {
   readImageFiles,
 } from '@/components/knife-form'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
+import { isBotProtectionMessage } from '@/lib/batch-scrape'
+import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
 import { escapeHtmlAttribute, getSafeExternalUrl } from '@/lib/external-url'
 import { ScrapedProduct } from '@/lib/scrape'
 import { CustomField } from '@/lib/settings-shared'
@@ -78,6 +81,7 @@ export function AddKnifeForm() {
   >(null)
   const [interactiveError, setInteractiveError] = useState<string | null>(null)
   const [customFields, setCustomFields] = useState<CustomField[]>([])
+  const [isBatchOpen, setIsBatchOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -302,15 +306,7 @@ export function AddKnifeForm() {
     }
   }
 
-  const isBotProtectionError = (message: string | null) => {
-    if (!message) return false
-    const lower = message.toLowerCase()
-    return (
-      lower.includes('bot protection') ||
-      lower.includes('security verification') ||
-      lower.includes('cloudflare')
-    )
-  }
+  const isBotProtectionError = isBotProtectionMessage
 
   const resetInteractiveState = () => {
     setInteractiveSessionId(null)
@@ -502,6 +498,15 @@ export function AddKnifeForm() {
             >
               {isScraping && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {isScraping ? 'Scraping' : 'Scrape'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsBatchOpen(true)}
+              disabled={isScraping}
+            >
+              <Layers className="h-3.5 w-3.5" />
+              Batch scrape
             </Button>
           </div>
         </div>
@@ -766,6 +771,8 @@ export function AddKnifeForm() {
           {isSaving ? 'Saving' : 'Save Item'}
         </Button>
       </div>
+
+      <BatchScrapeDialog open={isBatchOpen} onOpenChange={setIsBatchOpen} />
     </div>
   )
 }
