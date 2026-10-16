@@ -164,6 +164,7 @@ export function scrapedProductToKnifeDraft(
     images: batchImageUrls(product.images),
     sourceUrl: product.sourceUrl?.trim() || fallbackUrl,
     pinned: false,
+    sold: false,
   }
 }
 

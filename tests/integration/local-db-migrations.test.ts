@@ -270,4 +270,38 @@ describe('local database migrations', () => {
         .get('custom'),
     ).toBe('Knife Name')
   })
+
+  it('adds the sold column to a vault created before sold status existed', async () => {
+    vault = await createTempVault()
+    const legacy = new Database(path.join(vault.dataDir, 'bladevault.sqlite'))
+    legacy.exec(`
+      CREATE TABLE knives (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        brand TEXT NOT NULL,
+        steel TEXT NOT NULL DEFAULT '',
+        blade_style TEXT NOT NULL,
+        handle_material TEXT NOT NULL,
+        images TEXT NOT NULL,
+        specs TEXT NOT NULL,
+        description TEXT NOT NULL,
+        added_at TEXT NOT NULL
+      );
+      INSERT INTO knives VALUES (
+        'legacy', 'Legacy Knife', 'Maker', '', 'Drop Point', 'G10',
+        '[]', '{}', '', '2025-01-01T00:00:00.000Z'
+      );
+    `)
+    legacy.close()
+
+    const database = getLocalDb()
+    const columns = database
+      .prepare("SELECT name FROM pragma_table_info('knives')")
+      .all() as Array<{ name: string }>
+
+    expect(columns.map(({ name }) => name)).toContain('sold')
+    expect(
+      database.prepare('SELECT sold FROM knives WHERE id = ?').get('legacy'),
+    ).toEqual({ sold: 0 })
+  })
 })

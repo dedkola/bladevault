@@ -65,6 +65,10 @@ export async function PATCH(
         updates.pinned = body.pinned
       }
 
+      if ('sold' in body && typeof body.sold === 'boolean') {
+        updates.sold = body.sold
+      }
+
       if (body.specs && typeof body.specs === 'object') {
         updates.specs = {}
         const specFields = [

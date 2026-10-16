@@ -21,6 +21,7 @@ const baseInput: CreateKnifeInput = {
   description: 'Light folder',
   sourceUrl: '',
   pinned: false,
+  sold: false,
 }
 
 afterEach(async () => {

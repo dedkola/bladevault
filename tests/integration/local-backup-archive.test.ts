@@ -35,6 +35,7 @@ const input: CreateKnifeInput = {
   description: '',
   sourceUrl: '',
   pinned: false,
+  sold: false,
 }
 
 async function removeSafetyBackups(dataDir: string) {

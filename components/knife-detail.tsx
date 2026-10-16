@@ -226,6 +226,7 @@ export default function KnifeDetail({
         handleMaterial: form.handleMaterial,
         description: form.description,
         sourceUrl: form.sourceUrl,
+        sold: form.sold,
         images: form.images.filter((src) => selectedImages.has(src)),
         specs: {
           weight: form.weight,

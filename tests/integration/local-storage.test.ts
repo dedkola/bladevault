@@ -24,6 +24,7 @@ const baseInput: CreateKnifeInput = {
   description: 'Light folder',
   sourceUrl: '',
   pinned: false,
+  sold: false,
 }
 
 afterEach(async () => {
@@ -372,5 +373,52 @@ describe('LocalStorage', () => {
     expect(createdIds[0]).toBe('bugout')
     expect(createdIds[1]).toBe('bugout-2')
     expect(createdIds[createdIds.length - 1]).toBe('bugout-100')
+  })
+
+  it('persists sold through a single edit and both bulk paths', async () => {
+    vault = await createTempVault()
+    const storage = new LocalStorage()
+    const first = await storage.createKnife(baseInput)
+    const second = await storage.createKnife({ ...baseInput, name: 'Bailout' })
+    const third = await storage.createKnife({
+      ...baseInput,
+      name: 'Mini Bugout',
+    })
+
+    expect([first.sold, second.sold, third.sold]).toEqual([false, false, false])
+
+    const edited = await storage.updateKnife(first.id, { sold: true })
+    expect(edited.sold).toBe(true)
+
+    const [byIds] = await storage.bulkUpdateKnives([second.id], { sold: true })
+    expect(byIds.sold).toBe(true)
+
+    const [byItems] = await storage.bulkUpdateKnifeItems(
+      [
+        {
+          id: third.id,
+          updates: { sold: true },
+          expectedUpdatedAt: third.updatedAt,
+          changes: [{ field: 'sold', previousValue: false, value: true }],
+        },
+      ],
+      { operationId: 'op-sold-status', source: 'mcp', transport: 'stdio' },
+    )
+    expect(byItems.sold).toBe(true)
+
+    const stored = await storage.getAllKnives()
+    expect(stored.map(({ name, sold }) => [name, sold])).toEqual(
+      expect.arrayContaining([
+        ['Bugout', true],
+        ['Bailout', true],
+        ['Mini Bugout', true],
+      ]),
+    )
+
+    const unsold = await storage.bulkUpdateKnives(
+      [first.id, second.id, third.id],
+      { sold: false },
+    )
+    expect(unsold.map(({ sold }) => sold)).toEqual([false, false, false])
   })
 })

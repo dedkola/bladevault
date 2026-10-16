@@ -12,6 +12,7 @@ export function KnifeCardDetails({
   bladeLength,
   compact = false,
   variantLabel,
+  sold = false,
   footerAction,
 }: {
   brand: string
@@ -21,6 +22,7 @@ export function KnifeCardDetails({
   bladeLength: string
   compact?: boolean
   variantLabel?: string
+  sold?: boolean
   footerAction?: ReactNode
 }) {
   const lengthInFields =
@@ -48,7 +50,8 @@ export function KnifeCardDetails({
         </div>
         <h2
           className={cn(
-            'mt-1 min-h-10 line-clamp-2 font-medium leading-tight tracking-tight text-foreground',
+            'mt-1 min-h-10 line-clamp-2 font-medium leading-tight tracking-tight',
+            sold ? 'text-muted-foreground' : 'text-foreground',
             compact ? 'text-base' : 'text-lg sm:text-xl',
           )}
           title={`${brand} ${name}`}

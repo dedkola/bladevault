@@ -22,6 +22,7 @@ export type KnifeSummary = {
   designer: string
   country: string
   pinned: boolean
+  sold: boolean
   updatedAt: string
 }
 
@@ -46,6 +47,7 @@ export function summarizeKnife(knife: Knife): KnifeSummary {
     designer: knife.specs.designer ?? '',
     country: knife.specs.country,
     pinned: knife.pinned,
+    sold: knife.sold,
     updatedAt: knife.updatedAt,
   }
 }

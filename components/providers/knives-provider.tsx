@@ -556,6 +556,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
           imageUrls: toImageUrls(draft),
           sourceUrl: draft.sourceUrl,
           pinned: draft.pinned,
+          sold: draft.sold,
         }),
       })
 

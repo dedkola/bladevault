@@ -36,6 +36,7 @@ const input: CreateKnifeInput = {
   description: '',
   sourceUrl: '',
   pinned: false,
+  sold: false,
 }
 
 function request(token: string = sessionToken, signal?: AbortSignal) {

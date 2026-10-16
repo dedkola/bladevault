@@ -44,6 +44,7 @@ const input: CreateKnifeInput = {
   customFields: {},
   sourceUrl: '',
   pinned: false,
+  sold: false,
 }
 
 function pause() {

@@ -29,6 +29,7 @@ export type Knife = {
   description: string
   sourceUrl: string
   pinned: boolean
+  sold: boolean
 }
 
 export type KnifeListItem = Omit<Knife, 'description' | 'images'> & {
@@ -51,6 +52,7 @@ export function toKnifeListItem(knife: Knife): KnifeListItem {
     updatedAt: knife.updatedAt,
     sourceUrl: knife.sourceUrl,
     pinned: knife.pinned,
+    sold: knife.sold,
   }
 }
 
@@ -108,6 +110,7 @@ export type KnifeUpdates = Partial<
     | 'images'
     | 'specs'
     | 'pinned'
+    | 'sold'
     | 'customFields'
   >
 > & {
@@ -115,6 +118,7 @@ export type KnifeUpdates = Partial<
   customFields?: Partial<Knife['customFields']>
   images?: string[]
   pinned?: boolean
+  sold?: boolean
 }
 
 export function getImageUrl(path: string): string {

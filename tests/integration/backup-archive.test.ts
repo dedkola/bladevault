@@ -29,6 +29,7 @@ const input: CreateKnifeInput = {
   description: '',
   sourceUrl: '',
   pinned: false,
+  sold: false,
 }
 
 afterEach(async () => {

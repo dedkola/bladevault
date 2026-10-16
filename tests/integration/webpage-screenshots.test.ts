@@ -37,6 +37,7 @@ const input: CreateKnifeInput = {
   description: 'Original description',
   sourceUrl: 'https://example.com/product',
   pinned: false,
+  sold: false,
 }
 const metadata = {
   sourceUrl: input.sourceUrl,

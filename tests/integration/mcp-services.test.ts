@@ -41,6 +41,7 @@ const baseInput: CreateKnifeInput = {
   description: '',
   sourceUrl: 'https://example.com/bugout',
   pinned: false,
+  sold: false,
 }
 
 afterEach(async () => {

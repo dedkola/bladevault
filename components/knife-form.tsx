@@ -58,6 +58,7 @@ export type KnifeFormData = {
   hardness: string
   price: string
   country: string
+  sold: boolean
   customFields: Record<string, string>
   images: string[]
   sourceUrl: string
@@ -82,6 +83,7 @@ export const EMPTY_KNIFE_FORM: KnifeFormData = {
   hardness: '',
   price: '',
   country: '',
+  sold: false,
   customFields: {},
   images: [],
   sourceUrl: '',
@@ -121,6 +123,7 @@ export function knifeToFormData(
     hardness: knife.specs.hardness ?? '',
     price: knife.specs.price ?? '',
     country: knife.specs.country,
+    sold: knife.sold,
     customFields: seedCustomFields(knife.customFields, customFieldDefinitions),
     images: knife.images,
     sourceUrl: knife.sourceUrl,
@@ -137,6 +140,7 @@ export function formDataToKnifeDraft(
     bladeStyle: form.bladeStyle,
     handleMaterial: form.handleMaterial,
     pinned: false,
+    sold: false,
     images: form.images.filter((src) => selectedImages.has(src)),
     specs: {
       weight: form.weight,
@@ -204,6 +208,7 @@ type KnifeFormFieldsProps = {
   removeImage: (index: number) => void
   imageActions?: React.ReactNode
   wideLayout?: boolean
+  showSold?: boolean
 }
 
 function inputTypeForCustomField(type: CustomFieldType): string {
@@ -265,6 +270,7 @@ export function KnifeFormFields({
   removeImage,
   imageActions,
   wideLayout = false,
+  showSold = false,
 }: KnifeFormFieldsProps) {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const formId = useId()
@@ -380,6 +386,33 @@ export function KnifeFormFields({
           {inputField('Hardness', 'hardness', 'e.g. 58-60 HRC')}
         </div>
       </FormSection>
+
+      {showSold && (
+        <FormSection
+          title="Ownership"
+          description="Mark the item as sold. Sold items stay in the vault and get a marker on their card."
+          className={wideLayout ? 'xl:col-span-2' : undefined}
+        >
+          <label className="flex w-fit cursor-pointer items-start gap-3">
+            <Checkbox
+              aria-label="Sold"
+              checked={form.sold}
+              onCheckedChange={(checked) =>
+                updateField('sold', checked === true)
+              }
+              className="mt-0.5"
+            />
+            <span className="space-y-0.5">
+              <span className="block text-sm xl:text-base font-medium text-foreground">
+                Sold
+              </span>
+              <span className="block text-xs xl:text-sm text-muted-foreground">
+                Nothing is deleted — the item keeps its place in the vault.
+              </span>
+            </span>
+          </label>
+        </FormSection>
+      )}
 
       {customFieldDefinitions.length > 0 && (
         <FormSection
@@ -1174,6 +1207,7 @@ export function KnifeScrapeEditor({
             <div className="flex flex-col min-h-0 overflow-y-auto space-y-4 pr-1">
               <KnifeFormFields
                 wideLayout={!isPreviewVisible}
+                showSold={mode === 'edit'}
                 form={form}
                 updateField={updateField}
                 customFieldDefinitions={customFieldDefinitions}

@@ -62,6 +62,12 @@ function emptyState(): State {
 }
 
 let state: State | null = null
+
+/** Knives saved before sold status existed have no `sold` flag — default them to false. */
+function normalizeKnife(knife: Knife): Knife {
+  return { ...knife, sold: knife.sold === true }
+}
+
 function getState(): State {
   if (state) return state
   try {
@@ -77,7 +83,7 @@ function getState(): State {
       parsed.settings &&
       parsed.maintenance
     )
-      state = parsed
+      state = { ...parsed, knives: parsed.knives.map(normalizeKnife) }
   } catch {
     /* Start empty if session storage is unavailable or invalid. */
   }
@@ -244,6 +250,7 @@ function handle(request: Request, body: Record<string, unknown>) {
         description: text('description'),
         sourceUrl: text('sourceUrl'),
         pinned: body.pinned === true,
+        sold: body.sold === true,
         addedAt: now,
         updatedAt: now,
         specs: {
@@ -313,6 +320,9 @@ function handle(request: Request, body: Record<string, unknown>) {
     if (!knife) return json({ error: 'Knife not found' }, 404)
     if (method === 'GET') return json({ knife })
     if (method === 'PATCH') {
+      const raw = body as Record<string, unknown>
+      if ('sold' in raw && typeof raw.sold !== 'boolean')
+        return json({ error: 'Sold must be true or false' }, 400)
       const updated = updateKnife(knife, body as KnifeUpdates)
       save()
       return json({ knife: updated })

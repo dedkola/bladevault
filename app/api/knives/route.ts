@@ -68,6 +68,7 @@ export async function POST(request: Request) {
         imageUrls: Array.isArray(body.imageUrls) ? body.imageUrls : [],
         sourceUrl: typeof body.sourceUrl === 'string' ? body.sourceUrl : '',
         pinned: typeof body.pinned === 'boolean' ? body.pinned : false,
+        sold: typeof body.sold === 'boolean' ? body.sold : false,
       })
 
       return NextResponse.json({ knife })
