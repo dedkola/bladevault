@@ -25,13 +25,13 @@ describe('collection data helpers', () => {
     const listItem = toKnifeListItem(knife)
 
     expect(listItem).not.toHaveProperty('description')
-    expect(listItem).not.toHaveProperty('sourceUrl')
+    expect(listItem.sourceUrl).toBe(knife.sourceUrl)
     expect(listItem.images).toEqual(['one.webp'])
     expect(getKnifeImageCount(listItem)).toBe(3)
     expect(hydrateKnifeListItem(listItem)).toMatchObject({
       id: knife.id,
       description: '',
-      sourceUrl: '',
+      sourceUrl: knife.sourceUrl,
     })
   })
 

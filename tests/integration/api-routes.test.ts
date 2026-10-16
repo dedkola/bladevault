@@ -86,6 +86,7 @@ describe('knife API routes', () => {
         brand: ' Quiet Carry ',
         specs: { country: ' Taiwan ' },
         customFields: { condition: ' New ' },
+        sourceUrl: 'https://shop.example/native-5',
       }),
     )
     expect(created.status).toBe(200)
@@ -104,7 +105,10 @@ describe('knife API routes', () => {
     }
     expect(listPayload.knives.map((knife) => knife.id)).toEqual(['native-5'])
     expect(listPayload.knives[0]).not.toHaveProperty('description')
-    expect(listPayload.knives[0]).not.toHaveProperty('sourceUrl')
+    expect(listPayload.knives[0]).toHaveProperty(
+      'sourceUrl',
+      'https://shop.example/native-5',
+    )
     expect(listPayload.knives[0]).toMatchObject({ imageCount: 0, images: [] })
 
     const detail = await knifeRoute.GET(
@@ -116,7 +120,7 @@ describe('knife API routes', () => {
       knife: expect.objectContaining({
         id: 'native-5',
         description: '',
-        sourceUrl: '',
+        sourceUrl: 'https://shop.example/native-5',
       }),
     })
 

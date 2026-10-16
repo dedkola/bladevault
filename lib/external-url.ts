@@ -13,6 +13,20 @@ export function getSafeExternalUrl(
   }
 }
 
+/** Comparison key only; keep the original source URL on the record. */
+export function normalizeSourceUrl(
+  value: string | null | undefined,
+): string | null {
+  const safeUrl = getSafeExternalUrl(value?.trim())
+  if (!safeUrl) return null
+
+  const url = new URL(safeUrl)
+  url.hash = ''
+  url.pathname = url.pathname.replace(/\/+$/, '') || '/'
+  url.searchParams.sort()
+  return url.href
+}
+
 export function escapeHtmlAttribute(value: string): string {
   return value
     .replace(/&/g, '&amp;')

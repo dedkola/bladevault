@@ -88,6 +88,17 @@ describe('parseBatchLinks', () => {
     })
   })
 
+  it('deduplicates normalized links while preserving distinct product variants', () => {
+    const parsed = parseBatchLinks(
+      'https://SHOP.example:443/knife/?b=2&a=1#specs https://shop.example/knife?a=1&b=2 https://shop.example/knife?variant=black',
+    )
+    expect(parsed.urls).toEqual([
+      'https://shop.example/knife/?b=2&a=1#specs',
+      'https://shop.example/knife?variant=black',
+    ])
+    expect(parsed.duplicates).toBe(1)
+  })
+
   it('preserves balanced URL brackets while removing surrounding punctuation', () => {
     const parsed = parseBatchLinks(
       '(https://retailer.com/knife-(black)),\nhttps://retailer.com/knife-(black)\nhttps://[2606:4700:4700::1111]',
@@ -158,6 +169,125 @@ describe('isBotProtectionMessage', () => {
 })
 
 describe('runBatchScrape', () => {
+  it('skips saved source URLs before scraping and continues with new products', async () => {
+    const savedSourceUrls = ['  HTTPS://A.COM:443/one/?b=2&a=1#details  ']
+    const scrape = vi.fn(async (url: string) => ({
+      product: product({ sourceUrl: url }),
+    }))
+    const save = vi.fn()
+    const updates: BatchScrapeItem[] = []
+    const results = await runBatchScrape(
+      createBatchItems(['https://a.com/one?a=1&b=2', 'https://b.com/two']),
+      {
+        scrape,
+        save,
+        onUpdate: (item) => updates.push(item),
+        getSavedSourceUrls: () => savedSourceUrls,
+      },
+    )
+
+    expect(results.map((item) => item.status)).toEqual(['skipped', 'saved'])
+    expect(results[0]).toMatchObject({
+      reason: 'Already saved in the collection',
+      error: undefined,
+    })
+    expect(scrape).toHaveBeenCalledExactlyOnceWith('https://b.com/two')
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(updates.map((item) => item.status)).toEqual([
+      'skipped',
+      'scraping',
+      'saving',
+      'saved',
+    ])
+    expect(savedSourceUrls).toEqual([
+      '  HTTPS://A.COM:443/one/?b=2&a=1#details  ',
+    ])
+  })
+
+  it.each(['sourceUrl', 'finalUrl'] as const)(
+    'skips a saved %s discovered by scraping',
+    async (field) => {
+      const results = await runBatchScrape(
+        createBatchItems(['https://short.com/one']),
+        {
+          scrape: async () => ({
+            product: product({
+              name: '',
+              sourceUrl: field === 'sourceUrl' ? 'https://a.com/one/' : '',
+            }),
+            finalUrl: field === 'finalUrl' ? 'https://a.com/one/' : undefined,
+          }),
+          save: vi.fn(() => {
+            throw new Error('must not save')
+          }),
+          getSavedSourceUrls: () => ['https://a.com/one#details'],
+          onUpdate: vi.fn(),
+        },
+      )
+      expect(results[0].status).toBe('skipped')
+    },
+  )
+
+  it('skips aliases saved earlier in the batch even before provider state updates', async () => {
+    const save = vi.fn()
+    const results = await runBatchScrape(
+      createBatchItems([
+        'https://a.com/one',
+        'https://short.com/one',
+        'https://a.com/one/#details',
+      ]),
+      {
+        scrape: async () => ({
+          product: product({ sourceUrl: 'https://a.com/one' }),
+        }),
+        save,
+        onUpdate: vi.fn(),
+      },
+    )
+    expect(results.map((item) => item.status)).toEqual([
+      'saved',
+      'skipped',
+      'skipped',
+    ])
+    expect(save).toHaveBeenCalledTimes(1)
+  })
+
+  it('checks fresh source URLs after scraping, including changes made during the request', async () => {
+    const urls: string[] = []
+    const save = vi.fn()
+    const results = await runBatchScrape(
+      createBatchItems(['https://a.com/one']),
+      {
+        scrape: async () => {
+          urls.push('https://a.com/one')
+          return { product: product({ sourceUrl: '' }) }
+        },
+        save,
+        getSavedSourceUrls: () => urls,
+        onUpdate: vi.fn(),
+      },
+    )
+    expect(results[0].status).toBe('skipped')
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('does not mark failed saves as already saved', async () => {
+    const save = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Save failed'))
+      .mockResolvedValueOnce({})
+    const results = await runBatchScrape(
+      createBatchItems(['https://a.com/one', 'https://short.com/one']),
+      {
+        scrape: async () => ({ product: product() }),
+        save,
+        onUpdate: vi.fn(),
+      },
+    )
+    expect(results.map((item) => item.status)).toEqual(['failed', 'saved'])
+    expect(save).toHaveBeenCalledTimes(2)
+  })
+
   it('imports links one at a time and never in parallel', async () => {
     const urls = [
       'https://a.com/one',
@@ -182,7 +312,7 @@ describe('runBatchScrape', () => {
     const results = await runBatchScrape(items, {
       scrape: async (url) => {
         await track(`scrape:${url}`)
-        return { product: product({ name: `Knife ${url}` }) }
+        return { product: product({ name: `Knife ${url}`, sourceUrl: url }) }
       },
       save: async (draft) => {
         await track(`save:${draft.name}`)
@@ -234,7 +364,7 @@ describe('runBatchScrape', () => {
             'This retailer is showing a security verification page (bot protection).',
           )
         }
-        return { product: product({ name: `Knife ${url}` }) }
+        return { product: product({ name: `Knife ${url}`, sourceUrl: url }) }
       },
       save: async (draft) => {
         saved.push(draft.name)

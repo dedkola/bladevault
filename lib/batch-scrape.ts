@@ -1,9 +1,10 @@
 import type { KnifeDraft } from '@/lib/data'
 import type { ScrapedProduct } from '@/lib/scrape'
 import { isScreenshotDraft } from '@/lib/webpage-screenshot-shared'
+import { normalizeSourceUrl } from '@/lib/external-url'
 
 export type BatchScrapeItemStatus =
-  'pending' | 'scraping' | 'saving' | 'saved' | 'failed'
+  'pending' | 'scraping' | 'saving' | 'saved' | 'skipped' | 'failed'
 
 export type BatchScrapeItem = {
   id: string
@@ -13,6 +14,8 @@ export type BatchScrapeItem = {
   name?: string
   /** Why the link could not be imported. */
   error?: string
+  /** Why the link was skipped without changing the collection. */
+  reason?: string
 }
 
 export type ParsedBatchLinks = {
@@ -97,12 +100,13 @@ export function parseBatchLinks(input: string): ParsedBatchLinks {
       continue
     }
 
-    if (seen.has(parsed.href)) {
+    const key = normalizeSourceUrl(parsed.href)!
+    if (seen.has(key)) {
       duplicates += 1
       continue
     }
 
-    seen.add(parsed.href)
+    seen.add(key)
     urls.push(parsed.href)
   }
 
@@ -183,6 +187,8 @@ export type BatchScrapeDeps = {
   scrape: (url: string) => Promise<BatchScrapeResult>
   save: (draft: KnifeDraft) => Promise<unknown>
   onUpdate: (item: BatchScrapeItem) => void
+  /** Read fresh provider state, including knives added while a batch is running. */
+  getSavedSourceUrls?: () => Iterable<string>
   /** Checked before each link so a run can be stopped without cutting one off. */
   shouldStop?: () => boolean
 }
@@ -198,6 +204,34 @@ export async function runBatchScrape(
   deps: BatchScrapeDeps,
 ): Promise<BatchScrapeItem[]> {
   const results: BatchScrapeItem[] = []
+  const savedUrls = new Set<string>()
+  const rememberUrls = (urls: Iterable<string>) => {
+    for (const url of urls) {
+      const key = normalizeSourceUrl(url)
+      if (key) savedUrls.add(key)
+    }
+  }
+  const isSaved = (urls: string[]) => {
+    const existingUrls = new Set(
+      Array.from(deps.getSavedSourceUrls?.() ?? [], normalizeSourceUrl).filter(
+        (key): key is string => key !== null,
+      ),
+    )
+    return urls.some((url) => {
+      const key = normalizeSourceUrl(url)
+      return key !== null && (savedUrls.has(key) || existingUrls.has(key))
+    })
+  }
+  const skip = (item: BatchScrapeItem) => {
+    const skipped: BatchScrapeItem = {
+      ...item,
+      status: 'skipped',
+      error: undefined,
+      reason: 'Already saved in the collection',
+    }
+    deps.onUpdate(skipped)
+    results.push(skipped)
+  }
 
   for (const item of items) {
     if (deps.shouldStop?.()) {
@@ -205,16 +239,28 @@ export async function runBatchScrape(
       continue
     }
 
+    if (isSaved([item.url])) {
+      skip(item)
+      continue
+    }
+
     const scraping: BatchScrapeItem = {
       ...item,
       status: 'scraping',
       error: undefined,
+      reason: undefined,
     }
     deps.onUpdate(scraping)
 
     try {
       const { product, finalUrl } = await deps.scrape(item.url)
       const draft = scrapedProductToKnifeDraft(product, finalUrl ?? item.url)
+      const sourceUrls = [item.url, finalUrl ?? item.url, draft.sourceUrl]
+
+      if (isSaved(sourceUrls)) {
+        skip({ ...scraping, name: draft.name || undefined })
+        continue
+      }
 
       if (!draft.name) {
         throw new Error('No product name was found on the page')
@@ -228,6 +274,7 @@ export async function runBatchScrape(
       deps.onUpdate(saving)
 
       await deps.save(draft)
+      rememberUrls(sourceUrls)
 
       const saved: BatchScrapeItem = { ...saving, status: 'saved' }
       deps.onUpdate(saved)
