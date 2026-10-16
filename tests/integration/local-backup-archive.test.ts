@@ -35,6 +35,7 @@ const input: CreateKnifeInput = {
   description: '',
   sourceUrl: '',
   pinned: false,
+  sold: false,
 }
 
 async function removeSafetyBackups(dataDir: string) {
@@ -139,7 +140,7 @@ describe('local backup archive route', () => {
   it('exports, inspects, and restores the full portable vault', async () => {
     vault = await createTempVault('bladevault-local-backup-')
     let storage = new LocalStorage()
-    const knife = await storage.createKnife(input)
+    const knife = await storage.createKnife({ ...input, sold: true })
     await storage.addToCompare(knife.id)
     mutateComparison({
       action: 'create',
@@ -225,7 +226,13 @@ describe('local backup archive route', () => {
       customFields: { condition: 'Used' },
       images: ['portable-backup-knife/image-01.png'],
       name: 'Portable Backup Knife',
+      sold: true,
     })
+    expect(
+      getLocalDb()
+        .prepare('SELECT sold FROM knives WHERE id = ?')
+        .get(knife.id),
+    ).toEqual({ sold: 1 })
     expect(await storage.getCompareList()).toEqual([knife.id])
     expect(getComparisons()).toEqual(
       expect.arrayContaining([

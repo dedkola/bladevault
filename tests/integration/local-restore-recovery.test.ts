@@ -80,6 +80,7 @@ describe('local restore rollback and recovery', () => {
       description: '',
       sourceUrl: '',
       pinned: false,
+      sold: false,
       imageUrls: ['data:image/png;base64,YmFja3VwIGltYWdl'],
     })
     const source = await fs.mkdtemp(

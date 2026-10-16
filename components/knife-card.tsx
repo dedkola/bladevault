@@ -1,7 +1,7 @@
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import Image from '@/components/vault-image'
 import { memo, useCallback, useState } from 'react'
-import { Check, ImageIcon, Pin, Scale } from 'lucide-react'
+import { Check, ImageIcon, Pin, Scale, Tag } from 'lucide-react'
 import { getImageUrl, getKnifeImageCount, Knife } from '@/lib/data'
 import { cn } from '@/lib/utils'
 import { ImageCountBadge } from '@/components/image-count-badge'
@@ -149,7 +149,10 @@ export const KnifeCard = memo(function KnifeCard({
               priority={eager}
               fetchPriority={eager ? 'high' : undefined}
               sizes={imageSizes}
-              className="object-contain p-2 transition-transform duration-500 group-hover/card:scale-[1.03]"
+              className={cn(
+                'object-contain p-2 transition-transform duration-500 group-hover/card:scale-[1.03]',
+                knife.sold && 'opacity-55 grayscale-[0.55]',
+              )}
               referrerPolicy="no-referrer"
               decoding="async"
             />
@@ -157,6 +160,17 @@ export const KnifeCard = memo(function KnifeCard({
             <div className="flex h-full w-full items-center justify-center bg-muted/50">
               <ImageIcon className="size-8 text-muted-foreground/50" />
             </div>
+          )}
+          {knife.sold && (
+            <span
+              className={cn(
+                'pointer-events-none absolute top-2 z-20 inline-flex items-center gap-1 rounded-md border border-border bg-background/95 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground',
+                selectionMode ? 'left-10' : 'left-2',
+              )}
+            >
+              <Tag aria-hidden="true" className="size-3" />
+              Sold
+            </span>
           )}
           {selectionMode && (
             <span
@@ -187,6 +201,7 @@ export const KnifeCard = memo(function KnifeCard({
           bladeLength={bladeLength}
           compact={isCompact}
           variantLabel={variantLabel}
+          sold={knife.sold}
         />
       </Card>
 

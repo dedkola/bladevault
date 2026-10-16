@@ -128,6 +128,7 @@ export function rowToKnife(row: Record<string, unknown>): Knife {
         : addedAt,
     sourceUrl: String(row.source_url ?? ''),
     pinned: Boolean(row.pinned),
+    sold: Boolean(row.sold),
   }
 }
 
@@ -301,6 +302,14 @@ function computeUpdateChanges(
       field: 'Pinned',
       before: String(existing.pinned),
       after: String(updated.pinned),
+    })
+  }
+
+  if (existing.sold !== updated.sold) {
+    changes.push({
+      field: 'Sold',
+      before: String(existing.sold),
+      after: String(updated.sold),
     })
   }
 
@@ -598,14 +607,15 @@ export class LocalStorage implements Storage {
         updatedAt,
         sourceUrl: normalizedInput.sourceUrl ?? '',
         pinned: normalizedInput.pinned ?? false,
+        sold: normalizedInput.sold ?? false,
       }
 
       const database = getDb()
       const create = database.transaction(() => {
         database
           .prepare(
-            `INSERT INTO knives (id, name, brand, steel, blade_style, handle_material, images, specs, custom_fields, description, added_at, updated_at, source_url, pinned)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO knives (id, name, brand, steel, blade_style, handle_material, images, specs, custom_fields, description, added_at, updated_at, source_url, pinned, sold)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             newKnife.id,
@@ -622,6 +632,7 @@ export class LocalStorage implements Storage {
             newKnife.updatedAt,
             newKnife.sourceUrl,
             newKnife.pinned ? 1 : 0,
+            newKnife.sold ? 1 : 0,
           )
         database
           .prepare(
@@ -731,6 +742,7 @@ export class LocalStorage implements Storage {
         images: processedImages,
         webpageScreenshot: getScreenshotMetadata(processedImages),
         pinned: normalizedUpdates.pinned ?? existing.pinned,
+        sold: normalizedUpdates.sold ?? existing.sold,
         updatedAt,
         specs: {
           ...existing.specs,
@@ -750,7 +762,7 @@ export class LocalStorage implements Storage {
       const update = database.transaction(() => {
         const updateStatement = database.prepare(
           `UPDATE knives
-         SET name = ?, brand = ?, steel = ?, blade_style = ?, handle_material = ?, images = ?, specs = ?, custom_fields = ?, description = ?, updated_at = ?, source_url = ?, pinned = ?
+         SET name = ?, brand = ?, steel = ?, blade_style = ?, handle_material = ?, images = ?, specs = ?, custom_fields = ?, description = ?, updated_at = ?, source_url = ?, pinned = ?, sold = ?
          WHERE id = ?${options.expectedUpdatedAt ? ' AND updated_at = ?' : ''}`,
         )
         const parameters = [
@@ -766,6 +778,7 @@ export class LocalStorage implements Storage {
           updated.updatedAt,
           updated.sourceUrl,
           updated.pinned ? 1 : 0,
+          updated.sold ? 1 : 0,
           id,
           ...(options.expectedUpdatedAt ? [existing.updatedAt] : []),
         ]
@@ -868,7 +881,7 @@ export class LocalStorage implements Storage {
       const normalizedUpdates = normalizeKnifeTextFields(updates)
       const updateStatement = database.prepare(
         `UPDATE knives
-       SET name = ?, brand = ?, steel = ?, blade_style = ?, handle_material = ?, images = ?, specs = ?, custom_fields = ?, description = ?, updated_at = ?, source_url = ?, pinned = ?
+       SET name = ?, brand = ?, steel = ?, blade_style = ?, handle_material = ?, images = ?, specs = ?, custom_fields = ?, description = ?, updated_at = ?, source_url = ?, pinned = ?, sold = ?
        WHERE id = ?`,
       )
       const activityStatement = database.prepare(
@@ -908,6 +921,7 @@ export class LocalStorage implements Storage {
               normalizedUpdates.images ?? existing.images,
             ),
             pinned: normalizedUpdates.pinned ?? existing.pinned,
+            sold: normalizedUpdates.sold ?? existing.sold,
             updatedAt: nextUpdatedAt(existing.updatedAt),
             specs: {
               ...existing.specs,
@@ -937,6 +951,7 @@ export class LocalStorage implements Storage {
             updated.updatedAt,
             updated.sourceUrl,
             updated.pinned ? 1 : 0,
+            updated.sold ? 1 : 0,
             id,
           )
           activityStatement.run(id, updated.updatedAt)
@@ -981,7 +996,7 @@ export class LocalStorage implements Storage {
       )
       const updateStatement = database.prepare(
         `UPDATE knives
-       SET name = ?, brand = ?, steel = ?, blade_style = ?, handle_material = ?, images = ?, specs = ?, custom_fields = ?, description = ?, updated_at = ?, source_url = ?, pinned = ?
+       SET name = ?, brand = ?, steel = ?, blade_style = ?, handle_material = ?, images = ?, specs = ?, custom_fields = ?, description = ?, updated_at = ?, source_url = ?, pinned = ?, sold = ?
        WHERE id = ?`,
       )
       const activityStatement = database.prepare(
@@ -1022,6 +1037,7 @@ export class LocalStorage implements Storage {
             description: updates.description ?? existing.description,
             sourceUrl: updates.sourceUrl ?? existing.sourceUrl,
             pinned: updates.pinned ?? existing.pinned,
+            sold: updates.sold ?? existing.sold,
             updatedAt,
             specs: { ...existing.specs, ...(updates.specs ?? {}) },
             customFields: {
@@ -1048,6 +1064,7 @@ export class LocalStorage implements Storage {
             updated.updatedAt,
             updated.sourceUrl,
             updated.pinned ? 1 : 0,
+            updated.sold ? 1 : 0,
             updated.id,
           )
           activityStatement.run(updated.id, updated.updatedAt)
@@ -1454,8 +1471,8 @@ export class LocalStorage implements Storage {
       const migrate = database.transaction(() => {
         database
           .prepare(
-            `INSERT OR REPLACE INTO knives (id, name, brand, steel, blade_style, handle_material, images, specs, custom_fields, description, added_at, updated_at, source_url, pinned)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT OR REPLACE INTO knives (id, name, brand, steel, blade_style, handle_material, images, specs, custom_fields, description, added_at, updated_at, source_url, pinned, sold)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             normalizedKnife.id,
@@ -1472,6 +1489,7 @@ export class LocalStorage implements Storage {
             restoredUpdatedAt,
             normalizedKnife.sourceUrl,
             normalizedKnife.pinned ? 1 : 0,
+            normalizedKnife.sold ? 1 : 0,
           )
         database
           .prepare(

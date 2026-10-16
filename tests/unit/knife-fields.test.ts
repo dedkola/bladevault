@@ -49,4 +49,30 @@ describe('MCP knife fields', () => {
       getKnifeFieldDefinitions([]).some(({ path }) => path === 'images'),
     ).toBe(false)
   })
+
+  it('exposes sold as a writable boolean field for MCP changes', () => {
+    const result = validateKnifeChanges({
+      knife: createKnife(),
+      customFields: [],
+      changes: [{ field: 'sold', value: true }],
+    })
+
+    expect(result.changes).toEqual([
+      { field: 'sold', previousValue: false, value: true },
+    ])
+    expect(result.updates).toEqual({ sold: true })
+    expect(
+      getKnifeFieldDefinitions([]).some(
+        ({ path, type }) => path === 'sold' && type === 'boolean',
+      ),
+    ).toBe(true)
+
+    expect(() =>
+      validateKnifeChanges({
+        knife: createKnife(),
+        customFields: [],
+        changes: [{ field: 'sold', value: 'yes' }],
+      }),
+    ).toThrow('Sold must be true or false')
+  })
 })

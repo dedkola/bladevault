@@ -29,6 +29,7 @@ export function createKnife(overrides: Partial<Knife> = {}): Knife {
     description: 'Lightweight everyday carry knife.',
     sourceUrl: 'https://example.com/bugout',
     pinned: false,
+    sold: false,
     ...overrides,
   }
 }

@@ -389,6 +389,12 @@ function migrateSchema(database: Database.Database) {
       `ALTER TABLE knives ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0`,
     )
   }
+  const hasSold = columns.some((col) => col.name === 'sold')
+  if (!hasSold) {
+    database.exec(
+      `ALTER TABLE knives ADD COLUMN sold INTEGER NOT NULL DEFAULT 0`,
+    )
+  }
   const hasUpdatedAt = columns.some((col) => col.name === 'updated_at')
   if (!hasUpdatedAt) {
     database.exec(`ALTER TABLE knives ADD COLUMN updated_at TEXT`)
@@ -752,7 +758,8 @@ function initSchema(database: Database.Database) {
       added_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       source_url TEXT NOT NULL DEFAULT '',
-      pinned INTEGER NOT NULL DEFAULT 0
+      pinned INTEGER NOT NULL DEFAULT 0,
+      sold INTEGER NOT NULL DEFAULT 0
     );
   `)
 

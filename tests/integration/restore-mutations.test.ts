@@ -56,6 +56,7 @@ const input: CreateKnifeInput = {
   specs: { weight: '', overallLength: '', bladeLength: '', country: '' },
   customFields: {},
   pinned: false,
+  sold: false,
   imageUrls: [image('snapshot image 1'), image('snapshot image 2')],
 }
 

@@ -74,6 +74,13 @@ const BUILT_IN_KNIFE_FIELDS = [
     writable: true,
   },
   {
+    path: 'sold',
+    label: 'Sold',
+    type: 'boolean',
+    aliases: [],
+    writable: true,
+  },
+  {
     path: 'specs.weight',
     label: 'Weight',
     type: 'text',
@@ -239,6 +246,7 @@ export function getKnifeFieldValue(
   }
 
   if (field === 'pinned') return knife.pinned
+  if (field === 'sold') return knife.sold
   if (
     field === 'id' ||
     field === 'name' ||
@@ -392,6 +400,8 @@ export function validateKnifeChanges({
       }
     } else if (definition.path === 'pinned') {
       updates.pinned = Boolean(value)
+    } else if (definition.path === 'sold') {
+      updates.sold = Boolean(value)
     } else {
       Object.assign(updates, { [definition.path]: String(value) })
     }

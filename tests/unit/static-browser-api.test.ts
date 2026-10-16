@@ -120,4 +120,39 @@ describe('empty static browser app', () => {
     expect(await asset.json()).toEqual({ asset: true })
     expect(nativeFetch).toHaveBeenCalledWith('/logo.svg', undefined)
   })
+
+  it('reports sold as a boolean and refuses a non-boolean value', async () => {
+    const created = await request('/api/knives', 'POST', { name: 'Sold test' })
+    const { id } = created.data.knife
+    expect(created.data.knife.sold).toBe(false)
+
+    const rejected = await request(`/api/knives/${id}`, 'PATCH', {
+      sold: 'false',
+    })
+    expect(rejected.status).toBe(400)
+    expect((await request(`/api/knives/${id}`)).data.knife.sold).toBe(false)
+
+    const edited = await request(`/api/knives/${id}`, 'PATCH', { sold: true })
+    expect(edited.data.knife.sold).toBe(true)
+    expect((await request('/api/knives')).data.knives[0].sold).toBe(true)
+  })
+
+  it('defaults sold to false for session records saved before the field existed', async () => {
+    const created = await request('/api/knives', 'POST', { name: 'Legacy' })
+    const { id } = created.data.knife
+
+    const key = sessionStorage.key(0) as string
+    const stored = JSON.parse(sessionStorage.getItem(key) as string)
+    stored.knives = stored.knives.map((knife: Record<string, unknown>) => {
+      const { sold: _sold, ...rest } = knife
+      return rest
+    })
+    expect(JSON.stringify(stored.knives)).not.toContain('sold')
+
+    resetSession()
+    sessionStorage.setItem(key, JSON.stringify(stored))
+
+    expect((await request(`/api/knives/${id}`)).data.knife.sold).toBe(false)
+    expect((await request('/api/knives')).data.knives[0].sold).toBe(false)
+  })
 })
