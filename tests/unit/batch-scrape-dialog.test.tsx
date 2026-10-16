@@ -6,6 +6,8 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
 import { KnivesProvider } from '@/components/providers/knives-provider'
+import { toKnifeListItem, type Knife } from '@/lib/data'
+import { createKnife } from '@/tests/fixtures/knife'
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -62,9 +64,11 @@ async function track(label: string) {
 function installFetch({
   failing = [],
   onScrape = async () => {},
+  knives = [],
 }: {
   failing?: string[]
   onScrape?: (target: string) => Promise<void>
+  knives?: Knife[]
 } = {}) {
   vi.stubGlobal(
     'fetch',
@@ -76,7 +80,7 @@ function installFetch({
         return jsonResponse({ settings: { customFields: [] } })
       }
       if (url === '/api/knives' && method === 'GET') {
-        return jsonResponse({ knives: [] })
+        return jsonResponse({ knives: knives.map(toKnifeListItem) })
       }
       if (url === '/api/compare' && method === 'GET') {
         return jsonResponse({ compareIds: [] })
@@ -148,6 +152,36 @@ describe('BatchScrapeDialog', () => {
     cleanup()
     vi.unstubAllGlobals()
     delete (navigator as { clipboard?: unknown }).clipboard
+  })
+
+  it('shows existing links as skipped without scraping or saving them, including on repeat runs', async () => {
+    const existing = createKnife({
+      sourceUrl: ' HTTPS://A.COM:443/one/#details ',
+      name: 'My edited knife',
+      description: 'Keep my notes',
+    })
+    const before = structuredClone(existing)
+    installFetch({ knives: [existing] })
+    const user = userEvent.setup()
+    const { textarea } = await renderDialog()
+
+    await user.type(textarea, 'https://a.com/one\nhttps://b.com/two')
+    await user.click(screen.getByRole('button', { name: 'Start batch' }))
+    await screen.findByText(/2 of 2 handled · 1 added · 1 skipped/)
+    expect(screen.getByText('Skipped')).toBeInTheDocument()
+    expect(
+      screen.getByText('Already saved in the collection'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Retry failed' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('progressbar')).toHaveAttribute('value', '2')
+    expect(calls).toEqual(['scrape:https://b.com/two', 'save:Knife Two'])
+
+    await user.click(screen.getByRole('button', { name: 'Import again' }))
+    await screen.findByText(/2 of 2 handled · 0 added · 2 skipped/)
+    expect(calls).toEqual(['scrape:https://b.com/two', 'save:Knife Two'])
+    expect(existing).toEqual(before)
   })
 
   it('imports pasted links one at a time and never in parallel', async () => {
@@ -247,6 +281,11 @@ describe('BatchScrapeDialog', () => {
     await user.type(textarea, 'https://a.com/one\nhttps://b.com/two')
     await user.click(screen.getByRole('button', { name: 'Start batch' }))
     await screen.findByText('1 link was not added.')
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Retry failed' }),
+      ).toBeEnabled(),
+    )
     failing.length = 0
 
     await user.click(screen.getByRole('button', { name: 'Retry failed' }))

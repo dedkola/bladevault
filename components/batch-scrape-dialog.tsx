@@ -9,6 +9,7 @@ import {
   Loader2,
   RefreshCw,
   Square,
+  SkipForward,
 } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
@@ -41,6 +42,7 @@ const STATUS_LABELS: Record<BatchScrapeItem['status'], string> = {
   scraping: 'Scraping',
   saving: 'Saving',
   saved: 'Saved',
+  skipped: 'Skipped',
   failed: 'Failed',
 }
 
@@ -48,7 +50,8 @@ export function BatchScrapeDialog({
   open,
   onOpenChange,
 }: BatchScrapeDialogProps) {
-  const { addKnife } = useKnives()
+  const { addKnife, knives, isLoading } = useKnives()
+  const knivesRef = useRef(knives)
   const [input, setInput] = useState('')
   const [items, setItems] = useState<BatchScrapeItem[]>([])
   const [isRunning, setIsRunning] = useState(false)
@@ -60,11 +63,16 @@ export function BatchScrapeDialog({
   const parsed = useMemo(() => parseBatchLinks(input), [input])
   const failedItems = items.filter((item) => item.status === 'failed')
   const savedCount = items.filter((item) => item.status === 'saved').length
+  const skippedCount = items.filter((item) => item.status === 'skipped').length
   const pendingItems = items.filter((item) => item.status === 'pending')
-  const handledCount = savedCount + failedItems.length
+  const handledCount = savedCount + skippedCount + failedItems.length
   const needsInteractive = failedItems.some((item) =>
     isBotProtectionMessage(item.error),
   )
+
+  useEffect(() => {
+    knivesRef.current = knives
+  }, [knives])
 
   useEffect(() => {
     return () => {
@@ -100,7 +108,7 @@ export function BatchScrapeDialog({
   }
 
   const run = async (batch: BatchScrapeItem[]) => {
-    if (runningRef.current || batch.length === 0) return
+    if (runningRef.current || isLoading || batch.length === 0) return
 
     runningRef.current = true
     stopRef.current = false
@@ -112,6 +120,8 @@ export function BatchScrapeDialog({
       await runBatchScrape(batch, {
         scrape: scrapeUrl,
         save: (draft) => addKnife(draft),
+        getSavedSourceUrls: () =>
+          knivesRef.current.map((knife) => knife.sourceUrl),
         onUpdate: (item) => {
           setItems((prev) =>
             prev.map((current) => (current.id === item.id ? item : current)),
@@ -162,7 +172,8 @@ export function BatchScrapeDialog({
           </DialogTitle>
           <DialogDescription>
             Paste one link per line. Each link is scraped and saved before the
-            next one starts. Retailers may still require verification.
+            next one starts. Already-saved links are skipped. Retailers may
+            still require verification.
           </DialogDescription>
         </DialogHeader>
 
@@ -211,6 +222,7 @@ export function BatchScrapeDialog({
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-medium" aria-live="polite">
                 {handledCount} of {items.length} handled · {savedCount} added
+                {skippedCount > 0 ? ` · ${skippedCount} skipped` : ''}
               </p>
               {isRunning && (
                 <Button
@@ -242,6 +254,9 @@ export function BatchScrapeDialog({
                     {item.status === 'saved' && (
                       <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                     )}
+                    {item.status === 'skipped' && (
+                      <SkipForward className="h-3.5 w-3.5 text-muted-foreground" />
+                    )}
                     {item.status === 'failed' && (
                       <AlertCircle className="h-3.5 w-3.5 text-destructive" />
                     )}
@@ -257,11 +272,17 @@ export function BatchScrapeDialog({
                     <span className="block truncate">
                       {item.name || item.url}
                     </span>
-                    {item.status === 'saved' && item.name ? (
+                    {(item.status === 'saved' || item.status === 'skipped') &&
+                    item.name ? (
                       <span className="block truncate text-muted-foreground">
                         {item.url}
                       </span>
                     ) : null}
+                    {item.status === 'skipped' && (
+                      <span className="block text-muted-foreground">
+                        {item.reason}
+                      </span>
+                    )}
                     {item.status === 'failed' && (
                       <span className="block break-words text-destructive">
                         {item.error}
@@ -333,14 +354,18 @@ export function BatchScrapeDialog({
             Close
           </Button>
           {!isRunning && pendingItems.length > 0 && (
-            <Button size="sm" onClick={() => void run(pendingItems)}>
+            <Button
+              size="sm"
+              onClick={() => void run(pendingItems)}
+              disabled={isLoading}
+            >
               Resume batch
             </Button>
           )}
           <Button
             size="sm"
             onClick={handleStart}
-            disabled={isRunning || parsed.urls.length === 0}
+            disabled={isRunning || isLoading || parsed.urls.length === 0}
           >
             {isRunning ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />

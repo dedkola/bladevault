@@ -31,10 +31,7 @@ export type Knife = {
   pinned: boolean
 }
 
-export type KnifeListItem = Omit<
-  Knife,
-  'description' | 'sourceUrl' | 'images'
-> & {
+export type KnifeListItem = Omit<Knife, 'description' | 'images'> & {
   images: string[]
   imageCount: number
 }
@@ -52,6 +49,7 @@ export function toKnifeListItem(knife: Knife): KnifeListItem {
     customFields: knife.customFields,
     addedAt: knife.addedAt,
     updatedAt: knife.updatedAt,
+    sourceUrl: knife.sourceUrl,
     pinned: knife.pinned,
   }
 }
@@ -60,7 +58,7 @@ export function hydrateKnifeListItem(knife: KnifeListItem): Knife {
   return {
     ...knife,
     description: '',
-    sourceUrl: '',
+    sourceUrl: knife.sourceUrl ?? '',
   }
 }
 
