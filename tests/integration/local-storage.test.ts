@@ -1,6 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { closeLocalDb, getLocalDb } from '@/lib/local-db'
 import { LocalStorage } from '@/lib/storage/local'
 import type { CreateKnifeInput } from '@/lib/storage/types'
 import { createKnife } from '@/tests/fixtures/knife'
@@ -406,6 +407,15 @@ describe('LocalStorage', () => {
     )
     expect(byItems.sold).toBe(true)
 
+    expect(getLocalDb().prepare('SELECT id, sold FROM knives').all()).toEqual(
+      expect.arrayContaining([
+        { id: first.id, sold: 1 },
+        { id: second.id, sold: 1 },
+        { id: third.id, sold: 1 },
+      ]),
+    )
+    closeLocalDb()
+
     const stored = await storage.getAllKnives()
     expect(stored.map(({ name, sold }) => [name, sold])).toEqual(
       expect.arrayContaining([
@@ -420,5 +430,47 @@ describe('LocalStorage', () => {
       { sold: false },
     )
     expect(unsold.map(({ sold }) => sold)).toEqual([false, false, false])
+    closeLocalDb()
+    expect(getLocalDb().prepare('SELECT sold FROM knives').all()).toEqual([
+      { sold: 0 },
+      { sold: 0 },
+      { sold: 0 },
+    ])
+    expect((await storage.getAllKnives()).every((knife) => !knife.sold)).toBe(
+      true,
+    )
+  })
+
+  it('preserves sold on unrelated edits and restores snapshots from before sold existed', async () => {
+    vault = await createTempVault()
+    const storage = new LocalStorage()
+    const knife = await storage.createKnife({ ...baseInput, sold: true })
+    expect(
+      getLocalDb()
+        .prepare('SELECT sold FROM knives WHERE id = ?')
+        .get(knife.id),
+    ).toEqual({ sold: 1 })
+
+    await storage.updateKnife(knife.id, { pinned: true })
+    await storage.bulkUpdateKnives([knife.id], { description: 'Updated' })
+    expect(await storage.getKnifeById(knife.id)).toMatchObject({
+      sold: true,
+      pinned: true,
+      description: 'Updated',
+    })
+
+    const legacy = createKnife({ id: 'legacy' })
+    Reflect.deleteProperty(legacy, 'sold')
+    await storage.replaceAllWithSnapshot([knife, legacy], [])
+    closeLocalDb()
+
+    expect(await storage.getKnifeById(knife.id)).toMatchObject({ sold: true })
+    expect(await storage.getKnifeById(legacy.id)).toMatchObject({ sold: false })
+    expect(getLocalDb().prepare('SELECT id, sold FROM knives').all()).toEqual(
+      expect.arrayContaining([
+        { id: knife.id, sold: 1 },
+        { id: legacy.id, sold: 0 },
+      ]),
+    )
   })
 })

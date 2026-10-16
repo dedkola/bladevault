@@ -164,7 +164,7 @@ export const KnifeCard = memo(function KnifeCard({
           {knife.sold && (
             <span
               className={cn(
-                'absolute top-2 z-20 inline-flex items-center gap-1 rounded-md border border-border bg-background/95 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground',
+                'pointer-events-none absolute top-2 z-20 inline-flex items-center gap-1 rounded-md border border-border bg-background/95 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground',
                 selectionMode ? 'left-10' : 'left-2',
               )}
             >

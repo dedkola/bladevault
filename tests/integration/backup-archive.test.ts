@@ -5,7 +5,7 @@ import path from 'path'
 import * as tar from 'tar'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as archiveRoute from '@/app/api/cloud-backup/archive/route'
-import { closeLocalDb } from '@/lib/local-db'
+import { closeLocalDb, getLocalDb } from '@/lib/local-db'
 import { getSettings, saveSettings } from '@/lib/settings'
 import { LocalStorage } from '@/lib/storage/local'
 import type { CreateKnifeInput } from '@/lib/storage/types'
@@ -41,7 +41,7 @@ describe('backup archive route', () => {
   it('round-trips the database, settings, compare state, and images', async () => {
     vault = await createTempVault('bladevault-source-')
     let storage = new LocalStorage()
-    const knife = await storage.createKnife(input)
+    const knife = await storage.createKnife({ ...input, sold: true })
     await storage.addToCompare(knife.id)
     mutateComparison({
       action: 'create',
@@ -72,7 +72,13 @@ describe('backup archive route', () => {
       name: 'Backup Knife',
       customFields: { condition: 'Used' },
       images: ['backup-knife/image-01.png'],
+      sold: true,
     })
+    expect(
+      getLocalDb()
+        .prepare('SELECT sold FROM knives WHERE id = ?')
+        .get(knife.id),
+    ).toEqual({ sold: 1 })
     expect(await storage.getCompareList()).toEqual([knife.id])
     expect(getComparisons()).toEqual(
       expect.arrayContaining([
