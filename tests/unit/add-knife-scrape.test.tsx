@@ -5,6 +5,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AddKnifeForm } from '@/components/add-knife-form'
+import { EMPTY_KNIFE_FORM, KnifeScrapeEditor } from '@/components/knife-form'
 
 const { addKnife } = vi.hoisted(() => ({ addKnife: vi.fn() }))
 vi.mock('next/navigation', () => ({
@@ -23,6 +24,7 @@ const product = {
   specs: { bladeMaterial: 'CTS BD1N' },
   sourceUrl: 'https://shop.example.com/native-chief',
 }
+let sourceWarnings: string[] = []
 
 function json(body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -39,6 +41,7 @@ class TestResizeObserver {
 describe('Add knife scrape controls', () => {
   beforeEach(() => {
     addKnife.mockReset()
+    sourceWarnings = []
     vi.stubGlobal('ResizeObserver', TestResizeObserver)
     vi.stubGlobal(
       'fetch',
@@ -51,7 +54,12 @@ describe('Add knife scrape controls', () => {
           return json({ status: 'waiting', isSecurityChallenge: false })
         if (url.endsWith('/cancel')) return json({ ok: true })
         if (url === '/api/scrape' || url.endsWith('/scrape')) {
-          return json({ product, html, finalUrl: product.sourceUrl })
+          return json({
+            product,
+            html,
+            finalUrl: product.sourceUrl,
+            warnings: sourceWarnings,
+          })
         }
         throw new Error(`Unexpected fetch: ${url}`)
       }),
@@ -144,6 +152,54 @@ describe('Add knife scrape controls', () => {
     expect(fetch).toHaveBeenCalledWith(
       '/api/scrape/interactive/start',
       expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
+  it('shows source warnings after automatic and interactive import and clears them on the next scrape', async () => {
+    sourceWarnings = [
+      'Vosteed lists conflicting handle length values. This field was left empty.',
+    ]
+    const user = await scrape()
+    expect(screen.getByText(sourceWarnings[0])).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Interact with page' }))
+    await screen.findByRole('button', { name: 'Continue' })
+    sourceWarnings = [
+      'Vosteed lists conflicting weight values. This field was left empty.',
+    ]
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    await screen.findByText(sourceWarnings[0])
+    expect(
+      screen.queryByText(/conflicting handle length/),
+    ).not.toBeInTheDocument()
+    sourceWarnings = []
+    await user.click(screen.getByRole('button', { name: 'Scrape' }))
+    await waitFor(() =>
+      expect(screen.queryByText(/conflicting weight/)).not.toBeInTheDocument(),
+    )
+  })
+
+  it('shows source warnings when refreshing an existing knife', async () => {
+    sourceWarnings = [
+      'Vosteed lists conflicting handle length values. This field was left empty.',
+    ]
+    const user = userEvent.setup()
+    render(
+      <KnifeScrapeEditor
+        initialData={{
+          ...EMPTY_KNIFE_FORM,
+          name: 'My knife',
+          sourceUrl: product.sourceUrl,
+        }}
+        mode="edit"
+        title="Edit knife"
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Scrape' }))
+    await screen.findByText(sourceWarnings[0])
+    expect(screen.getByRole('textbox', { name: 'Model Name' })).toHaveValue(
+      'My knife',
     )
   })
 })

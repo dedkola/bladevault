@@ -65,10 +65,12 @@ function installFetch({
   failing = [],
   onScrape = async () => {},
   knives = [],
+  warnings = [],
 }: {
   failing?: string[]
   onScrape?: (target: string) => Promise<void>
   knives?: Knife[]
+  warnings?: string[]
 } = {}) {
   vi.stubGlobal(
     'fetch',
@@ -103,6 +105,7 @@ function installFetch({
         return jsonResponse({
           product: scrapedProduct(PRODUCT_NAMES[target] ?? target),
           finalUrl: target,
+          warnings,
         })
       }
       if (url === '/api/knives' && method === 'POST') {
@@ -152,6 +155,18 @@ describe('BatchScrapeDialog', () => {
     cleanup()
     vi.unstubAllGlobals()
     delete (navigator as { clipboard?: unknown }).clipboard
+  })
+
+  it('displays source warnings beside the saved item', async () => {
+    const warning =
+      'Vosteed lists conflicting handle length values. This field was left empty.'
+    installFetch({ warnings: [warning] })
+    const user = userEvent.setup()
+    const { textarea } = await renderDialog()
+    await user.type(textarea, 'https://a.com/one')
+    await user.click(screen.getByRole('button', { name: 'Start batch' }))
+    await screen.findByText(/1 of 1 handled · 1 added/)
+    expect(screen.getByText(warning)).toBeInTheDocument()
   })
 
   it('shows existing links as skipped without scraping or saving them, including on repeat runs', async () => {
