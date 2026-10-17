@@ -41,38 +41,38 @@ in the [README](README.md) — this guide deliberately does not duplicate them.
 
 ## Project layout
 
-| Path | What lives there |
-| --- | --- |
-| `app/` | Next.js App Router routes (`add`, `api`, `collection`, `compare`, `insights`, `logs`, `mcp`, `settings`, `unlock`) |
-| `components/` | React components, including `components/ui` primitives |
-| `lib/` | Domain logic, `lib/services`, `lib/storage`, `lib/mcp` |
-| `electron/` | Desktop shell and packaging |
-| `cli/`, `scripts/` | Build, release and maintenance tooling (`scripts/*.cjs`) |
-| `tests/` | `unit/`, `integration/`, `e2e/` (Playwright), plus `helpers/` and `fixtures/` |
-| `charts/bladevault/` | Helm chart (see its own [README](charts/bladevault/README.md)) |
-| `static-app/` | Cloudflare static variant (see [README](static-app/README.md)) |
-| `docker-compose.yml`, `Dockerfile` | Container builds |
-| `data/`, `public/` | Local data and static assets |
+| Path                               | What lives there                                                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `app/`                             | Next.js App Router routes (`add`, `api`, `collection`, `compare`, `insights`, `logs`, `mcp`, `settings`, `unlock`) |
+| `components/`                      | React components, including `components/ui` primitives                                                             |
+| `lib/`                             | Domain logic, `lib/services`, `lib/storage`, `lib/mcp`                                                             |
+| `electron/`                        | Desktop shell and packaging                                                                                        |
+| `cli/`, `scripts/`                 | Build, release and maintenance tooling (`scripts/*.cjs`)                                                           |
+| `tests/`                           | `unit/`, `integration/`, `e2e/` (Playwright), plus `helpers/` and `fixtures/`                                      |
+| `charts/bladevault/`               | Helm chart (see its own [README](charts/bladevault/README.md))                                                     |
+| `static-app/`                      | Cloudflare static variant (see [README](static-app/README.md))                                                     |
+| `docker-compose.yml`, `Dockerfile` | Container builds                                                                                                   |
+| `data/`, `public/`                 | Local data and static assets                                                                                       |
 
 ## Commands
 
 Everything runs through npm scripts defined in `package.json`:
 
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Next.js dev server |
-| `npm test` | Vitest unit and integration suite |
-| `npm run test:watch` | Vitest in watch mode |
-| `npm run test:e2e` | Builds the production app, then runs Playwright browser tests |
-| `npm run test:e2e:ui` | Playwright UI mode |
-| `npm run lint` | ESLint |
-| `npm run format` / `npm run format:check` | Prettier write / verify |
-| `npm run build` | Production build, including the MCP CLI bundle |
-| `npm run build:static` / `npm run dev:static` | Cloudflare static app build / dev server |
-| `npm run mcp` | Build and run the MCP server |
-| `npm run build:desktop` | Desktop build (then `rebuild:desktop-native`, `sync:desktop-runtime`) |
-| `npm run desktop:dev` | Desktop app in development |
-| `npm run clean` | Remove `.next` |
+| Command                                       | Purpose                                                               |
+| --------------------------------------------- | --------------------------------------------------------------------- |
+| `npm run dev`                                 | Next.js dev server                                                    |
+| `npm test`                                    | Vitest unit and integration suite                                     |
+| `npm run test:watch`                          | Vitest in watch mode                                                  |
+| `npm run test:e2e`                            | Builds the production app, then runs Playwright browser tests         |
+| `npm run test:e2e:ui`                         | Playwright UI mode                                                    |
+| `npm run lint`                                | ESLint                                                                |
+| `npm run format` / `npm run format:check`     | Prettier write / verify                                               |
+| `npm run build`                               | Production build, including the MCP CLI bundle                        |
+| `npm run build:static` / `npm run dev:static` | Cloudflare static app build / dev server                              |
+| `npm run mcp`                                 | Build and run the MCP server                                          |
+| `npm run build:desktop`                       | Desktop build (then `rebuild:desktop-native`, `sync:desktop-runtime`) |
+| `npm run desktop:dev`                         | Desktop app in development                                            |
+| `npm run clean`                               | Remove `.next`                                                        |
 
 ## Before you open a pull request
 
