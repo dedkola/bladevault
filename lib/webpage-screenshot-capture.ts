@@ -3,6 +3,7 @@ import { getLocalDb, getLocalDataDirPath } from '@/lib/local-db'
 import type { Page } from 'playwright'
 import { isSecurityChallengePage } from '@/lib/scrape'
 import { saveScreenshotDraft } from '@/lib/webpage-screenshot-store'
+import { cleanupScrapePopups } from '@/lib/scrape-popup-cleanup'
 
 const MAX_HEIGHT = 30000
 const MAX_WIDTH = 4096
@@ -19,6 +20,7 @@ export async function captureWebpageScreenshot(page: Page): Promise<string> {
         'The website requires verification. Use the interactive browser to capture it.',
       )
     }
+    await page.evaluate(cleanupScrapePopups, { observe: true })
     // DOM readiness is enough for parsing, but images and styles can still be loading.
     await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {})
     const deadline = Date.now() + 20000
@@ -112,6 +114,7 @@ export async function captureWebpageScreenshot(page: Page): Promise<string> {
         'The webpage styles or images could not be loaded. Retry the screenshot when the website is available.',
       )
     }
+    await page.evaluate(cleanupScrapePopups, {})
     const buffer = await page.screenshot({
       fullPage: true,
       type: 'png',

@@ -27,7 +27,6 @@ import {
   readImageFiles,
 } from '@/components/knife-form'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
-import { isBotProtectionMessage } from '@/lib/batch-scrape'
 import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
 import { ResizablePreviewLayout } from '@/components/resizable-preview-layout'
 import { escapeHtmlAttribute, getSafeExternalUrl } from '@/lib/external-url'
@@ -39,6 +38,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+import { cleanScrapePreview } from '@/lib/scrape-popup-cleanup'
 
 const TABS = ['Scrape URL', 'Manual'] as const
 type Tab = (typeof TABS)[number]
@@ -55,6 +55,7 @@ export function AddKnifeForm() {
   const router = useRouter()
   const formId = useId()
   const previewToggleRef = useRef<HTMLButtonElement>(null)
+  const editedFieldsRef = useRef(new Set<keyof KnifeFormData>())
   const { addKnife } = useKnives()
   const [activeTab, setActiveTab] = useState<Tab>('Scrape URL')
   const [form, setForm] = useState<KnifeFormData>(EMPTY_KNIFE_FORM)
@@ -67,6 +68,7 @@ export function AddKnifeForm() {
   const [scrapedHtml, setScrapedHtml] = useState<string>('')
   const [scrapedFinalUrl, setScrapedFinalUrl] = useState<string>('')
   const [showPreview, setShowPreview] = useState(true)
+  const [hidePreviewPopups, setHidePreviewPopups] = useState(false)
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set())
   const [isSaving, setIsSaving] = useState(false)
   const [interactiveSessionId, setInteractiveSessionId] = useState<
@@ -138,6 +140,7 @@ export function AddKnifeForm() {
     field: K,
     value: KnifeFormData[K],
   ) => {
+    editedFieldsRef.current.add(field)
     setForm((prev) => ({
       ...prev,
       [field]: field === 'images' ? screenshotsLast(value as string[]) : value,
@@ -160,6 +163,7 @@ export function AddKnifeForm() {
     const dataUrls = await readImageFiles(files)
     if (dataUrls.length === 0) return
 
+    editedFieldsRef.current.add('images')
     setForm((prev) => ({
       ...prev,
       images: screenshotsLast([
@@ -188,6 +192,7 @@ export function AddKnifeForm() {
   }
 
   const toggleImageSelection = (src: string) => {
+    editedFieldsRef.current.add('images')
     setSelectedImages((prev) => {
       const next = new Set(prev)
       if (next.has(src)) {
@@ -200,15 +205,17 @@ export function AddKnifeForm() {
   }
 
   const selectAllImages = () => {
+    editedFieldsRef.current.add('images')
     setSelectedImages(new Set(form.images))
   }
 
   const deselectAllImages = () => {
+    editedFieldsRef.current.add('images')
     setSelectedImages(new Set())
   }
 
   const handleSave = async () => {
-    if (!form.name.trim()) return
+    if (!form.name.trim() || isScraping || interactiveStatus !== null) return
     setIsSaving(true)
     try {
       await addKnife(formDataToKnifeDraft(form, selectedImages))
@@ -227,9 +234,9 @@ export function AddKnifeForm() {
     product: ScrapedProduct,
     html: string,
     finalUrl: string,
+    preserveEdits = false,
   ) => {
-    setForm((prev) => ({
-      ...prev,
+    const importedFields: Partial<KnifeFormData> = {
       brand: product.brand ?? '',
       name: product.name ?? '',
       handleMaterial: product.handleMaterial ?? '',
@@ -250,20 +257,33 @@ export function AddKnifeForm() {
       country: product.specs?.country ?? '',
       images: Array.isArray(product.images) ? product.images : [],
       sourceUrl: product.sourceUrl ?? url.trim(),
-    }))
-    setSelectedImages(
-      new Set(Array.isArray(product.images) ? product.images : []),
-    )
+    }
+    const fields = preserveEdits
+      ? Object.fromEntries(
+          Object.entries(importedFields).filter(
+            ([field]) =>
+              !editedFieldsRef.current.has(field as keyof KnifeFormData),
+          ),
+        )
+      : importedFields
+    setForm((prev) => ({ ...prev, ...fields }))
+    if (!preserveEdits || !editedFieldsRef.current.has('images')) {
+      setSelectedImages(
+        new Set(Array.isArray(product.images) ? product.images : []),
+      )
+    }
+    if (!preserveEdits) editedFieldsRef.current.clear()
     setScrapedHtml(html)
     setScrapedFinalUrl(finalUrl)
     setHasScraped(true)
     setShowPreview(true)
+    setHidePreviewPopups(false)
   }
 
   const [screenshotWarning, setScreenshotWarning] = useState('')
 
   const handleScrape = async () => {
-    if (!url.trim()) return
+    if (!url.trim() || isScraping || interactiveStatus !== null) return
     setIsScraping(true)
     setScreenshotWarning('')
     setScrapeError(null)
@@ -306,8 +326,6 @@ export function AddKnifeForm() {
     }
   }
 
-  const isBotProtectionError = isBotProtectionMessage
-
   const resetInteractiveState = () => {
     setInteractiveSessionId(null)
     setInteractiveStatus(null)
@@ -316,7 +334,7 @@ export function AddKnifeForm() {
   }
 
   const startInteractiveScrape = async () => {
-    if (!url.trim()) return
+    if (!url.trim() || isScraping || interactiveStatus !== null) return
     setInteractiveStatus('starting')
     setInteractiveError(null)
 
@@ -381,6 +399,7 @@ export function AddKnifeForm() {
         data.product,
         typeof data.html === 'string' ? data.html : '',
         typeof data.finalUrl === 'string' ? data.finalUrl : url.trim(),
+        true,
       )
       resetInteractiveState()
     } catch (error) {
@@ -457,8 +476,15 @@ export function AddKnifeForm() {
   const safeSourceUrl = getSafeExternalUrl(form.sourceUrl)
   const safePreviewBaseUrl =
     getSafeExternalUrl(scrapedFinalUrl) ?? safeSourceUrl
-  const previewHtml = scrapedHtml
-    ? `${safePreviewBaseUrl ? `<base href="${escapeHtmlAttribute(safePreviewBaseUrl)}">\n` : ''}${scrapedHtml}`
+  const preview = useMemo(
+    () =>
+      hidePreviewPopups && scrapedHtml
+        ? cleanScrapePreview(scrapedHtml)
+        : { html: scrapedHtml, removed: 0 },
+    [hidePreviewPopups, scrapedHtml],
+  )
+  const previewHtml = preview.html
+    ? `${safePreviewBaseUrl ? `<base href="${escapeHtmlAttribute(safePreviewBaseUrl)}">\n` : ''}${preview.html}`
     : ''
   const isPreviewVisible = Boolean(previewHtml) && showPreview
   const togglePreview = (visible: boolean) => {
@@ -478,13 +504,14 @@ export function AddKnifeForm() {
           >
             Product URL
           </label>
-          <div className="flex flex-wrap gap-2 sm:flex-nowrap">
-            <div className="relative min-w-0 basis-full sm:basis-auto sm:flex-1">
+          <div className="flex flex-wrap gap-2">
+            <div className="relative min-w-0 basis-full md:basis-auto md:flex-1">
               <Link2 className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id={`${formId}-product-url`}
                 type="url"
                 value={url}
+                disabled={isScraping || interactiveStatus !== null}
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleScrape()}
                 placeholder="https://retailer.com/..."
@@ -493,7 +520,7 @@ export function AddKnifeForm() {
             </div>
             <Button
               onClick={handleScrape}
-              disabled={isScraping || !url.trim()}
+              disabled={isScraping || interactiveStatus !== null || !url.trim()}
               size="sm"
             >
               {isScraping && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
@@ -502,8 +529,21 @@ export function AddKnifeForm() {
             <Button
               variant="outline"
               size="sm"
+              onClick={startInteractiveScrape}
+              disabled={isScraping || interactiveStatus !== null || !url.trim()}
+            >
+              {interactiveStatus === 'starting' ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Monitor className="h-3.5 w-3.5" />
+              )}
+              Interact with page
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setIsBatchOpen(true)}
-              disabled={isScraping}
+              disabled={isScraping || interactiveStatus !== null}
             >
               <Layers className="h-3.5 w-3.5" />
               Batch scrape
@@ -525,22 +565,6 @@ export function AddKnifeForm() {
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <span>{scrapeError}</span>
             </div>
-            {isBotProtectionError(scrapeError) && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={startInteractiveScrape}
-                disabled={interactiveStatus === 'starting'}
-              >
-                {interactiveStatus === 'starting' ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Monitor className="h-3.5 w-3.5" />
-                )}
-                Try interactive browser
-              </Button>
-            )}
           </div>
         )}
 
@@ -551,9 +575,10 @@ export function AddKnifeForm() {
               <Monitor className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
               <div className="space-y-1">
                 <p>
-                  A browser window has opened. Complete the retailer&apos;s
-                  verification, then click <strong>Continue</strong> to scrape
-                  the page.
+                  A browser window has opened on the computer running
+                  BladeVault. Close popups or complete verification, then click{' '}
+                  <strong>Continue</strong> to import the page. Your manual
+                  field edits will be kept.
                 </p>
                 {interactiveIsChallenge === true && (
                   <p className="text-amber-600 dark:text-amber-400">
@@ -668,7 +693,7 @@ export function AddKnifeForm() {
             preview={
               isPreviewVisible && (
                 <Card className="flex flex-col overflow-hidden h-full min-h-[32rem] lg:min-h-0">
-                  <CardHeader className="border-b flex flex-row items-center justify-between">
+                  <CardHeader className="border-b flex flex-row flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <Eye className="h-3.5 w-3.5 text-muted-foreground" />
                       <CardTitle className="text-sm xl:text-base">
@@ -697,6 +722,34 @@ export function AddKnifeForm() {
                           <ExternalLink className="h-3 w-3" />
                         </a>
                       ) : null}
+                    </div>
+                    <div className="flex basis-full flex-wrap items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        onClick={() => setHidePreviewPopups(true)}
+                        disabled={hidePreviewPopups}
+                      >
+                        Hide popups
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => setHidePreviewPopups(false)}
+                        disabled={!hidePreviewPopups}
+                      >
+                        Restore original
+                      </Button>
+                      {hidePreviewPopups && (
+                        <p
+                          role="status"
+                          className="text-xs text-muted-foreground"
+                        >
+                          {preview.removed > 0
+                            ? `${preview.removed} popup${preview.removed === 1 ? '' : 's'} hidden in this preview.`
+                            : 'No popups found. Try Interact with page for other overlays.'}
+                        </p>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent className="relative flex-1 min-h-0 p-0">
@@ -759,7 +812,13 @@ export function AddKnifeForm() {
         <Button variant="outline" size="sm" onClick={handleCancel}>
           Cancel
         </Button>
-        <Button size="sm" onClick={handleSave} disabled={!canSave || isSaving}>
+        <Button
+          size="sm"
+          onClick={handleSave}
+          disabled={
+            !canSave || isSaving || isScraping || interactiveStatus !== null
+          }
+        >
           {isSaving ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (

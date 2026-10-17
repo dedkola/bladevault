@@ -10,7 +10,9 @@ BladeVault can fill a record for you instead of you typing a dozen specification
 2. Paste the product URL and start the import.
 3. Review the imported values — specifications, pricing, and the product images — and adjust anything that needs it before saving.
 
-Import works against supported retailer URLs. When a page cannot be read automatically, BladeVault opens an **interactive browser fallback**: you complete the step in a real browser session, and the record then continues through the normal save path.
+Import works against supported retailer URLs. BladeVault automatically clears recognizable newsletter and cookie overlays before capturing the page. In the comparison preview, use **Hide popups** to remove remaining dialogs, or **Restore original** to return to the imported preview. These controls leave your form edits unchanged.
+
+For popups that need a real click, or retailer verification, choose **Interact with page** beside the URL. Close the popup in the browser window, then click **Continue** in BladeVault to refresh the import. Manually edited fields and image selections are kept. The browser window opens on the computer running BladeVault; a browser running inside a remote container is not streamed to your screen.
 
 ## Add a knife manually
 
