@@ -14,7 +14,9 @@ The line under the box counts what the dialog found. Links you have already impo
 
 At the bottom of the dialog, click **Start batch**:
 
-![The Close and Start batch buttons at the bottom of the dialog](../images/add-several-knives-start-batch.png)
+![The Start batch button at the bottom right of the dialog](../images/add-several-knives-start-batch.png)
+
+![The Batch scrape dialog with the Start batch button in its footer](../images/add-several-knives-start-batch-context.png)
 
 Only one link is in flight at a time, so a retailer never sees a burst of requests from you.
 
@@ -28,7 +30,7 @@ Each row shows its own state — **Waiting**, **Scraping**, **Saving**, **Saved*
 
 ![The finished batch: 3 of 3 handled, 3 added](../images/add-several-knives-done.png)
 
-When the run ends the dialog reports how many links were handled and how many knives were added. A failed link does not stop the batch: fix the URL or the page, then run just that one.
+When the run ends the dialog reports how many links were handled and how many knives were added. A failed link does not stop the batch: the red panel under the list names the links that were not added, and its **Retry failed** button starts the batch again with only those rows.
 
 ## 5. See the knives in the collection
 
