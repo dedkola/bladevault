@@ -8,11 +8,11 @@ At the top right of the record, click **Edit**:
 
 ![The Edit button at the top right of the record, next to Pin and Delete](../images/update-a-saved-knife-edit-button.png)
 
-The record opens in the editor:
+The record you land on is the read-only view — specifications, notes, images, and the link to the source page:
 
-![The Valkyrie record: specifications, notes, images, and the link to the source page](../images/update-a-saved-knife-record.png)
+![The imported Valkyrie record as it opens: specifications, notes, images, and the link to the source page](../images/update-a-saved-knife-record.png)
 
-The **Edit Knife** view gives you the whole record at once:
+Clicking **Edit** swaps it for the **Edit Knife** view, which gives you the whole record at once:
 
 - **Product URL** — the page the knife was imported from, kept on the record so you can see where a value came from.
 - **Identity, Dimensions, Construction, Notes** — every field, prefilled with what was imported.
@@ -32,6 +32,8 @@ Nothing is overwritten in bulk and nothing is lost: change one field and the res
 At the bottom right of the edit form, click **Save Changes**:
 
 ![The Cancel and Save Changes buttons at the bottom right of the edit form](../images/update-a-saved-knife-save-bar.png)
+
+![The bottom of the edit form, with the Cancel and Save Changes action bar](../images/update-a-saved-knife-save.png)
 
 **Save Changes** writes the edits and returns you to the record.
 
