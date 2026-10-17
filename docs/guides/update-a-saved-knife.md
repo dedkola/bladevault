@@ -1,10 +1,16 @@
 # Update a saved knife
 
-An import is a starting point, not a finished record. It fills what the page states and leaves the rest blank, and occasionally a value lands in the wrong field. Everything stays editable afterwards: open the knife, press **Edit**, and change anything. The record below is the imported Vosteed Valkyrie (VK32NTGH1) being tidied up.
+An import is a starting point, not a finished record. It fills what the page states and leaves the rest blank, and occasionally a value lands in the wrong field. Everything stays editable afterwards: open the knife, click **Edit**, and change anything. The record below is the imported Vosteed Valkyrie (VK32NTGH1) being tidied up.
 
-## 1. Open the record and press Edit
+## 1. Open the record and click **Edit**
 
-![The record's Edit view: source URL, every field, and the image library](../images/update-a-saved-knife-edit.png)
+At the top right of the record, click **Edit**:
+
+![The Edit button at the top right of the record, next to Pin and Delete](../images/update-a-saved-knife-edit-button.png)
+
+The record opens in the editor:
+
+![The Valkyrie record: specifications, notes, images, and the link to the source page](../images/update-a-saved-knife-record.png)
 
 The **Edit Knife** view gives you the whole record at once:
 
@@ -17,13 +23,23 @@ The **Edit Knife** view gives you the whole record at once:
 
 The Valkyrie's page lists blade style and finish in one row, so the import wrote **Seax Finish: Satin** into **Blade style** and left **Blade Coating / Finish** empty. Splitting them — **Seax** and **Satin** — is two edits. The same pass fills what a product page rarely states, such as the price.
 
+![The Edit view: source URL, every field, and the image library](../images/update-a-saved-knife-edit.png)
+
 Nothing is overwritten in bulk and nothing is lost: change one field and the rest of the record stays as it was.
 
-## 3. Save Changes
+## 3. Save the changes
+
+At the bottom right of the edit form, click **Save Changes**:
+
+![The Cancel and Save Changes buttons at the bottom right of the edit form](../images/update-a-saved-knife-save-bar.png)
+
+**Save Changes** writes the edits and returns you to the record.
+
+## 4. See the corrected record
 
 ![The updated record: corrected blade style and finish, price, and the link to the source page](../images/update-a-saved-knife-saved.png)
 
-**Save Changes** returns you to the record with the corrections in place. The **Source** link still points at the page it came from, so the next time you wonder where a specification came from, the answer is one click away — and if the import captured the page, that screenshot is in the gallery too (see [Capture source pages](capture-sources.md)).
+The **Source** link still points at the page it came from, so the next time you wonder where a specification came from, the answer is one click away — and if the import captured the page, that screenshot is in the gallery too (see [Capture source pages](capture-sources.md)).
 
 ## Related
 

@@ -4,13 +4,19 @@ BladeVault can fill a record for you instead of you typing a dozen specification
 
 ## 1. Click **Add knife**
 
-The **Add knife** button in the sidebar opens the form. It has two tabs: **Scrape URL** for importing a product page, and **Manual** for typing everything yourself.
+Click **Add knife** at the top of the sidebar:
 
-![The Add knife form on the Scrape URL tab, with a product URL pasted in](../images/add-knife-url.png)
+![The Add knife button at the top of the sidebar](../images/add-knife-button.png)
 
-## 2. Paste the product URL and press **Scrape**
+The form opens on the **Scrape URL** tab — the other tab, **Manual**, is for [typing a knife in by hand](add-a-knife-by-hand.md):
 
-Put the retailer's product page into **Product URL** and press **Scrape** (Enter works too). BladeVault opens the page in a real browser, takes the title, brand, images and specifications, and downloads the product photos into your vault.
+![The Add knife form, open on the Scrape URL tab](../images/add-knife-form.png)
+
+## 2. Paste the product URL and click **Scrape**
+
+Put the retailer's product page into **Product URL** and click **Scrape** (pressing Enter works too). BladeVault opens the page in a real browser, takes the title, brand, images and specifications, and downloads the product photos into your vault.
+
+![The form after pasting a product URL, with Scrape and Batch scrape on the right](../images/add-knife-url.png)
 
 ## 3. Check what the import filled in
 
@@ -20,7 +26,7 @@ The form comes back filled: brand/maker, model name, designer, dimensions (overa
 
 ## 4. Choose the images to keep
 
-![Imported product images with cover selection](../images/add-knife-images.png)
+![Imported product images, all selected, with the cover marked](../images/add-knife-images.png)
 
 Product images are downloaded into the vault with the record, so they travel with your data and are included in ZIP backups and [cloud backups](../reference/cloud-backup.md). Deselect the ones you do not want, set a **cover**, reorder or remove them — or add your own photos and image URLs.
 

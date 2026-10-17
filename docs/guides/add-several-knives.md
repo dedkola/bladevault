@@ -4,7 +4,7 @@ Pasting links one at a time gets old when a batch arrives at once — a haul, a 
 
 ## 1. Paste the links
 
-Open **Add knife**, and use **Batch scrape** next to the URL field. One link per line, in the order you want them added.
+Click **Add knife** at the top of the sidebar, then click **Batch scrape** next to the URL field. One link per line, in the order you want them added.
 
 ![The Batch scrape dialog with three product links pasted, showing "3 links ready"](../images/add-several-knives-links.png)
 
@@ -12,19 +12,25 @@ The line under the box counts what the dialog found. Links you have already impo
 
 ## 2. Start the batch
 
-**Start batch** runs the list top to bottom. Only one link is in flight at a time, so a retailer never sees a burst of requests from you.
+At the bottom of the dialog, click **Start batch**:
+
+![The Close and Start batch buttons at the bottom of the dialog](../images/add-several-knives-start-batch.png)
+
+Only one link is in flight at a time, so a retailer never sees a burst of requests from you.
+
+## 3. Watch the batch run
 
 ![A batch in progress: the first link scraping while the others wait](../images/add-several-knives-running.png)
 
 Each row shows its own state — **Waiting**, **Scraping**, **Saving**, **Saved**, **Skipped**, or **Failed** — and the progress bar tracks how far along the list is. **Stop** finishes the link that is running and leaves the rest alone.
 
-## 3. Check the result
+## 4. Check the result
 
 ![The finished batch: 3 of 3 handled, 3 added](../images/add-several-knives-done.png)
 
 When the run ends the dialog reports how many links were handled and how many knives were added. A failed link does not stop the batch: fix the URL or the page, then run just that one.
 
-## 4. The knives are in the collection
+## 5. See the knives in the collection
 
 ![The three imported knives as cards in the collection](../images/add-several-knives-collection.png)
 
