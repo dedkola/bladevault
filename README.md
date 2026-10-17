@@ -33,7 +33,7 @@ Catalog your knives, compare them side by side, and keep your collection data un
 
 ## What it does
 
-- **Catalog:** Keep specifications, pricing, provenance, notes, links, and local photos for every knife. Import product details from supported retailer URLs, with an interactive browser fallback.
+- **Catalog:** Keep specifications, pricing, provenance, notes, links, and local photos for every knife. Import product details from supported retailer URLs, with [popup cleanup and interactive browsing](#import-from-a-product-url).
 - **Capture source pages:** Save a full-page screenshot with URL imports, view or download it later, retry failed captures, and backfill screenshots for older records. Captures are included in local and cloud backups.
 - **Organize:** Search, filter, pin, and bulk-edit records. Add custom text, number, and date fields, and choose which details appear on collection cards and in the pinned sidebar.
 - **Browse:** Save filters as Smart Collections that update with your records, or browse variants together in Model families. Global search supports model names and `/model A4301` for model numbers.
@@ -44,6 +44,17 @@ Catalog your knives, compare them side by side, and keep your collection data un
 - **Keep control:** Store your vault locally in SQLite, create portable ZIP backups, and optionally sign in for cloud backup.
 
 [Download the latest release](https://github.com/dedkola/bladevault/releases/latest) or browse the [full release history](https://github.com/dedkola/bladevault/releases).
+
+## Import from a product URL
+
+Open **Add → Scrape URL**, paste the retailer's URL, and choose **Scrape**. BladeVault imports the product details and automatically clears recognizable newsletter and cookie overlays before creating the page preview and screenshot.
+
+- **Hide popups** removes remaining dialogs from the preview. **Restore original** returns to the imported preview. Neither changes your form edits.
+- **Interact with page** opens the retailer's page in a real browser so you can close stubborn popups or complete site verification. Return to BladeVault and click **Continue** to refresh the import; manually edited fields and image selections are preserved.
+
+The interactive browser opens on the computer running BladeVault. In Docker, Podman, or Kubernetes, it runs inside the container and is not streamed to your screen.
+
+See the [URL import guide](docs/guides/import-knives.md) for more details.
 
 ## Choose a setup
 
