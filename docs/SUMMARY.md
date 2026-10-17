@@ -15,7 +15,7 @@
 
 ## Guides
 
-- [Import knives from a product URL](guides/import-knives.md)
+- [Add Knife to collection](guides/add-knife-to-collection.md)
 - [Organize your collection](guides/collection.md)
 - [Compare knives](guides/compare.md)
 - [Collection insights](guides/insights.md)
