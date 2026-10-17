@@ -30,9 +30,16 @@ function json(body: unknown) {
   })
 }
 
+class TestResizeObserver {
+  observe = vi.fn()
+  disconnect = vi.fn()
+  unobserve = vi.fn()
+}
+
 describe('Add knife scrape controls', () => {
   beforeEach(() => {
     addKnife.mockReset()
+    vi.stubGlobal('ResizeObserver', TestResizeObserver)
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
@@ -70,6 +77,11 @@ describe('Add knife scrape controls', () => {
 
   it('hides and restores preview overlays without changing edits or enabling scripts', async () => {
     const user = await scrape()
+    const divider = screen.getByRole('separator', { name: 'Knife form width' })
+    expect(divider).toHaveAttribute('aria-valuenow', '25')
+    divider.focus()
+    await user.keyboard('{ArrowRight}')
+    expect(divider).toHaveAttribute('aria-valuenow', '27')
     const name = screen.getByRole('textbox', { name: 'Model Name' })
     await user.clear(name)
     await user.type(name, 'My edited Chief')
@@ -92,6 +104,7 @@ describe('Add knife scrape controls', () => {
       expect.stringContaining('Unfamiliar promotion'),
     )
     expect(name).toHaveValue('My edited Chief')
+    expect(divider).toHaveAttribute('aria-valuenow', '27')
   })
 
   it('opens interactive mode after a successful scrape and preserves manual edits and image selection', async () => {
