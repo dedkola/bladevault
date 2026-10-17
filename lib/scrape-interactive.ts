@@ -2,6 +2,7 @@ import { tryCaptureWebpageScreenshot } from '@/lib/webpage-screenshot-capture'
 import { chromium, Browser, BrowserContext, Page } from 'playwright'
 import { isSecurityChallengePage } from '@/lib/scrape'
 import { validateExternalUrl } from '@/lib/url-validation'
+import { cleanupScrapePopups } from '@/lib/scrape-popup-cleanup'
 
 export type InteractiveSessionStatus =
   'waiting' | 'ready' | 'scraping' | 'completed' | 'error' | 'cancelled'
@@ -243,16 +244,17 @@ export async function captureInteractiveSession(
   session.status = 'scraping'
 
   try {
+    await session.page.evaluate(cleanupScrapePopups, { observe: true })
     await session.page.waitForTimeout(1000)
     await session.page.evaluate(() => {
       window.scrollTo(0, document.body.scrollHeight)
     })
     await session.page.waitForTimeout(500)
 
-    const html = await session.page.content()
     const finalUrl = session.page.url()
 
     const capture = await tryCaptureWebpageScreenshot(session.page)
+    const html = await session.page.content()
     await closeSession(id, 'completed')
 
     return { html, finalUrl, ...capture }
