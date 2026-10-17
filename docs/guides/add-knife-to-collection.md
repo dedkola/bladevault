@@ -60,7 +60,9 @@ The **Manual** tab gives you every field by hand, which is the right path for a 
 
 ## When a retailer blocks the import
 
-Some sites block automated access. The import reports it and offers **Try interactive browser**: a real browser window opens, you complete the retailer's verification, then click **Continue** and the page is scraped into the same form.
+Some sites block automated access. BladeVault clears recognizable newsletter and cookie overlays before capturing the page; for anything left over, use **Hide popups** in the preview to drop the remaining dialogs, or **Restore original** to return to the imported preview. Neither touches your form edits.
+
+For popups that need a real click, or a retailer's verification step, choose **Interact with page** beside the URL. Close the popup in the browser window, then click **Continue** and the import refreshes into the same form — manually edited fields and image selections are kept. That browser window opens on the computer running BladeVault; a browser running inside a remote container is not streamed to your screen.
 
 ## Capture the source page
 
