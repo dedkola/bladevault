@@ -2,36 +2,47 @@
 
 BladeVault can fill a record for you instead of you typing a dozen specifications by hand: paste a product URL, review what came back, save. Every screenshot below is from a real import — a Vosteed CheesePirates (A2932) from `vosteed.com`.
 
-## 1. Use **Add knife** in the sidebar
+## 1. Open **Add knife**
 
-. The page has two tabs — **Scrape URL** and **Manual**.
+The **Add knife** button in the sidebar opens the form. It has two tabs: **Scrape URL** for importing a product page, and **Manual** for typing everything yourself.
 
-![The Add knife page with a product URL pasted into the Scrape URL tab](../images/add-knife-url.png)
+![The Add knife form on the Scrape URL tab, with a product URL pasted in](../images/add-knife-url.png)
 
-## 2. Paste the product URL and scrape
+## 2. Paste the product URL and press **Scrape**
 
-Paste the retailer's product page into **Product URL** and press **Scrape** (or Enter). BladeVault reads the page in a real browser, pulls the title, brand, images, and specifications, and downloads the product photos into your vault.
+Put the retailer's product page into **Product URL** and press **Scrape** (Enter works too). BladeVault opens the page in a real browser, takes the title, brand, images and specifications, and downloads the product photos into your vault.
 
-## 3. Review the imported values
+## 3. Check what the import filled in
 
 ![Imported values from a Vosteed product page, with the scraped page preview beside the form](../images/add-knife-imported.png)
 
 The form comes back filled: brand/maker, model name, designer, dimensions (overall, blade, handle, weight), construction (blade material, style, coating, handle material, locking mechanism, hardness), and the description. Every field stays editable, and **Scraped page preview** shows the source page next to the form so a value can be checked against the page it came from.
 
-## 4. Check the images
+## 4. Choose the images to keep
 
 ![Imported product images with cover selection](../images/add-knife-images.png)
 
 Product images are downloaded into the vault with the record, so they travel with your data and are included in ZIP backups and [cloud backups](../reference/cloud-backup.md). Deselect the ones you do not want, set a **cover**, reorder or remove them — or add your own photos and image URLs.
 
-## 5. Save knite to collection
-At the bottom right click **Save Item**
+## 5. Save knife to collection
 
-![The saved record: imported specifications, images, and the source link](../images/add-knife-saved.png)
+At the bottom right of the form, click **Save Item**:
 
-**Save Item** writes the record and takes you to the collection, where the new knife appears as a card.
+![The Save Item button at the bottom right of the form](../images/add-knife-save-bar.png)
 
-![The imported knife in the collection](../images/add-knife-collection.png)
+![The bottom of the form after the import, with the Cancel and Save Item action bar](../images/add-knife-save.png)
+
+**Save Item** writes the record and takes you to the collection.
+
+## 6. See the saved knife
+
+![The saved knife: imported specifications, images, and the source link](../images/add-knife-saved.png)
+
+The knife opens with everything the import wrote — specifications, gallery, source link, notes — and all of it stays editable afterwards.
+
+![The imported knife as a card in the collection](../images/add-knife-collection.png)
+
+In the collection it appears as a card, ready for the next one.
 
 ## Add several links at once
 
