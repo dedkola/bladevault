@@ -29,6 +29,7 @@ import {
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
 import { isBotProtectionMessage } from '@/lib/batch-scrape'
 import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
+import { ResizablePreviewLayout } from '@/components/resizable-preview-layout'
 import { escapeHtmlAttribute, getSafeExternalUrl } from '@/lib/external-url'
 import { ScrapedProduct } from '@/lib/scrape'
 import { CustomField } from '@/lib/settings-shared'
@@ -38,7 +39,6 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useUnsavedChanges } from '@/hooks/use-unsaved-changes'
-import { cn } from '@/lib/utils'
 
 const TABS = ['Scrape URL', 'Manual'] as const
 type Tab = (typeof TABS)[number]
@@ -617,7 +617,7 @@ export function AddKnifeForm() {
 
   return (
     <div
-      className={`flex flex-col w-full max-w-7xl mx-auto p-6 lg:p-8 ${
+      className={`flex flex-col w-full p-6 lg:p-8 ${
         hasScraped ? 'min-h-0 flex-1' : ''
       }`}
     >
@@ -664,76 +664,73 @@ export function AddKnifeForm() {
         {activeTab === 'Scrape URL' && scrapeInput}
 
         {hasScraped ? (
-          <div
-            className={cn(
-              'grid grid-cols-1 gap-6 flex-1 min-h-0',
-              isPreviewVisible && 'lg:grid-cols-2',
-            )}
-          >
-            <div className="flex flex-col min-h-0 overflow-y-auto space-y-4 pr-1">
-              <KnifeFormFields
-                form={seededForm}
-                updateField={updateField}
-                customFieldDefinitions={customFields}
-                imageUrlInput={imageUrlInput}
-                setImageUrlInput={setImageUrlInput}
-                addImageUrl={addImageUrl}
-                onImageFilesSelect={handleImageFilesSelect}
-                selectedImages={selectedImages}
-                toggleImageSelection={toggleImageSelection}
-                selectAllImages={selectAllImages}
-                deselectAllImages={deselectAllImages}
-                removeImage={removeImage}
-              />
-            </div>
-
-            {isPreviewVisible && (
-              <Card className="flex flex-col overflow-hidden h-full min-h-[32rem] lg:min-h-0">
-                <CardHeader className="border-b flex flex-row items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                    <CardTitle className="text-sm xl:text-base">
-                      Scraped page preview
-                    </CardTitle>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      ref={previewToggleRef}
-                      onClick={() => togglePreview(false)}
-                      title="Hide preview"
-                      aria-label="Hide preview"
-                    >
-                      <EyeOff className="h-3.5 w-3.5" />
-                    </Button>
-                    {safeSourceUrl ? (
-                      <a
-                        href={safeSourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-[10px] xl:text-xs font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+          <ResizablePreviewLayout
+            preview={
+              isPreviewVisible && (
+                <Card className="flex flex-col overflow-hidden h-full min-h-[32rem] lg:min-h-0">
+                  <CardHeader className="border-b flex flex-row items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                      <CardTitle className="text-sm xl:text-base">
+                        Scraped page preview
+                      </CardTitle>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        ref={previewToggleRef}
+                        onClick={() => togglePreview(false)}
+                        title="Hide preview"
+                        aria-label="Hide preview"
                       >
-                        Open
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    ) : null}
-                  </div>
-                </CardHeader>
-                <CardContent className="relative flex-1 min-h-0 p-0">
-                  <iframe
-                    title="Scraped page preview"
-                    srcDoc={previewHtml}
-                    sandbox=""
-                    className="absolute inset-0 w-full h-full border-0 bg-white"
-                  />
-                </CardContent>
-              </Card>
-            )}
-          </div>
+                        <EyeOff className="h-3.5 w-3.5" />
+                      </Button>
+                      {safeSourceUrl ? (
+                        <a
+                          href={safeSourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-[10px] xl:text-xs font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          Open
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : null}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="relative flex-1 min-h-0 p-0">
+                    <iframe
+                      title="Scraped page preview"
+                      srcDoc={previewHtml}
+                      sandbox=""
+                      className="absolute inset-0 w-full h-full border-0 bg-white"
+                    />
+                  </CardContent>
+                </Card>
+              )
+            }
+          >
+            <KnifeFormFields
+              wideLayout={!isPreviewVisible}
+              form={seededForm}
+              updateField={updateField}
+              customFieldDefinitions={customFields}
+              imageUrlInput={imageUrlInput}
+              setImageUrlInput={setImageUrlInput}
+              addImageUrl={addImageUrl}
+              onImageFilesSelect={handleImageFilesSelect}
+              selectedImages={selectedImages}
+              toggleImageSelection={toggleImageSelection}
+              selectAllImages={selectAllImages}
+              deselectAllImages={deselectAllImages}
+              removeImage={removeImage}
+            />
+          </ResizablePreviewLayout>
         ) : (
           activeTab === 'Manual' && (
             <KnifeFormFields
+              wideLayout
               form={seededForm}
               updateField={updateField}
               customFieldDefinitions={customFields}
