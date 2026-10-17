@@ -24,7 +24,8 @@ The form comes back filled: brand/maker, model name, designer, dimensions (overa
 
 Product images are downloaded into the vault with the record, so they travel with your data and are included in ZIP backups and [cloud backups](../reference/cloud-backup.md). Deselect the ones you do not want, set a **cover**, reorder or remove them — or add your own photos and image URLs.
 
-## 5. Save
+## 5. Save knite to collection
+At the bottom right click **Save Item**
 
 ![The saved record: imported specifications, images, and the source link](../images/add-knife-saved.png)
 
