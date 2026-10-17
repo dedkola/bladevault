@@ -35,11 +35,11 @@ At the bottom right click **Save Item**
 
 ## Add several links at once
 
-**Batch scrape** takes a pasted list of product URLs and adds them one after another — sequentially, not in parallel, so a retailer never sees a burst of requests from you. Products you already saved from the same source URL are skipped.
+**Batch scrape** takes a pasted list of product URLs and adds them one after another — sequentially, not in parallel, so a retailer never sees a burst of requests from you. Products you already saved from the same source URL are skipped. Full walkthrough: [Add several knives at once](add-several-knives.md).
 
 ## Add a knife manually
 
-The **Manual** tab gives you every field by hand, which is the right path for a knife with no product page — a gift, a custom build, an older piece with no online listing. Along with the built-in specifications you can store pricing, provenance, notes, links, and local photos.
+The **Manual** tab gives you every field by hand, which is the right path for a knife with no product page — a gift, a custom build, an older piece with no online listing. Along with the built-in specifications you can store pricing, provenance, notes, links, and local photos. Full walkthrough: [Add a knife by hand](add-a-knife-by-hand.md).
 
 ## When a retailer blocks the import
 
@@ -56,5 +56,6 @@ BladeVault can also save a permanent full-page screenshot of the page a record c
 
 ## Next
 
+- [Update a saved knife](update-a-saved-knife.md) — correct and extend what an import wrote.
 - [Organize your collection](collection.md) — custom fields, cards, and Smart Collections.
 - [Capture source pages](capture-sources.md) — keep the page you imported from.
