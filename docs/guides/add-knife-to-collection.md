@@ -2,7 +2,7 @@
 
 BladeVault can fill a record for you instead of you typing a dozen specifications by hand: paste a product URL, review what came back, save. Every screenshot below is from a real import — a Vosteed CheesePirates (A2932) from `vosteed.com`.
 
-## 1. Open **Add knife**
+## 1. Click **Add knife**
 
 The **Add knife** button in the sidebar opens the form. It has two tabs: **Scrape URL** for importing a product page, and **Manual** for typing everything yourself.
 
