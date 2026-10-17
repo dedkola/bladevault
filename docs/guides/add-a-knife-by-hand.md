@@ -1,4 +1,4 @@
-# Add a knife by hand
+# Add knife in manual mode
 
 Some knives have no page to import: a piece bought second-hand, a gift, a custom build, a model whose listing is long gone. The **Manual** tab is the other half of **Add knife** — every field by hand, no URL needed. The record below is a limited-edition Vosteed Bellamy (M390, carbon fibre) entered this way.
 

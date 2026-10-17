@@ -50,7 +50,7 @@ In the collection it appears as a card, ready for the next one.
 
 ## Add a knife manually
 
-The **Manual** tab gives you every field by hand, which is the right path for a knife with no product page — a gift, a custom build, an older piece with no online listing. Along with the built-in specifications you can store pricing, provenance, notes, links, and local photos. Full walkthrough: [Add a knife by hand](add-a-knife-by-hand.md).
+The **Manual** tab gives you every field by hand, which is the right path for a knife with no product page — a gift, a custom build, an older piece with no online listing. Along with the built-in specifications you can store pricing, provenance, notes, links, and local photos. Full walkthrough: [Add knife in manual mode](add-a-knife-by-hand.md).
 
 ## When a retailer blocks the import
 

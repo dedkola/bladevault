@@ -40,4 +40,4 @@ Batch scrape uses the same browser engine as a single import, so it needs Chromi
 ## Next
 
 - [Add Knife to collection](add-knife-to-collection.md) — the single-URL walkthrough, including the interactive fallback.
-- [Add a knife by hand](add-a-knife-by-hand.md) — for the knives no page describes.
+- [Add knife in manual mode](add-a-knife-by-hand.md) — for the knives no page describes.
