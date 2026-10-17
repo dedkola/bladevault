@@ -15,7 +15,10 @@
 
 ## Guides
 
-- [Import knives from a product URL](guides/import-knives.md)
+- [Add Knife to collection](guides/add-knife-to-collection.md)
+- [Add several knives at once](guides/add-several-knives.md)
+- [Add knife in manual mode](guides/add-knife-in-manual-mode.md)
+- [Update a saved knife](guides/update-a-saved-knife.md)
 - [Organize your collection](guides/collection.md)
 - [Compare knives](guides/compare.md)
 - [Collection insights](guides/insights.md)

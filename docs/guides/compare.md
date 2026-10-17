@@ -8,7 +8,7 @@ Comparisons are saved as **named lists**. A knife can belong to several lists, s
 
 ## Showing only the differences
 
-Two similar knives often differ in one dimension or one steel. **Show only differences** hides the fields where the knives agree, so the decision is about what actually differs.
+Two similar knives often differ in one dimension or one steel. **Differences only** hides the fields where the knives agree, so the decision is about what actually differs.
 
 ## Print and export
 

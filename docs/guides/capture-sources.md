@@ -20,4 +20,4 @@ Capture uses a real browser, so it needs Chromium:
 - **From source:** `npx playwright install chromium`.
 - **Docker, desktop, Helm:** the shipped image and desktop build already include it.
 
-Capture depends on the source site responding. Some retailers block automated access — that is what the interactive browser fallback in [Import knives from a product URL](import-knives.md) is for.
+Capture depends on the source site responding. Some retailers block automated access — that is what the interactive browser fallback in [Add Knife to collection](add-knife-to-collection.md) is for.
