@@ -281,11 +281,13 @@ export function AddKnifeForm() {
   }
 
   const [screenshotWarning, setScreenshotWarning] = useState('')
+  const [scrapeWarnings, setScrapeWarnings] = useState<string[]>([])
 
   const handleScrape = async () => {
     if (!url.trim() || isScraping || interactiveStatus !== null) return
     setIsScraping(true)
     setScreenshotWarning('')
+    setScrapeWarnings([])
     setScrapeError(null)
     setHasScraped(false)
     setScrapedHtml('')
@@ -302,6 +304,7 @@ export function AddKnifeForm() {
         product: ScrapedProduct
         html?: string
         screenshotWarning?: string
+        warnings?: string[]
         finalUrl?: string
       }>(response)
 
@@ -312,6 +315,7 @@ export function AddKnifeForm() {
       }
 
       setScreenshotWarning(data.screenshotWarning || '')
+      setScrapeWarnings(data.warnings || [])
       applyScrapedProduct(
         data.product,
         typeof data.html === 'string' ? data.html : '',
@@ -385,6 +389,7 @@ export function AddKnifeForm() {
         product: ScrapedProduct
         html?: string
         screenshotWarning?: string
+        warnings?: string[]
         finalUrl?: string
       }>(response)
 
@@ -395,6 +400,7 @@ export function AddKnifeForm() {
       }
 
       setScreenshotWarning(data.screenshotWarning || '')
+      setScrapeWarnings(data.warnings || [])
       applyScrapedProduct(
         data.product,
         typeof data.html === 'string' ? data.html : '',
@@ -551,6 +557,16 @@ export function AddKnifeForm() {
           </div>
         </div>
 
+        {scrapeWarnings.length > 0 && (
+          <div
+            role="status"
+            className="space-y-1 text-sm text-amber-700 dark:text-amber-400"
+          >
+            {scrapeWarnings.map((warning) => (
+              <p key={warning}>{warning}</p>
+            ))}
+          </div>
+        )}
         {screenshotWarning && (
           <p
             role="status"

@@ -16,6 +16,8 @@ export type BatchScrapeItem = {
   error?: string
   /** Why the link was skipped without changing the collection. */
   reason?: string
+  /** Source fields that need manual review after import. */
+  warnings?: string[]
 }
 
 export type ParsedBatchLinks = {
@@ -182,6 +184,7 @@ export function isBotProtectionMessage(message: string | null | undefined) {
 export type BatchScrapeResult = {
   product: ScrapedProduct
   finalUrl?: string
+  warnings?: string[]
 }
 
 export type BatchScrapeDeps = {
@@ -250,11 +253,12 @@ export async function runBatchScrape(
       status: 'scraping',
       error: undefined,
       reason: undefined,
+      warnings: undefined,
     }
     deps.onUpdate(scraping)
 
     try {
-      const { product, finalUrl } = await deps.scrape(item.url)
+      const { product, finalUrl, warnings } = await deps.scrape(item.url)
       const draft = scrapedProductToKnifeDraft(product, finalUrl ?? item.url)
       const sourceUrls = [item.url, finalUrl ?? item.url, draft.sourceUrl]
 
@@ -271,6 +275,7 @@ export async function runBatchScrape(
         ...scraping,
         status: 'saving',
         name: draft.name,
+        ...(warnings?.length ? { warnings } : {}),
       }
       deps.onUpdate(saving)
 

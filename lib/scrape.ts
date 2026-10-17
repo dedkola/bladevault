@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio'
+import { extractVosteedSpecs, isVosteedProductUrl } from './scrape-vosteed'
 
 export type ScrapedProduct = {
   name: string
@@ -52,6 +53,7 @@ export type ScrapeConfidence = {
 export type ScrapeResult = {
   product: ScrapedProduct
   confidence: ScrapeConfidence
+  warnings?: string[]
 }
 
 function resolveUrl(
@@ -104,7 +106,7 @@ export async function scrapeAndEnrichProduct(
     )
   }
 
-  const { product, confidence } = scrapeProduct(html, finalUrl, sourceUrl)
+  const { product, warnings } = scrapeProduct(html, finalUrl, sourceUrl)
 
   // Shopify stores expose a .json endpoint with all product images and metadata.
   // Use it to augment the rendered-page data when available.
@@ -139,7 +141,13 @@ export async function scrapeAndEnrichProduct(
     }
   }
 
-  return { product, confidence, html, finalUrl }
+  return {
+    product,
+    confidence: buildConfidence(product),
+    ...(warnings?.length ? { warnings } : {}),
+    html,
+    finalUrl,
+  }
 }
 
 function cleanText(text: string | undefined): string {
@@ -1424,7 +1432,10 @@ function extractJsonLdProperties(
   return pairs
 }
 
-function extractSpecs($: cheerio.CheerioAPI): ScrapedProduct['specs'] {
+function extractSpecs(
+  $: cheerio.CheerioAPI,
+  scopedSpecs?: Partial<ScrapedProduct['specs']>,
+): ScrapedProduct['specs'] {
   const specs: ScrapedProduct['specs'] = {
     weight: '',
     overallLength: '',
@@ -1440,6 +1451,7 @@ function extractSpecs($: cheerio.CheerioAPI): ScrapedProduct['specs'] {
     price: '',
     country: '',
   }
+  if (scopedSpecs) return { ...specs, ...scopedSpecs }
 
   const setSpec = (key: keyof ScrapedProduct['specs'], value: string) => {
     if (!value) return
@@ -1855,7 +1867,10 @@ export function scrapeProduct(
   const titleText = normalizeText($('title').text())
   const h1Text = normalizeText($('h1').first().text())
   const searchText = `${titleText} ${h1Text} ${pageText}`
-  const specs = extractSpecs($)
+  const vosteed = isVosteedProductUrl(baseUrl)
+    ? extractVosteedSpecs($, baseUrl)
+    : null
+  const specs = extractSpecs($, vosteed?.specs)
 
   // Use the product description for material/style extraction when available,
   // since it is more likely to describe this exact knife than the full page text.
@@ -1906,8 +1921,18 @@ export function scrapeProduct(
     brand,
     description,
     images,
-    bladeStyle,
-    handleMaterial,
+    bladeStyle: vosteed
+      ? vosteed.bladeStyle ||
+        (vosteed.blocked.has('blade style')
+          ? ''
+          : extractBladeStyle(vosteed.text))
+      : bladeStyle,
+    handleMaterial: vosteed
+      ? vosteed.handleMaterial ||
+        (vosteed.blocked.has('handle material')
+          ? ''
+          : extractHandleMaterial(vosteed.text))
+      : handleMaterial,
     specs,
     sourceUrl: sourceUrl ?? baseUrl,
   }
@@ -1915,5 +1940,6 @@ export function scrapeProduct(
   return {
     product,
     confidence: buildConfidence(product),
+    ...(vosteed?.warnings.length ? { warnings: vosteed.warnings } : {}),
   }
 }

@@ -966,11 +966,13 @@ export function KnifeScrapeEditor({
   }
 
   const [screenshotWarning, setScreenshotWarning] = useState('')
+  const [scrapeWarnings, setScrapeWarnings] = useState<string[]>([])
 
   const handleScrape = async () => {
     if (!url.trim()) return
     setIsScraping(true)
     setScreenshotWarning('')
+    setScrapeWarnings([])
     setScrapeError(null)
     setHasScraped(false)
     setScrapedHtml('')
@@ -987,6 +989,7 @@ export function KnifeScrapeEditor({
         product: ScrapedProduct
         html?: string
         screenshotWarning?: string
+        warnings?: string[]
         finalUrl?: string
       }>(response)
 
@@ -997,6 +1000,7 @@ export function KnifeScrapeEditor({
       }
 
       setScreenshotWarning(data.screenshotWarning || '')
+      setScrapeWarnings(data.warnings || [])
       const product = data.product
       setLastScrapedProduct(product)
 
@@ -1128,6 +1132,16 @@ export function KnifeScrapeEditor({
               </div>
             </div>
 
+            {scrapeWarnings.length > 0 && (
+              <div
+                role="status"
+                className="space-y-1 text-sm text-amber-700 dark:text-amber-400"
+              >
+                {scrapeWarnings.map((warning) => (
+                  <p key={warning}>{warning}</p>
+                ))}
+              </div>
+            )}
             {screenshotWarning && (
               <p
                 role="status"

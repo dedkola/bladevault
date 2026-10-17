@@ -98,13 +98,18 @@ export function BatchScrapeDialog({
       error?: string
       product: ScrapedProduct
       finalUrl?: string
+      warnings?: string[]
     }>(response)
 
     if (!response.ok) {
       throw new Error(getApiErrorMessage(data, 'Failed to scrape product page'))
     }
 
-    return { product: data.product, finalUrl: data.finalUrl }
+    return {
+      product: data.product,
+      finalUrl: data.finalUrl,
+      warnings: data.warnings,
+    }
   }
 
   const run = async (batch: BatchScrapeItem[]) => {
@@ -288,6 +293,15 @@ export function BatchScrapeDialog({
                         {item.error}
                       </span>
                     )}
+                    {item.status === 'saved' &&
+                      item.warnings?.map((warning) => (
+                        <span
+                          key={warning}
+                          className="block break-words text-amber-700 dark:text-amber-400"
+                        >
+                          {warning}
+                        </span>
+                      ))}
                   </span>
                   <span className="shrink-0 text-muted-foreground">
                     {STATUS_LABELS[item.status]}
