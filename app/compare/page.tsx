@@ -25,7 +25,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
 import { EmptyState } from '@/components/empty-state'
-import { getImageUrl, Knife, matchesKnifeSearch } from '@/lib/data'
+import { getImageUrl, Knife, matchesGlobalKnifeSearch } from '@/lib/data'
 import { useKnives } from '@/components/providers/knives-provider'
 import { SearchField } from '@/components/search-field'
 import { getHourCycle } from '@/lib/time-format'
@@ -381,7 +381,7 @@ export default function ComparePage() {
     if (!debouncedQuery.trim()) return []
 
     return availableKnives.filter((knife) =>
-      matchesKnifeSearch(knife, debouncedQuery),
+      matchesGlobalKnifeSearch(knife, debouncedQuery),
     )
   }, [availableKnives, debouncedQuery])
   const hasSearchQuery = query.trim().length > 0
