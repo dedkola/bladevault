@@ -1,6 +1,6 @@
 # Add Knife to collection
 
-BladeVault can fill a record for you instead of you typing a dozen specifications by hand: paste a product URL, review what came back, save. Every screenshot below is from a real import — a Vosteed CheesePirates (A2932) from `vosteed.com`.
+BladeVault can fill a record for you instead of typing a dozen specifications yourself: paste a product URL, review what came back, save. Every screenshot below is from a real import — a Vosteed CheesePirates (A2932) from `vosteed.com`.
 
 ## 1. Click **Add knife**
 
@@ -8,7 +8,8 @@ Click **Add knife** at the top of the sidebar:
 
 ![The Add knife button at the top of the sidebar](../images/add-knife-button.png)
 
-The form opens on the **Scrape URL** tab — the other tab, **Manual**, is for [typing a knife in by hand](add-a-knife-by-hand.md):
+The form opens on the **Scrape URL** tab. The other tab, **Manual**, is for entering a knife
+yourself: [Add knife in manual mode](add-knife-in-manual-mode.md).
 
 ![The Add knife form, open on the Scrape URL tab](../images/add-knife-form.png)
 
@@ -22,7 +23,7 @@ Put the retailer's product page into **Product URL** and click **Scrape** (press
 
 ![Imported values from a Vosteed product page, with the scraped page preview beside the form](../images/add-knife-imported.png)
 
-The form comes back filled: brand/maker, model name, designer, dimensions (overall, blade, handle, weight), construction (blade material, style, coating, handle material, locking mechanism, hardness), and the description. Every field stays editable, and **Scraped page preview** shows the source page next to the form so a value can be checked against the page it came from.
+The form comes back filled: brand/maker, model name, model number, price, dimensions (overall, blade, thickness, weight), construction (blade material, style, coating, handle material, locking mechanism, hardness), and the description. Where a page gives two different values for one field — this one lists two handle lengths for its variants — the import leaves the field empty and says why, so nothing is guessed in. Every field stays editable, and **Scraped page preview** shows the source page next to the form so a value can be checked against the page it came from.
 
 ## 4. Choose the images to keep
 
@@ -56,7 +57,7 @@ In the collection it appears as a card, ready for the next one.
 
 ## Add a knife manually
 
-The **Manual** tab gives you every field by hand, which is the right path for a knife with no product page — a gift, a custom build, an older piece with no online listing. Along with the built-in specifications you can store pricing, provenance, notes, links, and local photos. Full walkthrough: [Add knife in manual mode](add-a-knife-by-hand.md).
+The **Manual** tab gives you every field to fill in yourself, which is the right path for a knife with no product page — a gift, a custom build, an older piece with no online listing. Along with the built-in specifications you can store pricing, provenance, notes, links, and local photos. Full walkthrough: [Add knife in manual mode](add-knife-in-manual-mode.md).
 
 ## When a retailer blocks the import
 

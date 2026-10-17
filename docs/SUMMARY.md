@@ -17,7 +17,7 @@
 
 - [Add Knife to collection](guides/add-knife-to-collection.md)
 - [Add several knives at once](guides/add-several-knives.md)
-- [Add knife in manual mode](guides/add-a-knife-by-hand.md)
+- [Add knife in manual mode](guides/add-knife-in-manual-mode.md)
 - [Update a saved knife](guides/update-a-saved-knife.md)
 - [Organize your collection](guides/collection.md)
 - [Compare knives](guides/compare.md)

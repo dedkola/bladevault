@@ -30,7 +30,7 @@ Open [http://localhost:5500](http://localhost:5500).
 
 - **Import from a URL** — paste a product URL from a supported retailer and BladeVault fills in the details. If the page needs a human touch, the import opens an interactive browser fallback so you can finish it yourself. See [Add Knife to collection](guides/add-knife-to-collection.md).
 - **Import a list** — paste several links and let **Batch scrape** work through them one at a time. See [Add several knives at once](guides/add-several-knives.md).
-- **Enter it manually** — add specifications, pricing, provenance, notes, links, and local photos yourself. See [Add knife in manual mode](guides/add-a-knife-by-hand.md).
+- **Enter it manually** — add specifications, pricing, provenance, notes, links, and local photos yourself. See [Add knife in manual mode](guides/add-knife-in-manual-mode.md).
 
 ## 3. Make the collection yours
 

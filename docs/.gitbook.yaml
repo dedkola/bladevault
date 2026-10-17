@@ -1,0 +1,5 @@
+# Space-level configuration for the GitBook doc space that syncs from docs/.
+root: ./
+
+redirects:
+  guides/add-a-knife-by-hand: guides/add-knife-in-manual-mode.md
