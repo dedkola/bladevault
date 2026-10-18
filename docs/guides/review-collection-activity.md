@@ -23,14 +23,18 @@ Search ignores letter case. Search, event type, and date filters work together, 
 ## Filter by date
 
 1. Select the calendar button, initially labeled **Date**.
+
+   ![The calendar button, labeled Date, beside the search field](../images/review-collection-activity-date-button.png)
+
 2. Choose **Today**, **Last 7 days**, or **Last 30 days** for a quick range. The selected range is applied immediately.
 
    ![The date popover with Quick ranges and the calendar](../images/review-collection-activity-date-menu.png)
 
 3. For a custom range, select its first and last days in the calendar, then select **Apply**. Selecting just one day filters to that day.
-4. Reopen the calendar and select **Clear** to remove the date filter. **Cancel** closes the calendar without applying your draft selection.
 
    ![A 30-day range applied, with the selected dates shown on the button](../images/review-collection-activity-date-applied.png)
+
+4. Reopen the calendar and select **Clear** to remove the date filter. **Cancel** closes the calendar without applying your draft selection.
 
 Date ranges include their first and last days. The filter uses the date the activity was recorded. For maintenance performed on an earlier day, open the event details or the knife's maintenance history to inspect the entered maintenance date.
 
@@ -46,6 +50,9 @@ Date ranges include their first and last days. The filter uses the date the acti
    ![The Changes summary with its Field, Before, and After values](../images/review-collection-activity-changes.png)
 
 4. Select **Open knife details** to inspect the current record, when available.
+
+   ![The Open knife details link in Event details](../images/review-collection-activity-open-knife-details.png)
+
 5. Close the details using the close button or the entry's chevron.
 
 A deleted knife may still have retained history, but its record can no longer be opened from that event. Some events have a summary without individual field changes.

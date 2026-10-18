@@ -72,6 +72,8 @@ These details are optional and appear with the entry in **History**. They descri
 
 To remove an entry, select its trash button, **Delete maintenance entry**, and confirm **Delete this maintenance entry?** The entry disappears from the knife's maintenance history. The latest-date summary updates to reflect the remaining entries.
 
+![An entry's edit and delete buttons at the end of its row](../images/log-maintenance-entry-actions.png)
+
 ## Review care across the collection
 
 Open **Logs** and select **Maintenance** to see maintenance activity for all knives. Expand an event to inspect its details. Logs also records edits and deletions, so it is useful when you need to understand a change to the history.
