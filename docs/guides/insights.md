@@ -22,6 +22,9 @@ Insights summarize your collection: the makers you collect, the materials and si
    ![A selected value with the matching knives listed beside the chart](../images/insights-drill-results.png)
 
 3. Open a knife from the results to inspect its saved specifications or make an edit.
+
+   ![The knife record opened from the drill-down results](../images/insights-open-record.png)
+
 4. Use **Back to insights** on a detail page to return to the overview.
 
    ![The Back to insights link on a detail page](../images/insights-back-to-insights.png)
