@@ -1,6 +1,6 @@
 # Quickstart
 
-BladeVault runs entirely on your own machine (or your own server) — there is no account and no API key to start.
+BladeVault runs on your own computer or server. You do not need an account or API key to get started.
 
 ## 1. Pick how you want to run it
 
@@ -11,7 +11,7 @@ BladeVault runs entirely on your own machine (or your own server) — there is n
 | [Kubernetes with Helm](installation/helm.md)   | k3s or another cluster with a LoadBalancer | A few minutes     |
 | [Run from source](installation/from-source.md) | Node.js 24 and a checkout                  | A few minutes     |
 
-The fastest self-hosted path is one container command from [Docker and Podman](installation/docker.md):
+To run the prebuilt container, create a data folder and start BladeVault:
 
 ```bash
 mkdir -p "$HOME/BladeVault/data"
@@ -28,23 +28,25 @@ Open [http://localhost:5500](http://localhost:5500).
 
 ## 2. Add your first knives
 
-- **Import from a URL** — paste a product URL from a supported retailer and BladeVault fills in the details. If the page needs a human touch, the import opens an interactive browser fallback so you can finish it yourself. See [Add Knife to collection](guides/add-knife-to-collection.md).
+- **Import from a URL** — paste a retailer's product URL and review the imported details. If the page requires interaction, use the interactive browser fallback. See [Add a knife from a product URL](guides/add-knife-to-collection.md).
 - **Import a list** — paste several links and let **Batch scrape** work through them one at a time. See [Add several knives at once](guides/add-several-knives.md).
-- **Enter it manually** — add specifications, pricing, provenance, notes, links, and local photos yourself. See [Add knife in manual mode](guides/add-knife-in-manual-mode.md).
+- **Enter it manually** — add specifications, a price, notes, a source link, and local photos yourself. See [Add a knife manually](guides/add-knife-in-manual-mode.md).
 
 ## 3. Make the collection yours
 
-- Add **custom fields** (text, number, date) and choose which details appear on cards and in the pinned sidebar.
-- Save a filter as a **Smart Collection** that updates as your records change.
-- Browse variants together in **Model families**, and use global search for model names or `/model A4301` for model numbers.
+- Add [custom fields](guides/custom-fields.md) for text, numbers, and dates, and [choose which details appear on cards](guides/customize-appearance.md) and in the pinned sidebar.
+- Save search and filters as a [Smart Collection](guides/smart-collections.md) that updates as your records change.
+- Browse variants in [Model families](guides/model-families.md), or [search and filter](guides/search-and-filter.md) to find a specific knife.
+- Use [bulk actions](guides/bulk-actions.md) to edit or pin several records at once.
 
-See [Organize your collection](guides/collection.md) for the full set.
+See [Organize your collection](guides/collection.md) for an overview.
 
 ## 4. Compare, maintain, understand
 
 - **Compare** — build named shortlists, show only the differences, export to PDF. See [Compare knives](guides/compare.md).
-- **Maintain** — log cleaning, lubrication, sharpening, stropping and disassembly with dated notes. Review everything in **Logs**.
+- **Maintain** — [log cleaning, lubrication, sharpening, stropping, and disassembly](guides/log-maintenance.md) with dated notes. Review changes and care history in [Logs](guides/review-collection-activity.md).
 - **Insights** — explore makers, materials, dimensions, completeness, and activity. See [Collection insights](guides/insights.md).
+- **Improve records** — find missing fields, review measurements, and standardize labels. See [Improve collection data quality](guides/improve-data-quality.md).
 
 ## 5. Protect the data
 
@@ -52,7 +54,7 @@ BladeVault is local-first: the vault is a SQLite database plus local images in a
 
 - **Where it lives** — `~/BladeVault/data` by default for the desktop app and source runs, `/app/data` inside a container. See [Your data](reference/data.md).
 - **App lock** — an optional password on the local vault (off by default). See [App lock](reference/data.md#optional-app-lock).
-- **Backups** — **Settings → Backup & Restore → Download ZIP** writes a portable full-vault archive; [cloud backup](reference/cloud-backup.md) is opt-in and keeps local storage as the source of truth.
+- **Backups** — download a portable full-vault ZIP or enable optional cloud backup. See [Back up and restore your vault](guides/back-up-and-restore-your-vault.md).
 
 ## Next steps
 
