@@ -1,31 +1,31 @@
 # Update a saved knife
 
-An import is a starting point, not a finished record: it fills what the product page states and leaves the rest empty. Everything on it stays editable afterwards — open the knife, click **Edit**, and fill in the blanks or change anything. The record below is the imported Vosteed Valkyrie (VK32NTGH1), finished off by hand.
+Use **Edit** to correct imported values or add details that a product page does not provide. The example below shows a Vosteed Valkyrie (VK32NTGH1) with its country of origin added manually.
 
 ## 1. Open the record and click **Edit**
 
-At the top right of the record, click **Edit**:
+Click the knife's card in **Collection**, then choose **Open full page →** in its preview. At the top right of the record, click **Edit**:
 
 ![The Edit button at the top right of the record, next to Pin and Delete](../images/update-a-saved-knife-edit-button.png)
 
-The record you land on is the read-only view — specifications, notes, images, and the link to the source page:
+The record initially shows its saved specifications, notes, images, and source link:
 
 ![The imported Valkyrie record as it opens: specifications, notes, images, and the link to the source page](../images/update-a-saved-knife-record.png)
 
-Clicking **Edit** swaps the record for the **Edit Knife** view.
+Click **Edit** to open the **Edit Knife** form.
 
 ## 2. Fill in what the page does not state
 
-The **Edit Knife** view gives you the whole record at once:
+The **Edit Knife** form contains these sections:
 
 - **Product URL** — the page the knife was imported from, kept on the record so you can see where a value came from.
 - **Identity, Dimensions, Construction, Notes** — every field, prefilled with what the import read off the page.
-- **Images** — every picture that came with the import, with the webpage capture, where you tick which ones to keep, set the **cover**, reorder, or remove them.
+- **Images** — review the saved photos and webpage capture, select images to keep, choose a **cover**, and reorder or remove images.
 - **Ownership** — mark the knife **Sold** when it leaves the collection; it stays in the vault with a marker on its card.
 
-Most of it is already right. The Valkyrie's page lists `Blade Style: Seax` and `Finish: Satin` in separate rows, so the import put **Seax** in **Blade style**, **Satin** in **Blade coating / finish**, and **Price** reads `72.00 USD`. What the page never states stays empty: it does not say where the knife is made, so **Country** is blank and the record shows **Origin** as `—`.
+The Valkyrie's page lists `Blade Style: Seax` and `Finish: Satin` in separate rows. The import places **Seax** in **Blade style**, **Satin** in **Blade coating / finish**, and `72.00 USD` in **Price**. Because the page does not state a country of origin, **Country** is blank.
 
-Type `China` into **Country** — where Vosteed makes this knife — and nothing else on the record moves:
+For this example, enter `China` in **Country** after verifying the origin separately. Leave the other fields as they are:
 
 ![The Edit Knife view: the source URL, every field, the image library and its cover](../images/update-a-saved-knife-edit.png)
 
@@ -37,19 +37,25 @@ At the bottom right of the edit form, click **Save Changes**:
 
 ![The bottom of the edit form, with the Cancel and Save Changes action bar](../images/update-a-saved-knife-save.png)
 
-**Save Changes** writes the edit and returns you to the record.
+**Save Changes** saves your edits and returns you to the record.
 
 ## 4. See the completed record
 
 ![The saved record with Origin filled in — China — beside the specifications the import read off the page](../images/update-a-saved-knife-saved.png)
 
-**Origin** now reads `China`, and everything the import filled in is still there: **Blade style** `Seax`, **Blade coating / finish** `Satin`, **Price** `72.00 USD`. The **Source** link still points at the page it came from, so the next time you wonder where a specification came from, the answer is one click away — and if the import captured the page, that screenshot is in the gallery too (see [Capture source pages](capture-sources.md)).
+**Origin** now reads `China`. The other saved values remain: **Blade style** is `Seax`, **Blade coating / finish** is `Satin`, and **Price** is `72.00 USD`. The **Source** link still opens the original product page. If the import captured that page, you can also review its saved screenshot in the gallery. See [Capture source pages](capture-sources.md).
+
+## Mark a knife as sold or delete a record
+
+To keep the knife's details and history after selling it, open **Edit**, enable **Sold** under **Ownership**, and save. Clear **Sold** and save again if you need to reverse the status.
+
+To remove a record, return to its detail view, click **Delete**, and confirm. Deletion cannot be undone from the app. [Download a backup](back-up-and-restore-your-vault.md) first if you may need the record later.
 
 ## Related
 
-- **Maintenance** — cleaning, lubrication, sharpening, stropping, and disassembly are logged from the same record, with dated notes.
+- [Log maintenance and sharpening](log-maintenance.md) — record care tasks and review the knife's maintenance history.
 - **Compare** — a knife can be added to several named shortlists; see [Compare knives](compare.md).
-- **Bulk edits** — several records at once are handled from the collection; see [Organize your collection](collection.md).
+- [Edit and pin several knives at once](bulk-actions.md) — update a shared value across selected records.
 
 ## Next
 

@@ -6,7 +6,7 @@
 - **Chromium** if you want to use URL import and webpage capture.
 - Dependencies are installed with `npm ci` (the repository ships a `package-lock.json`).
 
-## Set up the dev server
+## Set up the development server
 
 ```bash
 git clone https://github.com/dedkola/bladevault.git
@@ -59,7 +59,7 @@ Every script in `package.json`:
 | `npm run dist:desktop`                   | Package desktop installers without publishing them.                                 |
 | `npm run dist:desktop:dir`               | Package the desktop app as an unpacked directory.                                   |
 | `npm run dist:desktop:mac:unsigned`      | Package an unsigned macOS DMG.                                                      |
-| `npm run dist:desktop:mac:signed`        | Package a signed and notarised macOS DMG.                                           |
+| `npm run dist:desktop:mac:signed`        | Package a signed and notarized macOS DMG.                                           |
 | `npm run verify:desktop:mac`             | Verify a macOS release build.                                                       |
 | `npm run verify:desktop:windows-updater` | Verify the Windows updater flow.                                                    |
 | `npm run clean`                          | Remove `.next`.                                                                     |

@@ -1,37 +1,39 @@
 # Organize your collection
 
+Use the collection to find records, group model variants, and update several knives at once. The guides below explain each workflow.
+
 ![The collection view: Smart Collections, model families, and configurable cards](../images/collection.png)
 
 ## Records
 
-Each knife records specifications, pricing, provenance, notes, links, and local photos. Alongside the built-in fields you can add **custom text, number, and date fields** — useful for anything the defaults do not cover, such as a sharpening angle preference or a purchase channel.
+Each knife record can hold specifications, pricing, provenance, notes, links, and local photos. Add [custom text, number, and date fields](custom-fields.md) for details such as a preferred sharpening angle or purchase channel.
 
 ## Cards and the pinned sidebar
 
-You choose which details appear on collection cards and in the pinned sidebar, so the first glance shows what matters to you rather than every field at once.
+[Choose which details appear on cards and pinned sidebar items](customize-appearance.md). The same field selection applies to both. You can also change the theme, time format, and whether pinned knives appear first.
 
 ## Finding things
 
-- **Search and filter** across the collection, then narrow further with filters.
-- **Global search** understands model names and `/model A4301` for model numbers.
-- **Pin** the knives you keep coming back to.
-- **Bulk edit** several records at once.
+- [Search, filter, and sort your collection](search-and-filter.md) by model name, saved field values, or measurement ranges.
+- Use **global search** to find a model name or enter `/model A4301` to search model numbers.
+- [Pin or edit several knives at once](bulk-actions.md) from the collection's selection controls.
 
-## Smart Collections
+## Smart collections
 
-Save a filter as a **Smart Collection** and it stays live: the collection updates as your records change, so "folding knives with no notes" or "steels sharpened this year" stays true without maintenance.
+[Save a search or filters as a Smart Collection](smart-collections.md) to reuse them. For example, save knives with a particular blade material and titanium handles, or knives with a blade length of at least 70 mm and under 90 mm. Matching records update as you add or edit knives.
 
 ## Model families
 
-Variants of the same model are easier to reason about together. **Model families** browse them as a group, so you can compare a base model with its limited editions without hunting through the list.
+[Browse model families and variants](model-families.md) to see records with the same brand and model name together. Open a family to preview its variants and move between their individual records.
 
 ![Knife detail page with specifications, notes, and image gallery](../images/detail.png)
 
 ## Maintenance history
 
-Log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes and sharpening details. Maintenance history and collection changes appear in **Logs**, so the record of what you did and when is kept with the knife.
+[Log maintenance and sharpening](log-maintenance.md) with dates, notes, and sharpening details. [Review collection activity in Logs](review-collection-activity.md) to see maintenance events and record changes.
 
 ## Next
 
 - [Compare knives](compare.md) — build shortlists and export comparisons.
 - [Collection insights](insights.md) — makers, materials, dimensions, completeness.
+- [Improve collection data quality](improve-data-quality.md) — review missing specifications, measurements, and inconsistent labels.

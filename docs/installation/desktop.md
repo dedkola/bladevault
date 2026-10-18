@@ -1,6 +1,6 @@
 # Desktop app
 
-The desktop build is the native option: it ships the same web interface inside an Electron shell and stores the vault in your user folder.
+The desktop app provides BladeVault's interface in its own window and stores the vault in your user folder.
 
 ## macOS
 
@@ -15,7 +15,7 @@ xattr -d com.apple.quarantine "/Applications/BladeVault.app"
 open "/Applications/BladeVault.app"
 ```
 
-Updates use a user-assisted flow: select **Download update** in **Settings → About**, open the downloaded DMG, quit BladeVault, and replace the app in Applications.
+To update, select **Download update** in **Settings → About**, open the downloaded DMG, quit BladeVault, and replace the app in **Applications**.
 
 ## Windows
 
@@ -27,7 +27,7 @@ Check for updates in **Settings → About**. Download an available update, then 
 
 ## Where the desktop app keeps your data
 
-`~/BladeVault/data` on macOS and Linux, `%USERPROFILE%\BladeVault\data` on Windows. The desktop app can also move its data folder from Settings when the location is not managed by `BLADEVAULT_DATA_DIR`. See [Your data](../reference/data.md).
+The default data folder is `~/BladeVault/data` on macOS and `%USERPROFILE%\BladeVault\data` on Windows. The desktop app can also move its data folder from Settings when the location is not managed by `BLADEVAULT_DATA_DIR`. See [Your data](../reference/data.md).
 
 The desktop runtime serves MCP on `http://127.0.0.1:5501/mcp`; if port `5501` is busy, BladeVault uses a free local port and **Copy config** includes the active URL. See [MCP](../reference/mcp.md).
 

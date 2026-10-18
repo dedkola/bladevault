@@ -19,7 +19,7 @@ BladeVault exposes its existing local collection to MCP clients such as LM Studi
 
 Open **Settings → AI / MCP** to review activity, copy the local client configuration, enable or disable HTTP access, and allow or deny write access. Write mode is off by default.
 
-Metadata updates require the expected record timestamp to prevent overwriting newer edits, and are recorded in the change log. Maintenance writes append dated events to a knife's history. MCP cannot replace knife IDs, record timestamps, images, or entire records.
+Metadata updates require the expected record timestamp to prevent overwriting newer edits. They are recorded in the change log. Maintenance writes append dated events to a knife's history. MCP cannot replace knife IDs, record timestamps, images, or entire records.
 
 ## Connect an MCP client
 
@@ -45,7 +45,7 @@ Client configuration formats differ. Open **Settings → AI / MCP** through the 
 | macOS or Windows desktop app          | `http://127.0.0.1:5501/mcp`   |
 | Source checkout                       | `http://localhost:3000/mcp`   |
 
-Replace the example URL when needed and replace the token placeholder with the value shown in BladeVault Settings. The copy buttons work on plain HTTP LAN addresses as well as secure origins.
+Replace the example URL as needed and replace the token placeholder with the value shown in BladeVault Settings. The copy buttons work on plain HTTP LAN addresses as well as secure origins.
 
 For Unraid, map host port `5500` to container port `3000`. Keep the desktop app running while its MCP connection is in use. If desktop port `5501` is busy, BladeVault uses a free local port and **Copy config** includes the active URL.
 
@@ -88,7 +88,7 @@ Configure your client to run the built entry point directly:
 }
 ```
 
-Replace both paths with your checkout and existing vault data folder. Use an absolute path to your Node.js 24 executable if your client cannot find `node`. The client starts the process, so the web or desktop app does not need to be running. Stdio uses the same local database and write-access settings and does not require an HTTP token. To start the stdio server manually, run `npm run mcp`.
+Replace both paths with the paths to your checkout and existing vault data folder. Use an absolute path to your Node.js 24 executable if your client cannot find `node`. The client starts the process, so the web or desktop app does not need to be running. Stdio uses the same local database and write-access settings and does not require an HTTP token. To start the stdio server manually, run `npm run mcp`.
 
 ## Tokens and deployment overrides
 
@@ -97,3 +97,8 @@ BladeVault generates one permanent MCP access token and stores it with the persi
 - `MCP_AUTH_TOKEN`, `MCP_ALLOWED_HOSTS`, and `MCP_ALLOWED_ORIGINS` remain available as deployment overrides. When `MCP_AUTH_TOKEN` is set, its value is used instead of the app-generated token and is required for local and remote HTTP connections.
 - `MCP_ENABLED` and `MCP_WRITE_ENABLED` remain available for administrators who explicitly add deployment overrides. Setting either variable locks its corresponding app control.
 - While [App lock](data.md#optional-app-lock) is enabled, HTTP MCP clients need the existing MCP bearer token, including localhost clients. Local stdio MCP continues to use direct database access.
+
+## Related
+
+- [Review collection activity in Logs](../guides/review-collection-activity.md) — inspect changes made through MCP and the app.
+- [Log maintenance and sharpening](../guides/log-maintenance.md) — manage dated maintenance events in the app.

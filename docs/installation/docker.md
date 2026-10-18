@@ -74,5 +74,5 @@ docker run -d \
 
 - **Data persistence** — everything lives in `/app/data` inside the container: `bladevault.sqlite` plus local images. That is what the `-v` mount keeps. See [Your data](../reference/data.md).
 - **Unraid or another LAN server** — map host port `5500` to container port `3000`, then reach the app at `http://<SERVER_IP>:5500` and MCP at `http://<SERVER_IP>:5500/mcp`.
-- **URL import and capture** — the published image is ready for source-page capture; when running from a checkout you additionally need Chromium (see [Run from source](from-source.md)).
+- **URL import and capture** — the published image includes the browser runtime for imports and source-page capture. A source checkout needs Chromium installed separately. See [Run from source](from-source.md).
 - **MCP from a container** — the client URL is `http://localhost:5500/mcp` when the container runs on the same computer. See [MCP](../reference/mcp.md).

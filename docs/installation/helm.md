@@ -6,7 +6,7 @@ The default chart is designed for k3s with MetalLB. It creates a dedicated `Load
 
 - The public multi-platform image matching the chart's app version, for example `ghcr.io/dedkola/bladevault:v1.3.1`.
 - A 5 GiB `ReadWriteOnce` PVC at `/app/data` using the default StorageClass, annotated with `helm.sh/resource-policy: keep`.
-- One replica and the `Recreate` strategy, for SQLite safety.
+- One replica with the `Recreate` strategy to avoid simultaneous access to the SQLite database from multiple pods.
 - A dedicated `LoadBalancer` service, suitable for k3s with MetalLB.
 
 ## Install
@@ -19,7 +19,7 @@ helm install bladevault bladevault/bladevault \
   --create-namespace
 ```
 
-Get the address, then open `http://<EXTERNAL-IP>`:
+Find the service's external address, then open `http://<EXTERNAL-IP>`:
 
 ```bash
 kubectl get service bladevault --namespace bladevault
@@ -83,4 +83,4 @@ kubectl delete pvc bladevault-data --namespace bladevault
 kubectl delete namespace bladevault
 ```
 
-Back up the PVC before storage maintenance or cluster removal — it holds the vault database and every downloaded image. See [Your data](../reference/data.md) for the in-app ZIP backup, which is the portable option.
+Back up the PVC before storage maintenance or cluster removal. It holds the vault database and every downloaded image. For a portable archive, follow [Back up and restore your vault](../guides/back-up-and-restore-your-vault.md).
