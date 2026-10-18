@@ -6,6 +6,9 @@ Save a **full-page screenshot** of a knife's source page so you can check its or
 
 - URL import attempts to capture the product page along with its details.
 - A saved capture can be viewed or downloaded from the knife's gallery.
+
+  ![A saved webpage screenshot shown in the record's gallery](../images/capture-sources-gallery-tile.png)
+
 - You can capture a missing screenshot or replace an existing one in the knife's edit form.
 - A batch action in Settings captures missing screenshots for older records with source URLs.
 
@@ -13,7 +16,14 @@ Save a **full-page screenshot** of a knife's source page so you can check its or
 
 1. Click a knife's card in **Collection**, then choose **Open full page →** in its preview.
 2. Select its webpage screenshot in the gallery and open it fullscreen.
+
+   ![The View fullscreen control on the record's gallery](../images/capture-sources-view-fullscreen.png)
+
+   ![The saved webpage screenshot open in the fullscreen viewer](../images/capture-sources-fullscreen.png)
+
 3. Scroll through the saved page, or choose **Download PNG** to save a copy.
+
+   ![The Download PNG control in the viewer](../images/capture-sources-download-png.png)
 
 The capture shows the website as it appeared when the screenshot was taken. It does not update when the source page changes.
 
@@ -21,6 +31,9 @@ The capture shows the website as it appeared when the screenshot was taken. It d
 
 1. Open a knife that has a saved source URL, click **Edit**, and find its image controls.
 2. Click **Capture webpage screenshot**. If a capture already exists, the button reads **Replace webpage screenshot**.
+
+   ![The Replace webpage screenshot button among the record's image controls](../images/capture-sources-replace-button.png)
+
 3. When replacing a capture, confirm that you want a new screenshot of the website as it appears today.
 4. Wait for the capture to finish, then review it in the gallery. If it fails, read the error and try again when the website is available.
 
@@ -30,6 +43,9 @@ Replacing a capture overwrites the saved screenshot. Download the old PNG first 
 
 1. Open **Settings → Local storage**.
 2. Find **Capture missing webpage screenshots** and review the remaining count.
+
+   ![The Capture missing webpage screenshots panel, with the remaining count and a failed entry](../images/capture-sources-backfill-panel.png)
+
 3. Click **Capture missing screenshots**. Keep the page open while it works through the list.
 4. To pause, click **Stop after current item**. Use **Resume / retry missing screenshots** to continue later.
 5. Review any failed entries. Retry them, or use **Skip** for a source that is no longer available.

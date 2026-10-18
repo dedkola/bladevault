@@ -7,21 +7,40 @@ Comparisons are saved as named lists, such as "Next purchase", "EDC rotation", o
 ## Create a comparison
 
 1. Select the **+** button beside **Compare** in the navigation. If you have no comparisons, you can also select **New comparison** on the Compare page.
+
+   ![The + button beside Compare in the navigation](../images/compare-new-button.png)
+
 2. Enter a **Comparison name** between 1 and 60 characters, then select **Create comparison**.
+
+   ![The New comparison dialog with a name entered](../images/compare-create-dialog.png)
+
 3. Select **Add knives** on the new list.
+
+   ![The Add knives button above the comparison](../images/compare-add-knives.png)
+
 4. In the **Add knives** dialog, search by name, brand, steel, or model number, then select **Add** beside each knife you want to include.
+
+   ![The Add knives dialog with a search term and matching knives](../images/compare-add-knives-dialog.png)
+
 5. Select **Done** to close the dialog.
 
 The saved list now shows your knives in a comparison matrix. Select a different list under **Compare** in the navigation to switch shortlists. On a narrow screen, the Compare page also has a list selector.
+
+![A new comparison with the knives added from the dialog](../images/compare-list-created.png)
 
 The separate inline search on the Compare page searches model names with ordinary text. Use `/model 535` to search model numbers there. This differs from the broader search in the **Add knives** dialog.
 
 ## Add a knife from its record
 
 1. Open a knife in **Collection** and select **Compare**. If it already belongs to a list, the button shows **In 1 list** or the number of lists instead.
+
+   ![The Compare button on a knife record](../images/compare-record-button.png)
+
 2. With no existing lists, enter a name and select **Create & add**.
 3. With one existing list, the button adds the knife directly. Selecting it again removes that knife from the list.
 4. With several lists, select or clear the relevant checkboxes in **Choose comparisons**, then select **Save selection**. You can also create a **New comparison** from that dialog.
+
+   ![The Choose comparisons dialog, with each saved list and its knife count](../images/compare-choose-dialog.png)
 
 Each list keeps its own membership. To add several selected collection records at once, see [Edit and pin several knives at once](bulk-actions.md).
 
@@ -29,13 +48,20 @@ Each list keeps its own membership. To add several selected collection records a
 
 1. Open a list containing at least two knives.
 2. Enable **Differences only** above the comparison matrix.
+
+   ![The Differences only control above the matrix](../images/compare-differences-only.png)
+
 3. Review the remaining rows. Disable the option to show every displayed specification again.
+
+   ![The matrix with Differences only enabled](../images/compare-differences-result.png)
 
 Rows with the same displayed value for every knife are hidden. If no rows remain, the page shows **No differences in the displayed specifications**. This compares the saved values; it does not verify their accuracy. On a narrow screen, swipe or scroll horizontally to see more columns.
 
 ## Manage a saved list
 
 Open **Comparison options** using the three-dot button beside the list actions, then choose an action:
+
+![The Comparison options menu, listing rename, duplicate, remove all, and delete](../images/compare-options-menu.png)
 
 | Action                               | Result                                                                                                                              |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -50,6 +76,9 @@ To remove one knife, select its **Remove** button in the lineup or at the top of
 
 1. Open the saved list and choose whether to enable **Differences only**.
 2. Select **Export PDF** to download a PDF, or **Print** to open the print dialog.
+
+   ![The Export PDF and Print buttons above the matrix](../images/compare-export-buttons.png)
+
 3. Save or print the result using the available dialog controls.
 
 Both actions use the specifications currently shown in the matrix, including the **Differences only** selection. Add at least one knife to enable these actions.

@@ -14,9 +14,17 @@ Insights summarize your collection: the makers you collect, the materials and si
 ## Explore an insight
 
 1. Open **Insights** and find the chart or summary you want to investigate.
+
+   ![A distribution chart on the Insights overview](../images/insights-chart.png)
+
 2. Open its detail page for a fuller breakdown. Where a chart offers a selection, choose a value to inspect its matching knives.
+
+   ![A selected value with the matching knives listed beside the chart](../images/insights-drill-results.png)
+
 3. Open a knife from the results to inspect its saved specifications or make an edit.
 4. Use **Back to insights** on a detail page to return to the overview.
+
+   ![The Back to insights link on a detail page](../images/insights-back-to-insights.png)
 
 The matching records explain the count or distribution you selected. Missing values and inconsistent labels can affect those summaries, so check the records before drawing conclusions.
 
@@ -30,9 +38,13 @@ Open **Data completeness** for three ways to review your catalog:
 
 The completeness score measures populated core fields, not factual accuracy. A blank supplemental field may be appropriate for a particular knife. See [Improve collection data quality](improve-data-quality.md) for the full review workflow.
 
+![Data completeness, with missing fields and measurement review](../images/insights-data-completeness.png)
+
 ## Print a report
 
 Use **Print Report** in **Settings → Backup & Restore** to open the Overview for printing or saving as a PDF.
+
+![The Print section in Settings, with Print Report beside the collection report description](../images/insights-print-section.png)
 
 ## Related
 
