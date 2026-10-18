@@ -12,6 +12,7 @@ Open **Collection** from the sidebar, then choose **Model families** above the c
 3. Click a family card. A family with several variants opens a dialog showing its matching records. A family with one record opens that knife's preview directly.
    ![A family dialog listing every matching variant, with its specifications](../images/model-families-dialog.png)
 4. Choose a variant to open its preview.
+   ![The variant preview opened from a family dialog, with the family's variant chips and the Open full page → and Edit actions](../images/model-families-variant-preview.png)
 5. Click **Open full page →** for the complete record, or **Edit** to update it.
 
 Each variant keeps its own specifications, photos, notes, maintenance history, and ownership status. Family browsing does not merge the records.

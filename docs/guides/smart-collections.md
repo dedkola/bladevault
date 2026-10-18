@@ -36,6 +36,7 @@ The existing Smart Collection now uses the current search and filters. To discar
 1. Open an existing Smart Collection and adjust the search or filters.
 2. Open its three-dot menu and choose **Save as new**.
 3. Enter a different name and click **Save**.
+   ![The Save smart collection dialog opened from Save as new, with a different name typed in](../images/smart-collections-save-as-new-dialog.png)
 
 You now have two saved views. The original keeps its previous filters.
 
