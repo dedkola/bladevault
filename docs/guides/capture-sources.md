@@ -11,13 +11,13 @@ Product pages change and disappear. BladeVault can store a **full-page screensho
 
 ## Where captures live
 
-Captures are stored with your vault data and are included in **local ZIP backups** and in [cloud backups](../reference/cloud-backup.md) — no separate asset store to manage.
+Captures are stored with your vault data, so every backup of the vault carries them. **Settings → Backup & Restore → Download ZIP** saves that archive without a cloud account, and [cloud backups](../reference/cloud-backup.md) keep a copy off the machine — see [Your data](../reference/data.md) for what a backup holds. No separate asset store to manage.
 
 ## Requirements
 
 Capture uses a real browser, so it needs Chromium:
 
 - **From source:** `npx playwright install chromium`.
-- **Docker, desktop, Helm:** the shipped image and desktop build already include it.
+- **Docker, desktop, Kubernetes:** the shipped image and desktop build already include it.
 
 Capture depends on the source site responding. Some retailers block automated access — that is what the interactive browser fallback in [Add Knife to collection](add-knife-to-collection.md) is for.
