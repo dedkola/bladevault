@@ -10,5 +10,6 @@ test-results
 .git
 .idea
 data
+docs/
 *.md
 .DS_Store
