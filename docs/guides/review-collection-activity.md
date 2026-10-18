@@ -12,7 +12,7 @@ Open **Logs** from the navigation. Entries are shown newest first, grouped by da
 
 2. Choose **All activity**, **Created**, **Updated**, **Deleted**, or **Maintenance** to narrow the event types.
 
-   ![The activity filters and the date control above the log entries](../images/review-collection-activity-filters.png)
+   ![The activity filters above the log entries](../images/review-collection-activity-filters.png)
 
 3. Review the matching entries. Search also checks event summaries and recorded before-and-after values, so an old field value can help you find an earlier edit.
 
@@ -32,9 +32,13 @@ Search ignores letter case. Search, event type, and date filters work together, 
 
 3. For a custom range, select its first and last days in the calendar, then select **Apply**. Selecting just one day filters to that day.
 
+   ![A custom range drafted in the calendar, with Apply below it](../images/review-collection-activity-date-range-selected.png)
+
+4. Review the filtered entries. The button now shows the selected dates.
+
    ![A 30-day range applied, with the selected dates shown on the button](../images/review-collection-activity-date-applied.png)
 
-4. Reopen the calendar and select **Clear** to remove the date filter. **Cancel** closes the calendar without applying your draft selection.
+5. Reopen the calendar and select **Clear** to remove the date filter. **Cancel** closes the calendar without applying your draft selection.
 
 Date ranges include their first and last days. The filter uses the date the activity was recorded. For maintenance performed on an earlier day, open the event details or the knife's maintenance history to inspect the entered maintenance date.
 
