@@ -4,9 +4,10 @@ Use search and filters to find knives by model name, specifications, custom fiel
 
 ## Search by model name
 
+![The search field with part of a model name typed in, beside the Filters button](../images/search-and-filter-search-model.png)
+
 1. Open **Collection** and choose **All knives**.
 2. Type part of a model name into **Search model name…**. You can press `/` while outside a text field to focus it.
-![The search field with part of a model name typed in, beside the Filters button](../images/search-and-filter-search-model.png)
 3. Review the matching cards. Search ignores letter case and matches any part of the model name.
 ![Matching cards for “raccoon”, with the result count beside the sort control](../images/search-and-filter-search-results.png)
 4. Click a card to preview the knife, then choose **Open full page →** if you need its complete record.
@@ -53,21 +54,23 @@ This finds records missing one or more of the built-in specification fields used
 ## Sort and clear results
 
 Use the sort menu above the cards to choose **Newest added**, **Model A–Z**, or **Brand A–Z**. If **Keep pinned knives first** is enabled in Settings, pinned knives appear before other results, with the chosen sort applied within those groups.
-![The sort menu beside the Gallery and Compact view buttons and the Select button](../images/search-and-filter-sort.png)
 
 Click the × beside an active filter to remove it. A field menu's **Clear** button removes all selected values for that field. **Clear all** removes the search and filters together and leaves the current collection tab selected.
 
 To reuse a search and filters later, click **Save smart collection**. See [Create and manage Smart Collections](smart-collections.md).
+
+![The sort menu beside the Gallery and Compact view buttons and the Select button](../images/search-and-filter-sort.png)
 
 ## Find a model number with global search
 
 1. Open **Insights**, a knife record, or another page that shows **Find a knife** at the top.
 2. Click **Find a knife**, or press `/` while outside a text field.
 3. Type a model name, or enter `/model A4301` to search only model numbers. Replace `A4301` with all or part of the number you need.
-![Find a knife in model-number mode, with the matching records listed](../images/search-and-filter-global-search.png)
 4. Select a result to open its record.
 
 Global search and the inline search on the **Compare** page support `/model`. The collection's own search box uses model names; choose its **Model Number** filter to find a saved number there. The separate **Add knives** dialog on Compare searches names, brands, model numbers, and blade materials as plain text. See [Compare knives](compare.md).
+
+![Find a knife in model-number mode, with the matching records listed](../images/search-and-filter-global-search.png)
 
 ## Related guides
 
