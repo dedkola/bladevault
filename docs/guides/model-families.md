@@ -8,9 +8,9 @@ Open **Collection** from the sidebar, then choose **Model families** above the c
 
 1. Choose **Model families** in **Collection**.
 2. Find a family by browsing, entering its model name in search, or applying **Filters**.
-![The Model families tab with each family's variant count](../images/model-families-tab.png)
+   ![The Model families tab with each family's variant count](../images/model-families-tab.png)
 3. Click a family card. A family with several variants opens a dialog showing its matching records. A family with one record opens that knife's preview directly.
-![A family dialog listing every matching variant, with its specifications](../images/model-families-dialog.png)
+   ![A family dialog listing every matching variant, with its specifications](../images/model-families-dialog.png)
 4. Choose a variant to open its preview.
 5. Click **Open full page →** for the complete record, or **Edit** to update it.
 

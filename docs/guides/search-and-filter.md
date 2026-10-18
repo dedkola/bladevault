@@ -9,22 +9,22 @@ Use search and filters to find knives by model name, specifications, custom fiel
 1. Open **Collection** and choose **All knives**.
 2. Type part of a model name into **Search model name…**. You can press `/` while outside a text field to focus it.
 3. Review the matching cards. Search ignores letter case and matches any part of the model name.
-![Matching cards for “raccoon”, with the result count beside the sort control](../images/search-and-filter-search-results.png)
+   ![Matching cards for “raccoon”, with the result count beside the sort control](../images/search-and-filter-search-results.png)
 4. Click a card to preview the knife, then choose **Open full page →** if you need its complete record.
-![The preview panel for a matching knife, with Open full page → and Edit](../images/search-and-filter-preview.png)
+   ![The preview panel for a matching knife, with Open full page → and Edit](../images/search-and-filter-preview.png)
 
 Collection search checks the model name. To find a brand, model number, material, or other saved field, use **Filters**.
 
 ## Combine filters
 
 1. Click **Filters** above the cards.
-![The Filters panel open above the cards](../images/search-and-filter-filters.png)
+   ![The Filters panel open above the cards](../images/search-and-filter-filters.png)
 2. Open a field such as **Brand**, **Blade Material**, **Model Number**, or **Handle Material**.
 3. Select one or more saved values. Use the search box inside a field's menu to find an option in a long list.
-![The Brand field menu with a search term typed and one value selected](../images/search-and-filter-brand-menu.png)
+   ![The Brand field menu with a search term typed and one value selected](../images/search-and-filter-brand-menu.png)
 4. Choose values in another field to narrow the results further. Any custom fields you have defined appear here too.
 5. Review the active filters shown below the controls.
-![The active filters below the controls, each with a remove button, and Clear all](../images/search-and-filter-active-filters.png)
+   ![The active filters below the controls, each with a remove button, and Clear all](../images/search-and-filter-active-filters.png)
 
 Within one field, a knife can match any selected value. Across different fields, it must match every field. For example, selecting two blade materials and one handle material finds either steel with that handle material.
 
@@ -34,7 +34,7 @@ Within one field, a knife can match any selected value. Across different fields,
 
 1. Open **Filters** and find **Measurement ranges**.
 2. Enter an **At least** value, an **Under** value, or both for a measurement.
-![Blade length set to at least 70 mm and under 90 mm, with the matching cards below](../images/search-and-filter-measurement-ranges.png)
+   ![Blade length set to at least 70 mm and under 90 mm, with the matching cards below](../images/search-and-filter-measurement-ranges.png)
 3. Use millimeters for lengths and blade thickness, and grams for weight, as shown beside each field.
 4. Check the matching cards before adding more ranges.
 
@@ -46,7 +46,7 @@ BladeVault reads the units in saved measurements when comparing them with these 
 
 1. Open **Filters**.
 2. Select **Any missing specification** below the measurement ranges.
-![The measurement ranges with Any missing specification selected](../images/search-and-filter-missing-specification.png)
+   ![The measurement ranges with Any missing specification selected](../images/search-and-filter-missing-specification.png)
 3. Review the matching records, or combine this option with a brand or other filter.
 
 This finds records missing one or more of the built-in specification fields used by collection filters, excluding Brand. It does not check notes, images, or custom fields. To find a missing value in a particular field, use that field's **Not set** option.

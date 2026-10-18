@@ -5,14 +5,15 @@ A Smart Collection saves a search and filters as a named view. Its results updat
 Open **Collection** from the sidebar to create or change a Smart Collection.
 
 ## Save a Smart Collection
+
 ![The Save smart collection button beside the page heading](../images/smart-collections-save-button.png)
 
 1. Enter a model name in **Search model name…**, choose values under **Filters**, or combine both. You need at least one search term or filter.
 2. Check the matching records. For example, choose a **Blade Material** and **Handle Material**, or use **Measurement ranges** to find blades of at least 70 mm and under 90 mm.
-![The measurement ranges applied to blade length, with the matching records and their count](../images/smart-collections-results.png)
+   ![The measurement ranges applied to blade length, with the matching records and their count](../images/smart-collections-results.png)
 3. Click **Save smart collection** near the page heading.
 4. Enter a **Name**, such as `Titanium handles` or `70–90 mm blades`. Names can contain up to 80 characters.
-![The Save smart collection dialog with a name typed in](../images/smart-collections-save-dialog.png)
+   ![The Save smart collection dialog with a name typed in](../images/smart-collections-save-dialog.png)
 5. Click **Save**.
 
 The saved name appears under **Smart collections** in the sidebar. Click it to open the saved search and filters. The number beside its name shows how many knives currently match.
@@ -23,10 +24,10 @@ The saved name appears under **Smart collections** in the sidebar. Click it to o
 
 1. Open the Smart Collection from the sidebar.
 2. Adjust its search or filters if needed. **Modified** appears beside the name when they differ from the saved version.
-![The saved name with the Modified badge, and the three-dot menu beside it](../images/smart-collections-modified.png)
+   ![The saved name with the Modified badge, and the three-dot menu beside it](../images/smart-collections-modified.png)
 3. Open the three-dot menu beside the saved name and choose **Update collection**.
 4. Change the **Name** if needed, then click **Save changes**.
-![The Update smart collection dialog with the saved name ready to change](../images/smart-collections-update-dialog.png)
+   ![The Update smart collection dialog with the saved name ready to change](../images/smart-collections-update-dialog.png)
 
 The existing Smart Collection now uses the current search and filters. To discard unsaved filter changes, click its name in the sidebar again.
 
@@ -43,7 +44,7 @@ You now have two saved views. The original keeps its previous filters.
 1. Open the Smart Collection from the sidebar.
 2. Open its three-dot menu and choose **Delete collection**.
 3. Click **Delete** in the confirmation dialog.
-![The delete confirmation for a saved Smart Collection](../images/smart-collections-delete-dialog.png)
+   ![The delete confirmation for a saved Smart Collection](../images/smart-collections-delete-dialog.png)
 
 This removes the saved view and its sidebar entry. All knife records remain in the vault.
 
