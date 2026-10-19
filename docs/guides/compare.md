@@ -1,5 +1,7 @@
 # Compare knives
 
+{% embed url="https://www.youtube.com/watch?v=GJiksvGPBs0" %}
+
 ![A saved comparison list with specifications shown side by side](../images/compare.png)
 
 Comparisons are saved as named lists, such as "Next purchase", "EDC rotation", or "Gift ideas". A knife can belong to several lists. Open **Compare** from the navigation to work with your shortlists.
