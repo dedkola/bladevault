@@ -1,0 +1,57 @@
+name: Refresh documentation site
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - '.github/workflows/deploy-docs.yml'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: bladevault-web-docs
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger BladeVault Web rebuild
+        shell: bash
+        env:
+          DEPLOY_HOOK_URL: ${{ secrets.BLADEVAULT_WEB_DOCS_DEPLOY_HOOK }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$DEPLOY_HOOK_URL" ]]; then
+            echo '::error::Set the BLADEVAULT_WEB_DOCS_DEPLOY_HOOK repository secret to the bladevault-web main branch Vercel Deploy Hook URL. See .github/DOCS_DEPLOYMENT.md.'
+            exit 1
+          fi
+
+          response_file=$(mktemp)
+          trap 'rm -f "$response_file"' EXIT
+
+          curl --fail --silent --show-error \
+            --connect-timeout 10 --max-time 60 \
+            --request POST --output "$response_file" \
+            "$DEPLOY_HOOK_URL"
+
+          if ! jq -e '.job.id | type == "string" and length > 0' "$response_file" >/dev/null; then
+            echo '::error::Vercel did not return a deployment job ID.'
+            exit 1
+          fi
+
+          echo 'Vercel accepted the documentation rebuild request.'
+          {
+            echo '### Documentation rebuild requested'
+            echo
+            echo 'Vercel accepted a rebuild of bladevault-web from main.'
+            echo 'The site build fetches the current BladeVault documentation from main.'
+            echo
+            echo 'This confirms the request was accepted. Check the bladevault-web Vercel deployment for the build and publication result.'
+          } >> "$GITHUB_STEP_SUMMARY"
