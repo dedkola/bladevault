@@ -1,6 +1,6 @@
 # Compare knives
 
-{% embed url="https://www.youtube.com/watch?v=GJiksvGPBs0" %}
+[![Watch the Compare knives walkthrough on YouTube](https://img.youtube.com/vi/GJiksvGPBs0/hqdefault.jpg)](https://www.youtube.com/watch?v=GJiksvGPBs0)
 
 ![A saved comparison list with specifications shown side by side](../images/compare.png)
 
