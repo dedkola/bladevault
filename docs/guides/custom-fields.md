@@ -5,6 +5,7 @@ Custom fields store details that the built-in fields do not cover, such as a pur
 ## Create a field
 
 1. Open **Settings → Custom fields**.
+   ![The Custom fields panel in Settings](../images/custom-fields-panel.png)
 2. Enter a name in the new-field box. Use a clear label, such as `Storage location`.
 3. Choose the field type:
 
@@ -15,6 +16,7 @@ Custom fields store details that the built-in fields do not cover, such as a pur
    | **Date**   | A calendar date                                | A purchase date                         |
 
 4. Click **Add**. The field appears in the list and becomes available throughout the vault.
+   ![The new Storage location field in the list, with its type controls and the remove button](../images/custom-fields-created.png)
 
 A new field does not fill existing records automatically. Its value stays empty until you add one to a knife.
 
@@ -22,6 +24,7 @@ A new field does not fill existing records automatically. Its value stays empty 
 
 1. Open a knife and click **Edit**.
 2. Find the **Custom Fields** section and enter a value under the field's name.
+   ![The record's edit form at the Custom Fields section, with a value entered for the field](../images/custom-fields-record-full.png)
 3. Click **Save Changes**.
 4. Return to the record and check the saved value.
 
@@ -31,10 +34,13 @@ To give several knives the same value, use [bulk editing](bulk-actions.md).
 
 ## Filter by a custom field
 
+![The custom field's menu in Filters, offering the values saved in the collection](../images/custom-fields-filter.png)
+
 1. Open **Collection** and click **Filters**.
 2. Find the filter with your custom field's name.
 3. Select one or more saved values. Choose **Not set** to find knives without a value, when that option is available.
 4. Combine it with other filters or save the result as a [Smart Collection](smart-collections.md).
+   ![The collection filtered by the custom field value](../images/custom-fields-filter-applied.png)
 
 The filter offers values already saved in your collection. Number and date fields use the same value-selection control as text fields; they do not add custom numeric or date-range controls.
 
