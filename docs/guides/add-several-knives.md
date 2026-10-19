@@ -1,5 +1,7 @@
 # Add several knives at once
 
+{% embed url="https://www.youtube.com/watch?v=vOOuwQlW0hI" %}
+
 Use **Batch scrape** to import several product URLs in one run. Each link is scraped and saved before the next one starts. The example below imports three knives from `vosteed.com`: a Raccoon (RC3SVM1), a Corgi (CG3SVM2), and a Nightshade TS (NSTS32NWGH).
 
 ## 1. Paste the links
