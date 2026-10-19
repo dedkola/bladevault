@@ -2,6 +2,7 @@ export type PopupCleanupOptions = {
   root?: Document
   manual?: boolean
   observe?: boolean
+  hideOnly?: boolean
 }
 
 /** Self-contained so Playwright can run this function in the retailer page. */
@@ -9,6 +10,7 @@ export function cleanupScrapePopups({
   root = document,
   manual = false,
   observe = false,
+  hideOnly = false,
 }: PopupCleanupOptions = {}): number {
   const knownOverlays = [
     '[data-kl-scroll-locking-modal="true"]',
@@ -72,6 +74,33 @@ export function cleanupScrapePopups({
       )
         continue
 
+      if (hideOnly) {
+        ;(element as HTMLElement).style.setProperty(
+          'display',
+          'none',
+          'important',
+        )
+        for (const sibling of [
+          element.previousElementSibling,
+          element.nextElementSibling,
+        ]) {
+          if (
+            sibling?.matches(
+              '.modal-backdrop, .popup-overlay, [data-modal-backdrop]',
+            ) &&
+            !sibling.querySelector('main, [role="main"], h1, form')
+          ) {
+            ;(sibling as HTMLElement).style.setProperty(
+              'display',
+              'none',
+              'important',
+            )
+          }
+        }
+        removed += 1
+        continue
+      }
+
       let target = element
       // A modal can sit inside a separate fullscreen overlay. Remove that shell
       // only when its other children are backdrops, not other page content.
@@ -106,7 +135,7 @@ export function cleanupScrapePopups({
       removed += 1
     }
 
-    if (removed > 0) {
+    if (removed > 0 && !hideOnly) {
       for (const element of [root.documentElement, root.body]) {
         if (!element) continue
         element.classList.remove(

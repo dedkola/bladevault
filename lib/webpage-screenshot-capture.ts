@@ -9,6 +9,8 @@ const MAX_HEIGHT = 30000
 const MAX_WIDTH = 4096
 const MAX_PIXELS = 60_000_000
 const MAX_BYTES = 30 * 1024 * 1024
+const SCROLL_SETTLE_MS = 250
+const FINAL_SETTLE_MS = 750
 
 /** Capture the live page, never a reconstructed HTML preview. */
 export async function captureWebpageScreenshot(page: Page): Promise<string> {
@@ -20,7 +22,6 @@ export async function captureWebpageScreenshot(page: Page): Promise<string> {
         'The website requires verification. Use the interactive browser to capture it.',
       )
     }
-    await page.evaluate(cleanupScrapePopups, { observe: true })
     // DOM readiness is enough for parsing, but images and styles can still be loading.
     await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {})
     const deadline = Date.now() + 20000
@@ -51,8 +52,11 @@ export async function captureWebpageScreenshot(page: Page): Promise<string> {
         throw new Error(
           'The webpage did not finish loading in time for a complete screenshot.',
         )
-      await page.evaluate((y) => window.scrollTo(0, y), top)
-      await page.waitForTimeout(150)
+      await page.evaluate(
+        (y) => window.scrollTo({ top: y, behavior: 'auto' }),
+        top,
+      )
+      await page.waitForTimeout(SCROLL_SETTLE_MS)
     }
     await page.evaluate(async () => {
       await Promise.race([
@@ -73,8 +77,18 @@ export async function captureWebpageScreenshot(page: Page): Promise<string> {
         ),
         new Promise((resolve) => setTimeout(resolve, 3000)),
       ])
-      window.scrollTo(0, 0)
     })
+    await page.evaluate(() => window.scrollTo(0, 0))
+    // Some storefronts paint below-the-fold sections only after the scroll
+    // position has settled. Give the browser a final render window before the
+    // full-page screenshot stitches those sections together.
+    await page.waitForTimeout(FINAL_SETTLE_MS)
+    // Hide cookie and marketing overlays only after the page has hydrated,
+    // lazy sections have rendered, and the viewport is back at the top.
+    // Removing them while a storefront is scrolled can interrupt hydration and
+    // leave below-the-fold content blank in Chromium's full-page stitch.
+    await page.evaluate(cleanupScrapePopups, { hideOnly: true })
+    await page.waitForTimeout(FINAL_SETTLE_MS)
     const size = await page.evaluate(() => ({
       width: document.documentElement.scrollWidth,
       height: Math.max(
@@ -114,11 +128,28 @@ export async function captureWebpageScreenshot(page: Page): Promise<string> {
         'The webpage styles or images could not be loaded. Retry the screenshot when the website is available.',
       )
     }
-    await page.evaluate(cleanupScrapePopups, {})
+    // Some storefronts use content-visibility and lazy image loading to keep
+    // below-the-fold sections out of the render tree until they are visible.
+    // Full-page screenshots need those sections rendered after the warm-up
+    // scroll, otherwise Chromium can stitch blank space below the viewport.
+    await page.addStyleTag({
+      content: `
+        *, *::before, *::after {
+          content-visibility: visible !important;
+        }
+        img[loading="lazy"] {
+          content-visibility: visible !important;
+        }
+      `,
+    })
+    await page.evaluate(() => {
+      for (const image of document.images) image.loading = 'eager'
+    })
+    await page.waitForTimeout(FINAL_SETTLE_MS)
     const buffer = await page.screenshot({
       fullPage: true,
       type: 'png',
-      animations: 'disabled',
+      animations: 'allow',
       timeout: 10000,
       scale: 'css',
     })

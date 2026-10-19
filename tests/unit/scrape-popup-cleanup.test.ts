@@ -40,6 +40,18 @@ describe('scrape popup cleanup', () => {
     expect(document.body.style.top).toBe('')
   })
 
+  it('can hide overlays in place for live screenshots', () => {
+    document.body.innerHTML = `${product}
+      <div data-kl-scroll-locking-modal="true" role="dialog">Subscribe</div>`
+
+    expect(cleanupScrapePopups({ hideOnly: true })).toBe(1)
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(
+      (document.querySelector('[role="dialog"]') as HTMLElement).style.display,
+    ).toBe('none')
+    expect(document.querySelector('main')).not.toBeNull()
+  })
+
   it('keeps sticky headers, inline subscriptions, product dialogs, and page wrappers', () => {
     document.body.innerHTML = `<div class="newsletter-modal-layout">
       <header style="position:fixed">Store navigation</header>${product}
