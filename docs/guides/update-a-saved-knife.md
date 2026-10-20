@@ -1,5 +1,7 @@
 # Update a saved knife
 
+[![Watch the Update a Saved Knife walkthrough on YouTube](https://img.youtube.com/vi/VCxAo_N0_EE/hqdefault.jpg)](https://youtu.be/VCxAo_N0_EE)
+
 Use **Edit** to correct imported values or add details that a product page does not provide. The example below shows a Vosteed Valkyrie (VK32NTGH1) with its country of origin added manually.
 
 ## 1. Open the record and click **Edit**

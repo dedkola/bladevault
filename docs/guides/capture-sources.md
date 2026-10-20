@@ -1,5 +1,7 @@
 # Capture source pages
 
+[![Watch the Capture Sources walkthrough on YouTube](https://img.youtube.com/vi/H5Vg5duWKlY/hqdefault.jpg)](https://youtu.be/H5Vg5duWKlY)
+
 Save a **full-page screenshot** of a knife's source page so you can check its original specifications even if the website changes or removes the listing.
 
 ## What you get

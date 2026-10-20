@@ -1,5 +1,7 @@
 # Edit and pin several knives at once
 
+[![Watch the Bulk Actions walkthrough on YouTube](https://img.youtube.com/vi/4EXzNb24Odw/hqdefault.jpg)](https://youtu.be/4EXzNb24Odw)
+
 Use the collection's selection controls to replace one field across several records, pin or unpin knives, or add a selection to comparisons.
 
 Open **Collection** from the sidebar. Before making a large edit, you can [back up your vault](back-up-and-restore-your-vault.md).

@@ -1,5 +1,7 @@
 # Back up and restore your vault
 
+[![Watch the backup and restore walkthrough on YouTube](https://img.youtube.com/vi/kApN2egnnRo/hqdefault.jpg)](https://youtu.be/kApN2egnnRo)
+
 A full-vault backup keeps your knife records, settings, Smart Collections, saved comparisons, maintenance and change history, and local images together. Use a local ZIP without an account, or sign in for an optional cloud copy.
 
 Restoring a backup replaces the current vault. It does not merge two collections. Download a ZIP of the current vault first if you want to keep a separate copy before restoring another one.

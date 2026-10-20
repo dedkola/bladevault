@@ -1,5 +1,7 @@
 # Improve collection data quality
 
+[![Watch the Improve Data Quality walkthrough on YouTube](https://img.youtube.com/vi/gzKZdG84TFk/hqdefault.jpg)](https://youtu.be/gzKZdG84TFk)
+
 Use **Insights → Data completeness** to find gaps in your catalog, review measurements, and make field labels consistent. The page separates three tasks: finding missing fields, reviewing measurements one knife at a time, and applying a label change to a group of records.
 
 The completeness score counts populated core fields. It does not establish whether a value is correct, and a missing supplemental field may be appropriate for a particular knife.

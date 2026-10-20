@@ -1,5 +1,7 @@
 # Collection insights
 
+[![Watch the Collection Insights walkthrough on YouTube](https://img.youtube.com/vi/2lhAQx7TqQE/hqdefault.jpg)](https://youtu.be/2lhAQx7TqQE)
+
 ![Collection insights: makers, materials, dimensions, and data completeness](../images/insights.png)
 
 Insights summarize your collection: the makers you collect, the materials and sizes represented, gaps in your records, and collection activity over time. Open **Insights** from the navigation to explore them.
