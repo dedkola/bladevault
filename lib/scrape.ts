@@ -252,7 +252,7 @@ function extractJsonLdProduct($: cheerio.CheerioAPI): Partial<ScrapedProduct> {
               const images = Array.isArray(node.image)
                 ? node.image
                 : [node.image]
-              result.images = images
+              const extractedImages = images
                 .map((img: unknown) =>
                   typeof img === 'string'
                     ? img
@@ -262,6 +262,9 @@ function extractJsonLdProduct($: cheerio.CheerioAPI): Partial<ScrapedProduct> {
                   (img: unknown): img is string =>
                     typeof img === 'string' && img.length > 0,
                 )
+              result.images = [
+                ...new Set([...(result.images ?? []), ...extractedImages]),
+              ]
             }
           }
         }
@@ -402,28 +405,30 @@ function preferFullSizeImage(url: string): string {
   return url
 }
 
+function canonicalizeImageUrl(url: string): string {
+  return url.replace(
+    /\/images\/stencil\/(?:original|\d+w)\//i,
+    '/images/stencil/original/',
+  )
+}
+
 function extractImages($: cheerio.CheerioAPI, baseUrl: string): string[] {
   const seen = new Set<string>()
   const images: string[] = []
 
   const add = (href: string | undefined, preferFull = true) => {
     let resolved = resolveUrl(href, baseUrl)
-    if (!resolved || seen.has(resolved)) return
+    if (!resolved) return
     if (preferFull) {
-      const full = preferFullSizeImage(resolved)
-      if (full !== resolved && !seen.has(full)) {
-        resolved = full
-      }
+      resolved = preferFullSizeImage(resolved)
     }
+    resolved = canonicalizeImageUrl(resolved)
+    if (seen.has(resolved)) return
     // Skip obvious thumbnails unless we have no other images.
     if (isThumbnailUrl(resolved) && images.length > 0) return
     seen.add(resolved)
     images.push(resolved)
   }
-
-  findMeta($, ['og:image', 'twitter:image'])
-    .split(',')
-    .forEach((href) => add(href, false))
 
   const imageSelectors = [
     '[data-main-image] img',
@@ -452,29 +457,43 @@ function extractImages($: cheerio.CheerioAPI, baseUrl: string): string[] {
 
   $(imageSelectors.join(', ')).each((_, el) => {
     const $el = $(el)
-    add(
-      $el.attr('data-large_image') ||
-        $el.attr('data-zoom-image') ||
-        $el.attr('data-src') ||
-        $el.attr('data-lazy-src') ||
-        $el.attr('src') ||
-        $el.attr('data-zoom') ||
-        $el.attr('srcset')?.split(',')[0]?.trim().split(' ')[0],
-    )
-  })
-
-  $('img').each((_, el) => {
-    const $el = $(el)
-    const src =
+    const imageSource =
       $el.attr('data-large_image') ||
       $el.attr('data-zoom-image') ||
       $el.attr('data-src') ||
       $el.attr('data-lazy-src') ||
-      $el.attr('src')
-    if (src && /product|knife|blade|item/i.test(src)) {
-      add(src)
-    }
+      $el.attr('src') ||
+      $el.attr('data-zoom') ||
+      $el.attr('srcset')?.split(',')[0]?.trim().split(' ')[0]
+    if (/video|youtube/i.test(`${$el.attr('alt') ?? ''} ${imageSource ?? ''}`))
+      return
+    add(imageSource)
   })
+
+  if (images.length === 0) {
+    $('img').each((_, el) => {
+      const $el = $(el)
+      const src =
+        $el.attr('data-large_image') ||
+        $el.attr('data-zoom-image') ||
+        $el.attr('data-src') ||
+        $el.attr('data-lazy-src') ||
+        $el.attr('src')
+      const className = $el.attr('class') ?? ''
+      if (
+        src &&
+        !/video|youtube/i.test(`${$el.attr('alt') ?? ''} ${src}`) &&
+        !/swatch|variant|option/i.test(className) &&
+        /product|knife|blade|item/i.test(src)
+      ) {
+        add(src)
+      }
+    })
+  }
+
+  findMeta($, ['og:image', 'twitter:image'])
+    .split(',')
+    .forEach((href) => add(href, false))
 
   return images
 }
@@ -1857,7 +1876,12 @@ export function scrapeProduct(
   const name = cleanProductName(rawName, sourceUrl ?? baseUrl)
   const brand = extractBrand(name, $, ld.brand, sourceUrl ?? baseUrl)
   const description = ld.description || extractDescription($)
-  const images = ld.images?.length ? ld.images : extractImages($, baseUrl)
+  const galleryImages = extractImages($, baseUrl)
+  const images = [
+    ...new Set(
+      [...(ld.images ?? []), ...galleryImages].map(canonicalizeImageUrl),
+    ),
+  ]
   // Use elementTextWithBreaks so block-level tags and <br> become word
   // boundaries; cheerio's .text() concatenates table cells and <br> lines
   // without separators, which breaks keyword matching (e.g. "MaterialAluminum").

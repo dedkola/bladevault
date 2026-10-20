@@ -3,7 +3,6 @@ import { tryCaptureWebpageScreenshot } from '@/lib/webpage-screenshot-capture'
 import { chromium } from 'playwright'
 import type { Browser, BrowserContext } from 'playwright'
 import { validateExternalUrl } from '@/lib/url-validation'
-import { cleanupScrapePopups } from '@/lib/scrape-popup-cleanup'
 
 export type RenderedPage = {
   html: string
@@ -120,8 +119,6 @@ export async function fetchRenderedHtml(url: string): Promise<RenderedPage> {
       .catch(() => {
         // Fall through: some sites have unusual markup and we still want the HTML.
       })
-
-    await page.evaluate(cleanupScrapePopups, { observe: true })
 
     // Some retailers render specs inside accordions or tabs. Give them a moment
     // to expand lazy content, then scroll to the bottom to trigger more loaders.

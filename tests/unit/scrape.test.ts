@@ -55,6 +55,31 @@ describe('product scraping', () => {
     expect(isSecurityChallengePage('<html>Just a moment...</html>')).toBe(false)
   })
 
+  it('merges JSON-LD and rendered gallery images while excluding video thumbnails', () => {
+    const html = `
+      <html><head>
+        <script type="application/ld+json">
+          {"@type":"Product","name":"Razel","image":"https://cdn.example/structured.jpg"}
+        </script>
+      </head><body>
+        <div class="product-gallery">
+          <img alt="Razel fixed profile" src="https://cdn.example/profile.jpg">
+          <img alt="Razel angled tip" src="https://cdn.example/images/stencil/3840w/tip.jpg">
+          <img alt="Video Thumbnail" src="https://img.youtube.com/vi/example/hqdefault.jpg">
+        </div>
+        <img class="option-swatch" alt="Black D2 G10" src="https://cdn.example/products/variant.jpg">
+      </body></html>
+    `
+
+    expect(
+      scrapeProduct(html, 'https://shop.example/razel').product.images,
+    ).toEqual([
+      'https://cdn.example/structured.jpg',
+      'https://cdn.example/profile.jpg',
+      'https://cdn.example/images/stencil/original/tip.jpg',
+    ])
+  })
+
   it('recognizes and extracts Shopify product data', () => {
     const url = 'https://shop.example/products/bugout?variant=1#details'
     expect(getShopifyJsonUrl(url)).toBe(
