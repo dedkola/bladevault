@@ -1,6 +1,7 @@
 import { tryCaptureWebpageScreenshot } from '@/lib/webpage-screenshot-capture'
 import { chromium, Browser, BrowserContext, Page } from 'playwright'
 import { isSecurityChallengePage } from '@/lib/scrape'
+import { installScrapeBrowserInitScript } from '@/lib/scrape-browser-context'
 import { validateExternalUrl } from '@/lib/url-validation'
 
 export type InteractiveSessionStatus =
@@ -126,23 +127,7 @@ export async function startInteractiveSession(url: string): Promise<string> {
     extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
   })
 
-  await context.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
-    Object.defineProperty(navigator, 'plugins', {
-      get: () => [
-        { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer' },
-        {
-          name: 'Chrome PDF Viewer',
-          filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai',
-        },
-        { name: 'Native Client', filename: 'internal-nacl-plugin' },
-      ],
-    })
-    const w = window as unknown as Record<string, unknown>
-    w.chrome = (w.chrome as Record<string, unknown>) || { runtime: {} }
-    delete w.__playwright
-    delete w.__pw_manual
-  })
+  await installScrapeBrowserInitScript(context)
 
   await context.route('**/*', async (route) => {
     const validation = await validateExternalUrl(route.request().url())
