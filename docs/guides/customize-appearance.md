@@ -1,5 +1,7 @@
 # Customize cards and collection appearance
 
+[![Watch the Customize Appearance walkthrough on YouTube](https://img.youtube.com/vi/iFuS-uAehS4/hqdefault.jpg)](https://youtu.be/iFuS-uAehS4)
+
 Choose the details you want to see while browsing and adjust BladeVault's theme, time format, and pinned ordering. Open **Settings → Appearance** for the preferences that apply across the vault.
 
 ## Choose the details on knife cards

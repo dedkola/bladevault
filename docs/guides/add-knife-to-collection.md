@@ -1,5 +1,7 @@
 # Add a knife from a product URL
 
+[![Watch the Add Knife walkthrough on YouTube](https://img.youtube.com/vi/xxyMIwL4gBU/hqdefault.jpg)](https://youtu.be/xxyMIwL4gBU)
+
 Import a product page to fill in a knife's specifications and images. Paste the URL, review the imported details, and save the record. The screenshots below show a real import of a Vosteed CheesePirates (A2932) from `vosteed.com`.
 
 ## 1. Click **Add knife**

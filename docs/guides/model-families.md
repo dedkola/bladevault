@@ -1,5 +1,7 @@
 # Browse model families and variants
 
+[![Watch the Model Families walkthrough on YouTube](https://img.youtube.com/vi/gbo1asWI9wo/hqdefault.jpg)](https://youtu.be/gbo1asWI9wo)
+
 Model families bring records with the same brand and model name together. Use them to browse different steels, handles, finishes, or model numbers while keeping a separate record for each knife.
 
 Open **Collection** from the sidebar, then choose **Model families** above the cards.

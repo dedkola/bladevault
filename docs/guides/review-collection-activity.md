@@ -1,5 +1,7 @@
 # Review collection activity in Logs
 
+[![Watch the collection activity walkthrough on YouTube](https://img.youtube.com/vi/dTpAvL_w9n4/hqdefault.jpg)](https://youtu.be/dTpAvL_w9n4)
+
 **Logs** shows recorded changes to your vault, including knife additions, metadata edits, deletions, and maintenance activity. Use it to find when a record changed, inspect before-and-after values, and identify the source of an update.
 
 Open **Logs** from the navigation. Entries are shown newest first, grouped by day, using your local time.

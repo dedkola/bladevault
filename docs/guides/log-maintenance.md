@@ -1,5 +1,7 @@
 # Log maintenance and sharpening
 
+[![Watch the Log Maintenance walkthrough on YouTube](https://img.youtube.com/vi/_Yrw6v5V1yc/hqdefault.jpg)](https://youtu.be/_Yrw6v5V1yc)
+
 Maintenance records the care you perform on each knife, including when it happened and any useful details. Open a saved knife from **Collection**, choose **Open full page →** in its preview, then scroll to **Maintenance**.
 
 ## Log a quick entry for today

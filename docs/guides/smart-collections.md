@@ -1,5 +1,7 @@
 # Create and manage Smart Collections
 
+[![Watch the Smart Collections walkthrough on YouTube](https://img.youtube.com/vi/M5ohytCLeCU/hqdefault.jpg)](https://youtu.be/M5ohytCLeCU)
+
 A Smart Collection saves a search and filters as a named view. Its results update when you add or edit knives, so you can return to a useful subset without rebuilding the filters.
 
 Open **Collection** from the sidebar to create or change a Smart Collection.

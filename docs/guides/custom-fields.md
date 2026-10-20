@@ -1,5 +1,7 @@
 # Add and manage custom fields
 
+[![Watch the Custom Fields walkthrough on YouTube](https://img.youtube.com/vi/l3erNRSJTfM/hqdefault.jpg)](https://youtu.be/l3erNRSJTfM)
+
 Custom fields store details that the built-in fields do not cover, such as a purchase channel, storage location, or preferred sharpening angle. Define a field once in **Settings → Custom fields**, then enter a separate value for each knife.
 
 ## Create a field
