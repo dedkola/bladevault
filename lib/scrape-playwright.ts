@@ -2,6 +2,7 @@ import { getLocalDb } from '@/lib/local-db'
 import { tryCaptureWebpageScreenshot } from '@/lib/webpage-screenshot-capture'
 import { chromium } from 'playwright'
 import type { Browser, BrowserContext } from 'playwright'
+import { installScrapeBrowserInitScript } from '@/lib/scrape-browser-context'
 import { validateExternalUrl } from '@/lib/url-validation'
 
 export type RenderedPage = {
@@ -51,24 +52,7 @@ async function acquireBrowser(): Promise<BrowserState> {
     extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
   })
 
-  await context.addInitScript(() => {
-    // Reduce obvious automation fingerprints that some bot walls inspect.
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
-    Object.defineProperty(navigator, 'plugins', {
-      get: () => [
-        { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer' },
-        {
-          name: 'Chrome PDF Viewer',
-          filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai',
-        },
-        { name: 'Native Client', filename: 'internal-nacl-plugin' },
-      ],
-    })
-    const w = window as unknown as Record<string, unknown>
-    w.chrome = (w.chrome as Record<string, unknown>) || { runtime: {} }
-    delete w.__playwright
-    delete w.__pw_manual
-  })
+  await installScrapeBrowserInitScript(context)
 
   return { browser, context }
 }
