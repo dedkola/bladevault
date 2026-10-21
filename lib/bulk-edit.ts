@@ -1,6 +1,7 @@
 import type { Knife, KnifeUpdates } from '@/lib/data'
 
 export const builtInBulkEditFields = [
+  { key: 'name', label: 'Model Name', type: 'text' },
   { key: 'brand', label: 'Brand / Maker', type: 'text' },
   { key: 'specs.designer', label: 'Designer', type: 'text' },
   { key: 'specs.country', label: 'Country', type: 'text' },
@@ -67,7 +68,7 @@ export function getBulkEditFieldValue(
     return knife.specs[specKey] ?? ''
   }
 
-  return knife[field as 'brand' | 'bladeStyle' | 'handleMaterial']
+  return knife[field as 'name' | 'brand' | 'bladeStyle' | 'handleMaterial']
 }
 
 export function createBulkKnifeUpdates(
