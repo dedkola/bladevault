@@ -117,7 +117,7 @@
     "esbuild@0.28.2": true,
     "better-sqlite3@13.0.2": true,
     "better-sqlite3@13.0.3": true,
-    "workerd@1.20261006.1": true,
-    "core-js@3.50.0": true
+    "core-js@3.50.0": true,
+    "workerd@1.20261012.1": true
   }
 }
