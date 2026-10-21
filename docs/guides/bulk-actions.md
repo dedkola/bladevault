@@ -34,7 +34,7 @@ Selection mode shows individual knives. If you enter it from **Model families** 
 The field is replaced with the same value for every selected record. After a successful update, selection mode closes and a confirmation appears.
 ![The confirmation after a bulk update, and the collection back in browsing mode](../images/bulk-actions-updated.png)
 
-Each bulk edit changes one field. A replacement must contain a value, so this dialog cannot clear a field. It also does not edit model names, model numbers, notes, images, or Sold status; open an individual record's **Edit** form for those changes.
+Each bulk edit changes one field. A replacement must contain a value, so this dialog cannot clear a field. It also does not edit model numbers, notes, images, or Sold status; open an individual record's **Edit** form for those changes.
 
 ## Pin or unpin the selection
 
