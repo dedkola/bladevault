@@ -59,6 +59,7 @@ export function BatchScrapeDialog({
   const [isCopied, setIsCopied] = useState(false)
   const stopRef = useRef(false)
   const runningRef = useRef(false)
+  const mountedRef = useRef(true)
 
   const parsed = useMemo(() => parseBatchLinks(input), [input])
   const failedItems = items.filter((item) => item.status === 'failed')
@@ -75,7 +76,9 @@ export function BatchScrapeDialog({
   }, [knives])
 
   useEffect(() => {
+    mountedRef.current = true
     return () => {
+      mountedRef.current = false
       stopRef.current = true
     }
   }, [])
@@ -128,6 +131,7 @@ export function BatchScrapeDialog({
         getSavedSourceUrls: () =>
           knivesRef.current.map((knife) => knife.sourceUrl),
         onUpdate: (item) => {
+          if (!mountedRef.current) return
           setItems((prev) =>
             prev.map((current) => (current.id === item.id ? item : current)),
           )
@@ -136,8 +140,10 @@ export function BatchScrapeDialog({
       })
     } finally {
       runningRef.current = false
-      setIsRunning(false)
-      setIsStopping(false)
+      if (mountedRef.current) {
+        setIsRunning(false)
+        setIsStopping(false)
+      }
     }
   }
 
