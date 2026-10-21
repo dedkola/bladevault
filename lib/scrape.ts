@@ -56,6 +56,10 @@ export type ScrapeResult = {
   warnings?: string[]
 }
 
+type ScrapedProductPatch = Omit<Partial<ScrapedProduct>, 'specs'> & {
+  specs?: Partial<ScrapedProduct['specs']>
+}
+
 function resolveUrl(
   href: string | undefined,
   base: string,
@@ -125,7 +129,7 @@ export async function scrapeAndEnrichProduct(
 
         if (jsonResponse.ok) {
           const json = await jsonResponse.json()
-          const shopifyProduct = extractShopifyProduct(json)
+          const shopifyProduct = extractShopifyProduct(json, finalUrl)
           if (shopifyProduct) {
             if (shopifyProduct.name) product.name = shopifyProduct.name
             if (shopifyProduct.brand) product.brand = shopifyProduct.brand
@@ -133,6 +137,14 @@ export async function scrapeAndEnrichProduct(
               product.description = shopifyProduct.description
             if (shopifyProduct.images?.length)
               product.images = shopifyProduct.images
+            if (shopifyProduct.specs) {
+              for (const [key, value] of Object.entries(shopifyProduct.specs)) {
+                const specKey = key as keyof ScrapedProduct['specs']
+                if (!product.specs[specKey] && value) {
+                  product.specs[specKey] = value
+                }
+              }
+            }
           }
         }
       } catch {
@@ -199,6 +211,18 @@ function findMeta($: cheerio.CheerioAPI, names: string[]): string {
   return ''
 }
 
+function extractActiveCurrency($: cheerio.CheerioAPI): string {
+  const html = $.html()
+  return (
+    html.match(/Shopify\.currency\s*=\s*\{[^}]*"active":"([A-Z]{3})"/i)?.[1] ||
+    $('[data-currency]')
+      .filter((_, el) => /^[A-Z]{3}$/.test($(el).attr('data-currency') || ''))
+      .first()
+      .attr('data-currency') ||
+    findMeta($, ['product:price:currency', 'og:price:currency'])
+  ).toUpperCase()
+}
+
 function extractJsonLdBrandValue(node: Record<string, unknown>): string {
   const candidates: unknown[] = []
   for (const key of ['brand', 'manufacturer']) {
@@ -228,8 +252,11 @@ function extractJsonLdBrandValue(node: Record<string, unknown>): string {
   return ''
 }
 
-function extractJsonLdProduct($: cheerio.CheerioAPI): Partial<ScrapedProduct> {
-  const result: Partial<ScrapedProduct> = {}
+function extractJsonLdProduct(
+  $: cheerio.CheerioAPI,
+  sourceUrl?: string,
+): ScrapedProductPatch {
+  const result: ScrapedProductPatch = {}
   $('script[type="application/ld+json"]').each((_, el) => {
     try {
       const raw = $(el).html() ?? ''
@@ -248,6 +275,43 @@ function extractJsonLdProduct($: cheerio.CheerioAPI): Partial<ScrapedProduct> {
             result.brand = result.brand || extractJsonLdBrandValue(node)
             result.description =
               result.description || htmlToPlainText(node.description)
+            const specs: Partial<ScrapedProduct['specs']> = result.specs ?? {}
+            if (!specs.modelNumber && typeof node.sku === 'string') {
+              specs.modelNumber = normalizeModelNumber(node.sku)
+            }
+            const offers = node.offers ? [node.offers].flat() : []
+            const requestedVariant = sourceUrl
+              ? new URL(sourceUrl).searchParams.get('variant')
+              : null
+            const offer =
+              (requestedVariant
+                ? offers.find((candidate: { url?: string }) => {
+                    try {
+                      return (
+                        new URL(
+                          candidate.url || '',
+                          sourceUrl,
+                        ).searchParams.get('variant') === requestedVariant
+                      )
+                    } catch {
+                      return false
+                    }
+                  })
+                : undefined) || offers[0]
+            if (offer && typeof offer === 'object') {
+              if (!specs.modelNumber && typeof offer.sku === 'string') {
+                specs.modelNumber = normalizeModelNumber(offer.sku)
+              }
+              const price = normalizePrice(
+                String(offer.price ?? offer.lowPrice ?? ''),
+                extractActiveCurrency($) ||
+                  (typeof offer.priceCurrency === 'string'
+                    ? offer.priceCurrency
+                    : ''),
+              )
+              if (!specs.price && price) specs.price = price
+            }
+            if (Object.keys(specs).length) result.specs = specs
             if (node.image) {
               const images = Array.isArray(node.image)
                 ? node.image
@@ -873,11 +937,11 @@ const SPEC_PATTERNS: Array<[keyof ScrapedProduct['specs'], RegExp]> = [
   ],
   [
     'overallLength',
-    /(?:overall|total|gesamt|totallängd|lunghezza\s*totale|longueur\s*totale|longitud\s*total|comprimento\s*totale|totale\s*lengte)[\s_-]*(?:length|size|len|länge|längd|lunga|lunghezza|longitud|longueur|comprimento|largo)/i,
+    /(?:overall|total|open|gesamt|totallängd|lunghezza\s*totale|longueur\s*totale|longitud\s*total|comprimento\s*totale|totale\s*lengte)[\s_-]*(?:length|size|len|länge|längd|lunga|lunghezza|longitud|longueur|comprimento|largo)/i,
   ],
   [
     'handleLength',
-    /(?:handle|griff|manche|impugnatura|mango|handtag)[\s_-]*(?:length|size|len|länge|längd|lunga|lunghezza|longitud|longueur|comprimento|largo)/i,
+    /(?:(?:handle|griff|manche|impugnatura|mango|handtag)[\s_-]*(?:length|size|len|länge|längd|lunga|lunghezza|longitud|longueur|comprimento|largo)|closed[\s_-]*length)/i,
   ],
   // Thickness / Dicke / Spessore / Épaisseur / Dikte
   [
@@ -885,7 +949,7 @@ const SPEC_PATTERNS: Array<[keyof ScrapedProduct['specs'], RegExp]> = [
     /(?:blade|klinge|lama|lame)[\s_-]*(?:thickness|thick|dicke|spessore|épaisseur|dikte|tjocklek|grosor)/i,
   ],
   // Weight / Gewicht / Peso / Poids / Vikt
-  ['weight', /weight|gewicht|peso|poids|vikt|mass/i],
+  ['weight', /\b(?:total\s+)?(?:weight|gewicht|peso|poids|vikt|mass)\b/i],
   // Blade finish / coating / steel
   [
     'bladeCoating',
@@ -898,7 +962,7 @@ const SPEC_PATTERNS: Array<[keyof ScrapedProduct['specs'], RegExp]> = [
   // Locking
   [
     'lockingMechanism',
-    /locking\s*mechanism|lock\s*type|lock\s*mechanism|verschluss|serratura|chiusura|verrouillage|cierre|låsmekanism/i,
+    /locking\s*mechanism|lock\s*type|lock\s*mechanism|^mechanism$|verschluss|serratura|chiusura|verrouillage|cierre|låsmekanism/i,
   ],
   [
     'designer',
@@ -911,7 +975,7 @@ const SPEC_PATTERNS: Array<[keyof ScrapedProduct['specs'], RegExp]> = [
   ['hardness', /hardness|hrc|rockwell|härte|durezza|dureté|dureza|hårdhet/i],
   [
     'price',
-    /\b(?:price|msrp|retail\s*price|preis|prezzo|prix|precio|prijs)\b/i,
+    /\b(?:(?:regular|sale|current|original|retail)\s+price|price|msrp|preis|prezzo|prix|precio|prijs)\b/i,
   ],
   [
     'country',
@@ -965,19 +1029,146 @@ function normalizeCountry(value: string): string {
   return ''
 }
 
+function measurementIsConflicting(
+  value: string,
+  kind: 'length' | 'weight',
+): boolean {
+  const units =
+    kind === 'weight'
+      ? 'oz|ounces?|kg|lbs?\\b|grams?\\b|gr\\b|g\\b'
+      : "mm|cm|inches?|in\\b|[\"″”“]|''"
+  const matches = [
+    ...value.matchAll(
+      new RegExp(`((?:\\d+(?:[.,]\\d+)?|[.,]\\d+))\\s*(${units})`, 'gi'),
+    ),
+  ]
+  const factors: Record<string, number> =
+    kind === 'weight'
+      ? {
+          oz: 28.3495,
+          ounce: 28.3495,
+          ounces: 28.3495,
+          kg: 1000,
+          lb: 453.592,
+          lbs: 453.592,
+          gram: 1,
+          grams: 1,
+          gr: 1,
+          g: 1,
+        }
+      : {
+          mm: 1,
+          cm: 10,
+          in: 25.4,
+          inch: 25.4,
+          inches: 25.4,
+          '"': 25.4,
+          '″': 25.4,
+          '”': 25.4,
+          '“': 25.4,
+          "''": 25.4,
+        }
+  const seen = new Set<number>()
+  const converted: number[] = []
+  for (const match of matches) {
+    const factor = factors[match[2].toLowerCase()]
+    if (seen.has(factor)) return true
+    seen.add(factor)
+    converted.push(Number(match[1].replace(',', '.')) * factor)
+  }
+  if (converted.length < 2) return false
+  const min = Math.min(...converted)
+  const max = Math.max(...converted)
+  return max - min > Math.max(kind === 'weight' ? 3 : 1, max * 0.03)
+}
+
 function normalizeLength(value: string): string {
   // Preserve the original value (including dual imperial/metric units like
   // `8.18" / 207.7 mm`). Only trim trailing punctuation/whitespace.
   const cleaned = cleanValue(value)
   // Reject non-numeric values (e.g. "No", "Sheepsfoot", blade steels).
-  if (!cleaned || !/\d/.test(cleaned)) return ''
+  if (
+    !cleaned ||
+    !/\d/.test(cleaned) ||
+    measurementIsConflicting(cleaned, 'length')
+  )
+    return ''
   return cleaned
 }
 
 function normalizeWeight(value: string): string {
   // Preserve the original value (including dual oz/g units like
   // `4.50 oz/127.5g`). Only trim trailing punctuation/whitespace.
+  const cleaned = cleanValue(value)
+  if (
+    !/\d+(?:[.,]\d+)?\s*(?:oz\b|ounces?\b|g\b|gr\b|grams?\b|lbs?\b|kg\b)/i.test(
+      cleaned,
+    ) ||
+    measurementIsConflicting(cleaned, 'weight')
+  ) {
+    return ''
+  }
+  return cleaned
+}
+
+function normalizeModelNumber(value: string): string {
   return cleanValue(value)
+    .replace(/^["'“”]+|["'“”]+$/g, '')
+    .trim()
+}
+
+function normalizeHardness(value: string): string {
+  const cleaned = cleanValue(value)
+  return cleaned.length <= 40 && /\d/.test(cleaned) ? cleaned : ''
+}
+
+function normalizeLockingMechanism(value: string): string {
+  const cleaned = cleanValue(value)
+  return cleaned.length <= 60 &&
+    /(?:lock|fixed\s+blade|slip[\s-]*joint|axis)/i.test(cleaned)
+    ? cleaned
+    : ''
+}
+
+function normalizeDesigner(value: string): string {
+  const cleaned = cleanValue(value)
+  return cleaned.length <= 80 &&
+    !/\b(?:explore|personalized|designed\s+by\s+you|passed\s+in|donations?)\b/i.test(
+      cleaned,
+    )
+    ? cleaned
+    : ''
+}
+
+function normalizePrice(value: string, currency = ''): string {
+  const cleaned = cleanText(value)
+  const match = cleaned.match(
+    /(?:[$€£¥]\s*)?((?:\d{1,3}(?:[ ,'\u00a0]\d{3})+|\d+)(?:[.,]\d{1,2})?)/,
+  )
+  if (!match) return ''
+  let normalized = match[1].replace(/[ '\u00a0]/g, '')
+  if (normalized.includes('.') && normalized.includes(',')) {
+    normalized = normalized.replace(/,/g, '')
+  } else if (/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(normalized)) {
+    normalized = normalized.replace(/,/g, '')
+  } else {
+    normalized = normalized.replace(',', '.')
+  }
+  const amount = Number(normalized)
+  if (!Number.isFinite(amount) || amount <= 0) return ''
+  const detectedCurrency =
+    cleanText(currency) ||
+    (cleaned.includes('$')
+      ? 'USD'
+      : cleaned.includes('€')
+        ? 'EUR'
+        : cleaned.includes('£')
+          ? 'GBP'
+          : cleaned.includes('¥')
+            ? 'JPY'
+            : cleaned.match(/\b[A-Z]{3}\b/)?.[0] || '')
+  const formatted = amount.toFixed(2)
+  return detectedCurrency ? `${formatted} ${detectedCurrency}` : formatted
 }
 
 function extractLabeledValue(text: string, labels: string[]): string {
@@ -1011,6 +1202,45 @@ function extractLabeledValue(text: string, labels: string[]): string {
   return ''
 }
 
+function extractStructuredLabeledValue(
+  $: cheerio.CheerioAPI,
+  labels: string[],
+): string {
+  const wanted = new Set(
+    labels.map((label) => normalizeText(label).toLowerCase()),
+  )
+  const matches = (value: string) =>
+    wanted.has(
+      normalizeText(value)
+        .replace(/[:：]$/, '')
+        .trim()
+        .toLowerCase(),
+    )
+
+  for (const row of $('table tr').toArray()) {
+    const $cells = $(row).children('th, td')
+    if ($cells.length >= 2 && matches($cells.first().text())) {
+      const value = cleanValue($cells.eq(1).text())
+      if (value) return value
+    }
+  }
+  for (const label of $('dl > dt').toArray()) {
+    const $label = $(label)
+    if (matches($label.text())) {
+      const value = cleanValue($label.next('dd').text())
+      if (value) return value
+    }
+  }
+  for (const label of $('h2, h3, h4, h5, h6, strong, b').toArray()) {
+    const $label = $(label)
+    if (matches($label.text())) {
+      const value = cleanValue($label.next().text())
+      if (value && value.length <= 120) return value
+    }
+  }
+  return ''
+}
+
 // Known spec labels used for label-aware splitting. Order matters: longer
 // and more specific labels come first so they win over prefix labels
 // (e.g. "Model Number" must be tried before "Model"). Labels we do not
@@ -1028,6 +1258,7 @@ const SPEC_LABEL_ALTERNATIONS = [
   'artikelnummer',
   'numero\\s*modello',
   'overall\\s*(?:length|size|len|längd|lunghezza|longitud|longueur|comprimento|largo)',
+  'open\\s*length',
   'gesamtlänge',
   'totallängd',
   'lunghezza\\s*totale',
@@ -1092,6 +1323,7 @@ const SPEC_LABEL_ALTERNATIONS = [
   'locking\\s*mechanism',
   'lock\\s*type',
   'lock\\s*mechanism',
+  'mechanism',
   'verschluss',
   'serratura',
   'chiusura',
@@ -1107,6 +1339,7 @@ const SPEC_LABEL_ALTERNATIONS = [
   'tillverkad\\s*i',
   'paese\\s*di\\s*origine',
   'weight',
+  'total\\s*weight',
   'gewicht',
   'peso',
   'poids',
@@ -1141,6 +1374,7 @@ const SPEC_LABEL_SPLIT_RE = new RegExp(
 // "model" or "color" to reduce false positives in prose.
 const MEASUREMENT_LABEL_ALTERNATIONS = [
   'overall\\s*(?:length|size|len|längd|lunghezza|longitud|longueur|comprimento|largo)',
+  'open\\s*length',
   'overall-length',
   'gesamtlänge',
   'totallängd',
@@ -1188,6 +1422,7 @@ const MEASUREMENT_LABEL_ALTERNATIONS = [
   'cierre',
   'låsmekanism',
   'weight',
+  'total\\s*weight',
   'gewicht',
   'peso',
   'poids',
@@ -1454,6 +1689,8 @@ function extractJsonLdProperties(
 function extractSpecs(
   $: cheerio.CheerioAPI,
   scopedSpecs?: Partial<ScrapedProduct['specs']>,
+  initialSpecs?: Partial<ScrapedProduct['specs']>,
+  warnings: string[] = [],
 ): ScrapedProduct['specs'] {
   const specs: ScrapedProduct['specs'] = {
     weight: '',
@@ -1471,9 +1708,30 @@ function extractSpecs(
     country: '',
   }
   if (scopedSpecs) return { ...specs, ...scopedSpecs }
+  Object.assign(specs, initialSpecs)
 
   const setSpec = (key: keyof ScrapedProduct['specs'], value: string) => {
     if (!value) return
+    const measurementKind =
+      key === 'weight'
+        ? 'weight'
+        : key === 'bladeLength' ||
+            key === 'overallLength' ||
+            key === 'bladeThickness' ||
+            key === 'handleLength'
+          ? 'length'
+          : undefined
+    if (measurementKind && measurementIsConflicting(value, measurementKind)) {
+      const label = key.replace(/([A-Z])/g, ' $1').toLowerCase()
+      const warning = `Source lists conflicting ${label} measurements (${cleanValue(value)}). This field was left empty; verify it before saving.`
+      if (
+        !warnings.some((existing) =>
+          existing.includes(`conflicting ${label} measurements`),
+        )
+      )
+        warnings.push(warning)
+      return
+    }
     if (key === 'country') {
       const country = normalizeCountry(value)
       if (country) specs[key] = country
@@ -1488,10 +1746,31 @@ function extractSpecs(
     } else if (key === 'weight') {
       const v = normalizeWeight(value)
       if (v) specs[key] = v
+    } else if (key === 'modelNumber') {
+      const v = normalizeModelNumber(value)
+      if (v) specs[key] = v
+    } else if (key === 'price') {
+      const v = normalizePrice(value)
+      if (v) specs[key] = v
+    } else if (key === 'hardness') {
+      const v = normalizeHardness(value)
+      if (v) specs[key] = v
+    } else if (key === 'lockingMechanism') {
+      const v = normalizeLockingMechanism(value)
+      if (v) specs[key] = v
+    } else if (key === 'designer') {
+      const v = normalizeDesigner(value)
+      if (v) specs[key] = v
     } else {
       const v = cleanValue(value)
       if (v) specs[key] = v
     }
+  }
+
+  if (!specs.price) {
+    const amount = findMeta($, ['product:price:amount', 'og:price:amount'])
+    const price = normalizePrice(amount, extractActiveCurrency($))
+    if (price) specs.price = price
   }
 
   const tryExtract = (rawLabel: string, rawValue: string) => {
@@ -1533,9 +1812,39 @@ function extractSpecs(
 
   $(rowSelectors.join(', ')).each((_, row) => {
     const $row = $(row)
-    const label = $row.find(labelSelectors).first().text()
-    const value = $row.find(valueSelectors).first().text()
+    const $cells = $row.children('th, td')
+    const label =
+      ($cells.length >= 2 ? $cells.first().text() : '') ||
+      $row.find(labelSelectors).first().text()
+    const value =
+      ($cells.length >= 2 ? $cells.eq(1).text() : '') ||
+      $row.find(valueSelectors).first().text()
     tryExtract(label, value)
+  })
+
+  // Definition lists commonly render alternating <dt>/<dd> siblings instead
+  // of wrapping each pair in a row (for example Tactile Knife Co specs).
+  $('dl > dt').each((_, label) => {
+    const $label = $(label)
+    const $value = $label.next('dd')
+    if ($value.length) tryExtract($label.text(), $value.text())
+  })
+
+  // Some modern PDPs render each spec as a plain heading/value sibling pair
+  // without a colon or identifying class (for example Benchmade's h4 + p
+  // cards). Only accept headings that classify as a known field.
+  $('h2, h3, h4, h5, h6, strong, b').each((_, label) => {
+    const $label = $(label)
+    const labelText = cleanText($label.text())
+    if (
+      !labelText ||
+      labelText.length > 40 ||
+      !SPEC_PATTERNS.some(([, pattern]) => pattern.test(labelText))
+    ) {
+      return
+    }
+    const $value = $label.next()
+    if ($value.length) tryExtract(labelText, $value.text())
   })
 
   // 1.5) Prestashop product features embedded as escaped JSON.
@@ -1803,7 +2112,8 @@ export function isShopifyProductPage(url: string, html: string): boolean {
 
 export function extractShopifyProduct(
   json: unknown,
-): Partial<ScrapedProduct> | null {
+  sourceUrl?: string,
+): ScrapedProductPatch | null {
   const product = (json as { product?: Record<string, unknown> })?.product
   if (!product || typeof product !== 'object') return null
 
@@ -1829,11 +2139,37 @@ export function extractShopifyProduct(
     }
   }
 
-  const result: Partial<ScrapedProduct> = {}
+  const result: ScrapedProductPatch = {}
   if (title) result.name = title
   if (vendor) result.brand = cleanBrand(vendor)
   if (description) result.description = description
   if (images.length > 0) result.images = images
+
+  const variants = Array.isArray(product.variants)
+    ? (product.variants as Array<Record<string, unknown>>)
+    : []
+  let variant = variants[0]
+  if (sourceUrl) {
+    try {
+      const variantId = new URL(sourceUrl).searchParams.get('variant')
+      if (variantId) {
+        variant =
+          variants.find((candidate) => String(candidate.id) === variantId) ||
+          variant
+      }
+    } catch {
+      // Invalid source URLs should not prevent the basic Shopify enrichment.
+    }
+  }
+  if (variant) {
+    const specs: Partial<ScrapedProduct['specs']> = {}
+    if (typeof variant.sku === 'string') {
+      specs.modelNumber = normalizeModelNumber(variant.sku)
+    }
+    const price = normalizePrice(String(variant.price ?? ''))
+    if (price) specs.price = price
+    if (Object.keys(specs).length) result.specs = specs
+  }
 
   return result
 }
@@ -1870,7 +2206,7 @@ export function scrapeProduct(
   sourceUrl?: string,
 ): ScrapeResult {
   const $ = cheerio.load(html)
-  const ld = extractJsonLdProduct($)
+  const ld = extractJsonLdProduct($, baseUrl)
 
   const rawName = ld.name || extractTitle($)
   const name = cleanProductName(rawName, sourceUrl ?? baseUrl)
@@ -1894,7 +2230,8 @@ export function scrapeProduct(
   const vosteed = isVosteedProductUrl(baseUrl)
     ? extractVosteedSpecs($, baseUrl)
     : null
-  const specs = extractSpecs($, vosteed?.specs)
+  const warnings = [...(vosteed?.warnings ?? [])]
+  const specs = extractSpecs($, vosteed?.specs, ld.specs, warnings)
 
   // Use the product description for material/style extraction when available,
   // since it is more likely to describe this exact knife than the full page text.
@@ -1920,6 +2257,11 @@ export function scrapeProduct(
 
   const bladeStyle =
     cleanValue(ldBladeStyle) ||
+    extractStructuredLabeledValue($, [
+      'blade style',
+      'blade shape',
+      'blade grind',
+    ]) ||
     cleanValue(
       extractLabeledValue(productDescriptionText, [
         'blade style',
@@ -1933,6 +2275,7 @@ export function scrapeProduct(
     extractBladeStyle(searchText)
   const handleMaterial =
     cleanValue(ldHandleMaterial) ||
+    extractStructuredLabeledValue($, ['handle material']) ||
     cleanValue(
       extractLabeledValue(productDescriptionText, ['handle material']),
     ) ||
@@ -1964,6 +2307,6 @@ export function scrapeProduct(
   return {
     product,
     confidence: buildConfidence(product),
-    ...(vosteed?.warnings.length ? { warnings: vosteed.warnings } : {}),
+    ...(warnings.length ? { warnings } : {}),
   }
 }

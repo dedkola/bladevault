@@ -101,5 +101,131 @@ describe('product scraping', () => {
       description: 'Light folder',
       images: ['https://cdn.example/one.jpg'],
     })
+
+    expect(
+      extractShopifyProduct(
+        {
+          product: {
+            variants: [
+              { id: 1, sku: 'SMALL', price: '425.00' },
+              { id: 2, sku: 'LARGE', price: '500.00' },
+            ],
+          },
+        },
+        'https://shop.example/products/sebenza?variant=2',
+      ),
+    ).toEqual({
+      specs: { modelNumber: 'LARGE', price: '500.00' },
+    })
+  })
+
+  it('extracts colonless heading/value specification cards without matching marketing prose', () => {
+    const html = `
+      <html><head>
+        <script type="application/ld+json">
+          {"@type":"Product","name":"Bugout","sku":"535GRY-1","offers":{"@type":"Offer","price":"180.00","priceCurrency":"USD"}}
+        </script>
+      </head><body>
+        <p>This lightweight folder will be ready when you are.</p>
+        <section>
+          <div><h4>Open Length</h4><p>7.46'' | 18.95cm</p></div>
+          <div><h4>Blade Length</h4><p>3.24'' | 8.23cm</p></div>
+          <div><h4>Blade Thickness</h4><p>0.09'' | 2.29mm</p></div>
+          <div><h4>Closed Length</h4><p>4.22'' | 10.72cm</p></div>
+          <div><h4>Weight</h4><p>1.85oz | 52.45g</p></div>
+          <div><h4>Blade Steel</h4><p>S30V Stainless Steel</p></div>
+          <div><h4>Blade Finish</h4><p>Cerakote®</p></div>
+          <div><h4>Mechanism</h4><p>AXIS® Lock</p></div>
+          <div><h4>Blade Style</h4><p>Drop-Point</p></div>
+          <div><h4>Handle Material</h4><p>Grivory®</p></div>
+        </section>
+      </body></html>
+    `
+
+    expect(
+      scrapeProduct(html, 'https://benchmade.example/bugout').product,
+    ).toMatchObject({
+      bladeStyle: 'Drop-Point',
+      handleMaterial: 'Grivory®',
+      specs: {
+        modelNumber: '535GRY-1',
+        price: '180.00 USD',
+        overallLength: "7.46'' | 18.95cm",
+        bladeLength: "3.24'' | 8.23cm",
+        bladeThickness: "0.09'' | 2.29mm",
+        handleLength: "4.22'' | 10.72cm",
+        weight: '1.85oz | 52.45g',
+        bladeMaterial: 'S30V Stainless Steel',
+        bladeCoating: 'Cerakote®',
+        lockingMechanism: 'AXIS® Lock',
+      },
+    })
+  })
+
+  it('extracts plain td rows and alternating definition-list specifications', () => {
+    const html = `
+      <html><head>
+        <meta property="og:price:amount" content="369">
+        <meta property="og:price:currency" content="USD">
+      </head><body>
+        <table>
+          <tr><td>Model Number</td><td>"T2030C1"</td></tr>
+          <tr><td>Overall Length</td><td>7.84" / 199.14 mm</td></tr>
+          <tr><td>Blade Material</td><td>154CM</td></tr>
+        </table>
+        <dl>
+          <dt>Blade Length</dt><dd>3.40"</dd>
+          <dt>Blade Thickness</dt><dd>0.10"</dd>
+          <dt>Total Weight</dt><dd>2.78oz</dd>
+          <dt>Blade Hardness</dt><dd>63-64 HRC</dd>
+          <dt>Closed Length</dt><dd>4.50"</dd>
+        </dl>
+      </body></html>
+    `
+
+    expect(
+      scrapeProduct(html, 'https://shop.example/products/knife').product.specs,
+    ).toMatchObject({
+      modelNumber: 'T2030C1',
+      price: '369.00 USD',
+      overallLength: '7.84" / 199.14 mm',
+      bladeLength: '3.40"',
+      bladeThickness: '0.10"',
+      bladeMaterial: '154CM',
+      handleLength: '4.50"',
+      hardness: '63-64 HRC',
+      weight: '2.78oz',
+    })
+  })
+
+  it('rejects prose captured after weight, hardness, designer, and mechanism labels', () => {
+    const html = `
+      <h3>Weight</h3><p>Built to feel lightweight in hand</p>
+      <h3>Hardness</h3><p>This steel has excellent toughness and edge retention</p>
+      <h3>Designer</h3><p>Kit retired as a ranking Master Sergeant and became a high profile maker whose influence was felt far and wide.</p>
+      <h3>Mechanism</h3><p>Washers</p>
+    `
+    const specs = scrapeProduct(html, 'https://shop.example/knife').product
+      .specs
+    expect(specs.weight).toBe('')
+    expect(specs.hardness).toBe('')
+    expect(specs.designer).toBe('')
+    expect(specs.lockingMechanism).toBe('')
+  })
+
+  it('rejects contradictory imperial and metric measurements', () => {
+    const html = `
+      <table>
+        <tr><th>Weight</th><td>6.5oz / 39g</td></tr>
+        <tr><th>Blade Length</th><td>3.5in / 20mm</td></tr>
+      </table>
+    `
+    const result = scrapeProduct(html, 'https://shop.example/knife')
+    expect(result.product.specs.weight).toBe('')
+    expect(result.product.specs.bladeLength).toBe('')
+    expect(result.warnings).toEqual([
+      expect.stringContaining('conflicting weight measurements'),
+      expect.stringContaining('conflicting blade length measurements'),
+    ])
   })
 })
