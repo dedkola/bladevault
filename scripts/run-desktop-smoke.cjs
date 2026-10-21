@@ -12,9 +12,110 @@ const electronPackageDir = path.dirname(
 const electronInstallScript = require.resolve('electron/install.js')
 const smokeWorkerFlag = '--smoke-worker'
 const smokeWorkerTimeoutMs = 180000
+const electronShutdownTimeoutMs = 15000
+const forcedShutdownTimeoutMs = 10000
+const windowLifecycleTimeoutMs = 30000
+
+function logStage(message) {
+  console.log(`[desktop-smoke ${new Date().toISOString()}] ${message}`)
+}
+
+function isProcessExited(child) {
+  return child.exitCode !== null || child.signalCode !== null
+}
+
+function waitForProcessExit(child) {
+  if (isProcessExited(child)) {
+    return Promise.resolve()
+  }
+
+  return new Promise((resolve) => child.once('exit', resolve))
+}
+
+function withStageTimeout(promise, timeoutMs, stage) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      const error = new Error(`${stage} timed out after ${timeoutMs}ms.`)
+      error.code = 'BLADEVAULT_SMOKE_STAGE_TIMEOUT'
+      reject(error)
+    }, timeoutMs)
+
+    Promise.resolve(promise).then(
+      (value) => {
+        clearTimeout(timeout)
+        resolve(value)
+      },
+      (error) => {
+        clearTimeout(timeout)
+        reject(error)
+      },
+    )
+  })
+}
+
+async function closeElectronApplication(electronApp, stage) {
+  const electronProcess = electronApp.process()
+  const pid = electronProcess.pid ?? 'unknown'
+  logStage(`${stage}: requesting graceful close for Electron pid ${pid}.`)
+
+  try {
+    await withStageTimeout(
+      Promise.all([electronApp.close(), waitForProcessExit(electronProcess)]),
+      electronShutdownTimeoutMs,
+      `${stage}: graceful close`,
+    )
+  } catch (error) {
+    if (isProcessExited(electronProcess)) {
+      if (error?.code === 'BLADEVAULT_SMOKE_STAGE_TIMEOUT') {
+        logStage(
+          `${stage}: process exited, but Playwright close did not settle; continuing with a fresh connection.`,
+        )
+        return
+      }
+      throw error
+    }
+
+    logStage(
+      `${stage}: graceful close failed; force-terminating Electron pid ${pid}.`,
+    )
+    killProcessTree(electronProcess)
+
+    try {
+      await withStageTimeout(
+        waitForProcessExit(electronProcess),
+        forcedShutdownTimeoutMs,
+        `${stage}: forced process cleanup`,
+      )
+    } catch (cleanupError) {
+      throw new Error(
+        `${stage} failed and Electron pid ${pid} did not exit after forced cleanup.`,
+        { cause: cleanupError },
+      )
+    }
+
+    throw new Error(
+      `${stage} failed; Electron pid ${pid} was force-terminated after the graceful close did not complete.`,
+      { cause: error },
+    )
+  }
+
+  logStage(`${stage}: Electron pid ${pid} exited.`)
+}
+
+async function waitForNoElectronWindows(electronApp, stage) {
+  await withStageTimeout(
+    electronApp.evaluate(async ({ BrowserWindow }) => {
+      while (BrowserWindow.getAllWindows().length > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+    }),
+    windowLifecycleTimeoutMs,
+    stage,
+  )
+}
 
 function killProcessTree(child) {
-  if (!child.pid || child.exitCode !== null) {
+  if (!child.pid || isProcessExited(child)) {
     return
   }
 
@@ -340,13 +441,32 @@ async function main() {
 
     if (process.platform === 'darwin') {
       const initialOrigin = new URL(window.url()).origin
-      await window.close()
-      const reopenedWindow = electronApp.waitForEvent('window')
+      logStage('macOS window lifecycle: closing the initial window.')
+      await withStageTimeout(
+        window.close(),
+        windowLifecycleTimeoutMs,
+        'macOS window lifecycle: initial window close',
+      )
+      await waitForNoElectronWindows(
+        electronApp,
+        'macOS window lifecycle: waiting for all windows to close',
+      )
+      logStage('macOS window lifecycle: emitting app activation.')
+      const reopenedWindow = withStageTimeout(
+        electronApp.waitForEvent('window'),
+        windowLifecycleTimeoutMs,
+        'macOS window lifecycle: reopened window',
+      )
       await electronApp.evaluate(({ app }) => app.emit('activate'))
       window = await reopenedWindow
       window.on('pageerror', (error) => pageErrors.push(error.message))
-      await window.waitForLoadState('domcontentloaded')
+      await withStageTimeout(
+        window.waitForLoadState('domcontentloaded'),
+        windowLifecycleTimeoutMs,
+        'macOS window lifecycle: reopened window load',
+      )
       assert.equal(new URL(window.url()).origin, initialOrigin)
+      logStage('macOS window lifecycle: reopened window is ready.')
     }
 
     const restoredComparisons = await window.evaluate(async () => {
@@ -389,12 +509,30 @@ async function main() {
     assert.equal(fs.statSync(lockedBackupPath).size > 0, true)
     fs.unlinkSync(lockedBackupPath)
 
-    console.log('Relaunching desktop with App lock enabled...')
-    await electronApp.close()
-    electronApp = await launch()
-    window = await electronApp.firstWindow({ timeout: 60000 })
+    logStage('App lock restart: closing the first Electron application.')
+    await closeElectronApplication(electronApp, 'App lock restart')
+    electronApp = null
+
+    logStage('App lock restart: launching a fresh Electron application.')
+    electronApp = await withStageTimeout(
+      launch(),
+      120000,
+      'App lock restart: Electron launch',
+    )
+    logStage('App lock restart: waiting for the first window.')
+    window = await withStageTimeout(
+      electronApp.firstWindow({ timeout: 60000 }),
+      65000,
+      'App lock restart: first window',
+    )
     window.on('pageerror', (error) => pageErrors.push(error.message))
-    await window.getByRole('heading', { name: 'Unlock BladeVault' }).waitFor()
+    logStage('App lock restart: waiting for the unlock screen.')
+    await withStageTimeout(
+      window.getByRole('heading', { name: 'Unlock BladeVault' }).waitFor(),
+      windowLifecycleTimeoutMs,
+      'App lock restart: unlock screen',
+    )
+    logStage('App lock restart: unlock screen is ready.')
     assert.equal(
       (
         await window
@@ -424,12 +562,15 @@ async function main() {
       await electronApp
         .evaluate(({ app }) => app.emit('before-quit'))
         .catch(() => {})
-      if (electronProcess.exitCode === null) {
-        const exited = new Promise((resolve) =>
-          electronProcess.once('exit', resolve),
-        )
+      if (!isProcessExited(electronProcess)) {
+        const exited = waitForProcessExit(electronProcess)
+        logStage('Final cleanup: force-terminating the Electron process tree.')
         killProcessTree(electronProcess)
-        await exited
+        await withStageTimeout(
+          exited,
+          forcedShutdownTimeoutMs,
+          'Final cleanup: Electron process exit',
+        )
       }
     }
     fs.rmSync(dataDir, {
