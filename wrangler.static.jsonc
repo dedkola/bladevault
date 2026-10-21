@@ -1,4 +1,5 @@
 {
+  // Cloudflare Workers Builds deploys this static application from main.
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "bladevault",
   "account_id": "73026fc18aa364a3cc60305b6c6fb75c",
