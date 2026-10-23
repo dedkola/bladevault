@@ -31,6 +31,7 @@ import { ScrapedProduct } from '@/lib/scrape'
 import { CustomField, CustomFieldType } from '@/lib/settings-shared'
 import { PageHeader, BreadcrumbItemData } from '@/components/page-header'
 import { WebpageScreenshotAction } from '@/components/webpage-screenshot-action'
+import { ResizablePreviewLayout } from '@/components/resizable-preview-layout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -1210,85 +1211,78 @@ export function KnifeScrapeEditor({
         </Card>
 
         {showForm && (
-          <div
-            className={cn(
-              'grid grid-cols-1 gap-6 flex-1 min-h-0',
-              isPreviewVisible
-                ? 'lg:grid-cols-2 xl:grid-cols-[minmax(0,72rem)_minmax(0,1fr)]'
-                : 'xl:max-w-[120rem]',
-            )}
-          >
-            <div className="flex flex-col min-h-0 overflow-y-auto space-y-4 pr-1">
-              <KnifeFormFields
-                wideLayout={!isPreviewVisible}
-                showSold={mode === 'edit'}
-                form={form}
-                updateField={updateField}
-                customFieldDefinitions={customFieldDefinitions}
-                imageUrlInput={imageUrlInput}
-                setImageUrlInput={setImageUrlInput}
-                addImageUrl={addImageUrl}
-                onImageFilesSelect={handleImageFilesSelect}
-                selectedImages={selectedImages}
-                toggleImageSelection={toggleImageSelection}
-                selectAllImages={selectAllImages}
-                deselectAllImages={deselectAllImages}
-                removeImage={removeImage}
-                imageActions={
-                  mode === 'edit' && screenshotKnife ? (
-                    <WebpageScreenshotAction
-                      knife={screenshotKnife}
-                      onCaptured={handleScreenshotCaptured}
-                    />
-                  ) : undefined
-                }
-              />
-            </div>
-
-            {isPreviewVisible && (
-              <Card className="flex flex-col overflow-hidden h-full min-h-[32rem] lg:min-h-0">
-                <CardHeader className="border-b flex flex-row items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                    <CardTitle className="text-sm xl:text-base">
-                      Scraped page preview
-                    </CardTitle>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      ref={previewToggleRef}
-                      onClick={() => togglePreview(false)}
-                      title="Hide preview"
-                      aria-label="Hide preview"
-                    >
-                      <EyeOff className="h-3.5 w-3.5" />
-                    </Button>
-                    {safeSourceUrl && (
-                      <a
-                        href={safeSourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-[10px] xl:text-xs font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+          <ResizablePreviewLayout
+            preview={
+              isPreviewVisible && (
+                <Card className="flex flex-col overflow-hidden h-full min-h-[32rem] lg:min-h-0">
+                  <CardHeader className="border-b flex flex-row flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                      <CardTitle className="text-sm xl:text-base">
+                        Scraped page preview
+                      </CardTitle>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        ref={previewToggleRef}
+                        onClick={() => togglePreview(false)}
+                        title="Hide preview"
+                        aria-label="Hide preview"
                       >
-                        Open
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="relative flex-1 min-h-0 p-0">
-                  <iframe
-                    title="Scraped page preview"
-                    srcDoc={previewHtml}
-                    sandbox=""
-                    className="absolute inset-0 w-full h-full border-0 bg-white"
+                        <EyeOff className="h-3.5 w-3.5" />
+                      </Button>
+                      {safeSourceUrl && (
+                        <a
+                          href={safeSourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-[10px] xl:text-xs font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          Open
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="relative flex-1 min-h-0 p-0">
+                    <iframe
+                      title="Scraped page preview"
+                      srcDoc={previewHtml}
+                      sandbox=""
+                      className="absolute inset-0 w-full h-full border-0 bg-white"
+                    />
+                  </CardContent>
+                </Card>
+              )
+            }
+          >
+            <KnifeFormFields
+              wideLayout={!isPreviewVisible}
+              showSold={mode === 'edit'}
+              form={form}
+              updateField={updateField}
+              customFieldDefinitions={customFieldDefinitions}
+              imageUrlInput={imageUrlInput}
+              setImageUrlInput={setImageUrlInput}
+              addImageUrl={addImageUrl}
+              onImageFilesSelect={handleImageFilesSelect}
+              selectedImages={selectedImages}
+              toggleImageSelection={toggleImageSelection}
+              selectAllImages={selectAllImages}
+              deselectAllImages={deselectAllImages}
+              removeImage={removeImage}
+              imageActions={
+                mode === 'edit' && screenshotKnife ? (
+                  <WebpageScreenshotAction
+                    knife={screenshotKnife}
+                    onCaptured={handleScreenshotCaptured}
                   />
-                </CardContent>
-              </Card>
-            )}
-          </div>
+                ) : undefined
+              }
+            />
+          </ResizablePreviewLayout>
         )}
       </div>
 
@@ -1299,12 +1293,7 @@ export function KnifeScrapeEditor({
         </div>
       )}
 
-      <div
-        className={cn(
-          'mt-6 flex items-center justify-end gap-2 xl:sticky xl:bottom-0 xl:z-10 xl:w-full xl:border-t xl:border-[var(--bladevault-line)] xl:bg-background/95 xl:py-3 xl:backdrop-blur-sm',
-          isPreviewVisible ? 'xl:max-w-6xl' : 'xl:max-w-[120rem]',
-        )}
-      >
+      <div className="mt-6 flex items-center justify-end gap-2 xl:sticky xl:bottom-0 xl:z-10 xl:w-full xl:border-t xl:border-[var(--bladevault-line)] xl:bg-background/95 xl:py-3 xl:backdrop-blur-sm">
         <Button
           variant="outline"
           size="sm"
