@@ -135,6 +135,7 @@ export const KnifeCard = memo(function KnifeCard({
         )}
       >
         <div
+          data-card-image
           className={cn(
             'relative w-full bg-white',
             isCompact ? 'aspect-[1.7]' : 'aspect-video',
@@ -237,6 +238,7 @@ export const KnifeCard = memo(function KnifeCard({
           <Button
             variant="ghost"
             size="xs"
+            data-card-compare
             onClick={handleCompareClick}
             disabled={
               isTogglingCompare ||

@@ -1,3 +1,7 @@
+.static-preview-layout [data-modern-shell] {
+  height: calc(100dvh - 2rem);
+}
+
 @media (min-width: 768px) {
   .static-preview-layout > aside {
     top: 2rem;

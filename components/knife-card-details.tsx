@@ -85,7 +85,10 @@ export function KnifeCardDetails({
           </dl>
         ) : null}
       </CardContent>
-      <div className="relative mt-auto flex min-h-9 items-center border-t border-border px-3 pr-24 text-[11px] text-muted-foreground">
+      <div
+        data-card-footer
+        className="relative mt-auto flex min-h-9 items-center border-t border-border px-3 pr-24 text-[11px] text-muted-foreground"
+      >
         <span
           className={cn(
             'truncate',

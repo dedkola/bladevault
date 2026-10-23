@@ -159,7 +159,10 @@ export function Sidebar() {
             : 'hidden h-dvh w-60 shrink-0 border-r border-sidebar-border md:sticky md:top-0 md:flex',
         )}
       >
-        <div className="flex items-center justify-between gap-3 px-4 py-4">
+        <div
+          data-sidebar-brand-row
+          className="flex items-center justify-between gap-3 px-4 py-4"
+        >
           <Link
             href="/"
             onClick={handleNavigate}
@@ -422,6 +425,7 @@ export function Sidebar() {
                     return (
                       <Link
                         key={knife.id}
+                        data-sidebar-pinned-item
                         href={knifeHref}
                         onClick={handleNavigate}
                         title={detailLine || undefined}
@@ -467,7 +471,10 @@ export function Sidebar() {
                             </span>
                           </span>
                           {detailLine && (
-                            <span className="mt-0.5 line-clamp-2 text-[10px] leading-4 opacity-80 [overflow-wrap:anywhere]">
+                            <span
+                              data-sidebar-pinned-details
+                              className="mt-0.5 line-clamp-2 text-[10px] leading-4 opacity-80 [overflow-wrap:anywhere]"
+                            >
                               {detailLine}
                             </span>
                           )}

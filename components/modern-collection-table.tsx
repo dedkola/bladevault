@@ -1,14 +1,10 @@
 'use client'
 
 import Image from '@/components/vault-image'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, ImageIcon } from 'lucide-react'
 import { getImageUrl, type Knife } from '@/lib/data'
 import { cn } from '@/lib/utils'
-
-function preferredMetric(value?: string): string {
-  if (!value) return '—'
-  return value.split('|')[0]?.trim() ?? value
-}
+import { compactMeasurement as preferredMetric } from '@/lib/compact-measurement'
 
 function statusForKnife(knife: Knife) {
   if (knife.pinned) return { label: 'Pinned', tone: 'pinned' as const }
@@ -36,11 +32,8 @@ export function ModernCollectionTable({
   onOpenDetail: (knife: Knife) => void
 }) {
   return (
-    <div
-      data-modern-collection-table
-      className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
-    >
-      <div className="flex items-center justify-between gap-3 border-b border-border bg-[var(--bladevault-surface-soft)] px-3 py-1.5 text-[9px] text-muted-foreground">
+    <div data-modern-collection-table>
+      <div className="mb-2 flex items-center justify-between gap-3 text-[10.5px] text-muted-foreground">
         <span>
           <b className="font-medium text-foreground">{knives.length}</b> objects
         </span>
@@ -49,17 +42,29 @@ export function ModernCollectionTable({
         </span>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] border-collapse text-left">
+      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-[0_1px_2px_rgb(0_0_0/4%)]">
+        <table className="w-full table-fixed border-collapse text-left">
           <thead>
-            <tr className="border-b border-border bg-card text-[9px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-              <th className="w-[38%] px-3 py-1.5">Object</th>
-              <th className="px-3 py-1.5">Maker</th>
-              <th className="px-3 py-1.5">Steel</th>
-              <th className="px-3 py-1.5">Blade</th>
-              <th className="px-3 py-1.5">Weight</th>
-              <th className="px-3 py-1.5">Status</th>
-              <th className="w-6 px-2 py-1.5" aria-label="Open" />
+            <tr className="border-b border-border bg-[var(--bladevault-surface-soft)] text-[9.5px] text-muted-foreground">
+              <th scope="col" className="w-[38%] px-3 py-2 font-medium">
+                Object
+              </th>
+              <th scope="col" className="px-2 py-2 font-medium">
+                Maker
+              </th>
+              <th scope="col" className="px-2 py-2 font-medium">
+                Steel
+              </th>
+              <th scope="col" className="px-2 py-2 font-medium">
+                Blade
+              </th>
+              <th scope="col" className="px-2 py-2 font-medium">
+                Weight
+              </th>
+              <th scope="col" className="px-2 py-2 font-medium">
+                Status
+              </th>
+              <th scope="col" className="w-6 px-2 py-2" aria-label="Open" />
             </tr>
           </thead>
           <tbody>
@@ -84,30 +89,35 @@ export function ModernCollectionTable({
                     }
                   }}
                   className={cn(
-                    'group cursor-pointer border-b border-border/70 text-[10.5px] text-muted-foreground transition-colors last:border-b-0 hover:bg-[var(--bladevault-surface-hover)]/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                    'group cursor-pointer border-b border-border/70 text-[10.5px] text-muted-foreground transition-colors last:border-b-0 hover:bg-[var(--bladevault-surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                     active &&
                       'bg-[var(--bladevault-nav-active-bg)] shadow-[inset_2px_0_0_var(--bladevault-nav-active-fg)]',
                   )}
                 >
-                  <td className="px-3 py-1">
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <div className="grid size-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-[var(--bladevault-surface-soft)]">
+                  <td className="px-3 py-[7px]">
+                    <div className="flex min-w-0 items-center gap-[9px]">
+                      <div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-[7px] bg-[#f5f5f7]">
                         {knife.images[0] ? (
                           <Image
                             src={getImageUrl(knife.images[0])}
                             alt=""
                             width={40}
                             height={40}
-                            className="h-8 w-8 object-contain"
-                            sizes="40px"
+                            className="size-9 object-contain p-0.5 mix-blend-multiply"
+                            sizes="36px"
                           />
-                        ) : null}
+                        ) : (
+                          <ImageIcon
+                            className="size-4 text-[#86868b]"
+                            aria-hidden="true"
+                          />
+                        )}
                       </div>
                       <div className="min-w-0">
-                        <div className="truncate text-[11px] font-medium text-foreground">
+                        <div className="truncate text-[11.5px] font-[550] tracking-[-0.01em] text-foreground">
                           {knife.name}
                         </div>
-                        <div className="truncate text-[9px] text-muted-foreground">
+                        <div className="truncate mt-px text-[9.5px] text-muted-foreground">
                           {modelNumber || '—'}
                           <span className="px-1 opacity-40">·</span>
                           {designer || 'Designer missing'}
@@ -115,22 +125,25 @@ export function ModernCollectionTable({
                       </div>
                     </div>
                   </td>
-                  <td className="max-w-[130px] truncate px-3 py-1">
+                  <td className="truncate px-2 py-[7px]" title={knife.brand}>
                     {knife.brand || '—'}
                   </td>
-                  <td className="px-3 py-1 font-medium text-foreground">
+                  <td
+                    className="truncate px-2 py-[7px] font-medium text-foreground"
+                    title={knife.specs.bladeMaterial}
+                  >
                     {knife.specs.bladeMaterial || '—'}
                   </td>
-                  <td className="px-3 py-1 tabular-nums">
+                  <td className="truncate px-2 py-[7px] tabular-nums">
                     {preferredMetric(knife.specs.bladeLength)}
                   </td>
-                  <td className="px-3 py-1 tabular-nums">
+                  <td className="truncate px-2 py-[7px] tabular-nums">
                     {preferredMetric(knife.specs.weight)}
                   </td>
-                  <td className="px-3 py-1">
+                  <td className="px-2 py-[7px]">
                     <span
                       className={cn(
-                        'inline-flex whitespace-nowrap rounded-full px-2 py-1 text-[9px] font-medium leading-none',
+                        'inline-flex whitespace-nowrap rounded-full px-1.5 py-1 text-[9px] font-medium leading-none',
                         status.tone === 'complete' &&
                           'bg-[#2f9e6d]/10 text-[#2f9e6d]',
                         status.tone === 'pinned' &&
@@ -145,10 +158,11 @@ export function ModernCollectionTable({
                   <td className="px-2 py-1 text-muted-foreground">
                     <ChevronRight
                       className={cn(
-                        'size-3.5 opacity-30 transition-opacity group-hover:opacity-100',
+                        'size-3 opacity-30 transition-opacity group-hover:opacity-100',
                         active &&
                           'text-[var(--bladevault-nav-active-fg)] opacity-100',
                       )}
+                      strokeWidth={1.7}
                       aria-hidden="true"
                     />
                   </td>
@@ -158,6 +172,55 @@ export function ModernCollectionTable({
           </tbody>
         </table>
       </div>
+    </div>
+  )
+}
+
+export function ModernCollectionGallery({
+  knives,
+  activeKnifeId,
+  onOpen,
+}: {
+  knives: Knife[]
+  activeKnifeId?: string | null
+  onOpen: (knife: Knife) => void
+}) {
+  return (
+    <div data-collection-grid data-modern-collection-gallery>
+      {knives.map((knife, index) => (
+        <button
+          key={knife.id}
+          type="button"
+          data-modern-object-card
+          aria-label={`Preview ${knife.brand} ${knife.name}`}
+          aria-pressed={knife.id === activeKnifeId}
+          onClick={() => onOpen(knife)}
+        >
+          <span data-modern-object-stage>
+            {knife.images[0] ? (
+              <Image
+                src={getImageUrl(knife.images[0])}
+                alt={`${knife.brand} ${knife.name}`}
+                fill
+                sizes="(max-width: 560px) 100vw, (max-width: 820px) 50vw, 350px"
+                priority={index === 0}
+                className="object-contain"
+              />
+            ) : (
+              <ImageIcon className="size-6 text-muted-foreground" />
+            )}
+          </span>
+          <span data-modern-object-caption>
+            <span>
+              <b>{knife.name}</b>
+              <span>
+                {knife.brand} · {knife.specs.bladeMaterial || '—'}
+              </span>
+            </span>
+            <span>{preferredMetric(knife.specs.bladeLength)}</span>
+          </span>
+        </button>
+      ))}
     </div>
   )
 }

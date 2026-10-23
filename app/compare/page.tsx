@@ -277,7 +277,9 @@ export default function ComparePage() {
     timeFormat,
     customFieldDefinitions,
     showFeedback,
+    themeStyle,
   } = useKnives()
+  const isModern = themeStyle === 'modern'
   const [hoveredCell, setHoveredCell] = useState<{
     knifeId: string
     rowKey: CompareRowKey
@@ -340,7 +342,8 @@ export default function ComparePage() {
 
       if (event.key === '/' && !isTyping) {
         event.preventDefault()
-        searchInputRef.current?.focus()
+        if (isModern && active) open({ kind: 'add', id: active.id })
+        else searchInputRef.current?.focus()
         return
       }
 
@@ -356,7 +359,7 @@ export default function ComparePage() {
 
     window.addEventListener('keydown', handleSearchShortcut)
     return () => window.removeEventListener('keydown', handleSearchShortcut)
-  }, [query])
+  }, [query, isModern, active, open])
 
   const comparedKnives = compareIds
     .map((id) => knives.find((knife) => knife.id === id))
@@ -591,7 +594,11 @@ export default function ComparePage() {
   }
 
   return (
-    <div className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 w-full">
+    <div
+      data-compare-content
+      data-modern-compare={isModern || undefined}
+      className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 w-full"
+    >
       {requestedList &&
         !comparisonsLoading &&
         !lists.some((list) => list.id === requestedList) && (
@@ -605,7 +612,7 @@ export default function ComparePage() {
               : 'Create a new comparison to get started.'}
           </p>
         )}
-      {lists.length > 0 && (
+      {!isModern && lists.length > 0 && (
         <label className="mb-4 block md:hidden">
           <span className="sr-only">Switch comparison</span>
           <select
@@ -643,8 +650,12 @@ export default function ComparePage() {
         }
         actions={
           active ? (
-            <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
+            <div
+              data-compare-head-actions
+              className="flex w-full flex-wrap justify-end gap-2 sm:w-auto"
+            >
               <Button
+                variant={isModern ? 'outline' : 'default'}
                 size="sm"
                 onClick={() => open({ kind: 'add', id: active.id })}
                 disabled={comparisonsBusy}
@@ -685,6 +696,67 @@ export default function ComparePage() {
         }
       />
 
+      {isModern && !comparisonsLoading && !comparisonsError && (
+        <nav data-compare-tabs aria-label="Saved comparisons">
+          {lists.map((list) => (
+            <Link
+              key={list.id}
+              href={`/compare?list=${encodeURIComponent(list.id)}`}
+              aria-current={active?.id === list.id ? 'page' : undefined}
+            >
+              {list.name}
+              <span>{list.ids.length}</span>
+            </Link>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => open({ kind: 'create' })}
+          >
+            <Plus className="size-3" /> New comparison
+          </Button>
+        </nav>
+      )}
+      {isModern && active && !comparisonsLoading && !comparisonsError && (
+        <div data-compare-toolbar>
+          <div data-compare-editing>
+            <span>Editing</span>
+            {comparedKnives.map((knife) => (
+              <span data-compare-pill key={knife.id}>
+                {knife.name}
+                <button
+                  type="button"
+                  disabled={comparisonsBusy}
+                  onClick={() => handleRemove(knife.id)}
+                  aria-label={`Remove ${knife.brand} ${knife.name} from compare`}
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            ))}
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => open({ kind: 'create' })}
+            >
+              <Plus className="size-3" />
+              New list
+            </Button>
+          </div>
+          <label htmlFor="modern-differences-only" data-compare-differences>
+            <Checkbox
+              id="modern-differences-only"
+              checked={showDifferencesOnly}
+              disabled={comparedKnives.length < 2 || comparisonsBusy}
+              onCheckedChange={(checked) =>
+                setShowDifferencesOnly(checked === true)
+              }
+            />
+            Differences only
+          </label>
+        </div>
+      )}
+
       {comparisonsLoading ? (
         <p role="status" className="animate-pulse rounded-lg bg-muted p-6">
           Loading comparisons…
@@ -722,171 +794,173 @@ export default function ComparePage() {
         />
       ) : (
         <>
-          <Card className="mb-6 border-[var(--bladevault-line)]/80 bg-background shadow-none">
-            <CardContent className="space-y-3 p-4">
-              <div>
-                <div className="text-sm font-medium text-foreground">
-                  Add to {active.name}
-                </div>
-              </div>
-
-              {availableKnives.length > 0 && (
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <SearchField
-                    value={query}
-                    onChange={setQuery}
-                    placeholder="Search model name…"
-                    className="mx-0 max-w-none sm:max-w-sm sm:flex-1"
-                    inputRef={searchInputRef}
-                    shortcutHint="/"
-                  />
-                  {hasSearchQuery && (
-                    <div
-                      className="flex items-center gap-2 sm:ml-auto"
-                      aria-live="polite"
-                    >
-                      {isSearchPending ? (
-                        <span className="text-xs text-muted-foreground">
-                          Searching…
-                        </span>
-                      ) : (
-                        <>
-                          <span className="text-xs tabular-nums text-muted-foreground">
-                            {filteredAvailableKnives.length}{' '}
-                            {filteredAvailableKnives.length === 1
-                              ? 'match'
-                              : 'matches'}
-                          </span>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              void handleBulkAdd()
-                            }}
-                            disabled={
-                              filteredAvailableKnives.length === 0 ||
-                              isBulkAdding ||
-                              comparisonsBusy
-                            }
-                          >
-                            <ListPlus className="mr-1.5 h-4 w-4" />
-                            {isBulkAdding || comparisonsBusy
-                              ? 'Adding…'
-                              : `Add all ${filteredAvailableKnives.length}`}
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {availableKnives.length > 0 && hasSearchQuery && (
-                <div
-                  className="overflow-hidden rounded-lg border border-[var(--bladevault-line)]/70 bg-[color:var(--bladevault-surface-soft)]/30"
-                  role="region"
-                  aria-label="Available knife search results"
-                >
-                  <div className="border-b border-[var(--bladevault-line)]/60 px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)]">
-                    Search results
+          {!isModern && (
+            <Card className="mb-6 border-[var(--bladevault-line)]/80 bg-background shadow-none">
+              <CardContent className="space-y-3 p-4">
+                <div>
+                  <div className="text-sm font-medium text-foreground">
+                    Add to {active.name}
                   </div>
-                  {isSearchPending ? (
-                    <div className="px-3 py-5 text-center text-sm text-muted-foreground">
-                      Searching…
-                    </div>
-                  ) : filteredAvailableKnives.length > 0 ? (
-                    <ul className="max-h-56 divide-y divide-[var(--bladevault-line)]/50 overflow-y-auto">
-                      {filteredAvailableKnives.map((knife) => {
-                        const summary = getSearchResultSummary(knife)
+                </div>
 
-                        return (
-                          <li
-                            key={knife.id}
-                            className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-[color:var(--bladevault-surface-hover)]/45"
-                          >
-                            <div className="relative h-12 w-16 shrink-0 overflow-hidden rounded-md border border-[var(--bladevault-line)]/60 bg-white">
-                              {knife.images.length > 0 ? (
-                                <Image
-                                  src={getImageUrl(knife.images[0])}
-                                  alt=""
-                                  fill
-                                  sizes="64px"
-                                  className="object-contain"
-                                  referrerPolicy="no-referrer"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center bg-muted/30">
-                                  <ImageIcon className="h-5 w-5 text-muted-foreground/50" />
-                                </div>
-                              )}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate text-sm font-medium text-foreground">
-                                {knife.brand} {knife.name}
-                              </div>
-                              {summary && (
-                                <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                                  {summary}
-                                </div>
-                              )}
-                            </div>
+                {availableKnives.length > 0 && (
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <SearchField
+                      value={query}
+                      onChange={setQuery}
+                      placeholder="Search model name…"
+                      className="mx-0 max-w-none sm:max-w-sm sm:flex-1"
+                      inputRef={searchInputRef}
+                      shortcutHint="/"
+                    />
+                    {hasSearchQuery && (
+                      <div
+                        className="flex items-center gap-2 sm:ml-auto"
+                        aria-live="polite"
+                      >
+                        {isSearchPending ? (
+                          <span className="text-xs text-muted-foreground">
+                            Searching…
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-xs tabular-nums text-muted-foreground">
+                              {filteredAvailableKnives.length}{' '}
+                              {filteredAvailableKnives.length === 1
+                                ? 'match'
+                                : 'matches'}
+                            </span>
                             <Button
                               type="button"
-                              variant="ghost"
-                              size="xs"
+                              variant="outline"
+                              size="sm"
                               onClick={() => {
-                                void handleSelect(knife.id)
+                                void handleBulkAdd()
                               }}
-                              disabled={isBulkAdding || comparisonsBusy}
-                              aria-label={`Add ${knife.brand} ${knife.name} to compare`}
+                              disabled={
+                                filteredAvailableKnives.length === 0 ||
+                                isBulkAdding ||
+                                comparisonsBusy
+                              }
                             >
-                              Add
+                              <ListPlus className="mr-1.5 h-4 w-4" />
+                              {isBulkAdding || comparisonsBusy
+                                ? 'Adding…'
+                                : `Add all ${filteredAvailableKnives.length}`}
                             </Button>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  ) : (
-                    <div className="px-3 py-5 text-center text-sm text-muted-foreground">
-                      No available knives match “{query.trim()}”.
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {comparedKnives.length > 0 && (
-                <HorizontalScrollArea
-                  label="Compare lineup"
-                  viewportClassName="overflow-x-auto rounded-lg"
-                >
-                  <div className="flex min-w-max items-center rounded-lg border border-[var(--bladevault-line)]/70 bg-[color:var(--bladevault-surface-soft)]/45 px-3 py-2">
-                    {comparedKnives.map((knife, index) => (
-                      <div key={knife.id} className="flex items-center">
-                        {index > 0 && (
-                          <div className="mx-3 h-4 w-px bg-border" />
+                          </>
                         )}
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleRemove(knife.id)}
-                            className="rounded-sm text-[var(--bladevault-local)] transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-                            aria-label={`Remove ${knife.brand} ${knife.name} from compare`}
-                            title="Remove"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                          <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--bladevault-title)]">
-                            {knife.brand} {knife.name}
-                          </span>
-                        </div>
                       </div>
-                    ))}
+                    )}
                   </div>
-                </HorizontalScrollArea>
-              )}
-            </CardContent>
-          </Card>
+                )}
+
+                {availableKnives.length > 0 && hasSearchQuery && (
+                  <div
+                    className="overflow-hidden rounded-lg border border-[var(--bladevault-line)]/70 bg-[color:var(--bladevault-surface-soft)]/30"
+                    role="region"
+                    aria-label="Available knife search results"
+                  >
+                    <div className="border-b border-[var(--bladevault-line)]/60 px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)]">
+                      Search results
+                    </div>
+                    {isSearchPending ? (
+                      <div className="px-3 py-5 text-center text-sm text-muted-foreground">
+                        Searching…
+                      </div>
+                    ) : filteredAvailableKnives.length > 0 ? (
+                      <ul className="max-h-56 divide-y divide-[var(--bladevault-line)]/50 overflow-y-auto">
+                        {filteredAvailableKnives.map((knife) => {
+                          const summary = getSearchResultSummary(knife)
+
+                          return (
+                            <li
+                              key={knife.id}
+                              className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-[color:var(--bladevault-surface-hover)]/45"
+                            >
+                              <div className="relative h-12 w-16 shrink-0 overflow-hidden rounded-md border border-[var(--bladevault-line)]/60 bg-white">
+                                {knife.images.length > 0 ? (
+                                  <Image
+                                    src={getImageUrl(knife.images[0])}
+                                    alt=""
+                                    fill
+                                    sizes="64px"
+                                    className="object-contain"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center bg-muted/30">
+                                    <ImageIcon className="h-5 w-5 text-muted-foreground/50" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-sm font-medium text-foreground">
+                                  {knife.brand} {knife.name}
+                                </div>
+                                {summary && (
+                                  <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                                    {summary}
+                                  </div>
+                                )}
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="xs"
+                                onClick={() => {
+                                  void handleSelect(knife.id)
+                                }}
+                                disabled={isBulkAdding || comparisonsBusy}
+                                aria-label={`Add ${knife.brand} ${knife.name} to compare`}
+                              >
+                                Add
+                              </Button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    ) : (
+                      <div className="px-3 py-5 text-center text-sm text-muted-foreground">
+                        No available knives match “{query.trim()}”.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {comparedKnives.length > 0 && (
+                  <HorizontalScrollArea
+                    label="Compare lineup"
+                    viewportClassName="overflow-x-auto rounded-lg"
+                  >
+                    <div className="flex min-w-max items-center rounded-lg border border-[var(--bladevault-line)]/70 bg-[color:var(--bladevault-surface-soft)]/45 px-3 py-2">
+                      {comparedKnives.map((knife, index) => (
+                        <div key={knife.id} className="flex items-center">
+                          {index > 0 && (
+                            <div className="mx-3 h-4 w-px bg-border" />
+                          )}
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleRemove(knife.id)}
+                              className="rounded-sm text-[var(--bladevault-local)] transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                              aria-label={`Remove ${knife.brand} ${knife.name} from compare`}
+                              title="Remove"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                            <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--bladevault-title)]">
+                              {knife.brand} {knife.name}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </HorizontalScrollArea>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {comparedKnives.length === 0 ? (
             <EmptyState
@@ -908,37 +982,40 @@ export default function ComparePage() {
               style={
                 {
                   '--comparison-panel-width': `${comparedKnives.length * 288 + 242}px`,
+                  '--comparison-count': comparedKnives.length,
                 } as CSSProperties
               }
               data-comparison-matrix
             >
               <CardContent className="space-y-3 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium text-foreground xl:text-lg">
-                      Comparison Matrix
-                    </div>
-                    {comparedKnives.length > 1 ? (
-                      <div className="mt-0.5 text-xs text-muted-foreground sm:hidden">
-                        Swipe to compare
+                {!isModern && (
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-medium text-foreground xl:text-lg">
+                        Comparison Matrix
                       </div>
-                    ) : null}
+                      {comparedKnives.length > 1 ? (
+                        <div className="mt-0.5 text-xs text-muted-foreground sm:hidden">
+                          Swipe to compare
+                        </div>
+                      ) : null}
+                    </div>
+                    <label
+                      htmlFor="differences-only"
+                      className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground"
+                    >
+                      <Checkbox
+                        id="differences-only"
+                        checked={showDifferencesOnly}
+                        disabled={comparedKnives.length < 2 || comparisonsBusy}
+                        onCheckedChange={(checked) =>
+                          setShowDifferencesOnly(checked === true)
+                        }
+                      />
+                      Differences only
+                    </label>
                   </div>
-                  <label
-                    htmlFor="differences-only"
-                    className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground"
-                  >
-                    <Checkbox
-                      id="differences-only"
-                      checked={showDifferencesOnly}
-                      disabled={comparedKnives.length < 2 || comparisonsBusy}
-                      onCheckedChange={(checked) =>
-                        setShowDifferencesOnly(checked === true)
-                      }
-                    />
-                    Differences only
-                  </label>
-                </div>
+                )}
 
                 <HorizontalScrollArea
                   label="Comparison matrix"
@@ -963,8 +1040,14 @@ export default function ComparePage() {
                                 'bg-[color:var(--bladevault-surface-hover)]/55',
                             )}
                           >
-                            <div className="space-y-2 rounded-lg bg-background/80 p-2">
-                              <div className="group/image relative aspect-video w-full cursor-pointer overflow-hidden rounded-md border border-[var(--bladevault-line)]/50 bg-[color:var(--bladevault-surface-soft)]/40">
+                            <div
+                              data-compare-object
+                              className="space-y-2 rounded-lg bg-background/80 p-2"
+                            >
+                              <div
+                                data-compare-image
+                                className="group/image relative aspect-video w-full cursor-pointer overflow-hidden rounded-md border border-[var(--bladevault-line)]/50 bg-[color:var(--bladevault-surface-soft)]/40"
+                              >
                                 {knife.images.length > 0 ? (
                                   <Image
                                     src={getImageUrl(knife.images[0])}
@@ -998,8 +1081,11 @@ export default function ComparePage() {
                                 </div>
                                 <div className="text-[10px] uppercase tracking-wider text-[var(--bladevault-title)] whitespace-normal xl:text-xs">
                                   {knife.brand}
+                                  {isModern && knife.specs.modelNumber
+                                    ? ` · ${knife.specs.modelNumber}`
+                                    : ''}
                                 </div>
-                                {knife.specs.modelNumber && (
+                                {!isModern && knife.specs.modelNumber && (
                                   <div className="text-xs text-muted-foreground">
                                     {knife.specs.modelNumber}
                                   </div>
@@ -1008,13 +1094,27 @@ export default function ComparePage() {
                             </div>
                           </TableHead>
                         ))}
+                        {isModern && (
+                          <TableHead data-compare-add>
+                            <button
+                              type="button"
+                              disabled={comparisonsBusy}
+                              onClick={() =>
+                                open({ kind: 'add', id: active.id })
+                              }
+                            >
+                              <Plus className="size-3.5" />
+                              Add knife
+                            </button>
+                          </TableHead>
+                        )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {visibleCompareRows.length === 0 && (
                         <TableRow>
                           <TableCell
-                            colSpan={comparedKnives.length + 1}
+                            colSpan={comparedKnives.length + (isModern ? 2 : 1)}
                             className="py-8 text-center text-muted-foreground"
                           >
                             No differences in the displayed specifications.
@@ -1042,7 +1142,10 @@ export default function ComparePage() {
                                 'bg-[var(--bladevault-surface-hover)]',
                             )}
                           >
-                            {row.label}
+                            {isModern && !row.key.startsWith('custom:')
+                              ? row.label.charAt(0) +
+                                row.label.slice(1).toLowerCase()
+                              : row.label}
                           </TableCell>
                           {comparedKnives.map((knife) => {
                             const value = getRowValue(knife, row.key)
@@ -1069,6 +1172,7 @@ export default function ComparePage() {
                               </TableCell>
                             )
                           })}
+                          {isModern && <TableCell />}
                         </TableRow>
                       ))}
                     </TableBody>

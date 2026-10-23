@@ -3,7 +3,7 @@ import { ComparisonsProvider } from '@/components/providers/comparisons-provider
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { SmartCollectionsProvider } from '@/components/providers/smart-collections-provider'
-import { SidebarShell } from '@/components/sidebar-shell'
+import { AppShell } from '@/components/app-shell'
 import { KnivesProvider } from '@/components/providers/knives-provider'
 import { DEFAULT_SETTINGS, getSettings } from '@/lib/settings'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -99,13 +99,7 @@ export default async function RootLayout({
                   <TooltipProvider>
                     <Suspense>
                       <ComparisonsProvider>
-                        <SidebarShell />
-                        <main
-                          tabIndex={-1}
-                          className="flex min-w-0 flex-1 flex-col"
-                        >
-                          {children}
-                        </main>
+                        <AppShell>{children}</AppShell>
                       </ComparisonsProvider>
                     </Suspense>
                     <GlobalKnifeSearch />
