@@ -178,6 +178,61 @@ describe('Add knife scrape controls', () => {
     )
   })
 
+  it('resizes the edit preview and preserves the split, edits, and selected images when reopened', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    render(
+      <KnifeScrapeEditor
+        initialData={{
+          ...EMPTY_KNIFE_FORM,
+          name: 'My knife',
+          images: product.images,
+          sourceUrl: product.sourceUrl,
+        }}
+        mode="edit"
+        title="Edit knife"
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Scrape' }))
+    const divider = await screen.findByRole('separator', {
+      name: 'Knife form width',
+    })
+    expect(divider).toHaveAttribute('aria-valuenow', '25')
+    divider.focus()
+    await user.keyboard('{Shift>}{ArrowRight}{/Shift}')
+    expect(divider).toHaveAttribute('aria-valuenow', '35')
+
+    const name = screen.getByRole('textbox', { name: 'Model Name' })
+    await user.clear(name)
+    await user.type(name, 'My edited knife')
+    await user.click(screen.getByRole('button', { name: 'Deselect all' }))
+    expect(screen.getByTitle('Scraped page preview')).toHaveAttribute(
+      'sandbox',
+      '',
+    )
+    await user.click(screen.getByRole('button', { name: 'Hide preview' }))
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Scraped page preview')).not.toBeInTheDocument()
+    expect(name).toHaveValue('My edited knife')
+    await user.click(screen.getByRole('button', { name: 'Show preview' }))
+    expect(screen.getByRole('separator')).toHaveAttribute('aria-valuenow', '35')
+    expect(screen.getByRole('textbox', { name: 'Model Name' })).toBe(name)
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Hide preview' }),
+      ).toHaveFocus(),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'My edited knife' }),
+      new Set(),
+    )
+  })
+
   it('shows source warnings when refreshing an existing knife', async () => {
     sourceWarnings = [
       'Vosteed lists conflicting handle length values. This field was left empty.',
