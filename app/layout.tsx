@@ -28,8 +28,18 @@ export const metadata: Metadata = {
 }
 
 export function generateViewport(): Viewport {
+  const theme = getInitialTheme()
+  const themeStyle = getInitialThemeStyle()
+
   return {
-    themeColor: getInitialTheme() === 'dark' ? '#18150f' : '#fcfcfb',
+    themeColor:
+      themeStyle === 'modern'
+        ? theme === 'dark'
+          ? '#0d0d0f'
+          : '#f5f5f7'
+        : theme === 'dark'
+          ? '#18150f'
+          : '#fcfcfb',
   }
 }
 
@@ -43,12 +53,21 @@ function getInitialTheme() {
   }
 }
 
+function getInitialThemeStyle() {
+  try {
+    return getSettings().themeStyle
+  } catch {
+    return DEFAULT_SETTINGS.themeStyle
+  }
+}
+
 export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   const theme = getInitialTheme()
+  const themeStyle = getInitialThemeStyle()
   const vaultStatus = {
     ...getVaultAccessState(),
     appLockEnabled: isAppLockEnabled(),
@@ -58,6 +77,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
+      data-theme-style={themeStyle}
       className={cn(
         geistSans.variable,
         geistMono.variable,
@@ -74,7 +94,7 @@ export default async function RootLayout({
           <>
             <AppLockSession />
             <VaultRestoreProvider initialStatus={vaultStatus}>
-              <KnivesProvider>
+              <KnivesProvider initialThemeStyle={themeStyle}>
                 <SmartCollectionsProvider>
                   <TooltipProvider>
                     <Suspense>

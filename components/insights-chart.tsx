@@ -23,6 +23,10 @@ export type InsightsChartPalette = {
   highlightWash: string
   chartPrimary: string
   chartSecondary: string
+  chartTertiary: string
+  chartQuaternary: string
+  chartQuinary: string
+  chartOther: string
   labelFontSize?: number
 }
 
@@ -40,19 +44,15 @@ function getPalette(): InsightsChartPalette {
     muted: get('--muted-foreground', '#6f6751'),
     surface: get('--bladevault-surface-soft', '#f7f1e5'),
     line: get('--bladevault-line', '#d3c097'),
-    ringTrack: document.documentElement.classList.contains('dark')
-      ? '#40371f'
-      : '#eee6d7',
+    ringTrack: get('--bv-chart-track', '#eee6d7'),
     gold: get('--bladevault-gold', '#c89c3d'),
-    highlightWash: document.documentElement.classList.contains('dark')
-      ? 'rgba(200, 156, 61, 0.2)'
-      : 'rgba(200, 156, 61, 0.14)',
-    chartPrimary: document.documentElement.classList.contains('dark')
-      ? '#c89c3d'
-      : '#2e3417',
-    chartSecondary: document.documentElement.classList.contains('dark')
-      ? '#947535'
-      : '#79824a',
+    highlightWash: get('--bv-chart-wash', 'rgba(200, 156, 61, 0.14)'),
+    chartPrimary: get('--bv-chart-1', '#2e3417'),
+    chartSecondary: get('--bv-chart-2', '#79824a'),
+    chartTertiary: get('--bv-chart-3', '#c89c3d'),
+    chartQuaternary: get('--bv-chart-4', '#dfc78f'),
+    chartQuinary: get('--bv-chart-5', '#eae1cf'),
+    chartOther: get('--bv-chart-6', '#a9aa9f'),
   }
 }
 

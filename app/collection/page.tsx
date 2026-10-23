@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Grid3X3,
   LayoutGrid,
+  List,
   PencilLine,
   Pin,
   PinOff,
@@ -33,6 +34,7 @@ import { BulkEditDialog } from '@/components/bulk-edit-dialog'
 import { KnifeCard, type CollectionCardDensity } from '@/components/knife-card'
 import { KnifeFamilyCard } from '@/components/knife-family-card'
 import { CollectionKnifeInspector } from '@/components/collection-knife-inspector'
+import { ModernCollectionTable } from '@/components/modern-collection-table'
 import { EmptyState } from '@/components/empty-state'
 import { FilterMultiSelect } from '@/components/filter-multi-select'
 import { SearchField } from '@/components/search-field'
@@ -103,6 +105,7 @@ function CollectionContent() {
     bulkPinKnives,
     showFeedback,
     customFieldDefinitions,
+    themeStyle,
   } = useKnives()
   const router = useRouter()
   const pathname = usePathname()
@@ -122,6 +125,7 @@ function CollectionContent() {
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
   const [isBulkPinning, setIsBulkPinning] = useState(false)
   const [density, setDensity] = useState<CollectionCardDensity>('gallery')
+  const [modernView, setModernView] = useState<'list' | 'grid'>('list')
   const [sortOrder, setSortOrder] = useState<CollectionSort>('newest')
   const [activeKnifeId, setActiveKnifeId] = useState<string | null>(null)
   const debouncedQuery = useDebouncedValue(query, 200)
@@ -537,8 +541,12 @@ function CollectionContent() {
       data-collection-content
     >
       <PageHeader
-        title="Your collection."
-        description={`${knives.length} ${knives.length === 1 ? 'knife' : 'knives'}, each with a story. All in one place.`}
+        title={themeStyle === 'modern' ? 'All objects' : 'Your collection.'}
+        description={
+          themeStyle === 'modern'
+            ? `${filteredKnives.length} shown of ${knives.length} · Updated today`
+            : `${knives.length} ${knives.length === 1 ? 'knife' : 'knives'}, each with a story. All in one place.`
+        }
         actions={
           <SmartCollectionControls
             params={new URLSearchParams(searchParamsKey)}
@@ -647,32 +655,61 @@ function CollectionContent() {
               <option value="model">Model A–Z</option>
               <option value="brand">Brand A–Z</option>
             </select>
-            <div
-              className="flex h-8 items-center rounded-lg border border-border bg-background p-0.5"
-              role="group"
-              aria-label="Card density"
-            >
-              <Button
-                type="button"
-                variant={density === 'gallery' ? 'secondary' : 'ghost'}
-                size="icon-xs"
-                onClick={() => setDensity('gallery')}
-                aria-pressed={density === 'gallery'}
-                aria-label="Gallery view"
+            {themeStyle === 'modern' ? (
+              <div
+                className="flex h-8 items-center rounded-lg border border-border bg-background p-0.5"
+                role="group"
+                aria-label="Collection view"
               >
-                <LayoutGrid className="size-3.5" />
-              </Button>
-              <Button
-                type="button"
-                variant={density === 'compact' ? 'secondary' : 'ghost'}
-                size="icon-xs"
-                onClick={() => setDensity('compact')}
-                aria-pressed={density === 'compact'}
-                aria-label="Compact view"
+                <Button
+                  type="button"
+                  variant={modernView === 'list' ? 'secondary' : 'ghost'}
+                  size="icon-xs"
+                  onClick={() => setModernView('list')}
+                  aria-pressed={modernView === 'list'}
+                  aria-label="List view"
+                >
+                  <List className="size-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant={modernView === 'grid' ? 'secondary' : 'ghost'}
+                  size="icon-xs"
+                  onClick={() => setModernView('grid')}
+                  aria-pressed={modernView === 'grid'}
+                  aria-label="Gallery view"
+                >
+                  <LayoutGrid className="size-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <div
+                className="flex h-8 items-center rounded-lg border border-border bg-background p-0.5"
+                role="group"
+                aria-label="Card density"
               >
-                <Grid3X3 className="size-3.5" />
-              </Button>
-            </div>
+                <Button
+                  type="button"
+                  variant={density === 'gallery' ? 'secondary' : 'ghost'}
+                  size="icon-xs"
+                  onClick={() => setDensity('gallery')}
+                  aria-pressed={density === 'gallery'}
+                  aria-label="Gallery view"
+                >
+                  <LayoutGrid className="size-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant={density === 'compact' ? 'secondary' : 'ghost'}
+                  size="icon-xs"
+                  onClick={() => setDensity('compact')}
+                  aria-pressed={density === 'compact'}
+                  aria-label="Compact view"
+                >
+                  <Grid3X3 className="size-3.5" />
+                </Button>
+              </div>
+            )}
             <Button
               variant="outline"
               size="default"
@@ -826,57 +863,71 @@ function CollectionContent() {
         />
       ) : (
         <div className="space-y-6">
-          <div
-            className={cn(
-              'grid [overflow-anchor:none]',
-              density === 'gallery'
-                ? 'grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4'
-                : 'grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5',
-              density === 'gallery' &&
-                'xl:grid-cols-[repeat(auto-fit,minmax(19rem,min(100%,22rem)))]',
-              density === 'compact' &&
-                'xl:grid-cols-[repeat(auto-fit,minmax(15rem,min(100%,18rem)))]',
-            )}
-            data-collection-grid
-            data-density={density}
-          >
-            {isFamilyView
-              ? filteredFamilies.slice(0, visibleCount).map((family, index) => {
-                  const allVariants =
-                    familiesByKey.get(family.key) ?? family.knives
-                  return (
-                    <KnifeFamilyCard
-                      key={family.key}
-                      family={family}
-                      allVariants={allVariants}
-                      eager={index === 0}
-                      activeKnifeId={activeKnifeId ?? undefined}
-                      density={density}
-                      onOpen={(knife) => setActiveKnifeId(knife.id)}
-                    />
-                  )
-                })
-              : filteredKnives
-                  .slice(0, visibleCount)
-                  .map((knife, index) => (
-                    <KnifeCard
-                      key={knife.id}
-                      knife={knife}
-                      eager={index === 0}
-                      selectionMode={isSelectionMode}
-                      selected={selectedIds.has(knife.id)}
-                      active={knife.id === activeKnifeId}
-                      density={density}
-                      imageSizes={
-                        density === 'compact'
-                          ? '(min-width: 1280px) 18rem, (max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
-                          : '(min-width: 1280px) 22rem, (max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
-                      }
-                      onSelect={toggleKnifeSelection}
-                      onOpen={(knife) => setActiveKnifeId(knife.id)}
-                    />
-                  ))}
-          </div>
+          {themeStyle === 'modern' &&
+          modernView === 'list' &&
+          !isFamilyView &&
+          !isSelectionMode ? (
+            <ModernCollectionTable
+              knives={filteredKnives.slice(0, visibleCount)}
+              activeKnifeId={activeKnifeId}
+              onOpen={(knife) => setActiveKnifeId(knife.id)}
+              onOpenDetail={(knife) => router.push(`/collection/${knife.id}`)}
+            />
+          ) : (
+            <div
+              className={cn(
+                'grid [overflow-anchor:none]',
+                density === 'gallery'
+                  ? 'grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4'
+                  : 'grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5',
+                density === 'gallery' &&
+                  'xl:grid-cols-[repeat(auto-fit,minmax(19rem,min(100%,22rem)))]',
+                density === 'compact' &&
+                  'xl:grid-cols-[repeat(auto-fit,minmax(15rem,min(100%,18rem)))]',
+              )}
+              data-collection-grid
+              data-density={density}
+            >
+              {isFamilyView
+                ? filteredFamilies
+                    .slice(0, visibleCount)
+                    .map((family, index) => {
+                      const allVariants =
+                        familiesByKey.get(family.key) ?? family.knives
+                      return (
+                        <KnifeFamilyCard
+                          key={family.key}
+                          family={family}
+                          allVariants={allVariants}
+                          eager={index === 0}
+                          activeKnifeId={activeKnifeId ?? undefined}
+                          density={density}
+                          onOpen={(knife) => setActiveKnifeId(knife.id)}
+                        />
+                      )
+                    })
+                : filteredKnives
+                    .slice(0, visibleCount)
+                    .map((knife, index) => (
+                      <KnifeCard
+                        key={knife.id}
+                        knife={knife}
+                        eager={index === 0}
+                        selectionMode={isSelectionMode}
+                        selected={selectedIds.has(knife.id)}
+                        active={knife.id === activeKnifeId}
+                        density={density}
+                        imageSizes={
+                          density === 'compact'
+                            ? '(min-width: 1280px) 18rem, (max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
+                            : '(min-width: 1280px) 22rem, (max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
+                        }
+                        onSelect={toggleKnifeSelection}
+                        onOpen={(knife) => setActiveKnifeId(knife.id)}
+                      />
+                    ))}
+            </div>
+          )}
           {visibleCount < resultCount && (
             <div
               ref={loadMoreRef}

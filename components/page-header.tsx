@@ -35,7 +35,7 @@ export function PageHeader({
   })
 
   return (
-    <div className="mb-8">
+    <div className="mb-8" data-page-header>
       {breadcrumbs.length > 0 && (
         <Breadcrumb3
           className="mb-4"
@@ -45,13 +45,16 @@ export function PageHeader({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex min-w-0 items-center gap-2">
-            <h1 className="min-w-0 text-[length:var(--bladevault-page-title-size)] font-semibold leading-tight tracking-tight text-[var(--bladevault-title)]">
+            <h1 className="page-title min-w-0 text-[length:var(--bladevault-page-title-size)] font-semibold leading-tight tracking-tight text-[var(--bladevault-title)]">
               {title}
             </h1>
             {titleAction}
           </div>
           {description && (
-            <p className="mt-1 text-sm text-muted-foreground xl:text-base">
+            <p
+              className="mt-1 text-sm text-muted-foreground xl:text-base"
+              data-page-description
+            >
               {description}
             </p>
           )}

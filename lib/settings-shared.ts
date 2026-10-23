@@ -1,7 +1,9 @@
 export const APP_THEMES = ['light', 'dark'] as const
+export const THEME_STYLES = ['classic', 'modern'] as const
 export const TIME_FORMATS = ['12h', '24h'] as const
 
 export type AppTheme = (typeof APP_THEMES)[number]
+export type ThemeStyle = (typeof THEME_STYLES)[number]
 export type TimeFormat = (typeof TIME_FORMATS)[number]
 
 export const CARD_FIELDS = [
@@ -42,6 +44,7 @@ export type CustomField = {
 
 export type AppSettings = {
   theme: AppTheme
+  themeStyle: ThemeStyle
   timeFormat: TimeFormat
   pinnedItemsFirst: boolean
   cardFields: CardField[]
@@ -54,6 +57,7 @@ export type AppSettings = {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'light',
+  themeStyle: 'classic',
   timeFormat: '12h',
   pinnedItemsFirst: true,
   cardFields: [...DEFAULT_CARD_FIELDS],
@@ -62,6 +66,15 @@ export const DEFAULT_SETTINGS: AppSettings = {
   mcpEnabled: true,
   mcpWriteEnabled: false,
   customFields: [],
+}
+
+export function normalizeThemeStyle(
+  value: unknown,
+  fallback: ThemeStyle = DEFAULT_SETTINGS.themeStyle,
+): ThemeStyle {
+  return typeof value === 'string' && THEME_STYLES.includes(value as ThemeStyle)
+    ? (value as ThemeStyle)
+    : fallback
 }
 
 export function normalizeTimeFormat(

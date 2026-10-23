@@ -41,7 +41,8 @@ export function CollectionKnifeInspector({
   onSelect: (knife: Knife) => void
   onClose: () => void
 }) {
-  const { updateKnife, pinnedItemsFirst, showFeedback } = useKnives()
+  const { updateKnife, pinnedItemsFirst, showFeedback, themeStyle } =
+    useKnives()
   const [imageIndex, setImageIndex] = useState(0)
   const [fullImages, setFullImages] = useState<string[] | null>(null)
   const [isUpdatingCompare, setIsUpdatingCompare] = useState(false)
@@ -129,9 +130,16 @@ export function CollectionKnifeInspector({
       )}
       data-collection-inspector
     >
-      <div className="sticky top-0 z-10 flex min-h-16 items-center justify-between gap-3 border-b border-border bg-background/95 px-5 py-3 text-xs text-muted-foreground backdrop-blur-sm">
+      <div
+        data-inspector-header
+        className="sticky top-0 z-10 flex min-h-16 items-center justify-between gap-3 border-b border-border bg-background/95 px-5 py-3 text-xs text-muted-foreground backdrop-blur-sm"
+      >
         <span className="min-w-0 truncate">
-          <span className="hidden xl:inline">Collection / Selected knife</span>
+          <span className="hidden xl:inline">
+            {themeStyle === 'modern'
+              ? 'Object inspector'
+              : 'Collection / Selected knife'}
+          </span>
           <span className="xl:hidden">
             Selected / {knife.brand} {knife.name}
           </span>
@@ -169,7 +177,7 @@ export function CollectionKnifeInspector({
       </div>
 
       <div className={cn(!isMobileExpanded && 'hidden xl:block')}>
-        <div className="relative aspect-video bg-white">
+        <div data-inspector-image className="relative aspect-video bg-white">
           {image ? (
             <Image
               src={getImageUrl(image)}
@@ -206,7 +214,7 @@ export function CollectionKnifeInspector({
           )}
         </div>
 
-        <div className="border-t border-border px-5 py-6">
+        <div data-inspector-body className="border-t border-border px-5 py-6">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             {knife.brand}
           </p>
@@ -250,7 +258,10 @@ export function CollectionKnifeInspector({
             </section>
           )}
 
-          <dl className="mt-7 grid grid-cols-2 gap-x-6 gap-y-5">
+          <dl
+            data-inspector-specs
+            className="mt-7 grid grid-cols-2 gap-x-6 gap-y-5"
+          >
             {[
               ['Blade material', knife.specs.bladeMaterial],
               ['Handle', knife.handleMaterial],
@@ -268,7 +279,10 @@ export function CollectionKnifeInspector({
             ))}
           </dl>
 
-          <div className="mt-7 flex flex-wrap gap-2 border-b border-border pb-5">
+          <div
+            data-inspector-actions
+            className="mt-7 flex flex-wrap gap-2 border-b border-border pb-5"
+          >
             <Link
               href={`/collection/${knife.id}`}
               className={cn(buttonVariants({ size: 'sm' }))}

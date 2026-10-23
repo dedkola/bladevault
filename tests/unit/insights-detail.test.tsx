@@ -62,6 +62,10 @@ const chartPalette: InsightsChartPalette = {
   highlightWash: 'rgba(200, 156, 61, 0.14)',
   chartPrimary: '#2e3417',
   chartSecondary: '#79824a',
+  chartTertiary: '#c89c3d',
+  chartQuaternary: '#dfc78f',
+  chartQuinary: '#eae1cf',
+  chartOther: '#a9aa9f',
 }
 
 describe('insight detail slug validation', () => {

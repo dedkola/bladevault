@@ -55,6 +55,8 @@
   --bladevault-line: #d3c097;
   --bladevault-title: #9e6e1b;
   --bladevault-local: #4f5821;
+  --bladevault-nav-active-bg: var(--bladevault-olive);
+  --bladevault-nav-active-fg: var(--bladevault-gold);
   --bladevault-surface-soft: #f7f1e5;
   --bladevault-surface-hover: #efe5d2;
   --background: #fcfcfb;
@@ -80,6 +82,18 @@
   --chart-3: #70695f;
   --chart-4: #5c564d;
   --chart-5: #403b34;
+  --bv-chart-1: #2e3417;
+  --bv-chart-2: #79824a;
+  --bv-chart-3: #c89c3d;
+  --bv-chart-4: #dfc78f;
+  --bv-chart-5: #eae1cf;
+  --bv-chart-6: #a9aa9f;
+  --bv-chart-track: #eee6d7;
+  --bv-chart-wash: rgba(200, 156, 61, 0.14);
+  --bv-chart-heat-1: #b7bd86;
+  --bv-chart-heat-2: #79824a;
+  --bv-chart-heat-3: #4f5821;
+  --bv-chart-heat-4: #2e3417;
   --radius: 0.625rem;
   --sidebar: #fcfcfb;
   --sidebar-foreground: #2f2a20;
@@ -118,6 +132,18 @@
   --chart-3: #70695f;
   --chart-4: #5c564d;
   --chart-5: #403b34;
+  --bv-chart-1: #c89c3d;
+  --bv-chart-2: #947535;
+  --bv-chart-3: #79824a;
+  --bv-chart-4: #dfc78f;
+  --bv-chart-5: #eae1cf;
+  --bv-chart-6: #a9aa9f;
+  --bv-chart-track: #40371f;
+  --bv-chart-wash: rgba(200, 156, 61, 0.2);
+  --bv-chart-heat-1: #66552c;
+  --bv-chart-heat-2: #947535;
+  --bv-chart-heat-3: #b78d36;
+  --bv-chart-heat-4: #c89c3d;
   --sidebar: #201b11;
   --sidebar-foreground: #f2e6c2;
   --sidebar-primary: #c89c3d;
@@ -126,6 +152,124 @@
   --sidebar-accent-foreground: #f2e6c2;
   --sidebar-border: rgb(211 192 151 / 24%);
   --sidebar-ring: #c89c3d;
+}
+
+/* Modern theme style.
+ *
+ * "Current" stays the default warm BladeVault palette. The modern style is a
+ * cool, neutral, Apple-like theme with blue accents and graphite surfaces.
+ * It only changes design tokens — the existing layouts and interactions stay
+ * intact, so the theme can ship independently of any page-level redesign.
+ */
+html[data-theme-style='modern'] {
+  --modern-canvas: #ffffff;
+  --bladevault-olive: #1d1d1f;
+  --bladevault-gold: #0071e3;
+  --bladevault-line: #e1e1e6;
+  --bladevault-title: #0066cc;
+  --bladevault-local: #1d7a3a;
+  --bladevault-nav-active-bg: #e8f2ff;
+  --bladevault-nav-active-fg: #0066cc;
+  --bladevault-surface-soft: #f5f5f7;
+  --bladevault-surface-hover: #ececf0;
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
+  --card: #ffffff;
+  --card-foreground: #1d1d1f;
+  --popover: #ffffff;
+  --popover-foreground: #1d1d1f;
+  --primary: #0071e3;
+  --primary-foreground: #ffffff;
+  --secondary: #ffffff;
+  --secondary-foreground: #1d1d1f;
+  --muted: #f0f0f2;
+  --muted-foreground: #6e6e73;
+  --accent: #ececf0;
+  --accent-foreground: #1d1d1f;
+  --destructive: #d70015;
+  --border: #e1e1e6;
+  --input: #d2d2d7;
+  --ring: #0071e3;
+  --chart-1: #0071e3;
+  --chart-2: #5ac8fa;
+  --chart-3: #34c759;
+  --chart-4: #ff9f0a;
+  --chart-5: #af52de;
+  --bv-chart-1: #0071e3;
+  --bv-chart-2: #5ac8fa;
+  --bv-chart-3: #34c759;
+  --bv-chart-4: #ff9f0a;
+  --bv-chart-5: #af52de;
+  --bv-chart-6: #8e8e93;
+  --bv-chart-track: #e5e5ea;
+  --bv-chart-wash: rgba(0, 113, 227, 0.12);
+  --bv-chart-heat-1: #cfe6ff;
+  --bv-chart-heat-2: #7ab8ff;
+  --bv-chart-heat-3: #2f8cff;
+  --bv-chart-heat-4: #0071e3;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1d1d1f;
+  --sidebar-primary: #0071e3;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f2f2f4;
+  --sidebar-accent-foreground: #1d1d1f;
+  --sidebar-border: #e1e1e6;
+  --sidebar-ring: #0071e3;
+}
+
+html[data-theme-style='modern'].dark {
+  --modern-canvas: #0d0d0f;
+  --bladevault-title: #6cb4ff;
+  --bladevault-surface-soft: #242427;
+  --bladevault-surface-hover: #2c2c2e;
+  --bladevault-olive: #2c2c2e;
+  --bladevault-gold: #64d2ff;
+  --bladevault-line: rgb(255 255 255 / 14%);
+  --bladevault-local: #6dd58c;
+  --bladevault-nav-active-bg: #162738;
+  --bladevault-nav-active-fg: #64d2ff;
+  --background: #0d0d0f;
+  --foreground: #f5f5f7;
+  --card: #1c1c1f;
+  --card-foreground: #f5f5f7;
+  --popover: #1c1c1f;
+  --popover-foreground: #f5f5f7;
+  --primary: #0a84ff;
+  --primary-foreground: #ffffff;
+  --secondary: #242427;
+  --secondary-foreground: #f5f5f7;
+  --muted: #1c1c1f;
+  --muted-foreground: #a1a1a6;
+  --accent: #2c2c2e;
+  --accent-foreground: #f5f5f7;
+  --destructive: #ff453a;
+  --border: rgb(255 255 255 / 12%);
+  --input: rgb(255 255 255 / 18%);
+  --ring: #0a84ff;
+  --bv-chart-1: #0a84ff;
+  --bv-chart-2: #64d2ff;
+  --bv-chart-3: #30d158;
+  --bv-chart-4: #ff9f0a;
+  --bv-chart-5: #bf5af2;
+  --bv-chart-6: #8e8e93;
+  --bv-chart-track: #2c2c2e;
+  --bv-chart-wash: rgba(10, 132, 255, 0.18);
+  --bv-chart-heat-1: #173a5e;
+  --bv-chart-heat-2: #1f5f9e;
+  --bv-chart-heat-3: #2f8cff;
+  --bv-chart-heat-4: #64d2ff;
+  --sidebar: #151517;
+  --sidebar-foreground: #f5f5f7;
+  --sidebar-primary: #0a84ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #242427;
+  --sidebar-accent-foreground: #f5f5f7;
+  --sidebar-border: rgb(255 255 255 / 12%);
+  --sidebar-ring: #0a84ff;
+}
+
+html[data-theme-style='modern'] .page-title {
+  color: var(--foreground);
 }
 
 @layer base {
@@ -164,4 +308,250 @@
   body:has([data-global-knife-search]) main {
     padding-top: 3rem;
   }
+}
+
+/* Modern theme type and collection surface. The modern style is deliberately
+ * denser than the classic theme: Inter, smaller labels, white working canvas,
+ * and a table-first collection view. Classic keeps the existing scale. */
+@font-face {
+  font-family: 'BladeVault Inter';
+  src: url('/fonts/inter.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+html[data-theme-style='modern'] main {
+  background: var(--modern-canvas);
+}
+
+html[data-theme-style='modern'] body {
+  font-family:
+    'BladeVault Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+html[data-theme-style='modern'] button,
+html[data-theme-style='modern'] input,
+html[data-theme-style='modern'] select,
+html[data-theme-style='modern'] textarea {
+  font-family: inherit;
+}
+
+html[data-theme-style='modern'] [data-page-header] {
+  margin-bottom: 1rem;
+}
+
+html[data-theme-style='modern'] .page-title {
+  font-size: 1.5625rem;
+  line-height: 1;
+  font-weight: 620;
+  letter-spacing: -0.04em;
+}
+
+html[data-theme-style='modern'] [data-page-description] {
+  margin-top: 0.25rem;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+}
+
+html[data-theme-style='modern'] [data-collection-content] {
+  padding: 20px clamp(18px, 2.7vw, 36px) 26px;
+  background: var(--card);
+}
+
+html[data-theme-style='modern']
+  [data-collection-content]
+  > nav[aria-label='Collection grouping'] {
+  margin-bottom: 14px;
+}
+
+html[data-theme-style='modern']
+  [data-collection-content]
+  > nav[aria-label='Collection grouping']
+  button {
+  padding-bottom: 10px;
+  font-size: 0.6875rem;
+}
+
+html[data-theme-style='modern'] [data-collection-filter-panel] {
+  margin-bottom: 14px;
+  border-color: transparent;
+  background: transparent;
+  padding: 0;
+}
+
+html[data-theme-style='modern'] [data-collection-filter-panel] input {
+  height: 33px;
+  font-size: 0.71875rem;
+}
+
+html[data-theme-style='modern'] [data-collection-filter-panel] button,
+html[data-theme-style='modern'] [data-collection-filter-panel] select {
+  height: 30px;
+  font-size: 0.65625rem;
+}
+
+html[data-theme-style='modern'] [data-collection-grid] h2 {
+  font-size: 0.9375rem;
+}
+
+@media (min-width: 768px) {
+  html[data-theme-style='modern'] [data-sidebar] {
+    width: 226px;
+  }
+}
+
+html[data-theme-style='modern'] [data-sidebar-logo] {
+  width: 26px;
+  height: 26px;
+}
+
+html[data-theme-style='modern'] [data-sidebar-brand] {
+  font-size: 15px;
+  letter-spacing: -0.015em;
+}
+
+html[data-theme-style='modern'] [data-sidebar] > div:first-child {
+  padding: 14px;
+}
+
+html[data-theme-style='modern'] [data-sidebar-nav] a {
+  min-height: 33px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  font-size: 12.5px;
+}
+
+html[data-theme-style='modern'] [data-sidebar-nav] a svg {
+  width: 15px;
+  height: 15px;
+}
+
+html[data-theme-style='modern'] [data-sidebar] a.text-xs {
+  font-size: 10px;
+}
+
+html[data-theme-style='modern'] [data-sidebar-add] {
+  height: 30px;
+  font-size: 10.5px;
+}
+
+html[data-theme-style='modern'] [data-sidebar-logo] {
+  border-radius: 8px;
+  background: linear-gradient(150deg, #0a84ff, #0066cc);
+  box-shadow:
+    0 4px 10px rgb(0 113 227 / 22%),
+    inset 0 1px 0 rgb(255 255 255 / 25%);
+}
+
+html[data-theme-style='modern'] [data-sidebar-logo] img {
+  padding: 4px;
+  filter: brightness(0) invert(1);
+}
+
+html[data-theme-style='modern'] [data-sidebar-label] {
+  color: var(--muted-foreground);
+  font-weight: 600;
+  letter-spacing: 0.065em;
+}
+
+/* Docked object inspector in the modern collection layout. */
+@media (min-width: 1280px) {
+  html[data-theme-style='modern'] [data-collection-inspector] {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: auto;
+    width: 20.5rem;
+    max-height: none;
+    border: 0;
+    border-left: 1px solid var(--border);
+    border-radius: 0;
+    background: var(--card);
+    box-shadow: none;
+  }
+
+  html[data-theme-style='modern']
+    body:has([data-collection-inspector])
+    [data-collection-content] {
+    padding-right: 20.5rem;
+  }
+}
+
+html[data-theme-style='modern'] [data-inspector-header] {
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 10px;
+}
+
+html[data-theme-style='modern'] [data-inspector-image] {
+  aspect-ratio: 1.25;
+  background: var(--bladevault-surface-soft);
+}
+
+html[data-theme-style='modern'] [data-inspector-image] img {
+  padding: 16px;
+}
+
+html[data-theme-style='modern'] [data-inspector-body] {
+  padding: 14px 12px 18px;
+}
+
+html[data-theme-style='modern'] [data-inspector-body] > p:first-child {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+
+html[data-theme-style='modern'] #collection-inspector-title {
+  margin-top: 3px;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+html[data-theme-style='modern'] [data-inspector-body] > p.font-mono {
+  margin-top: 5px;
+  font-size: 9.5px;
+}
+
+html[data-theme-style='modern'] [data-inspector-body] section {
+  margin-top: 14px;
+}
+
+html[data-theme-style='modern'] [data-inspector-specs] {
+  margin-top: 14px;
+  gap: 8px 16px;
+}
+
+html[data-theme-style='modern'] [data-inspector-specs] dt {
+  font-size: 9px;
+}
+
+html[data-theme-style='modern'] [data-inspector-specs] dd {
+  margin-top: 2px;
+  font-size: 10.5px;
+}
+
+html[data-theme-style='modern'] [data-inspector-actions] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 14px;
+  padding-bottom: 12px;
+}
+
+html[data-theme-style='modern'] [data-inspector-actions] > * {
+  width: 100%;
+  height: 29px;
+  min-height: 29px;
+  justify-content: center;
+  padding-inline: 8px;
+  font-size: 10px;
 }

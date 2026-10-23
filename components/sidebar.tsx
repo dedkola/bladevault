@@ -37,7 +37,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { type AppSettings } from '@/lib/settings-shared'
+import { SETTINGS_UPDATED_EVENT, type AppSettings } from '@/lib/settings-shared'
 import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
 import {
   Dialog,
@@ -126,6 +126,12 @@ export function Sidebar() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to save theme preference')
       }
+
+      window.dispatchEvent(
+        new CustomEvent<Partial<AppSettings>>(SETTINGS_UPDATED_EVENT, {
+          detail: { theme: nextIsDark ? 'dark' : 'light' },
+        }),
+      )
     } catch (error) {
       root.classList.toggle('dark', !nextIsDark)
       console.error('Failed to save theme preference', error)
@@ -145,6 +151,7 @@ export function Sidebar() {
 
     return (
       <aside
+        data-sidebar
         className={cn(
           'flex min-h-0 flex-col bg-sidebar text-sidebar-foreground print:hidden',
           isMobile
@@ -158,7 +165,7 @@ export function Sidebar() {
             onClick={handleNavigate}
             className="flex min-w-0 items-center gap-2.5"
           >
-            <div className="relative h-12 w-12 shrink-0">
+            <div className="relative h-12 w-12 shrink-0" data-sidebar-logo>
               <Image
                 src="/logo.svg"
                 alt="BladeVault logo"
@@ -169,7 +176,10 @@ export function Sidebar() {
                 priority
               />
             </div>
-            <span className="truncate text-2xl font-semibold tracking-tight text-foreground">
+            <span
+              className="truncate text-2xl font-semibold tracking-tight text-foreground"
+              data-sidebar-brand
+            >
               <span>Blade</span>
               <span style={{ color: 'var(--bladevault-title)' }}>Vault</span>
             </span>
@@ -193,6 +203,7 @@ export function Sidebar() {
 
         <div className="px-4 pb-2">
           <Button
+            data-sidebar-add
             size="sm"
             className="w-full"
             render={<Link href="/add" onClick={handleNavigate} />}
@@ -229,8 +240,14 @@ export function Sidebar() {
           </div>
         ) : null}
 
-        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2">
-          <div className="px-2 pb-1.5 pt-2 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)]">
+        <nav
+          data-sidebar-nav
+          className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2"
+        >
+          <div
+            data-sidebar-label
+            className="px-2 pb-1.5 pt-2 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)]"
+          >
             Main
           </div>
           {links.map((link) => {
@@ -256,7 +273,7 @@ export function Sidebar() {
                 className={cn(
                   'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors',
                   isActive
-                    ? 'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)]'
+                    ? 'bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)]'
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                 )}
               >
@@ -291,6 +308,7 @@ export function Sidebar() {
                   render={
                     <button
                       type="button"
+                      data-sidebar-label
                       className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-1"
                     >
                       Smart collections
@@ -327,7 +345,7 @@ export function Sidebar() {
                         className={cn(
                           'flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-xs transition-colors',
                           active
-                            ? 'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)]'
+                            ? 'bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)]'
                             : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                         )}
                       >
@@ -360,6 +378,7 @@ export function Sidebar() {
                   render={
                     <button
                       type="button"
+                      data-sidebar-label
                       className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-1"
                     >
                       Pinned
@@ -410,7 +429,7 @@ export function Sidebar() {
                         className={cn(
                           'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors',
                           isKnifeActive
-                            ? 'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)]'
+                            ? 'bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)]'
                             : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                         )}
                       >
@@ -467,7 +486,10 @@ export function Sidebar() {
               <Collapsible open={brandsOpen} onOpenChange={setBrandsOpen}>
                 <CollapsibleTrigger
                   render={
-                    <button className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-1">
+                    <button
+                      data-sidebar-label
+                      className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-1"
+                    >
                       Brands
                       <ChevronRight
                         className={cn(
@@ -494,7 +516,7 @@ export function Sidebar() {
                         className={cn(
                           'flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs transition-colors',
                           isBrandActive
-                            ? 'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)]'
+                            ? 'bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)]'
                             : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                         )}
                       >
@@ -538,7 +560,7 @@ export function Sidebar() {
               className={cn(
                 'flex-1',
                 isSettingsActive &&
-                  'border-[var(--bladevault-olive)] bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)] hover:bg-[var(--bladevault-olive)] hover:text-[var(--bladevault-gold)]',
+                  'border-[var(--bladevault-nav-active-bg)] bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)] hover:bg-[var(--bladevault-nav-active-bg)] hover:text-[var(--bladevault-nav-active-fg)]',
               )}
               render={<Link href="/settings" onClick={handleNavigate} />}
               nativeButton={false}
@@ -558,7 +580,7 @@ export function Sidebar() {
               className={cn(
                 'flex-1',
                 isCloudBackupSettingsActive &&
-                  'border-[var(--bladevault-olive)] bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)] hover:bg-[var(--bladevault-olive)] hover:text-[var(--bladevault-gold)]',
+                  'border-[var(--bladevault-nav-active-bg)] bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)] hover:bg-[var(--bladevault-nav-active-bg)] hover:text-[var(--bladevault-nav-active-fg)]',
               )}
               render={
                 <Link

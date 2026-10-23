@@ -46,11 +46,11 @@ import { cn } from '@/lib/utils'
 import { getMaintenanceRecency } from '@/lib/maintenance-recency'
 
 const LEGEND_DOT_CLASSES = [
-  'bg-[#2e3417] dark:bg-[#c89c3d]',
-  'bg-[#79824a] dark:bg-[#947535]',
-  'bg-[#c89c3d] dark:bg-[#79824a]',
-  'bg-[#dfc78f]',
-  'bg-[#eae1cf]',
+  'bg-[var(--bv-chart-1)]',
+  'bg-[var(--bv-chart-2)]',
+  'bg-[var(--bv-chart-3)]',
+  'bg-[var(--bv-chart-4)]',
+  'bg-[var(--bv-chart-5)]',
 ]
 export const MEASUREMENT_KEYS: MeasurementKey[] = [
   'bladeLength',
@@ -148,9 +148,9 @@ function getChartColors(palette: InsightsChartPalette) {
   return [
     palette.chartPrimary,
     palette.chartSecondary,
-    palette.chartPrimary === '#c89c3d' ? '#79824a' : '#c89c3d',
-    '#dfc78f',
-    '#eae1cf',
+    palette.chartTertiary,
+    palette.chartQuaternary,
+    palette.chartQuinary,
   ]
 }
 
@@ -238,7 +238,7 @@ export function getLibraryOption(
           show: true,
           roundCap: true,
           width: 10,
-          itemStyle: { color: '#c89c3d' },
+          itemStyle: { color: palette.gold },
         },
         axisLine: {
           lineStyle: { width: 10, color: [[1, palette.ringTrack]] },
@@ -371,7 +371,7 @@ export function getCompletenessOption(
           show: true,
           roundCap: true,
           width: 10,
-          itemStyle: { color: palette.chartPrimary },
+          itemStyle: { color: palette.gold },
         },
         axisLine: {
           lineStyle: { width: 10, color: [[1, palette.ringTrack]] },
@@ -447,7 +447,7 @@ export function getHorizontalBarOption(
           itemStyle: {
             color:
               category.name === 'Other'
-                ? '#a9aa9f'
+                ? palette.chartOther
                 : colors[index % colors.length],
             borderRadius: 8,
           },
@@ -658,7 +658,7 @@ function CategoryRows({
               className={cn(
                 'size-2 shrink-0 rounded-full',
                 neutralOther && category.name === 'Other'
-                  ? 'bg-[#a9aa9f]'
+                  ? 'bg-[var(--bv-chart-6)]'
                   : LEGEND_DOT_CLASSES[index % LEGEND_DOT_CLASSES.length],
               )}
             />
@@ -1231,8 +1231,8 @@ export function CollectionInsights() {
                               month.knifeIds.length === 0
                                 ? 'bg-muted'
                                 : index === 5
-                                  ? 'bg-[#2e3417] dark:bg-[#c89c3d]'
-                                  : 'bg-[#79824a] dark:bg-[#947535]',
+                                  ? 'bg-[var(--bv-chart-1)]'
+                                  : 'bg-[var(--bv-chart-2)]',
                             )}
                           />
                         </span>
@@ -1349,10 +1349,10 @@ export function CollectionInsights() {
                             className={cn(
                               'block h-full rounded-full',
                               [
-                                'bg-[#2e3417] dark:bg-[#c89c3d]',
-                                'bg-[#79824a] dark:bg-[#947535]',
-                                'bg-[#c89c3d] dark:bg-[#dfc78f]',
-                                'bg-[#a9aa9f]',
+                                'bg-[var(--bv-chart-1)]',
+                                'bg-[var(--bv-chart-2)]',
+                                'bg-[var(--bv-chart-3)]',
+                                'bg-[var(--bv-chart-6)]',
                               ][index],
                             )}
                           />
@@ -1918,18 +1918,18 @@ export function CollectionInsights() {
                                     'h-[11px] min-w-[10px] rounded-[2px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:aspect-square xl:h-auto',
                                     day.count === 0 && 'bg-muted',
                                     level === 1 &&
-                                      'bg-[#b7bd86] dark:bg-[#66552c]',
+                                      'bg-[var(--bv-chart-heat-1)]',
                                     level === 2 &&
-                                      'bg-[#79824a] dark:bg-[#947535]',
+                                      'bg-[var(--bv-chart-heat-2)]',
                                     level === 3 &&
-                                      'bg-[#4f5821] dark:bg-[#b78d36]',
+                                      'bg-[var(--bv-chart-heat-3)]',
                                     level === 4 &&
-                                      'bg-[#2e3417] dark:bg-[#c89c3d]',
+                                      'bg-[var(--bv-chart-heat-4)]',
                                   )}
                                 />
                                 <TooltipContent
                                   sideOffset={8}
-                                  className="whitespace-normal border border-[var(--bladevault-line)] bg-[#f7f1e5] text-sm xl:text-base font-semibold text-[var(--bladevault-olive)] shadow-[0_8px_24px_rgba(46,52,23,0.14)] [&>[aria-hidden=true]]:bg-[#f7f1e5] [&>[aria-hidden=true]]:fill-[#f7f1e5]"
+                                  className="whitespace-normal border border-[var(--bladevault-line)] bg-[var(--card)] text-sm xl:text-base font-semibold text-foreground shadow-[0_8px_24px_rgba(46,52,23,0.14)] [&>[aria-hidden=true]]:bg-[var(--card)] [&>[aria-hidden=true]]:fill-[var(--card)]"
                                 >
                                   {activityLabel}
                                 </TooltipContent>
@@ -1947,10 +1947,10 @@ export function CollectionInsights() {
                 <span className="flex items-center gap-1">
                   Less
                   <i className="size-2.5 rounded-[2px] bg-muted" />
-                  <i className="size-2.5 rounded-[2px] bg-[#b7bd86] dark:bg-[#66552c]" />
-                  <i className="size-2.5 rounded-[2px] bg-[#79824a] dark:bg-[#947535]" />
-                  <i className="size-2.5 rounded-[2px] bg-[#4f5821] dark:bg-[#b78d36]" />
-                  <i className="size-2.5 rounded-[2px] bg-[#2e3417] dark:bg-[#c89c3d]" />
+                  <i className="size-2.5 rounded-[2px] bg-[var(--bv-chart-heat-1)]" />
+                  <i className="size-2.5 rounded-[2px] bg-[var(--bv-chart-heat-2)]" />
+                  <i className="size-2.5 rounded-[2px] bg-[var(--bv-chart-heat-3)]" />
+                  <i className="size-2.5 rounded-[2px] bg-[var(--bv-chart-heat-4)]" />
                   More
                 </span>
               </div>
@@ -2031,8 +2031,8 @@ export function CollectionInsights() {
                         className={cn(
                           'size-2 rounded-full',
                           group.label === 'Added'
-                            ? 'bg-[#c89c3d]'
-                            : 'bg-[#79824a]',
+                            ? 'bg-[var(--bv-chart-3)]'
+                            : 'bg-[var(--bv-chart-2)]',
                         )}
                       />
                       {group.label}

@@ -11,6 +11,7 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   AlertCircle,
+  Check,
   CheckCircle2,
   Cloud,
   Copy,
@@ -38,12 +39,14 @@ import {
   CUSTOM_FIELD_TYPES,
   DEFAULT_SETTINGS,
   SETTINGS_UPDATED_EVENT,
+  THEME_STYLES,
   TIME_FORMATS,
   type AppSettings,
   type AppTheme,
   type CardField,
   type CustomField,
   type CustomFieldType,
+  type ThemeStyle,
   type TimeFormat,
 } from '@/lib/settings-shared'
 import { getHourCycle } from '@/lib/time-format'
@@ -141,7 +144,7 @@ const settingsTabTriggerClassName =
   'flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors xl:w-full'
 
 const settingsSecondaryButtonClassName =
-  'border-border bg-[var(--bladevault-surface-soft)] text-foreground hover:bg-[var(--bladevault-surface-hover)] hover:text-foreground dark:border-input dark:bg-[#382f1d] dark:text-[var(--bladevault-gold)] dark:hover:bg-[#4a3f25] dark:hover:text-[var(--bladevault-gold)]'
+  'border-border bg-[var(--bladevault-surface-soft)] text-foreground hover:bg-[var(--bladevault-surface-hover)] hover:text-foreground dark:border-input dark:bg-[var(--bladevault-surface-soft)] dark:text-[var(--bladevault-gold)] dark:hover:bg-[var(--bladevault-surface-hover)] dark:hover:text-[var(--bladevault-gold)]'
 
 const settingsPrimaryButtonClassName =
   'border-[var(--bladevault-gold)] bg-[var(--bladevault-gold)] text-[var(--bladevault-olive)] hover:bg-[var(--bladevault-title)] hover:text-[var(--bladevault-olive)]'
@@ -320,8 +323,12 @@ async function saveBackupResponse(
   }
 }
 
-function applyThemePreference(theme: AppSettings['theme']) {
+function applyThemePreference(
+  theme: AppSettings['theme'],
+  themeStyle: AppSettings['themeStyle'],
+) {
   document.documentElement.classList.toggle('dark', theme === 'dark')
+  document.documentElement.dataset.themeStyle = themeStyle
 }
 
 function CardFieldsPreview({
@@ -714,6 +721,7 @@ export default function SettingsView() {
 
         if (cancellation.cancelled) return
         setSettings(nextSettings)
+        applyThemePreference(nextSettings.theme, nextSettings.themeStyle)
         setLocalDataPath(data.localDataPath || '')
         setConfiguredLocalDataPath(data.configuredLocalDataPath || '')
         setDefaultLocalDataPath(data.defaultLocalDataPath || '')
@@ -748,6 +756,18 @@ export default function SettingsView() {
     }
   }, [loadAttemptKey, refreshCloudConfig, refreshCloudSession])
 
+  useEffect(() => {
+    const syncExternalSettings = (event: Event) => {
+      const detail = (event as CustomEvent<Partial<AppSettings>>).detail
+      if (!detail) return
+      setSettings((current) => (current ? { ...current, ...detail } : current))
+    }
+
+    window.addEventListener(SETTINGS_UPDATED_EVENT, syncExternalSettings)
+    return () =>
+      window.removeEventListener(SETTINGS_UPDATED_EVENT, syncExternalSettings)
+  }, [])
+
   const saveSettings = useCallback(async (updates: Partial<AppSettings>) => {
     const response = await fetch('/api/settings', {
       method: 'POST',
@@ -768,7 +788,7 @@ export default function SettingsView() {
       throw new Error('BladeVault did not return settings data.')
     }
     setSettings(nextSettings)
-    applyThemePreference(nextSettings.theme)
+    applyThemePreference(nextSettings.theme, nextSettings.themeStyle)
 
     window.dispatchEvent(
       new CustomEvent<Partial<AppSettings>>(SETTINGS_UPDATED_EVENT, {
@@ -793,7 +813,7 @@ export default function SettingsView() {
       }
 
       setSettings(data.settings)
-      applyThemePreference(data.settings.theme)
+      applyThemePreference(data.settings.theme, data.settings.themeStyle)
       window.dispatchEvent(
         new CustomEvent<Partial<AppSettings>>(SETTINGS_UPDATED_EVENT, {
           detail: data.settings,
@@ -865,7 +885,7 @@ export default function SettingsView() {
       )
       setDockerHostDataMountPath(data.dockerHostDataMountPath || '')
       setIsContainerized(Boolean(data.isContainerized))
-      applyThemePreference(nextSettings.theme)
+      applyThemePreference(nextSettings.theme, nextSettings.themeStyle)
       window.dispatchEvent(
         new CustomEvent<Partial<AppSettings>>(SETTINGS_UPDATED_EVENT, {
           detail: nextSettings,
@@ -1175,6 +1195,18 @@ export default function SettingsView() {
     }
   }
 
+  const handleThemeStyleChange = async (themeStyle: ThemeStyle) => {
+    if (!THEME_STYLES.includes(themeStyle)) return
+
+    try {
+      await saveSettings({ themeStyle })
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : 'Failed to save settings',
+      )
+    }
+  }
+
   const handleTimeFormatChange = async (value: string | null) => {
     const timeFormat = value as TimeFormat
     if (!timeFormat || !TIME_FORMATS.includes(timeFormat)) return
@@ -1427,7 +1459,7 @@ export default function SettingsView() {
                     className={cn(
                       settingsTabTriggerClassName,
                       isActive
-                        ? 'bg-[var(--bladevault-olive)] font-medium text-[var(--bladevault-gold)]'
+                        ? 'bg-[var(--bladevault-nav-active-bg)] font-medium text-[var(--bladevault-nav-active-fg)]'
                         : 'text-muted-foreground hover:bg-[var(--bladevault-surface-hover)] hover:text-foreground',
                     )}
                   >
@@ -1824,14 +1856,78 @@ export default function SettingsView() {
                     title="Appearance"
                     className="settings-preferences"
                   >
-                    <SettingsRow label="Theme">
+                    <SettingsRow
+                      label="Theme"
+                      description="Current is the default warm BladeVault look. Modern is the new cool palette."
+                      className="settings-theme-row"
+                    >
+                      <div
+                        className="theme-style-options"
+                        role="radiogroup"
+                        aria-label="Theme"
+                      >
+                        {THEME_STYLES.map((themeStyle) => {
+                          const isActive = settings.themeStyle === themeStyle
+                          const isModern = themeStyle === 'modern'
+
+                          return (
+                            <button
+                              key={themeStyle}
+                              type="button"
+                              role="radio"
+                              aria-checked={isActive}
+                              onClick={() =>
+                                void handleThemeStyleChange(themeStyle)
+                              }
+                              className={cn(
+                                'theme-style-option',
+                                isActive && 'is-active',
+                              )}
+                            >
+                              <span
+                                aria-hidden="true"
+                                className={cn(
+                                  'theme-style-swatch',
+                                  isModern ? 'is-modern' : 'is-classic',
+                                )}
+                              >
+                                <span className="theme-style-swatch-rail" />
+                                <span className="theme-style-swatch-body">
+                                  <span className="theme-style-swatch-title" />
+                                  <span className="theme-style-swatch-line" />
+                                  <span className="theme-style-swatch-line is-short" />
+                                  <span className="theme-style-swatch-card" />
+                                </span>
+                              </span>
+                              <span className="theme-style-meta">
+                                <span className="theme-style-name">
+                                  {isModern ? 'Modern' : 'Current'}
+                                </span>
+                                <span className="theme-style-note">
+                                  {isModern
+                                    ? 'New · cool graphite'
+                                    : 'Default · warm gold'}
+                                </span>
+                              </span>
+                              {isActive ? (
+                                <Check
+                                  className="theme-style-check"
+                                  aria-hidden="true"
+                                />
+                              ) : null}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </SettingsRow>
+                    <SettingsRow label="Color mode">
                       <Select
                         value={settings.theme}
                         onValueChange={handleThemeChange}
                       >
                         <SelectTrigger
                           size="sm"
-                          aria-label="Theme"
+                          aria-label="Color mode"
                           className="h-8 w-32 rounded-lg border-border bg-[var(--bladevault-surface-soft)]"
                         >
                           <SelectValue />

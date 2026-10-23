@@ -29,9 +29,11 @@ import {
   type CustomField,
   DEFAULT_SETTINGS,
   normalizeCardFields,
+  normalizeThemeStyle,
   normalizeTimeFormat,
   SETTINGS_UPDATED_EVENT,
   type AppTheme,
+  type ThemeStyle,
   type TimeFormat,
 } from '@/lib/settings-shared'
 import {
@@ -72,6 +74,7 @@ type KnivesContextValue = {
   isAutoBackupEnabled: boolean
   isAutoBackupActive: boolean
   pinnedItemsFirst: boolean
+  themeStyle: ThemeStyle
   timeFormat: TimeFormat
   cardFields: CardField[]
   customFieldDefinitions: CustomField[]
@@ -97,7 +100,13 @@ function toImageUrls(draft: KnifeDraft): string[] {
   )
 }
 
-export function KnivesProvider({ children }: { children: React.ReactNode }) {
+export function KnivesProvider({
+  children,
+  initialThemeStyle = DEFAULT_SETTINGS.themeStyle,
+}: {
+  children: React.ReactNode
+  initialThemeStyle?: ThemeStyle
+}) {
   const { readOnly: isVaultReadOnly } = useSyncExternalStore(
     subscribeVaultClientState,
     getVaultClientState,
@@ -121,6 +130,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
   const [pinnedItemsFirst, setPinnedItemsFirst] = useState(
     DEFAULT_SETTINGS.pinnedItemsFirst,
   )
+  const [themeStyle, setThemeStyle] = useState<ThemeStyle>(initialThemeStyle)
   const [timeFormat, setTimeFormat] = useState<TimeFormat>(
     DEFAULT_SETTINGS.timeFormat,
   )
@@ -148,6 +158,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
           error?: string
           settings?: {
             theme?: AppTheme
+            themeStyle?: ThemeStyle
             cloudAutoBackupEnabled?: boolean
             pinnedItemsFirst?: boolean
             timeFormat?: TimeFormat
@@ -164,6 +175,9 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
             'dark',
             data.settings?.theme === 'dark',
           )
+          const nextThemeStyle = normalizeThemeStyle(data.settings?.themeStyle)
+          document.documentElement.dataset.themeStyle = nextThemeStyle
+          setThemeStyle(nextThemeStyle)
           setIsAutoBackupEnabled(Boolean(data.settings?.cloudAutoBackupEnabled))
           setPinnedItemsFirst(Boolean(data.settings?.pinnedItemsFirst))
           setTimeFormat(normalizeTimeFormat(data.settings?.timeFormat))
@@ -189,6 +203,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       const detail = (
         event as CustomEvent<{
           theme?: AppTheme
+          themeStyle?: ThemeStyle
           cloudAutoBackupEnabled?: boolean
           pinnedItemsFirst?: boolean
           timeFormat?: TimeFormat
@@ -203,6 +218,13 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
           'dark',
           detail.theme === 'dark',
         )
+        didUpdate = true
+      }
+
+      if (detail?.themeStyle) {
+        const nextThemeStyle = normalizeThemeStyle(detail.themeStyle)
+        document.documentElement.dataset.themeStyle = nextThemeStyle
+        setThemeStyle(nextThemeStyle)
         didUpdate = true
       }
 
@@ -777,6 +799,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       isAutoBackupActive:
         isCloudSyncEnabled && isAutoBackupEnabled && !isVaultReadOnly,
       pinnedItemsFirst,
+      themeStyle,
       timeFormat,
       cardFields,
       customFieldDefinitions,
@@ -803,6 +826,7 @@ export function KnivesProvider({ children }: { children: React.ReactNode }) {
       isAutoBackupEnabled,
       isVaultReadOnly,
       pinnedItemsFirst,
+      themeStyle,
       timeFormat,
       cardFields,
       customFieldDefinitions,

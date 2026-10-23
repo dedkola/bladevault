@@ -42,15 +42,18 @@ Card density is a control on the Collection page. It is separate from the appear
 
 Disable the preference to follow each view's normal order. This changes ordering; it does not remove any pins. To pin or unpin a knife, use its pin control, or use [bulk actions](bulk-actions.md) for several records.
 
-## Change the theme and time format
+## Change the theme, color mode, and time format
 
 In **Settings → Appearance**:
 
-1. Under **Theme**, choose **Light** or **Dark**.
-2. Under **Time format**, choose **12-hour** or **24-hour**.
-   ![The Theme and Time format controls in Settings → Appearance](../images/customize-appearance-theme-time.png)
+1. Under **Theme**, choose **Current** or **Modern**.
+   - **Current** is the default warm BladeVault palette.
+   - **Modern** is the new cool graphite palette. It also opens Collection in a compact table with a docked inspector on the right (switch to gallery view from the collection toolbar), and rebuilds Insights as the **Collection pulse** dashboard with the current data.
+2. Under **Color mode**, choose **Light** or **Dark**.
+3. Under **Time format**, choose **12-hour** or **24-hour**.
+   ![The Theme, Color mode, and Time format controls in Settings → Appearance](../images/customize-appearance-theme-time.png)
 
-Both preferences save automatically. The time format controls how times are displayed, including activity and backup timestamps; it does not change the dates stored in your records.
+All preferences save automatically. The color mode and theme work independently, so either theme can be used in light or dark mode. The time format controls how times are displayed, including activity and backup timestamps; it does not change the dates stored in your records.
 
 ## Related
 

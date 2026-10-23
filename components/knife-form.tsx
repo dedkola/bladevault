@@ -240,7 +240,7 @@ function FormSection({
         className,
       )}
     >
-      <div className="border-b border-[var(--bladevault-line)] bg-[color:var(--bladevault-surface-soft)]/70 px-4 py-3 dark:border-[#d3c097]/30">
+      <div className="border-b border-[var(--bladevault-line)] bg-[color:var(--bladevault-surface-soft)]/70 px-4 py-3 dark:border-[var(--bladevault-line)]/30">
         <div className="text-sm xl:text-base font-medium text-foreground xl:text-lg">
           {title}
         </div>
