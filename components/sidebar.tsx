@@ -63,8 +63,13 @@ export function Sidebar() {
   const searchParamsKey = searchParams.toString()
   const selectedBrands = searchParams.getAll('brand')
   const routeKey = searchParamsKey ? `${pathname}?${searchParamsKey}` : pathname
-  const { knives, cardFields, customFieldDefinitions, isAutoBackupActive } =
-    useKnives()
+  const {
+    knives,
+    cardFields,
+    customFieldDefinitions,
+    isAutoBackupActive,
+    themeStyle,
+  } = useKnives()
   const { update, downloadUpdate } = useDesktopUpdates()
   const [brandsOpen, setBrandsOpen] = useState(true)
   const [pinnedOpen, setPinnedOpen] = useState(true)
@@ -547,67 +552,69 @@ export function Sidebar() {
           )}
         </nav>
 
-        <div className="flex flex-col gap-2 border-t bg-muted/30 p-3">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1"
-              onClick={toggleTheme}
-              aria-label="Toggle color theme"
-            >
-              <Sun className="h-3.5 w-3.5 dark:hidden" />
-              <Moon className="hidden h-3.5 w-3.5 dark:block" />
-            </Button>
+        {themeStyle !== 'modern' && (
+          <div className="flex flex-col gap-2 border-t bg-muted/30 p-3">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={toggleTheme}
+                aria-label="Toggle color theme"
+              >
+                <Sun className="h-3.5 w-3.5 dark:hidden" />
+                <Moon className="hidden h-3.5 w-3.5 dark:block" />
+              </Button>
 
-            <Button
-              variant="outline"
-              size="sm"
-              aria-label="Settings"
-              className={cn(
-                'flex-1',
-                isSettingsActive &&
-                  'border-[var(--bladevault-nav-active-bg)] bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)] hover:bg-[var(--bladevault-nav-active-bg)] hover:text-[var(--bladevault-nav-active-fg)]',
-              )}
-              render={<Link href="/settings" onClick={handleNavigate} />}
-              nativeButton={false}
-            >
-              <Settings className="h-3.5 w-3.5" />
-            </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label="Settings"
+                className={cn(
+                  'flex-1',
+                  isSettingsActive &&
+                    'border-[var(--bladevault-nav-active-bg)] bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)] hover:bg-[var(--bladevault-nav-active-bg)] hover:text-[var(--bladevault-nav-active-fg)]',
+                )}
+                render={<Link href="/settings" onClick={handleNavigate} />}
+                nativeButton={false}
+              >
+                <Settings className="h-3.5 w-3.5" />
+              </Button>
 
-            <Button
-              variant="outline"
-              size="sm"
-              aria-label="Cloud backup"
-              title={
-                isAutoBackupActive
-                  ? 'Cloud auto backup is active. Open Cloud backup settings.'
-                  : 'Cloud auto backup is inactive. Open Cloud backup settings.'
-              }
-              className={cn(
-                'flex-1',
-                isCloudBackupSettingsActive &&
-                  'border-[var(--bladevault-nav-active-bg)] bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)] hover:bg-[var(--bladevault-nav-active-bg)] hover:text-[var(--bladevault-nav-active-fg)]',
-              )}
-              render={
-                <Link
-                  href="/settings?tab=cloud-backup"
-                  onClick={handleOpenCloudBackup}
-                />
-              }
-              nativeButton={false}
-            >
-              {isAutoBackupActive ? (
-                <Cloud
-                  className="h-3.5 w-3.5"
-                  style={{ stroke: 'url(#sidebar-cloud-gradient)' }}
-                />
-              ) : (
-                <CloudOff className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-              )}
-            </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label="Cloud backup"
+                title={
+                  isAutoBackupActive
+                    ? 'Cloud auto backup is active. Open Cloud backup settings.'
+                    : 'Cloud auto backup is inactive. Open Cloud backup settings.'
+                }
+                className={cn(
+                  'flex-1',
+                  isCloudBackupSettingsActive &&
+                    'border-[var(--bladevault-nav-active-bg)] bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)] hover:bg-[var(--bladevault-nav-active-bg)] hover:text-[var(--bladevault-nav-active-fg)]',
+                )}
+                render={
+                  <Link
+                    href="/settings?tab=cloud-backup"
+                    onClick={handleOpenCloudBackup}
+                  />
+                }
+                nativeButton={false}
+              >
+                {isAutoBackupActive ? (
+                  <Cloud
+                    className="h-3.5 w-3.5"
+                    style={{ stroke: 'url(#sidebar-cloud-gradient)' }}
+                  />
+                ) : (
+                  <CloudOff className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                )}
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
       </aside>
     )
   }
@@ -634,7 +641,10 @@ export function Sidebar() {
         </defs>
       </svg>
 
-      <div className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 print:hidden md:hidden">
+      <div
+        data-mobile-navigation-bar
+        className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 print:hidden md:hidden"
+      >
         <Link href="/" className="flex min-w-0 items-center gap-2.5">
           <div className="relative h-10 w-10 shrink-0">
             <Image

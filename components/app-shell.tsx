@@ -3,7 +3,15 @@
 import Link from 'next/link'
 import Image from '@/components/vault-image'
 import { usePathname } from 'next/navigation'
-import { Moon, Plus, Search, Settings, Sun } from 'lucide-react'
+import {
+  Cloud,
+  CloudOff,
+  Moon,
+  Plus,
+  Search,
+  Settings,
+  Sun,
+} from 'lucide-react'
 import { SidebarShell } from '@/components/sidebar-shell'
 import {
   GlobalKnifeSearch,
@@ -15,7 +23,8 @@ import { SETTINGS_UPDATED_EVENT, type AppSettings } from '@/lib/settings-shared'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { themeStyle, knives, isLoading, showFeedback } = useKnives()
+  const { themeStyle, knives, isLoading, isAutoBackupActive, showFeedback } =
+    useKnives()
   if (themeStyle !== 'modern') {
     return (
       <>
@@ -86,10 +95,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <GlobalKnifeSearch embedded />
         </div>
         <div data-workspace-actions>
-          <span data-workspace-status>
-            <i aria-hidden="true" />
-            Local vault
-          </span>
+          <Link
+            href="/settings?tab=cloud-backup"
+            aria-label="Cloud backup"
+            title={
+              isAutoBackupActive
+                ? 'Cloud auto backup is active. Open Cloud backup settings.'
+                : 'Cloud auto backup is inactive. Open Cloud backup settings.'
+            }
+            onClick={() =>
+              window.dispatchEvent(
+                new Event('bladevault:open-cloud-backup-settings'),
+              )
+            }
+          >
+            {isAutoBackupActive ? (
+              <Cloud className="text-primary" />
+            ) : (
+              <CloudOff />
+            )}
+          </Link>
           <Link href="/settings" aria-label="Workspace settings">
             <Settings />
           </Link>
@@ -112,12 +137,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main tabIndex={-1}>{children}</main>
       </div>
       <footer data-workspace-footer>
-        <div>
-          <i aria-hidden="true" />
-          <b>Local</b>
-          <span>· SQLite</span>
-          <span data-workspace-footer-note>Local collection</span>
-        </div>
         <div>
           <span>
             {isLoading ? 'Loading collection…' : `${knives.length} objects`}
