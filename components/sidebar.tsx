@@ -209,18 +209,20 @@ export function Sidebar() {
           )}
         </div>
 
-        <div className="px-4 pb-2">
-          <Button
-            data-sidebar-add
-            size="sm"
-            className="w-full"
-            render={<Link href="/add" onClick={handleNavigate} />}
-            nativeButton={false}
-          >
-            <PlusCircle className="h-3.5 w-3.5" />
-            Add knife
-          </Button>
-        </div>
+        {themeStyle !== 'modern' && (
+          <div className="px-4 pb-2">
+            <Button
+              data-sidebar-add
+              size="sm"
+              className="w-full"
+              render={<Link href="/add" onClick={handleNavigate} />}
+              nativeButton={false}
+            >
+              <PlusCircle className="h-3.5 w-3.5" />
+              Add knife
+            </Button>
+          </div>
+        )}
 
         {hasUpdate || isUpdateBusy ? (
           <div className="flex justify-center px-4 pb-2">

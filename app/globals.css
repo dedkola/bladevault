@@ -2081,13 +2081,6 @@ html[data-theme-style='modern'] [data-workspace-body] > main {
 [data-workspace-body] [data-sidebar-brand-row] {
   display: none;
 }
-[data-workspace-body] [data-sidebar-brand-row] + div {
-  padding: 14px 11px 2px;
-}
-html[data-theme-style='modern'] [data-workspace-body] [data-sidebar-add] {
-  height: 18px;
-  border-radius: 999px;
-}
 [data-workspace-body] [data-sidebar-nav] > :is(a, div) {
   margin-block: 0;
 }
@@ -2238,12 +2231,15 @@ html[data-theme-style='modern'] [data-modern-shell] [data-modern-inspector] {
     z-index: 40;
   }
   [data-workspace-actions] > [data-workspace-add] {
-    display: none;
+    width: 34px;
+    padding-inline: 0;
+    gap: 0;
+    font-size: 0;
   }
   [data-workspace-search] {
     position: fixed;
     top: 16px;
-    right: 184px;
+    right: 223px;
     width: 34px;
     min-width: 0;
     z-index: 40;
