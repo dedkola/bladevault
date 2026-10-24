@@ -292,6 +292,7 @@ export function Sidebar() {
                   <span>{link.label}</span>
                   {link.href === '/collection' && knives.length > 0 ? (
                     <span
+                      data-sidebar-collection-count
                       className={cn(
                         'inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none',
                         isActive

@@ -634,6 +634,24 @@ html[data-theme-style='modern'] [data-sidebar-label] {
   letter-spacing: 0.065em;
 }
 
+html[data-theme-style='modern']
+  [data-sidebar]
+  a[aria-current='page']
+  [data-sidebar-collection-count] {
+  background: #dcecff;
+  color: #004b9a;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+html[data-theme-style='modern'].dark
+  [data-sidebar]
+  a[aria-current='page']
+  [data-sidebar-collection-count] {
+  background: #24476b;
+  color: #e7f2ff;
+}
+
 html[data-theme-style='modern'] [data-inspector-header] {
   min-height: 44px;
   padding: 0 14px;
