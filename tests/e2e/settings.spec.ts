@@ -37,14 +37,28 @@ test('persists and applies the selected theme style', async ({ page }) => {
     'data-theme-style',
     'modern',
   )
+  await expect(
+    page.getByRole('heading', { name: 'Appearance', exact: true }),
+  ).toBeVisible()
 
   await page.reload()
-  await page.getByRole('button', { name: 'Appearance' }).click()
   await expect(page.getByRole('radio', { name: /Modern/ })).toBeChecked()
   await expect(page.locator('html')).toHaveAttribute(
     'data-theme-style',
     'modern',
   )
+
+  await current.click()
+  await expect(current).toBeChecked()
+  await expect(page.locator('html')).toHaveAttribute(
+    'data-theme-style',
+    'classic',
+  )
+  await expect(
+    page.getByRole('heading', { name: 'Appearance', exact: true }),
+  ).toBeVisible()
+  await page.reload()
+  await expect(current).toBeChecked()
 })
 
 test('persists and applies the selected time format', async ({

@@ -402,9 +402,12 @@ function CardFieldsPreview({
 export default function SettingsView() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const requestedTab = ['cloud-backup', 'mcp', 'app-lock'].includes(
-    searchParams.get('tab') || '',
-  )
+  const requestedTab = [
+    'cloud-backup',
+    'mcp',
+    'app-lock',
+    'appearance',
+  ].includes(searchParams.get('tab') || '')
     ? (searchParams.get('tab') as SettingsTab)
     : null
   const { update, checkForUpdates, downloadUpdate, installUpdate } =
@@ -1199,6 +1202,10 @@ export default function SettingsView() {
     if (!THEME_STYLES.includes(themeStyle)) return
 
     try {
+      // The theme shell remounts this page; keep Appearance selected on return.
+      const url = new URL(window.location.href)
+      url.searchParams.set('tab', 'appearance')
+      window.history.replaceState(null, '', url)
       await saveSettings({ themeStyle })
     } catch (error) {
       setLoadError(
