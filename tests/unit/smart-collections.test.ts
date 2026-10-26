@@ -28,6 +28,40 @@ describe('smart collection rules', () => {
     ).toBe(false)
     expect(matchesCollection(createKnife(), params)).toBe(false)
   })
+  it('keeps type scopes explicit even when no matching lock values exist', () => {
+    const fixed = new URLSearchParams('knifeType=fixed')
+    const folding = new URLSearchParams('knifeType=folding')
+    for (const lock of ['Fix', 'Fixed Blade', 'fixed']) {
+      const record = createKnife({
+        specs: { ...base.specs, lockingMechanism: lock },
+      })
+      expect(matchesCollection(record, fixed)).toBe(true)
+      expect(matchesCollection(record, folding)).toBe(false)
+    }
+    for (const lock of ['Crossbar Lock', 'Slip Joint', 'Frame Lock']) {
+      const record = createKnife({
+        specs: { ...base.specs, lockingMechanism: lock },
+      })
+      expect(matchesCollection(record, fixed)).toBe(false)
+      expect(matchesCollection(record, folding)).toBe(true)
+    }
+    for (const lock of ['', 'Unknown']) {
+      const record = createKnife({
+        specs: { ...base.specs, lockingMechanism: lock },
+      })
+      expect(matchesCollection(record, fixed)).toBe(false)
+      expect(matchesCollection(record, folding)).toBe(false)
+    }
+    expect(
+      collectionQuery(new URLSearchParams('knifeType=fixed&view=knives')),
+    ).toBe('knifeType=fixed')
+    expect(
+      matchesCollection(
+        base,
+        new URLSearchParams('knifeType=folding&brand=Other'),
+      ),
+    ).toBe(false)
+  })
   it('uses inclusive minima and exclusive maxima across units', () => {
     const params = new URLSearchParams(
       'bladeLengthMin=70&bladeLengthMax=80&weightMax=100',

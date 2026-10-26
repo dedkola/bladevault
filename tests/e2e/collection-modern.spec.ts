@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
 import { resetVault, seedKnife } from './helpers'
 
@@ -120,4 +121,99 @@ test('keeps modern compare inside the workspace shell with saved-list controls a
   await expect(
     page.getByRole('combobox', { name: 'Find a knife by model name' }),
   ).toBeVisible()
+})
+
+for (const { lock, scope } of [
+  { lock: 'Crossbar Lock', scope: 'Fixed' },
+  { lock: 'Fixed Blade', scope: 'Folding' },
+  { lock: '', scope: 'Fixed' },
+  { lock: '', scope: 'Folding' },
+]) {
+  test(`keeps ${scope} empty with only ${lock || 'unknown locks'}`, async ({
+    page,
+    request,
+  }) => {
+    await seedKnife(request, {
+      name: 'Unmatched object',
+      specs: { lockingMechanism: lock },
+    })
+    await request.post('/api/settings', { data: { themeStyle: 'modern' } })
+    await page.goto('/collection')
+    const scopeButton = page
+      .getByLabel('Collection type')
+      .getByRole('button', { name: scope, exact: true })
+    await scopeButton.click()
+    await expect(scopeButton).toHaveAttribute('aria-pressed', 'true')
+    await expect(
+      page.getByText('No matches found', { exact: true }),
+    ).toBeVisible()
+    await expect(page.locator('[data-modern-collection-table]')).toHaveCount(0)
+    await page.reload()
+    await expect(scopeButton).toHaveAttribute('aria-pressed', 'true')
+    await expect(
+      page.getByText('No matches found', { exact: true }),
+    ).toBeVisible()
+    await page
+      .getByRole('button', { name: 'Clear all', exact: true })
+      .last()
+      .click()
+    await expect(page.locator('[data-modern-collection-table]')).toContainText(
+      'Unmatched object',
+    )
+  })
+}
+
+test('distinguishes an empty pinned view from an empty library', async ({
+  page,
+  request,
+}) => {
+  await seedKnife(request, { name: 'Unpinned object' })
+  await request.post('/api/settings', { data: { themeStyle: 'modern' } })
+  await page.goto('/collection?view=pinned')
+  await expect(
+    page.getByText('No pinned knives yet', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByText('Your library is empty', { exact: true }),
+  ).toHaveCount(0)
+  await page
+    .getByRole('button', { name: 'View all knives', exact: true })
+    .click()
+  await expect(page.locator('[data-modern-collection-table]')).toContainText(
+    'Unpinned object',
+  )
+})
+
+test('downloads only the filtered collection records', async ({
+  page,
+  request,
+}) => {
+  await seedKnife(request, {
+    name: 'Export folder',
+    specs: { lockingMechanism: 'Crossbar Lock' },
+  })
+  await seedKnife(request, {
+    name: 'Excluded fixed',
+    specs: { lockingMechanism: 'Fix' },
+  })
+  await request.post('/api/settings', { data: { themeStyle: 'modern' } })
+  await page.goto('/collection')
+  await page
+    .getByLabel('Collection type')
+    .getByRole('button', { name: 'Folding', exact: true })
+    .click()
+  await expect(
+    page.locator('[data-modern-collection-table] tbody tr'),
+  ).toHaveCount(1)
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Export', exact: true }).click()
+  const download = await downloadPromise
+  expect(await download.failure()).toBeNull()
+  const path = await download.path()
+  expect(path).toBeTruthy()
+  const payload = JSON.parse(await readFile(path!, 'utf8'))
+  expect(payload.format).toBe('bladevault-collection-summary')
+  expect(
+    payload.records.map((record: { name: string }) => record.name),
+  ).toEqual(['Export folder'])
 })

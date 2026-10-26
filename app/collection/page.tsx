@@ -347,50 +347,20 @@ function CollectionContent() {
     setInspectorDismissed(false)
     setActiveKnifeId(knife.id)
   }
-  const fixedLocks = [
-    ...new Set(
-      knives
-        .map((knife) => knife.specs.lockingMechanism?.trim())
-        .filter((value): value is string =>
-          Boolean(value && /\bfix(?:ed)?\b/i.test(value)),
-        ),
-    ),
-  ]
-  const foldingLocks = [
-    ...new Set(
-      knives
-        .map((knife) => knife.specs.lockingMechanism?.trim())
-        .filter((value): value is string =>
-          Boolean(
-            value &&
-            !/\bfix(?:ed)?\b/i.test(value) &&
-            /liner|frame|crossbar|button|axis|slip.?joint|back.?lock|lock.?back|compression|ball bearing|tri.?ad|shark|vanchor|superlock|recoil|clutch|scorpion|friction/i.test(
-              value,
-            ),
-          ),
-        ),
-    ),
-  ]
-  const locksMatch = (values: string[]) =>
-    values.length > 0 &&
-    selectedFilters.lockingMechanism.length === values.length &&
-    values.every((value) => selectedFilters.lockingMechanism.includes(value))
+  const requestedKnifeType = searchParams.get('knifeType')
   const modernScope = isPinnedView
     ? 'pinned'
-    : locksMatch(fixedLocks)
-      ? 'fixed'
-      : locksMatch(foldingLocks)
-        ? 'folding'
-        : 'all'
+    : requestedKnifeType === 'fixed' || requestedKnifeType === 'folding'
+      ? requestedKnifeType
+      : 'all'
   const setModernScope = (scope: string) => {
     replaceParams((params) => {
       params.delete('view')
+      params.delete('knifeType')
       params.delete('lockingMechanism')
       if (scope === 'pinned') params.set('view', 'pinned')
-      if (scope === 'fixed' || scope === 'folding') {
-        for (const value of scope === 'fixed' ? fixedLocks : foldingLocks)
-          params.append('lockingMechanism', value)
-      }
+      if (scope === 'fixed' || scope === 'folding')
+        params.set('knifeType', scope)
     })
     setVisibleCount(PAGE_SIZE)
   }
@@ -425,8 +395,10 @@ function CollectionContent() {
     const link = document.createElement('a')
     link.href = url
     link.download = `bladevault-collection-${new Date().toISOString().slice(0, 10)}.json`
+    document.body.appendChild(link)
     link.click()
-    window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
   const toggleFilterValue = (key: FilterKey, value: string) => {
@@ -443,6 +415,7 @@ function CollectionContent() {
       params.delete('q')
       params.delete('smart')
       params.delete('missingSpecs')
+      params.delete('knifeType')
       rangeDefinitions.forEach((field) => {
         params.delete(`${field.key}Min`)
         params.delete(`${field.key}Max`)
@@ -473,6 +446,17 @@ function CollectionContent() {
   )
 
   const extraFilters = [
+    ...(requestedKnifeType === 'fixed' || requestedKnifeType === 'folding'
+      ? [
+          {
+            key: 'knifeType',
+            label:
+              requestedKnifeType === 'fixed'
+                ? 'Fixed blades'
+                : 'Folding knives',
+          },
+        ]
+      : []),
     ...rangeDefinitions.flatMap((field) =>
       (['Min', 'Max'] as const).flatMap((bound) => {
         const key = `${field.key}${bound}`
@@ -706,11 +690,7 @@ function CollectionContent() {
                 type="button"
                 aria-pressed={modernScope === scope}
                 onClick={() => setModernScope(scope)}
-                disabled={
-                  isSelectionMode ||
-                  (scope === 'fixed' && fixedLocks.length === 0) ||
-                  (scope === 'folding' && foldingLocks.length === 0)
-                }
+                disabled={isSelectionMode}
                 title={
                   scope === 'fixed' || scope === 'folding'
                     ? 'Based on the recorded locking mechanism'
@@ -1100,17 +1080,31 @@ function CollectionContent() {
         {filteredKnives.length === 0 ? (
           <EmptyState
             title={
-              hasActiveFilters ? 'No matches found' : 'Your library is empty'
+              hasActiveFilters
+                ? 'No matches found'
+                : isPinnedView
+                  ? 'No pinned knives yet'
+                  : 'Your library is empty'
             }
             description={
               hasActiveFilters
                 ? 'Try clearing the search or filters to see more results.'
-                : 'Add a knife to start building your collection.'
+                : isPinnedView
+                  ? 'Pin knives in your collection to keep them here.'
+                  : 'Add a knife to start building your collection.'
             }
             action={
               hasActiveFilters ? (
                 <Button variant="outline" size="sm" onClick={clearAllFilters}>
                   Clear all
+                </Button>
+              ) : isPinnedView ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCollectionView('knives')}
+                >
+                  View all knives
                 </Button>
               ) : (
                 <Button

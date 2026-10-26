@@ -24,7 +24,7 @@
 
 ## High-level architecture
 
-- **UI shell + state:** `app/layout.tsx` wraps the app in `KnivesProvider` and renders the dynamic sidebar shell (`components/sidebar-shell.tsx`), so route components consume shared client state from the provider.
+- **UI shell + state:** `app/layout.tsx` wraps the app in `KnivesProvider` and renders `AppShell` (`components/app-shell.tsx`), which selects the Current sidebar layout or the Modern workspace header and sidebar, so route components consume shared client state from the provider.
 - **Client data flow:** `components/providers/knives-provider.tsx` is the main client state orchestrator. It loads initial data from `/api/knives` and `/api/compare`, handles CRUD and compare mutations through API routes, and schedules silent cloud backup after mutations when enabled.
 - **API surface:** App Router API handlers in `app/api/**/route.ts` are thin orchestration layers. They validate request payloads, call storage/config helpers, and return JSON payloads for the client.
 - **Storage abstraction:** `lib/storage/types.ts` defines the storage contract, `lib/storage/index.ts` provides a singleton storage instance, and `lib/storage/local.ts` implements local persistence with SQLite + image files.
