@@ -633,7 +633,11 @@ html[data-theme-style='modern'] [data-sidebar-logo] img {
 }
 
 html[data-theme-style='modern'] [data-sidebar-label] {
-  color: var(--muted-foreground);
+  color: color-mix(
+    in srgb,
+    var(--bladevault-nav-active-fg) 35%,
+    var(--muted-foreground)
+  );
   font-size: var(--modern-font-caption);
   font-weight: 600;
   letter-spacing: 0.065em;
