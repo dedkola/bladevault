@@ -352,6 +352,20 @@ function cleanProductName(name: string, sourceUrl: string): string {
   let cleaned = cleanText(name)
   if (!cleaned) return cleaned
 
+  // Artisan titles put the model before the opening mechanism, followed by
+  // the entire specification list. Keep this convention scoped to its store.
+  try {
+    const hostname = new URL(sourceUrl).hostname.replace(/^www\./, '')
+    if (hostname === 'artisancutlery.net') {
+      const model = cleaned.match(
+        /^(?:artisan\s*cutlery|cjrb)\s+(.+?)\s+thumb\s+(?:hole|stud)\b/i,
+      )
+      if (model) return cleanText(model[1])
+    }
+  } catch {
+    // Keep the regular title fallback when no valid source URL is available.
+  }
+
   // Remove common trailing site/marketing suffixes used by manufacturer sites.
   const suffixPatterns = [
     /\s*[»|]\s*.*$/,
@@ -373,6 +387,18 @@ function cleanProductName(name: string, sourceUrl: string): string {
   }
 
   return cleaned
+}
+
+function extractProductName(
+  $: cheerio.CheerioAPI,
+  title: string,
+  sourceUrl: string,
+): string {
+  // An explicitly labeled model is more precise than a marketing title.
+  return (
+    extractStructuredLabeledValue($, ['model name']) ||
+    cleanProductName(title, sourceUrl)
+  )
 }
 
 function htmlToPlainText(html: string): string {
@@ -398,7 +424,10 @@ function htmlToPlainText(html: string): string {
   )
 }
 
-function extractDescription($: cheerio.CheerioAPI): string {
+function extractDescription(
+  $: cheerio.CheerioAPI,
+  includePageParagraphs = true,
+): string {
   const meta = findMeta($, [
     'og:description',
     'twitter:description',
@@ -429,6 +458,7 @@ function extractDescription($: cheerio.CheerioAPI): string {
   }
 
   if (meta) return htmlToPlainText(meta)
+  if (!includePageParagraphs) return ''
 
   const paragraphs = $('p')
     .filter((_, el) => $(el).text().trim().length > 30)
@@ -614,6 +644,11 @@ function normalizeBrandName(brand: string): string {
     'boker plus': 'Böker Plus',
     'böker plus': 'Böker Plus',
     'böker solingen': 'Böker',
+    'tenable knives': 'Tenable',
+    tenable: 'Tenable',
+    artisancutlery: 'Artisan Cutlery',
+    'artisancutlery.net': 'Artisan Cutlery',
+    'artisan cutlery': 'Artisan Cutlery',
   }
   return normalizations[brand.toLowerCase()] ?? brand
 }
@@ -870,6 +905,8 @@ function extractBrandFromDomain(url: string): string {
       'civivi.com': 'CIVIVI',
       'weknife.com': 'WE',
       'kizerknives.com': 'Kizer',
+      'tenableknives.com': 'Tenable',
+      'artisancutlery.net': 'Artisan Cutlery',
     }
     for (const [domain, brand] of Object.entries(domainBrands)) {
       if (hostname === domain || hostname.endsWith(`.${domain}`)) return brand
@@ -1888,6 +1925,20 @@ function extractSpecs(
   const metaDescription = $('meta[name="description"]').attr('content') ?? ''
   const ldDescription = extractJsonLdProduct($).description ?? ''
 
+  if (!specs.designer) {
+    // Some product descriptions use a short credit sentence rather than a
+    // labeled specification. Do not search recommendations or the footer.
+    for (const description of [ldDescription, extractDescription($, false)]) {
+      const credit = description.match(
+        /(?:^|\n)\s*designed\s+by\s+([^\n.!?]{1,80})(?:[.!?]|\n|$)/i,
+      )
+      if (credit && !/^you$/i.test(cleanText(credit[1]))) {
+        setSpec('designer', credit[1])
+        if (specs.designer) break
+      }
+    }
+  }
+
   for (const source of [ldDescription, metaDescription]) {
     if (!source) continue
     const normalized = normalizeMultilineText(source)
@@ -2143,7 +2194,11 @@ export function extractShopifyProduct(
   }
 
   const result: ScrapedProductPatch = {}
-  if (title) result.name = title
+  if (title) {
+    result.name = sourceUrl
+      ? extractProductName(cheerio.load(bodyHtml), title, sourceUrl)
+      : title
+  }
   if (vendor) result.brand = cleanBrand(vendor)
   if (description) result.description = description
   if (images.length > 0) result.images = images
@@ -2212,8 +2267,8 @@ export function scrapeProduct(
   const ld = extractJsonLdProduct($, baseUrl)
 
   const rawName = ld.name || extractTitle($)
-  const name = cleanProductName(rawName, sourceUrl ?? baseUrl)
-  const brand = extractBrand(name, $, ld.brand, sourceUrl ?? baseUrl)
+  const name = extractProductName($, rawName, sourceUrl ?? baseUrl)
+  const brand = extractBrand(rawName, $, ld.brand, sourceUrl ?? baseUrl)
   const description = ld.description || extractDescription($)
   const galleryImages = extractImages($, baseUrl)
   const images = [
@@ -2260,19 +2315,15 @@ export function scrapeProduct(
 
   const bladeStyle =
     cleanValue(ldBladeStyle) ||
-    extractStructuredLabeledValue($, [
-      'blade style',
-      'blade shape',
-      'blade grind',
-    ]) ||
+    extractStructuredLabeledValue($, ['blade style', 'blade shape']) ||
     cleanValue(
       extractLabeledValue(productDescriptionText, [
         'blade style',
-        'blade grind',
+        'blade shape',
       ]),
     ) ||
     cleanValue(
-      extractLabeledValue(searchText, ['blade style', 'blade grind']),
+      extractLabeledValue(searchText, ['blade style', 'blade shape']),
     ) ||
     extractBladeStyle(productDescriptionText) ||
     extractBladeStyle(searchText)
