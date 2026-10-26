@@ -30,6 +30,7 @@ import {
 
 const Home = lazy(() => import('@/app/page'))
 const Collection = lazy(() => import('@/app/collection/page'))
+const Studio = lazy(() => import('@/app/studio/page'))
 const Add = lazy(() => import('@/app/add/page'))
 const Compare = lazy(() => import('@/app/compare/page'))
 const Settings = lazy(() => import('@/app/settings/page'))
@@ -45,6 +46,7 @@ function Route() {
   const { knives, isLoading } = useKnives()
   if (pathname === '/') return <Home />
   if (pathname === '/collection') return <Collection />
+  if (pathname === '/studio') return <Studio />
   if (pathname === '/add') return <Add />
   if (pathname === '/compare') return <Compare />
   if (pathname === '/settings') return <Settings />

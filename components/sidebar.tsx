@@ -10,6 +10,7 @@ import { useMemo, useState } from 'react'
 import {
   LayoutDashboard,
   Library,
+  GalleryVertical,
   Scale,
   PlusCircle,
   Settings,
@@ -51,6 +52,7 @@ import {
 const links = [
   { href: '/', label: 'Insights', icon: LayoutDashboard },
   { href: '/collection', label: 'Collection', icon: Library },
+  { href: '/studio', label: 'Studio', icon: GalleryVertical },
   { href: '/compare', label: 'Compare', icon: Scale },
   { href: '/logs', label: 'Logs', icon: ScrollText },
 ]

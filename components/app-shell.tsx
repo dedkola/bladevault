@@ -39,15 +39,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     ? ['Compare', 'Saved comparisons']
     : pathname.startsWith('/logs')
       ? ['Activity', 'Logs']
-      : pathname === '/collection'
-        ? ['Collection', 'All objects']
-        : pathname.startsWith('/collection/')
-          ? ['Collection', 'Object details']
-          : pathname.startsWith('/settings')
-            ? ['Workspace', 'Settings']
-            : pathname.startsWith('/add')
-              ? ['Collection', 'Add knife']
-              : ['Workspace', 'Insights']
+      : pathname === '/studio'
+        ? ['Studio', 'Visual library']
+        : pathname === '/collection'
+          ? ['Collection', 'All objects']
+          : pathname.startsWith('/collection/')
+            ? ['Collection', 'Object details']
+            : pathname.startsWith('/settings')
+              ? ['Workspace', 'Settings']
+              : pathname.startsWith('/add')
+                ? ['Collection', 'Add knife']
+                : ['Workspace', 'Insights']
   async function toggleTheme() {
     const root = document.documentElement
     const dark = !root.classList.contains('dark')
