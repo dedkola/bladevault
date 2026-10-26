@@ -46,6 +46,35 @@ describe('product scraping', () => {
     expect(confidence.specs.bladeLength).toBe(true)
   })
 
+  it.each(['Kanseptknives', 'KANSEPTKNIVES', 'Kansept Knives', 'KANSEPT'])(
+    'normalizes Kansept brand alias "%s" from page metadata and Shopify',
+    (brand) => {
+      const url =
+        'https://kanseptknives.com/products/kansept-flank-fixed-blade-shred-carbon-fiber-handle-3-69-black-stonewashed-d2-blade-tuffknives-designed-g006a1'
+      const name = 'KANSEPT Flank Fixed Blade G006A1'
+      const metadata = [
+        `<script type="application/ld+json">${JSON.stringify({
+          '@type': 'Product',
+          name,
+          brand: { '@type': 'Brand', name: brand },
+        })}</script>`,
+        `<meta property="og:site_name" content="${brand}">`,
+      ]
+
+      for (const head of metadata) {
+        const html = `<html><head>${head}</head><body><h1>${name}</h1></body></html>`
+        const { product, confidence } = scrapeProduct(html, url)
+        expect(product.brand).toBe('Kansept')
+        expect(confidence.brand).toBe(true)
+      }
+
+      expect(
+        extractShopifyProduct({ product: { title: name, vendor: brand } })
+          ?.brand,
+      ).toBe('Kansept')
+    },
+  )
+
   it('detects security interstitials without treating short normal pages as challenges', () => {
     expect(
       isSecurityChallengePage(
