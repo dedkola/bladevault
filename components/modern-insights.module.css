@@ -4,14 +4,14 @@
   --insight-line: color-mix(in srgb, var(--foreground) 9%, transparent);
   --insight-soft: color-mix(in srgb, var(--foreground) 3%, var(--card));
   color: var(--foreground);
-  font-size: 12px;
+  font-size: var(--modern-font-body);
 }
 .root :global([data-page-header]) {
   margin-bottom: 22px;
 }
 .root :global([data-page-description]) {
   margin-top: 6px;
-  font-size: 12px;
+  font-size: var(--modern-font-secondary);
   line-height: 1.5;
 }
 .headerAction {
@@ -20,7 +20,7 @@
   border-color: var(--insight-line);
   border-radius: 999px;
   background: var(--card);
-  font-size: 11px;
+  font-size: var(--modern-font-body);
   font-weight: 500;
 }
 .metrics {
@@ -48,7 +48,7 @@
   justify-content: space-between;
   gap: 10px;
   color: var(--muted-foreground);
-  font-size: 11px;
+  font-size: var(--modern-font-body);
 }
 .metricLabel svg {
   opacity: 0.6;
@@ -75,7 +75,7 @@
 }
 .metric p {
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
   line-height: 1.5;
 }
 .grid {
@@ -112,7 +112,7 @@
 .panelHeader p {
   margin-top: 4px;
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
   line-height: 1.5;
 }
 .range {
@@ -126,7 +126,7 @@
 .range button {
   padding: 4px 8px;
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
   line-height: 1.5;
   border-radius: 5px;
   cursor: pointer;
@@ -153,7 +153,7 @@
   gap: 4px 15px;
   margin-top: 22px;
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
 }
 .growthSummary strong {
   color: var(--foreground);
@@ -175,7 +175,7 @@
   padding: 12px 0;
   border-top: 1px solid var(--insight-line);
   color: var(--muted-foreground);
-  font-size: 9px;
+  font-size: var(--modern-font-caption);
   line-height: 1.5;
 }
 .detailLink {
@@ -184,7 +184,7 @@
   gap: 4px;
   flex-shrink: 0;
   color: var(--primary);
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
   font-weight: 500;
 }
 .detailLink:hover {
@@ -232,27 +232,27 @@
 .coverageRing strong span {
   padding-top: 5px;
   color: var(--muted-foreground);
-  font-size: 11px;
+  font-size: var(--modern-font-body);
   font-weight: 400;
 }
 .coverageSummary > div:last-child {
   max-width: 125px;
 }
 .coverageSummary > div:last-child > strong {
-  font-size: 11px;
+  font-size: var(--modern-font-body);
   font-weight: 500;
 }
 .coverageSummary p {
   margin-top: 5px;
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
   line-height: 1.6;
 }
 .eyebrow {
   display: block;
   margin-bottom: 3px;
   color: var(--muted-foreground);
-  font-size: 9px;
+  font-size: var(--modern-font-caption);
 }
 .missingFields {
   margin: 0 0 16px;
@@ -262,7 +262,7 @@
   justify-content: space-between;
   gap: 8px;
   padding: 8px 0;
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
 }
 .missingFields a + a {
   border-top: 1px solid var(--insight-line);
@@ -272,7 +272,7 @@
   align-items: center;
   gap: 5px;
   color: var(--muted-foreground);
-  font-size: 9px;
+  font-size: var(--modern-font-caption);
 }
 .missingFields a:hover,
 .missingFields a:hover > span:last-child {
@@ -281,7 +281,7 @@
 .complete {
   padding: 12px 0 28px;
   color: var(--muted-foreground);
-  font-size: 11px;
+  font-size: var(--modern-font-body);
   line-height: 1.6;
 }
 .makerList {
@@ -298,7 +298,7 @@
 .makerRank {
   width: 13px;
   color: var(--muted-foreground);
-  font-size: 9px;
+  font-size: var(--modern-font-caption);
   font-variant-numeric: tabular-nums;
 }
 .makerBody {
@@ -312,7 +312,7 @@
   align-items: baseline;
   gap: 8px;
   margin-bottom: 7px;
-  font-size: 11px;
+  font-size: var(--modern-font-body);
 }
 .makerMeta > span:first-child {
   overflow: hidden;
@@ -325,14 +325,14 @@
   gap: 9px;
 }
 .makerMeta strong {
-  font-size: 11px;
+  font-size: var(--modern-font-body);
   font-weight: 500;
 }
 .makerMeta small {
-  width: 25px;
+  width: 30px;
   text-align: right;
   color: var(--muted-foreground);
-  font-size: 9px;
+  font-size: var(--modern-font-caption);
 }
 .makerTrack,
 .makerTrack > span {
@@ -360,7 +360,7 @@
   background: var(--insight-soft);
   color: var(--muted-foreground);
   border-radius: 5px;
-  font-size: 9px;
+  font-size: var(--modern-font-caption);
   line-height: 1.5;
   white-space: nowrap;
 }
@@ -379,7 +379,7 @@
   padding: 25px;
   color: var(--muted-foreground);
   text-align: center;
-  font-size: 11px;
+  font-size: var(--modern-font-body);
   line-height: 1.7;
 }
 .steelBand {
@@ -409,14 +409,14 @@
 .steelLead small {
   margin-left: 2px;
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: var(--modern-font-body);
   font-weight: 400;
 }
 .steelLead span {
   display: block;
   margin-top: 5px;
   color: var(--muted-foreground);
-  font-size: 9px;
+  font-size: var(--modern-font-caption);
 }
 .steelBand > span {
   min-width: 2px;
@@ -432,7 +432,7 @@
   align-items: center;
   gap: 7px;
   min-width: 0;
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
 }
 .swatch {
   width: 7px;
@@ -447,14 +447,14 @@
 }
 .steelLegend strong {
   margin-left: auto;
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
   font-weight: 500;
 }
 .steelLegend small {
-  width: 27px;
+  width: 30px;
   color: var(--muted-foreground);
   text-align: right;
-  font-size: 9px;
+  font-size: var(--modern-font-caption);
 }
 .steelLegend a:hover {
   color: var(--primary);
@@ -496,17 +496,17 @@
   white-space: nowrap;
 }
 .recentIdentity strong {
-  font-size: 11px;
+  font-size: var(--modern-font-body);
   font-weight: 500;
 }
 .recentIdentity > span {
   margin-top: 3px;
   color: var(--muted-foreground);
-  font-size: 9px;
+  font-size: var(--modern-font-caption);
 }
 .recentRow time {
   color: var(--muted-foreground);
-  font-size: 9px;
+  font-size: var(--modern-font-caption);
   white-space: nowrap;
 }
 .recentRow:hover .recentIdentity strong {
@@ -551,7 +551,7 @@
   max-width: 310px;
   margin: 9px 0 23px;
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: var(--modern-font-secondary);
   line-height: 1.7;
 }
 .emptyArt {
@@ -649,7 +649,7 @@
     margin-top: 17px;
   }
   .panelFoot {
-    font-size: 9px;
+    font-size: var(--modern-font-caption);
   }
 }
 @media print {

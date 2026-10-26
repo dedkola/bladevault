@@ -33,7 +33,7 @@ export function ModernCollectionTable({
 }) {
   return (
     <div data-modern-collection-table>
-      <div className="mb-2 flex items-center justify-between gap-3 text-[10.5px] text-muted-foreground">
+      <div className="mb-2 flex items-center justify-between gap-3 text-[length:var(--modern-font-body)] text-muted-foreground">
         <span>
           <b className="font-medium text-foreground">{knives.length}</b> objects
         </span>
@@ -45,7 +45,7 @@ export function ModernCollectionTable({
       <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-[0_1px_2px_rgb(0_0_0/4%)]">
         <table className="w-full table-fixed border-collapse text-left">
           <thead>
-            <tr className="border-b border-border bg-[var(--bladevault-surface-soft)] text-[9.5px] text-muted-foreground">
+            <tr className="border-b border-border bg-[var(--bladevault-surface-soft)] text-[length:var(--modern-font-secondary)] text-muted-foreground">
               <th scope="col" className="w-[38%] px-3 py-2 font-medium">
                 Object
               </th>
@@ -89,7 +89,7 @@ export function ModernCollectionTable({
                     }
                   }}
                   className={cn(
-                    'group cursor-pointer border-b border-border/70 text-[10.5px] text-muted-foreground transition-colors last:border-b-0 hover:bg-[var(--bladevault-surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                    'group cursor-pointer border-b border-border/70 text-[length:var(--modern-font-body)] text-muted-foreground transition-colors last:border-b-0 hover:bg-[var(--bladevault-surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                     active &&
                       'bg-[var(--bladevault-nav-active-bg)] shadow-[inset_2px_0_0_var(--bladevault-nav-active-fg)]',
                   )}
@@ -114,10 +114,10 @@ export function ModernCollectionTable({
                         )}
                       </div>
                       <div className="min-w-0">
-                        <div className="truncate text-[11.5px] font-[550] tracking-[-0.01em] text-foreground">
+                        <div className="truncate text-[length:var(--modern-font-body)] font-[550] tracking-[-0.01em] text-foreground">
                           {knife.name}
                         </div>
-                        <div className="truncate mt-px text-[9.5px] text-muted-foreground">
+                        <div className="truncate mt-px text-[length:var(--modern-font-secondary)] text-muted-foreground">
                           {modelNumber || '—'}
                           <span className="px-1 opacity-40">·</span>
                           {designer || 'Designer missing'}
@@ -143,7 +143,7 @@ export function ModernCollectionTable({
                   <td className="px-2 py-[7px]">
                     <span
                       className={cn(
-                        'inline-flex whitespace-nowrap rounded-full px-1.5 py-1 text-[9px] font-medium leading-none',
+                        'inline-flex whitespace-nowrap rounded-full px-1.5 py-1 text-[length:var(--modern-font-caption)] font-medium leading-none',
                         status.tone === 'complete' &&
                           'bg-[#2f9e6d]/10 text-[#2f9e6d]',
                         status.tone === 'pinned' &&

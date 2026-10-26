@@ -162,6 +162,10 @@
  * intact, so the theme can ship independently of any page-level redesign.
  */
 html[data-theme-style='modern'] {
+  --modern-font-caption: 0.6875rem;
+  --modern-font-secondary: 0.75rem;
+  --modern-font-body: 0.8125rem;
+  --modern-font-nav: 0.875rem;
   --modern-canvas: #ffffff;
   --bladevault-olive: #1d1d1f;
   --bladevault-gold: #0071e3;
@@ -184,7 +188,7 @@ html[data-theme-style='modern'] {
   --secondary: #ffffff;
   --secondary-foreground: #1d1d1f;
   --muted: #f0f0f2;
-  --muted-foreground: #6e6e73;
+  --muted-foreground: #68686d;
   --accent: #ececf0;
   --accent-foreground: #1d1d1f;
   --destructive: #d70015;
@@ -312,9 +316,9 @@ html[data-theme-style='modern'] .page-title {
   }
 }
 
-/* Modern theme type and collection surface. The modern style is deliberately
- * denser than the classic theme: Inter, smaller labels, white working canvas,
- * and a table-first collection view. Classic keeps the existing scale. */
+/* Modern theme type and collection surface. Shared reading-size tokens keep
+ * dense tables, charts and workspace controls legible. The root size, classic
+ * theme scale, page titles and large figures retain their existing sizes. */
 @font-face {
   font-family: 'BladeVault Inter';
   src: url('/fonts/inter.woff2') format('woff2');
@@ -358,7 +362,7 @@ html[data-theme-style='modern'] .page-title {
 
 html[data-theme-style='modern'] [data-page-description] {
   margin-top: 0.25rem;
-  font-size: 0.6875rem;
+  font-size: var(--modern-font-secondary);
   line-height: 1.4;
 }
 
@@ -391,7 +395,7 @@ html[data-theme-style='modern']
   gap: 6px;
   padding: 5px 10px;
   border-radius: 6px;
-  font-size: 0.6875rem;
+  font-size: var(--modern-font-secondary);
   white-space: nowrap;
 }
 
@@ -422,7 +426,7 @@ html[data-theme-style='modern'] [data-collection-filter-panel] input {
   border-color: var(--border);
   border-radius: 9px;
   background: var(--card);
-  font-size: 0.71875rem;
+  font-size: var(--modern-font-body);
 }
 
 html[data-theme-style='modern'] [data-collection-toolbar] > button,
@@ -430,11 +434,11 @@ html[data-theme-style='modern'] [data-collection-toolbar] > select {
   height: 32px;
   border-radius: 8px;
   background: var(--card);
-  font-size: 0.65625rem;
+  font-size: var(--modern-font-body);
 }
 
 html[data-theme-style='modern'] [data-collection-toolbar] > span {
-  font-size: 10.5px;
+  font-size: var(--modern-font-body);
 }
 
 html[data-theme-style='modern'] .modern-collection-search {
@@ -501,7 +505,7 @@ html[data-theme-style='modern']
   > div
   > span {
   font-family: inherit;
-  font-size: 9.5px;
+  font-size: var(--modern-font-caption);
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
@@ -521,14 +525,14 @@ html[data-theme-style='modern'] [data-collection-grid] dl {
 
 html[data-theme-style='modern'] [data-collection-grid] dt,
 html[data-theme-style='modern'] [data-collection-grid] dd {
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
   line-height: 1.4;
 }
 
 html[data-theme-style='modern'] [data-collection-grid] [data-card-footer] {
   min-height: 30px;
   padding-left: 4px;
-  font-size: 9.5px;
+  font-size: var(--modern-font-caption);
 }
 
 html[data-theme-style='modern']
@@ -536,7 +540,7 @@ html[data-theme-style='modern']
   [data-knife-card]
   > [data-card-compare] {
   bottom: 8px;
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
 }
 
 html[data-theme-style='modern']
@@ -598,7 +602,7 @@ html[data-theme-style='modern'] [data-sidebar-nav] a {
   min-height: 33px;
   padding-top: 6px;
   padding-bottom: 6px;
-  font-size: 12.5px;
+  font-size: var(--modern-font-nav);
 }
 
 html[data-theme-style='modern'] [data-sidebar-nav] a svg {
@@ -607,12 +611,12 @@ html[data-theme-style='modern'] [data-sidebar-nav] a svg {
 }
 
 html[data-theme-style='modern'] [data-sidebar] a.text-xs {
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
 }
 
 html[data-theme-style='modern'] [data-sidebar-add] {
   height: 30px;
-  font-size: 10.5px;
+  font-size: var(--modern-font-body);
 }
 
 html[data-theme-style='modern'] [data-sidebar-logo] {
@@ -630,8 +634,13 @@ html[data-theme-style='modern'] [data-sidebar-logo] img {
 
 html[data-theme-style='modern'] [data-sidebar-label] {
   color: var(--muted-foreground);
+  font-size: var(--modern-font-caption);
   font-weight: 600;
   letter-spacing: 0.065em;
+}
+
+html[data-theme-style='modern'] [data-sidebar-nav] span.rounded-full {
+  font-size: var(--modern-font-caption);
 }
 
 html[data-theme-style='modern']
@@ -640,7 +649,7 @@ html[data-theme-style='modern']
   [data-sidebar-collection-count] {
   background: #dcecff;
   color: #004b9a;
-  font-size: 11px;
+  font-size: var(--modern-font-caption);
   line-height: 1.2;
 }
 
@@ -657,7 +666,7 @@ html[data-theme-style='modern'] [data-inspector-header] {
   padding: 0 14px;
   border-bottom: 0;
   background: transparent;
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
   font-weight: 600;
 }
 
@@ -692,7 +701,7 @@ html[data-theme-style='modern'] #collection-inspector-title {
 html[data-theme-style='modern'] [data-inspector-identity] > p {
   margin-top: 5px;
   font-family: inherit;
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
 }
 
 html[data-theme-style='modern'] [data-inspector-body] section {
@@ -710,12 +719,12 @@ html[data-theme-style='modern'] [data-inspector-specs] > div {
 }
 
 html[data-theme-style='modern'] [data-inspector-specs] dt {
-  font-size: 9px;
+  font-size: var(--modern-font-caption);
 }
 
 html[data-theme-style='modern'] [data-inspector-specs] dd {
   margin-top: 2px;
-  font-size: 10.5px;
+  font-size: var(--modern-font-body);
 }
 
 html[data-theme-style='modern'] [data-inspector-actions] {
@@ -736,7 +745,7 @@ html[data-theme-style='modern'] [data-inspector-actions] > * {
   min-height: 29px;
   justify-content: center;
   padding-inline: 8px;
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
 }
 
 html[data-theme-style='modern'] [data-inspector-identity] {
@@ -757,7 +766,6 @@ html[data-theme-style='modern'] [data-logs-content] {
   padding: 24px clamp(18px, 2.7vw, 36px) 30px;
   background: var(--background);
   --border: rgb(0 0 0 / 7.5%);
-  --muted-foreground: #8e8e93;
 }
 
 html[data-theme-style='modern'].dark [data-logs-content] {
@@ -778,7 +786,7 @@ html[data-theme-style='modern'] [data-logs-export] {
   height: 30px;
   border-radius: 999px;
   padding-inline: 12px;
-  font-size: 10.5px;
+  font-size: var(--modern-font-body);
   background: var(--card);
   box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
 }
@@ -807,7 +815,7 @@ html[data-theme-style='modern'] [data-logs-export] {
 
 [data-modern-logs] [data-logs-summary] dt {
   margin-top: 2px;
-  font-size: 9.5px;
+  font-size: var(--modern-font-caption);
   color: var(--muted-foreground);
 }
 
@@ -848,7 +856,7 @@ html[data-theme-style='modern'] [data-logs-export] {
   border: 1px solid var(--border);
   border-radius: 9px;
   background: var(--card);
-  font-size: 11px;
+  font-size: var(--modern-font-secondary);
 }
 
 [data-modern-logs] [data-logs-date] {
@@ -861,7 +869,7 @@ html[data-theme-style='modern'] [data-logs-export] {
   border-radius: 999px;
   background: var(--card);
   padding-inline: 10px;
-  font-size: 10.5px;
+  font-size: var(--modern-font-body);
   box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
 }
 
@@ -879,7 +887,7 @@ html[data-theme-style='modern'] [data-logs-export] {
   border: 0;
   border-radius: 7px;
   padding: 5px 8px;
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
   white-space: nowrap;
 }
 
@@ -927,7 +935,7 @@ html[data-theme-style='modern'] [data-logs-export] {
   padding: 8px 13px;
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--card) 60%, var(--background));
-  font-size: 9.5px;
+  font-size: var(--modern-font-caption);
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
@@ -1005,7 +1013,7 @@ html[data-theme-style='modern'] [data-logs-export] {
 }
 
 [data-modern-logs] [data-log-subject] > :is(a, span) {
-  font-size: 11.5px;
+  font-size: var(--modern-font-body);
   font-weight: 550;
   color: var(--foreground);
 }
@@ -1016,7 +1024,7 @@ html[data-theme-style='modern'] [data-logs-export] {
   flex-wrap: wrap;
   gap: 3px 6px;
   margin-top: 2px;
-  font-size: 9.5px;
+  font-size: var(--modern-font-caption);
   color: var(--muted-foreground);
 }
 
@@ -1027,7 +1035,7 @@ html[data-theme-style='modern'] [data-logs-export] {
   padding: 0 7px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  font-size: 8px;
+  font-size: var(--modern-font-caption);
   text-transform: lowercase;
 }
 
@@ -1039,7 +1047,7 @@ html[data-theme-style='modern'] [data-logs-export] {
 }
 
 [data-modern-logs] [data-log-time] time {
-  font-size: 9.5px;
+  font-size: var(--modern-font-caption);
 }
 
 [data-modern-logs] [data-log-expand] {
@@ -1065,7 +1073,7 @@ html[data-theme-style='modern'] [data-logs-export] {
 
 [data-compact-log-summary] {
   margin-bottom: 7px;
-  font-size: 10.5px;
+  font-size: var(--modern-font-body);
   line-height: 1.5;
   color: var(--muted-foreground);
 }
@@ -1076,7 +1084,7 @@ html[data-theme-style='modern'] [data-logs-export] {
   gap: 7px;
   padding: 5px 0;
   border-top: 1px solid var(--border);
-  font-size: 9.5px;
+  font-size: var(--modern-font-caption);
   overflow-wrap: anywhere;
 }
 
@@ -1097,7 +1105,7 @@ html[data-theme-style='modern'] [data-logs-export] {
 
 [data-compact-log-info] {
   margin-top: 7px;
-  font-size: 9.5px;
+  font-size: var(--modern-font-caption);
   color: var(--muted-foreground);
 }
 
@@ -1218,7 +1226,6 @@ html[data-theme-style='modern'] [data-modern-collection] {
   min-height: 100dvh;
   padding: 0;
   --border: rgb(0 0 0 / 7.5%);
-  --muted-foreground: #8e8e93;
 }
 
 html[data-theme-style='modern'].dark [data-modern-collection],
@@ -1238,7 +1245,7 @@ html[data-theme-style='modern'].dark [data-modern-compare] {
 [data-modern-collection] [data-page-header] a {
   height: 30px;
   border-radius: 999px;
-  font-size: 10.5px;
+  font-size: var(--modern-font-body);
 }
 
 [data-modern-collection-toolbar] {
@@ -1263,7 +1270,7 @@ html[data-theme-style='modern'].dark [data-modern-compare] {
 [data-modern-collection-scopes] button {
   padding: 5px 10px;
   border-radius: 6px;
-  font-size: 10.5px;
+  font-size: var(--modern-font-body);
   color: var(--muted-foreground);
 }
 
@@ -1294,13 +1301,13 @@ html[data-theme-style='modern'].dark [data-modern-compare] {
   padding-inline: 10px;
   background: var(--card);
   color: var(--muted-foreground);
-  font-size: 10.5px;
+  font-size: var(--modern-font-body);
 }
 
 [data-modern-collection-tools] > button {
   height: 30px;
   border-radius: 999px;
-  font-size: 10.5px;
+  font-size: var(--modern-font-body);
 }
 
 html[data-theme-style='modern'] [data-collection-main] {
@@ -1400,7 +1407,7 @@ html[data-theme-style='modern'] [data-modern-collection-gallery] {
   align-items: start;
   gap: 7px;
   padding: 8px 3px 3px;
-  font-size: 9.5px;
+  font-size: var(--modern-font-caption);
   color: var(--muted-foreground);
 }
 
@@ -1412,7 +1419,7 @@ html[data-theme-style='modern'] [data-modern-collection-gallery] {
 }
 [data-modern-object-caption] b {
   display: block;
-  font-size: 11.5px;
+  font-size: var(--modern-font-body);
   font-weight: 550;
   letter-spacing: -0.01em;
   color: var(--foreground);
@@ -1482,7 +1489,7 @@ html[data-theme-style='modern']
 [data-inspector-tabs] button {
   position: relative;
   padding: 7px 0;
-  font-size: 10.5px;
+  font-size: var(--modern-font-body);
   color: var(--muted-foreground);
 }
 [data-inspector-tabs] button[aria-selected='true'] {
@@ -1510,7 +1517,7 @@ html[data-theme-style='modern']
   -webkit-line-clamp: 4;
   overflow: hidden;
   margin-bottom: 9px;
-  font-size: 10.5px;
+  font-size: var(--modern-font-body);
   line-height: 1.55;
   color: var(--muted-foreground);
   white-space: pre-wrap;
@@ -1527,7 +1534,7 @@ html[data-theme-style='modern']
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--card);
-  font-size: 9.5px;
+  font-size: var(--modern-font-caption);
   color: var(--muted-foreground);
 }
 html[data-theme-style='modern'] [data-modern-inspector] [data-inspector-specs] {
@@ -1552,7 +1559,7 @@ html[data-theme-style='modern']
   color: inherit;
 }
 [data-inspector-history] {
-  font-size: 10.5px;
+  font-size: var(--modern-font-body);
 }
 [data-inspector-history] li {
   padding: 7px 0;
@@ -1566,13 +1573,13 @@ html[data-theme-style='modern']
   display: block;
   margin-top: 1px;
   color: var(--muted-foreground);
-  font-size: 9.5px;
+  font-size: var(--modern-font-caption);
 }
 [data-inspector-family] {
   margin-top: 11px;
   padding-top: 9px;
   border-top: 1px solid var(--border);
-  font-size: 9.5px;
+  font-size: var(--modern-font-caption);
   color: var(--muted-foreground);
 }
 [data-inspector-family] > div {
@@ -1672,7 +1679,6 @@ html[data-theme-style='modern']
 /* Reference Compare workspace: saved-list pills and a dense specification matrix. */
 [data-modern-compare] {
   --border: rgb(0 0 0 / 7.5%);
-  --muted-foreground: #8e8e93;
   padding: 24px clamp(16px, 2.7vw, 36px) 30px;
   background: var(--background);
 }
@@ -1689,7 +1695,7 @@ html[data-theme-style='modern']
   height: 30px;
   border-radius: 999px;
   padding-inline: 10px;
-  font-size: 10.5px;
+  font-size: var(--modern-font-body);
   background: var(--card);
 }
 [data-modern-compare]
@@ -1726,7 +1732,7 @@ html[data-theme-style='modern']
   border-radius: 999px;
   background: var(--card);
   color: var(--muted-foreground);
-  font-size: 10.5px;
+  font-size: var(--modern-font-body);
   white-space: nowrap;
 }
 [data-compare-tabs] > a[aria-current='page'] {
@@ -1753,12 +1759,12 @@ html[data-theme-style='modern']
   min-width: 0;
 }
 [data-compare-editing] > span:first-child {
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
   color: var(--muted-foreground);
 }
 [data-compare-editing] > button {
   height: 24px;
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
 }
 [data-compare-pill] {
   display: inline-flex;
@@ -1768,7 +1774,7 @@ html[data-theme-style='modern']
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--card);
-  font-size: 9.5px;
+  font-size: var(--modern-font-caption);
   color: var(--muted-foreground);
 }
 [data-compare-pill] button {
@@ -1781,7 +1787,7 @@ html[data-theme-style='modern']
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
   color: var(--muted-foreground);
 }
 [data-compare-differences] [data-slot='checkbox'] {
@@ -1826,7 +1832,7 @@ html[data-theme-style='modern']
   max-width: none;
   padding: 8px 10px;
   background: var(--card);
-  font-size: 9.5px;
+  font-size: var(--modern-font-caption);
   text-transform: none;
   letter-spacing: 0;
 }
@@ -1835,7 +1841,7 @@ html[data-theme-style='modern']
   min-width: 150px;
   max-width: 150px;
   background: color-mix(in srgb, var(--card) 60%, var(--background));
-  font-size: 9.5px;
+  font-size: var(--modern-font-caption);
   font-weight: 500;
   color: var(--muted-foreground);
   text-transform: none;
@@ -1846,7 +1852,7 @@ html[data-theme-style='modern']
   background: var(--card);
 }
 [data-modern-compare] [data-comparison-matrix] tbody td:not(:first-child) {
-  font-size: 10.5px;
+  font-size: var(--modern-font-body);
   font-weight: 400;
   line-height: 1.5;
   color: var(--muted-foreground);
@@ -1888,14 +1894,14 @@ html[data-theme-style='modern']
   margin-top: 7px;
 }
 [data-modern-compare] [data-compare-object] a > div:first-child {
-  font-size: 11.5px;
+  font-size: var(--modern-font-body);
   font-weight: 550;
   line-height: 1.2;
   color: var(--foreground);
 }
 [data-modern-compare] [data-compare-object] a > div:not(:first-child) {
   margin-top: 3px;
-  font-size: 9px;
+  font-size: var(--modern-font-caption);
   font-weight: 400;
   text-transform: none;
   letter-spacing: 0;
@@ -1917,7 +1923,7 @@ html[data-theme-style='modern']
   border: 1px dashed var(--border);
   border-radius: 8px;
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
 }
 [data-compare-add] button:hover {
   border-color: var(--primary);
@@ -1994,7 +2000,7 @@ html[data-theme-style='modern']
   gap: 7px;
   margin-left: 2px;
   color: var(--muted-foreground);
-  font-size: 11.5px;
+  font-size: var(--modern-font-body);
   white-space: nowrap;
 }
 [data-workspace-crumb] b {
@@ -2025,7 +2031,7 @@ html[data-theme-style='modern']
   justify-content: flex-start;
   padding-inline: 11px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: var(--modern-font-body);
   font-weight: 400;
 }
 [data-global-knife-search][data-embedded] > div:first-child > button kbd {
@@ -2062,7 +2068,7 @@ html[data-theme-style='modern']
   border-radius: 999px;
   background: var(--primary);
   color: var(--primary-foreground);
-  font-size: 12px;
+  font-size: var(--modern-font-body);
   font-weight: 550;
   white-space: nowrap;
 }
@@ -2129,7 +2135,7 @@ html[data-theme-style='modern'] [data-workspace-body] [data-sidebar] a.text-xs {
   border-top: 1px solid var(--border);
   background: var(--card);
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: var(--modern-font-secondary);
 }
 [data-workspace-footer] > div {
   display: flex;
@@ -2149,7 +2155,7 @@ html[data-theme-style='modern'] [data-workspace-body] [data-sidebar] a.text-xs {
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--muted);
-  font-size: 9px;
+  font-size: var(--modern-font-caption);
 }
 [data-workspace-header] :is(a, button):focus-visible,
 [data-workspace-footer] button:focus-visible {
@@ -2202,8 +2208,7 @@ html[data-theme-style='modern'] [data-modern-shell] [data-modern-inspector] {
   [data-comparison-matrix]
   tbody
   td:not(:first-child) {
-  color: var(--card-foreground);
-  opacity: 0.65;
+  color: var(--muted-foreground);
 }
 @media (max-width: 1150px) {
   [data-workspace-crumb] {

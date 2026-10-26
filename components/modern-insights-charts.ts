@@ -5,7 +5,8 @@ import type {
 import type { InsightsChartPalette } from '@/components/insights-chart'
 import type { CataloguePoint, CarryPoint } from '@/lib/modern-insights'
 
-const fontFamily = 'Inter, ui-sans-serif, system-ui, sans-serif'
+const fontFamily =
+  '"BladeVault Inter", Inter, ui-sans-serif, system-ui, sans-serif'
 
 function tooltipAppearance(palette: InsightsChartPalette) {
   return {
@@ -18,8 +19,8 @@ function tooltipAppearance(palette: InsightsChartPalette) {
     textStyle: {
       color: palette.foreground,
       fontFamily,
-      fontSize: 11,
-      lineHeight: 18,
+      fontSize: 13,
+      lineHeight: 20,
     },
   }
 }
@@ -70,7 +71,7 @@ export function buildCatalogueOption(
       axisTick: { show: false },
       axisLabel: {
         color: palette.muted,
-        fontSize: 10,
+        fontSize: 12,
         margin: 14,
         hideOverlap: true,
         interval: Math.max(0, Math.ceil(points.length / 5) - 1),
@@ -85,7 +86,7 @@ export function buildCatalogueOption(
       splitNumber: 3,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: palette.muted, fontSize: 10, margin: 12 },
+      axisLabel: { color: palette.muted, fontSize: 12, margin: 12 },
       splitLine: { lineStyle: { color: palette.line, opacity: 0.6 } },
     },
     series: [
@@ -136,7 +137,7 @@ export function buildCarryOption(
       axisTick: { show: false },
       axisLabel: {
         color: palette.muted,
-        fontSize: 10,
+        fontSize: 12,
         margin: 14,
         formatter: '{value} in',
         hideOverlap: true,
@@ -151,7 +152,7 @@ export function buildCarryOption(
       axisTick: { show: false },
       axisLabel: {
         color: palette.muted,
-        fontSize: 10,
+        fontSize: 12,
         margin: 12,
         formatter: '{value} oz',
       },
