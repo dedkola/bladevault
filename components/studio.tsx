@@ -11,6 +11,7 @@ import {
   Grid2X2,
   ImageIcon,
   LayoutDashboard,
+  Pencil,
   Pin,
   Plus,
   Scale,
@@ -355,10 +356,10 @@ export function StudioView() {
             </div>
             <label className={styles.search}>
               <Search aria-hidden="true" />
-              <span className="sr-only">Search objects</span>
+              <span className="sr-only">Search knives</span>
               <input
                 type="search"
-                placeholder="Search objects"
+                placeholder="Search knives"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
@@ -368,10 +369,10 @@ export function StudioView() {
             <span className={styles.count} role="status">
               {isLoading
                 ? 'Loading…'
-                : `${visible.length} ${visible.length === 1 ? 'object' : 'objects'}`}
+                : `${visible.length} ${visible.length === 1 ? 'knife' : 'knives'}`}
             </span>
             <label className={styles.sort}>
-              <span className="sr-only">Sort objects</span>
+              <span className="sr-only">Sort knives</span>
               <select
                 value={sort}
                 onChange={(event) => setSort(event.target.value as StudioSort)}
@@ -410,9 +411,7 @@ export function StudioView() {
           <div className={styles.empty}>
             <ImageIcon aria-hidden="true" />
             <h2>
-              {knives.length
-                ? 'No matching objects'
-                : 'Your Studio starts here'}
+              {knives.length ? 'No matching knives' : 'Your Studio starts here'}
             </h2>
             <p>
               {knives.length
@@ -427,7 +426,7 @@ export function StudioView() {
                   setQuery('')
                 }}
               >
-                Show all objects
+                Show all knives
               </Button>
             ) : (
               <Link href="/add" className={buttonVariants()}>
@@ -498,7 +497,7 @@ export function StudioView() {
                   <Button
                     variant="outline"
                     size="icon"
-                    aria-label="Previous object"
+                    aria-label="Previous knife"
                     disabled={quickLookCount < 2}
                     onClick={() => moveQuickLook(-1)}
                   >
@@ -510,7 +509,7 @@ export function StudioView() {
                   <Button
                     variant="outline"
                     size="icon"
-                    aria-label="Next object"
+                    aria-label="Next knife"
                     disabled={quickLookCount < 2}
                     onClick={() => moveQuickLook(1)}
                   >
@@ -557,18 +556,40 @@ export function StudioView() {
                 <div className={styles.quickActions}>
                   <Link
                     href={`/collection/${encodeURIComponent(selectedKnife.id)}`}
-                    className={buttonVariants()}
+                    className={buttonVariants({ size: 'xs' })}
                   >
-                    View object <ArrowUpRight />
+                    View knife <ArrowUpRight />
+                  </Link>
+                  <Link
+                    href={`/collection/${encodeURIComponent(selectedKnife.id)}?edit=1`}
+                    className={buttonVariants({
+                      variant: 'outline',
+                      size: 'xs',
+                    })}
+                  >
+                    <Pencil />
+                    Edit
                   </Link>
                   <Button
                     variant="outline"
+                    size="xs"
                     disabled={pinBusy !== null}
                     aria-pressed={selectedKnife.pinned}
                     onClick={() => void togglePin(selectedKnife)}
                   >
                     <Pin />
                     {selectedKnife.pinned ? 'Pinned' : 'Pin'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    disabled={compareDisabled}
+                    aria-pressed={membershipCount(selectedKnife.id) > 0}
+                    title={comparisonsError || 'Update comparison membership'}
+                    onClick={() => void compare(selectedKnife)}
+                  >
+                    <Scale />
+                    Compare
                   </Button>
                 </div>
               </div>

@@ -246,7 +246,7 @@ export function ModernInsights() {
         <>
           <div className={styles.metrics}>
             <Metric
-              label="Catalogued objects"
+              label="Catalogued knives"
               value={number.format(stats.total)}
               detail={`${stats.pinnedCount} pinned${soldCount ? ` · ${soldCount} marked sold` : ' in your collection'}`}
               href="/insights/library"
@@ -429,7 +429,7 @@ export function ModernInsights() {
                 <p className={styles.chartEmpty}>No makers recorded yet.</p>
               )}
               <div className={styles.panelFoot}>
-                <span>Share of all objects</span>
+                <span>Share of all knives</span>
                 <DetailLink href="/insights/makers">All makers</DetailLink>
               </div>
             </Panel>
@@ -447,7 +447,7 @@ export function ModernInsights() {
               {carry.length ? (
                 <InsightsChart
                   className={styles.carryChart}
-                  ariaLabel={`Blade length versus weight for ${carry.length} catalogued objects`}
+                  ariaLabel={`Blade length versus weight for ${carry.length} catalogued ${carry.length === 1 ? 'knife' : 'knives'}`}
                   buildOption={(palette) => buildCarryOption(palette, carry)}
                   onChartClick={({ dataIndex }) => {
                     if (dataIndex !== undefined && carry[dataIndex])
@@ -466,7 +466,7 @@ export function ModernInsights() {
               )}
               <div className={styles.panelFoot}>
                 <span>
-                  One dot per object · inches / ounces
+                  One dot per knife · inches / ounces
                   {carry.length < stats.total
                     ? ` · ${stats.total - carry.length} without a readable pair`
                     : ''}
@@ -498,7 +498,7 @@ export function ModernInsights() {
                       {steelCategories[0].percent}
                       <small>%</small>
                     </strong>
-                    <span>of all objects</span>
+                    <span>of all knives</span>
                   </div>
                 </div>
               )}
@@ -527,7 +527,7 @@ export function ModernInsights() {
               </div>
               <div className={styles.panelFoot}>
                 <span>
-                  Every object included · missing steel shown separately
+                  Every knife included · missing steel shown separately
                 </span>
                 <DetailLink href="/insights/blade-steels">
                   All steels
@@ -537,7 +537,7 @@ export function ModernInsights() {
 
             <Panel
               title="Recent additions"
-              description="The latest objects in your catalogue."
+              description="The latest knives in your catalogue."
               className={styles.recent}
             >
               <div className={styles.recentList}>

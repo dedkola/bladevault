@@ -15,7 +15,7 @@ function statusForKnife(knife: Knife) {
     !knife.bladeStyle ||
     !knife.specs.lockingMechanism
   ) {
-    return { label: 'Needs detail', tone: 'missing' as const }
+    return { label: 'Incomplete', tone: 'missing' as const }
   }
   return { label: 'Complete', tone: 'complete' as const }
 }
@@ -35,7 +35,8 @@ export function ModernCollectionTable({
     <div data-modern-collection-table>
       <div className="mb-2 flex items-center justify-between gap-3 text-[length:var(--modern-font-body)] text-muted-foreground">
         <span>
-          <b className="font-medium text-foreground">{knives.length}</b> objects
+          <b className="font-medium text-foreground">{knives.length}</b>{' '}
+          {knives.length === 1 ? 'knife' : 'knives'}
         </span>
         <span className="hidden sm:inline">
           Select a row to inspect · double-click to open
@@ -47,7 +48,7 @@ export function ModernCollectionTable({
           <thead>
             <tr className="border-b border-border bg-[var(--bladevault-surface-soft)] text-[length:var(--modern-font-secondary)] text-muted-foreground">
               <th scope="col" className="w-[38%] px-3 py-2 font-medium">
-                Object
+                Knife
               </th>
               <th scope="col" className="px-2 py-2 font-medium">
                 Maker
@@ -117,11 +118,15 @@ export function ModernCollectionTable({
                         <div className="truncate text-[length:var(--modern-font-body)] font-[550] tracking-[-0.01em] text-foreground">
                           {knife.name}
                         </div>
-                        <div className="truncate mt-px text-[length:var(--modern-font-secondary)] text-muted-foreground">
-                          {modelNumber || '—'}
-                          <span className="px-1 opacity-40">·</span>
-                          {designer || 'Designer missing'}
-                        </div>
+                        {(modelNumber || designer) && (
+                          <div className="truncate mt-px text-[length:var(--modern-font-secondary)] text-muted-foreground">
+                            {modelNumber}
+                            {modelNumber && designer && (
+                              <span className="px-1 opacity-40">·</span>
+                            )}
+                            {designer}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>

@@ -91,7 +91,7 @@ export function buildCatalogueOption(
     },
     series: [
       {
-        name: 'Catalogued objects',
+        name: 'Catalogued knives',
         type: 'line',
         data: points.map((point) => point.total),
         showSymbol: points.length === 1,
@@ -126,7 +126,7 @@ export function buildCarryOption(
         const point = datum ? points[datum.dataIndex] : undefined
         if (!point) return ''
         const title = [point.brand, point.name].filter(Boolean).join(' · ')
-        return `${literalLabel(title)}\n${point.bladeLength.toFixed(2)} in blade · ${point.weight.toFixed(2)} oz\nClick to open object`
+        return `${literalLabel(title)}\n${point.bladeLength.toFixed(2)} in blade · ${point.weight.toFixed(2)} oz\nClick to open knife`
       },
     },
     xAxis: {

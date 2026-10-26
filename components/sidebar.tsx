@@ -295,6 +295,7 @@ export function Sidebar() {
                   {link.href === '/collection' && knives.length > 0 ? (
                     <span
                       data-sidebar-collection-count
+                      data-sidebar-count
                       className={cn(
                         'inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none',
                         isActive
@@ -366,6 +367,7 @@ export function Sidebar() {
                           {collection.name}
                         </span>
                         <span
+                          data-sidebar-count
                           className={cn(
                             'inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none',
                             active
@@ -530,6 +532,7 @@ export function Sidebar() {
                         key={brand.name}
                         href={brandHref}
                         onClick={handleNavigate}
+                        aria-current={isBrandActive ? 'page' : undefined}
                         className={cn(
                           'flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs transition-colors',
                           isBrandActive
@@ -539,6 +542,7 @@ export function Sidebar() {
                       >
                         <span className="truncate">{brand.name}</span>
                         <span
+                          data-sidebar-count
                           className={cn(
                             'inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none',
                             isBrandActive

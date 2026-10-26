@@ -42,9 +42,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       : pathname === '/studio'
         ? ['Studio', 'Visual library']
         : pathname === '/collection'
-          ? ['Collection', 'All objects']
+          ? ['Collection', 'All knives']
           : pathname.startsWith('/collection/')
-            ? ['Collection', 'Object details']
+            ? ['Collection', 'Knife details']
             : pathname.startsWith('/settings')
               ? ['Workspace', 'Settings']
               : pathname.startsWith('/add')
@@ -77,16 +77,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div data-modern-shell>
       <header data-workspace-header>
-        <Link
-          href="/collection"
-          data-workspace-brand
-          aria-label="BladeVault workspace"
-        >
+        <Link href="/collection" data-workspace-brand aria-label="BladeVault">
           <span data-workspace-logo>
             <Image src="/logo.svg" alt="" width={26} height={26} unoptimized />
           </span>
           <b>BladeVault</b>
-          <span>/ Workspace</span>
         </Link>
         <nav aria-label="Breadcrumb" data-workspace-crumb>
           <span>{crumb[0]}</span>
@@ -141,7 +136,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <footer data-workspace-footer>
         <div>
           <span>
-            {isLoading ? 'Loading collection…' : `${knives.length} objects`}
+            {isLoading
+              ? 'Loading collection…'
+              : `${knives.length} ${knives.length === 1 ? 'knife' : 'knives'}`}
           </span>
           <button
             type="button"

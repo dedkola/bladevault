@@ -233,7 +233,7 @@ export function GlobalKnifeSearch({
             />
             <span className="min-[380px]:hidden">Find</span>
             <span className="hidden min-[380px]:inline">
-              {embedded ? 'Search objects, makers, steel…' : 'Find a knife'}
+              {embedded ? 'Search knives, makers, steel…' : 'Find a knife'}
             </span>
             <kbd className="hidden rounded-md border border-[var(--bladevault-line)]/65 bg-[color:var(--bladevault-surface-soft)]/75 px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground min-[380px]:inline-flex">
               {embedded ? '⌘K' : '/'}
