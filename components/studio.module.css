@@ -48,10 +48,6 @@
 }
 
 .header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 30px;
   padding: 36px 0 30px;
 }
 
@@ -66,25 +62,16 @@
 
 .header h1 {
   margin: 0;
-  font-size: clamp(38px, 5.2vw, 64px);
+  font-size: clamp(18px, 7cqw, 64px);
   font-weight: 620;
   line-height: 0.99;
   letter-spacing: -0.055em;
+  white-space: nowrap;
 }
 
 .header h1 em {
   color: var(--bladevault-title);
   font-style: normal;
-}
-
-.intro {
-  max-width: 280px;
-  margin-bottom: 3px;
-  color: var(--muted-foreground);
-  font-size: 12px;
-  line-height: 1.7;
-  text-align: right;
-  text-wrap: pretty;
 }
 
 .toolbar {
@@ -196,16 +183,25 @@
 }
 
 .gallery {
+  --studio-columns: 4;
+  --studio-gap: 14px;
+  --studio-min-row: 220px;
   display: grid;
   grid-auto-flow: dense;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-auto-rows: clamp(190px, 19vw, 260px);
-  gap: 14px;
+  grid-template-columns: repeat(var(--studio-columns), minmax(0, 1fr));
+  grid-auto-rows: max(
+    var(--studio-min-row),
+    calc(
+      (100cqw - (var(--studio-columns) - 1) * var(--studio-gap)) /
+        var(--studio-columns) * 0.78
+    )
+  );
+  gap: var(--studio-gap);
 }
 
 .gallery[data-size='large'] {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: clamp(230px, 24vw, 340px);
+  --studio-columns: 3;
+  --studio-min-row: 270px;
 }
 
 .tile {
@@ -230,8 +226,13 @@
   grid-row: span 2;
 }
 
-.tile[data-size='wide'] {
+.tile[data-size='wide'],
+.tile[data-size='hero'] {
   grid-column: span 2;
+}
+
+.tile[data-size='hero'] {
+  grid-row: span 2;
 }
 
 .stage,
@@ -252,7 +253,7 @@
   mix-blend-mode: multiply;
   /* Vertical percentage padding resolves against width and can consume the
      entire image height in wide tiles. Reserve bounded space for the caption. */
-  padding: 18px 8% 68px;
+  padding: 16px 5% 62px;
   transition: transform 350ms ease;
 }
 
@@ -261,7 +262,11 @@
 }
 
 .tile[data-size='tall'] .image {
-  padding: 26px 8% 76px;
+  padding: 20px 5% 68px;
+}
+
+.tile[data-size='hero'] .image {
+  padding: 24px 4% 70px;
 }
 
 .openTile {
@@ -654,9 +659,9 @@
 }
 
 .focus .gallery {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  grid-auto-rows: clamp(180px, 18vw, 300px);
-  gap: 10px;
+  --studio-columns: 5;
+  --studio-gap: 10px;
+  --studio-min-row: 190px;
 }
 
 .exitFocus {
@@ -708,64 +713,14 @@
   backdrop-filter: blur(18px);
 }
 
-/* Keep the showcase at a useful scale on large monitors instead of stretching
-   three or four columns across the entire screen. */
-@container (min-width: 1600px) {
-  .gallery {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-  .gallery[data-size='large'] {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-  .focus .gallery {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-}
-
-@container (min-width: 2200px) {
-  .gallery {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-  .gallery[data-size='large'] {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-  .focus .gallery {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-  }
-}
-
-@container (min-width: 3000px) {
-  .gallery {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-  }
-  .gallery[data-size='large'] {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-  .focus .gallery {
-    grid-template-columns: repeat(10, minmax(0, 1fr));
-  }
-}
-
-@container (min-width: 4000px) {
-  .gallery {
-    grid-template-columns: repeat(10, minmax(0, 1fr));
-  }
-  .gallery[data-size='large'] {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-  }
-  .focus .gallery {
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-  }
-}
-
 @container (max-width: 1050px) {
   .gallery,
   .gallery[data-size='large'] {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    --studio-columns: 3;
   }
 
   .focus .gallery {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    --studio-columns: 3;
   }
   .toolbarLeft {
     flex: 1;
@@ -776,15 +731,6 @@
 }
 
 @container (max-width: 700px) {
-  .header {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 20px;
-  }
-  .intro {
-    max-width: 360px;
-    text-align: left;
-  }
   .toolbarLeft {
     width: 100%;
   }
@@ -798,7 +744,7 @@
   .gallery,
   .gallery[data-size='large'],
   .focus .gallery {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    --studio-columns: 2;
     grid-auto-rows: 210px;
     gap: 10px;
   }
@@ -850,7 +796,7 @@
     gap: 8px;
   }
   .gallery[data-size='large'] {
-    grid-template-columns: 1fr;
+    --studio-columns: 1;
     grid-auto-rows: 270px;
   }
   .gallery[data-size='large'] .tile {

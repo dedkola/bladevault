@@ -31,6 +31,7 @@ import { compactMeasurement } from '@/lib/compact-measurement'
 import { getImageUrl, type Knife } from '@/lib/data'
 import { groupKnifeFamilies } from '@/lib/knife-families'
 import { createStudioLayout } from '@/lib/studio'
+import { matchesCollection } from '@/lib/smart-collections'
 import { cn } from '@/lib/utils'
 import styles from './studio.module.css'
 
@@ -93,11 +94,12 @@ export function StudioView() {
   const layout = useMemo(() => createStudioLayout(knives, seed), [knives, seed])
   const visible = useMemo(() => {
     const search = query.trim().toLocaleLowerCase()
+    const typeFilter =
+      filter === 'fixed' || filter === 'folding'
+        ? new URLSearchParams({ knifeType: filter })
+        : null
     const entries = layout.filter(({ knife }) => {
-      const lock = knife.specs.lockingMechanism?.trim() ?? ''
-      const fixed = /\bfixed\b/i.test(lock)
-      if (filter === 'fixed' && !fixed) return false
-      if (filter === 'folding' && (!lock || fixed)) return false
+      if (typeFilter && !matchesCollection(knife, typeFilter)) return false
       if (filter === 'pinned' && !knife.pinned) return false
       return (
         !search ||
@@ -329,18 +331,9 @@ export function StudioView() {
           </div>
         </div>
         <header className={styles.header}>
-          <div>
-            <p className={styles.eyebrow}>Your collection, on display</p>
-            <h1>
-              The collection,
-              <br />
-              <em>at a glance.</em>
-            </h1>
-          </div>
-          <p className={styles.intro}>
-            A quieter way to browse. A fresh arrangement with every visit, and a
-            closer look at every object.
-          </p>
+          <h1>
+            The collection, <em>at a glance.</em>
+          </h1>
         </header>
         <div className={styles.toolbar} aria-label="Studio controls">
           <div className={styles.toolbarLeft}>

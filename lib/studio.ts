@@ -1,4 +1,4 @@
-export type StudioTileSize = 'regular' | 'tall' | 'wide'
+export type StudioTileSize = 'regular' | 'tall' | 'wide' | 'hero'
 
 export type StudioLayoutItem<T> = {
   knife: T
@@ -34,14 +34,23 @@ export function createStudioLayout<T extends { id: string }>(
     [...knives].sort((first, second) => first.id.localeCompare(second.id)),
     random,
   )
-  const sizes: StudioTileSize[] = ordered.map(() => 'regular')
+  const sizes: StudioTileSize[] = []
 
-  if (sizes.length >= 4) {
-    const tallCount = Math.max(1, Math.floor(sizes.length / 7))
-    const wideCount = Math.max(1, Math.floor(sizes.length / 9))
-    sizes.fill('tall', 0, tallCount)
-    sizes.fill('wide', tallCount, tallCount + wideCount)
-    shuffle(sizes, random)
+  // Spread featured objects throughout a long collection, rather than leaving
+  // whole stretches of the showcase with the same small tile size.
+  for (let start = 0; start < ordered.length; start += 12) {
+    const count = Math.min(12, ordered.length - start)
+    const group: StudioTileSize[] = Array.from(
+      { length: count },
+      () => 'regular',
+    )
+    if (count >= 4) {
+      group[0] = 'tall'
+      group[1] = 'wide'
+    }
+    if (count >= 8) group[2] = 'tall'
+    if (count >= 12) group[3] = 'hero'
+    sizes.push(...shuffle(group, random))
   }
 
   return ordered.map((knife, index) => ({ knife, size: sizes[index] }))
