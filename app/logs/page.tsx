@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { LogSessionsView } from '@/components/log-sessions-view'
-import { PageHeader } from '@/components/page-header'
 
 export const metadata: Metadata = {
   title: 'BladeVault | Logs',
@@ -9,8 +8,10 @@ export const metadata: Metadata = {
 
 export default function LogsPage() {
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 flex-col p-4 sm:p-6 lg:p-8">
-      <PageHeader title="Logs" />
+    <div
+      data-logs-content
+      className="flex h-full min-h-0 w-full flex-1 flex-col p-4 sm:p-6 lg:p-8"
+    >
       <div className="min-h-0 flex-1">
         <LogSessionsView />
       </div>

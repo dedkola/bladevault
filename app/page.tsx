@@ -1,5 +1,5 @@
-import { CollectionInsights } from '@/components/collection-insights'
+import { InsightsPage } from '@/components/insights-page'
 
-export default function InsightsPage() {
-  return <CollectionInsights />
+export default function Page() {
+  return <InsightsPage />
 }

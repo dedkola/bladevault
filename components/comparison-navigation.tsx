@@ -29,6 +29,8 @@ export function ComparisonNavigation({
   return (
     <div>
       <div
+        data-comparison-navigation
+        data-selected={selected || undefined}
         className={cn(
           'group flex w-full items-center rounded-lg transition-colors',
           selected &&

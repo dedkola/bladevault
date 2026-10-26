@@ -14,6 +14,7 @@ import {
 import { cn } from '@/lib/utils'
 
 const MAX_RESULTS = 7
+export const OPEN_GLOBAL_SEARCH_EVENT = 'bladevault:open-global-search'
 
 function isEditableTarget(target: EventTarget | null) {
   return (
@@ -24,10 +25,14 @@ function isEditableTarget(target: EventTarget | null) {
   )
 }
 
-export function GlobalKnifeSearch() {
+export function GlobalKnifeSearch({
+  embedded = false,
+}: {
+  embedded?: boolean
+}) {
   const router = useRouter()
   const pathname = usePathname()
-  const { knives, isLoading } = useKnives()
+  const { knives, isLoading, themeStyle } = useKnives()
   const islandRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -36,7 +41,10 @@ export function GlobalKnifeSearch() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
-  const showGlobalSearch = pathname !== '/collection' && pathname !== '/compare'
+  const modern = themeStyle === 'modern'
+  const showGlobalSearch = modern
+    ? embedded
+    : pathname !== '/collection' && pathname !== '/compare'
   const parsedQuery = useMemo(() => parseGlobalKnifeSearchQuery(query), [query])
 
   const matchingKnives = useMemo(() => {
@@ -84,14 +92,22 @@ export function GlobalKnifeSearch() {
   useEffect(() => {
     if (!showGlobalSearch) return
 
+    const openSearch = () => setOpen(true)
+    window.addEventListener(OPEN_GLOBAL_SEARCH_EVENT, openSearch)
+
     const handleShortcut = (event: KeyboardEvent) => {
+      const commandShortcut =
+        (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k'
       if (
         event.defaultPrevented ||
-        event.key !== '/' ||
-        event.metaKey ||
-        event.ctrlKey ||
+        (!commandShortcut &&
+          (event.key !== '/' ||
+            event.metaKey ||
+            event.ctrlKey ||
+            pathname === '/collection' ||
+            pathname === '/compare')) ||
         event.altKey ||
-        isEditableTarget(event.target)
+        (!commandShortcut && isEditableTarget(event.target))
       ) {
         return
       }
@@ -106,8 +122,11 @@ export function GlobalKnifeSearch() {
     }
 
     window.addEventListener('keydown', handleShortcut)
-    return () => window.removeEventListener('keydown', handleShortcut)
-  }, [showGlobalSearch])
+    return () => {
+      window.removeEventListener('keydown', handleShortcut)
+      window.removeEventListener(OPEN_GLOBAL_SEARCH_EVENT, openSearch)
+    }
+  }, [showGlobalSearch, pathname])
 
   const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Escape') {
@@ -140,13 +159,17 @@ export function GlobalKnifeSearch() {
     <div
       ref={islandRef}
       data-global-knife-search
+      data-embedded={embedded || undefined}
       data-state={open ? 'open' : 'closed'}
       className={cn(
-        'fixed top-2 z-40 overflow-hidden border border-[var(--bladevault-line)]/80 bg-popover text-popover-foreground print:hidden motion-reduce:transition-none',
+        embedded
+          ? 'absolute inset-x-0 top-0 z-40 overflow-hidden rounded-lg border bg-popover text-popover-foreground'
+          : 'fixed top-2 z-40 overflow-hidden border border-[var(--bladevault-line)]/80 bg-popover text-popover-foreground print:hidden motion-reduce:transition-none',
         'transition-[left,right,width,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
-        open
-          ? 'right-2 w-[calc(100dvw-1rem)] rounded-[1.2rem] shadow-[0_16px_48px_rgba(31,27,17,0.22)] md:right-6 md:w-[22rem] xl:right-auto xl:left-[calc(50%+7.5rem)] xl:-translate-x-1/2'
-          : 'right-16 w-16 rounded-[1.2rem] shadow-[0_6px_24px_rgba(31,27,17,0.14)] min-[380px]:w-[8.5rem] md:right-6 xl:right-auto xl:left-[calc(50%+7.5rem)] xl:-translate-x-1/2',
+        !embedded &&
+          (open
+            ? 'right-2 w-[calc(100dvw-1rem)] rounded-[1.2rem] shadow-[0_16px_48px_rgba(31,27,17,0.22)] md:right-6 md:w-[22rem] xl:right-auto xl:left-[calc(50%+7.5rem)] xl:-translate-x-1/2'
+            : 'right-16 w-16 rounded-[1.2rem] shadow-[0_6px_24px_rgba(31,27,17,0.14)] min-[380px]:w-[8.5rem] md:right-6 xl:right-auto xl:left-[calc(50%+7.5rem)] xl:-translate-x-1/2'),
       )}
     >
       <div
@@ -201,7 +224,7 @@ export function GlobalKnifeSearch() {
             type="button"
             onClick={() => setOpen(true)}
             aria-label="Search knives"
-            aria-keyshortcuts="/"
+            aria-keyshortcuts={embedded ? 'Meta+K Control+K' : '/'}
             className="absolute inset-0 flex w-full min-w-0 animate-in items-center justify-center gap-2 overflow-hidden rounded-full px-2 text-[11px] font-medium text-muted-foreground fade-in-0 duration-200 hover:bg-[color:var(--bladevault-surface-soft)]/55 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:scale-[0.98] min-[380px]:px-3 motion-reduce:animate-none"
           >
             <Search
@@ -209,9 +232,11 @@ export function GlobalKnifeSearch() {
               aria-hidden="true"
             />
             <span className="min-[380px]:hidden">Find</span>
-            <span className="hidden min-[380px]:inline">Find a knife</span>
+            <span className="hidden min-[380px]:inline">
+              {embedded ? 'Search objects, makers, steel…' : 'Find a knife'}
+            </span>
             <kbd className="hidden rounded-md border border-[var(--bladevault-line)]/65 bg-[color:var(--bladevault-surface-soft)]/75 px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground min-[380px]:inline-flex">
-              /
+              {embedded ? '⌘K' : '/'}
             </kbd>
           </button>
         )}

@@ -11,6 +11,19 @@ afterEach(async () => {
 })
 
 describe('settings persistence', () => {
+  it('stores the theme style in SQLite and reloads it after reopening the database', async () => {
+    vault = await createTempVault('bladevault-settings-')
+
+    saveSettings({ themeStyle: 'modern' })
+    const stored = getLocalDb()
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get('theme_style') as { value: string }
+    expect(stored.value).toBe('modern')
+
+    closeLocalDb()
+    expect(getSettings().themeStyle).toBe('modern')
+  })
+
   it('stores the time format in SQLite and reloads it after reopening the database', async () => {
     vault = await createTempVault('bladevault-settings-')
 

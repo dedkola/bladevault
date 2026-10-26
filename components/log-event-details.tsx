@@ -5,6 +5,7 @@ import type { AuditLogEvent } from '@/lib/data'
 
 export function LogEventDetails({
   event,
+  compact = false,
   title,
   time,
   knifeHref,
@@ -12,14 +13,73 @@ export function LogEventDetails({
   onClose,
 }: {
   event: AuditLogEvent
+  compact?: boolean
   title: string
   time: string
   knifeHref: string | null
   knifeUnavailable: boolean
   onClose: () => void
 }) {
+  if (compact) {
+    return (
+      <div data-compact-log-details>
+        <p data-compact-log-summary>{event.summary}</p>
+        {event.changes.length > 0 && (
+          <dl data-compact-log-changes aria-label="Before and after values">
+            {event.changes.map((change, index) => (
+              <div key={`${change.field}-${index}`}>
+                <dt>{change.field}</dt>
+                <dd data-before>
+                  <span className="sr-only">Before: </span>
+                  {change.before || '—'}
+                </dd>
+                <span aria-hidden="true">→</span>
+                <dd data-after>
+                  <span className="sr-only">After: </span>
+                  {change.after || '—'}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        <details data-compact-log-info>
+          <summary>Event information</summary>
+          <dl>
+            {[
+              ['Event', title],
+              ['Source', event.source],
+              ['Date', new Date(event.occurredAt).toLocaleDateString()],
+              ['Time', time],
+              ['Actor', event.actor],
+              ['Event ID', String(event.id)],
+              ['Operation ID', event.operationId],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+          {knifeHref ? (
+            <Link href={knifeHref}>
+              Open knife details <ArrowUpRight className="size-3" />
+            </Link>
+          ) : knifeUnavailable ? (
+            <p>
+              This knife is no longer in the collection. Its history is
+              retained.
+            </p>
+          ) : null}
+          <Button variant="ghost" size="xs" onClick={onClose}>
+            Close event details
+          </Button>
+        </details>
+      </div>
+    )
+  }
+
   return (
-    <>
+    <div data-log-event-details>
       <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-muted/40 px-3 py-2.5 sm:px-5">
         <h2 className="text-xs font-semibold">Event details</h2>
         <Button
@@ -153,6 +213,6 @@ export function LogEventDetails({
           </dl>
         </details>
       </div>
-    </>
+    </div>
   )
 }

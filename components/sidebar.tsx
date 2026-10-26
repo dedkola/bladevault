@@ -37,7 +37,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { type AppSettings } from '@/lib/settings-shared'
+import { SETTINGS_UPDATED_EVENT, type AppSettings } from '@/lib/settings-shared'
 import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
 import {
   Dialog,
@@ -63,8 +63,13 @@ export function Sidebar() {
   const searchParamsKey = searchParams.toString()
   const selectedBrands = searchParams.getAll('brand')
   const routeKey = searchParamsKey ? `${pathname}?${searchParamsKey}` : pathname
-  const { knives, cardFields, customFieldDefinitions, isAutoBackupActive } =
-    useKnives()
+  const {
+    knives,
+    cardFields,
+    customFieldDefinitions,
+    isAutoBackupActive,
+    themeStyle,
+  } = useKnives()
   const { update, downloadUpdate } = useDesktopUpdates()
   const [brandsOpen, setBrandsOpen] = useState(true)
   const [pinnedOpen, setPinnedOpen] = useState(true)
@@ -126,6 +131,12 @@ export function Sidebar() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to save theme preference')
       }
+
+      window.dispatchEvent(
+        new CustomEvent<Partial<AppSettings>>(SETTINGS_UPDATED_EVENT, {
+          detail: { theme: nextIsDark ? 'dark' : 'light' },
+        }),
+      )
     } catch (error) {
       root.classList.toggle('dark', !nextIsDark)
       console.error('Failed to save theme preference', error)
@@ -145,6 +156,7 @@ export function Sidebar() {
 
     return (
       <aside
+        data-sidebar
         className={cn(
           'flex min-h-0 flex-col bg-sidebar text-sidebar-foreground print:hidden',
           isMobile
@@ -152,13 +164,16 @@ export function Sidebar() {
             : 'hidden h-dvh w-60 shrink-0 border-r border-sidebar-border md:sticky md:top-0 md:flex',
         )}
       >
-        <div className="flex items-center justify-between gap-3 px-4 py-4">
+        <div
+          data-sidebar-brand-row
+          className="flex items-center justify-between gap-3 px-4 py-4"
+        >
           <Link
             href="/"
             onClick={handleNavigate}
             className="flex min-w-0 items-center gap-2.5"
           >
-            <div className="relative h-12 w-12 shrink-0">
+            <div className="relative h-12 w-12 shrink-0" data-sidebar-logo>
               <Image
                 src="/logo.svg"
                 alt="BladeVault logo"
@@ -169,7 +184,10 @@ export function Sidebar() {
                 priority
               />
             </div>
-            <span className="truncate text-2xl font-semibold tracking-tight text-foreground">
+            <span
+              className="truncate text-2xl font-semibold tracking-tight text-foreground"
+              data-sidebar-brand
+            >
               <span>Blade</span>
               <span style={{ color: 'var(--bladevault-title)' }}>Vault</span>
             </span>
@@ -191,17 +209,20 @@ export function Sidebar() {
           )}
         </div>
 
-        <div className="px-4 pb-2">
-          <Button
-            size="sm"
-            className="w-full"
-            render={<Link href="/add" onClick={handleNavigate} />}
-            nativeButton={false}
-          >
-            <PlusCircle className="h-3.5 w-3.5" />
-            Add knife
-          </Button>
-        </div>
+        {themeStyle !== 'modern' && (
+          <div className="px-4 pb-2">
+            <Button
+              data-sidebar-add
+              size="sm"
+              className="w-full"
+              render={<Link href="/add" onClick={handleNavigate} />}
+              nativeButton={false}
+            >
+              <PlusCircle className="h-3.5 w-3.5" />
+              Add knife
+            </Button>
+          </div>
+        )}
 
         {hasUpdate || isUpdateBusy ? (
           <div className="flex justify-center px-4 pb-2">
@@ -229,8 +250,14 @@ export function Sidebar() {
           </div>
         ) : null}
 
-        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2">
-          <div className="px-2 pb-1.5 pt-2 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)]">
+        <nav
+          data-sidebar-nav
+          className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2"
+        >
+          <div
+            data-sidebar-label
+            className="px-2 pb-1.5 pt-2 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)]"
+          >
             Main
           </div>
           {links.map((link) => {
@@ -256,7 +283,7 @@ export function Sidebar() {
                 className={cn(
                   'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors',
                   isActive
-                    ? 'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)]'
+                    ? 'bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)]'
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                 )}
               >
@@ -265,6 +292,7 @@ export function Sidebar() {
                   <span>{link.label}</span>
                   {link.href === '/collection' && knives.length > 0 ? (
                     <span
+                      data-sidebar-collection-count
                       className={cn(
                         'inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none',
                         isActive
@@ -291,6 +319,7 @@ export function Sidebar() {
                   render={
                     <button
                       type="button"
+                      data-sidebar-label
                       className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-1"
                     >
                       Smart collections
@@ -327,7 +356,7 @@ export function Sidebar() {
                         className={cn(
                           'flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-xs transition-colors',
                           active
-                            ? 'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)]'
+                            ? 'bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)]'
                             : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                         )}
                       >
@@ -360,6 +389,7 @@ export function Sidebar() {
                   render={
                     <button
                       type="button"
+                      data-sidebar-label
                       className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-1"
                     >
                       Pinned
@@ -403,6 +433,7 @@ export function Sidebar() {
                     return (
                       <Link
                         key={knife.id}
+                        data-sidebar-pinned-item
                         href={knifeHref}
                         onClick={handleNavigate}
                         title={detailLine || undefined}
@@ -410,7 +441,7 @@ export function Sidebar() {
                         className={cn(
                           'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors',
                           isKnifeActive
-                            ? 'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)]'
+                            ? 'bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)]'
                             : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                         )}
                       >
@@ -448,7 +479,10 @@ export function Sidebar() {
                             </span>
                           </span>
                           {detailLine && (
-                            <span className="mt-0.5 line-clamp-2 text-[10px] leading-4 opacity-80 [overflow-wrap:anywhere]">
+                            <span
+                              data-sidebar-pinned-details
+                              className="mt-0.5 line-clamp-2 text-[10px] leading-4 opacity-80 [overflow-wrap:anywhere]"
+                            >
                               {detailLine}
                             </span>
                           )}
@@ -467,7 +501,10 @@ export function Sidebar() {
               <Collapsible open={brandsOpen} onOpenChange={setBrandsOpen}>
                 <CollapsibleTrigger
                   render={
-                    <button className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-1">
+                    <button
+                      data-sidebar-label
+                      className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-1"
+                    >
                       Brands
                       <ChevronRight
                         className={cn(
@@ -494,7 +531,7 @@ export function Sidebar() {
                         className={cn(
                           'flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs transition-colors',
                           isBrandActive
-                            ? 'bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)]'
+                            ? 'bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)]'
                             : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                         )}
                       >
@@ -518,67 +555,69 @@ export function Sidebar() {
           )}
         </nav>
 
-        <div className="flex flex-col gap-2 border-t bg-muted/30 p-3">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1"
-              onClick={toggleTheme}
-              aria-label="Toggle color theme"
-            >
-              <Sun className="h-3.5 w-3.5 dark:hidden" />
-              <Moon className="hidden h-3.5 w-3.5 dark:block" />
-            </Button>
+        {themeStyle !== 'modern' && (
+          <div className="flex flex-col gap-2 border-t bg-muted/30 p-3">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={toggleTheme}
+                aria-label="Toggle color theme"
+              >
+                <Sun className="h-3.5 w-3.5 dark:hidden" />
+                <Moon className="hidden h-3.5 w-3.5 dark:block" />
+              </Button>
 
-            <Button
-              variant="outline"
-              size="sm"
-              aria-label="Settings"
-              className={cn(
-                'flex-1',
-                isSettingsActive &&
-                  'border-[var(--bladevault-olive)] bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)] hover:bg-[var(--bladevault-olive)] hover:text-[var(--bladevault-gold)]',
-              )}
-              render={<Link href="/settings" onClick={handleNavigate} />}
-              nativeButton={false}
-            >
-              <Settings className="h-3.5 w-3.5" />
-            </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label="Settings"
+                className={cn(
+                  'flex-1',
+                  isSettingsActive &&
+                    'border-[var(--bladevault-nav-active-bg)] bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)] hover:bg-[var(--bladevault-nav-active-bg)] hover:text-[var(--bladevault-nav-active-fg)]',
+                )}
+                render={<Link href="/settings" onClick={handleNavigate} />}
+                nativeButton={false}
+              >
+                <Settings className="h-3.5 w-3.5" />
+              </Button>
 
-            <Button
-              variant="outline"
-              size="sm"
-              aria-label="Cloud backup"
-              title={
-                isAutoBackupActive
-                  ? 'Cloud auto backup is active. Open Cloud backup settings.'
-                  : 'Cloud auto backup is inactive. Open Cloud backup settings.'
-              }
-              className={cn(
-                'flex-1',
-                isCloudBackupSettingsActive &&
-                  'border-[var(--bladevault-olive)] bg-[var(--bladevault-olive)] text-[var(--bladevault-gold)] hover:bg-[var(--bladevault-olive)] hover:text-[var(--bladevault-gold)]',
-              )}
-              render={
-                <Link
-                  href="/settings?tab=cloud-backup"
-                  onClick={handleOpenCloudBackup}
-                />
-              }
-              nativeButton={false}
-            >
-              {isAutoBackupActive ? (
-                <Cloud
-                  className="h-3.5 w-3.5"
-                  style={{ stroke: 'url(#sidebar-cloud-gradient)' }}
-                />
-              ) : (
-                <CloudOff className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-              )}
-            </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label="Cloud backup"
+                title={
+                  isAutoBackupActive
+                    ? 'Cloud auto backup is active. Open Cloud backup settings.'
+                    : 'Cloud auto backup is inactive. Open Cloud backup settings.'
+                }
+                className={cn(
+                  'flex-1',
+                  isCloudBackupSettingsActive &&
+                    'border-[var(--bladevault-nav-active-bg)] bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)] hover:bg-[var(--bladevault-nav-active-bg)] hover:text-[var(--bladevault-nav-active-fg)]',
+                )}
+                render={
+                  <Link
+                    href="/settings?tab=cloud-backup"
+                    onClick={handleOpenCloudBackup}
+                  />
+                }
+                nativeButton={false}
+              >
+                {isAutoBackupActive ? (
+                  <Cloud
+                    className="h-3.5 w-3.5"
+                    style={{ stroke: 'url(#sidebar-cloud-gradient)' }}
+                  />
+                ) : (
+                  <CloudOff className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                )}
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
       </aside>
     )
   }
@@ -605,7 +644,10 @@ export function Sidebar() {
         </defs>
       </svg>
 
-      <div className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 print:hidden md:hidden">
+      <div
+        data-mobile-navigation-bar
+        className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 print:hidden md:hidden"
+      >
         <Link href="/" className="flex min-w-0 items-center gap-2.5">
           <div className="relative h-10 w-10 shrink-0">
             <Image

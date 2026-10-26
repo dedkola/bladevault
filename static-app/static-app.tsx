@@ -1,7 +1,7 @@
 'use client'
 
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { SidebarShell } from '@/components/sidebar-shell'
+import { AppShell } from '@/components/app-shell'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import {
   KnivesProvider,
@@ -132,11 +132,7 @@ export function StaticApp() {
                       </button>
                     </div>
                     <div className="static-preview-layout flex flex-1 flex-col md:flex-row">
-                      <SidebarShell />
-                      <main
-                        tabIndex={-1}
-                        className="flex min-w-0 flex-1 flex-col"
-                      >
+                      <AppShell>
                         <Suspense
                           fallback={
                             <div
@@ -149,7 +145,7 @@ export function StaticApp() {
                         >
                           <Route />
                         </Suspense>
-                      </main>
+                      </AppShell>
                     </div>
                   </div>
                   <GlobalKnifeSearch />

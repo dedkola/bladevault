@@ -19,6 +19,48 @@ test('persists the pinned-first setting across reloads', async ({ page }) => {
   await expect(page.getByRole('checkbox').first()).not.toBeChecked()
 })
 
+test('persists and applies the selected theme style', async ({ page }) => {
+  await page.goto('/settings')
+  await page.getByRole('button', { name: 'Appearance' }).click()
+
+  const current = page.getByRole('radio', { name: /Current/ })
+  const modern = page.getByRole('radio', { name: /Modern/ })
+  await expect(current).toBeChecked()
+  await expect(page.locator('html')).toHaveAttribute(
+    'data-theme-style',
+    'classic',
+  )
+
+  await modern.click()
+  await expect(modern).toBeChecked()
+  await expect(page.locator('html')).toHaveAttribute(
+    'data-theme-style',
+    'modern',
+  )
+  await expect(
+    page.getByRole('heading', { name: 'Appearance', exact: true }),
+  ).toBeVisible()
+
+  await page.reload()
+  await expect(page.getByRole('radio', { name: /Modern/ })).toBeChecked()
+  await expect(page.locator('html')).toHaveAttribute(
+    'data-theme-style',
+    'modern',
+  )
+
+  await current.click()
+  await expect(current).toBeChecked()
+  await expect(page.locator('html')).toHaveAttribute(
+    'data-theme-style',
+    'classic',
+  )
+  await expect(
+    page.getByRole('heading', { name: 'Appearance', exact: true }),
+  ).toBeVisible()
+  await page.reload()
+  await expect(current).toBeChecked()
+})
+
 test('persists and applies the selected time format', async ({
   page,
   request,

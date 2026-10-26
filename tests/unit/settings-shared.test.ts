@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CARD_FIELDS, normalizeCardFields } from '@/lib/settings-shared'
+import {
+  DEFAULT_CARD_FIELDS,
+  normalizeCardFields,
+  normalizeThemeStyle,
+} from '@/lib/settings-shared'
 
 describe('normalizeCardFields', () => {
   it('keeps valid built-in and custom fields in their first-seen order', () => {
@@ -24,5 +28,14 @@ describe('normalizeCardFields', () => {
     expect(normalizeCardFields(['custom:', 'bladeStyle'])).toEqual([
       'bladeStyle',
     ])
+  })
+})
+
+describe('normalizeThemeStyle', () => {
+  it('keeps supported theme styles and falls back to the default', () => {
+    expect(normalizeThemeStyle('modern')).toBe('modern')
+    expect(normalizeThemeStyle('classic')).toBe('classic')
+    expect(normalizeThemeStyle('unknown')).toBe('classic')
+    expect(normalizeThemeStyle(null)).toBe('classic')
   })
 })

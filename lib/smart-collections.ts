@@ -24,6 +24,7 @@ export function collectionQuery(params: URLSearchParams): string {
       value &&
       (key === 'q' ||
         key === 'missingSpecs' ||
+        key === 'knifeType' ||
         key.startsWith('custom:') ||
         builtInFilterDefinitions.some((field) => field.key === key) ||
         rangeDefinitions.some(
@@ -59,6 +60,17 @@ export function matchesCollection(
 ): boolean {
   if (rangeError(params) || !matchesKnifeSearch(knife, params.get('q') ?? ''))
     return false
+  const knifeType = params.get('knifeType')
+  if (knifeType === 'fixed' || knifeType === 'folding') {
+    const lock = knife.specs.lockingMechanism?.trim() ?? ''
+    const fixed = /\bfix(?:ed)?\b/i.test(lock)
+    const folding =
+      !fixed &&
+      /liner|frame|crossbar|button|axis|slip.?joint|back.?lock|lock.?back|compression|ball bearing|tri.?ad|shark|vanchor|superlock|recoil|clutch|scorpion|friction/i.test(
+        lock,
+      )
+    if (!(knifeType === 'fixed' ? fixed : folding)) return false
+  }
   for (const field of builtInFilterDefinitions) {
     const values = params.getAll(field.key)
     const actual = field.getValue(knife)

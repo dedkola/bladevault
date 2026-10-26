@@ -6,12 +6,14 @@ import {
   CUSTOM_FIELD_TYPES,
   DEFAULT_SETTINGS,
   normalizeCardFields,
+  normalizeThemeStyle,
   normalizeTimeFormat,
   type AppSettings,
   type AppTheme,
   type CardField,
   type CustomField,
   type CustomFieldType,
+  type ThemeStyle,
 } from './settings-shared'
 export { DEFAULT_SETTINGS, SETTINGS_UPDATED_EVENT } from './settings-shared'
 export type {
@@ -20,11 +22,13 @@ export type {
   CardField,
   CustomField,
   CustomFieldType,
+  ThemeStyle,
   TimeFormat,
 } from './settings-shared'
 
 const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
   theme: 'theme',
+  themeStyle: 'theme_style',
   timeFormat: 'time_format',
   pinnedItemsFirst: 'pinned_items_first',
   cardFields: 'card_fields',
@@ -55,6 +59,10 @@ function parseTheme(value: string | undefined): AppTheme {
   }
 
   return DEFAULT_SETTINGS.theme
+}
+
+function parseThemeStyle(value: string | undefined): ThemeStyle {
+  return normalizeThemeStyle(value)
 }
 
 function isCustomFieldType(value: unknown): value is CustomFieldType {
@@ -108,6 +116,7 @@ export function getSettings(): AppSettings {
 
   return {
     theme: parseTheme(map.get(SETTINGS_KEYS.theme)),
+    themeStyle: parseThemeStyle(map.get(SETTINGS_KEYS.themeStyle)),
     timeFormat: normalizeTimeFormat(map.get(SETTINGS_KEYS.timeFormat)),
     pinnedItemsFirst: parseBool(
       map.get(SETTINGS_KEYS.pinnedItemsFirst),
@@ -143,6 +152,7 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
         settings.cardFields === undefined
           ? current.cardFields
           : normalizeCardFields(settings.cardFields, current.cardFields),
+      themeStyle: normalizeThemeStyle(settings.themeStyle, current.themeStyle),
       timeFormat: normalizeTimeFormat(settings.timeFormat, current.timeFormat),
     }
 
@@ -152,6 +162,7 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
 
     const entries: Array<[keyof AppSettings, string]> = [
       ['theme', next.theme],
+      ['themeStyle', next.themeStyle],
       ['timeFormat', next.timeFormat],
       ['pinnedItemsFirst', next.pinnedItemsFirst ? '1' : '0'],
       ['cardFields', JSON.stringify(next.cardFields)],

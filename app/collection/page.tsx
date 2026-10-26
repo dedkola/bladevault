@@ -17,10 +17,13 @@ import {
   ChevronDown,
   Grid3X3,
   LayoutGrid,
+  List,
   PencilLine,
   Pin,
   PinOff,
   SlidersHorizontal,
+  Scale,
+  MoreHorizontal,
   X,
 } from 'lucide-react'
 import {
@@ -33,6 +36,10 @@ import { BulkEditDialog } from '@/components/bulk-edit-dialog'
 import { KnifeCard, type CollectionCardDensity } from '@/components/knife-card'
 import { KnifeFamilyCard } from '@/components/knife-family-card'
 import { CollectionKnifeInspector } from '@/components/collection-knife-inspector'
+import {
+  ModernCollectionTable,
+  ModernCollectionGallery,
+} from '@/components/modern-collection-table'
 import { EmptyState } from '@/components/empty-state'
 import { FilterMultiSelect } from '@/components/filter-multi-select'
 import { SearchField } from '@/components/search-field'
@@ -103,6 +110,7 @@ function CollectionContent() {
     bulkPinKnives,
     showFeedback,
     customFieldDefinitions,
+    themeStyle,
   } = useKnives()
   const router = useRouter()
   const pathname = usePathname()
@@ -117,12 +125,15 @@ function CollectionContent() {
     choose: chooseComparisons,
     loading: comparisonsLoading,
     busy: comparisonsBusy,
+    active: activeComparison,
   } = useComparisons()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
   const [isBulkPinning, setIsBulkPinning] = useState(false)
   const [density, setDensity] = useState<CollectionCardDensity>('gallery')
+  const [modernView, setModernView] = useState<'list' | 'grid'>('list')
   const [sortOrder, setSortOrder] = useState<CollectionSort>('newest')
+  const [inspectorDismissed, setInspectorDismissed] = useState(false)
   const [activeKnifeId, setActiveKnifeId] = useState<string | null>(null)
   const debouncedQuery = useDebouncedValue(query, 200)
   const requestedView = searchParams.get('view')
@@ -311,8 +322,19 @@ function CollectionContent() {
     [filteredKnives],
   )
   const activeKnife = useMemo(
-    () => knives.find((knife) => knife.id === activeKnifeId) ?? null,
-    [activeKnifeId, knives],
+    () =>
+      knives.find((knife) => knife.id === activeKnifeId) ??
+      (themeStyle === 'modern' && !inspectorDismissed && !isSelectionMode
+        ? (filteredKnives[0] ?? null)
+        : null),
+    [
+      activeKnifeId,
+      knives,
+      themeStyle,
+      inspectorDismissed,
+      isSelectionMode,
+      filteredKnives,
+    ],
   )
   const activeKnifeSiblings = activeKnife
     ? (familiesByKey.get(getKnifeFamilyKey(activeKnife)) ?? [activeKnife])
@@ -320,6 +342,64 @@ function CollectionContent() {
   const resultCount = isFamilyView
     ? filteredFamilies.length
     : filteredKnives.length
+
+  const inspectKnife = (knife: Knife) => {
+    setInspectorDismissed(false)
+    setActiveKnifeId(knife.id)
+  }
+  const requestedKnifeType = searchParams.get('knifeType')
+  const modernScope = isPinnedView
+    ? 'pinned'
+    : requestedKnifeType === 'fixed' || requestedKnifeType === 'folding'
+      ? requestedKnifeType
+      : 'all'
+  const setModernScope = (scope: string) => {
+    replaceParams((params) => {
+      params.delete('view')
+      params.delete('knifeType')
+      params.delete('lockingMechanism')
+      if (scope === 'pinned') params.set('view', 'pinned')
+      if (scope === 'fixed' || scope === 'folding')
+        params.set('knifeType', scope)
+    })
+    setVisibleCount(PAGE_SIZE)
+  }
+  const exportCollection = () => {
+    const records = filteredKnives.map((knife) => ({
+      id: knife.id,
+      name: knife.name,
+      brand: knife.brand,
+      bladeStyle: knife.bladeStyle,
+      handleMaterial: knife.handleMaterial,
+      specs: knife.specs,
+      customFields: knife.customFields,
+      pinned: knife.pinned,
+      sold: knife.sold,
+    }))
+    const url = URL.createObjectURL(
+      new Blob(
+        [
+          JSON.stringify(
+            {
+              format: 'bladevault-collection-summary',
+              exportedAt: new Date().toISOString(),
+              records,
+            },
+            null,
+            2,
+          ),
+        ],
+        { type: 'application/json' },
+      ),
+    )
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `bladevault-collection-${new Date().toISOString().slice(0, 10)}.json`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
 
   const toggleFilterValue = (key: FilterKey, value: string) => {
     const currentValues = selectedFilters[key]
@@ -335,6 +415,7 @@ function CollectionContent() {
       params.delete('q')
       params.delete('smart')
       params.delete('missingSpecs')
+      params.delete('knifeType')
       rangeDefinitions.forEach((field) => {
         params.delete(`${field.key}Min`)
         params.delete(`${field.key}Max`)
@@ -365,6 +446,17 @@ function CollectionContent() {
   )
 
   const extraFilters = [
+    ...(requestedKnifeType === 'fixed' || requestedKnifeType === 'folding'
+      ? [
+          {
+            key: 'knifeType',
+            label:
+              requestedKnifeType === 'fixed'
+                ? 'Fixed blades'
+                : 'Folding knives',
+          },
+        ]
+      : []),
     ...rangeDefinitions.flatMap((field) =>
       (['Min', 'Max'] as const).flatMap((bound) => {
         const key = `${field.key}${bound}`
@@ -535,367 +627,588 @@ function CollectionContent() {
         isSelectionMode && 'pb-28 lg:pb-28',
       )}
       data-collection-content
+      data-modern-collection={themeStyle === 'modern' || undefined}
     >
       <PageHeader
-        title="Your collection."
-        description={`${knives.length} ${knives.length === 1 ? 'knife' : 'knives'}, each with a story. All in one place.`}
+        title={themeStyle === 'modern' ? 'All objects' : 'Your collection.'}
+        description={
+          themeStyle === 'modern'
+            ? `${Math.min(filteredKnives.length, visibleCount)} shown of ${knives.length} · Updated today`
+            : `${knives.length} ${knives.length === 1 ? 'knife' : 'knives'}, each with a story. All in one place.`
+        }
         actions={
-          <SmartCollectionControls
-            params={new URLSearchParams(searchParamsKey)}
-            navigate={(query) => {
-              router.replace(query ? `${pathname}?${query}` : pathname, {
-                scroll: false,
-              })
-              setVisibleCount(PAGE_SIZE)
-            }}
-          />
+          <>
+            {themeStyle === 'modern' && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  render={
+                    <Link
+                      href={
+                        activeComparison
+                          ? `/compare?list=${encodeURIComponent(activeComparison.id)}`
+                          : '/compare'
+                      }
+                    />
+                  }
+                  nativeButton={false}
+                >
+                  <Scale className="size-3.5" />
+                  Compare <span>{activeComparison?.ids.length ?? 0}</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={exportCollection}
+                  disabled={filteredKnives.length === 0}
+                  title="Export displayed collection metadata as JSON"
+                >
+                  Export
+                </Button>
+              </>
+            )}
+            <SmartCollectionControls
+              params={new URLSearchParams(searchParamsKey)}
+              navigate={(query) => {
+                router.replace(query ? `${pathname}?${query}` : pathname, {
+                  scroll: false,
+                })
+                setVisibleCount(PAGE_SIZE)
+              }}
+            />
+          </>
         }
       />
 
-      {knives.length > 0 && (
-        <nav
-          aria-label="Collection grouping"
-          className="mb-5 flex gap-6 border-b border-border"
-        >
-          {(
-            [
-              ['knives', 'All knives', knives.length],
-              ['families', 'Model families', familiesByKey.size],
-              [
-                'pinned',
-                'Pinned',
-                knives.filter((knife) => knife.pinned).length,
-              ],
-            ] as const
-          ).map(([view, label, count]) => (
-            <button
-              key={view}
-              type="button"
-              onClick={() => setCollectionView(view)}
-              disabled={isSelectionMode}
-              aria-current={collectionView === view ? 'page' : undefined}
-              className={cn(
-                'relative flex items-center gap-2 pb-3 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50',
-                collectionView === view &&
-                  'font-semibold text-foreground after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-[var(--bladevault-gold)]',
-              )}
-            >
-              {label}
-              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-foreground">
-                {count}
-              </span>
-            </button>
-          ))}
-        </nav>
-      )}
-
-      {knives.length > 0 && (
-        <div
-          data-collection-filter-panel
-          className="mb-5 rounded-xl border border-[var(--bladevault-line)]/80 bg-[color:var(--bladevault-surface-soft)]/25 p-3"
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <SearchField
-              value={query}
-              onChange={setQuery}
-              placeholder="Search model name…"
-              className="mx-0 max-w-lg basis-full sm:basis-80 lg:basis-96"
-              inputRef={searchInputRef}
-              shortcutHint="/"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="default"
-              onClick={() => setIsFiltersOpen((current) => !current)}
-              aria-expanded={isFiltersOpen}
-              aria-controls="collection-filters"
-            >
-              <SlidersHorizontal className="size-3.5" aria-hidden="true" />
-              Filters
-              {activeFilters.length + extraFilters.length > 0 && (
-                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold tabular-nums">
-                  {activeFilters.length + extraFilters.length}
-                </span>
-              )}
-              <ChevronDown
-                className={cn(
-                  'size-3 transition-transform',
-                  isFiltersOpen && 'rotate-180',
-                )}
-                aria-hidden="true"
-              />
-            </Button>
-            <span className="text-xs tabular-nums text-muted-foreground sm:ml-auto">
-              {isSelectionMode
-                ? `${selectedIds.size} selected · ${filteredKnives.length} matches`
-                : `${filteredKnives.length} ${filteredKnives.length === 1 ? 'knife' : 'knives'}`}
-            </span>
-            <label className="sr-only" htmlFor="collection-sort">
-              Sort collection
-            </label>
+      {themeStyle === 'modern' && knives.length > 0 && (
+        <div data-modern-collection-toolbar>
+          <nav aria-label="Collection type" data-modern-collection-scopes>
+            {(['all', 'folding', 'fixed', 'pinned'] as const).map((scope) => (
+              <button
+                key={scope}
+                type="button"
+                aria-pressed={modernScope === scope}
+                onClick={() => setModernScope(scope)}
+                disabled={isSelectionMode}
+                title={
+                  scope === 'fixed' || scope === 'folding'
+                    ? 'Based on the recorded locking mechanism'
+                    : undefined
+                }
+              >
+                {scope === 'all'
+                  ? 'All'
+                  : scope.charAt(0).toUpperCase() + scope.slice(1)}
+              </button>
+            ))}
+          </nav>
+          <div data-modern-collection-tools>
             <select
-              id="collection-sort"
+              aria-label="Sort collection"
               value={sortOrder}
               onChange={(event) => {
                 setSortOrder(event.target.value as CollectionSort)
                 setVisibleCount(PAGE_SIZE)
               }}
-              className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="newest">Newest added</option>
-              <option value="model">Model A–Z</option>
-              <option value="brand">Brand A–Z</option>
+              <option value="model">Name</option>
+              <option value="brand">Maker</option>
             </select>
             <div
-              className="flex h-8 items-center rounded-lg border border-border bg-background p-0.5"
+              data-collection-view-toggle
               role="group"
-              aria-label="Card density"
+              aria-label="Collection view"
             >
               <Button
-                type="button"
-                variant={density === 'gallery' ? 'secondary' : 'ghost'}
                 size="icon-xs"
-                onClick={() => setDensity('gallery')}
-                aria-pressed={density === 'gallery'}
-                aria-label="Gallery view"
+                variant={modernView === 'list' ? 'secondary' : 'ghost'}
+                aria-label="List view"
+                aria-pressed={modernView === 'list'}
+                onClick={() => setModernView('list')}
               >
-                <LayoutGrid className="size-3.5" />
+                <List className="size-3.5" />
               </Button>
               <Button
-                type="button"
-                variant={density === 'compact' ? 'secondary' : 'ghost'}
                 size="icon-xs"
-                onClick={() => setDensity('compact')}
-                aria-pressed={density === 'compact'}
-                aria-label="Compact view"
+                variant={modernView === 'grid' ? 'secondary' : 'ghost'}
+                aria-label="Gallery view"
+                aria-pressed={modernView === 'grid'}
+                onClick={() => setModernView('grid')}
               >
-                <Grid3X3 className="size-3.5" />
+                <LayoutGrid className="size-3.5" />
               </Button>
             </div>
             <Button
               variant="outline"
-              size="default"
+              size="sm"
               onClick={() => {
-                if (isSelectionMode) {
-                  exitSelectionMode()
-                } else {
-                  setActiveKnifeId(null)
-                  setIsSelectionMode(true)
-                }
+                replaceParams((params) => {
+                  for (const key of [...params.keys()]) params.delete(key)
+                })
+                setVisibleCount(PAGE_SIZE)
               }}
             >
-              {isSelectionMode ? (
-                <X className="size-3.5" />
-              ) : (
-                <CheckSquare2 className="size-3.5" />
-              )}
-              {isSelectionMode ? 'Cancel selection' : 'Select'}
+              <SlidersHorizontal className="size-3" />
+              Clear
             </Button>
-          </div>
-
-          <div
-            id="collection-filters"
-            className={cn(
-              'mt-3 gap-2 sm:grid-cols-2 lg:gap-2.5 xl:grid-cols-4',
-              isFiltersOpen ? 'grid' : 'hidden',
-            )}
-          >
-            {filterDefinitions.map((definition) => (
-              <FilterMultiSelect
-                key={definition.key}
-                label={definition.label}
-                options={optionsByFilter[definition.key]}
-                selectedValues={selectedFilters[definition.key]}
-                onToggleValue={(value) =>
-                  toggleFilterValue(definition.key, value)
-                }
-                onSelectAll={() =>
-                  setFilterValues(
-                    definition.key,
-                    optionsByFilter[definition.key],
-                  )
-                }
-                onClear={() => setFilterValues(definition.key, [])}
-                getOptionLabel={getFilterOptionLabel}
-              />
-            ))}
-            <CollectionRanges
-              params={new URLSearchParams(searchParamsKey)}
-              update={updateExtraFilter}
-            />
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Filters and collection tools"
+              aria-expanded={isFiltersOpen}
+              onClick={() => setIsFiltersOpen((current) => !current)}
+            >
+              <MoreHorizontal className="size-4" />
+            </Button>
           </div>
         </div>
       )}
-
-      <div className="mb-6 flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          {activeFilters.map((filter) => (
-            <Badge
-              key={`${filter.key}-${filter.rawValue}`}
-              variant="secondary"
-              className="gap-1 pr-1 text-xs"
-            >
-              <span className="text-muted-foreground">{filter.label}:</span>
-              {filter.value}
+      <div data-collection-main className="contents">
+        {themeStyle !== 'modern' && knives.length > 0 && (
+          <nav
+            aria-label="Collection grouping"
+            className="mb-5 flex gap-6 border-b border-border"
+          >
+            {(
+              [
+                ['knives', 'All knives', knives.length],
+                ['families', 'Model families', familiesByKey.size],
+                [
+                  'pinned',
+                  'Pinned',
+                  knives.filter((knife) => knife.pinned).length,
+                ],
+              ] as const
+            ).map(([view, label, count]) => (
               <button
-                onClick={() =>
-                  setFilterValues(
-                    filter.key,
-                    selectedFilters[filter.key].filter(
-                      (value) => value !== filter.rawValue,
-                    ),
-                  )
+                key={view}
+                type="button"
+                onClick={() => setCollectionView(view)}
+                disabled={isSelectionMode}
+                aria-current={collectionView === view ? 'page' : undefined}
+                className={cn(
+                  'relative flex items-center gap-2 pb-3 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50',
+                  collectionView === view &&
+                    'font-semibold text-foreground after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-[var(--bladevault-gold)]',
+                )}
+              >
+                {label}
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-foreground">
+                  {count}
+                </span>
+              </button>
+            ))}
+          </nav>
+        )}
+
+        {knives.length > 0 && (
+          <div
+            data-collection-filter-panel
+            className={cn(
+              'mb-5 rounded-xl border border-[var(--bladevault-line)]/80 bg-[color:var(--bladevault-surface-soft)]/25 p-3',
+              themeStyle === 'modern' && !isFiltersOpen && 'hidden',
+            )}
+          >
+            <div
+              data-collection-toolbar
+              className="flex flex-wrap items-center gap-2"
+            >
+              {themeStyle === 'modern' && (
+                <select
+                  aria-label="Collection grouping"
+                  value={collectionView}
+                  onChange={(event) =>
+                    setCollectionView(event.target.value as CollectionView)
+                  }
+                >
+                  <option value="knives">All knives</option>
+                  <option value="families">Model families</option>
+                  <option value="pinned">Pinned</option>
+                </select>
+              )}
+              <SearchField
+                value={query}
+                onChange={setQuery}
+                placeholder={
+                  themeStyle === 'modern'
+                    ? 'Search collection…'
+                    : 'Search model name…'
                 }
-                className="ml-1 rounded-sm p-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-                aria-label={`Clear ${filter.label} filter value ${filter.value}`}
+                className={cn(
+                  'mx-0 max-w-lg basis-full sm:basis-80 lg:basis-96',
+                  themeStyle === 'modern' && 'modern-collection-search',
+                )}
+                inputRef={searchInputRef}
+                shortcutHint="/"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="default"
+                onClick={() => setIsFiltersOpen((current) => !current)}
+                aria-expanded={isFiltersOpen}
+                aria-controls="collection-filters"
               >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
-          {extraFilters.map((filter) => (
-            <Badge
-              key={filter.key}
-              variant="secondary"
-              className="gap-1 pr-1 text-xs"
-            >
-              {filter.label}
-              <button
-                aria-label={`Clear ${filter.label}`}
-                onClick={() => updateExtraFilter(filter.key, '')}
-                className="ml-1 rounded-sm p-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                <SlidersHorizontal className="size-3.5" aria-hidden="true" />
+                Filters
+                {activeFilters.length + extraFilters.length > 0 && (
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold tabular-nums">
+                    {activeFilters.length + extraFilters.length}
+                  </span>
+                )}
+                <ChevronDown
+                  className={cn(
+                    'size-3 transition-transform',
+                    isFiltersOpen && 'rotate-180',
+                  )}
+                  aria-hidden="true"
+                />
+              </Button>
+              <span className="text-xs tabular-nums text-muted-foreground sm:ml-auto">
+                {isSelectionMode
+                  ? `${selectedIds.size} selected · ${filteredKnives.length} matches`
+                  : `${filteredKnives.length} ${filteredKnives.length === 1 ? 'knife' : 'knives'}`}
+              </span>
+              <label className="sr-only" htmlFor="collection-sort">
+                Sort collection
+              </label>
+              <select
+                id="collection-sort"
+                hidden={themeStyle === 'modern'}
+                value={sortOrder}
+                onChange={(event) => {
+                  setSortOrder(event.target.value as CollectionSort)
+                  setVisibleCount(PAGE_SIZE)
+                }}
+                className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <X className="size-3" aria-hidden="true" />
-              </button>
-            </Badge>
-          ))}
-          {query.trim() && (
-            <Badge variant="secondary" className="gap-1 pr-1 text-xs">
-              <span className="text-muted-foreground">search:</span>
-              {query.trim()}
-              <button
-                onClick={() => setQuery('')}
-                className="ml-1 rounded-sm p-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-                aria-label="Clear search"
+                <option value="newest">Newest added</option>
+                <option value="model">Model A–Z</option>
+                <option value="brand">Brand A–Z</option>
+              </select>
+              {themeStyle === 'modern' ? (
+                <div
+                  hidden
+                  data-collection-view-toggle
+                  className="flex h-8 items-center rounded-lg border border-border bg-background p-0.5"
+                  role="group"
+                  aria-label="Collection view"
+                >
+                  <Button
+                    type="button"
+                    variant={modernView === 'list' ? 'secondary' : 'ghost'}
+                    size="icon-xs"
+                    onClick={() => setModernView('list')}
+                    aria-pressed={modernView === 'list'}
+                    aria-label="List view"
+                  >
+                    <List className="size-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={modernView === 'grid' ? 'secondary' : 'ghost'}
+                    size="icon-xs"
+                    onClick={() => setModernView('grid')}
+                    aria-pressed={modernView === 'grid'}
+                    aria-label="Gallery view"
+                  >
+                    <LayoutGrid className="size-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <div
+                  className="flex h-8 items-center rounded-lg border border-border bg-background p-0.5"
+                  role="group"
+                  aria-label="Card density"
+                >
+                  <Button
+                    type="button"
+                    variant={density === 'gallery' ? 'secondary' : 'ghost'}
+                    size="icon-xs"
+                    onClick={() => setDensity('gallery')}
+                    aria-pressed={density === 'gallery'}
+                    aria-label="Gallery view"
+                  >
+                    <LayoutGrid className="size-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={density === 'compact' ? 'secondary' : 'ghost'}
+                    size="icon-xs"
+                    onClick={() => setDensity('compact')}
+                    aria-pressed={density === 'compact'}
+                    aria-label="Compact view"
+                  >
+                    <Grid3X3 className="size-3.5" />
+                  </Button>
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="default"
+                onClick={() => {
+                  if (isSelectionMode) {
+                    exitSelectionMode()
+                  } else {
+                    setActiveKnifeId(null)
+                    setIsSelectionMode(true)
+                  }
+                }}
               >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          )}
-          {hasActiveFilters && (
-            <Button variant="ghost" size="xs" onClick={clearAllFilters}>
-              Clear all
-            </Button>
-          )}
-          {hasActiveFilters && (
-            <span className="ml-auto text-xs text-muted-foreground hidden sm:inline">
-              Press{' '}
-              <kbd className="rounded border bg-muted px-1 py-0.5 font-mono text-[10px]">
-                Esc
-              </kbd>{' '}
-              to clear
-            </span>
-          )}
-        </div>
-      </div>
+                {isSelectionMode ? (
+                  <X className="size-3.5" />
+                ) : (
+                  <CheckSquare2 className="size-3.5" />
+                )}
+                {isSelectionMode ? 'Cancel selection' : 'Select'}
+              </Button>
+            </div>
 
-      {filteredKnives.length === 0 ? (
-        <EmptyState
-          title={
-            hasActiveFilters ? 'No matches found' : 'Your library is empty'
-          }
-          description={
-            hasActiveFilters
-              ? 'Try clearing the search or filters to see more results.'
-              : 'Add a knife to start building your collection.'
-          }
-          action={
-            hasActiveFilters ? (
-              <Button variant="outline" size="sm" onClick={clearAllFilters}>
+            <div
+              id="collection-filters"
+              className={cn(
+                'mt-3 gap-2 sm:grid-cols-2 lg:gap-2.5 xl:grid-cols-4',
+                isFiltersOpen ? 'grid' : 'hidden',
+              )}
+            >
+              {filterDefinitions.map((definition) => (
+                <FilterMultiSelect
+                  key={definition.key}
+                  label={definition.label}
+                  options={optionsByFilter[definition.key]}
+                  selectedValues={selectedFilters[definition.key]}
+                  onToggleValue={(value) =>
+                    toggleFilterValue(definition.key, value)
+                  }
+                  onSelectAll={() =>
+                    setFilterValues(
+                      definition.key,
+                      optionsByFilter[definition.key],
+                    )
+                  }
+                  onClear={() => setFilterValues(definition.key, [])}
+                  getOptionLabel={getFilterOptionLabel}
+                />
+              ))}
+              <CollectionRanges
+                params={new URLSearchParams(searchParamsKey)}
+                update={updateExtraFilter}
+              />
+            </div>
+          </div>
+        )}
+
+        <div
+          className={cn(
+            'mb-6 flex flex-col gap-4',
+            themeStyle === 'modern' && (hasActiveFilters ? 'mb-3' : 'hidden'),
+          )}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            {activeFilters.map((filter) => (
+              <Badge
+                key={`${filter.key}-${filter.rawValue}`}
+                variant="secondary"
+                className="gap-1 pr-1 text-xs"
+              >
+                <span className="text-muted-foreground">{filter.label}:</span>
+                {filter.value}
+                <button
+                  onClick={() =>
+                    setFilterValues(
+                      filter.key,
+                      selectedFilters[filter.key].filter(
+                        (value) => value !== filter.rawValue,
+                      ),
+                    )
+                  }
+                  className="ml-1 rounded-sm p-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                  aria-label={`Clear ${filter.label} filter value ${filter.value}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+            {extraFilters.map((filter) => (
+              <Badge
+                key={filter.key}
+                variant="secondary"
+                className="gap-1 pr-1 text-xs"
+              >
+                {filter.label}
+                <button
+                  aria-label={`Clear ${filter.label}`}
+                  onClick={() => updateExtraFilter(filter.key, '')}
+                  className="ml-1 rounded-sm p-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                >
+                  <X className="size-3" aria-hidden="true" />
+                </button>
+              </Badge>
+            ))}
+            {query.trim() && (
+              <Badge variant="secondary" className="gap-1 pr-1 text-xs">
+                <span className="text-muted-foreground">search:</span>
+                {query.trim()}
+                <button
+                  onClick={() => setQuery('')}
+                  className="ml-1 rounded-sm p-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                  aria-label="Clear search"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+            {hasActiveFilters && (
+              <Button variant="ghost" size="xs" onClick={clearAllFilters}>
                 Clear all
               </Button>
-            ) : (
-              <Button
-                size="sm"
-                render={<Link href="/add">Add your first knife</Link>}
-                nativeButton={false}
-              />
-            )
-          }
-        />
-      ) : (
-        <div className="space-y-6">
-          <div
-            className={cn(
-              'grid [overflow-anchor:none]',
-              density === 'gallery'
-                ? 'grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4'
-                : 'grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5',
-              density === 'gallery' &&
-                'xl:grid-cols-[repeat(auto-fit,minmax(19rem,min(100%,22rem)))]',
-              density === 'compact' &&
-                'xl:grid-cols-[repeat(auto-fit,minmax(15rem,min(100%,18rem)))]',
             )}
-            data-collection-grid
-            data-density={density}
-          >
-            {isFamilyView
-              ? filteredFamilies.slice(0, visibleCount).map((family, index) => {
-                  const allVariants =
-                    familiesByKey.get(family.key) ?? family.knives
-                  return (
-                    <KnifeFamilyCard
-                      key={family.key}
-                      family={family}
-                      allVariants={allVariants}
-                      eager={index === 0}
-                      activeKnifeId={activeKnifeId ?? undefined}
-                      density={density}
-                      onOpen={(knife) => setActiveKnifeId(knife.id)}
-                    />
-                  )
-                })
-              : filteredKnives
-                  .slice(0, visibleCount)
-                  .map((knife, index) => (
-                    <KnifeCard
-                      key={knife.id}
-                      knife={knife}
-                      eager={index === 0}
-                      selectionMode={isSelectionMode}
-                      selected={selectedIds.has(knife.id)}
-                      active={knife.id === activeKnifeId}
-                      density={density}
-                      imageSizes={
-                        density === 'compact'
-                          ? '(min-width: 1280px) 18rem, (max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
-                          : '(min-width: 1280px) 22rem, (max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
-                      }
-                      onSelect={toggleKnifeSelection}
-                      onOpen={(knife) => setActiveKnifeId(knife.id)}
-                    />
-                  ))}
+            {hasActiveFilters && (
+              <span className="ml-auto text-xs text-muted-foreground hidden sm:inline">
+                Press{' '}
+                <kbd className="rounded border bg-muted px-1 py-0.5 font-mono text-[10px]">
+                  Esc
+                </kbd>{' '}
+                to clear
+              </span>
+            )}
           </div>
-          {visibleCount < resultCount && (
-            <div
-              ref={loadMoreRef}
-              className="h-px"
-              data-infinite-scroll-sentinel
-              aria-hidden="true"
-            />
-          )}
         </div>
-      )}
 
+        {filteredKnives.length === 0 ? (
+          <EmptyState
+            title={
+              hasActiveFilters
+                ? 'No matches found'
+                : isPinnedView
+                  ? 'No pinned knives yet'
+                  : 'Your library is empty'
+            }
+            description={
+              hasActiveFilters
+                ? 'Try clearing the search or filters to see more results.'
+                : isPinnedView
+                  ? 'Pin knives in your collection to keep them here.'
+                  : 'Add a knife to start building your collection.'
+            }
+            action={
+              hasActiveFilters ? (
+                <Button variant="outline" size="sm" onClick={clearAllFilters}>
+                  Clear all
+                </Button>
+              ) : isPinnedView ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCollectionView('knives')}
+                >
+                  View all knives
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  render={<Link href="/add">Add your first knife</Link>}
+                  nativeButton={false}
+                />
+              )
+            }
+          />
+        ) : (
+          <div className="space-y-6">
+            {themeStyle === 'modern' &&
+            modernView === 'list' &&
+            !isFamilyView &&
+            !isSelectionMode ? (
+              <ModernCollectionTable
+                knives={filteredKnives.slice(0, visibleCount)}
+                activeKnifeId={activeKnife?.id}
+                onOpen={inspectKnife}
+                onOpenDetail={(knife) => router.push(`/collection/${knife.id}`)}
+              />
+            ) : themeStyle === 'modern' && !isFamilyView && !isSelectionMode ? (
+              <ModernCollectionGallery
+                knives={filteredKnives.slice(0, visibleCount)}
+                activeKnifeId={activeKnife?.id}
+                onOpen={inspectKnife}
+              />
+            ) : (
+              <div
+                className={cn(
+                  'grid [overflow-anchor:none]',
+                  density === 'gallery'
+                    ? 'grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4'
+                    : 'grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5',
+                  density === 'gallery' &&
+                    'xl:grid-cols-[repeat(auto-fit,minmax(19rem,min(100%,22rem)))]',
+                  density === 'compact' &&
+                    'xl:grid-cols-[repeat(auto-fit,minmax(15rem,min(100%,18rem)))]',
+                )}
+                data-collection-grid
+                data-density={density}
+              >
+                {isFamilyView
+                  ? filteredFamilies
+                      .slice(0, visibleCount)
+                      .map((family, index) => {
+                        const allVariants =
+                          familiesByKey.get(family.key) ?? family.knives
+                        return (
+                          <KnifeFamilyCard
+                            key={family.key}
+                            family={family}
+                            allVariants={allVariants}
+                            eager={index === 0}
+                            activeKnifeId={activeKnifeId ?? undefined}
+                            density={density}
+                            onOpen={inspectKnife}
+                          />
+                        )
+                      })
+                  : filteredKnives
+                      .slice(0, visibleCount)
+                      .map((knife, index) => (
+                        <KnifeCard
+                          key={knife.id}
+                          knife={knife}
+                          eager={index === 0}
+                          selectionMode={isSelectionMode}
+                          selected={selectedIds.has(knife.id)}
+                          active={knife.id === activeKnifeId}
+                          density={density}
+                          imageSizes={
+                            density === 'compact'
+                              ? '(min-width: 1280px) 18rem, (max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
+                              : '(min-width: 1280px) 22rem, (max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
+                          }
+                          onSelect={toggleKnifeSelection}
+                          onOpen={inspectKnife}
+                        />
+                      ))}
+              </div>
+            )}
+            {visibleCount < resultCount && (
+              <div
+                ref={loadMoreRef}
+                className="h-px"
+                data-infinite-scroll-sentinel
+                aria-hidden="true"
+              />
+            )}
+          </div>
+        )}
+      </div>
       {activeKnife && !isSelectionMode && (
         <CollectionKnifeInspector
           key={activeKnife.id}
           knife={activeKnife}
           siblings={activeKnifeSiblings}
-          onSelect={(knife) => setActiveKnifeId(knife.id)}
+          autoSelected={activeKnifeId === null}
+          onSelect={inspectKnife}
           onClose={() => {
             setActiveKnifeId(null)
+            setInspectorDismissed(true)
             searchInputRef.current?.focus({ preventScroll: true })
           }}
         />
