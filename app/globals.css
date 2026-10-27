@@ -647,10 +647,15 @@ html[data-theme-style='modern'] [data-sidebar-nav] span.rounded-full {
   font-size: var(--modern-font-caption);
 }
 
+[data-sidebar-count] {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 html[data-theme-style='modern']
   [data-sidebar]
   a[aria-current='page']
-  [data-sidebar-collection-count] {
+  [data-sidebar-count] {
   background: #dcecff;
   color: #004b9a;
   font-size: var(--modern-font-caption);
@@ -660,7 +665,7 @@ html[data-theme-style='modern']
 html[data-theme-style='modern'].dark
   [data-sidebar]
   a[aria-current='page']
-  [data-sidebar-collection-count] {
+  [data-sidebar-count] {
   background: #24476b;
   color: #e7f2ff;
 }

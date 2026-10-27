@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to rebuild for macOS
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -13,15 +19,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-latest
-          - windows-latest
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["macos-latest"]' || '["macos-latest","windows-latest"]') }}
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -31,6 +37,20 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Validate recovery release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          expected_tag="v$(node -p "require('./package.json').version")"
+          if [ "$RELEASE_TAG" != "$expected_tag" ]; then
+            echo "::error::Release tag must match the checked-out package version ($expected_tag)."
+            exit 1
+          fi
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName
 
       - name: Detect macOS signing credentials
         if: runner.os == 'macOS'
@@ -79,6 +99,8 @@ jobs:
       - name: Build desktop app
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS runners can start after the release has been published for two hours.
+          EP_GH_IGNORE_TIME: 'true'
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -91,3 +113,22 @@ jobs:
       - name: Verify macOS desktop app
         if: runner.os == 'macOS'
         run: npm run verify:desktop:mac
+
+      - name: Verify published macOS assets
+        if: runner.os == 'macOS'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets > "$RUNNER_TEMP/macos-release-assets.json"
+          node - "$RUNNER_TEMP/macos-release-assets.json" <<'NODE'
+          const fs = require('node:fs')
+          const { assets } = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'))
+          const expected = ['BladeVault.dmg', 'BladeVault.dmg.blockmap', 'BladeVault.zip', 'BladeVault.zip.blockmap', 'latest-mac.yml']
+          const missing = expected.filter(name => !assets.some(asset => asset.name === name && asset.size > 0))
+          if (missing.length) {
+            throw new Error(`Missing macOS release assets: ${missing.join(', ')}`)
+          }
+          console.log('All macOS release assets are published.')
+          NODE

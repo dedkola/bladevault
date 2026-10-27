@@ -26,7 +26,7 @@ test('uses the table-first collection view in the modern theme', async ({
 
   await page.goto('/collection')
 
-  await expect(page.getByRole('heading', { name: 'All objects' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'All knives' })).toBeVisible()
   await expect(page.locator('[data-modern-collection-table]')).toBeVisible()
   await expect(
     page
@@ -60,7 +60,7 @@ test('uses the table-first collection view in the modern theme', async ({
   await expect(page.locator('[data-modern-collection-table]')).toBeVisible()
 
   await page.locator('[data-modern-collection-table] tbody tr').first().click()
-  await expect(page.getByRole('link', { name: 'Open object' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Open knife' })).toBeVisible()
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(page.locator('[data-modern-inspector]')).toHaveCSS(
     'position',

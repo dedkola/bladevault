@@ -118,6 +118,7 @@ export function ComparisonNavigation({
             >
               <span className="min-w-0 flex-1 truncate">{l.name}</span>
               <span
+                data-sidebar-count
                 className={cn(
                   'inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none',
                   selected && active?.id === l.id
