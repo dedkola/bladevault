@@ -42,7 +42,113 @@ export type CustomField = {
   type: CustomFieldType
 }
 
+export const COLLECTION_COLUMNS = [
+  'maker',
+  'steel',
+  'blade',
+  'weight',
+  'status',
+  'name',
+  'modelNumber',
+  'designer',
+  'country',
+  'price',
+  'bladeStyle',
+  'bladeCoating',
+  'hardness',
+  'lockingMechanism',
+  'handleMaterial',
+  'handleLength',
+  'overallLength',
+  'bladeThickness',
+  'description',
+  'sourceUrl',
+  'pinned',
+  'sold',
+  'addedAt',
+  'updatedAt',
+  'images',
+] as const
+export type CollectionColumn =
+  (typeof COLLECTION_COLUMNS)[number] | `custom:${string}`
+export type CollectionDisplay = {
+  columns: CollectionColumn[]
+  columnWidths: Record<string, number>
+  view: 'list' | 'grid'
+  sort: 'newest' | 'model' | 'brand'
+  density: 'gallery' | 'compact'
+}
+export const DEFAULT_COLLECTION_DISPLAY: CollectionDisplay = {
+  columns: ['maker', 'steel', 'blade', 'weight', 'status'],
+  columnWidths: {},
+  view: 'list',
+  sort: 'newest',
+  density: 'gallery',
+}
+
+export function normalizeCollectionDisplay(
+  value: unknown,
+  fallback: CollectionDisplay = DEFAULT_COLLECTION_DISPLAY,
+): CollectionDisplay {
+  const input =
+    value && typeof value === 'object'
+      ? (value as Partial<CollectionDisplay>)
+      : {}
+  return {
+    columns: Array.isArray(input.columns)
+      ? [
+          ...new Set(
+            input.columns.filter(
+              (column): column is CollectionColumn =>
+                typeof column === 'string' &&
+                ((COLLECTION_COLUMNS as readonly string[]).includes(column) ||
+                  (column.startsWith('custom:') &&
+                    column.length > 'custom:'.length)),
+            ),
+          ),
+        ]
+      : [...fallback.columns],
+    columnWidths:
+      input.columnWidths &&
+      typeof input.columnWidths === 'object' &&
+      !Array.isArray(input.columnWidths)
+        ? Object.fromEntries(
+            Object.entries(input.columnWidths)
+              .filter(
+                ([key, width]) =>
+                  (key === 'knife' ||
+                    (COLLECTION_COLUMNS as readonly string[]).includes(key) ||
+                    (key.startsWith('custom:') && key.length > 7)) &&
+                  typeof width === 'number' &&
+                  Number.isFinite(width),
+              )
+              .map(([key, width]) => [
+                key,
+                Math.round(
+                  Math.min(800, Math.max(key === 'knife' ? 140 : 48, width)),
+                ),
+              ]),
+          )
+        : { ...fallback.columnWidths },
+    view:
+      input.view === 'list' || input.view === 'grid'
+        ? input.view
+        : fallback.view,
+    sort:
+      input.sort === 'newest' ||
+      input.sort === 'model' ||
+      input.sort === 'brand'
+        ? input.sort
+        : fallback.sort,
+    density:
+      input.density === 'gallery' || input.density === 'compact'
+        ? input.density
+        : fallback.density,
+  }
+}
+
 export type AppSettings = {
+  collectionDisplay: CollectionDisplay
   theme: AppTheme
   themeStyle: ThemeStyle
   timeFormat: TimeFormat
@@ -56,6 +162,7 @@ export type AppSettings = {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  collectionDisplay: DEFAULT_COLLECTION_DISPLAY,
   theme: 'light',
   themeStyle: 'classic',
   timeFormat: '12h',

@@ -2,6 +2,7 @@ import { withVaultWriteSync } from '@/lib/vault-access'
 import { getLocalDb } from './local-db'
 import {
   APP_THEMES,
+  normalizeCollectionDisplay,
   DEFAULT_CARD_FIELDS,
   CUSTOM_FIELD_TYPES,
   DEFAULT_SETTINGS,
@@ -27,6 +28,7 @@ export type {
 } from './settings-shared'
 
 const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
+  collectionDisplay: 'collection_display',
   theme: 'theme',
   themeStyle: 'theme_style',
   timeFormat: 'time_format',
@@ -46,6 +48,14 @@ function parseCardFields(value: string | undefined): CardField[] {
     return normalizeCardFields(JSON.parse(value))
   } catch {
     return [...DEFAULT_CARD_FIELDS]
+  }
+}
+
+function parseCollectionDisplay(value: string | undefined) {
+  try {
+    return normalizeCollectionDisplay(value ? JSON.parse(value) : undefined)
+  } catch {
+    return normalizeCollectionDisplay(undefined)
   }
 }
 
@@ -115,6 +125,9 @@ export function getSettings(): AppSettings {
   const map = new Map(rows.map((row) => [row.key, row.value]))
 
   return {
+    collectionDisplay: parseCollectionDisplay(
+      map.get(SETTINGS_KEYS.collectionDisplay),
+    ),
     theme: parseTheme(map.get(SETTINGS_KEYS.theme)),
     themeStyle: parseThemeStyle(map.get(SETTINGS_KEYS.themeStyle)),
     timeFormat: normalizeTimeFormat(map.get(SETTINGS_KEYS.timeFormat)),
@@ -148,6 +161,10 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
     const next = {
       ...current,
       ...settings,
+      collectionDisplay: normalizeCollectionDisplay(
+        settings.collectionDisplay,
+        current.collectionDisplay,
+      ),
       cardFields:
         settings.cardFields === undefined
           ? current.cardFields
@@ -161,6 +178,7 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
     )
 
     const entries: Array<[keyof AppSettings, string]> = [
+      ['collectionDisplay', JSON.stringify(next.collectionDisplay)],
       ['theme', next.theme],
       ['themeStyle', next.themeStyle],
       ['timeFormat', next.timeFormat],

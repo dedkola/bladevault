@@ -1,3 +1,4 @@
+import { DEFAULT_COLLECTION_DISPLAY } from '@/lib/settings-shared'
 import type { APIRequestContext } from '@playwright/test'
 
 export async function resetVault(request: APIRequestContext) {
@@ -17,6 +18,7 @@ export async function resetVault(request: APIRequestContext) {
   }
   await request.post('/api/settings', {
     data: {
+      collectionDisplay: DEFAULT_COLLECTION_DISPLAY,
       theme: 'light',
       themeStyle: 'classic',
       timeFormat: '12h',

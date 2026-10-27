@@ -1,8 +1,11 @@
 'use client'
 
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import Image from '@/components/vault-image'
-import { ChevronRight, ImageIcon } from 'lucide-react'
+import { ImageIcon } from 'lucide-react'
 import { getImageUrl, type Knife } from '@/lib/data'
+import { Checkbox } from '@/components/ui/checkbox'
+import type { CollectionColumnDefinition } from '@/lib/collection-columns'
 import { cn } from '@/lib/utils'
 import { compactMeasurement as preferredMetric } from '@/lib/compact-measurement'
 
@@ -20,52 +23,297 @@ function statusForKnife(knife: Knife) {
   return { label: 'Complete', tone: 'complete' as const }
 }
 
+// Collection summaries omit descriptions; load them only when this column is visible.
+function KnifeDescription({ knife }: { knife: Knife }) {
+  const [result, setResult] = useState<{ value?: string; error?: string }>({})
+  useEffect(() => {
+    const controller = new AbortController()
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/knives/${encodeURIComponent(knife.id)}`,
+          { signal: controller.signal, cache: 'no-store' },
+        )
+        const data = await response.json()
+        if (!response.ok)
+          throw new Error(data.error || 'Could not load description')
+        if (!controller.signal.aborted)
+          setResult({ value: data.knife.description || '—' })
+      } catch (error) {
+        if (!controller.signal.aborted)
+          setResult({
+            error:
+              error instanceof Error
+                ? error.message
+                : 'Could not load description',
+          })
+      }
+    })()
+    return () => controller.abort()
+  }, [knife.id])
+  return (
+    <span title={result.error ?? result.value}>
+      {result.error ?? result.value ?? 'Loading…'}
+    </span>
+  )
+}
+
+function ColumnResizeGrip({
+  label,
+  minWidth,
+  width,
+  onPreview,
+  onCommit,
+  onCancel,
+}: {
+  label: string
+  minWidth: number
+  width?: number
+  onPreview: (width: number) => void
+  onCommit: (width: number | undefined) => void
+  onCancel: () => void
+}) {
+  const drag = useRef<{
+    startX: number
+    startWidth: number
+    width: number
+  } | null>(null)
+  const clamp = (value: number) =>
+    Math.round(Math.min(800, Math.max(minWidth, value)))
+  return (
+    <span
+      role="separator"
+      aria-label={`Resize ${label} column`}
+      aria-orientation="vertical"
+      aria-valuemin={minWidth}
+      aria-valuemax={800}
+      aria-valuenow={width}
+      tabIndex={0}
+      data-column-resize-grip
+      title="Drag to resize · arrow keys adjust width · double-click to reset"
+      onDragStart={(event) => event.preventDefault()}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return
+        event.preventDefault()
+        event.stopPropagation()
+        const startWidth =
+          event.currentTarget.parentElement!.getBoundingClientRect().width
+        drag.current = { startX: event.clientX, startWidth, width: startWidth }
+        event.currentTarget.setPointerCapture(event.pointerId)
+      }}
+      onPointerMove={(event) => {
+        if (!drag.current) return
+        const next = clamp(
+          drag.current.startWidth + event.clientX - drag.current.startX,
+        )
+        drag.current.width = next
+        onPreview(next)
+      }}
+      onPointerUp={(event) => {
+        if (!drag.current) return
+        const next = clamp(drag.current.width)
+        drag.current = null
+        onCommit(next)
+        event.currentTarget.releasePointerCapture(event.pointerId)
+      }}
+      onPointerCancel={() => {
+        drag.current = null
+        onCancel()
+      }}
+      onLostPointerCapture={() => {
+        if (drag.current) {
+          drag.current = null
+          onCancel()
+        }
+      }}
+      onDoubleClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        onCommit(undefined)
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+        event.preventDefault()
+        event.stopPropagation()
+        const current =
+          event.currentTarget.parentElement!.getBoundingClientRect().width
+        onCommit(clamp(current + (event.key === 'ArrowRight' ? 10 : -10)))
+      }}
+    />
+  )
+}
+
 export function ModernCollectionTable({
   knives,
   activeKnifeId,
   onOpen,
   onOpenDetail,
+  columns,
+  selectedIds,
+  onSelect,
+  onSelectAll,
+  allSelected,
+  someSelected,
+  selectionDisabled,
+  onReorderColumn,
+  columnWidths,
+  onResizeColumn,
 }: {
+  columnWidths: Record<string, number>
+  onResizeColumn: (key: string, width: number | undefined) => void
+  onReorderColumn: (sourceId: string, targetId: string) => void
+  columns: CollectionColumnDefinition[]
+  selectedIds: Set<string>
+  onSelect: (id: string) => void
+  onSelectAll: () => void
+  allSelected: boolean
+  someSelected: boolean
+  selectionDisabled?: boolean
   knives: Knife[]
   activeKnifeId?: string | null
   onOpen: (knife: Knife) => void
   onOpenDetail: (knife: Knife) => void
 }) {
+  const [previewWidths, setPreviewWidths] = useState<Record<string, number>>({})
+  const widths = { ...columnWidths, ...previewWidths }
+  const resizeGrip = (key: string, label: string) => {
+    const clearPreview = () =>
+      setPreviewWidths((current) => {
+        const next = { ...current }
+        delete next[key]
+        return next
+      })
+    return (
+      <ColumnResizeGrip
+        label={label}
+        minWidth={key === 'knife' ? 140 : 48}
+        width={widths[key]}
+        onPreview={(width) =>
+          setPreviewWidths((current) => ({ ...current, [key]: width }))
+        }
+        onCommit={(width) => {
+          onResizeColumn(key, width)
+          clearPreview()
+        }}
+        onCancel={clearPreview}
+      />
+    )
+  }
+  const draggedId = useRef<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const [announcement, setAnnouncement] = useState('')
+  const moveColumn = (sourceId: string, targetId: string) => {
+    onReorderColumn(sourceId, targetId)
+    const column = columns.find((item) => item.key === sourceId)
+    setAnnouncement(
+      `${column?.label ?? 'Column'} moved to position ${columns.findIndex((item) => item.key === targetId) + 1}.`,
+    )
+  }
   return (
-    <div data-modern-collection-table>
-      <div className="mb-2 flex items-center justify-between gap-3 text-[length:var(--modern-font-body)] text-muted-foreground">
-        <span>
-          <b className="font-medium text-foreground">{knives.length}</b>{' '}
-          {knives.length === 1 ? 'knife' : 'knives'}
-        </span>
-        <span className="hidden sm:inline">
-          Select a row to inspect · double-click to open
-        </span>
-      </div>
-
+    <div
+      data-modern-collection-table
+      style={
+        {
+          '--collection-columns': [
+            '28px',
+            widths.knife ? `${widths.knife}px` : 'minmax(140px, 1.5fr)',
+            ...columns.map((column) =>
+              widths[column.key] ? `${widths[column.key]}px` : column.width,
+            ),
+          ].join(' '),
+        } as CSSProperties
+      }
+    >
+      <span className="sr-only" role="status">
+        {announcement}
+      </span>
       <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-[0_1px_2px_rgb(0_0_0/4%)]">
         <table className="w-full table-fixed border-collapse text-left">
           <thead>
             <tr className="border-b border-border bg-[var(--bladevault-surface-soft)] text-[length:var(--modern-font-secondary)] text-muted-foreground">
-              <th scope="col" className="w-[38%] px-3 py-2 font-medium">
+              <th scope="col" className="w-10 px-3 py-2">
+                <Checkbox
+                  aria-label="Select all matching knives"
+                  checked={allSelected}
+                  indeterminate={someSelected && !allSelected}
+                  disabled={selectionDisabled}
+                  onCheckedChange={onSelectAll}
+                />
+              </th>
+              <th
+                scope="col"
+                data-column-heading
+                aria-label="Knife"
+                className="w-[38%] px-3 py-2 font-medium"
+              >
                 Knife
+                {resizeGrip('knife', 'Knife')}
               </th>
-              <th scope="col" className="px-2 py-2 font-medium">
-                Maker
-              </th>
-              <th scope="col" className="px-2 py-2 font-medium">
-                Steel
-              </th>
-              <th scope="col" className="px-2 py-2 font-medium">
-                Blade
-              </th>
-              <th scope="col" className="px-2 py-2 font-medium">
-                Weight
-              </th>
-              <th scope="col" className="px-2 py-2 font-medium">
-                Status
-              </th>
-              <th scope="col" className="w-6 px-2 py-2" aria-label="Open" />
+              {columns.map((column, index) => (
+                <th
+                  key={column.key}
+                  aria-label={column.label}
+                  data-column-heading
+                  scope="col"
+                  className={cn(
+                    'px-2 py-2 font-medium truncate',
+                    dropTarget === column.key && 'ring-2 ring-inset ring-ring',
+                  )}
+                  onDragOver={(event) => {
+                    if (!draggedId.current) return
+                    event.preventDefault()
+                    event.dataTransfer.dropEffect = 'move'
+                    setDropTarget(column.key)
+                  }}
+                  onDragLeave={(event) => {
+                    if (
+                      !event.currentTarget.contains(
+                        event.relatedTarget as Node | null,
+                      )
+                    )
+                      setDropTarget(null)
+                  }}
+                  onDrop={(event) => {
+                    if (!draggedId.current) return
+                    event.preventDefault()
+                    const source = draggedId.current
+                    draggedId.current = null
+                    setDropTarget(null)
+                    if (source !== column.key) moveColumn(source, column.key)
+                  }}
+                >
+                  <button
+                    type="button"
+                    draggable
+                    aria-label={`Reorder ${column.label} column`}
+                    title="Drag to reorder columns · use Arrow Left or Arrow Right to move"
+                    className="block w-full cursor-grab truncate rounded text-left focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing"
+                    onDragStart={(event) => {
+                      draggedId.current = column.key
+                      event.dataTransfer.effectAllowed = 'move'
+                      event.dataTransfer.setData('text/plain', column.key)
+                    }}
+                    onDragEnd={() => {
+                      draggedId.current = null
+                      setDropTarget(null)
+                    }}
+                    onKeyDown={(event) => {
+                      if (
+                        event.key !== 'ArrowLeft' &&
+                        event.key !== 'ArrowRight'
+                      )
+                        return
+                      event.preventDefault()
+                      const target =
+                        columns[index + (event.key === 'ArrowLeft' ? -1 : 1)]
+                      if (target) moveColumn(column.key, target.key)
+                    }}
+                  >
+                    {column.label}
+                  </button>
+                  {resizeGrip(column.key, column.label)}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -83,6 +331,7 @@ export function ModernCollectionTable({
                   onClick={() => onOpen(knife)}
                   onDoubleClick={() => onOpenDetail(knife)}
                   onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return
                     if (event.key === 'Enter') onOpen(knife)
                     if (event.key === ' ') {
                       event.preventDefault()
@@ -95,6 +344,18 @@ export function ModernCollectionTable({
                       'bg-[var(--bladevault-nav-active-bg)] shadow-[inset_2px_0_0_var(--bladevault-nav-active-fg)]',
                   )}
                 >
+                  <td
+                    className="px-3 py-1"
+                    onClick={(event) => event.stopPropagation()}
+                    onDoubleClick={(event) => event.stopPropagation()}
+                  >
+                    <Checkbox
+                      aria-label={`Select ${knife.name}`}
+                      checked={selectedIds.has(knife.id)}
+                      disabled={selectionDisabled}
+                      onCheckedChange={() => onSelect(knife.id)}
+                    />
+                  </td>
                   <td className="px-3 py-[7px]">
                     <div className="flex min-w-0 items-center gap-[9px]">
                       <div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-[7px] bg-[#f5f5f7]">
@@ -130,47 +391,42 @@ export function ModernCollectionTable({
                       </div>
                     </div>
                   </td>
-                  <td className="truncate px-2 py-[7px]" title={knife.brand}>
-                    {knife.brand || '—'}
-                  </td>
-                  <td
-                    className="truncate px-2 py-[7px] font-medium text-foreground"
-                    title={knife.specs.bladeMaterial}
-                  >
-                    {knife.specs.bladeMaterial || '—'}
-                  </td>
-                  <td className="truncate px-2 py-[7px] tabular-nums">
-                    {preferredMetric(knife.specs.bladeLength)}
-                  </td>
-                  <td className="truncate px-2 py-[7px] tabular-nums">
-                    {preferredMetric(knife.specs.weight)}
-                  </td>
-                  <td className="px-2 py-[7px]">
-                    <span
-                      className={cn(
-                        'inline-flex whitespace-nowrap rounded-full px-1.5 py-1 text-[length:var(--modern-font-caption)] font-medium leading-none',
-                        status.tone === 'complete' &&
-                          'bg-[#2f9e6d]/10 text-[#2f9e6d]',
-                        status.tone === 'pinned' &&
-                          'bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)]',
-                        status.tone === 'missing' &&
-                          'bg-[#f6821f]/10 text-[#c66a15]',
-                      )}
-                    >
-                      {status.label}
-                    </span>
-                  </td>
-                  <td className="px-2 py-1 text-muted-foreground">
-                    <ChevronRight
-                      className={cn(
-                        'size-3 opacity-30 transition-opacity group-hover:opacity-100',
-                        active &&
-                          'text-[var(--bladevault-nav-active-fg)] opacity-100',
-                      )}
-                      strokeWidth={1.7}
-                      aria-hidden="true"
-                    />
-                  </td>
+                  {columns.map((column) => {
+                    const value = column.getValue(knife)
+                    return (
+                      <td
+                        key={column.key}
+                        data-collection-status={
+                          column.key === 'status' ? '' : undefined
+                        }
+                        className="truncate px-2 py-[7px]"
+                        title={value || undefined}
+                      >
+                        {column.key === 'status' ? (
+                          <span
+                            className={cn(
+                              'inline-flex whitespace-nowrap rounded-full px-1.5 py-1 text-[length:var(--modern-font-caption)] font-medium leading-none',
+                              status.tone === 'complete' &&
+                                'bg-[#2f9e6d]/10 text-[#2f9e6d]',
+                              status.tone === 'pinned' &&
+                                'bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)]',
+                              status.tone === 'missing' &&
+                                'bg-[#f6821f]/10 text-[#c66a15]',
+                            )}
+                          >
+                            {status.label}
+                          </span>
+                        ) : column.key === 'description' ? (
+                          <KnifeDescription
+                            key={`${knife.id}:${knife.updatedAt}`}
+                            knife={knife}
+                          />
+                        ) : (
+                          value || '—'
+                        )}
+                      </td>
+                    )
+                  })}
                 </tr>
               )
             })}

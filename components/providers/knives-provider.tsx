@@ -25,6 +25,8 @@ import type { BulkEditFieldKey } from '@/lib/bulk-edit'
 import { CLOUD_AUTH_STATE_EVENT, getCloudAuthState } from '@/lib/cloud-backup'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
 import {
+  type CollectionDisplay,
+  normalizeCollectionDisplay,
   type CardField,
   type CustomField,
   DEFAULT_SETTINGS,
@@ -52,6 +54,8 @@ import {
 } from '@/lib/vault-client-state'
 
 type KnivesContextValue = {
+  collectionDisplay: CollectionDisplay
+  updateCollectionDisplay: (patch: Partial<CollectionDisplay>) => Promise<void>
   knives: Knife[]
   refreshVault: () => Promise<void>
   addKnife: (draft: KnifeDraft) => Promise<Knife>
@@ -130,6 +134,11 @@ export function KnivesProvider({
   const [pinnedItemsFirst, setPinnedItemsFirst] = useState(
     DEFAULT_SETTINGS.pinnedItemsFirst,
   )
+  const [collectionDisplay, setCollectionDisplay] = useState(
+    DEFAULT_SETTINGS.collectionDisplay,
+  )
+  const collectionDisplayRef = useRef(collectionDisplay)
+  const displaySaveRef = useRef<Promise<void>>(Promise.resolve())
   const [themeStyle, setThemeStyle] = useState<ThemeStyle>(initialThemeStyle)
   const [timeFormat, setTimeFormat] = useState<TimeFormat>(
     DEFAULT_SETTINGS.timeFormat,
@@ -157,6 +166,7 @@ export function KnivesProvider({
         const data = await readJsonResponse<{
           error?: string
           settings?: {
+            collectionDisplay?: CollectionDisplay
             theme?: AppTheme
             themeStyle?: ThemeStyle
             cloudAutoBackupEnabled?: boolean
@@ -178,6 +188,11 @@ export function KnivesProvider({
           const nextThemeStyle = normalizeThemeStyle(data.settings?.themeStyle)
           document.documentElement.dataset.themeStyle = nextThemeStyle
           setThemeStyle(nextThemeStyle)
+          const display = normalizeCollectionDisplay(
+            data.settings?.collectionDisplay,
+          )
+          collectionDisplayRef.current = display
+          setCollectionDisplay(display)
           setIsAutoBackupEnabled(Boolean(data.settings?.cloudAutoBackupEnabled))
           setPinnedItemsFirst(Boolean(data.settings?.pinnedItemsFirst))
           setTimeFormat(normalizeTimeFormat(data.settings?.timeFormat))
@@ -779,8 +794,41 @@ export function KnivesProvider({
     }
   }, [])
 
+  const updateCollectionDisplay = useCallback(
+    (patch: Partial<CollectionDisplay>) => {
+      const next = normalizeCollectionDisplay({
+        ...collectionDisplayRef.current,
+        ...patch,
+      })
+      collectionDisplayRef.current = next
+      setCollectionDisplay(next)
+      const save = displaySaveRef.current
+        .catch(() => {})
+        .then(async () => {
+          const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ collectionDisplay: next }),
+          })
+          const data = await readJsonResponse<{ error?: string }>(response)
+          if (!response.ok)
+            throw new Error(
+              getApiErrorMessage(
+                data,
+                'Could not save collection display settings',
+              ),
+            )
+        })
+      displaySaveRef.current = save
+      return save
+    },
+    [],
+  )
+
   const contextValue = useMemo(
     () => ({
+      collectionDisplay,
+      updateCollectionDisplay,
       knives,
       refreshVault,
       addKnife,
@@ -809,6 +857,8 @@ export function KnivesProvider({
       startVaultBackup,
     }),
     [
+      collectionDisplay,
+      updateCollectionDisplay,
       knives,
       refreshVault,
       addKnife,
