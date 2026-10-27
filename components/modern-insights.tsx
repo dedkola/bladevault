@@ -190,7 +190,6 @@ export function ModernInsights() {
     <div className={styles.root} data-modern-insights>
       <PageHeader
         title="Collection pulse"
-        description="A closer look at what you collect."
         actions={
           <>
             <Link

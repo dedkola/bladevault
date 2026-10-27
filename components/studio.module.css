@@ -62,7 +62,7 @@
 
 .header h1 {
   margin: 0;
-  font-size: clamp(18px, 7cqw, 64px);
+  font-size: var(--bladevault-page-title-size);
   font-weight: 620;
   line-height: 0.99;
   letter-spacing: -0.055em;
