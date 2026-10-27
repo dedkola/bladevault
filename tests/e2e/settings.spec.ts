@@ -116,7 +116,7 @@ test('prints the collection report from Backup & Restore', async ({
   await page.getByRole('button', { name: 'Backup & Restore' }).click()
   await page.getByRole('button', { name: 'Print Report' }).click()
 
-  await expect(page).toHaveURL('/')
+  await expect(page).toHaveURL('/insights')
   await expect
     .poll(() =>
       page.evaluate(() =>
@@ -234,4 +234,27 @@ test('copies MCP configuration when the modern Clipboard API is unavailable', as
       },
     },
   })
+})
+
+test('saves the start page and keeps Insights accessible', async ({ page }) => {
+  for (const startPage of ['collection', 'studio', 'insights']) {
+    await page.goto('/settings?tab=appearance')
+    const select = page.getByRole('combobox', { name: 'Start page' })
+    await select.click()
+    await page.getByRole('option', { name: startPage, exact: true }).click()
+    await expect(select.locator('[data-slot="select-value"]')).toHaveText(
+      startPage,
+    )
+
+    await page.reload()
+    await expect(
+      page
+        .getByRole('combobox', { name: 'Start page' })
+        .locator('[data-slot="select-value"]'),
+    ).toHaveText(startPage)
+    await page.goto('/')
+    await expect(page).toHaveURL(new RegExp(`/${startPage}$`))
+    await page.getByRole('link', { name: 'Insights', exact: true }).click()
+    await expect(page).toHaveURL(/\/insights$/)
+  }
 })
