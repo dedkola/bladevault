@@ -49,9 +49,7 @@ describe('Studio themes', () => {
     )
     expect(container.querySelectorAll('[data-studio-tile]')).toHaveLength(2)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Pinned', exact: true }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Pinned' }))
     expect(container.querySelectorAll('[data-studio-tile]')).toHaveLength(1)
     expect(
       container.querySelector('[data-studio-tile="first"]'),
