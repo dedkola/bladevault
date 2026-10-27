@@ -56,7 +56,7 @@
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.9",
     "lucide-react": "^1.61.0",
-    "next": "^16.3.8",
+    "next": "^16.4.1",
     "playwright": "1.64.1",
     "postcss": "^8.5.31",
     "react": "^19.2.7",
@@ -85,7 +85,7 @@
     "@types/react-dom": "^19",
     "@types/unzipper": "^0.10.11",
     "@types/yazl": "^3.3.1",
-    "electron": "44.9.0",
+    "electron": "44.9.1",
     "electron-builder": "26.18.0",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.4",
@@ -97,7 +97,7 @@
     "typescript": "^6.0.3",
     "vite": "^8.3.4",
     "vitest": "^5.0.3",
-    "wrangler": "4.151.1"
+    "wrangler": "4.153.0"
   },
   "overrides": {
     "next": {
