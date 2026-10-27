@@ -422,18 +422,36 @@ html[data-theme-style='modern'] [data-collection-filter-panel] {
 }
 
 html[data-theme-style='modern'] [data-collection-filter-panel] input {
-  height: 34px;
+  height: 30px;
   border-color: var(--border);
-  border-radius: 9px;
-  background: var(--card);
+  border-radius: 999px;
+  background: var(--background);
   font-size: var(--modern-font-body);
 }
 
 html[data-theme-style='modern'] [data-collection-toolbar] > button,
 html[data-theme-style='modern'] [data-collection-toolbar] > select {
-  height: 32px;
-  border-radius: 8px;
-  background: var(--card);
+  height: 30px;
+  border-radius: 999px;
+  background: var(--background);
+  font-size: var(--modern-font-body);
+}
+
+html[data-theme-style='modern'] [data-collection-toolbar] > select {
+  flex-shrink: 0;
+}
+
+html[data-theme-style='modern'] [data-collection-filter-panel] fieldset label {
+  font-size: var(--modern-font-secondary);
+}
+
+html[data-theme-style='modern'] [data-collection-filter-panel] fieldset input {
+  margin-top: 4px;
+  padding-inline: 12px;
+}
+
+html[data-theme-style='modern'] [data-collection-filter-panel] fieldset legend {
+  margin-bottom: 4px;
   font-size: var(--modern-font-body);
 }
 
@@ -1323,7 +1341,8 @@ html[data-theme-style='modern'].dark [data-modern-compare] {
   gap: 7px;
 }
 
-[data-modern-collection-tools] > select {
+[data-modern-collection-tools] > select,
+html[data-theme-style='modern'] [data-collection-toolbar] > select {
   appearance: none;
   height: 30px;
   max-width: 140px;
@@ -1340,11 +1359,15 @@ html[data-theme-style='modern'].dark [data-modern-compare] {
   transition: background-color 150ms;
 }
 
-[data-modern-collection-tools] > select:hover {
+[data-modern-collection-tools] > select:hover,
+html[data-theme-style='modern'] [data-collection-toolbar] > select:hover {
   background-color: var(--muted);
 }
 
-[data-modern-collection-tools] > select:focus-visible {
+[data-modern-collection-tools] > select:focus-visible,
+html[data-theme-style='modern']
+  [data-collection-toolbar]
+  > select:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
