@@ -8,6 +8,8 @@ test-results
 .playwright-mcp
 *.tsbuildinfo
 .git
+# Local code graph links point outside the Docker build context.
+.codegraph
 .idea
 data
 docs/
