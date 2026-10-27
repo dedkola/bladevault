@@ -713,6 +713,116 @@
   backdrop-filter: blur(18px);
 }
 
+/* Match the default collection's warm surfaces and shared control scale. */
+:global(html:not([data-theme-style='modern'])) :is(.root, .focus, .quickLook) {
+  --studio-line: var(--border);
+  --studio-glass: var(--card);
+  --studio-stage: var(--bladevault-surface-soft);
+}
+
+:global(html:not([data-theme-style='modern'])) .root {
+  padding: 1rem;
+}
+
+:global(html:not([data-theme-style='modern'])) .toolbar {
+  gap: 12px;
+  padding: 12px;
+  margin-bottom: 24px;
+  border-radius: var(--radius-xl);
+  background: var(--bladevault-surface-soft);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+:global(html:not([data-theme-style='modern'])) .segmented {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--background);
+}
+
+:global(html:not([data-theme-style='modern'])) .segmented button {
+  min-height: 32px;
+  font-size: 13px;
+}
+
+:global(html:not([data-theme-style='modern']))
+  .segmented
+  button[aria-pressed='true'] {
+  background: var(--bladevault-nav-active-bg);
+  color: var(--bladevault-nav-active-fg);
+  box-shadow: none;
+}
+
+:global(html:not([data-theme-style='modern']))
+  :is(.search input, .sort select) {
+  height: 38px;
+  border-color: var(--input);
+  border-radius: var(--radius-lg);
+  background: var(--background);
+  font-size: 14px;
+}
+
+:global(html:not([data-theme-style='modern'])) .count {
+  font-size: 12px;
+}
+
+:global(html:not([data-theme-style='modern'])) :is(.tile, .quickLook) {
+  border-radius: var(--radius-xl);
+}
+
+:global(html:not([data-theme-style='modern'])) :is(.stage, .quickStage) {
+  background: var(--bladevault-surface-soft);
+}
+
+:global(html:not([data-theme-style='modern'])) .image {
+  mix-blend-mode: normal;
+}
+
+:global(html:not([data-theme-style='modern'])) .caption {
+  border-radius: var(--radius-lg);
+  backdrop-filter: none;
+}
+
+:global(html:not([data-theme-style='modern'])) .caption b {
+  font-size: 14px;
+}
+
+:global(html:not([data-theme-style='modern'])) .caption div > span {
+  font-size: 12px;
+}
+
+:global(html:not([data-theme-style='modern']))
+  :is(
+    .familyCaption div > span,
+    .familyCaption > span,
+    .footer,
+    .quickSubtitle,
+    .chips > span,
+    .specs > div
+  ) {
+  font-size: 13px;
+}
+
+:global(html:not([data-theme-style='modern'])) .familyCaption {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  backdrop-filter: none;
+}
+
+@media (min-width: 640px) {
+  :global(html:not([data-theme-style='modern'])) .root {
+    padding: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  :global(html:not([data-theme-style='modern'])) .root {
+    padding: 2rem;
+  }
+}
+
 @container (max-width: 1050px) {
   .gallery,
   .gallery[data-size='large'] {
