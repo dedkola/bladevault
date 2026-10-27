@@ -16,8 +16,6 @@
   container-type: inline-size;
 }
 
-.topline,
-.topline > div,
 .toolbar,
 .toolbarLeft,
 .toolbarRight,
@@ -25,26 +23,6 @@
 .footer a {
   display: flex;
   align-items: center;
-}
-
-.topline {
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.topline > span {
-  color: var(--muted-foreground);
-}
-
-.topline > span > span {
-  margin-inline: 8px;
-  opacity: 0.4;
-}
-
-.topline > div {
-  gap: 8px;
 }
 
 .header {
@@ -870,12 +848,6 @@
 }
 
 @container (max-width: 440px) {
-  .topline > span {
-    display: none;
-  }
-  .topline {
-    justify-content: flex-end;
-  }
   .header {
     padding-top: 28px;
   }

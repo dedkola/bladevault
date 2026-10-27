@@ -16,7 +16,7 @@
   },
   "main": "electron/main.cjs",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build && node scripts/build-mcp-cli.cjs",
     "build:static": "node scripts/build-static-app.cjs",
     "dev:static": "next dev static-app --webpack",
