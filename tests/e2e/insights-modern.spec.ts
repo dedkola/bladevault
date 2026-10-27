@@ -47,7 +47,7 @@ test('summarizes current records and uses only interpreted measurements for the 
   ).toBeVisible()
   await expect(
     page
-      .getByRole('group', { name: 'Catalogued objects', exact: true })
+      .getByRole('group', { name: 'Catalogued knives', exact: true })
       .getByText('3', { exact: true }),
   ).toBeVisible()
   await expect(
@@ -63,7 +63,7 @@ test('summarizes current records and uses only interpreted measurements for the 
   ).toContainText(/73\s*%/)
   await expect(
     page.getByRole('img', {
-      name: 'Blade length versus weight for 2 catalogued objects',
+      name: 'Blade length versus weight for 2 catalogued knives',
       exact: true,
     }),
   ).toBeVisible()
@@ -157,7 +157,7 @@ test('shows the true all-time history and retains a baseline for shorter ranges'
   await expect(growth).toContainText('2 dated records · 2 added in this range')
   await expect(
     page
-      .getByRole('group', { name: 'Catalogued objects', exact: true })
+      .getByRole('group', { name: 'Catalogued knives', exact: true })
       .getByText('4', { exact: true }),
   ).toBeVisible()
 })

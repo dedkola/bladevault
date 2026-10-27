@@ -102,7 +102,7 @@ export function ModernCollectionInspector({
       aria-label={`Selected knife: ${knife.brand} ${knife.name}`}
     >
       <div data-inspector-header>
-        <span>Object inspector</span>
+        <span>Knife inspector</span>
         <div className="flex items-center gap-1">
           <Link
             href={`/collection/${knife.id}?edit=1`}
@@ -165,7 +165,7 @@ export function ModernCollectionInspector({
             href={`/collection/${knife.id}`}
             className={buttonVariants({ size: 'sm' })}
           >
-            Open object
+            Open knife
           </Link>
           <Button
             variant="outline"
@@ -186,7 +186,7 @@ export function ModernCollectionInspector({
             {inCompare ? 'In list' : 'Compare'}
           </Button>
         </div>
-        <div data-inspector-tabs role="tablist" aria-label="Object information">
+        <div data-inspector-tabs role="tablist" aria-label="Knife information">
           {(['overview', 'specifications', 'history'] as const).map((value) => (
             <button
               key={value}
@@ -262,7 +262,7 @@ export function ModernCollectionInspector({
                 <li role="status">Loading maintenance history…</li>
               ) : historyStatus === 'error' ? (
                 <li role="status">
-                  Maintenance history is unavailable. Open the object to retry.
+                  Maintenance history is unavailable. Open the knife to retry.
                 </li>
               ) : (
                 history.map((event) => (

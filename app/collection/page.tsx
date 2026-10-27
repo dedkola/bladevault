@@ -630,7 +630,7 @@ function CollectionContent() {
       data-modern-collection={themeStyle === 'modern' || undefined}
     >
       <PageHeader
-        title={themeStyle === 'modern' ? 'All objects' : 'Your collection.'}
+        title={themeStyle === 'modern' ? 'All knives' : 'Your collection.'}
         description={
           themeStyle === 'modern'
             ? `${Math.min(filteredKnives.length, visibleCount)} shown of ${knives.length} · Updated today`
