@@ -1,6 +1,8 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useContext, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -86,6 +88,7 @@ export function StudioView() {
   const [sort, setSort] = useState<StudioSort>('random')
   const [size, setSize] = useState<'regular' | 'large'>('regular')
   const [focus, setFocus] = useState(false)
+  const headerTarget = useContext(WorkspaceHeaderActionsContext)
   const [quickLook, setQuickLook] = useState<{
     ids: string[]
     index: number
@@ -335,21 +338,28 @@ export function StudioView() {
 
   return (
     <>
+      {themeStyle === 'modern' &&
+        headerTarget &&
+        createPortal(
+          <button
+            ref={focusButton}
+            type="button"
+            aria-label="Focus mode"
+            title="Focus mode"
+            onClick={() => setFocus(true)}
+            disabled={isLoading || !visible.length}
+          >
+            <Expand aria-hidden="true" />
+          </button>,
+          headerTarget,
+        )}
       <div className={styles.root} data-studio>
         {themeStyle === 'modern' ? (
-          <>
-            <div className={styles.topline}>
-              <span>
-                Studio <span aria-hidden="true">/</span> Visual library
-              </span>
-              <div>{headerActions}</div>
-            </div>
-            <header className={styles.header}>
-              <h1>
-                The collection, <em>at a glance.</em>
-              </h1>
-            </header>
-          </>
+          <header className={styles.header}>
+            <h1>
+              The collection, <em>at a glance.</em>
+            </h1>
+          </header>
         ) : (
           <PageHeader
             title="Studio"

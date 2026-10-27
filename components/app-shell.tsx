@@ -1,6 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
+import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import Image from '@/components/vault-image'
 import { usePathname } from 'next/navigation'
 import {
@@ -23,6 +25,7 @@ import { SETTINGS_UPDATED_EVENT, type AppSettings } from '@/lib/settings-shared'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const [headerActions, setHeaderActions] = useState<HTMLElement | null>(null)
   const { themeStyle, knives, isLoading, isAutoBackupActive, showFeedback } =
     useKnives()
   if (themeStyle !== 'modern') {
@@ -92,6 +95,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <GlobalKnifeSearch embedded />
         </div>
         <div data-workspace-actions>
+          {pathname === '/studio' && (
+            <span id="studio-header-actions" ref={setHeaderActions} />
+          )}
           <Link
             href="/settings?tab=cloud-backup"
             aria-label="Cloud backup"
@@ -131,7 +137,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
       <div data-workspace-body>
         <SidebarShell />
-        <main tabIndex={-1}>{children}</main>
+        <main tabIndex={-1}>
+          <WorkspaceHeaderActionsContext.Provider value={headerActions}>
+            {children}
+          </WorkspaceHeaderActionsContext.Provider>
+        </main>
       </div>
       <footer data-workspace-footer>
         <div>

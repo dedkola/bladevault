@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
+import { useState } from 'react'
+import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -66,10 +68,20 @@ describe('Studio themes', () => {
     expect(container.querySelectorAll('[data-studio-tile]')).toHaveLength(2)
   })
 
-  it('retains the modern Studio header when the theme changes', () => {
-    const { container, rerender } = render(<StudioView />)
+  it('moves modern Studio focus mode into the workspace header', async () => {
+    const user = userEvent.setup()
+    function Workspace() {
+      const [target, setTarget] = useState<HTMLElement | null>(null)
+      return (
+        <WorkspaceHeaderActionsContext.Provider value={target}>
+          <div id="studio-header-actions" ref={setTarget} />
+          <StudioView />
+        </WorkspaceHeaderActionsContext.Provider>
+      )
+    }
+    const { container, rerender } = render(<Workspace />)
     state.themeStyle = 'modern'
-    rerender(<StudioView />)
+    rerender(<Workspace />)
     expect(
       screen.getByRole('heading', {
         level: 1,
@@ -79,7 +91,24 @@ describe('Studio themes', () => {
     expect(
       container.querySelector('[data-page-header]'),
     ).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Focus mode' })).toBeEnabled()
+    const focusButton = screen.getByRole('button', { name: 'Focus mode' })
+    expect(focusButton).toBeEnabled()
+    expect(focusButton.parentElement).toHaveAttribute(
+      'id',
+      'studio-header-actions',
+    )
+    expect(focusButton.textContent).toBe('')
+    expect(
+      screen.queryByRole('link', { name: /Add knife/ }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Visual library')).not.toBeInTheDocument()
+    await user.click(focusButton)
+    expect(
+      screen.getByRole('dialog', { name: 'Studio focus mode' }),
+    ).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Exit focus' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(focusButton).toHaveFocus()
     expect(container.querySelectorAll('[data-studio-tile]')).toHaveLength(2)
   })
 })
