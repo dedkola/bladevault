@@ -76,8 +76,10 @@ Everything runs through npm scripts defined in `package.json`:
 
 ## Before you open a pull request
 
-CI (`.github/workflows/test.yml`) runs the following on every push and pull request, so run the
-same locally and fix failures before pushing:
+Keep local validation proportional to the change. For text-only edits, inspect the diff.
+For behavior changes, run the smallest relevant checks. Do not run full test suites,
+builds, or browser checks for text-only edits unless explicitly requested.
+The commands below are available checks, not a mandatory checklist for every edit:
 
 ```bash
 npm run format:check   # Prettier
