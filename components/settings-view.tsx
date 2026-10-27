@@ -39,6 +39,7 @@ import {
   CUSTOM_FIELD_TYPES,
   DEFAULT_SETTINGS,
   SETTINGS_UPDATED_EVENT,
+  START_PAGES,
   THEME_STYLES,
   TIME_FORMATS,
   type AppSettings,
@@ -48,6 +49,7 @@ import {
   type CustomFieldType,
   type ThemeStyle,
   type TimeFormat,
+  type StartPage,
 } from '@/lib/settings-shared'
 import { getHourCycle } from '@/lib/time-format'
 import { getCardFieldGroups, getCardFieldLabel } from '@/lib/card-fields'
@@ -1214,6 +1216,18 @@ export default function SettingsView() {
     }
   }
 
+  const handleStartPageChange = async (value: string | null) => {
+    if (!START_PAGES.includes(value as StartPage)) return
+
+    try {
+      await saveSettings({ startPage: value as StartPage })
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : 'Failed to save settings',
+      )
+    }
+  }
+
   const handleTimeFormatChange = async (value: string | null) => {
     const timeFormat = value as TimeFormat
     if (!timeFormat || !TIME_FORMATS.includes(timeFormat)) return
@@ -1947,6 +1961,34 @@ export default function SettingsView() {
                               className="text-sm capitalize"
                             >
                               {theme}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </SettingsRow>
+                    <SettingsRow
+                      label="Start page"
+                      description="Choose which page opens when you launch BladeVault."
+                    >
+                      <Select
+                        value={settings.startPage ?? DEFAULT_SETTINGS.startPage}
+                        onValueChange={handleStartPageChange}
+                      >
+                        <SelectTrigger
+                          size="sm"
+                          aria-label="Start page"
+                          className="h-8 w-32 rounded-lg border-border bg-[var(--bladevault-surface-soft)]"
+                        >
+                          <SelectValue className="capitalize" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {START_PAGES.map((startPage) => (
+                            <SelectItem
+                              key={startPage}
+                              value={startPage}
+                              className="capitalize"
+                            >
+                              {startPage}
                             </SelectItem>
                           ))}
                         </SelectContent>

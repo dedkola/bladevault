@@ -24,11 +24,12 @@ import {
 import {
   installBrowserApi,
   readSessionKnife,
+  readSessionStartPage,
   resetSession,
   STATIC_VAULT_STATUS,
 } from './browser-api'
 
-const Home = lazy(() => import('@/app/page'))
+const Insights = lazy(() => import('@/app/insights/page'))
 const Collection = lazy(() => import('@/app/collection/page'))
 const Studio = lazy(() => import('@/app/studio/page'))
 const Add = lazy(() => import('@/app/add/page'))
@@ -40,11 +41,23 @@ const InsightPage = lazy(() =>
   import('./insight-page').then((module) => ({ default: module.InsightPage })),
 )
 
+function EntryPage() {
+  useEffect(() => {
+    navigate(`/${readSessionStartPage()}`, true)
+  }, [])
+  return (
+    <div role="status" className="p-8 text-sm text-muted-foreground">
+      Opening BladeVault…
+    </div>
+  )
+}
+
 function Route() {
   const pathname = usePathname(),
     params = useSearchParams()
   const { knives, isLoading } = useKnives()
-  if (pathname === '/') return <Home />
+  if (pathname === '/') return <EntryPage />
+  if (pathname === '/insights') return <Insights />
   if (pathname === '/collection') return <Collection />
   if (pathname === '/studio') return <Studio />
   if (pathname === '/add') return <Add />

@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { installBrowserApi, resetSession } from '../../static-app/browser-api'
+import {
+  installBrowserApi,
+  readSessionStartPage,
+  resetSession,
+} from '../../static-app/browser-api'
 
 let restore: () => void
 const nativeFetch = vi.fn<typeof fetch>()
@@ -32,6 +36,14 @@ afterEach(() => {
 })
 
 describe('empty static browser app', () => {
+  it('uses Insights by default and honors the saved start page', async () => {
+    expect(readSessionStartPage()).toBe('insights')
+    await request('/api/settings', 'POST', { startPage: 'studio' })
+    expect(readSessionStartPage()).toBe('studio')
+    await request('/api/settings', 'POST', { startPage: 'collection' })
+    expect(readSessionStartPage()).toBe('collection')
+  })
+
   it('starts without collection records, activity, logs, or sample collections', async () => {
     expect((await request('/api/knives')).data.knives).toEqual([])
     expect((await request('/api/activity')).data.activity).toEqual([])

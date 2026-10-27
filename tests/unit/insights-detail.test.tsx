@@ -104,7 +104,7 @@ describe('InsightDetailShell', () => {
 
     expect(
       screen.getByRole('button', { name: /back to insights/i }),
-    ).toHaveAttribute('href', '/')
+    ).toHaveAttribute('href', '/insights')
     expect(screen.getByText('Test')).toBeInTheDocument()
     expect(
       screen.getByRole('heading', { name: 'Test title' }),

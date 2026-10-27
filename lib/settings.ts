@@ -6,6 +6,7 @@ import {
   CUSTOM_FIELD_TYPES,
   DEFAULT_SETTINGS,
   normalizeCardFields,
+  normalizeStartPage,
   normalizeThemeStyle,
   normalizeTimeFormat,
   type AppSettings,
@@ -30,6 +31,7 @@ const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
   theme: 'theme',
   themeStyle: 'theme_style',
   timeFormat: 'time_format',
+  startPage: 'start_page',
   pinnedItemsFirst: 'pinned_items_first',
   cardFields: 'card_fields',
   cloudBackupLastSyncedAt: 'cloud_backup_last_synced_at',
@@ -118,6 +120,7 @@ export function getSettings(): AppSettings {
     theme: parseTheme(map.get(SETTINGS_KEYS.theme)),
     themeStyle: parseThemeStyle(map.get(SETTINGS_KEYS.themeStyle)),
     timeFormat: normalizeTimeFormat(map.get(SETTINGS_KEYS.timeFormat)),
+    startPage: normalizeStartPage(map.get(SETTINGS_KEYS.startPage)),
     pinnedItemsFirst: parseBool(
       map.get(SETTINGS_KEYS.pinnedItemsFirst),
       DEFAULT_SETTINGS.pinnedItemsFirst,
@@ -154,6 +157,7 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
           : normalizeCardFields(settings.cardFields, current.cardFields),
       themeStyle: normalizeThemeStyle(settings.themeStyle, current.themeStyle),
       timeFormat: normalizeTimeFormat(settings.timeFormat, current.timeFormat),
+      startPage: normalizeStartPage(settings.startPage, current.startPage),
     }
 
     const insert = getDb().prepare(
@@ -164,6 +168,7 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
       ['theme', next.theme],
       ['themeStyle', next.themeStyle],
       ['timeFormat', next.timeFormat],
+      ['startPage', next.startPage],
       ['pinnedItemsFirst', next.pinnedItemsFirst ? '1' : '0'],
       ['cardFields', JSON.stringify(next.cardFields)],
       ['cloudBackupLastSyncedAt', next.cloudBackupLastSyncedAt],
