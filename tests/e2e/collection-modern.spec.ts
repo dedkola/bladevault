@@ -401,6 +401,7 @@ test('saves dragged column order without reordering collection items', async ({
   await page.goto('/collection')
   const table = page.locator('[data-modern-collection-table]')
   const rows = table.locator('tbody tr')
+  await expect(rows).toHaveCount(2)
   const initialRows = await rows.allTextContents()
   await expect(table.locator('tbody [draggable="true"]')).toHaveCount(0)
   await table

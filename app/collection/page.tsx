@@ -1368,14 +1368,16 @@ function CollectionContent() {
                 )}
                 {selectedKnivesPinned ? 'Unpin' : 'Pin'}
               </Button>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                aria-label="Cancel selection"
-                onClick={exitSelectionMode}
-              >
-                <X className="size-4" />
-              </Button>
+              {themeStyle === 'modern' && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Cancel selection"
+                  onClick={exitSelectionMode}
+                >
+                  <X className="size-4" />
+                </Button>
+              )}
             </fieldset>
           </div>
         </div>
