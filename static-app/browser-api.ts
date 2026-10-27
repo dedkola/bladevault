@@ -1,4 +1,8 @@
-import { DEFAULT_SETTINGS, type AppSettings } from '@/lib/settings-shared'
+import {
+  DEFAULT_SETTINGS,
+  normalizeStartPage,
+  type AppSettings,
+} from '@/lib/settings-shared'
 import {
   toKnifeListItem,
   type Knife,
@@ -98,6 +102,10 @@ export function resetSession() {
   state = null
   sessionStorage.removeItem(SESSION_KEY)
 }
+export function readSessionStartPage() {
+  return normalizeStartPage(getState().settings.startPage)
+}
+
 export function readSessionKnife(id: string) {
   return getState().knives.find((k) => k.id === id)
 }

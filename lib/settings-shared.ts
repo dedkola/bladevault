@@ -1,5 +1,8 @@
 export const APP_THEMES = ['light', 'dark'] as const
 export const THEME_STYLES = ['classic', 'modern'] as const
+export const START_PAGES = ['insights', 'studio', 'collection'] as const
+export type StartPage = (typeof START_PAGES)[number]
+
 export const TIME_FORMATS = ['12h', '24h'] as const
 
 export type AppTheme = (typeof APP_THEMES)[number]
@@ -152,6 +155,7 @@ export type AppSettings = {
   theme: AppTheme
   themeStyle: ThemeStyle
   timeFormat: TimeFormat
+  startPage: StartPage
   pinnedItemsFirst: boolean
   cardFields: CardField[]
   cloudBackupLastSyncedAt: string
@@ -166,6 +170,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'light',
   themeStyle: 'classic',
   timeFormat: '12h',
+  startPage: 'insights',
   pinnedItemsFirst: true,
   cardFields: [...DEFAULT_CARD_FIELDS],
   cloudBackupLastSyncedAt: '',
@@ -173,6 +178,15 @@ export const DEFAULT_SETTINGS: AppSettings = {
   mcpEnabled: true,
   mcpWriteEnabled: false,
   customFields: [],
+}
+
+export function normalizeStartPage(
+  value: unknown,
+  fallback: StartPage = DEFAULT_SETTINGS.startPage,
+): StartPage {
+  return typeof value === 'string' && START_PAGES.includes(value as StartPage)
+    ? (value as StartPage)
+    : fallback
 }
 
 export function normalizeThemeStyle(

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import Image from '@/components/vault-image'
 import { useKnives } from '@/components/providers/knives-provider'
+import { PageHeader } from '@/components/page-header'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import { Button, buttonVariants } from '@/components/ui/button'
 import {
@@ -68,7 +69,8 @@ function StudioImage({
 }
 
 export function StudioView() {
-  const { knives, isLoading, updateKnife, showFeedback } = useKnives()
+  const { knives, isLoading, updateKnife, showFeedback, themeStyle } =
+    useKnives()
   const {
     choose,
     membershipCount,
@@ -307,35 +309,55 @@ export function StudioView() {
     </div>
   )
 
+  const headerActions = (
+    <>
+      <Button
+        ref={focusButton}
+        variant="outline"
+        size={themeStyle === 'modern' ? 'sm' : 'default'}
+        onClick={() => setFocus(true)}
+        disabled={isLoading || !visible.length}
+      >
+        <Expand />
+        Focus mode
+      </Button>
+      <Link
+        href="/add"
+        className={buttonVariants({
+          size: themeStyle === 'modern' ? 'sm' : 'default',
+        })}
+      >
+        <Plus />
+        Add knife
+      </Link>
+    </>
+  )
+
   return (
     <>
       <div className={styles.root} data-studio>
-        <div className={styles.topline}>
-          <span>
-            Studio <span aria-hidden="true">/</span> Visual library
-          </span>
-          <div>
-            <Button
-              ref={focusButton}
-              variant="outline"
-              size="sm"
-              onClick={() => setFocus(true)}
-              disabled={isLoading || !visible.length}
-            >
-              <Expand />
-              Focus mode
-            </Button>
-            <Link href="/add" className={buttonVariants({ size: 'sm' })}>
-              <Plus />
-              Add knife
-            </Link>
-          </div>
-        </div>
-        <header className={styles.header}>
-          <h1>
-            The collection, <em>at a glance.</em>
-          </h1>
-        </header>
+        {themeStyle === 'modern' ? (
+          <>
+            <div className={styles.topline}>
+              <span>
+                Studio <span aria-hidden="true">/</span> Visual library
+              </span>
+              <div>{headerActions}</div>
+            </div>
+            <header className={styles.header}>
+              <h1>
+                The collection, <em>at a glance.</em>
+              </h1>
+            </header>
+          </>
+        ) : (
+          <PageHeader
+            title="Studio"
+            description="Your collection, at a glance."
+            breadcrumbs={[{ label: 'Studio' }]}
+            actions={headerActions}
+          />
+        )}
         <div className={styles.toolbar} aria-label="Studio controls">
           <div className={styles.toolbarLeft}>
             <div

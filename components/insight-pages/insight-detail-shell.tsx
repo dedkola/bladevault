@@ -24,7 +24,7 @@ export function InsightDetailShell({
       <Button
         variant="outline"
         size="sm"
-        render={<Link href="/" />}
+        render={<Link href="/insights" />}
         nativeButton={false}
       >
         <ArrowLeft className="size-4" /> Back to insights

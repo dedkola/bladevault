@@ -1,5 +1,6 @@
-import { InsightsPage } from '@/components/insights-page'
+import { redirect } from 'next/navigation'
+import { getSettings } from '@/lib/settings'
 
 export default function Page() {
-  return <InsightsPage />
+  redirect(`/${getSettings().startPage}`)
 }

@@ -50,7 +50,7 @@ import {
 } from '@/components/ui/dialog'
 
 const links = [
-  { href: '/', label: 'Insights', icon: LayoutDashboard },
+  { href: '/insights', label: 'Insights', icon: LayoutDashboard },
   { href: '/collection', label: 'Collection', icon: Library },
   { href: '/studio', label: 'Studio', icon: GalleryVertical },
   { href: '/compare', label: 'Compare', icon: Scale },
@@ -272,9 +272,7 @@ export function Sidebar() {
               )
             const Icon = link.icon
             const isActive =
-              pathname === link.href ||
-              (link.href === '/' && pathname.startsWith('/insights/')) ||
-              (link.href !== '/' && pathname.startsWith(link.href))
+              pathname === link.href || pathname.startsWith(`${link.href}/`)
 
             return (
               <Link
