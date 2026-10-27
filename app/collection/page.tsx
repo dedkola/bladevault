@@ -22,8 +22,9 @@ import {
   Pin,
   PinOff,
   SlidersHorizontal,
-  Scale,
-  MoreHorizontal,
+  ArrowDownWideNarrow,
+  Columns3,
+  Trash2,
   X,
 } from 'lucide-react'
 import {
@@ -46,9 +47,14 @@ import { SearchField } from '@/components/search-field'
 import { useKnives } from '@/components/providers/knives-provider'
 import { Knife, prioritizePinnedKnives } from '@/lib/data'
 import { getKnifeFamilyKey, groupKnifeFamilies } from '@/lib/knife-families'
-import { CustomFieldType } from '@/lib/settings-shared'
+import {
+  type CollectionDisplay,
+  type CustomFieldType,
+} from '@/lib/settings-shared'
+import { getCollectionColumns } from '@/lib/collection-columns'
 import { useDebouncedValue } from '@/lib/use-debounced-value'
 import { cn } from '@/lib/utils'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -65,7 +71,7 @@ import {
 
 const PAGE_SIZE = 24
 type CollectionView = 'knives' | 'families' | 'pinned'
-type CollectionSort = 'newest' | 'model' | 'brand'
+type CollectionSort = CollectionDisplay['sort']
 type CustomFilterKey = `custom:${string}`
 type FilterKey = BuiltInFilterKey | CustomFilterKey
 
@@ -111,6 +117,9 @@ function CollectionContent() {
     showFeedback,
     customFieldDefinitions,
     themeStyle,
+    deleteKnife,
+    collectionDisplay,
+    updateCollectionDisplay,
   } = useKnives()
   const router = useRouter()
   const pathname = usePathname()
@@ -125,14 +134,28 @@ function CollectionContent() {
     choose: chooseComparisons,
     loading: comparisonsLoading,
     busy: comparisonsBusy,
-    active: activeComparison,
   } = useComparisons()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
   const [isBulkPinning, setIsBulkPinning] = useState(false)
-  const [density, setDensity] = useState<CollectionCardDensity>('gallery')
-  const [modernView, setModernView] = useState<'list' | 'grid'>('list')
-  const [sortOrder, setSortOrder] = useState<CollectionSort>('newest')
+  const [isDeleting, setIsDeleting] = useState(false)
+  const density: CollectionCardDensity = collectionDisplay.density
+  const modernView = collectionDisplay.view
+  const sortOrder = collectionDisplay.sort
+  const saveDisplay = (patch: Partial<CollectionDisplay>) => {
+    void updateCollectionDisplay(patch).catch((error) => {
+      showFeedback(
+        error instanceof Error
+          ? error.message
+          : 'Could not save display settings.',
+        'error',
+      )
+    })
+  }
+  const setDensity = (density: CollectionCardDensity) =>
+    saveDisplay({ density })
+  const setModernView = (view: 'list' | 'grid') => saveDisplay({ view })
+  const setSortOrder = (sort: CollectionSort) => saveDisplay({ sort })
   const [inspectorDismissed, setInspectorDismissed] = useState(false)
   const [activeKnifeId, setActiveKnifeId] = useState<string | null>(null)
   const debouncedQuery = useDebouncedValue(query, 200)
@@ -200,6 +223,24 @@ function CollectionContent() {
     ],
     [customFieldDefinitions],
   )
+
+  const collectionColumns = useMemo(
+    () => getCollectionColumns(customFieldDefinitions),
+    [customFieldDefinitions],
+  )
+  const visibleColumns = collectionDisplay.columns.flatMap((key) => {
+    const column = collectionColumns.find((item) => item.key === key)
+    return column ? [column] : []
+  })
+  const reorderColumns = (sourceId: string, targetId: string) => {
+    const columns = [...collectionDisplay.columns]
+    const source = columns.findIndex((key) => key === sourceId)
+    const target = columns.findIndex((key) => key === targetId)
+    if (source < 0 || target < 0 || source === target) return
+    const [column] = columns.splice(source, 1)
+    columns.splice(target, 0, column)
+    saveDisplay({ columns })
+  }
 
   const bulkEditFields = useMemo<BulkEditFieldDefinition[]>(
     () => [
@@ -281,15 +322,13 @@ function CollectionContent() {
     )
     const sorted = [...matches].sort((left, right) => {
       if (sortOrder === 'model') return left.name.localeCompare(right.name)
-      if (sortOrder === 'brand') {
+      if (sortOrder === 'brand')
         return (
           left.brand.localeCompare(right.brand) ||
           left.name.localeCompare(right.name)
         )
-      }
       return Date.parse(right.addedAt) - Date.parse(left.addedAt)
     })
-
     return prioritizePinnedKnives(sorted, pinnedItemsFirst && !isPinnedView)
   }, [
     knives,
@@ -364,43 +403,6 @@ function CollectionContent() {
     })
     setVisibleCount(PAGE_SIZE)
   }
-  const exportCollection = () => {
-    const records = filteredKnives.map((knife) => ({
-      id: knife.id,
-      name: knife.name,
-      brand: knife.brand,
-      bladeStyle: knife.bladeStyle,
-      handleMaterial: knife.handleMaterial,
-      specs: knife.specs,
-      customFields: knife.customFields,
-      pinned: knife.pinned,
-      sold: knife.sold,
-    }))
-    const url = URL.createObjectURL(
-      new Blob(
-        [
-          JSON.stringify(
-            {
-              format: 'bladevault-collection-summary',
-              exportedAt: new Date().toISOString(),
-              records,
-            },
-            null,
-            2,
-          ),
-        ],
-        { type: 'application/json' },
-      ),
-    )
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `bladevault-collection-${new Date().toISOString().slice(0, 10)}.json`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-  }
-
   const toggleFilterValue = (key: FilterKey, value: string) => {
     const currentValues = selectedFilters[key]
     const nextValues = currentValues.includes(value)
@@ -619,12 +621,47 @@ function CollectionContent() {
     }
   }
 
+  const handleBulkDelete = async () => {
+    const ids = [...selectedIds]
+    if (
+      !ids.length ||
+      !window.confirm(
+        `Delete ${ids.length} selected knives? This action cannot be undone.`,
+      )
+    )
+      return
+    setIsDeleting(true)
+    let deleted = 0
+    try {
+      for (const id of ids) {
+        await deleteKnife(id)
+        deleted += 1
+        setSelectedIds((current) => {
+          const next = new Set(current)
+          next.delete(id)
+          return next
+        })
+      }
+      showFeedback(`Deleted ${deleted} ${deleted === 1 ? 'knife' : 'knives'}`)
+      exitSelectionMode()
+    } catch (error) {
+      showFeedback(
+        `Deleted ${deleted} of ${ids.length}. ${error instanceof Error ? error.message : 'Could not delete selected knives.'}`,
+        'error',
+      )
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   return (
     <div
       className={cn(
         'w-full flex-1 p-4 sm:p-6 lg:p-8',
         activeKnife && 'xl:pr-[28rem]',
-        isSelectionMode && 'pb-28 lg:pb-28',
+        (isSelectionMode ||
+          (themeStyle === 'modern' && selectedIds.size > 0)) &&
+          'pb-28 lg:pb-28',
       )}
       data-collection-content
       data-modern-collection={themeStyle === 'modern' || undefined}
@@ -638,36 +675,6 @@ function CollectionContent() {
         }
         actions={
           <>
-            {themeStyle === 'modern' && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  render={
-                    <Link
-                      href={
-                        activeComparison
-                          ? `/compare?list=${encodeURIComponent(activeComparison.id)}`
-                          : '/compare'
-                      }
-                    />
-                  }
-                  nativeButton={false}
-                >
-                  <Scale className="size-3.5" />
-                  Compare <span>{activeComparison?.ids.length ?? 0}</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={exportCollection}
-                  disabled={filteredKnives.length === 0}
-                  title="Export displayed collection metadata as JSON"
-                >
-                  Export
-                </Button>
-              </>
-            )}
             <SmartCollectionControls
               params={new URLSearchParams(searchParamsKey)}
               navigate={(query) => {
@@ -704,6 +711,48 @@ function CollectionContent() {
             ))}
           </nav>
           <div data-modern-collection-tools>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Filters and collection tools"
+              aria-expanded={isFiltersOpen}
+              onClick={() => setIsFiltersOpen((current) => !current)}
+            >
+              <ArrowDownWideNarrow className="size-4" />
+            </Button>
+            <details className="relative">
+              <summary
+                className="flex cursor-pointer list-none items-center gap-1 rounded-md px-2 py-1.5 text-xs focus-visible:outline-2 focus-visible:outline-ring"
+                aria-label="Choose columns"
+              >
+                <Columns3 className="size-3.5" /> Columns
+              </summary>
+              <div className="absolute right-0 top-full z-30 mt-2 max-h-[min(65dvh,32rem)] w-56 overflow-y-auto space-y-3 rounded-lg border border-border bg-popover p-3 shadow-lg">
+                <span className="text-xs text-muted-foreground">
+                  Show columns
+                </span>
+                {collectionColumns.map((column) => (
+                  <label
+                    key={column.key}
+                    className="flex cursor-pointer items-center gap-2 text-sm"
+                  >
+                    <Checkbox
+                      checked={collectionDisplay.columns.includes(column.key)}
+                      onCheckedChange={(checked) => {
+                        saveDisplay({
+                          columns: checked
+                            ? [...collectionDisplay.columns, column.key]
+                            : collectionDisplay.columns.filter(
+                                (item) => item !== column.key,
+                              ),
+                        })
+                      }}
+                    />
+                    {column.label}
+                  </label>
+                ))}
+              </div>
+            </details>
             <select
               aria-label="Sort collection"
               value={sortOrder}
@@ -752,15 +801,6 @@ function CollectionContent() {
             >
               <SlidersHorizontal className="size-3" />
               Clear
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Filters and collection tools"
-              aria-expanded={isFiltersOpen}
-              onClick={() => setIsFiltersOpen((current) => !current)}
-            >
-              <MoreHorizontal className="size-4" />
             </Button>
           </div>
         </div>
@@ -1119,10 +1159,26 @@ function CollectionContent() {
           <div className="space-y-6">
             {themeStyle === 'modern' &&
             modernView === 'list' &&
-            !isFamilyView &&
-            !isSelectionMode ? (
+            !isFamilyView ? (
               <ModernCollectionTable
                 knives={filteredKnives.slice(0, visibleCount)}
+                columnWidths={collectionDisplay.columnWidths}
+                onResizeColumn={(key, width) => {
+                  const columnWidths = { ...collectionDisplay.columnWidths }
+                  if (width === undefined) delete columnWidths[key]
+                  else columnWidths[key] = width
+                  saveDisplay({ columnWidths })
+                }}
+                onReorderColumn={reorderColumns}
+                columns={visibleColumns}
+                selectedIds={selectedIds}
+                onSelect={toggleKnifeSelection}
+                onSelectAll={toggleAllFiltered}
+                allSelected={allFilteredSelected}
+                someSelected={filteredKnives.some((knife) =>
+                  selectedIds.has(knife.id),
+                )}
+                selectionDisabled={isDeleting}
                 activeKnifeId={activeKnife?.id}
                 onOpen={inspectKnife}
                 onOpenDetail={(knife) => router.push(`/collection/${knife.id}`)}
@@ -1214,9 +1270,15 @@ function CollectionContent() {
         />
       )}
 
-      {isSelectionMode && (
+      {(isSelectionMode ||
+        (themeStyle === 'modern' && selectedIds.size > 0)) && (
         <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
-          <div className="pointer-events-auto flex w-full max-w-2xl flex-col gap-3 rounded-xl border border-[var(--bladevault-line)] bg-background/95 p-3 shadow-xl backdrop-blur sm:flex-row sm:items-center">
+          <div
+            className={cn(
+              'pointer-events-auto flex w-full max-w-2xl flex-col gap-3 rounded-xl border border-[var(--bladevault-line)] bg-background/95 p-3 shadow-xl backdrop-blur',
+              themeStyle !== 'modern' && 'sm:flex-row sm:items-center',
+            )}
+          >
             <div className="min-w-0 flex-1" aria-live="polite">
               <div className="text-sm font-medium text-foreground">
                 {selectedIds.size === 0
@@ -1224,10 +1286,13 @@ function CollectionContent() {
                   : `${selectedIds.size} ${selectedIds.size === 1 ? 'knife' : 'knives'} selected`}
               </div>
               <div className="text-xs text-muted-foreground">
-                One field will be replaced for every selected knife.
+                Edit, compare, pin, or delete the selected knives.
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <fieldset
+              disabled={isDeleting}
+              className="flex min-w-0 flex-wrap items-center gap-2"
+            >
               <Button
                 type="button"
                 variant="ghost"
@@ -1259,6 +1324,17 @@ function CollectionContent() {
               >
                 Compare selected
               </Button>
+              {themeStyle === 'modern' && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={!selectedIds.size || isDeleting}
+                  onClick={handleBulkDelete}
+                >
+                  <Trash2 className="size-3.5" />
+                  {isDeleting ? 'Deleting…' : 'Delete selected'}
+                </Button>
+              )}
               {selectedIds.size > 0 && (
                 <Button
                   type="button"
@@ -1292,7 +1368,17 @@ function CollectionContent() {
                 )}
                 {selectedKnivesPinned ? 'Unpin' : 'Pin'}
               </Button>
-            </div>
+              {themeStyle === 'modern' && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Cancel selection"
+                  onClick={exitSelectionMode}
+                >
+                  <X className="size-4" />
+                </Button>
+              )}
+            </fieldset>
           </div>
         </div>
       )}
