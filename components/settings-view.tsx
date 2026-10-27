@@ -1103,7 +1103,7 @@ export default function SettingsView() {
   }
 
   const handlePrintCollectionReport = () => {
-    router.push('/?print=1')
+    router.push('/insights?print=1')
   }
 
   const handleLocalRestoreFile = async (

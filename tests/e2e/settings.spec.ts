@@ -116,7 +116,7 @@ test('prints the collection report from Backup & Restore', async ({
   await page.getByRole('button', { name: 'Backup & Restore' }).click()
   await page.getByRole('button', { name: 'Print Report' }).click()
 
-  await expect(page).toHaveURL('/')
+  await expect(page).toHaveURL('/insights')
   await expect
     .poll(() =>
       page.evaluate(() =>
