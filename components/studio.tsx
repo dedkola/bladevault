@@ -1,6 +1,6 @@
 'use client'
 
-import { useContext, useMemo, useRef, useState } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import Link from 'next/link'
@@ -31,6 +31,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
 import { compactMeasurement } from '@/lib/compact-measurement'
 import { getImageUrl, type Knife } from '@/lib/data'
 import { groupKnifeFamilies } from '@/lib/knife-families'
@@ -45,14 +46,16 @@ type StudioSort = 'random' | 'name' | 'maker'
 function StudioImage({
   knife,
   eager = false,
+  imageIndex = 0,
 }: {
   knife: Knife
   eager?: boolean
+  imageIndex?: number
 }) {
   const [failed, setFailed] = useState(false)
-  return knife.images[0] && !failed ? (
+  return knife.images[imageIndex] && !failed ? (
     <Image
-      src={getImageUrl(knife.images[0])}
+      src={getImageUrl(knife.images[imageIndex])}
       alt={`${knife.brand} ${knife.name}`.trim()}
       fill
       sizes="(max-width: 600px) 80vw, (max-width: 1100px) 50vw, 40vw"
@@ -90,8 +93,13 @@ export function StudioView() {
   const [focus, setFocus] = useState(false)
   const headerTarget = useContext(WorkspaceHeaderActionsContext)
   const [quickLook, setQuickLook] = useState<{
-    ids: string[]
-    index: number
+    knifeId: string
+    imageIndex: number
+  } | null>(null)
+  const [quickPhotos, setQuickPhotos] = useState<{
+    knifeId: string
+    images?: string[]
+    error?: string
   } | null>(null)
   const [pinBusy, setPinBusy] = useState<string | null>(null)
   const [compareBusy, setCompareBusy] = useState<string | null>(null)
@@ -139,10 +147,57 @@ export function StudioView() {
   const featuredFamilies = families
     .filter((family) => family.knives.some((knife) => knife.images.length))
     .slice(0, 3)
-  const selectedKnife = quickLook
-    ? knives.find((knife) => knife.id === quickLook.ids[quickLook.index])
+  const selectedSummary = quickLook
+    ? knives.find((knife) => knife.id === quickLook.knifeId)
     : undefined
-  const quickLookCount = quickLook?.ids.length ?? 0
+  const selectedPhotos =
+    quickPhotos?.knifeId === quickLook?.knifeId ? quickPhotos : null
+  const selectedKnife = selectedSummary
+    ? {
+        ...selectedSummary,
+        images: selectedPhotos?.images ?? selectedSummary.images,
+      }
+    : undefined
+  const photosLoading = Boolean(quickLook && !selectedPhotos)
+  const quickLookCount = selectedPhotos?.images?.length ?? 0
+  const quickLookId = quickLook?.knifeId
+
+  useEffect(() => {
+    if (!quickLookId) return
+    const controller = new AbortController()
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/knives/${encodeURIComponent(quickLookId)}`,
+          {
+            signal: controller.signal,
+            cache: 'no-store',
+          },
+        )
+        const data = await readJsonResponse<{ knife?: Knife; error?: string }>(
+          response,
+        )
+        if (!response.ok) {
+          throw new Error(getApiErrorMessage(data, 'Could not load photos.'))
+        }
+        if (!Array.isArray(data.knife?.images)) {
+          throw new Error('Could not load photos.')
+        }
+        if (!controller.signal.aborted) {
+          setQuickPhotos({ knifeId: quickLookId, images: data.knife.images })
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setQuickPhotos({
+            knifeId: quickLookId,
+            error:
+              error instanceof Error ? error.message : 'Could not load photos.',
+          })
+        }
+      }
+    })()
+    return () => controller.abort()
+  }, [quickLookId])
 
   async function togglePin(knife: Knife) {
     if (pinBusy) return
@@ -176,19 +231,21 @@ export function StudioView() {
 
   function openQuickLook(id: string, trigger: HTMLElement) {
     returnFocus.current = trigger
+    setQuickPhotos(null)
     setQuickLook({
-      ids: visible.map(({ knife }) => knife.id),
-      index: visible.findIndex(({ knife }) => knife.id === id),
+      knifeId: id,
+      imageIndex: 0,
     })
   }
 
   function moveQuickLook(delta: number) {
+    if (quickLookCount < 2) return
     setQuickLook((current) =>
       current
         ? {
             ...current,
-            index:
-              (current.index + delta + current.ids.length) % current.ids.length,
+            imageIndex:
+              (current.imageIndex + delta + quickLookCount) % quickLookCount,
           }
         : null,
     )
@@ -521,7 +578,8 @@ export function StudioView() {
             <>
               <div className={styles.quickStage}>
                 <StudioImage
-                  key={`${selectedKnife.id}-${selectedKnife.images[0]}`}
+                  key={`${selectedKnife.id}-${quickLook?.imageIndex}-${selectedKnife.images[quickLook?.imageIndex ?? 0]}`}
+                  imageIndex={quickLook?.imageIndex ?? 0}
                   knife={selectedKnife}
                   eager
                 />
@@ -529,19 +587,26 @@ export function StudioView() {
                   <Button
                     variant="outline"
                     size="icon"
-                    aria-label="Previous knife"
+                    aria-label="Previous image"
                     disabled={quickLookCount < 2}
                     onClick={() => moveQuickLook(-1)}
                   >
                     <ChevronLeft />
                   </Button>
-                  <span>
-                    {(quickLook?.index ?? 0) + 1} / {quickLookCount}
+                  <span
+                    aria-live="polite"
+                    aria-atomic="true"
+                    role={selectedPhotos?.error ? 'alert' : undefined}
+                  >
+                    {photosLoading
+                      ? 'Loading photos…'
+                      : (selectedPhotos?.error ??
+                        `${quickLookCount ? (quickLook?.imageIndex ?? 0) + 1 : 0} / ${quickLookCount}`)}
                   </span>
                   <Button
                     variant="outline"
                     size="icon"
-                    aria-label="Next knife"
+                    aria-label="Next image"
                     disabled={quickLookCount < 2}
                     onClick={() => moveQuickLook(1)}
                   >
