@@ -505,8 +505,10 @@
 
 .quickLook {
   display: grid;
-  grid-template-columns: 55% 45%;
-  width: 960px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(180px, 1fr) auto;
+  width: 1200px;
+  height: min(880px, calc(100dvh - 40px));
   max-width: calc(100vw - 32px);
   max-height: calc(100dvh - 40px);
   gap: 0;
@@ -517,11 +519,11 @@
 }
 
 .quickStage {
-  min-height: 420px;
+  min-height: 0;
 }
 
 .quickStage .image {
-  padding: 28px 10% 64px;
+  padding: 36px 4% 62px;
 }
 
 .quickNav {
@@ -553,54 +555,51 @@
 }
 
 .quickBody {
-  align-self: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'identity actions' 'specs specs';
+  align-items: center;
+  gap: 10px 20px;
   min-width: 0;
-  padding: 38px 30px 30px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--studio-line);
+}
+
+.quickIdentity {
+  grid-area: identity;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  min-width: 0;
 }
 
 .quickTitle {
-  font-size: 32px;
-  line-height: 1.05;
+  font-size: 20px;
+  line-height: 1.2;
   font-weight: 600;
   letter-spacing: -0.04em;
   overflow-wrap: anywhere;
 }
 
 .quickSubtitle {
-  margin-top: 9px;
   font-size: 12px;
   overflow-wrap: anywhere;
 }
 
-.chips {
+.specs {
+  grid-area: specs;
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 17px;
-}
-
-.chips > span {
-  max-width: 100%;
-  padding: 5px 8px;
-  border: 1px solid var(--studio-line);
-  border-radius: 6px;
-  color: var(--muted-foreground);
-  font-size: 10px;
-  overflow-wrap: anywhere;
-}
-
-.specs {
-  margin-top: 20px;
+  gap: 6px 20px;
 }
 
 .specs > div {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--studio-line);
-  font-size: 11px;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
 }
 
 .specs dt {
@@ -609,15 +608,14 @@
 
 .specs dd {
   font-weight: 500;
-  text-align: right;
   overflow-wrap: anywhere;
 }
 
 .quickActions {
+  grid-area: actions;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 24px;
 }
 
 .focus {
@@ -775,7 +773,6 @@
     .familyCaption > span,
     .footer,
     .quickSubtitle,
-    .chips > span,
     .specs > div
   ) {
   font-size: 13px;
@@ -928,25 +925,18 @@
 
 @media (max-width: 700px) {
   .quickLook {
-    grid-template-columns: 1fr;
-    width: 480px;
+    height: calc(100dvh - 24px);
+    max-height: calc(100dvh - 24px);
+    max-width: calc(100vw - 24px);
     border-radius: 20px;
   }
-  .quickStage {
-    min-height: 240px;
-    height: 32dvh;
-  }
   .quickBody {
-    padding: 24px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'identity' 'specs' 'actions';
+    padding: 12px 16px;
   }
-  .quickTitle {
-    font-size: 27px;
-  }
-  .specs > div {
-    padding: 8px 0;
-  }
-  .quickActions {
-    margin-top: 18px;
+  .specs {
+    gap: 4px 14px;
   }
 }
 
