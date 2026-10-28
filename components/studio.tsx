@@ -615,31 +615,31 @@ export function StudioView() {
                 </div>
               </div>
               <div className={styles.quickBody}>
-                <p className={styles.eyebrow}>
-                  Quick Look {selectedKnife.sold && '· Sold'}
-                </p>
-                <DialogTitle className={styles.quickTitle}>
-                  {selectedKnife.name}
-                </DialogTitle>
-                <DialogDescription className={styles.quickSubtitle}>
-                  {[selectedKnife.brand, selectedKnife.specs.modelNumber]
-                    .filter(Boolean)
-                    .join(' · ') || 'Model not recorded'}
-                </DialogDescription>
-                <div className={styles.chips}>
-                  {[
-                    selectedKnife.specs.bladeMaterial,
-                    compactMeasurement(selectedKnife.specs.bladeLength, ''),
-                    compactMeasurement(selectedKnife.specs.weight, ''),
-                  ]
-                    .filter(Boolean)
-                    .map((value, index) => (
-                      <span key={`${index}-${value}`}>{value}</span>
-                    ))}
+                <div className={styles.quickIdentity}>
+                  <DialogTitle className={styles.quickTitle}>
+                    {selectedKnife.name}
+                  </DialogTitle>
+                  <DialogDescription className={styles.quickSubtitle}>
+                    {[
+                      selectedKnife.brand,
+                      selectedKnife.specs.modelNumber,
+                      selectedKnife.sold && 'Sold',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || 'Model not recorded'}
+                  </DialogDescription>
                 </div>
                 <dl className={styles.specs}>
                   {[
-                    ['Maker', selectedKnife.brand],
+                    ['Steel', selectedKnife.specs.bladeMaterial],
+                    [
+                      'Blade',
+                      compactMeasurement(selectedKnife.specs.bladeLength, ''),
+                    ],
+                    [
+                      'Weight',
+                      compactMeasurement(selectedKnife.specs.weight, ''),
+                    ],
                     ['Designer', selectedKnife.specs.designer],
                     ['Lock', selectedKnife.specs.lockingMechanism],
                     ['Handle', selectedKnife.handleMaterial],
