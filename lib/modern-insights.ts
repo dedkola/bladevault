@@ -1,8 +1,4 @@
 import type { Knife } from '@/lib/data'
-import {
-  parseLengthToInches,
-  parseWeightToOunces,
-} from '@/lib/collection-stats'
 
 export type ModernInsightsRange = '6m' | '12m' | 'all'
 
@@ -11,14 +7,6 @@ export type CataloguePoint = {
   label: string
   added: number
   total: number
-}
-
-export type CarryPoint = {
-  id: string
-  name: string
-  brand: string
-  bladeLength: number
-  weight: number
 }
 
 function monthIndex(date: Date): number {
@@ -87,31 +75,4 @@ export function buildCatalogueSeries(
     excludedCount: knives.length - datedCount,
     addedInRange,
   }
-}
-
-/** Only paired, positive measurements can describe a knife on the carry chart. */
-export function buildCarryPoints(knives: Knife[]): CarryPoint[] {
-  return knives.flatMap((knife) => {
-    const bladeLength = parseLengthToInches(knife.specs.bladeLength)
-    const weight = parseWeightToOunces(knife.specs.weight)
-    if (
-      bladeLength === undefined ||
-      weight === undefined ||
-      !Number.isFinite(bladeLength) ||
-      !Number.isFinite(weight) ||
-      bladeLength <= 0 ||
-      weight <= 0
-    )
-      return []
-
-    return [
-      {
-        id: knife.id,
-        name: knife.name,
-        brand: knife.brand,
-        bladeLength,
-        weight,
-      },
-    ]
-  })
 }

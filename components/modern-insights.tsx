@@ -2,26 +2,20 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useId, useMemo, useState, type ReactNode } from 'react'
 import { ArrowUpRight, Plus, Printer } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
-import { InsightsChart } from '@/components/insights-chart'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { useKnives } from '@/components/providers/knives-provider'
 import {
-  buildCatalogueOption,
-  buildCarryOption,
-} from '@/components/modern-insights-charts'
-import {
   createCollectionStats,
   type CategoryStat,
+  type MeasurementKey,
 } from '@/lib/collection-stats'
 import { getImageUrl, type Knife } from '@/lib/data'
 import { groupKnifeFamilies } from '@/lib/knife-families'
 import {
   buildCatalogueSeries,
-  buildCarryPoints,
   type ModernInsightsRange,
 } from '@/lib/modern-insights'
 import { cn } from '@/lib/utils'
@@ -32,6 +26,12 @@ const RANGES: { value: ModernInsightsRange; label: string }[] = [
   { value: '6m', label: '6 months' },
   { value: '12m', label: '12 months' },
   { value: 'all', label: 'All time' },
+]
+const MEASUREMENTS: { value: MeasurementKey; label: string }[] = [
+  { value: 'bladeLength', label: 'Blade' },
+  { value: 'overallLength', label: 'Overall' },
+  { value: 'weight', label: 'Weight' },
+  { value: 'bladeThickness', label: 'Thickness' },
 ]
 const COLORS = [
   'var(--bv-chart-1)',
@@ -131,16 +131,108 @@ function formatDate(value: string): string {
     : 'Date not recorded'
 }
 
+function formatMeasurement(value: number | undefined): string {
+  return value === undefined
+    ? '—'
+    : value.toLocaleString('en-US', { maximumFractionDigits: 2 })
+}
+
+function compactBinLabel(label: string): string {
+  return label.replace(/\.0(?=–|″|\s)/g, '').replace(/″|\s(?:oz|mm)/g, '')
+}
+
+type BarDatum = {
+  key: string
+  label: string
+  count: number
+  description: string
+  highlighted: boolean
+}
+
+function Bars({
+  label,
+  data,
+  selectedKey,
+  onSelect,
+  minBarWidth = 0,
+}: {
+  label: string
+  data: BarDatum[]
+  selectedKey?: string
+  onSelect: (key: string) => void
+  minBarWidth?: number
+}) {
+  const peak = Math.max(1, ...data.map((item) => item.count))
+  return (
+    <div
+      className={styles.chartScroll}
+      role="region"
+      aria-label={`${label}; scroll to see all ranges`}
+      tabIndex={0}
+    >
+      <div
+        role="group"
+        aria-label={label}
+        className={styles.barChart}
+        style={{
+          gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))`,
+          minWidth: minBarWidth
+            ? data.length * minBarWidth + (data.length - 1) * 12
+            : undefined,
+        }}
+      >
+        <span className={styles.chartGrid} aria-hidden="true" />
+        {data.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className={styles.barButton}
+            aria-label={item.description}
+            aria-pressed={selectedKey === item.key}
+            title={item.description}
+            onClick={() => onSelect(item.key)}
+          >
+            <span className={styles.barPlot} aria-hidden="true">
+              <span
+                className={cn(
+                  styles.barColumn,
+                  item.highlighted && styles.barHighlighted,
+                )}
+                style={{ height: `${(item.count / peak) * 100}%` }}
+              >
+                <span className={styles.barCount}>
+                  {number.format(item.count)}
+                </span>
+              </span>
+            </span>
+            <span
+              aria-hidden="true"
+              className={cn(
+                styles.barLabel,
+                item.highlighted && styles.barLabelHighlighted,
+              )}
+            >
+              {item.label}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function ModernInsights() {
   const { knives, isLoading } = useKnives()
-  const router = useRouter()
   const [range, setRange] = useState<ModernInsightsRange>('6m')
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>()
+  const [measurementKey, setMeasurementKey] =
+    useState<MeasurementKey>('bladeLength')
+  const [selectedBinLabel, setSelectedBinLabel] = useState<string>()
   const stats = useMemo(() => createCollectionStats(knives, 'all'), [knives])
   const catalogue = useMemo(
     () => buildCatalogueSeries(knives, range, new Date()),
     [knives, range],
   )
-  const carry = useMemo(() => buildCarryPoints(knives), [knives])
   const families = useMemo(() => groupKnifeFamilies(knives), [knives])
   const knivesById = useMemo(
     () => new Map(knives.map((knife) => [knife.id, knife])),
@@ -185,6 +277,17 @@ export function ModernInsights() {
   const makers = stats.categories.brand
   const median = stats.measurements.bladeLength.median
   const soldCount = knives.filter((knife) => knife.sold).length
+  const currentMonth = catalogue.points.at(-1)!
+  const selectedMonth =
+    catalogue.points.find((point) => point.monthKey === selectedMonthKey) ??
+    currentMonth
+  const measurement = stats.measurements[measurementKey]
+  const peakBin = measurement.bins.reduce((peak, bin) =>
+    bin.count > peak.count ? bin : peak,
+  )
+  const selectedBin = measurement.bins.find(
+    (bin) => bin.label === selectedBinLabel,
+  )
 
   return (
     <div className={styles.root} data-modern-insights>
@@ -272,8 +375,8 @@ export function ModernInsights() {
           </div>
           <div className={styles.grid}>
             <Panel
-              title="Catalogue growth"
-              description="Current records, by the date they were added."
+              title="Collection additions"
+              description="A month-by-month view of your catalogue."
               className={styles.growth}
               action={
                 <div
@@ -286,7 +389,10 @@ export function ModernInsights() {
                       key={item.value}
                       type="button"
                       aria-pressed={range === item.value}
-                      onClick={() => setRange(item.value)}
+                      onClick={() => {
+                        setRange(item.value)
+                        setSelectedMonthKey(undefined)
+                      }}
                     >
                       {item.label}
                     </button>
@@ -294,24 +400,81 @@ export function ModernInsights() {
                 </div>
               }
             >
-              <div className={styles.growthSummary}>
-                <span>
-                  <strong>{number.format(catalogue.datedCount)}</strong> dated
-                  records · {number.format(catalogue.addedInRange)} added in
-                  this range
-                </span>
-                <span>
-                  {catalogue.points[0].label} – {catalogue.points.at(-1)?.label}
-                </span>
+              <div className={styles.chartSummary}>
+                <div>
+                  <strong className={styles.chartValue}>
+                    +{number.format(catalogue.addedInRange)}
+                  </strong>
+                  <p>
+                    {range === 'all'
+                      ? 'added since your catalogue began'
+                      : `added in the last ${range === '6m' ? 6 : 12} months`}
+                  </p>
+                </div>
+                <div className={styles.summaryAside}>
+                  <strong>
+                    {(
+                      catalogue.addedInRange / catalogue.points.length
+                    ).toLocaleString('en-US', {
+                      maximumFractionDigits: 1,
+                    })}{' '}
+                    per month
+                  </strong>
+                  <p>average over this period</p>
+                </div>
               </div>
               {catalogue.datedCount > 0 ? (
-                <InsightsChart
-                  className={styles.growthChart}
-                  ariaLabel={`Cumulative catalogue records from ${catalogue.points[0].label} to ${catalogue.points.at(-1)?.label}; ${catalogue.datedCount} dated records`}
-                  buildOption={(palette) =>
-                    buildCatalogueOption(palette, catalogue.points)
-                  }
-                />
+                <>
+                  <Bars
+                    label="Monthly catalogue additions"
+                    data={catalogue.points.map((point) => ({
+                      key: point.monthKey,
+                      label:
+                        catalogue.points.length > 6
+                          ? point.label
+                          : point.label.split(' ')[0],
+                      count: point.added,
+                      description: `${point.label}: ${number.format(point.added)} knives added`,
+                      highlighted: point.monthKey === currentMonth.monthKey,
+                    }))}
+                    selectedKey={selectedMonthKey}
+                    onSelect={setSelectedMonthKey}
+                    minBarWidth={catalogue.points.length > 6 ? 46 : 0}
+                  />
+                  <div className={styles.chartContext}>
+                    <span aria-live="polite">
+                      {selectedMonth.label}:{' '}
+                      {number.format(selectedMonth.added)} additions
+                    </span>
+                    <span className={styles.currentMonth}>
+                      Current month · in progress
+                    </span>
+                  </div>
+                  <details className={styles.chartData}>
+                    <summary>View monthly data</summary>
+                    <table>
+                      <caption className="sr-only">
+                        Monthly additions and cumulative catalogue totals
+                      </caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Month</th>
+                          <th scope="col">Added</th>
+                          <th scope="col">Catalogue total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {catalogue.points.map((point) => (
+                          <tr key={point.monthKey}>
+                            <th scope="row">{point.label}</th>
+                            <td>{number.format(point.added)}</td>
+                            <td>{number.format(point.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </details>
+                </>
               ) : (
                 <p className={styles.chartEmpty}>
                   No valid catalogue dates to plot yet.
@@ -321,7 +484,10 @@ export function ModernInsights() {
                 <span>
                   {catalogue.excludedCount
                     ? `${catalogue.excludedCount} invalid or future dates excluded.`
-                    : 'Includes all catalogued records, including those marked sold.'}
+                    : 'By date added · includes records marked sold'}
+                </span>
+                <span>
+                  {catalogue.points[0].label} – {currentMonth.label}
                 </span>
                 <DetailLink href="/insights/recent">View additions</DetailLink>
               </div>
@@ -434,43 +600,124 @@ export function ModernInsights() {
             </Panel>
 
             <Panel
-              title="Carry profile"
-              description="How blade length and weight sit together."
+              title="Measurement distribution"
+              description="See the sizes and weights you collect most."
               className={styles.carry}
               action={
-                <span className={styles.sampleBadge}>
-                  {carry.length} paired measurements
-                </span>
+                <div
+                  className={styles.range}
+                  role="group"
+                  aria-label="Measurement"
+                >
+                  {MEASUREMENTS.map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      aria-pressed={measurementKey === item.value}
+                      onClick={() => {
+                        setMeasurementKey(item.value)
+                        setSelectedBinLabel(undefined)
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               }
             >
-              {carry.length ? (
-                <InsightsChart
-                  className={styles.carryChart}
-                  ariaLabel={`Blade length versus weight for ${carry.length} catalogued ${carry.length === 1 ? 'knife' : 'knives'}`}
-                  buildOption={(palette) => buildCarryOption(palette, carry)}
-                  onChartClick={({ dataIndex }) => {
-                    if (dataIndex !== undefined && carry[dataIndex])
-                      router.push(
-                        `/collection/${encodeURIComponent(carry[dataIndex].id)}`,
-                      )
-                  }}
+              <div className={styles.chartSummary}>
+                <div>
+                  <strong className={styles.chartValue}>
+                    {formatMeasurement(measurement.median)}
+                    <small>{measurement.unit}</small>
+                  </strong>
+                  <p>median {measurement.label.toLowerCase()}</p>
+                </div>
+                {peakBin.count > 0 && (
+                  <div className={styles.summaryAside}>
+                    <strong>{peakBin.label}</strong>
+                    <p>most common · {number.format(peakBin.count)} knives</p>
+                  </div>
+                )}
+              </div>
+              {measurement.knownCount > 0 ? (
+                <Bars
+                  label={`${measurement.label} distribution`}
+                  data={measurement.bins.map((bin) => ({
+                    key: bin.label,
+                    label: compactBinLabel(bin.label),
+                    count: bin.count,
+                    description: `${bin.label}: ${number.format(bin.count)} knives, ${Math.round((bin.count / measurement.knownCount) * 100)}% of measured`,
+                    highlighted: bin.count === peakBin.count,
+                  }))}
+                  selectedKey={selectedBinLabel}
+                  onSelect={setSelectedBinLabel}
+                  minBarWidth={44}
                 />
               ) : (
                 <div className={styles.chartEmpty}>
-                  <p>Add blade length and weight to see your carry profile.</p>
+                  <p>
+                    No readable {measurement.label.toLowerCase()} measurements
+                    yet.
+                  </p>
                   <DetailLink href="/insights/completeness">
                     Find missing measurements
                   </DetailLink>
                 </div>
               )}
+              <div className={styles.chartContext}>
+                <span>
+                  {number.format(measurement.knownCount)} measured ·{' '}
+                  {number.format(measurement.missingCount)} missing
+                  {measurement.uninterpretableCount > 0 &&
+                    ` · ${number.format(measurement.uninterpretableCount)} unreadable`}
+                </span>
+                <span aria-live="polite">
+                  {selectedBin && measurement.knownCount > 0
+                    ? `${selectedBin.label} · ${number.format(selectedBin.count)} knives · ${Math.round((selectedBin.count / measurement.knownCount) * 100)}%`
+                    : 'Select a range to see its share'}
+                </span>
+              </div>
+              {measurement.knownCount > 0 && (
+                <details className={styles.chartData}>
+                  <summary>View distribution data</summary>
+                  <table>
+                    <caption className="sr-only">
+                      {measurement.label} distribution. Lower bounds inclusive,
+                      upper bounds exclusive.
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Range</th>
+                        <th scope="col">Knives</th>
+                        <th scope="col">Share of measured</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {measurement.bins.map((bin) => (
+                        <tr key={bin.label}>
+                          <th scope="row">{bin.label}</th>
+                          <td>{number.format(bin.count)}</td>
+                          <td>
+                            {Math.round(
+                              (bin.count / measurement.knownCount) * 100,
+                            )}
+                            %
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </details>
+              )}
               <div className={styles.panelFoot}>
                 <span>
-                  One dot per knife · inches / ounces
-                  {carry.length < stats.total
-                    ? ` · ${stats.total - carry.length} without a readable pair`
-                    : ''}
+                  Recorded range: {formatMeasurement(measurement.min)}–
+                  {formatMeasurement(measurement.max)} {measurement.unit}
                 </span>
-                <DetailLink href="/insights/measurements?tab=weight">
+                <DetailLink
+                  href={`/insights/measurements?tab=${measurementKey}`}
+                >
                   Explore measurements
                 </DetailLink>
               </div>

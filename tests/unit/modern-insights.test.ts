@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildCarryPoints, buildCatalogueSeries } from '@/lib/modern-insights'
+import { buildCatalogueSeries } from '@/lib/modern-insights'
 import { createKnife } from '@/tests/fixtures/knife'
 
 function datedKnife(id: string, year: number, month: number, day = 1) {
@@ -114,75 +114,5 @@ describe('modern Insights catalogue series', () => {
       excludedCount: 0,
       addedInRange: 0,
     })
-  })
-})
-
-describe('modern Insights carry measurements', () => {
-  it('normalizes metric and dual-unit measurements and preserves record identity', () => {
-    const metric = createKnife({
-      id: 'metric',
-      name: '<Compact & light>',
-      brand: 'Maker',
-      specs: {
-        ...createKnife().specs,
-        bladeLength: '88.9 mm',
-        weight: '100 g',
-      },
-    })
-    const dual = createKnife({
-      id: 'dual',
-      specs: {
-        ...createKnife().specs,
-        bladeLength: '3 in / 76.2 mm',
-        weight: '4.5 oz / 127.5 g',
-      },
-    })
-    const points = buildCarryPoints([metric, dual])
-
-    expect(points).toHaveLength(2)
-    expect(points[0]).toMatchObject({
-      id: 'metric',
-      name: '<Compact & light>',
-      brand: 'Maker',
-    })
-    expect(points[0].bladeLength).toBeCloseTo(3.5)
-    expect(points[0].weight).toBeCloseTo(3.527396195)
-    expect(points[1]).toMatchObject({
-      id: 'dual',
-      bladeLength: 3,
-      weight: 4.5,
-    })
-    expect(metric.specs.bladeLength).toBe('88.9 mm')
-    expect(metric.specs.weight).toBe('100 g')
-  })
-
-  it.each([
-    ['0 in', '2 oz'],
-    ['3 in', '0 g'],
-    ['-3 in', '2 oz'],
-    ['3 in', '-2 oz'],
-    ['', '2 oz'],
-    ['3 in', ''],
-    ['unknown', '2 oz'],
-    ['3 in', 'balance'],
-    ['1e3 in', '2 oz'],
-    ['3 in', 'Infinity oz'],
-  ])('excludes an unusable pair: %s, %s', (bladeLength, weight) => {
-    const invalid = createKnife({
-      specs: { ...createKnife().specs, bladeLength, weight },
-    })
-    expect(buildCarryPoints([invalid])).toEqual([])
-  })
-
-  it('does not turn absent records or measurements into zero-valued points', () => {
-    expect(buildCarryPoints([])).toEqual([])
-    const invalid = createKnife({
-      id: 'unknown',
-      specs: { ...createKnife().specs, bladeLength: '', weight: '' },
-    })
-    const valid = createKnife({ id: 'valid' })
-    expect(buildCarryPoints([invalid, valid]).map(({ id }) => id)).toEqual([
-      'valid',
-    ])
   })
 })

@@ -6,7 +6,7 @@ test.beforeEach(async ({ request }) => {
   await request.post('/api/settings', { data: { themeStyle: 'modern' } })
 })
 
-test('summarizes current records and uses only interpreted measurements for the carry profile', async ({
+test('summarizes current records and switches between independent measurement distributions', async ({
   page,
   request,
 }) => {
@@ -61,12 +61,45 @@ test('summarizes current records and uses only interpreted measurements for the 
   await expect(
     page.getByRole('group', { name: 'Field coverage', exact: true }),
   ).toContainText(/73\s*%/)
+  const measurements = page.getByRole('region', {
+    name: 'Measurement distribution',
+    exact: true,
+  })
+  await expect(measurements).toContainText('2 measured · 1 missing')
+  await expect(measurements).toContainText('median blade length')
+  await measurements
+    .getByRole('button', { name: 'Weight', exact: true })
+    .click()
+  await expect(measurements).toContainText(
+    '2 measured · 0 missing · 1 unreadable',
+  )
+  await expect(measurements).toContainText('median weight')
+  const weightBin = measurements.getByRole('button', {
+    name: '3.0–3.5 oz: 1 knives, 50% of measured',
+    exact: true,
+  })
+  await weightBin.press('Enter')
+  await expect(weightBin).toHaveAttribute('aria-pressed', 'true')
+  await expect(measurements).toContainText('3.0–3.5 oz · 1 knives · 50%')
+  await measurements
+    .getByText('View distribution data', { exact: true })
+    .click()
+  await expect(measurements.getByRole('table')).toBeVisible()
   await expect(
-    page.getByRole('img', {
-      name: 'Blade length versus weight for 2 catalogued knives',
-      exact: true,
-    }),
+    measurements.getByRole('row', { name: '3.0–3.5 oz 1 50%' }),
   ).toBeVisible()
+  await measurements
+    .getByRole('button', { name: 'Overall', exact: true })
+    .click()
+  await expect(measurements).toContainText('median overall length')
+  await expect(measurements).toContainText('Select a range to see its share')
+  await measurements
+    .getByRole('button', { name: 'Thickness', exact: true })
+    .click()
+  await expect(measurements).toContainText('median blade thickness')
+  await expect(
+    measurements.getByRole('link', { name: 'Explore measurements' }),
+  ).toHaveAttribute('href', '/insights/measurements?tab=bladeThickness')
   await expect(
     page
       .getByRole('region', { name: 'Catalogue coverage', exact: true })
@@ -130,7 +163,7 @@ test('shows the true all-time history and retains a baseline for shorter ranges'
 
   await page.goto('/')
   const growth = page.getByRole('region', {
-    name: 'Catalogue growth',
+    name: 'Collection additions',
     exact: true,
   })
   const sixMonths = page.getByRole('button', {
@@ -138,8 +171,24 @@ test('shows the true all-time history and retains a baseline for shorter ranges'
     exact: true,
   })
   await expect(sixMonths).toHaveAttribute('aria-pressed', 'true')
-  await expect(growth).toContainText('2 dated records · 1 added in this range')
+  await expect(growth).toContainText('+1')
+  await expect(growth).toContainText('added in the last 6 months')
   await expect(growth).toContainText('May 2026 – Oct 2026')
+  await expect(growth).toContainText('2 invalid or future dates excluded.')
+  await growth.getByText('View monthly data', { exact: true }).click()
+  await expect(
+    growth.getByRole('row', { name: 'May 2026 0 1', exact: true }),
+  ).toBeVisible()
+  await expect(
+    growth.getByRole('row', { name: 'Oct 2026 1 2', exact: true }),
+  ).toBeVisible()
+  const mayBar = growth.getByRole('button', {
+    name: 'May 2026: 0 knives added',
+    exact: true,
+  })
+  await mayBar.press('Enter')
+  await expect(mayBar).toHaveAttribute('aria-pressed', 'true')
+  await expect(growth).toContainText('May 2026: 0 additions')
 
   const twelveMonths = page.getByRole('button', {
     name: '12 months',
@@ -148,18 +197,38 @@ test('shows the true all-time history and retains a baseline for shorter ranges'
   await twelveMonths.click()
   await expect(twelveMonths).toHaveAttribute('aria-pressed', 'true')
   await expect(growth).toContainText('Nov 2025 – Oct 2026')
-  await expect(growth).toContainText('2 dated records · 1 added in this range')
+  await expect(growth).toContainText('added in the last 12 months')
+  await expect(growth).toContainText('Oct 2026: 1 additions')
 
   const allTime = page.getByRole('button', { name: 'All time', exact: true })
   await allTime.click()
   await expect(allTime).toHaveAttribute('aria-pressed', 'true')
   await expect(growth).toContainText('Jan 2024 – Oct 2026')
-  await expect(growth).toContainText('2 dated records · 2 added in this range')
+  await expect(growth).toContainText('+2')
+  await expect(growth).toContainText('added since your catalogue began')
+  await expect(
+    growth.getByRole('row', { name: 'Jan 2024 1 1', exact: true }),
+  ).toBeVisible()
   await expect(
     page
       .getByRole('group', { name: 'Catalogued knives', exact: true })
       .getByText('4', { exact: true }),
   ).toBeVisible()
+  await page.setViewportSize({ width: 390, height: 844 })
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true)
+  const chartScroll = growth.getByRole('region', {
+    name: 'Monthly catalogue additions; scroll to see all ranges',
+    exact: true,
+  })
+  expect(
+    await chartScroll.evaluate(
+      (element) => element.scrollWidth > element.clientWidth,
+    ),
+  ).toBe(true)
 })
 
 test('distinguishes filled fields from usable measurements and opens missing-record work', async ({
@@ -189,11 +258,32 @@ test('distinguishes filled fields from usable measurements and opens missing-rec
   await expect(
     page.getByRole('group', { name: 'Median blade', exact: true }),
   ).toContainText('—')
-  const carry = page.getByRole('region', { name: 'Carry profile', exact: true })
-  await expect(carry).toContainText(
-    'Add blade length and weight to see your carry profile.',
+  const measurements = page.getByRole('region', {
+    name: 'Measurement distribution',
+    exact: true,
+  })
+  await expect(measurements).toContainText(
+    'No readable blade length measurements yet.',
   )
-  await expect(carry.getByRole('img')).toHaveCount(0)
+  await expect(measurements).toContainText(
+    '0 measured · 0 missing · 1 unreadable',
+  )
+  await expect(
+    measurements.getByRole('group', {
+      name: 'Blade length distribution',
+      exact: true,
+    }),
+  ).toHaveCount(0)
+  await measurements
+    .getByRole('button', { name: 'Overall', exact: true })
+    .click()
+  await expect(measurements).toContainText('1 measured · 0 missing')
+  await expect(
+    measurements.getByRole('group', {
+      name: 'Overall length distribution',
+      exact: true,
+    }),
+  ).toBeVisible()
   const missingDesigner = page
     .getByRole('region', { name: 'Catalogue coverage', exact: true })
     .locator('a[href="/collection?designer=__not_set__"]')
