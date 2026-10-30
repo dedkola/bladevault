@@ -7,7 +7,7 @@ import {
   mutateComparison,
 } from '@/lib/comparison-storage'
 
-export async function GET(request = new Request('http://localhost')) {
+export async function GET(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
 

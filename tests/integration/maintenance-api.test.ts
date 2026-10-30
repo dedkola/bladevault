@@ -71,7 +71,9 @@ describe('maintenance API routes', () => {
     }
     expect(addPayload.event.type).toBe('cleaning')
 
-    const activityPayload = (await (await activityRoute.GET()).json()) as {
+    const activityPayload = (await (
+      await activityRoute.GET(new Request('http://localhost/api/activity'))
+    ).json()) as {
       activity: Array<{
         knifeId: string
         type: string
@@ -84,7 +86,9 @@ describe('maintenance API routes', () => {
       }),
     )
 
-    const logsPayload = (await (await logsRoute.GET()).json()) as {
+    const logsPayload = (await (
+      await logsRoute.GET(new Request('http://localhost/api/logs'))
+    ).json()) as {
       events: Array<{
         knifeId: string | null
         source: string

@@ -11,7 +11,7 @@ import {
 } from '@/lib/local-db'
 import { AppSettings, getSettings, saveSettings } from '@/lib/settings'
 
-export async function GET(request = new Request('http://localhost')) {
+export async function GET(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
 
