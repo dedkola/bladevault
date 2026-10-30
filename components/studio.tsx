@@ -411,13 +411,7 @@ export function StudioView() {
           headerTarget,
         )}
       <div className={styles.root} data-studio>
-        {themeStyle === 'modern' ? (
-          <header className={styles.header}>
-            <h1>
-              The collection, <em>at a glance.</em>
-            </h1>
-          </header>
-        ) : (
+        {themeStyle !== 'modern' && (
           <PageHeader
             title="Studio"
             description="Your collection, at a glance."

@@ -6,23 +6,6 @@
   color: var(--foreground);
   font-size: var(--modern-font-body);
 }
-.root :global([data-page-header]) {
-  margin-bottom: 22px;
-}
-.root :global([data-page-description]) {
-  margin-top: 6px;
-  font-size: var(--modern-font-secondary);
-  line-height: 1.5;
-}
-.headerAction {
-  height: 32px;
-  padding-inline: 13px;
-  border-color: var(--insight-line);
-  border-radius: 999px;
-  background: var(--card);
-  font-size: var(--modern-font-body);
-  font-weight: 500;
-}
 .metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -787,9 +770,6 @@
   .root {
     padding: 20px 16px 26px;
   }
-  .root :global([data-page-header]) {
-    margin-bottom: 18px;
-  }
   .metric {
     padding: 17px 15px;
   }
@@ -825,7 +805,6 @@
     padding: 0;
     container-type: normal;
   }
-  .printAction,
   .range {
     display: none;
   }
