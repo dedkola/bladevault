@@ -666,15 +666,11 @@ function CollectionContent() {
       data-collection-content
       data-modern-collection={themeStyle === 'modern' || undefined}
     >
-      <PageHeader
-        title={themeStyle === 'modern' ? 'All knives' : 'Your collection.'}
-        description={
-          themeStyle === 'modern'
-            ? `${Math.min(filteredKnives.length, visibleCount)} shown of ${knives.length} · Updated today`
-            : `${knives.length} ${knives.length === 1 ? 'knife' : 'knives'}, each with a story. All in one place.`
-        }
-        actions={
-          <>
+      {themeStyle !== 'modern' && (
+        <PageHeader
+          title="Your collection."
+          description={`${knives.length} ${knives.length === 1 ? 'knife' : 'knives'}, each with a story. All in one place.`}
+          actions={
             <SmartCollectionControls
               params={new URLSearchParams(searchParamsKey)}
               navigate={(query) => {
@@ -684,9 +680,9 @@ function CollectionContent() {
                 setVisibleCount(PAGE_SIZE)
               }}
             />
-          </>
-        }
-      />
+          }
+        />
+      )}
 
       {themeStyle === 'modern' && knives.length > 0 && (
         <div data-modern-collection-toolbar>
@@ -711,6 +707,15 @@ function CollectionContent() {
             ))}
           </nav>
           <div data-modern-collection-tools>
+            <SmartCollectionControls
+              params={new URLSearchParams(searchParamsKey)}
+              navigate={(query) => {
+                router.replace(query ? `${pathname}?${query}` : pathname, {
+                  scroll: false,
+                })
+                setVisibleCount(PAGE_SIZE)
+              }}
+            />
             <Button
               variant="ghost"
               size="icon-xs"
@@ -806,6 +811,17 @@ function CollectionContent() {
         </div>
       )}
       <div data-collection-main className="contents">
+        {themeStyle === 'modern' && knives.length === 0 && (
+          <SmartCollectionControls
+            params={new URLSearchParams(searchParamsKey)}
+            navigate={(query) => {
+              router.replace(query ? `${pathname}?${query}` : pathname, {
+                scroll: false,
+              })
+              setVisibleCount(PAGE_SIZE)
+            }}
+          />
+        )}
         {themeStyle !== 'modern' && knives.length > 0 && (
           <nav
             aria-label="Collection grouping"

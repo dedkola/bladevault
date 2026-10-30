@@ -209,11 +209,11 @@ describe('Studio themes', () => {
     state.themeStyle = 'modern'
     rerender(<Workspace />)
     expect(
-      screen.getByRole('heading', {
+      screen.queryByRole('heading', {
         level: 1,
         name: 'The collection, at a glance.',
       }),
-    ).toBeVisible()
+    ).not.toBeInTheDocument()
     expect(
       container.querySelector('[data-page-header]'),
     ).not.toBeInTheDocument()

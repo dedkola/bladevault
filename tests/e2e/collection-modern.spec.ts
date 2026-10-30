@@ -25,7 +25,6 @@ test('uses the table-first collection view in the modern theme', async ({
 
   await page.goto('/collection')
 
-  await expect(page.getByRole('heading', { name: 'All knives' })).toBeVisible()
   await expect(page.locator('[data-modern-collection-table]')).toBeVisible()
   await expect(
     page
@@ -183,28 +182,22 @@ test('distinguishes an empty pinned view from an empty library', async ({
   )
 })
 
-test('keeps the modern collection header compact without duplicate controls or table hints', async ({
+test('omits the modern collection header and table hints', async ({
   page,
   request,
 }) => {
   await seedKnife(request, { name: 'Collection header object' })
   await request.post('/api/settings', { data: { themeStyle: 'modern' } })
   await page.goto('/collection')
-  const header = page.locator('[data-collection-content] > [data-page-header]')
-  await expect(header.getByRole('button', { name: /^Compare/ })).toHaveCount(0)
   await expect(
-    header.getByRole('button', { name: 'Export', exact: true }),
+    page.locator('[data-collection-content] > [data-page-header]'),
   ).toHaveCount(0)
-  const title = await header
-    .getByRole('heading', { name: 'All knives' })
-    .boundingBox()
-  const summary = header.locator('[data-page-description]')
-  await expect(summary).toHaveText('1 shown of 1 · Updated today')
-  const bounds = await summary.boundingBox()
-  expect(bounds!.x).toBeGreaterThan(title!.x + title!.width)
-  expect(
-    Math.abs(bounds!.y + bounds!.height / 2 - title!.y - title!.height / 2),
-  ).toBeLessThan(2)
+  await page.goto('/collection?q=object')
+  await expect(
+    page
+      .locator('[data-modern-collection-toolbar]')
+      .getByRole('button', { name: 'Save smart collection' }),
+  ).toBeVisible()
   const table = page.locator('[data-modern-collection-table]')
   await expect(
     table.getByText('Select a row to inspect · double-click to open', {

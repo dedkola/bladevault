@@ -43,13 +43,13 @@ test('summarizes current records and switches between independent measurement di
 
   await page.goto('/')
   await expect(
-    page.getByRole('heading', { name: 'Collection pulse', exact: true }),
-  ).toBeVisible()
-  await expect(
     page
       .getByRole('group', { name: 'Catalogued knives', exact: true })
       .getByText('3', { exact: true }),
   ).toBeVisible()
+  await expect(
+    page.locator('[data-modern-insights] [data-page-header]'),
+  ).toHaveCount(0)
   await expect(
     page
       .getByRole('group', { name: 'Makers', exact: true })
@@ -118,13 +118,6 @@ test('summarizes current records and switches between independent measurement di
   await expect(collection).toContainText('Compact folder')
   await expect(collection).toContainText('Metric folder')
   await expect(collection).not.toContainText('Incomplete record')
-
-  await page.goto('/')
-  await page.getByRole('link', { name: 'Open collection', exact: true }).click()
-  await expect(page).toHaveURL(/\/collection$/)
-  await expect(page.locator('[data-modern-collection-table]')).toContainText(
-    'Metric folder',
-  )
 })
 
 test('shows the true all-time history and retains a baseline for shorter ranges', async ({
@@ -299,9 +292,6 @@ test('offers a useful first action for an empty catalogue', async ({
   page,
 }) => {
   await page.goto('/')
-  await expect(
-    page.getByRole('heading', { name: 'Collection pulse', exact: true }),
-  ).toBeVisible()
   const addKnife = page.getByRole('link', {
     name: 'Add your first knife',
     exact: true,

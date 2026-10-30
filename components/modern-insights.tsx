@@ -3,9 +3,8 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useId, useMemo, useState, type ReactNode } from 'react'
-import { ArrowUpRight, Plus, Printer } from 'lucide-react'
-import { PageHeader } from '@/components/page-header'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { ArrowUpRight, Plus } from 'lucide-react'
+import { buttonVariants } from '@/components/ui/button'
 import { useKnives } from '@/components/providers/knives-provider'
 import {
   createCollectionStats,
@@ -291,30 +290,6 @@ export function ModernInsights() {
 
   return (
     <div className={styles.root} data-modern-insights>
-      <PageHeader
-        title="Collection pulse"
-        actions={
-          <>
-            <Link
-              href="/collection"
-              className={cn(
-                buttonVariants({ variant: 'outline', size: 'sm' }),
-                styles.headerAction,
-              )}
-            >
-              Open collection <ArrowUpRight size={14} />
-            </Link>
-            <Button
-              variant="outline"
-              size="sm"
-              className={cn(styles.headerAction, styles.printAction)}
-              onClick={() => window.print()}
-            >
-              <Printer size={14} /> Print overview
-            </Button>
-          </>
-        }
-      />
       {isLoading ? (
         <div
           className={styles.loading}
