@@ -113,7 +113,9 @@ describe('local backup archive route', () => {
       ...input,
       imageUrls: [...input.imageUrls, preview],
     })
-    const exported = await localBackupRoute.GET()
+    const exported = await localBackupRoute.GET(
+      new Request('http://localhost/api/local-backup/archive'),
+    )
     const archive = Buffer.from(await exported.arrayBuffer())
     const entries = await unzipper.Open.buffer(archive)
     expect(
@@ -155,7 +157,9 @@ describe('local backup archive route', () => {
     })
     saveSettings({ theme: 'dark', timeFormat: '24h' })
 
-    const exported = await localBackupRoute.GET()
+    const exported = await localBackupRoute.GET(
+      new Request('http://localhost/api/local-backup/archive'),
+    )
     expect(exported.status).toBe(200)
     expect(exported.headers.get('content-type')).toBe('application/zip')
     expect(exported.headers.get('content-disposition')).toMatch(
@@ -249,13 +253,17 @@ describe('local backup archive route', () => {
         sharpeningDetails: { grit: '600', system: 'KME' },
       }),
     ])
-    const activityPayload = (await (await activityRoute.GET()).json()) as {
+    const activityPayload = (await (
+      await activityRoute.GET(new Request('http://localhost/api/activity'))
+    ).json()) as {
       activity: Array<{ knifeId: string; type: string }>
     }
     expect(activityPayload.activity).toContainEqual(
       expect.objectContaining({ knifeId: knife.id, type: 'maintained' }),
     )
-    const logsPayload = (await (await logsRoute.GET()).json()) as {
+    const logsPayload = (await (
+      await logsRoute.GET(new Request('http://localhost/api/logs'))
+    ).json()) as {
       events: Array<{
         knifeId: string | null
         source: string
@@ -303,7 +311,11 @@ describe('local backup archive route', () => {
     })
 
     const exported = Buffer.from(
-      await (await localBackupRoute.GET()).arrayBuffer(),
+      await (
+        await localBackupRoute.GET(
+          new Request('http://localhost/api/local-backup/archive'),
+        )
+      ).arrayBuffer(),
     )
     const directory = await unzipper.Open.buffer(exported)
     const imageEntry = directory.files.find(
@@ -346,7 +358,11 @@ describe('local backup archive route', () => {
     const storage = new LocalStorage()
     const knife = await storage.createKnife(input)
     const exported = Buffer.from(
-      await (await localBackupRoute.GET()).arrayBuffer(),
+      await (
+        await localBackupRoute.GET(
+          new Request('http://localhost/api/local-backup/archive'),
+        )
+      ).arrayBuffer(),
     )
     const directory = await unzipper.Open.buffer(exported)
     const entries = await Promise.all(

@@ -14,7 +14,7 @@ const inputSchema = z.object({
   name: z.string().trim().min(1).max(80),
   query: z.string().max(16000),
 })
-export async function GET(request = new Request('http://localhost')) {
+export async function GET(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
 

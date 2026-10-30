@@ -509,7 +509,11 @@ describe('server-owned cloud backup job', () => {
   it('prevents a restore from replacing the vault while a backup is refreshing credentials', async () => {
     const storage = new LocalStorage()
     const knife = await storage.createKnife(input)
-    const originalArchive = await (await archiveRoute.GET()).arrayBuffer()
+    const originalArchive = await (
+      await archiveRoute.GET(
+        new Request('http://localhost/api/cloud-backup/archive'),
+      )
+    ).arrayBuffer()
     await storage.updateKnife(knife.id, { brand: 'Before restore' })
     let releaseToken!: () => void
     const tokenGate = new Promise<void>((resolve) => {

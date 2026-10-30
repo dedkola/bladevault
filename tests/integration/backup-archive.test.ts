@@ -50,7 +50,9 @@ describe('backup archive route', () => {
     })
     saveSettings({ theme: 'dark', timeFormat: '24h' })
 
-    const exported = await archiveRoute.GET()
+    const exported = await archiveRoute.GET(
+      new Request('http://localhost/api/cloud-backup/archive'),
+    )
     expect(exported.status).toBe(200)
     expect(exported.headers.get('content-type')).toBe('application/gzip')
     const archive = await exported.arrayBuffer()
@@ -103,7 +105,11 @@ describe('backup archive route', () => {
       occurredAt: '2026-08-21T09:30:00.000Z',
       notes: 'Portable maintenance record',
     })
-    const archive = await (await archiveRoute.GET()).arrayBuffer()
+    const archive = await (
+      await archiveRoute.GET(
+        new Request('http://localhost/api/cloud-backup/archive'),
+      )
+    ).arrayBuffer()
 
     await vault.cleanup()
     vault = await createTempVault('bladevault-import-different-name-')
@@ -144,7 +150,11 @@ describe('backup archive route', () => {
     vault = await createTempVault('bladevault-stale-sidecars-')
     const storage = new LocalStorage()
     await storage.createKnife(input)
-    const archive = await (await archiveRoute.GET()).arrayBuffer()
+    const archive = await (
+      await archiveRoute.GET(
+        new Request('http://localhost/api/cloud-backup/archive'),
+      )
+    ).arrayBuffer()
 
     closeLocalDb()
     const staleSidecar = Buffer.alloc(32, 0xff)
@@ -183,7 +193,11 @@ describe('backup archive route', () => {
       ...input,
       name: 'Restored Route Knife',
     })
-    const archive = await (await archiveRoute.GET()).arrayBuffer()
+    const archive = await (
+      await archiveRoute.GET(
+        new Request('http://localhost/api/cloud-backup/archive'),
+      )
+    ).arrayBuffer()
 
     await vault.cleanup()
     vault = await createTempVault('bladevault-module-target-')

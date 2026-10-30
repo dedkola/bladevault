@@ -3,9 +3,7 @@ import { NextResponse } from 'next/server'
 import { getStorage } from '@/lib/storage'
 import { dockerJsonResponse } from '@/lib/server-json-response'
 
-export async function GET(
-  request = new Request('http://localhost/api/activity'),
-) {
+export async function GET(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
 

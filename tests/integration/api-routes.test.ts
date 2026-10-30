@@ -99,7 +99,9 @@ describe('knife API routes', () => {
       brand: 'Quiet Carry',
     })
 
-    const list = await knivesRoute.GET()
+    const list = await knivesRoute.GET(
+      new Request('http://localhost/api/knives'),
+    )
     const listPayload = (await list.json()) as {
       knives: Array<Record<string, unknown> & { id: string }>
     }
@@ -124,7 +126,9 @@ describe('knife API routes', () => {
       }),
     })
 
-    const activity = (await (await activityRoute.GET()).json()) as {
+    const activity = (await (
+      await activityRoute.GET(new Request('http://localhost/api/activity'))
+    ).json()) as {
       activity: Array<{ knifeId: string; type: string }>
     }
     expect(activity.activity).toEqual([
@@ -180,7 +184,7 @@ describe('knife API routes', () => {
       )
     }
 
-    const logs = await logsRoute.GET()
+    const logs = await logsRoute.GET(new Request('http://localhost/api/logs'))
     expect(logs.status).toBe(200)
     expect(logs.headers.get('Cache-Control')).toBe('private, no-store')
     expect(logsRoute).not.toHaveProperty('DELETE')
@@ -230,7 +234,9 @@ describe('knife API routes', () => {
         jsonRequest('http://localhost/api/compare', 'POST', { id }),
       )
     }
-    const compared = (await (await compareRoute.GET()).json()) as {
+    const compared = (await (
+      await compareRoute.GET(new Request('http://localhost/api/compare'))
+    ).json()) as {
       compareIds: string[]
     }
     expect(compared.compareIds).toEqual(['second', 'first'])
@@ -239,8 +245,11 @@ describe('knife API routes', () => {
       jsonRequest('http://localhost/api/compare', 'DELETE', { id: 'second' }),
     )
     expect(
-      ((await (await compareRoute.GET()).json()) as { compareIds: string[] })
-        .compareIds,
+      (
+        (await (
+          await compareRoute.GET(new Request('http://localhost/api/compare'))
+        ).json()) as { compareIds: string[] }
+      ).compareIds,
     ).toEqual(['first'])
 
     await compareRoute.DELETE(

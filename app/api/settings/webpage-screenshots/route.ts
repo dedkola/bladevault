@@ -9,7 +9,7 @@ import { withVaultMutationRequest } from '@/lib/vault-mutation-request'
 
 export const runtime = 'nodejs'
 
-export async function GET(request = new Request('http://localhost')) {
+export async function GET(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
 

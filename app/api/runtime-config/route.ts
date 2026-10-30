@@ -11,7 +11,7 @@ function readPublicEnv(
   return process.env[name]?.trim() || ''
 }
 
-export async function GET(request = new Request('http://localhost')) {
+export async function GET(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
 
