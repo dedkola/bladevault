@@ -1,5 +1,9 @@
 import * as cheerio from 'cheerio'
 import { extractVosteedSpecs, isVosteedProductUrl } from './scrape-vosteed'
+import {
+  embedPoikiloGalleryImages,
+  isPoikiloProductUrl,
+} from './scrape-poikilo'
 
 export type ScrapedProduct = {
   name: string
@@ -110,7 +114,18 @@ export async function scrapeAndEnrichProduct(
     )
   }
 
-  const { product, warnings } = scrapeProduct(html, finalUrl, sourceUrl)
+  const { product, warnings = [] } = scrapeProduct(html, finalUrl, sourceUrl)
+
+  if (isPoikiloProductUrl(finalUrl)) {
+    const gallery = await embedPoikiloGalleryImages(
+      html,
+      finalUrl,
+      product.images,
+    )
+    product.images = gallery.images
+    html = gallery.html
+    warnings.push(...gallery.warnings)
+  }
 
   // Shopify stores expose a .json endpoint with all product images and metadata.
   // Use it to augment the rendered-page data when available.
@@ -2270,16 +2285,7 @@ export function scrapeProduct(
   const rawName = ld.name || extractTitle($)
   const name = extractProductName($, rawName, sourceUrl ?? baseUrl)
   const brand = extractBrand(rawName, $, ld.brand, sourceUrl ?? baseUrl)
-  let isPoikiloProduct = false
-  try {
-    const url = new URL(baseUrl)
-    isPoikiloProduct =
-      (url.hostname === 'poikiloblade.com' ||
-        url.hostname === 'www.poikiloblade.com') &&
-      /^\/shop\/product\/\d+\/?$/.test(url.pathname)
-  } catch {
-    // Use the standard extraction for invalid URLs.
-  }
+  const isPoikiloProduct = isPoikiloProductUrl(baseUrl)
   const productInfo = isPoikiloProduct
     ? cheerio.load($('.product-detail .product-info').first().html() ?? '')
     : $
