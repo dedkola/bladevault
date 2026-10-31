@@ -13,19 +13,11 @@ import {
 } from '@/lib/collection-stats'
 import { getImageUrl, type Knife } from '@/lib/data'
 import { groupKnifeFamilies } from '@/lib/knife-families'
-import {
-  buildCatalogueSeries,
-  type ModernInsightsRange,
-} from '@/lib/modern-insights'
+import { buildCatalogueSeries } from '@/lib/modern-insights'
 import { cn } from '@/lib/utils'
 import styles from './modern-insights.module.css'
 
 const number = new Intl.NumberFormat('en-US')
-const RANGES: { value: ModernInsightsRange; label: string }[] = [
-  { value: '6m', label: '6 months' },
-  { value: '12m', label: '12 months' },
-  { value: 'all', label: 'All time' },
-]
 const MEASUREMENTS: { value: MeasurementKey; label: string }[] = [
   { value: 'bladeLength', label: 'Blade' },
   { value: 'overallLength', label: 'Overall' },
@@ -222,15 +214,14 @@ function Bars({
 
 export function ModernInsights() {
   const { knives, isLoading } = useKnives()
-  const [range, setRange] = useState<ModernInsightsRange>('6m')
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>()
   const [measurementKey, setMeasurementKey] =
     useState<MeasurementKey>('bladeLength')
   const [selectedBinLabel, setSelectedBinLabel] = useState<string>()
   const stats = useMemo(() => createCollectionStats(knives, 'all'), [knives])
   const catalogue = useMemo(
-    () => buildCatalogueSeries(knives, range, new Date()),
-    [knives, range],
+    () => buildCatalogueSeries(knives, '12m', new Date()),
+    [knives],
   )
   const families = useMemo(() => groupKnifeFamilies(knives), [knives])
   const knivesById = useMemo(
@@ -353,38 +344,13 @@ export function ModernInsights() {
               title="Collection additions"
               description="A month-by-month view of your catalogue."
               className={styles.growth}
-              action={
-                <div
-                  className={styles.range}
-                  aria-label="Catalogue date range"
-                  role="group"
-                >
-                  {RANGES.map((item) => (
-                    <button
-                      key={item.value}
-                      type="button"
-                      aria-pressed={range === item.value}
-                      onClick={() => {
-                        setRange(item.value)
-                        setSelectedMonthKey(undefined)
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              }
             >
               <div className={styles.chartSummary}>
                 <div>
                   <strong className={styles.chartValue}>
                     +{number.format(catalogue.addedInRange)}
                   </strong>
-                  <p>
-                    {range === 'all'
-                      ? 'added since your catalogue began'
-                      : `added in the last ${range === '6m' ? 6 : 12} months`}
-                  </p>
+                  <p>added in the last 12 months</p>
                 </div>
                 <div className={styles.summaryAside}>
                   <strong>

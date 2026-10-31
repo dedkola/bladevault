@@ -120,7 +120,7 @@ test('summarizes current records and switches between independent measurement di
   await expect(collection).not.toContainText('Incomplete record')
 })
 
-test('shows the true all-time history and retains a baseline for shorter ranges', async ({
+test('shows only the last twelve months and retains the earlier catalogue baseline', async ({
   page,
   request,
 }) => {
@@ -159,18 +159,26 @@ test('shows the true all-time history and retains a baseline for shorter ranges'
     name: 'Collection additions',
     exact: true,
   })
-  const sixMonths = page.getByRole('button', {
-    name: '6 months',
-    exact: true,
-  })
-  await expect(sixMonths).toHaveAttribute('aria-pressed', 'true')
+  await expect(
+    growth.getByRole('group', { name: 'Catalogue date range', exact: true }),
+  ).toHaveCount(0)
+  await expect(
+    growth.getByRole('button', { name: /^(6 months|12 months|All time)$/ }),
+  ).toHaveCount(0)
+  await expect(
+    growth
+      .getByRole('group', { name: 'Monthly catalogue additions', exact: true })
+      .getByRole('button'),
+  ).toHaveCount(12)
   await expect(growth).toContainText('+1')
-  await expect(growth).toContainText('added in the last 6 months')
-  await expect(growth).toContainText('May 2026 – Oct 2026')
+  await expect(growth).toContainText('added in the last 12 months')
+  await expect(growth).toContainText('Nov 2025 – Oct 2026')
+  await expect(growth).toContainText('Oct 2026: 1 additions')
   await expect(growth).toContainText('2 invalid or future dates excluded.')
   await growth.getByText('View monthly data', { exact: true }).click()
+  await expect(growth.getByRole('row')).toHaveCount(13)
   await expect(
-    growth.getByRole('row', { name: 'May 2026 0 1', exact: true }),
+    growth.getByRole('row', { name: 'Nov 2025 0 1', exact: true }),
   ).toBeVisible()
   await expect(
     growth.getByRole('row', { name: 'Oct 2026 1 2', exact: true }),
@@ -183,25 +191,6 @@ test('shows the true all-time history and retains a baseline for shorter ranges'
   await expect(mayBar).toHaveAttribute('aria-pressed', 'true')
   await expect(growth).toContainText('May 2026: 0 additions')
 
-  const twelveMonths = page.getByRole('button', {
-    name: '12 months',
-    exact: true,
-  })
-  await twelveMonths.click()
-  await expect(twelveMonths).toHaveAttribute('aria-pressed', 'true')
-  await expect(growth).toContainText('Nov 2025 – Oct 2026')
-  await expect(growth).toContainText('added in the last 12 months')
-  await expect(growth).toContainText('Oct 2026: 1 additions')
-
-  const allTime = page.getByRole('button', { name: 'All time', exact: true })
-  await allTime.click()
-  await expect(allTime).toHaveAttribute('aria-pressed', 'true')
-  await expect(growth).toContainText('Jan 2024 – Oct 2026')
-  await expect(growth).toContainText('+2')
-  await expect(growth).toContainText('added since your catalogue began')
-  await expect(
-    growth.getByRole('row', { name: 'Jan 2024 1 1', exact: true }),
-  ).toBeVisible()
   await expect(
     page
       .getByRole('group', { name: 'Catalogued knives', exact: true })
