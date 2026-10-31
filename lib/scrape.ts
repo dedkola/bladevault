@@ -907,6 +907,7 @@ function extractBrandFromDomain(url: string): string {
       'kizerknives.com': 'Kizer',
       'tenableknives.com': 'Tenable',
       'artisancutlery.net': 'Artisan Cutlery',
+      'poikiloblade.com': 'Poikilo Blade',
     }
     for (const [domain, brand] of Object.entries(domainBrands)) {
       if (hostname === domain || hostname.endsWith(`.${domain}`)) return brand
@@ -2269,8 +2270,33 @@ export function scrapeProduct(
   const rawName = ld.name || extractTitle($)
   const name = extractProductName($, rawName, sourceUrl ?? baseUrl)
   const brand = extractBrand(rawName, $, ld.brand, sourceUrl ?? baseUrl)
-  const description = ld.description || extractDescription($)
-  const galleryImages = extractImages($, baseUrl)
+  let isPoikiloProduct = false
+  try {
+    const url = new URL(baseUrl)
+    isPoikiloProduct =
+      (url.hostname === 'poikiloblade.com' ||
+        url.hostname === 'www.poikiloblade.com') &&
+      /^\/shop\/product\/\d+\/?$/.test(url.pathname)
+  } catch {
+    // Use the standard extraction for invalid URLs.
+  }
+  const productInfo = isPoikiloProduct
+    ? cheerio.load($('.product-detail .product-info').first().html() ?? '')
+    : $
+  const description =
+    ld.description || extractDescription(productInfo, !isPoikiloProduct)
+  const galleryImages = isPoikiloProduct
+    ? $('.product-detail .image-gallery img')
+        .map((_, el) => {
+          const image = $(el)
+          const src = image.attr('src') ?? ''
+          return /video|youtube/i.test(`${image.attr('alt') ?? ''} ${src}`)
+            ? ''
+            : (resolveUrl(src, baseUrl) ?? '')
+        })
+        .get()
+        .filter(Boolean)
+    : extractImages($, baseUrl)
   const images = [
     ...new Set(
       [...(ld.images ?? []), ...galleryImages].map(canonicalizeImageUrl),
@@ -2280,7 +2306,7 @@ export function scrapeProduct(
   // boundaries; cheerio's .text() concatenates table cells and <br> lines
   // without separators, which breaks keyword matching (e.g. "MaterialAluminum").
   const pageText = normalizeMultilineText(
-    elementTextWithBreaks($, 'body' as any),
+    elementTextWithBreaks(productInfo, 'body' as any),
   )
   const titleText = normalizeText($('title').text())
   const h1Text = normalizeText($('h1').first().text())
@@ -2289,7 +2315,20 @@ export function scrapeProduct(
     ? extractVosteedSpecs($, baseUrl)
     : null
   const warnings = [...(vosteed?.warnings ?? [])]
-  const specs = extractSpecs($, vosteed?.specs, ld.specs, warnings)
+  const specs = extractSpecs(productInfo, vosteed?.specs, ld.specs, warnings)
+  if (isPoikiloProduct) {
+    const lock = productInfo('.specifications li')
+      .toArray()
+      .map((el) => cleanText(productInfo(el).text()))
+      .find((text) => /^lockbar\s*[:：]/i.test(text))
+    specs.lockingMechanism = lock
+      ? normalizeLockingMechanism(lock.replace(/^lockbar\s*[:：]\s*/i, ''))
+      : specs.lockingMechanism
+    specs.price = normalizePrice(
+      productInfo('.price-section .price-amount').first().text(),
+      cleanText(productInfo('.price-section .price-currency').first().text()),
+    ) || specs.price
+  }
 
   // Use the product description for material/style extraction when available,
   // since it is more likely to describe this exact knife than the full page text.
@@ -2315,7 +2354,7 @@ export function scrapeProduct(
 
   const bladeStyle =
     cleanValue(ldBladeStyle) ||
-    extractStructuredLabeledValue($, ['blade style', 'blade shape']) ||
+    extractStructuredLabeledValue(productInfo, ['blade style', 'blade shape']) ||
     cleanValue(
       extractLabeledValue(productDescriptionText, [
         'blade style',
@@ -2329,7 +2368,7 @@ export function scrapeProduct(
     extractBladeStyle(searchText)
   const handleMaterial =
     cleanValue(ldHandleMaterial) ||
-    extractStructuredLabeledValue($, ['handle material']) ||
+    extractStructuredLabeledValue(productInfo, ['handle material']) ||
     cleanValue(
       extractLabeledValue(productDescriptionText, ['handle material']),
     ) ||

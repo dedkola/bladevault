@@ -109,6 +109,57 @@ describe('product scraping', () => {
     ])
   })
 
+  it('extracts Poikilo product details without recommendations or footer content', () => {
+    const html = `
+      <html><body><div class="product-detail">
+        <div class="image-gallery">
+          <div class="thumbnail-item"><img src="/photos/one.png"></div>
+          <div class="thumbnail-item"><img src="/photos/two.png"></div>
+          <div class="main-image"><img src="/photos/one.png"></div>
+        </div>
+        <div class="product-info">
+          <h1>TASK-DENZOKU STD DSW</h1>
+          <div class="price-section"><span class="price-amount">$640.00</span><span class="price-currency">USD</span></div>
+          <div class="specifications"><ul>
+            <li>Overall Length: 8.35 "</li><li>Weight: 6.14 oz</li>
+            <li>Blade Finish: Physical Vapor Deposition (PVD)</li>
+            <li>Blade Material: M398</li><li>Blade Style: Modified Tanto</li>
+            <li>Blade Thickness: 0.157 "</li><li>Blade Length: 3.70 "</li>
+            <li>Handle Material: Titanium (Ti)</li><li>Handle Length: 4.65 "</li>
+            <li>Lockbar: TASK Lock</li>
+          </ul></div>
+        </div>
+        <div class="recommendations"><img src="/product/recommended.png"><p>Blade Material: D2</p></div>
+      </div><footer><p>© 2026 POIKILO BLADE · Privacy Policy · Contact Information</p></footer></body></html>
+    `
+    const { product } = scrapeProduct(
+      html,
+      'https://poikiloblade.com/shop/product/228?cateId=35,81,96',
+    )
+    expect(product).toMatchObject({
+      name: 'TASK-DENZOKU STD DSW',
+      brand: 'Poikilo Blade',
+      description: '',
+      images: [
+        'https://poikiloblade.com/photos/one.png',
+        'https://poikiloblade.com/photos/two.png',
+      ],
+      bladeStyle: 'Modified Tanto',
+      handleMaterial: 'Titanium (Ti)',
+      specs: {
+        overallLength: '8.35 "',
+        weight: '6.14 oz',
+        bladeCoating: 'Physical Vapor Deposition (PVD)',
+        bladeMaterial: 'M398',
+        bladeThickness: '0.157 "',
+        bladeLength: '3.70 "',
+        handleLength: '4.65 "',
+        lockingMechanism: 'TASK Lock',
+        price: '640.00 USD',
+      },
+    })
+  })
+
   it('recognizes and extracts Shopify product data', () => {
     const url = 'https://shop.example/products/bugout?variant=1#details'
     expect(getShopifyJsonUrl(url)).toBe(
