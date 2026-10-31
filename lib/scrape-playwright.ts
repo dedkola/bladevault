@@ -104,6 +104,23 @@ export async function fetchRenderedHtml(url: string): Promise<RenderedPage> {
         // Fall through: some sites have unusual markup and we still want the HTML.
       })
 
+    // Poikilo renders its product shell before the product API response arrives.
+    const pageUrl = new URL(page.url())
+    if (
+      (pageUrl.hostname === 'poikiloblade.com' ||
+        pageUrl.hostname === 'www.poikiloblade.com') &&
+      /^\/shop\/product\/\d+\/?$/.test(pageUrl.pathname)
+    ) {
+      await page.waitForFunction(
+        () =>
+          Boolean(
+            document.querySelector('.product-info h1')?.textContent?.trim(),
+          ),
+        undefined,
+        { timeout: 30000 },
+      )
+    }
+
     // Some retailers render specs inside accordions or tabs. Give them a moment
     // to expand lazy content, then scroll to the bottom to trigger more loaders.
     await page.waitForTimeout(1000)
