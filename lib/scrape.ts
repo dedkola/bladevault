@@ -544,6 +544,8 @@ function extractImages($: cheerio.CheerioAPI, baseUrl: string): string[] {
     '.product-image img',
     '.product__image img',
     '#product-image img',
+    // Shopware galleries (including Boker) keep originals on the lazy image wrapper.
+    '.product--image-container [data-img-original]',
     '.woocommerce-product-gallery__image img',
     '.woocommerce-product-gallery__wrapper img',
     '.flex-active-slide img',
@@ -567,6 +569,7 @@ function extractImages($: cheerio.CheerioAPI, baseUrl: string): string[] {
   $(imageSelectors.join(', ')).each((_, el) => {
     const $el = $(el)
     const imageSource =
+      $el.attr('data-img-original') ||
       $el.attr('data-large_image') ||
       $el.attr('data-zoom-image') ||
       $el.attr('data-src') ||
