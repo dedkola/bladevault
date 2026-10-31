@@ -923,6 +923,7 @@ function extractBrandFromDomain(url: string): string {
       'tenableknives.com': 'Tenable',
       'artisancutlery.net': 'Artisan Cutlery',
       'poikiloblade.com': 'Poikilo Blade',
+      'zt.kaiusa.com': 'Zero Tolerance',
     }
     for (const [domain, brand] of Object.entries(domainBrands)) {
       if (hostname === domain || hostname.endsWith(`.${domain}`)) return brand
@@ -1747,6 +1748,7 @@ function extractSpecs(
   scopedSpecs?: Partial<ScrapedProduct['specs']>,
   initialSpecs?: Partial<ScrapedProduct['specs']>,
   warnings: string[] = [],
+  labeledSpecs?: ReadonlyMap<string, string>,
 ): ScrapedProduct['specs'] {
   const specs: ScrapedProduct['specs'] = {
     weight: '',
@@ -1839,6 +1841,11 @@ function extractSpecs(
         setSpec(key, value)
       }
     }
+  }
+
+  // Site adapters can provide explicit attribute pairs before text fallbacks.
+  for (const [label, value] of labeledSpecs ?? []) {
+    tryExtract(label, value)
   }
 
   // 1) Structured rows: tables, definition lists, and divs with label/value
@@ -2286,11 +2293,48 @@ export function scrapeProduct(
   const name = extractProductName($, rawName, sourceUrl ?? baseUrl)
   const brand = extractBrand(rawName, $, ld.brand, sourceUrl ?? baseUrl)
   const isPoikiloProduct = isPoikiloProductUrl(baseUrl)
+  let isZeroToleranceProduct = false
+  try {
+    const url = new URL(baseUrl)
+    isZeroToleranceProduct =
+      url.hostname === 'zt.kaiusa.com' && $('.product-details').length > 0
+  } catch {
+    // Use the standard extraction for invalid URLs.
+  }
   const productInfo = isPoikiloProduct
     ? cheerio.load($('.product-detail .product-info').first().html() ?? '')
-    : $
+    : isZeroToleranceProduct
+      ? cheerio.load($('.product-details').first().html() ?? '')
+      : $
+  const zeroToleranceAttributes = new Map<string, string>()
+  if (isZeroToleranceProduct) {
+    productInfo('.product-details__attributes li').each((_, el) => {
+      const text = cleanText(productInfo(el).text())
+      const separator = text.indexOf(':')
+      if (separator < 0) return
+      const value = text.slice(separator + 1).trim()
+      if (/^[-–—]+$/.test(value)) {
+        // ZT uses a dash for inapplicable attributes, such as a fixed blade's lock.
+        productInfo(el).remove()
+        return
+      }
+      zeroToleranceAttributes.set(
+        text.slice(0, separator).trim().toLowerCase(),
+        value,
+      )
+    })
+  }
+  const zeroToleranceDescription = isZeroToleranceProduct
+    ? htmlToPlainText(
+        productInfo('.pdp-description').first().html() ||
+          productInfo('#description').parent().next().html() ||
+          '',
+      )
+    : ''
   const description =
-    ld.description || extractDescription(productInfo, !isPoikiloProduct)
+    zeroToleranceDescription ||
+    ld.description ||
+    extractDescription(productInfo, !isPoikiloProduct)
   const galleryImages = isPoikiloProduct
     ? $('.product-detail .image-gallery img')
         .map((_, el) => {
@@ -2302,7 +2346,22 @@ export function scrapeProduct(
         })
         .get()
         .filter(Boolean)
-    : extractImages($, baseUrl)
+    : isZeroToleranceProduct
+      ? productInfo('.product-details__gallery img')
+          .map((_, el) => {
+            const image = productInfo(el)
+            const src = image.attr('src') ?? ''
+            if (
+              image.closest('.pdp-product-gallery__video-thumbnail').length ||
+              /video|youtube/i.test(`${image.attr('alt') ?? ''} ${src}`)
+            )
+              return ''
+            const resolved = resolveUrl(src, baseUrl) ?? ''
+            return /^https?:\/\//.test(resolved) ? resolved : ''
+          })
+          .get()
+          .filter(Boolean)
+      : extractImages($, baseUrl)
   const images = [
     ...new Set(
       [...(ld.images ?? []), ...galleryImages].map(canonicalizeImageUrl),
@@ -2321,7 +2380,13 @@ export function scrapeProduct(
     ? extractVosteedSpecs($, baseUrl)
     : null
   const warnings = [...(vosteed?.warnings ?? [])]
-  const specs = extractSpecs(productInfo, vosteed?.specs, ld.specs, warnings)
+  const specs = extractSpecs(
+    productInfo,
+    vosteed?.specs,
+    ld.specs,
+    warnings,
+    zeroToleranceAttributes,
+  )
   if (isPoikiloProduct) {
     const lock = productInfo('.specifications li')
       .toArray()
@@ -2360,6 +2425,7 @@ export function scrapeProduct(
     ''
 
   const bladeStyle =
+    zeroToleranceAttributes.get('blade style') ||
     cleanValue(ldBladeStyle) ||
     extractStructuredLabeledValue(productInfo, [
       'blade style',
@@ -2377,6 +2443,7 @@ export function scrapeProduct(
     extractBladeStyle(productDescriptionText) ||
     extractBladeStyle(searchText)
   const handleMaterial =
+    zeroToleranceAttributes.get('handle material') ||
     cleanValue(ldHandleMaterial) ||
     extractStructuredLabeledValue(productInfo, ['handle material']) ||
     cleanValue(

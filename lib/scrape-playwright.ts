@@ -95,7 +95,7 @@ export async function fetchRenderedHtml(url: string): Promise<RenderedPage> {
     // Wait for any meaningful page element before assuming content is present.
     await page
       .waitForSelector(
-        'h1, [data-main-product], .product-single__meta, .product-info, .product-detail, .product-title',
+        'h1, [data-main-product], .product-single__meta, .product-info, .product-detail, .product-details, .product-title',
         {
           timeout: 30000,
         },
@@ -115,6 +115,22 @@ export async function fetchRenderedHtml(url: string): Promise<RenderedPage> {
         () =>
           Boolean(
             document.querySelector('.product-info h1')?.textContent?.trim(),
+          ),
+        undefined,
+        { timeout: 30000 },
+      )
+    }
+
+    // ZT's initial HTML has a heading, but its specs and gallery arrive later.
+    if (
+      pageUrl.hostname === 'zt.kaiusa.com' &&
+      (await page.locator('.product-details').count()) > 0
+    ) {
+      await page.waitForFunction(
+        () =>
+          Boolean(
+            document.querySelector('.product-details__attributes li') &&
+            document.querySelector('.product-details__gallery img'),
           ),
         undefined,
         { timeout: 30000 },
