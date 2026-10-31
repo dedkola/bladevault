@@ -2324,10 +2324,11 @@ export function scrapeProduct(
     specs.lockingMechanism = lock
       ? normalizeLockingMechanism(lock.replace(/^lockbar\s*[:：]\s*/i, ''))
       : specs.lockingMechanism
-    specs.price = normalizePrice(
-      productInfo('.price-section .price-amount').first().text(),
-      cleanText(productInfo('.price-section .price-currency').first().text()),
-    ) || specs.price
+    specs.price =
+      normalizePrice(
+        productInfo('.price-section .price-amount').first().text(),
+        cleanText(productInfo('.price-section .price-currency').first().text()),
+      ) || specs.price
   }
 
   // Use the product description for material/style extraction when available,
@@ -2354,7 +2355,10 @@ export function scrapeProduct(
 
   const bladeStyle =
     cleanValue(ldBladeStyle) ||
-    extractStructuredLabeledValue(productInfo, ['blade style', 'blade shape']) ||
+    extractStructuredLabeledValue(productInfo, [
+      'blade style',
+      'blade shape',
+    ]) ||
     cleanValue(
       extractLabeledValue(productDescriptionText, [
         'blade style',

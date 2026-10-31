@@ -112,7 +112,10 @@ export async function fetchRenderedHtml(url: string): Promise<RenderedPage> {
       /^\/shop\/product\/\d+\/?$/.test(pageUrl.pathname)
     ) {
       await page.waitForFunction(
-        () => Boolean(document.querySelector('.product-info h1')?.textContent?.trim()),
+        () =>
+          Boolean(
+            document.querySelector('.product-info h1')?.textContent?.trim(),
+          ),
         undefined,
         { timeout: 30000 },
       )
