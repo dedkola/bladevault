@@ -372,6 +372,8 @@
   top: 6%;
   width: 48%;
   height: 100%;
+  /* Each rotated photo creates its own stacking context. Blend that group too. */
+  mix-blend-mode: multiply;
 }
 
 .familyStack > div:nth-child(1) {
@@ -671,7 +673,6 @@
 :global(html:not([data-theme-style='modern'])) :is(.root, .focus, .quickLook) {
   --studio-line: var(--border);
   --studio-glass: var(--card);
-  --studio-stage: var(--bladevault-surface-soft);
 }
 
 :global(html:not([data-theme-style='modern'])) .root {
@@ -722,14 +723,6 @@
 
 :global(html:not([data-theme-style='modern'])) :is(.tile, .quickLook) {
   border-radius: var(--radius-xl);
-}
-
-:global(html:not([data-theme-style='modern'])) :is(.stage, .quickStage) {
-  background: var(--bladevault-surface-soft);
-}
-
-:global(html:not([data-theme-style='modern'])) .image {
-  mix-blend-mode: normal;
 }
 
 :global(html:not([data-theme-style='modern'])) .caption {
