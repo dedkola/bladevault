@@ -409,6 +409,16 @@ function extractProductName(
   title: string,
   sourceUrl: string,
 ): string {
+  if (isRemetteProductUrl(sourceUrl)) {
+    const model =
+      extractStructuredLabeledValue($, ['model name']) ||
+      extractLabeledValue(elementTextWithBreaks($, 'body'), ['model name'])
+    if (model) {
+      const name = model.replace(/^remette\s+/i, '').replace(/\s+knife$/i, '')
+      if (name) return cleanText(name)
+    }
+  }
+
   // An explicitly labeled model is more precise than a marketing title.
   return (
     extractStructuredLabeledValue($, ['model name']) ||
@@ -667,6 +677,8 @@ function normalizeBrandName(brand: string): string {
     artisancutlery: 'Artisan Cutlery',
     'artisancutlery.net': 'Artisan Cutlery',
     'artisan cutlery': 'Artisan Cutlery',
+    remette: 'REMETTE',
+    'remette knife': 'REMETTE',
   }
   return normalizations[brand.toLowerCase()] ?? brand
 }
@@ -834,6 +846,7 @@ function extractBrandFromName(name: string): string {
     'Olamic',
     'QuietCarry',
     'Reate',
+    'Remette',
     'Rike',
     'Schrade',
     'Shirogorov',
@@ -926,6 +939,7 @@ function extractBrandFromDomain(url: string): string {
       'tenableknives.com': 'Tenable',
       'artisancutlery.net': 'Artisan Cutlery',
       'poikiloblade.com': 'Poikilo Blade',
+      'remetteknife.com': 'REMETTE',
       'zt.kaiusa.com': 'Zero Tolerance',
     }
     for (const [domain, brand] of Object.entries(domainBrands)) {
@@ -1343,6 +1357,7 @@ const SPEC_LABEL_ALTERNATIONS = [
   'matériau\\s*de\\s*la\\s*poignée',
   'blade\\s*style',
   'blade-style',
+  'blade\\s*type',
   'blade\\s*grind',
   'blade-grind',
   'blade\\s*hardness',
@@ -1770,6 +1785,8 @@ function extractSpecs(
   }
   if (scopedSpecs) return { ...specs, ...scopedSpecs }
   Object.assign(specs, initialSpecs)
+  // Do not let a fallback silently accept one half of a rejected unit pair.
+  const conflictingMeasurements = new Set<keyof ScrapedProduct['specs']>()
 
   const setSpec = (key: keyof ScrapedProduct['specs'], value: string) => {
     if (!value) return
@@ -1783,6 +1800,7 @@ function extractSpecs(
           ? 'length'
           : undefined
     if (measurementKind && measurementIsConflicting(value, measurementKind)) {
+      conflictingMeasurements.add(key)
       const label = key.replace(/([A-Z])/g, ' $1').toLowerCase()
       const warning = `Source lists conflicting ${label} measurements (${cleanValue(value)}). This field was left empty; verify it before saving.`
       if (
@@ -1990,7 +2008,7 @@ function extractSpecs(
     pattern: RegExp,
     transform: (v: string) => string,
   ) => {
-    if (specs[key]) return
+    if (specs[key] || conflictingMeasurements.has(key)) return
     const m = allText.match(pattern)
     if (m) {
       const v = transform(m[1])
@@ -2284,6 +2302,19 @@ function buildConfidence(product: ScrapedProduct): ScrapeConfidence {
   }
 }
 
+function isRemetteProductUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return (
+      (url.hostname === 'remetteknife.com' ||
+        url.hostname === 'www.remetteknife.com') &&
+      /\/products\/[^/]+\/?$/.test(url.pathname)
+    )
+  } catch {
+    return false
+  }
+}
+
 export function scrapeProduct(
   html: string,
   baseUrl: string,
@@ -2293,9 +2324,18 @@ export function scrapeProduct(
   const ld = extractJsonLdProduct($, baseUrl)
 
   const rawName = ld.name || extractTitle($)
-  const name = extractProductName($, rawName, sourceUrl ?? baseUrl)
   const brand = extractBrand(rawName, $, ld.brand, sourceUrl ?? baseUrl)
   const isPoikiloProduct = isPoikiloProductUrl(baseUrl)
+  const isRemetteProduct = isRemetteProductUrl(baseUrl)
+  // The header contains other products' specifications before the current knife.
+  const remetteDescription = isRemetteProduct
+    ? $('#tab-description .toggle-content').first().html() ||
+      $('#tab-description').first().html() ||
+      ''
+    : ''
+  const remetteDetails = isRemetteProduct
+    ? remetteDescription || $('.product-details').first().html() || ''
+    : ''
   let isZeroToleranceProduct = false
   try {
     const url = new URL(baseUrl)
@@ -2308,7 +2348,17 @@ export function scrapeProduct(
     ? cheerio.load($('.product-detail .product-info').first().html() ?? '')
     : isZeroToleranceProduct
       ? cheerio.load($('.product-details').first().html() ?? '')
-      : $
+      : isRemetteProduct
+        ? cheerio.load(remetteDetails || '<div></div>')
+        : $
+  if (isRemetteProduct && !remetteDetails) {
+    productInfo('div').text(ld.description || '')
+  }
+  const name = extractProductName(
+    isRemetteProduct ? productInfo : $,
+    rawName,
+    sourceUrl ?? baseUrl,
+  )
   const zeroToleranceAttributes = new Map<string, string>()
   if (isZeroToleranceProduct) {
     productInfo('.product-details__attributes li').each((_, el) => {
@@ -2336,6 +2386,7 @@ export function scrapeProduct(
     : ''
   const description =
     zeroToleranceDescription ||
+    htmlToPlainText(remetteDescription) ||
     ld.description ||
     extractDescription(productInfo, !isPoikiloProduct)
   const galleryImages = isPoikiloProduct
@@ -2364,10 +2415,32 @@ export function scrapeProduct(
           })
           .get()
           .filter(Boolean)
-      : extractImages($, baseUrl)
+      : isRemetteProduct
+        ? $('.productView-images .productView-image')
+            .map((_, el) => {
+              const image = $(el).find('img').first()
+              const src =
+                $(el).find('a[data-fancybox="images"]').attr('href') ||
+                image.attr('data-src') ||
+                image.attr('src') ||
+                ''
+              if (/video|youtube/i.test(`${image.attr('alt') ?? ''} ${src}`))
+                return ''
+              const resolved = resolveUrl(src, baseUrl) ?? ''
+              return /^https?:\/\//.test(resolved)
+                ? preferFullSizeImage(resolved)
+                : ''
+            })
+            .get()
+            .filter(Boolean)
+        : extractImages($, baseUrl)
   const images = [
     ...new Set(
-      [...(ld.images ?? []), ...galleryImages].map(canonicalizeImageUrl),
+      // Remette's JSON-LD and meta images repeat resized gallery thumbnails.
+      (isRemetteProduct && galleryImages.length
+        ? galleryImages
+        : [...(ld.images ?? []), ...galleryImages]
+      ).map(canonicalizeImageUrl),
     ),
   ]
   // Use elementTextWithBreaks so block-level tags and <br> become word
@@ -2390,6 +2463,12 @@ export function scrapeProduct(
     warnings,
     zeroToleranceAttributes,
   )
+  if (isRemetteProduct && !specs.price) {
+    specs.price = normalizePrice(
+      findMeta($, ['product:price:amount', 'og:price:amount']),
+      extractActiveCurrency($),
+    )
+  }
   if (isPoikiloProduct) {
     const lock = productInfo('.specifications li')
       .toArray()
@@ -2429,6 +2508,7 @@ export function scrapeProduct(
 
   const bladeStyle =
     zeroToleranceAttributes.get('blade style') ||
+    (isRemetteProduct ? extractLabeledValue(pageText, ['blade type']) : '') ||
     cleanValue(ldBladeStyle) ||
     extractStructuredLabeledValue(productInfo, [
       'blade style',
