@@ -18,7 +18,12 @@ vi.mock('@/components/providers/knives-provider', () => ({
   useKnives: () => state,
 }))
 vi.mock('@/components/providers/comparisons-provider', () => ({
-  useComparisons: () => ({ ...state, loading: false, busy: false, error: null }),
+  useComparisons: () => ({
+    ...state,
+    loading: false,
+    busy: false,
+    error: null,
+  }),
 }))
 
 beforeEach(() => {
@@ -41,11 +46,7 @@ describe('Alloy collection cards', () => {
     })
     const onOpen = vi.fn()
     render(
-      <AlloyCollectionCard
-        knife={knife}
-        onOpen={onOpen}
-        onSelect={vi.fn()}
-      />,
+      <AlloyCollectionCard knife={knife} onOpen={onOpen} onSelect={vi.fn()} />,
     )
     expect(screen.getByText('CPM-S30V · 3.24 in · 1.85 oz')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Compare Bugout' }))
@@ -62,15 +63,14 @@ describe('Alloy collection cards', () => {
     state.updateKnife.mockRejectedValue(new Error('Vault is locked'))
     const knife = createKnife()
     render(
-      <AlloyCollectionCard
-        knife={knife}
-        onOpen={vi.fn()}
-        onSelect={vi.fn()}
-      />,
+      <AlloyCollectionCard knife={knife} onOpen={vi.fn()} onSelect={vi.fn()} />,
     )
     await user.click(screen.getByRole('button', { name: 'Pin Bugout' }))
     await waitFor(() => {
-      expect(state.showFeedback).toHaveBeenCalledWith('Vault is locked', 'error')
+      expect(state.showFeedback).toHaveBeenCalledWith(
+        'Vault is locked',
+        'error',
+      )
     })
     expect(state.updateKnife).toHaveBeenCalledWith(knife.id, { pinned: true })
     expect(screen.getByRole('button', { name: 'Pin Bugout' })).toHaveAttribute(
