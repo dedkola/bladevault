@@ -2,7 +2,7 @@
 
 The prebuilt image stores the database and local images in `/app/data`. Mount a host folder to keep that data when the container is replaced.
 
-The examples use `:latest`, which follows successful builds of `main` and can include changes newer than the published release. For a specific release, use its version tag, such as `ghcr.io/dedkola/bladevault:v1.3.1`.
+The examples use `:latest`, which follows successful builds of `main` and can include changes newer than the published release. For a specific release, use its version tag, such as `ghcr.io/dedkola/bladevault:v2.0.3`.
 
 ## Docker on macOS or Linux
 

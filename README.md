@@ -6,7 +6,7 @@
 
 **A sharp, local-first knife collection manager.**
 
-Catalog your knives, compare them side by side, and keep your collection data under your control.
+Catalog your knives, showcase them in Studio, compare them side by side, and keep your collection data under your control.
 
   <p>
     <img src="https://img.shields.io/badge/Next.js-000000?logo=nextdotjs&logoColor=white&style=flat-square" alt="Next.js" />
@@ -29,17 +29,19 @@ Catalog your knives, compare them side by side, and keep your collection data un
 
 ---
 
-[Install](#choose-a-setup) · [Screenshots](#screenshots) · [MCP](#model-context-protocol-mcp) · [Backups](#local-backup-and-restore) · [Development](#run-from-source)
+[Install](#choose-a-setup) · [Studio](#studio) · [Screenshots](#screenshots) · [MCP](#model-context-protocol-mcp) · [Backups](#local-backup-and-restore) · [Development](#run-from-source)
 
 ## What it does
 
 - **Catalog:** Keep specifications, pricing, provenance, notes, links, and local photos for every knife. Import product details from supported retailer URLs, with [popup cleanup and interactive browsing](#import-from-a-product-url).
 - **Capture source pages:** Save a full-page screenshot with URL imports, view or download it later, retry failed captures, and backfill screenshots for older records. Captures are included in local and cloud backups.
-- **Organize:** Search, filter, pin, and bulk-edit records. Add custom text, number, and date fields, and choose which details appear on collection cards and in the pinned sidebar.
+- **Organize:** Search, filter, pin, and bulk-edit records. Add custom text, number, and date fields, and choose which details appear on collection cards and in the pinned sidebar. In the Modern theme, choose, reorder, and resize table columns and switch between list and gallery views.
 - **Browse:** Save filters as Smart Collections that update with your records, or browse variants together in Model families. Global search supports model names and `/model A4301` for model numbers.
+- **Showcase:** Open **Studio** for a photo-first wall of your collection with folding, fixed, and pinned filters, search, sorting, and focus mode. Select any knife for a quick look with its full photo gallery.
 - **Compare:** Create named shortlists, add a knife to several lists, show only differences, and print or export comparisons as PDF.
 - **Maintain:** Log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes and sharpening details. Review maintenance history and collection changes in Logs.
-- **Understand:** Explore makers, materials, dimensions, completeness, and activity through collection insights. Open chart details to inspect matching knives or print the Overview as a report.
+- **Understand:** Explore makers, materials, dimensions, completeness, and activity through collection insights. The Modern theme adds monthly additions for the last 12 months and blade, overall-length, weight, and thickness distributions. Open chart details to inspect matching knives or print the Overview as a report.
+- **Personalize:** Choose the **Current** or **Modern** theme, light or dark color mode, time format, pinned ordering, and the page BladeVault opens on: **Insights**, **Studio**, or **Collection**.
 - **Connect:** Use MCP to search and analyze your collection from an AI client, with optional metadata updates and maintenance logging.
 - **Keep control:** Store your vault locally in SQLite, create portable ZIP backups, and optionally sign in for cloud backup.
 
@@ -54,7 +56,13 @@ Open **Add → Scrape URL**, paste the retailer's URL, and choose **Scrape**. Bl
 
 The interactive browser opens on the computer running BladeVault. In Docker, Podman, or Kubernetes, it runs inside the container and is not streamed to your screen.
 
-See the [URL import guide](docs/guides/import-knives.md) for more details.
+See the [URL import guide](docs/guides/add-knife-to-collection.md) for more details.
+
+## Studio
+
+Open **Studio** from the sidebar for a photo-first index of your vault. BladeVault arranges the collection into a randomized featured wall; use the toolbar to filter folding, fixed, or pinned knives, search by name or specification, sort by name or maker, and switch between regular and large tiles.
+
+Select a knife to open a **quick look** with its complete photo gallery, key specifications, and actions to view, edit, pin, or compare it. Use the arrow buttons or the left and right arrow keys to move through photos. **Focus mode** hides the rest of the interface for distraction-free browsing.
 
 ## Choose a setup
 
@@ -73,9 +81,15 @@ See the [URL import guide](docs/guides/import-knives.md) for more details.
 </div>
 
 <details>
-<summary>More screenshots: insights, knife details, comparisons, and URL import</summary>
+<summary>More screenshots: Studio, Modern theme, insights, knife details, comparisons, and URL import</summary>
 
 <div align="center">
+
+  <img src="assets/screenshots/studio.png" alt="BladeVault Studio showing a photo-first wall of the collection with featured tiles and filters" width="100%" />
+  <p><sub>Studio — a photo-first visual index with quick look and focus mode</sub></p>
+
+  <img src="assets/screenshots/modern-collection.png" alt="BladeVault Modern theme collection table with custom columns and a docked knife inspector" width="100%" />
+  <p><sub>Modern theme — compact table, custom columns, and a docked inspector</sub></p>
 
   <img src="assets/screenshots/insights.png" alt="BladeVault collection insights showing maker, material, dimension, and data completeness analytics" width="100%" />
   <p><sub>Insights — patterns, dimensions, materials, and collection health</sub></p>
@@ -86,8 +100,8 @@ See the [URL import guide](docs/guides/import-knives.md) for more details.
   <img src="assets/screenshots/compare.png" alt="Saved knife comparison list with specifications, differences-only viewing, and PDF export" width="100%" />
   <p><sub>Compare — saved shortlists and specifications side by side</sub></p>
 
-  <img src="assets/screenshots/add.png" alt="Add knife page with URL import and manual entry options" width="100%" />
-  <p><sub>Add knife — import a product URL or enter it yourself</sub></p>
+  <img src="assets/screenshots/add.png" alt="Add knife page importing a Vosteed product URL with the scraped page preview and manual entry option" width="100%" />
+  <p><sub>Add knife — scrape a product URL or enter the details manually</sub></p>
 
 </div>
 
@@ -97,7 +111,7 @@ See the [URL import guide](docs/guides/import-knives.md) for more details.
 
 The prebuilt image stores the database and local images in `/app/data`. Mount a host folder to keep that data when the container is replaced.
 
-The examples use `:latest`, which follows successful builds of `main` and can include changes newer than the published release. For a specific release, use its version tag, such as `ghcr.io/dedkola/bladevault:v1.3.1`.
+The examples use `:latest`, which follows successful builds of `main` and can include changes newer than the published release. For a specific release, use its version tag, such as `ghcr.io/dedkola/bladevault:v2.0.3`.
 
 ### Docker on macOS or Linux
 
@@ -203,7 +217,7 @@ helm upgrade bladevault bladevault/bladevault --namespace bladevault --wait
 ```
 
 The chart version, displayed app version, and default image tag match the
-BladeVault release. For example, chart `1.3.1` installs image `v1.3.1`.
+BladeVault release. For example, chart `2.0.3` installs image `v2.0.3`.
 
 If you explicitly override `image.tag=latest`, recreate the pod after a new
 image is published because the mutable tag does not change the Deployment:
