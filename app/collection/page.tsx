@@ -9,6 +9,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
@@ -35,6 +36,7 @@ import { matchesCollection, rangeDefinitions } from '@/lib/smart-collections'
 import { PageHeader } from '@/components/page-header'
 import { BulkEditDialog } from '@/components/bulk-edit-dialog'
 import { KnifeCard, type CollectionCardDensity } from '@/components/knife-card'
+import { AlloyCollectionCard } from '@/components/alloy-collection-card'
 import { KnifeFamilyCard } from '@/components/knife-family-card'
 import { CollectionKnifeInspector } from '@/components/collection-knife-inspector'
 import {
@@ -68,6 +70,29 @@ import {
   getFilterOptionLabel,
   NOT_SET_FILTER_VALUE,
 } from '@/lib/collection-filters'
+
+const ALLOY_VIEW_KEY = 'bladevault-alloy-collection-view'
+const ALLOY_VIEW_EVENT = 'bladevault:alloy-collection-view'
+let alloyViewFallback: 'list' | 'grid' = 'grid'
+let alloyViewOverride: 'list' | 'grid' | null = null
+function readAlloyView(): 'list' | 'grid' {
+  if (alloyViewOverride) return alloyViewOverride
+  try {
+    const saved = window.localStorage.getItem(ALLOY_VIEW_KEY)
+    return saved === 'list' || saved === 'grid' ? saved : alloyViewFallback
+  } catch {
+    return alloyViewFallback
+  }
+}
+function subscribeAlloyView(onChange: () => void) {
+  window.addEventListener('storage', onChange)
+  window.addEventListener(ALLOY_VIEW_EVENT, onChange)
+  return () => {
+    window.removeEventListener('storage', onChange)
+    window.removeEventListener(ALLOY_VIEW_EVENT, onChange)
+  }
+}
+const defaultAlloyView = () => 'grid' as const
 
 const PAGE_SIZE = 24
 type CollectionView = 'knives' | 'families' | 'pinned'
@@ -121,11 +146,19 @@ function CollectionContent() {
     collectionDisplay,
     updateCollectionDisplay,
   } = useKnives()
+  const isAlloy = themeStyle === 'alloy'
+  const isWorkspaceCollection = themeStyle === 'modern' || isAlloy
+  const alloyView = useSyncExternalStore(
+    subscribeAlloyView,
+    readAlloyView,
+    defaultAlloyView,
+  )
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
+  const inspectorTriggerRef = useRef<HTMLElement | null>(null)
   const query = searchParams.get('q') ?? ''
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
@@ -140,7 +173,7 @@ function CollectionContent() {
   const [isBulkPinning, setIsBulkPinning] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const density: CollectionCardDensity = collectionDisplay.density
-  const modernView = collectionDisplay.view
+  const modernView = isAlloy ? alloyView : collectionDisplay.view
   const sortOrder = collectionDisplay.sort
   const saveDisplay = (patch: Partial<CollectionDisplay>) => {
     void updateCollectionDisplay(patch).catch((error) => {
@@ -154,7 +187,24 @@ function CollectionContent() {
   }
   const setDensity = (density: CollectionCardDensity) =>
     saveDisplay({ density })
-  const setModernView = (view: 'list' | 'grid') => saveDisplay({ view })
+  const setModernView = (view: 'list' | 'grid') => {
+    if (!isAlloy) {
+      saveDisplay({ view })
+      return
+    }
+    alloyViewFallback = view
+    try {
+      window.localStorage.setItem(ALLOY_VIEW_KEY, view)
+      alloyViewOverride = null
+    } catch {
+      alloyViewOverride = view
+      showFeedback(
+        'Display preference applies for this session. Browser storage is unavailable.',
+        'error',
+      )
+    }
+    window.dispatchEvent(new Event(ALLOY_VIEW_EVENT))
+  }
   const setSortOrder = (sort: CollectionSort) => saveDisplay({ sort })
   const [inspectorDismissed, setInspectorDismissed] = useState(false)
   const [activeKnifeId, setActiveKnifeId] = useState<string | null>(null)
@@ -363,13 +413,13 @@ function CollectionContent() {
   const activeKnife = useMemo(
     () =>
       knives.find((knife) => knife.id === activeKnifeId) ??
-      (themeStyle === 'modern' && !inspectorDismissed && !isSelectionMode
+      (isWorkspaceCollection && !inspectorDismissed && !isSelectionMode
         ? (filteredKnives[0] ?? null)
         : null),
     [
       activeKnifeId,
       knives,
-      themeStyle,
+      isWorkspaceCollection,
       inspectorDismissed,
       isSelectionMode,
       filteredKnives,
@@ -383,6 +433,20 @@ function CollectionContent() {
     : filteredKnives.length
 
   const inspectKnife = (knife: Knife) => {
+    if (isAlloy) {
+      const focused = document.activeElement
+      if (
+        focused instanceof HTMLElement &&
+        !focused.closest('[data-collection-inspector]')
+      ) {
+        inspectorTriggerRef.current =
+          focused === document.body
+            ? document.querySelector<HTMLElement>(
+                `[data-knife-card="${CSS.escape(knife.id)}"] [data-alloy-card-open]`,
+              )
+            : focused
+      }
+    }
     setInspectorDismissed(false)
     setActiveKnifeId(knife.id)
   }
@@ -658,15 +722,35 @@ function CollectionContent() {
     <div
       className={cn(
         'w-full flex-1 p-4 sm:p-6 lg:p-8',
-        activeKnife && 'xl:pr-[28rem]',
-        (isSelectionMode ||
-          (themeStyle === 'modern' && selectedIds.size > 0)) &&
+        activeKnife && !isAlloy && 'xl:pr-[28rem]',
+        (isSelectionMode || (isWorkspaceCollection && selectedIds.size > 0)) &&
           'pb-28 lg:pb-28',
       )}
       data-collection-content
-      data-modern-collection={themeStyle === 'modern' || undefined}
+      data-modern-collection={isWorkspaceCollection || undefined}
+      data-alloy-collection={isAlloy || undefined}
+      data-alloy-has-inspector={
+        (isAlloy && Boolean(activeKnife) && !isSelectionMode) || undefined
+      }
     >
-      {themeStyle !== 'modern' && (
+      {isAlloy && (
+        <header data-alloy-collection-heading>
+          <div>
+            <span data-alloy-heading-eyebrow>
+              Personal archive / Collection
+            </span>
+            <h1>The collection.</h1>
+            <p>A place for every edge. A story behind each one.</p>
+          </div>
+          <div data-alloy-collection-total>
+            <strong>{String(knives.length).padStart(2, '0')}</strong>
+            <span>
+              {knives.length === 1 ? 'knife' : 'knives'} in your vault
+            </span>
+          </div>
+        </header>
+      )}
+      {!isWorkspaceCollection && (
         <PageHeader
           title="Your collection."
           description={`${knives.length} ${knives.length === 1 ? 'knife' : 'knives'}, each with a story. All in one place.`}
@@ -684,7 +768,7 @@ function CollectionContent() {
         />
       )}
 
-      {themeStyle === 'modern' && knives.length > 0 && (
+      {isWorkspaceCollection && knives.length > 0 && (
         <div data-modern-collection-toolbar>
           <nav aria-label="Collection type" data-modern-collection-scopes>
             {(['all', 'folding', 'fixed', 'pinned'] as const).map((scope) => (
@@ -701,12 +785,41 @@ function CollectionContent() {
                 }
               >
                 {scope === 'all'
-                  ? 'All'
-                  : scope.charAt(0).toUpperCase() + scope.slice(1)}
+                  ? isAlloy
+                    ? 'All knives'
+                    : 'All'
+                  : scope === 'fixed' && isAlloy
+                    ? 'Fixed blade'
+                    : scope.charAt(0).toUpperCase() + scope.slice(1)}
+                {isAlloy && (
+                  <span data-alloy-scope-count>
+                    {scope === 'all'
+                      ? knives.length
+                      : scope === 'pinned'
+                        ? knives.filter((knife) => knife.pinned).length
+                        : knives.filter((knife) =>
+                            matchesCollection(
+                              knife,
+                              new URLSearchParams({ knifeType: scope }),
+                            ),
+                          ).length}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
           <div data-modern-collection-tools>
+            {isAlloy && (
+              <div data-alloy-collection-search>
+                <SearchField
+                  value={query}
+                  onChange={setQuery}
+                  placeholder="Find a knife by model name…"
+                  inputRef={searchInputRef}
+                  shortcutHint="/"
+                />
+              </div>
+            )}
             <SmartCollectionControls
               params={new URLSearchParams(searchParamsKey)}
               navigate={(query) => {
@@ -811,7 +924,7 @@ function CollectionContent() {
         </div>
       )}
       <div data-collection-main className="contents">
-        {themeStyle === 'modern' && knives.length === 0 && (
+        {isWorkspaceCollection && knives.length === 0 && (
           <SmartCollectionControls
             params={new URLSearchParams(searchParamsKey)}
             navigate={(query) => {
@@ -822,7 +935,7 @@ function CollectionContent() {
             }}
           />
         )}
-        {themeStyle !== 'modern' && knives.length > 0 && (
+        {!isWorkspaceCollection && knives.length > 0 && (
           <nav
             aria-label="Collection grouping"
             className="mb-5 flex gap-6 border-b border-border"
@@ -864,14 +977,14 @@ function CollectionContent() {
             data-collection-filter-panel
             className={cn(
               'mb-5 rounded-xl border border-[var(--bladevault-line)]/80 bg-[color:var(--bladevault-surface-soft)]/25 p-3',
-              themeStyle === 'modern' && !isFiltersOpen && 'hidden',
+              isWorkspaceCollection && !isFiltersOpen && 'hidden',
             )}
           >
             <div
               data-collection-toolbar
               className="flex flex-wrap items-center gap-2"
             >
-              {themeStyle === 'modern' && (
+              {isWorkspaceCollection && (
                 <select
                   aria-label="Collection grouping"
                   value={collectionView}
@@ -884,21 +997,23 @@ function CollectionContent() {
                   <option value="pinned">Pinned</option>
                 </select>
               )}
-              <SearchField
-                value={query}
-                onChange={setQuery}
-                placeholder={
-                  themeStyle === 'modern'
-                    ? 'Search collection…'
-                    : 'Search model name…'
-                }
-                className={cn(
-                  'mx-0 max-w-lg basis-full sm:basis-80 lg:basis-96',
-                  themeStyle === 'modern' && 'modern-collection-search',
-                )}
-                inputRef={searchInputRef}
-                shortcutHint="/"
-              />
+              {!isAlloy && (
+                <SearchField
+                  value={query}
+                  onChange={setQuery}
+                  placeholder={
+                    isWorkspaceCollection
+                      ? 'Search collection…'
+                      : 'Search model name…'
+                  }
+                  className={cn(
+                    'mx-0 max-w-lg basis-full sm:basis-80 lg:basis-96',
+                    isWorkspaceCollection && 'modern-collection-search',
+                  )}
+                  inputRef={searchInputRef}
+                  shortcutHint="/"
+                />
+              )}
               <Button
                 type="button"
                 variant="outline"
@@ -932,7 +1047,7 @@ function CollectionContent() {
               </label>
               <select
                 id="collection-sort"
-                hidden={themeStyle === 'modern'}
+                hidden={isWorkspaceCollection}
                 value={sortOrder}
                 onChange={(event) => {
                   setSortOrder(event.target.value as CollectionSort)
@@ -944,7 +1059,7 @@ function CollectionContent() {
                 <option value="model">Model A–Z</option>
                 <option value="brand">Brand A–Z</option>
               </select>
-              {themeStyle === 'modern' ? (
+              {isWorkspaceCollection ? (
                 <div
                   hidden
                   data-collection-view-toggle
@@ -1059,7 +1174,7 @@ function CollectionContent() {
         <div
           className={cn(
             'mb-6 flex flex-col gap-4',
-            themeStyle === 'modern' && (hasActiveFilters ? 'mb-3' : 'hidden'),
+            isWorkspaceCollection && (hasActiveFilters ? 'mb-3' : 'hidden'),
           )}
         >
           <div className="flex flex-wrap items-center gap-2">
@@ -1173,9 +1288,7 @@ function CollectionContent() {
           />
         ) : (
           <div className="space-y-6">
-            {themeStyle === 'modern' &&
-            modernView === 'list' &&
-            !isFamilyView ? (
+            {isWorkspaceCollection && modernView === 'list' && !isFamilyView ? (
               <ModernCollectionTable
                 knives={filteredKnives.slice(0, visibleCount)}
                 columnWidths={collectionDisplay.columnWidths}
@@ -1199,7 +1312,22 @@ function CollectionContent() {
                 onOpen={inspectKnife}
                 onOpenDetail={(knife) => router.push(`/collection/${knife.id}`)}
               />
-            ) : themeStyle === 'modern' && !isFamilyView && !isSelectionMode ? (
+            ) : isAlloy && !isFamilyView ? (
+              <div data-alloy-collection-grid data-collection-grid>
+                {filteredKnives.slice(0, visibleCount).map((knife, index) => (
+                  <AlloyCollectionCard
+                    key={knife.id}
+                    knife={knife}
+                    eager={index === 0}
+                    active={knife.id === activeKnife?.id}
+                    selectionMode={isSelectionMode}
+                    selected={selectedIds.has(knife.id)}
+                    onSelect={toggleKnifeSelection}
+                    onOpen={inspectKnife}
+                  />
+                ))}
+              </div>
+            ) : isWorkspaceCollection && !isFamilyView && !isSelectionMode ? (
               <ModernCollectionGallery
                 knives={filteredKnives.slice(0, visibleCount)}
                 activeKnifeId={activeKnife?.id}
@@ -1277,22 +1405,27 @@ function CollectionContent() {
           knife={activeKnife}
           siblings={activeKnifeSiblings}
           autoSelected={activeKnifeId === null}
+          returnFocusRef={isAlloy ? inspectorTriggerRef : undefined}
           onSelect={inspectKnife}
           onClose={() => {
             setActiveKnifeId(null)
             setInspectorDismissed(true)
-            searchInputRef.current?.focus({ preventScroll: true })
+            if (!isAlloy || !window.matchMedia('(max-width: 950px)').matches) {
+              searchInputRef.current?.focus({ preventScroll: true })
+            }
           }}
         />
       )}
 
-      {(isSelectionMode ||
-        (themeStyle === 'modern' && selectedIds.size > 0)) && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
+      {(isSelectionMode || (isWorkspaceCollection && selectedIds.size > 0)) && (
+        <div
+          data-alloy-bulk-actions={isAlloy || undefined}
+          className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4"
+        >
           <div
             className={cn(
               'pointer-events-auto flex w-full max-w-2xl flex-col gap-3 rounded-xl border border-[var(--bladevault-line)] bg-background/95 p-3 shadow-xl backdrop-blur',
-              themeStyle !== 'modern' && 'sm:flex-row sm:items-center',
+              !isWorkspaceCollection && 'sm:flex-row sm:items-center',
             )}
           >
             <div className="min-w-0 flex-1" aria-live="polite">
@@ -1340,7 +1473,7 @@ function CollectionContent() {
               >
                 Compare selected
               </Button>
-              {themeStyle === 'modern' && (
+              {isWorkspaceCollection && (
                 <Button
                   variant="destructive"
                   size="sm"
@@ -1384,7 +1517,7 @@ function CollectionContent() {
                 )}
                 {selectedKnivesPinned ? 'Unpin' : 'Pin'}
               </Button>
-              {themeStyle === 'modern' && (
+              {isWorkspaceCollection && (
                 <Button
                   variant="ghost"
                   size="icon-xs"

@@ -15,6 +15,7 @@ import {
   Sun,
 } from 'lucide-react'
 import { SidebarShell } from '@/components/sidebar-shell'
+import { AlloyShell } from '@/components/alloy-shell'
 import {
   GlobalKnifeSearch,
   OPEN_GLOBAL_SEARCH_EVENT,
@@ -28,6 +29,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [headerActions, setHeaderActions] = useState<HTMLElement | null>(null)
   const { themeStyle, knives, isLoading, isAutoBackupActive, showFeedback } =
     useKnives()
+  if (themeStyle === 'alloy') {
+    return <AlloyShell>{children}</AlloyShell>
+  }
   if (themeStyle !== 'modern') {
     return (
       <>

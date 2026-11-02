@@ -271,7 +271,7 @@ export function LogSessionsView() {
     themeStyle,
     isLoading: knivesLoading,
   } = useKnives()
-  const isModern = themeStyle === 'modern'
+  const isModern = themeStyle === 'modern' || themeStyle === 'alloy'
   const [rawEvents, setRawEvents] = useState<AuditLogEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -582,6 +582,7 @@ export function LogSessionsView() {
       />
       <div
         data-modern-logs={isModern || undefined}
+        data-alloy-logs={themeStyle === 'alloy' || undefined}
         className="grid w-full min-w-0 items-start gap-5"
         onKeyDown={(event) => {
           if (

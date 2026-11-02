@@ -670,16 +670,19 @@
 }
 
 /* Match the default collection's warm surfaces and shared control scale. */
-:global(html:not([data-theme-style='modern'])) :is(.root, .focus, .quickLook) {
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+  :is(.root, .focus, .quickLook) {
   --studio-line: var(--border);
   --studio-glass: var(--card);
 }
 
-:global(html:not([data-theme-style='modern'])) .root {
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+  .root {
   padding: 1rem;
 }
 
-:global(html:not([data-theme-style='modern'])) .toolbar {
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+  .toolbar {
   gap: 12px;
   padding: 12px;
   margin-bottom: 24px;
@@ -689,18 +692,21 @@
   backdrop-filter: none;
 }
 
-:global(html:not([data-theme-style='modern'])) .segmented {
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+  .segmented {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--background);
 }
 
-:global(html:not([data-theme-style='modern'])) .segmented button {
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+  .segmented
+  button {
   min-height: 32px;
   font-size: 13px;
 }
 
-:global(html:not([data-theme-style='modern']))
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
   .segmented
   button[aria-pressed='true'] {
   background: var(--bladevault-nav-active-bg);
@@ -708,7 +714,7 @@
   box-shadow: none;
 }
 
-:global(html:not([data-theme-style='modern']))
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
   :is(.search input, .sort select) {
   height: 38px;
   border-color: var(--input);
@@ -717,28 +723,36 @@
   font-size: 14px;
 }
 
-:global(html:not([data-theme-style='modern'])) .count {
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+  .count {
   font-size: 12px;
 }
 
-:global(html:not([data-theme-style='modern'])) :is(.tile, .quickLook) {
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+  :is(.tile, .quickLook) {
   border-radius: var(--radius-xl);
 }
 
-:global(html:not([data-theme-style='modern'])) .caption {
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+  .caption {
   border-radius: var(--radius-lg);
   backdrop-filter: none;
 }
 
-:global(html:not([data-theme-style='modern'])) .caption b {
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+  .caption
+  b {
   font-size: 14px;
 }
 
-:global(html:not([data-theme-style='modern'])) .caption div > span {
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+  .caption
+  div
+  > span {
   font-size: 12px;
 }
 
-:global(html:not([data-theme-style='modern']))
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
   :is(
     .familyCaption div > span,
     .familyCaption > span,
@@ -749,7 +763,8 @@
   font-size: 13px;
 }
 
-:global(html:not([data-theme-style='modern'])) .familyCaption {
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+  .familyCaption {
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -758,14 +773,182 @@
 }
 
 @media (min-width: 640px) {
-  :global(html:not([data-theme-style='modern'])) .root {
+  :global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+    .root {
     padding: 1.5rem;
   }
 }
 
 @media (min-width: 1024px) {
-  :global(html:not([data-theme-style='modern'])) .root {
+  :global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+    .root {
     padding: 2rem;
+  }
+}
+
+/* Neutral trays preserve product-photo blending in both Alloy appearances. */
+:global(html[data-theme-style='alloy']) :is(.root, .focus, .quickLook) {
+  --studio-line: var(--border);
+  --studio-glass: var(--card);
+  --studio-stage: #e7e3da;
+  --studio-highlight: var(--studio-stage);
+  --studio-stage-edge: var(--studio-stage);
+}
+
+:global(html[data-theme-style='alloy'].dark) :is(.root, .focus, .quickLook) {
+  --studio-stage: #dedbd4;
+}
+
+:global(html[data-theme-style='alloy']) .root {
+  padding: 31px clamp(18px, 3vw, 40px) 30px;
+}
+
+:global(html[data-theme-style='alloy']) .toolbar {
+  padding: 0 0 18px;
+  margin-bottom: 22px;
+  border: 0;
+  border-bottom: 1px solid var(--studio-line);
+  border-radius: 0;
+  background: var(--background);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+:global(html[data-theme-style='alloy']) .root .gallery {
+  --studio-columns: 3;
+  --studio-gap: 18px;
+  --studio-min-row: 260px;
+}
+
+:global(html[data-theme-style='alloy']) .root .gallery[data-size='large'] {
+  --studio-columns: 2;
+  --studio-min-row: 310px;
+}
+
+:global(html[data-theme-style='alloy']) :is(.stage, .quickStage) {
+  background: var(--studio-stage);
+}
+
+:global(html[data-theme-style='alloy']) .tile {
+  border: 0;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+:global(html[data-theme-style='alloy']) .caption {
+  inset: auto 19px 17px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #231f18;
+  backdrop-filter: none;
+}
+
+:global(html[data-theme-style='alloy']) .caption b,
+:global(html[data-theme-style='alloy']) .familyCaption b {
+  font-family: var(--font-display, var(--font-sans));
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+}
+
+:global(html[data-theme-style='alloy']) .caption div > span,
+:global(html[data-theme-style='alloy']) .familyCaption div > span,
+:global(html[data-theme-style='alloy']) .noImage {
+  color: #71695e;
+  font-size: 10px;
+}
+
+:global(html[data-theme-style='alloy']) .openArrow {
+  background: transparent;
+  color: #73664d;
+}
+
+:global(html[data-theme-style='alloy']) .familyCaption {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #231f18;
+  backdrop-filter: none;
+}
+
+:global(html[data-theme-style='alloy']) .familyCaption > span {
+  color: #805d18;
+}
+
+:global(html[data-theme-style='alloy'])
+  .tileActions
+  button[aria-pressed='true'] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+:global(html[data-theme-style='alloy']) .quickLook {
+  border-radius: 14px;
+}
+
+:global(html[data-theme-style='alloy']) .quickTitle {
+  font-family: var(--font-display, var(--font-sans));
+  font-size: 34px;
+  letter-spacing: -0.015em;
+}
+
+/* Light Alloy shares the Collection's neutral trays and white controls. */
+:global(html[data-theme-style='alloy']:not(.dark))
+  :is(.root, .focus, .quickLook) {
+  --studio-stage: var(--alloy-stage);
+}
+
+:global(html[data-theme-style='alloy']:not(.dark)) :is(.tile, .quickLook) {
+  border: 1px solid var(--border);
+}
+
+:global(html[data-theme-style='alloy']:not(.dark))
+  :is(.caption, .familyCaption) {
+  color: var(--foreground);
+}
+
+:global(html[data-theme-style='alloy']:not(.dark))
+  :is(.caption div > span, .familyCaption div > span, .noImage, .openArrow) {
+  color: var(--muted-foreground);
+}
+
+:global(html[data-theme-style='alloy']:not(.dark)) .familyCaption > span {
+  color: var(--bladevault-title);
+}
+
+:global(html[data-theme-style='alloy']:not(.dark)) .segmented {
+  border: 1px solid var(--border);
+  background: var(--muted);
+}
+
+:global(html[data-theme-style='alloy']:not(.dark))
+  .segmented
+  button[aria-pressed='true'] {
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--foreground) 7%, transparent);
+}
+
+:global(html[data-theme-style='alloy']:not(.dark))
+  :is(.tileActions button, .quickNav > button, .quickNav > span) {
+  background: var(--card);
+  backdrop-filter: none;
+}
+
+:global(html[data-theme-style='alloy']:not(.dark))
+  .tileActions
+  button:is(:hover, [aria-pressed='true']) {
+  background: var(--accent);
+  color: var(--bladevault-title);
+}
+
+@container (max-width: 700px) {
+  :global(html[data-theme-style='alloy']) .root .gallery,
+  :global(html[data-theme-style='alloy']) .root .gallery[data-size='large'] {
+    --studio-columns: 2;
+    --studio-gap: 12px;
+    --studio-min-row: 200px;
   }
 }
 

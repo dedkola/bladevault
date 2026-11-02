@@ -151,6 +151,12 @@ const settingsSecondaryButtonClassName =
 const settingsPrimaryButtonClassName =
   'border-[var(--bladevault-gold)] bg-[var(--bladevault-gold)] text-[var(--bladevault-olive)] hover:bg-[var(--bladevault-title)] hover:text-[var(--bladevault-olive)]'
 
+const themeStyleLabels: Record<ThemeStyle, { name: string; note: string }> = {
+  classic: { name: 'Current', note: 'Default · warm gold' },
+  modern: { name: 'Modern', note: 'New · cool graphite' },
+  alloy: { name: 'Alloy', note: 'Black & gold' },
+}
+
 const subscribeToBrowserOrigin = () => () => {}
 const getBrowserOrigin = () => window.location.origin
 const getServerOrigin = () => ''
@@ -1879,7 +1885,7 @@ export default function SettingsView() {
                   >
                     <SettingsRow
                       label="Theme"
-                      description="Current is the default warm BladeVault look. Modern is the new cool palette."
+                      description="Current is the default warm BladeVault look. Modern offers cool graphite. Alloy pairs black and gold."
                       className="settings-theme-row"
                     >
                       <div
@@ -1889,7 +1895,7 @@ export default function SettingsView() {
                       >
                         {THEME_STYLES.map((themeStyle) => {
                           const isActive = settings.themeStyle === themeStyle
-                          const isModern = themeStyle === 'modern'
+                          const labels = themeStyleLabels[themeStyle]
 
                           return (
                             <button
@@ -1909,7 +1915,7 @@ export default function SettingsView() {
                                 aria-hidden="true"
                                 className={cn(
                                   'theme-style-swatch',
-                                  isModern ? 'is-modern' : 'is-classic',
+                                  `is-${themeStyle}`,
                                 )}
                               >
                                 <span className="theme-style-swatch-rail" />
@@ -1922,12 +1928,10 @@ export default function SettingsView() {
                               </span>
                               <span className="theme-style-meta">
                                 <span className="theme-style-name">
-                                  {isModern ? 'Modern' : 'Current'}
+                                  {labels.name}
                                 </span>
                                 <span className="theme-style-note">
-                                  {isModern
-                                    ? 'New · cool graphite'
-                                    : 'Default · warm gold'}
+                                  {labels.note}
                                 </span>
                               </span>
                               {isActive ? (

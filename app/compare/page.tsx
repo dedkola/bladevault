@@ -279,7 +279,7 @@ export default function ComparePage() {
     showFeedback,
     themeStyle,
   } = useKnives()
-  const isModern = themeStyle === 'modern'
+  const isModern = themeStyle === 'modern' || themeStyle === 'alloy'
   const [hoveredCell, setHoveredCell] = useState<{
     knifeId: string
     rowKey: CompareRowKey
@@ -597,6 +597,7 @@ export default function ComparePage() {
     <div
       data-compare-content
       data-modern-compare={isModern || undefined}
+      data-alloy-compare={themeStyle === 'alloy' || undefined}
       className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 w-full"
     >
       {requestedList &&

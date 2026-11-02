@@ -1,20 +1,21 @@
 'use client'
 
 import { useEffect } from 'react'
+import { normalizeThemeStyle } from '@/lib/settings-shared'
+
+const themeColors = {
+  classic: { light: '#fcfcfb', dark: '#18150f' },
+  modern: { light: '#f5f5f7', dark: '#0d0d0f' },
+  alloy: { light: '#101010', dark: '#080808' },
+} as const
 
 export function ThemeColorSync() {
   useEffect(() => {
     const root = document.documentElement
     const update = () => {
       const isDark = root.classList.contains('dark')
-      const isModern = root.dataset.themeStyle === 'modern'
-      const themeColor = isModern
-        ? isDark
-          ? '#0d0d0f'
-          : '#f5f5f7'
-        : isDark
-          ? '#18150f'
-          : '#fcfcfb'
+      const themeStyle = normalizeThemeStyle(root.dataset.themeStyle)
+      const themeColor = themeColors[themeStyle][isDark ? 'dark' : 'light']
       const meta = document.querySelector<HTMLMetaElement>(
         'meta[name="theme-color"]',
       )

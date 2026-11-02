@@ -1,6 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type RefObject,
+} from 'react'
+import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight, ImageIcon, Pencil, X } from 'lucide-react'
 import Image from '@/components/vault-image'
@@ -13,10 +20,21 @@ import {
   type MaintenanceEvent,
 } from '@/lib/data'
 
+const phoneInspectorQuery = '(max-width: 950px)'
+const phoneInspectorSnapshot = () =>
+  window.matchMedia(phoneInspectorQuery).matches
+const desktopInspectorSnapshot = () => false
+function subscribePhoneInspector(onChange: () => void) {
+  const media = window.matchMedia(phoneInspectorQuery)
+  media.addEventListener('change', onChange)
+  return () => media.removeEventListener('change', onChange)
+}
+
 const metric = (value?: string) => compactMeasurement(value, 'Not recorded')
 
 export function ModernCollectionInspector({
   knife,
+  variant = 'modern',
   siblings,
   image,
   hasMoreImages,
@@ -30,8 +48,10 @@ export function ModernCollectionInspector({
   compareBusy,
   inCompare,
   autoSelected,
+  returnFocusRef,
 }: {
   knife: Knife
+  variant?: 'modern' | 'alloy'
   siblings: Knife[]
   image?: string
   hasMoreImages: boolean
@@ -45,7 +65,15 @@ export function ModernCollectionInspector({
   compareBusy: boolean
   inCompare: boolean
   autoSelected: boolean
+  returnFocusRef?: RefObject<HTMLElement | null>
 }) {
+  const isPhone = useSyncExternalStore(
+    subscribePhoneInspector,
+    phoneInspectorSnapshot,
+    desktopInspectorSnapshot,
+  )
+  const isPhoneDialog = variant === 'alloy' && isPhone && !autoSelected
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
   const [tab, setTab] = useState<'overview' | 'specifications' | 'history'>(
     'overview',
   )
@@ -73,14 +101,21 @@ export function ModernCollectionInspector({
   }, [knife.id, tab])
   const specs =
     tab === 'overview'
-      ? [
-          ['Maker', knife.brand],
-          ['Designer', knife.specs.designer],
-          ['Lock', knife.specs.lockingMechanism],
-          ['Weight', metric(knife.specs.weight)],
-          ['Handle', knife.handleMaterial],
-          ['Family', knife.name],
-        ]
+      ? variant === 'alloy'
+        ? [
+            ['Blade length', metric(knife.specs.bladeLength)],
+            ['Weight', metric(knife.specs.weight)],
+            ['Blade steel', knife.specs.bladeMaterial],
+            ['Handle', knife.handleMaterial],
+          ]
+        : [
+            ['Maker', knife.brand],
+            ['Designer', knife.specs.designer],
+            ['Lock', knife.specs.lockingMechanism],
+            ['Weight', metric(knife.specs.weight)],
+            ['Handle', knife.handleMaterial],
+            ['Family', knife.name],
+          ]
       : [
           ['Blade material', knife.specs.bladeMaterial],
           ['Hardness', knife.specs.hardness],
@@ -94,15 +129,10 @@ export function ModernCollectionInspector({
           ['Country', knife.specs.country],
           ['Price', knife.specs.price],
         ]
-  return (
-    <aside
-      data-collection-inspector
-      data-modern-inspector
-      data-auto-selected={autoSelected || undefined}
-      aria-label={`Selected knife: ${knife.brand} ${knife.name}`}
-    >
+  const contents = (
+    <>
       <div data-inspector-header>
-        <span>Knife inspector</span>
+        <span>{variant === 'alloy' ? 'In focus' : 'Knife inspector'}</span>
         <div className="flex items-center gap-1">
           <Link
             href={`/collection/${knife.id}?edit=1`}
@@ -111,14 +141,24 @@ export function ModernCollectionInspector({
           >
             <Pencil className="size-3" />
           </Link>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={onClose}
-            aria-label="Close selected knife"
-          >
-            <X className="size-3.5" />
-          </Button>
+          {isPhoneDialog ? (
+            <DialogPrimitive.Close
+              ref={closeButtonRef}
+              render={<Button variant="ghost" size="icon-xs" />}
+              aria-label="Close selected knife"
+            >
+              <X className="size-3.5" />
+            </DialogPrimitive.Close>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={onClose}
+              aria-label="Close selected knife"
+            >
+              <X className="size-3.5" />
+            </Button>
+          )}
         </div>
       </div>
       <div data-inspector-image className="relative">
@@ -152,8 +192,16 @@ export function ModernCollectionInspector({
           </>
         )}
       </div>
+      {variant === 'alloy' && knife.specs.bladeLength && (
+        <div data-alloy-measure>
+          <span>{metric(knife.specs.bladeLength)} blade</span>
+        </div>
+      )}
       <div data-inspector-body>
         <div data-inspector-identity>
+          {variant === 'alloy' && (
+            <p data-alloy-inspector-brand>{knife.brand}</p>
+          )}
           <h2 id="collection-inspector-title">{knife.name}</h2>
           <p>
             {knife.brand} · {knife.specs.modelNumber || 'Model not recorded'} ·{' '}
@@ -229,6 +277,9 @@ export function ModernCollectionInspector({
           {tab === 'overview' && (
             <>
               <p data-inspector-note>
+                {variant === 'alloy' && (
+                  <span data-alloy-note-label>Collector’s note</span>
+                )}
                 {knife.description || 'No notes recorded.'}
               </p>
               <div data-inspector-chips>
@@ -304,6 +355,43 @@ export function ModernCollectionInspector({
           )}
         </div>
       </div>
-    </aside>
+    </>
   )
+  const inspectorProps = {
+    'data-collection-inspector': true,
+    'data-modern-inspector': true,
+    'data-alloy-inspector': variant === 'alloy' || undefined,
+    'data-auto-selected': autoSelected || undefined,
+    'aria-label': `Selected knife: ${knife.brand} ${knife.name}`,
+  }
+  if (isPhoneDialog) {
+    return (
+      <DialogPrimitive.Root
+        open
+        disablePointerDismissal
+        onOpenChange={(open) => {
+          if (!open) onClose()
+        }}
+      >
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Popup
+            {...inspectorProps}
+            render={<aside />}
+            aria-labelledby="collection-inspector-title"
+            initialFocus={closeButtonRef}
+            finalFocus={() =>
+              returnFocusRef?.current?.isConnected
+                ? returnFocusRef.current
+                : document.querySelector<HTMLElement>(
+                    '[data-alloy-collection-search] input',
+                  )
+            }
+          >
+            {contents}
+          </DialogPrimitive.Popup>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
+    )
+  }
+  return <aside {...inspectorProps}>{contents}</aside>
 }

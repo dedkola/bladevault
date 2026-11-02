@@ -658,7 +658,10 @@ export function KnifeFormFields({
                       </span>
                     )}
                     {isFirst && (
-                      <div className="absolute top-1 left-1/2 z-10 -translate-x-1/2 rounded bg-emerald-500 px-1.5 py-0.5 text-[9px] xl:text-xs font-medium uppercase tracking-wide text-white">
+                      <div
+                        data-image-cover-badge
+                        className="absolute top-1 left-1/2 z-10 -translate-x-1/2 rounded bg-emerald-500 px-1.5 py-0.5 text-[9px] xl:text-xs font-medium uppercase tracking-wide text-white"
+                      >
                         Cover
                       </div>
                     )}

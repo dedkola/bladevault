@@ -299,6 +299,7 @@ export default function KnifeDetail({
                 variant="outline"
                 size="sm"
                 onClick={handleToggleCompare}
+                aria-pressed={inCompare}
                 disabled={
                   isSaving ||
                   isTogglingCompare ||
@@ -324,6 +325,7 @@ export default function KnifeDetail({
                 variant="outline"
                 size="sm"
                 onClick={handleTogglePin}
+                aria-pressed={pinned}
                 disabled={isSaving || isTogglingPin}
                 className={cn(
                   'text-[var(--bladevault-olive)] hover:text-[var(--bladevault-olive)] dark:text-[var(--bladevault-gold)] dark:hover:text-[var(--bladevault-gold)]',
@@ -398,6 +400,7 @@ export default function KnifeDetail({
               variant="outline"
               size="sm"
               onClick={handleToggleCompare}
+              aria-pressed={inCompare}
               disabled={
                 isTogglingCompare ||
                 comparisonsLoading ||
@@ -422,6 +425,7 @@ export default function KnifeDetail({
               variant="outline"
               size="sm"
               onClick={handleTogglePin}
+              aria-pressed={pinned}
               disabled={isTogglingPin}
               className={cn(
                 'text-[var(--bladevault-olive)] hover:text-[var(--bladevault-olive)] dark:text-[var(--bladevault-gold)] dark:hover:text-[var(--bladevault-gold)]',
