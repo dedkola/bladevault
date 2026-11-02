@@ -100,8 +100,8 @@ Select a knife to open a **quick look** with its complete photo gallery, key spe
   <img src="assets/screenshots/compare.png" alt="Saved knife comparison list with specifications, differences-only viewing, and PDF export" width="100%" />
   <p><sub>Compare — saved shortlists and specifications side by side</sub></p>
 
-  <img src="assets/screenshots/add.png" alt="Add knife page with URL import and manual entry options" width="100%" />
-  <p><sub>Add knife — import a product URL or enter it yourself</sub></p>
+  <img src="assets/screenshots/add.png" alt="Add knife page importing a Vosteed product URL with the scraped page preview and manual entry option" width="100%" />
+  <p><sub>Add knife — scrape a product URL or enter the details manually</sub></p>
 
 </div>
 
