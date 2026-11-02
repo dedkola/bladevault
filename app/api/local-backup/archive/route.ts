@@ -2,6 +2,7 @@ import { withVaultOperation } from '@/lib/vault-operation'
 import { withLocalRestoreLease } from '@/lib/local-data-restore'
 import type { VaultRestoreLease } from '@/lib/vault-access'
 import { requireAppUnlock } from '@/lib/app-lock'
+import { guardUnproxiedVaultRequest } from '@/lib/vault-request-guard'
 import { createReadStream, createWriteStream } from 'fs'
 import fs from 'fs/promises'
 import os from 'os'
@@ -539,6 +540,12 @@ async function writeRequestArchive(request: Request, outputPath: string) {
     throw new BackupValidationError('Backup archive is empty.')
   }
 
+  if (declaredSize > 0 && received !== declaredSize) {
+    throw new BackupValidationError(
+      'Backup upload was interrupted before it finished. Try the restore again.',
+    )
+  }
+
   const handle = await fs.open(outputPath, 'r')
   try {
     const magic = Buffer.alloc(4)
@@ -594,8 +601,8 @@ async function downloadLocalBackup(request = new Request('http://localhost')) {
 }
 
 export async function POST(request: Request) {
-  const locked = requireAppUnlock(request)
-  if (locked) return locked
+  const blocked = guardUnproxiedVaultRequest(request)
+  if (blocked) return blocked
 
   const tempRoot = await fs.mkdtemp(
     path.join(os.tmpdir(), 'bladevault-local-backup-inspect-'),
@@ -653,14 +660,14 @@ async function restoreLocalBackup(request: Request, lease: VaultRestoreLease) {
 }
 
 export async function GET(request: Request) {
-  const locked = requireAppUnlock(request)
-  if (locked) return locked
+  const blocked = guardUnproxiedVaultRequest(request)
+  if (blocked) return blocked
   return withVaultOperation(() => downloadLocalBackup(request))
 }
 
 export async function PUT(request: Request) {
-  const locked = requireAppUnlock(request)
-  if (locked) return locked
+  const blocked = guardUnproxiedVaultRequest(request)
+  if (blocked) return blocked
   return withVaultOperation(() =>
     withLocalRestoreLease(request, (lease) =>
       restoreLocalBackup(request, lease),

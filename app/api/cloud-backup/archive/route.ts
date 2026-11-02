@@ -1,5 +1,6 @@
 import { withVaultOperation } from '@/lib/vault-operation'
 import { requireAppUnlock } from '@/lib/app-lock'
+import { guardUnproxiedVaultRequest } from '@/lib/vault-request-guard'
 import { createWriteStream } from 'fs'
 import fs from 'fs/promises'
 import os from 'os'
@@ -29,8 +30,33 @@ function shouldIgnoreBackupEntry(name: string): boolean {
   )
 }
 
-function isTarGzipFile(buffer: Buffer): boolean {
-  return buffer.length >= 2 && buffer[0] === 0x1f && buffer[1] === 0x8b
+async function writeUploadedCloudArchive(request: Request, outputPath: string) {
+  if (!request.body) throw new Error('Backup archive is empty.')
+
+  const declaredSize = Number(request.headers.get('content-length') || 0)
+  await pipeline(
+    Readable.fromWeb(request.body as any),
+    createWriteStream(outputPath, { mode: 0o600 }),
+  )
+
+  const stat = await fs.stat(outputPath)
+  if (declaredSize > 0 && stat.size !== declaredSize) {
+    throw new Error(
+      'Backup upload was interrupted before it finished. Try the restore again.',
+    )
+  }
+  return stat.size
+}
+
+async function isTarGzipFile(filePath: string): Promise<boolean> {
+  const handle = await fs.open(filePath, 'r')
+  try {
+    const magic = Buffer.alloc(2)
+    await handle.read(magic, 0, magic.length, 0)
+    return magic[0] === 0x1f && magic[1] === 0x8b
+  } finally {
+    await handle.close()
+  }
 }
 
 function isSafeTarEntry(entryPath: string, expectedTopDir: string): boolean {
@@ -217,24 +243,22 @@ async function restoreUploadedCloudArchive(
   const archivePath = path.join(tempRoot, 'bladevault-data.tar.gz')
 
   try {
-    const arrayBuffer = await request.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    const size = await writeUploadedCloudArchive(request, archivePath)
 
-    if (buffer.length === 0) {
+    if (size === 0) {
       return NextResponse.json(
         { error: 'Backup archive is empty' },
         { status: 400 },
       )
     }
 
-    if (!isTarGzipFile(buffer)) {
+    if (!(await isTarGzipFile(archivePath))) {
       return NextResponse.json(
         { error: 'Backup file is not a valid tar.gz archive' },
         { status: 400 },
       )
     }
 
-    await fs.writeFile(archivePath, buffer)
     const result = await restoreArchiveFromPath(archivePath, lease)
     return NextResponse.json(result)
   } catch (error) {
@@ -308,14 +332,14 @@ async function restoreCloudArchive(request: Request, lease: VaultRestoreLease) {
 }
 
 export async function GET(request: Request) {
-  const locked = requireAppUnlock(request)
-  if (locked) return locked
+  const blocked = guardUnproxiedVaultRequest(request)
+  if (blocked) return blocked
   return withVaultOperation(() => downloadCloudArchive(request))
 }
 
 export async function PUT(request: Request) {
-  const locked = requireAppUnlock(request)
-  if (locked) return locked
+  const blocked = guardUnproxiedVaultRequest(request)
+  if (blocked) return blocked
   return withVaultOperation(() =>
     withLocalRestoreLease(request, (lease) =>
       restoreUploadedCloudArchive(request, lease),
@@ -324,8 +348,8 @@ export async function PUT(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const locked = requireAppUnlock(request)
-  if (locked) return locked
+  const blocked = guardUnproxiedVaultRequest(request)
+  if (blocked) return blocked
   return withVaultOperation(() =>
     withLocalRestoreLease(request, (lease) =>
       restoreCloudArchive(request, lease),
