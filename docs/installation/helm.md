@@ -4,7 +4,7 @@ The default chart is designed for k3s with MetalLB. It creates a dedicated `Load
 
 ## What the default installation creates
 
-- The public multi-platform image matching the chart's app version, for example `ghcr.io/dedkola/bladevault:v1.3.1`.
+- The public multi-platform image matching the chart's app version, for example `ghcr.io/dedkola/bladevault:v2.0.3`.
 - A 5 GiB `ReadWriteOnce` PVC at `/app/data` using the default StorageClass, annotated with `helm.sh/resource-policy: keep`.
 - One replica with the `Recreate` strategy to avoid simultaneous access to the SQLite database from multiple pods.
 - A dedicated `LoadBalancer` service, suitable for k3s with MetalLB.
@@ -61,7 +61,7 @@ helm repo update bladevault
 helm upgrade bladevault bladevault/bladevault --namespace bladevault --wait
 ```
 
-The chart version, displayed app version, and default image tag match the BladeVault release. For example, chart `1.3.1` installs image `v1.3.1`.
+The chart version, displayed app version, and default image tag match the BladeVault release. For example, chart `2.0.3` installs image `v2.0.3`.
 
 If you explicitly override `image.tag=latest`, recreate the pod after a new image is published because the mutable tag does not change the Deployment:
 
