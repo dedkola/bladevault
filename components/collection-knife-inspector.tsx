@@ -15,7 +15,7 @@ import {
   Scale,
   X,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type RefObject } from 'react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { useKnives } from '@/components/providers/knives-provider'
 import { getImageUrl, getKnifeImageCount, type Knife } from '@/lib/data'
@@ -35,12 +35,14 @@ export function CollectionKnifeInspector({
   knife,
   siblings,
   autoSelected = false,
+  returnFocusRef,
   onSelect,
   onClose,
 }: {
   knife: Knife
   siblings: Knife[]
   autoSelected?: boolean
+  returnFocusRef?: RefObject<HTMLElement | null>
   onSelect: (knife: Knife) => void
   onClose: () => void
 }) {
@@ -70,7 +72,12 @@ export function CollectionKnifeInspector({
     setImageIndex((current) => (current - 1 + images.length) % images.length)
 
   useEffect(() => {
-    if (imageCount <= knife.images.length && themeStyle !== 'modern') return
+    if (
+      imageCount <= knife.images.length &&
+      themeStyle !== 'modern' &&
+      themeStyle !== 'alloy'
+    )
+      return
 
     const controller = new AbortController()
     void fetch(`/api/knives/${encodeURIComponent(knife.id)}`, {
@@ -126,9 +133,10 @@ export function CollectionKnifeInspector({
     }
   }
 
-  if (themeStyle === 'modern')
+  if (themeStyle === 'modern' || themeStyle === 'alloy')
     return (
       <ModernCollectionInspector
+        variant={themeStyle === 'alloy' ? 'alloy' : 'modern'}
         knife={{
           ...knife,
           description: fullKnife?.description ?? knife.description,
@@ -148,6 +156,7 @@ export function CollectionKnifeInspector({
         }
         inCompare={inCompare}
         autoSelected={autoSelected}
+        returnFocusRef={returnFocusRef}
       />
     )
 

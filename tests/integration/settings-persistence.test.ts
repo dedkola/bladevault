@@ -57,18 +57,21 @@ describe('settings persistence', () => {
     expect(getSettings().startPage).toBe('insights')
   })
 
-  it('stores the theme style in SQLite and reloads it after reopening the database', async () => {
-    vault = await createTempVault('bladevault-settings-')
+  it.each(['classic', 'modern', 'alloy'] as const)(
+    'stores the %s theme style in SQLite and reloads it after reopening the database',
+    async (themeStyle) => {
+      vault = await createTempVault('bladevault-settings-')
 
-    saveSettings({ themeStyle: 'modern' })
-    const stored = getLocalDb()
-      .prepare('SELECT value FROM settings WHERE key = ?')
-      .get('theme_style') as { value: string }
-    expect(stored.value).toBe('modern')
+      saveSettings({ themeStyle })
+      const stored = getLocalDb()
+        .prepare('SELECT value FROM settings WHERE key = ?')
+        .get('theme_style') as { value: string }
+      expect(stored.value).toBe(themeStyle)
 
-    closeLocalDb()
-    expect(getSettings().themeStyle).toBe('modern')
-  })
+      closeLocalDb()
+      expect(getSettings().themeStyle).toBe(themeStyle)
+    },
+  )
 
   it('persists collection display choices across database reopens and unrelated settings updates', async () => {
     vault = await createTempVault('bladevault-settings-')

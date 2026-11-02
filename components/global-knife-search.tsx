@@ -41,7 +41,7 @@ export function GlobalKnifeSearch({
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
-  const modern = themeStyle === 'modern'
+  const modern = themeStyle === 'modern' || themeStyle === 'alloy'
   const showGlobalSearch = modern
     ? embedded
     : pathname !== '/collection' && pathname !== '/compare'

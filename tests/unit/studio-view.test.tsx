@@ -65,6 +65,27 @@ afterEach(() => {
 })
 
 describe('Studio themes', () => {
+  it('keeps Alloy’s own heading, filtering, and full-gallery Quick Look', async () => {
+    state.themeStyle = 'alloy'
+    const user = userEvent.setup()
+    const { container } = render(<StudioView />)
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Objects of interest.' }),
+    ).toBeVisible()
+    expect(container.querySelector('[data-alloy-studio]')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Focus mode' })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: 'Pinned' }))
+    expect(container.querySelectorAll('[data-studio-tile]')).toHaveLength(1)
+    await user.click(
+      screen.getByRole('button', { name: 'Quick look: Benchmade First knife' }),
+    )
+    const dialog = screen.getByRole('dialog')
+    expect(await within(dialog).findByText('1 / 2')).toBeVisible()
+    await user.click(within(dialog).getByRole('button', { name: 'Next image' }))
+    expect(within(dialog).getByText('2 / 2')).toBeVisible()
+  })
+
   it('uses the shared default header and keeps search and pinned filtering usable', async () => {
     const user = userEvent.setup()
     const { container } = render(<StudioView />)

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useId, useMemo, useState, type ReactNode } from 'react'
 import { ArrowUpRight, Plus } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
+import { PageHeader } from '@/components/page-header'
 import { useKnives } from '@/components/providers/knives-provider'
 import {
   createCollectionStats,
@@ -213,7 +214,7 @@ function Bars({
 }
 
 export function ModernInsights() {
-  const { knives, isLoading } = useKnives()
+  const { knives, isLoading, themeStyle } = useKnives()
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>()
   const [measurementKey, setMeasurementKey] =
     useState<MeasurementKey>('bladeLength')
@@ -280,7 +281,20 @@ export function ModernInsights() {
   )
 
   return (
-    <div className={styles.root} data-modern-insights>
+    <div
+      className={styles.root}
+      data-modern-insights
+      data-alloy-insights={themeStyle === 'alloy' || undefined}
+    >
+      {themeStyle === 'alloy' && (
+        <div data-alloy-page-heading>
+          <p className={styles.alloyEyebrow}>Personal archive / Insights</p>
+          <PageHeader
+            title="Know your collection."
+            description="The shapes, materials, and habits that make it yours."
+          />
+        </div>
+      )}
       {isLoading ? (
         <div
           className={styles.loading}

@@ -7,5 +7,9 @@ import { useKnives } from '@/components/providers/knives-provider'
 export function InsightsPage() {
   const { themeStyle } = useKnives()
 
-  return themeStyle === 'modern' ? <ModernInsights /> : <CollectionInsights />
+  return themeStyle === 'modern' || themeStyle === 'alloy' ? (
+    <ModernInsights />
+  ) : (
+    <CollectionInsights />
+  )
 }

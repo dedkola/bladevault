@@ -378,6 +378,36 @@
   background: #ffffff;
 }
 
+.theme-style-swatch.is-alloy {
+  flex-direction: column;
+  background: #1d1c19;
+  border-color: #39352d;
+}
+
+.theme-style-swatch.is-alloy .theme-style-swatch-rail {
+  width: 100%;
+  flex: 0 0 0.6rem;
+  background: #080808;
+  border-bottom: 1px solid #d6b76a;
+}
+
+.theme-style-swatch.is-alloy .theme-style-swatch-body {
+  padding: 0.3rem 0.45rem;
+}
+
+.theme-style-swatch.is-alloy .theme-style-swatch-title {
+  background: #d6b76a;
+}
+
+.theme-style-swatch.is-alloy .theme-style-swatch-line {
+  background: #8c816b;
+}
+
+.theme-style-swatch.is-alloy .theme-style-swatch-card {
+  border: 1px solid #d6b76a;
+  background: #dedbd4;
+}
+
 .theme-style-meta {
   display: flex;
   min-width: 0;

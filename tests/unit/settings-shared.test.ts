@@ -37,8 +37,14 @@ describe('normalizeThemeStyle', () => {
   it('keeps supported theme styles and falls back to the default', () => {
     expect(normalizeThemeStyle('modern')).toBe('modern')
     expect(normalizeThemeStyle('classic')).toBe('classic')
+    expect(normalizeThemeStyle('alloy')).toBe('alloy')
     expect(normalizeThemeStyle('unknown')).toBe('classic')
     expect(normalizeThemeStyle(null)).toBe('classic')
+  })
+
+  it('preserves Alloy when an unrelated or invalid preference is normalized', () => {
+    expect(normalizeThemeStyle(undefined, 'alloy')).toBe('alloy')
+    expect(normalizeThemeStyle('unknown', 'alloy')).toBe('alloy')
   })
 })
 

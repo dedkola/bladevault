@@ -92,12 +92,18 @@ export function Gallery({
 
   return (
     <>
-      <div className="space-y-4">
+      <div className="space-y-4" data-knife-gallery>
         <Card className="group/gallery overflow-hidden p-0">
-          <div className="relative aspect-video lg:aspect-[4/3] lg:max-h-[min(64dvh,64rem)] w-full bg-white">
+          <div
+            data-gallery-stage
+            className="relative aspect-video lg:aspect-[4/3] lg:max-h-[min(64dvh,64rem)] w-full bg-white"
+          >
             {images.length > 0 ? (
               <>
                 <Image
+                  data-gallery-product-photo={
+                    !isWebpageScreenshot(images[activeIdx]) || undefined
+                  }
                   src={getImageUrl(images[activeIdx])}
                   alt={
                     images.length > 1
@@ -226,10 +232,14 @@ export function Gallery({
 
       <Dialog open={isFullScreen} onOpenChange={setIsFullScreen}>
         <DialogContent
+          data-gallery-lightbox
           showCloseButton={false}
           className="inset-0 block h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-none border-none bg-[#0b0b09] p-0 text-white ring-0 sm:max-w-none"
         >
-          <header className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/35 to-transparent px-4 pb-10 pt-4 sm:px-6 sm:pt-5">
+          <header
+            data-gallery-header
+            className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/35 to-transparent px-4 pb-10 pt-4 sm:px-6 sm:pt-5"
+          >
             <div className="flex min-w-0 items-center gap-3">
               <DialogTitle className="truncate text-sm font-semibold tracking-[-0.01em] text-white sm:text-base">
                 Image viewer
@@ -263,7 +273,10 @@ export function Gallery({
             </button>
           )}
 
-          <div className="h-full w-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.055),transparent_58%)] px-2 pb-28 pt-16 sm:px-20 sm:pb-36 sm:pt-20">
+          <div
+            data-gallery-viewport
+            className="h-full w-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.055),transparent_58%)] px-2 pb-28 pt-16 sm:px-20 sm:pb-36 sm:pt-20"
+          >
             <div className="relative h-full w-full">
               {images.length > 0 ? (
                 isWebpageScreenshot(images[activeIdx] || '') ? (
@@ -327,6 +340,7 @@ export function Gallery({
                     .filter((image) => !isWebpageScreenshot(image))
                     .map((image, index) => (
                       <Image
+                        data-gallery-product-photo
                         key={`${image}-${index}`}
                         src={getImageUrl(image)}
                         alt={
@@ -358,6 +372,7 @@ export function Gallery({
 
           {images.length > 1 && (
             <nav
+              data-gallery-thumbnails
               className="absolute inset-x-0 bottom-0 z-40 bg-gradient-to-t from-black via-black/90 to-transparent px-3 pb-3 pt-10 sm:px-6 sm:pb-5 sm:pt-14"
               aria-label="Choose an image"
             >

@@ -832,3 +832,97 @@
     text-decoration: none;
   }
 }
+
+/* Alloy keeps the same accessible charts with a quieter, open summary row. */
+.alloyEyebrow {
+  margin: 0 0 12px;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+:global(html[data-theme-style='alloy']) .root {
+  padding: 31px clamp(18px, 3vw, 40px) 30px;
+  --insight-line: var(--border);
+}
+
+:global(html[data-theme-style='alloy']) .metrics {
+  margin-bottom: 30px;
+  border-inline: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+:global(html[data-theme-style='alloy']) .metric {
+  padding-block: 22px;
+}
+
+:global(html[data-theme-style='alloy']) .metricValue,
+:global(html[data-theme-style='alloy']) .chartValue {
+  font-family: var(--font-display, var(--font-sans));
+  font-size: 48px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+:global(html[data-theme-style='alloy']) .metricValue > span,
+:global(html[data-theme-style='alloy']) .chartValue small {
+  font-family: var(--font-sans);
+}
+
+:global(html[data-theme-style='alloy']) .panel {
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+:global(html[data-theme-style='alloy']) .panelHeader h2 {
+  font-size: 16px;
+  letter-spacing: -0.025em;
+}
+
+:global(html[data-theme-style='alloy']:not(.dark)) .root {
+  --insight-soft: var(--muted);
+}
+
+:global(html[data-theme-style='alloy']:not(.dark))
+  .range
+  button[aria-pressed='true'] {
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--foreground) 7%, transparent);
+}
+
+:global(html[data-theme-style='alloy']:not(.dark))
+  :is(
+    .detailLink,
+    .chartData summary,
+    .barLabelHighlighted,
+    .barButton[aria-pressed='true'] .barLabel,
+    .metricLabel:hover,
+    .missingFields a:hover,
+    .missingFields a:hover > span:last-child,
+    .makerRow:hover,
+    .steelLegend a:hover,
+    .recentRow:hover .recentIdentity strong
+  ) {
+  color: var(--bladevault-title);
+}
+
+:global(html[data-theme-style='alloy']:not(.dark)) .thumbnail {
+  background: var(--alloy-stage);
+}
+
+:global(html[data-theme-style='alloy']:not(.dark)) .thumbnail img {
+  mix-blend-mode: multiply;
+}
+
+@media (max-width: 640px) {
+  :global(html[data-theme-style='alloy']) .root {
+    padding-top: 24px;
+  }
+
+  :global(html[data-theme-style='alloy']) .metricValue,
+  :global(html[data-theme-style='alloy']) .chartValue {
+    font-size: 40px;
+  }
+}

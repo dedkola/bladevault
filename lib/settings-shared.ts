@@ -1,5 +1,5 @@
 export const APP_THEMES = ['light', 'dark'] as const
-export const THEME_STYLES = ['classic', 'modern'] as const
+export const THEME_STYLES = ['classic', 'modern', 'alloy'] as const
 export const START_PAGES = ['insights', 'studio', 'collection'] as const
 export type StartPage = (typeof START_PAGES)[number]
 

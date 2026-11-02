@@ -374,7 +374,9 @@ export function StudioView() {
       <Button
         ref={focusButton}
         variant="outline"
-        size={themeStyle === 'modern' ? 'sm' : 'default'}
+        size={
+          themeStyle === 'modern' || themeStyle === 'alloy' ? 'sm' : 'default'
+        }
         onClick={() => setFocus(true)}
         disabled={isLoading || !visible.length}
       >
@@ -384,7 +386,10 @@ export function StudioView() {
       <Link
         href="/add"
         className={buttonVariants({
-          size: themeStyle === 'modern' ? 'sm' : 'default',
+          size:
+            themeStyle === 'modern' || themeStyle === 'alloy'
+              ? 'sm'
+              : 'default',
         })}
       >
         <Plus />
@@ -410,15 +415,28 @@ export function StudioView() {
           </button>,
           headerTarget,
         )}
-      <div className={styles.root} data-studio>
-        {themeStyle !== 'modern' && (
+      <div
+        className={styles.root}
+        data-studio
+        data-alloy-studio={themeStyle === 'alloy' || undefined}
+      >
+        {themeStyle === 'alloy' ? (
+          <div data-alloy-page-heading>
+            <p className={styles.eyebrow}>Personal archive / Studio</p>
+            <PageHeader
+              title="Objects of interest."
+              description="Your collection, with room to breathe."
+              actions={headerActions}
+            />
+          </div>
+        ) : themeStyle !== 'modern' ? (
           <PageHeader
             title="Studio"
             description="Your collection, at a glance."
             breadcrumbs={[{ label: 'Studio' }]}
             actions={headerActions}
           />
-        )}
+        ) : null}
         <div className={styles.toolbar} aria-label="Studio controls">
           <div className={styles.toolbarLeft}>
             <div

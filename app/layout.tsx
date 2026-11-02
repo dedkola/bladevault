@@ -2,12 +2,14 @@ import { Suspense } from 'react'
 import { ComparisonsProvider } from '@/components/providers/comparisons-provider'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import './alloy.css'
 import { SmartCollectionsProvider } from '@/components/providers/smart-collections-provider'
 import { AppShell } from '@/components/app-shell'
 import { KnivesProvider } from '@/components/providers/knives-provider'
 import { DEFAULT_SETTINGS, getSettings } from '@/lib/settings'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Geist, Geist_Mono } from 'next/font/google'
+import localFont from 'next/font/local'
 import { cn } from '@/lib/utils'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import { ThemeColorSync } from '@/components/theme-color-sync'
@@ -21,6 +23,13 @@ import { getVaultAccessState } from '@/lib/vault-access'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-sans' })
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono' })
+const alloyDisplay = localFont({
+  src: '../public/fonts/barlow-condensed-semibold.ttf',
+  variable: '--font-display',
+  weight: '600',
+  display: 'swap',
+  preload: false,
+})
 
 export const metadata: Metadata = {
   title: 'BladeVault | Knife Collection',
@@ -33,13 +42,17 @@ export function generateViewport(): Viewport {
 
   return {
     themeColor:
-      themeStyle === 'modern'
+      themeStyle === 'alloy'
         ? theme === 'dark'
-          ? '#0d0d0f'
-          : '#f5f5f7'
-        : theme === 'dark'
-          ? '#18150f'
-          : '#fcfcfb',
+          ? '#080808'
+          : '#101010'
+        : themeStyle === 'modern'
+          ? theme === 'dark'
+            ? '#0d0d0f'
+            : '#f5f5f7'
+          : theme === 'dark'
+            ? '#18150f'
+            : '#fcfcfb',
   }
 }
 
@@ -81,6 +94,7 @@ export default async function RootLayout({
       className={cn(
         geistSans.variable,
         geistMono.variable,
+        alloyDisplay.variable,
         'h-full',
         theme === 'dark' && 'dark',
       )}
