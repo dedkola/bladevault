@@ -402,4 +402,24 @@ describe('local backup archive route', () => {
     })
     expect(await storage.getKnifeById(knife.id)).not.toBeNull()
   })
+
+  it('reports an interrupted upload when fewer bytes arrive than declared', async () => {
+    vault = await createTempVault()
+    const request = new Request('http://localhost/api/local-backup/archive', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/zip',
+        'Content-Length': '4096',
+      },
+      body: Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x01, 0x02]),
+    })
+
+    const response = await localBackupRoute.POST(request)
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error:
+        'Backup upload was interrupted before it finished. Try the restore again.',
+    })
+  })
 })

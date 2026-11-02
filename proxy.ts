@@ -73,5 +73,11 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/webpack-hmr|favicon.ico|icon.svg).*)'],
+  // Backup archives are far larger than the proxy body clone limit (10 MB by
+  // default), and oversized bodies are truncated instead of rejected. Those
+  // routes call guardUnproxiedVaultRequest() so the lock, vault generation, and
+  // read-only checks still run, without buffering the upload.
+  matcher: [
+    '/((?!_next/static|_next/webpack-hmr|favicon.ico|icon.svg|api/local-backup/archive|api/cloud-backup/archive).*)',
+  ],
 }
