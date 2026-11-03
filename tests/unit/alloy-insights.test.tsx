@@ -22,8 +22,9 @@ describe('Alloy Insights', () => {
     const user = userEvent.setup()
     const { container } = render(<InsightsPage />)
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Know your collection.' }),
-    ).toBeVisible()
+      screen.getByRole('heading', { level: 1, name: 'Collection Insights' }),
+    ).toHaveClass('sr-only')
+    expect(screen.queryByText('Know your collection.')).not.toBeInTheDocument()
     expect(container.querySelector('[data-alloy-insights]')).toBeInTheDocument()
     expect(
       screen.getByRole('group', { name: /^Catalogued knives$/ }),
