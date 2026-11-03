@@ -421,14 +421,7 @@ export function StudioView() {
         data-alloy-studio={themeStyle === 'alloy' || undefined}
       >
         {themeStyle === 'alloy' ? (
-          <div data-alloy-page-heading>
-            <p className={styles.eyebrow}>Personal archive / Studio</p>
-            <PageHeader
-              title="Objects of interest."
-              description="Your collection, with room to breathe."
-              actions={headerActions}
-            />
-          </div>
+          <h1 className="sr-only">Studio</h1>
         ) : themeStyle !== 'modern' ? (
           <PageHeader
             title="Studio"
@@ -472,6 +465,19 @@ export function StudioView() {
                 ? 'Loading…'
                 : `${visible.length} ${visible.length === 1 ? 'knife' : 'knives'}`}
             </span>
+            {themeStyle === 'alloy' && (
+              <Button
+                ref={focusButton}
+                variant="outline"
+                size="icon-sm"
+                aria-label="Focus mode"
+                title="Focus mode"
+                onClick={() => setFocus(true)}
+                disabled={isLoading || !visible.length}
+              >
+                <Expand />
+              </Button>
+            )}
             <label className={styles.sort}>
               <span className="sr-only">Sort knives</span>
               <select

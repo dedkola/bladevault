@@ -733,23 +733,7 @@ function CollectionContent() {
         (isAlloy && Boolean(activeKnife) && !isSelectionMode) || undefined
       }
     >
-      {isAlloy && (
-        <header data-alloy-collection-heading>
-          <div>
-            <span data-alloy-heading-eyebrow>
-              Personal archive / Collection
-            </span>
-            <h1>The collection.</h1>
-            <p>A place for every edge. A story behind each one.</p>
-          </div>
-          <div data-alloy-collection-total>
-            <strong>{String(knives.length).padStart(2, '0')}</strong>
-            <span>
-              {knives.length === 1 ? 'knife' : 'knives'} in your vault
-            </span>
-          </div>
-        </header>
-      )}
+      {isAlloy && <h1 className="sr-only">Collection</h1>}
       {!isWorkspaceCollection && (
         <PageHeader
           title="Your collection."

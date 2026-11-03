@@ -557,29 +557,33 @@ export function LogSessionsView() {
 
   return (
     <>
-      <PageHeader
-        title="Logs"
-        description={
-          isModern
-            ? 'Changes, maintenance, and system activity from your vault.'
-            : undefined
-        }
-        actions={
-          isModern ? (
-            <Button
-              data-logs-export
-              variant="outline"
-              size="sm"
-              disabled={
-                isLoading || Boolean(error) || filteredEvents.length === 0
-              }
-              onClick={exportLogs}
-            >
-              Export log
-            </Button>
-          ) : undefined
-        }
-      />
+      {themeStyle === 'alloy' ? (
+        <h1 className="sr-only">Logs</h1>
+      ) : (
+        <PageHeader
+          title="Logs"
+          description={
+            isModern
+              ? 'Changes, maintenance, and system activity from your vault.'
+              : undefined
+          }
+          actions={
+            isModern ? (
+              <Button
+                data-logs-export
+                variant="outline"
+                size="sm"
+                disabled={
+                  isLoading || Boolean(error) || filteredEvents.length === 0
+                }
+                onClick={exportLogs}
+              >
+                Export log
+              </Button>
+            ) : undefined
+          }
+        />
+      )}
       <div
         data-modern-logs={isModern || undefined}
         data-alloy-logs={themeStyle === 'alloy' || undefined}

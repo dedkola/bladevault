@@ -1,67 +1,3 @@
-html[data-theme-style='alloy'] [data-alloy-collection-heading] {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 27px;
-}
-
-html[data-theme-style='alloy'] [data-alloy-collection-heading] h1 {
-  margin: 9px 0;
-  font-family: var(--font-display), var(--font-sans), sans-serif;
-  font-size: clamp(2.75rem, 4.5vw, 4rem);
-  font-weight: 600;
-  line-height: 1.05;
-  letter-spacing: -0.025em;
-}
-
-html[data-theme-style='alloy'] [data-alloy-heading-eyebrow] {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--muted-foreground);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-}
-
-html[data-theme-style='alloy'] [data-alloy-heading-eyebrow]::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--primary);
-}
-
-html[data-theme-style='alloy'] [data-alloy-collection-heading] p {
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: 12px;
-}
-
-html[data-theme-style='alloy'] [data-alloy-collection-total] {
-  padding-right: 2px;
-  text-align: right;
-  flex-shrink: 0;
-}
-
-html[data-theme-style='alloy'] [data-alloy-collection-total] strong {
-  display: block;
-  font-family: var(--font-display), var(--font-sans), sans-serif;
-  font-size: 36px;
-  font-weight: 600;
-  line-height: 1;
-}
-
-html[data-theme-style='alloy'] [data-alloy-collection-total] span {
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted-foreground);
-}
-
 html[data-theme-style='alloy'] [data-alloy-collection-search] {
   min-width: 210px;
   flex: 1 1 280px;
@@ -310,20 +246,6 @@ html[data-theme-style='alloy']:not(.dark)
 }
 
 @media (max-width: 640px) {
-  html[data-theme-style='alloy'] [data-alloy-collection-heading] {
-    margin-bottom: 22px;
-    gap: 12px;
-  }
-
-  html[data-theme-style='alloy'] [data-alloy-collection-heading] p {
-    max-width: 220px;
-    font-size: 11px;
-  }
-
-  html[data-theme-style='alloy'] [data-alloy-collection-total] {
-    display: none;
-  }
-
   html[data-theme-style='alloy'] [data-alloy-collection-search] {
     max-width: none;
     flex-basis: 100%;

@@ -65,13 +65,24 @@ afterEach(() => {
 })
 
 describe('Studio themes', () => {
-  it('keeps Alloy’s own heading, filtering, and full-gallery Quick Look', async () => {
+  it('hides Alloy’s decorative heading while keeping controls and full-gallery Quick Look', async () => {
     state.themeStyle = 'alloy'
     const user = userEvent.setup()
     const { container } = render(<StudioView />)
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Objects of interest.' }),
-    ).toBeVisible()
+      screen.getByRole('heading', { level: 1, name: 'Studio' }),
+    ).toHaveClass('sr-only')
+    expect(screen.queryByText('Objects of interest.')).not.toBeInTheDocument()
+    expect(
+      container.querySelector('[data-page-header]'),
+    ).not.toBeInTheDocument()
+    const toolbar = screen.getByLabelText('Studio controls')
+    expect(
+      within(toolbar).getByRole('button', { name: 'Focus mode' }),
+    ).toBeEnabled()
+    expect(
+      screen.queryByRole('link', { name: 'Add knife' }),
+    ).not.toBeInTheDocument()
     expect(container.querySelector('[data-alloy-studio]')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Focus mode' })).toBeEnabled()
 
