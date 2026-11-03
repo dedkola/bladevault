@@ -413,7 +413,11 @@ async function collectImageFiles(
     if (entry.name === '__webpage_drafts') continue
     if (shouldIgnoreEntry(entry.name)) continue
     const nextRelativePath = path.join(relativeDir, entry.name)
-    const absolutePath = path.join(directory, nextRelativePath)
+    // Vault images are runtime data, not assets to include in the server bundle.
+    const absolutePath = path.join(
+      /* turbopackIgnore: true */ directory,
+      nextRelativePath,
+    )
 
     if (entry.isSymbolicLink()) {
       throw new Error(
