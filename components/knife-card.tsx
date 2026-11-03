@@ -14,6 +14,7 @@ import {
   activeKnifeFloatingClassName,
 } from '@/lib/knife-action-styles'
 import { getVisibleCardFields } from '@/lib/card-fields'
+import { useCollectionItemNavigation } from '@/hooks/use-collection-item-navigation'
 
 export type CollectionCardDensity = 'gallery' | 'compact'
 
@@ -31,6 +32,7 @@ export const KnifeCard = memo(function KnifeCard({
   density = 'gallery',
   onSelect,
   onOpen,
+  onOpenDetail,
   variantLabel,
   imageSizes = '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw',
 }: {
@@ -42,9 +44,11 @@ export const KnifeCard = memo(function KnifeCard({
   density?: CollectionCardDensity
   onSelect?: (id: string) => void
   onOpen?: (knife: Knife) => void
+  onOpenDetail?: (knife: Knife) => void
   variantLabel?: string
   imageSizes?: string
 }) {
+  const navigation = useCollectionItemNavigation(onOpen, onOpenDetail)
   const {
     updateKnife,
     pinnedItemsFirst,
@@ -208,7 +212,14 @@ export const KnifeCard = memo(function KnifeCard({
 
       <button
         type="button"
-        onClick={() => (selectionMode ? onSelect?.(knife.id) : onOpen?.(knife))}
+        onClick={(event) =>
+          selectionMode
+            ? onSelect?.(knife.id)
+            : navigation.onClick(event, knife)
+        }
+        onDoubleClick={
+          selectionMode ? undefined : () => navigation.onDoubleClick(knife)
+        }
         aria-pressed={selectionMode ? selected : active}
         aria-label={
           selectionMode

@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import type { CollectionColumnDefinition } from '@/lib/collection-columns'
 import { cn } from '@/lib/utils'
 import { compactMeasurement as preferredMetric } from '@/lib/compact-measurement'
+import { useCollectionItemNavigation } from '@/hooks/use-collection-item-navigation'
 
 function statusForKnife(knife: Knife) {
   if (knife.pinned) return { label: 'Pinned', tone: 'pinned' as const }
@@ -174,6 +175,7 @@ export function ModernCollectionTable({
   onOpen: (knife: Knife) => void
   onOpenDetail: (knife: Knife) => void
 }) {
+  const navigation = useCollectionItemNavigation(onOpen, onOpenDetail)
   const [previewWidths, setPreviewWidths] = useState<Record<string, number>>({})
   const widths = { ...columnWidths, ...previewWidths }
   const resizeGrip = (key: string, label: string) => {
@@ -328,8 +330,8 @@ export function ModernCollectionTable({
                   key={knife.id}
                   tabIndex={0}
                   aria-current={active ? 'true' : undefined}
-                  onClick={() => onOpen(knife)}
-                  onDoubleClick={() => onOpenDetail(knife)}
+                  onClick={(event) => navigation.onClick(event, knife)}
+                  onDoubleClick={() => navigation.onDoubleClick(knife)}
                   onKeyDown={(event) => {
                     if (event.target !== event.currentTarget) return
                     if (event.key === 'Enter') onOpen(knife)
@@ -441,11 +443,14 @@ export function ModernCollectionGallery({
   knives,
   activeKnifeId,
   onOpen,
+  onOpenDetail,
 }: {
   knives: Knife[]
   activeKnifeId?: string | null
   onOpen: (knife: Knife) => void
+  onOpenDetail: (knife: Knife) => void
 }) {
+  const navigation = useCollectionItemNavigation(onOpen, onOpenDetail)
   return (
     <div data-collection-grid data-modern-collection-gallery>
       {knives.map((knife, index) => (
@@ -455,7 +460,8 @@ export function ModernCollectionGallery({
           data-modern-object-card
           aria-label={`Preview ${knife.brand} ${knife.name}`}
           aria-pressed={knife.id === activeKnifeId}
-          onClick={() => onOpen(knife)}
+          onClick={(event) => navigation.onClick(event, knife)}
+          onDoubleClick={() => navigation.onDoubleClick(knife)}
         >
           <span data-modern-object-stage>
             {knife.images[0] ? (

@@ -8,6 +8,7 @@ import { useComparisons } from '@/components/providers/comparisons-provider'
 import { useKnives } from '@/components/providers/knives-provider'
 import { compactMeasurement } from '@/lib/compact-measurement'
 import { getImageUrl, type Knife } from '@/lib/data'
+import { useCollectionItemNavigation } from '@/hooks/use-collection-item-navigation'
 import './alloy-collection.css'
 
 export const AlloyCollectionCard = memo(function AlloyCollectionCard({
@@ -17,6 +18,7 @@ export const AlloyCollectionCard = memo(function AlloyCollectionCard({
   selectionMode = false,
   selected = false,
   onOpen,
+  onOpenDetail,
   onSelect,
 }: {
   knife: Knife
@@ -25,8 +27,10 @@ export const AlloyCollectionCard = memo(function AlloyCollectionCard({
   selectionMode?: boolean
   selected?: boolean
   onOpen: (knife: Knife) => void
+  onOpenDetail?: (knife: Knife) => void
   onSelect: (id: string) => void
 }) {
+  const navigation = useCollectionItemNavigation(onOpen, onOpenDetail)
   const { updateKnife, showFeedback } = useKnives()
   const { choose, membershipCount, loading, busy, error } = useComparisons()
   const [pinBusy, setPinBusy] = useState(false)
@@ -84,7 +88,14 @@ export const AlloyCollectionCard = memo(function AlloyCollectionCard({
           data-alloy-card-open
           aria-label={`${selectionMode ? 'Select' : 'Inspect'} ${knife.brand} ${knife.name}`}
           aria-pressed={selectionMode ? selected : active}
-          onClick={() => (selectionMode ? onSelect(knife.id) : onOpen(knife))}
+          onClick={(event) =>
+            selectionMode
+              ? onSelect(knife.id)
+              : navigation.onClick(event, knife)
+          }
+          onDoubleClick={
+            selectionMode ? undefined : () => navigation.onDoubleClick(knife)
+          }
         >
           {knife.images[0] ? (
             <Image
