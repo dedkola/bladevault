@@ -35,8 +35,6 @@ data/images/*/
 !data/.gitkeep
 !data/images/.gitkeep
 
-# Agent instructions (local-only)
-AGENTS.md
 /tsconfig.tsbuildinfo
 /compose.override.yaml
 /static-app/out/
