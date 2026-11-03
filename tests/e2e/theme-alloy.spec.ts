@@ -106,8 +106,13 @@ test('switches gallery and table while pinning and comparing the selected knife'
     .getByRole('link', { name: 'Compare', exact: true })
     .click()
   await expect(
-    page.getByRole('heading', { name: 'Alloy carry', exact: true }),
-  ).toBeVisible()
+    page
+      .getByRole('navigation', { name: 'Saved comparisons' })
+      .getByRole('link', {
+        name: 'Alloy carry 1',
+        exact: true,
+      }),
+  ).toHaveAttribute('aria-current', 'page')
   await expect(page.locator('[data-compare-editing]')).toContainText(
     'Alloy Folder',
   )
@@ -163,8 +168,8 @@ test('keeps Insights and Studio usable through mobile navigation without page ov
   await insights.focus()
   await insights.press('Enter')
   await expect(
-    page.getByRole('heading', { name: 'Know your collection.', exact: true }),
-  ).toBeVisible()
+    page.getByRole('heading', { name: 'Collection Insights', exact: true }),
+  ).toHaveClass('sr-only')
   await expect(page.locator('[data-alloy-insights]')).toBeVisible()
   await expect(
     page.getByRole('group', { name: 'Catalogued knives', exact: true }),
@@ -177,8 +182,8 @@ test('keeps Insights and Studio usable through mobile navigation without page ov
   await studio.focus()
   await studio.press('Enter')
   await expect(
-    page.getByRole('heading', { name: 'Objects of interest.', exact: true }),
-  ).toBeVisible()
+    page.getByRole('heading', { name: 'Studio', exact: true }),
+  ).toHaveClass('sr-only')
   await expect(page.locator('[data-studio-tile]')).toHaveCount(2)
   const quickLook = page.getByRole('button', {
     name: 'Quick look: Alpha Mobile Folder',
