@@ -118,6 +118,6 @@
     "better-sqlite3@13.0.2": true,
     "better-sqlite3@13.0.3": true,
     "core-js@3.50.0": true,
-    "workerd@1.20261012.1": true
+    "workerd@1.20261023.1": true
   }
 }
