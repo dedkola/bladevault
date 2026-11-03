@@ -38,7 +38,10 @@ jobs:
   smoke:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    # macOS runners are frequently slow to allocate; 15 min killed jobs that
+    # had not even run a single step yet. Keep a generous ceiling so a hung
+    # job still dies well before GitHub's 6h default.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
