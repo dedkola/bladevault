@@ -1308,6 +1308,9 @@ function CollectionContent() {
                     selected={selectedIds.has(knife.id)}
                     onSelect={toggleKnifeSelection}
                     onOpen={inspectKnife}
+                    onOpenDetail={(knife) =>
+                      router.push(`/collection/${knife.id}`)
+                    }
                   />
                 ))}
               </div>
@@ -1316,6 +1319,7 @@ function CollectionContent() {
                 knives={filteredKnives.slice(0, visibleCount)}
                 activeKnifeId={activeKnife?.id}
                 onOpen={inspectKnife}
+                onOpenDetail={(knife) => router.push(`/collection/${knife.id}`)}
               />
             ) : (
               <div
@@ -1368,6 +1372,9 @@ function CollectionContent() {
                           }
                           onSelect={toggleKnifeSelection}
                           onOpen={inspectKnife}
+                          onOpenDetail={(knife) =>
+                            router.push(`/collection/${knife.id}`)
+                          }
                         />
                       ))}
               </div>
