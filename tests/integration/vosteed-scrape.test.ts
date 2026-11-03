@@ -16,22 +16,22 @@ const html = readFileSync(
 )
 const url =
   'https://www.vosteed.com/collections/cheesepirates/products/cheesepirates-a2932'
-const { rendered } = vi.hoisted(() => ({ rendered: vi.fn() }))
+const { rendered, requestExternalUrl } = vi.hoisted(() => ({
+  rendered: vi.fn(),
+  requestExternalUrl: vi.fn(),
+}))
+vi.mock('@/lib/external-http', () => ({ requestExternalUrl }))
 vi.mock('@/lib/scrape-playwright', () => ({ fetchRenderedHtml: rendered }))
 vi.mock('@/lib/scrape-interactive', () => ({
   captureInteractiveSession: rendered,
 }))
-vi.mock('@/lib/url-validation', async (original) => ({
-  ...(await original<typeof import('@/lib/url-validation')>()),
-  validateExternalUrl: async (target: string) => ({
-    ok: true,
-    url: new URL(target),
-  }),
+vi.mock('dns/promises', () => ({
+  lookup: vi.fn().mockResolvedValue([{ address: '8.8.8.8', family: 4 }]),
 }))
 let vault: TempVault | null = null
 
 afterEach(async () => {
-  vi.unstubAllGlobals()
+  requestExternalUrl.mockReset()
   await vault?.cleanup()
   vault = null
 })
@@ -41,10 +41,7 @@ it.each(['automatic', 'interactive'])(
   async (mode) => {
     vault = await createTempVault()
     rendered.mockResolvedValue({ html, finalUrl: url })
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(new Response('{}', { status: 404 })),
-    )
+    requestExternalUrl.mockResolvedValue(new Response('{}', { status: 404 }))
     const request = new Request('http://localhost/api/scrape', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

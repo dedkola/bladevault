@@ -7,6 +7,15 @@ import {
   scrapeProduct,
 } from '@/lib/scrape'
 
+const { requestExternalUrl } = vi.hoisted(() => ({
+  requestExternalUrl: vi.fn(),
+}))
+vi.mock('@/lib/external-http', () => ({ requestExternalUrl }))
+
+vi.mock('dns/promises', () => ({
+  lookup: vi.fn().mockResolvedValue([{ address: '8.8.8.8', family: 4 }]),
+}))
+
 const url =
   'https://www.remetteknife.com/products/remette-button-liner-lock-edc-knife-folding-pocket-outdoor-survival-edc-knife-hand-lapping-14c28n-blade-military-green-micarta-handle-rhino-mc25a'
 const html = readFileSync(
@@ -56,7 +65,7 @@ const expected = {
   sourceUrl: url,
 }
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => requestExternalUrl.mockReset())
 
 describe('Remette product scraping', () => {
   it('extracts the Rhino specs and original gallery without related product data', () => {
@@ -75,8 +84,7 @@ describe('Remette product scraping', () => {
   })
 
   it('preserves normalized fields when Shopify enriches the product', async () => {
-    const fetch = vi.fn().mockResolvedValue(Response.json(json))
-    vi.stubGlobal('fetch', fetch)
+    const fetch = requestExternalUrl.mockResolvedValue(Response.json(json))
 
     expect(extractShopifyProduct(json, url)).toMatchObject({
       name: 'Rhino',
@@ -84,7 +92,14 @@ describe('Remette product scraping', () => {
     })
     const { product, warnings } = await scrapeAndEnrichProduct(html, url)
 
-    expect(fetch).toHaveBeenCalledWith(`${url}.json`, expect.any(Object))
+    expect(fetch).toHaveBeenCalledWith(
+      new URL(`${url}.json`),
+      { address: '8.8.8.8', family: 4 },
+      expect.objectContaining({
+        redirect: 'manual',
+        signal: expect.any(AbortSignal),
+      }),
+    )
     expect(product).toMatchObject(expected)
     expect(product.images).toEqual(
       imageFiles.map(
@@ -98,12 +113,13 @@ describe('Remette product scraping', () => {
   it.each(['unavailable', 'network error'])(
     'retains the complete gallery and specs when Shopify is %s',
     async (failure) => {
-      vi.stubGlobal(
-        'fetch',
-        failure === 'unavailable'
-          ? vi.fn().mockResolvedValue(new Response(null, { status: 503 }))
-          : vi.fn().mockRejectedValue(new Error('Network error')),
-      )
+      if (failure === 'unavailable') {
+        requestExternalUrl.mockResolvedValue(
+          new Response(null, { status: 503 }),
+        )
+      } else {
+        requestExternalUrl.mockRejectedValue(new Error('Network error'))
+      }
 
       const { product, warnings } = await scrapeAndEnrichProduct(html, url)
 

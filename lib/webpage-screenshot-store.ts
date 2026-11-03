@@ -40,16 +40,21 @@ export function getScreenshotMetadata(
 export async function saveScreenshotDraft(
   buffer: Buffer,
   metadata: Omit<WebpageScreenshot, 'path'>,
+  signal?: AbortSignal,
 ): Promise<string> {
   return withVaultWrite(async () => {
+    signal?.throwIfAborted()
     const database = getLocalDb()
     await cleanupScreenshotDrafts()
+    signal?.throwIfAborted()
     if (getLocalDb() !== database)
       throw new Error('The active vault changed. Please retry.')
     const relativePath = `${DRAFT_PREFIX}webpage-${randomUUID()}.png`
     const destination = resolveLocalImagePath(relativePath)
     await fs.mkdir(path.dirname(destination), { recursive: true })
-    await fs.writeFile(destination, buffer)
+    signal?.throwIfAborted()
+    await fs.writeFile(destination, buffer, { signal })
+    signal?.throwIfAborted()
     if (getLocalDb() !== database)
       throw new Error('The active vault changed. Please retry.')
     database

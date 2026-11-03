@@ -18,7 +18,11 @@ const bytes = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aJ1kAAAAASUVORK5CYII=',
   'base64',
 )
-const { rendered } = vi.hoisted(() => ({ rendered: vi.fn() }))
+const { rendered, requestExternalUrl } = vi.hoisted(() => ({
+  rendered: vi.fn(),
+  requestExternalUrl: vi.fn(),
+}))
+vi.mock('@/lib/external-http', () => ({ requestExternalUrl }))
 vi.mock('@/lib/scrape-playwright', () => ({ fetchRenderedHtml: rendered }))
 vi.mock('@/lib/scrape-interactive', () => ({
   captureInteractiveSession: rendered,
@@ -29,7 +33,7 @@ vi.mock('node:dns/promises', () => ({
 let vault: TempVault | null = null
 
 afterEach(async () => {
-  vi.unstubAllGlobals()
+  requestExternalUrl.mockReset()
   await vault?.cleanup()
   vault = null
 })
@@ -39,13 +43,10 @@ it.each(['automatic', 'interactive'])(
   async (mode) => {
     vault = await createTempVault()
     rendered.mockResolvedValue({ html, finalUrl: url })
-    const fetch = vi
-      .fn()
-      .mockImplementation(
-        async () =>
-          new Response(bytes, { headers: { 'Content-Type': 'image/png' } }),
-      )
-    vi.stubGlobal('fetch', fetch)
+    const fetch = requestExternalUrl.mockImplementation(
+      async () =>
+        new Response(bytes, { headers: { 'Content-Type': 'image/png' } }),
+    )
     const request = new Request('http://localhost/api/scrape', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -80,5 +81,15 @@ it.each(['automatic', 'interactive'])(
       await readFile(path.join(vault.dataDir, 'images', knife.images[0])),
     ).toEqual(bytes)
     expect(fetch).toHaveBeenCalledTimes(1)
+    expect(fetch).toHaveBeenCalledWith(
+      new URL(image),
+      { address: '8.8.8.8', family: 4 },
+      expect.objectContaining({
+        redirect: 'manual',
+        headers: expect.objectContaining({
+          Referer: 'https://poikiloblade.com/',
+        }),
+      }),
+    )
   },
 )

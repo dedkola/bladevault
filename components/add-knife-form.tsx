@@ -26,7 +26,9 @@ import {
   formDataToKnifeDraft,
   readImageFiles,
 } from '@/components/knife-form'
-import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
+import { readJsonResponse } from '@/lib/api-response'
+import { ScrapeError } from '@/lib/scrape-errors'
+import { requestScrape } from '@/lib/scrape-request'
 import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
 import { ResizablePreviewLayout } from '@/components/resizable-preview-layout'
 import { escapeHtmlAttribute, getSafeExternalUrl } from '@/lib/external-url'
@@ -75,6 +77,8 @@ export function AddKnifeForm() {
     string | null
   >(null)
   const interactiveSessionIdRef = useRef<string | null>(null)
+  const scrapeRequestRef = useRef<AbortController | null>(null)
+  const mountedRef = useRef(true)
   const [interactiveStatus, setInteractiveStatus] = useState<
     'starting' | 'waiting' | 'scraping' | null
   >(null)
@@ -284,34 +288,40 @@ export function AddKnifeForm() {
   const [scrapeWarnings, setScrapeWarnings] = useState<string[]>([])
 
   const handleScrape = async () => {
-    if (!url.trim() || isScraping || interactiveStatus !== null) return
+    if (!url.trim() || scrapeRequestRef.current || interactiveStatus !== null)
+      return
+    const controller = new AbortController()
+    scrapeRequestRef.current = controller
     setIsScraping(true)
     setScreenshotWarning('')
     setScrapeWarnings([])
     setScrapeError(null)
+    setInteractiveError(null)
     setHasScraped(false)
     setScrapedHtml('')
     setScrapedFinalUrl('')
 
     try {
-      const response = await fetch('/api/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim() }),
-      })
-      const data = await readJsonResponse<{
-        error?: string
+      const data = await requestScrape<{
         product: ScrapedProduct
         html?: string
         screenshotWarning?: string
         warnings?: string[]
         finalUrl?: string
-      }>(response)
-
-      if (!response.ok) {
-        throw new Error(
-          getApiErrorMessage(data, 'Failed to scrape product page'),
-        )
+      }>('/api/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url.trim() }),
+        signal: controller.signal,
+      })
+      if (!mountedRef.current || scrapeRequestRef.current !== controller) return
+      if (
+        !data.product ||
+        typeof data.product !== 'object' ||
+        Array.isArray(data.product) ||
+        typeof data.product.name !== 'string'
+      ) {
+        throw new ScrapeError('invalid_response')
       }
 
       setScreenshotWarning(data.screenshotWarning || '')
@@ -322,15 +332,20 @@ export function AddKnifeForm() {
         typeof data.finalUrl === 'string' ? data.finalUrl : url.trim(),
       )
     } catch (error) {
+      if (!mountedRef.current || scrapeRequestRef.current !== controller) return
       setScrapeError(
         error instanceof Error ? error.message : 'Something went wrong',
       )
     } finally {
-      setIsScraping(false)
+      if (scrapeRequestRef.current === controller) {
+        scrapeRequestRef.current = null
+        if (mountedRef.current) setIsScraping(false)
+      }
     }
   }
 
   const resetInteractiveState = () => {
+    interactiveSessionIdRef.current = null
     setInteractiveSessionId(null)
     setInteractiveStatus(null)
     setInteractiveIsChallenge(null)
@@ -338,65 +353,71 @@ export function AddKnifeForm() {
   }
 
   const startInteractiveScrape = async () => {
-    if (!url.trim() || isScraping || interactiveStatus !== null) return
+    if (!url.trim() || scrapeRequestRef.current || interactiveStatus !== null)
+      return
+    const controller = new AbortController()
+    scrapeRequestRef.current = controller
     setInteractiveStatus('starting')
     setInteractiveError(null)
+    setScrapeError(null)
 
     try {
-      const response = await fetch('/api/scrape/interactive/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim() }),
-      })
-      const data = await readJsonResponse<{
-        error?: string
-        sessionId?: string
-      }>(response)
-
-      if (!response.ok) {
-        throw new Error(
-          getApiErrorMessage(data, 'Failed to start interactive browser'),
-        )
-      }
+      const data = await requestScrape<{ sessionId?: string }>(
+        '/api/scrape/interactive/start',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url.trim() }),
+          signal: controller.signal,
+        },
+      )
+      if (!mountedRef.current || scrapeRequestRef.current !== controller) return
 
       if (typeof data.sessionId !== 'string') {
         throw new Error('Invalid response from interactive scrape start')
       }
 
+      interactiveSessionIdRef.current = data.sessionId
       setInteractiveSessionId(data.sessionId)
       setInteractiveStatus('waiting')
     } catch (error) {
+      if (!mountedRef.current || scrapeRequestRef.current !== controller) return
       setInteractiveError(
         error instanceof Error ? error.message : 'Something went wrong',
       )
       setInteractiveStatus(null)
+    } finally {
+      if (scrapeRequestRef.current === controller)
+        scrapeRequestRef.current = null
     }
   }
 
   const captureInteractiveScrape = async () => {
-    if (!interactiveSessionId) return
+    if (!interactiveSessionId || scrapeRequestRef.current) return
+    const controller = new AbortController()
+    scrapeRequestRef.current = controller
     setInteractiveStatus('scraping')
+    setInteractiveError(null)
 
     try {
-      const response = await fetch(
-        `/api/scrape/interactive/${interactiveSessionId}/scrape`,
-        {
-          method: 'POST',
-        },
-      )
-      const data = await readJsonResponse<{
-        error?: string
+      const data = await requestScrape<{
         product: ScrapedProduct
         html?: string
         screenshotWarning?: string
         warnings?: string[]
         finalUrl?: string
-      }>(response)
-
-      if (!response.ok) {
-        throw new Error(
-          getApiErrorMessage(data, 'Failed to capture product page'),
-        )
+      }>(`/api/scrape/interactive/${interactiveSessionId}/scrape`, {
+        method: 'POST',
+        signal: controller.signal,
+      })
+      if (!mountedRef.current || scrapeRequestRef.current !== controller) return
+      if (
+        !data.product ||
+        typeof data.product !== 'object' ||
+        Array.isArray(data.product) ||
+        typeof data.product.name !== 'string'
+      ) {
+        throw new ScrapeError('invalid_response')
       }
 
       setScreenshotWarning(data.screenshotWarning || '')
@@ -409,70 +430,113 @@ export function AddKnifeForm() {
       )
       resetInteractiveState()
     } catch (error) {
+      if (!mountedRef.current || scrapeRequestRef.current !== controller) return
+      if (error instanceof ScrapeError && error.code === 'challenge') {
+        setInteractiveStatus('waiting')
+        setInteractiveIsChallenge(true)
+      } else {
+        resetInteractiveState()
+        void requestScrape(
+          `/api/scrape/interactive/${interactiveSessionId}/cancel`,
+          { method: 'POST' },
+          { timeoutMs: 10000 },
+        ).catch(() => {})
+      }
       setInteractiveError(
         error instanceof Error ? error.message : 'Something went wrong',
       )
-      setInteractiveStatus('waiting')
-    }
-  }
-
-  const cancelInteractiveScrape = async () => {
-    if (!interactiveSessionId) {
-      resetInteractiveState()
-      return
-    }
-
-    try {
-      await fetch(`/api/scrape/interactive/${interactiveSessionId}/cancel`, {
-        method: 'POST',
-      })
-    } catch {
-      // ignore cancel errors
     } finally {
-      resetInteractiveState()
+      if (scrapeRequestRef.current === controller)
+        scrapeRequestRef.current = null
     }
   }
 
-  useEffect(() => {
-    interactiveSessionIdRef.current = interactiveSessionId
-  }, [interactiveSessionId])
+  const cancelInteractiveScrape = () => {
+    const sessionId = interactiveSessionIdRef.current
+    scrapeRequestRef.current?.abort()
+    scrapeRequestRef.current = null
+    resetInteractiveState()
+    if (sessionId) {
+      void requestScrape(
+        `/api/scrape/interactive/${sessionId}/cancel`,
+        { method: 'POST' },
+        { timeoutMs: 10000 },
+      ).catch(() => {
+        if (mountedRef.current && !interactiveSessionIdRef.current) {
+          setInteractiveError(
+            'The import was cancelled, but the browser could not be closed. Close its window if it is still open.',
+          )
+        }
+      })
+    }
+  }
 
   useEffect(() => {
     if (!interactiveSessionId || interactiveStatus !== 'waiting') return
 
-    let cancelled = false
+    const controller = new AbortController()
+    let timer: ReturnType<typeof setTimeout> | undefined
     const currentSessionId = interactiveSessionId
     const checkStatus = async () => {
       try {
-        const response = await fetch(
-          `/api/scrape/interactive/${currentSessionId}/status`,
-        )
-        if (cancelled) return
-        const data = await readJsonResponse<{
+        const data = await requestScrape<{
           status?: string
+          error?: string
           isSecurityChallenge?: boolean
-        }>(response)
+        }>(
+          `/api/scrape/interactive/${currentSessionId}/status`,
+          { signal: controller.signal },
+          { timeoutMs: 10000 },
+        )
+        if (controller.signal.aborted) return
+        if (data.status !== 'waiting' && data.status !== 'scraping') {
+          throw new Error(
+            data.error ||
+              'The interactive browser session has ended. Choose Interact with page to open it again.',
+          )
+        }
         setInteractiveIsChallenge(data.isSecurityChallenge ?? null)
-      } catch {
-        // ignore polling errors
+        timer = setTimeout(checkStatus, 2500)
+      } catch (error) {
+        if (controller.signal.aborted) return
+        interactiveSessionIdRef.current = null
+        setInteractiveSessionId(null)
+        setInteractiveStatus(null)
+        setInteractiveIsChallenge(null)
+        setInteractiveError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to check the browser session.',
+        )
+        void requestScrape(
+          `/api/scrape/interactive/${currentSessionId}/cancel`,
+          { method: 'POST' },
+          { timeoutMs: 10000 },
+        ).catch(() => {})
       }
     }
 
     checkStatus()
-    const interval = setInterval(checkStatus, 2500)
     return () => {
-      cancelled = true
-      clearInterval(interval)
+      controller.abort()
+      clearTimeout(timer)
     }
   }, [interactiveSessionId, interactiveStatus])
 
   useEffect(() => {
+    mountedRef.current = true
     return () => {
+      mountedRef.current = false
+      scrapeRequestRef.current?.abort()
+      scrapeRequestRef.current = null
       const sessionId = interactiveSessionIdRef.current
+      interactiveSessionIdRef.current = null
       if (sessionId) {
-        void fetch(`/api/scrape/interactive/${sessionId}/cancel`, {
-          method: 'POST',
-        })
+        void requestScrape(
+          `/api/scrape/interactive/${sessionId}/cancel`,
+          { method: 'POST', keepalive: true },
+          { timeoutMs: 10000 },
+        ).catch(() => {})
       }
     }
   }, [])
@@ -577,7 +641,10 @@ export function AddKnifeForm() {
         )}
         {scrapeError && (
           <div className="space-y-2">
-            <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs xl:text-sm text-destructive">
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs xl:text-sm text-destructive"
+            >
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <span>{scrapeError}</span>
             </div>
@@ -626,7 +693,6 @@ export function AddKnifeForm() {
                 variant="outline"
                 size="sm"
                 onClick={cancelInteractiveScrape}
-                disabled={interactiveStatus === 'scraping'}
               >
                 <X className="h-3.5 w-3.5" />
                 Cancel
@@ -636,7 +702,10 @@ export function AddKnifeForm() {
         )}
 
         {interactiveError && (
-          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs xl:text-sm text-destructive">
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs xl:text-sm text-destructive"
+          >
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
             <span>{interactiveError}</span>
           </div>

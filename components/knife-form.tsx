@@ -5,7 +5,7 @@ import {
   screenshotsLast,
 } from '@/lib/webpage-screenshot-shared'
 
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import Image from '@/components/vault-image'
 import {
   Loader2,
@@ -25,7 +25,8 @@ import {
   ImageIcon,
 } from 'lucide-react'
 import { getImageUrl, Knife, KnifeDraft } from '@/lib/data'
-import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
+import { requestScrape } from '@/lib/scrape-request'
+import { ScrapeError } from '@/lib/scrape-errors'
 import { escapeHtmlAttribute, getSafeExternalUrl } from '@/lib/external-url'
 import { ScrapedProduct } from '@/lib/scrape'
 import { CustomField, CustomFieldType } from '@/lib/settings-shared'
@@ -781,6 +782,14 @@ export function KnifeScrapeEditor({
 }: KnifeScrapeEditorProps) {
   const editorId = useId()
   const previewToggleRef = useRef<HTMLButtonElement>(null)
+  const scrapeRequestRef = useRef<AbortController | null>(null)
+  useEffect(
+    () => () => {
+      scrapeRequestRef.current?.abort()
+      scrapeRequestRef.current = null
+    },
+    [],
+  )
   const [form, setForm] = useState<KnifeFormData>(initialData)
   const [imageUrlInput, setImageUrlInput] = useState('')
   const [url, setUrl] = useState(initialData.sourceUrl)
@@ -973,7 +982,9 @@ export function KnifeScrapeEditor({
   const [scrapeWarnings, setScrapeWarnings] = useState<string[]>([])
 
   const handleScrape = async () => {
-    if (!url.trim()) return
+    if (!url.trim() || scrapeRequestRef.current) return
+    const controller = new AbortController()
+    scrapeRequestRef.current = controller
     setIsScraping(true)
     setScreenshotWarning('')
     setScrapeWarnings([])
@@ -983,24 +994,26 @@ export function KnifeScrapeEditor({
     setScrapedFinalUrl('')
 
     try {
-      const response = await fetch('/api/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim() }),
-      })
-      const data = await readJsonResponse<{
-        error?: string
+      const data = await requestScrape<{
         product: ScrapedProduct
         html?: string
         screenshotWarning?: string
         warnings?: string[]
         finalUrl?: string
-      }>(response)
-
-      if (!response.ok) {
-        throw new Error(
-          getApiErrorMessage(data, 'Failed to scrape product page'),
-        )
+      }>('/api/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url.trim() }),
+        signal: controller.signal,
+      })
+      if (scrapeRequestRef.current !== controller) return
+      if (
+        !data.product ||
+        typeof data.product !== 'object' ||
+        Array.isArray(data.product) ||
+        typeof data.product.name !== 'string'
+      ) {
+        throw new ScrapeError('invalid_response')
       }
 
       setScreenshotWarning(data.screenshotWarning || '')
@@ -1018,11 +1031,15 @@ export function KnifeScrapeEditor({
       setHasScraped(true)
       setShowPreview(true)
     } catch (error) {
+      if (scrapeRequestRef.current !== controller) return
       setScrapeError(
         error instanceof Error ? error.message : 'Something went wrong',
       )
     } finally {
-      setIsScraping(false)
+      if (scrapeRequestRef.current === controller) {
+        scrapeRequestRef.current = null
+        setIsScraping(false)
+      }
     }
   }
 
@@ -1155,7 +1172,10 @@ export function KnifeScrapeEditor({
               </p>
             )}
             {scrapeError && (
-              <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs xl:text-sm text-destructive">
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs xl:text-sm text-destructive"
+              >
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                 <span>{scrapeError}</span>
               </div>

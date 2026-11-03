@@ -2,28 +2,48 @@ import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import { startInteractiveSession } from '@/lib/scrape-interactive'
 import { validateExternalUrl } from '@/lib/url-validation'
+import { createScrapeOperation } from '@/lib/scrape-operation'
+import { ScrapeError, scrapeErrorResponse } from '@/lib/scrape-errors'
 
 export async function POST(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
 
+  const operation = createScrapeOperation({ signal: request.signal })
   try {
-    const body = await request.json()
-    const url = typeof body.url === 'string' ? body.url.trim() : ''
+    return await operation.run(async () => {
+      const body = await operation
+        .run(() => request.json())
+        .catch((error) => {
+          if (error instanceof SyntaxError) throw new ScrapeError('invalid_url')
+          throw error
+        })
+      const url = typeof body?.url === 'string' ? body.url.trim() : ''
 
-    if (!url) {
-      return NextResponse.json({ error: 'URL is required' }, { status: 400 })
-    }
+      if (!url) throw new ScrapeError('invalid_url')
 
-    const validation = await validateExternalUrl(url)
-    if (!validation.ok) {
-      return NextResponse.json({ error: validation.reason }, { status: 400 })
-    }
+      const validation = await validateExternalUrl(url, {
+        signal: operation.signal,
+      })
+      if (!validation.ok) {
+        throw new ScrapeError(
+          validation.code ??
+            (validation.reason.includes('Private')
+              ? 'blocked_url'
+              : 'invalid_url'),
+          validation.reason,
+        )
+      }
 
-    const sessionId = await startInteractiveSession(validation.url.href)
-    return NextResponse.json({ sessionId })
+      const sessionId = await startInteractiveSession(
+        validation.url.href,
+        operation,
+      )
+      return NextResponse.json({ sessionId })
+    })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return scrapeErrorResponse(error)
+  } finally {
+    operation.dispose()
   }
 }
