@@ -630,93 +630,123 @@ export default function ComparePage() {
           </select>
         </label>
       )}
-      <PageHeader
-        title={<span className="break-all">{active?.name ?? 'Compare'}</span>}
-        titleAction={
-          active ? (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => open({ kind: 'rename', id: active.id })}
-              aria-label="Rename comparison"
-            >
-              <Pencil className="size-4" />
-            </Button>
-          ) : undefined
-        }
-        description={
-          active
-            ? `${active.ids.length} ${active.ids.length === 1 ? 'knife' : 'knives'} · Saved comparison`
-            : undefined
-        }
-        actions={
-          active ? (
-            <div
-              data-compare-head-actions
-              className="flex w-full flex-wrap justify-end gap-2 sm:w-auto"
-            >
+      {themeStyle === 'alloy' ? (
+        <h1 className="sr-only">Compare</h1>
+      ) : (
+        <PageHeader
+          title={<span className="break-all">{active?.name ?? 'Compare'}</span>}
+          titleAction={
+            active ? (
               <Button
-                variant={isModern ? 'outline' : 'default'}
-                size="sm"
-                onClick={() => open({ kind: 'add', id: active.id })}
-                disabled={comparisonsBusy}
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => open({ kind: 'rename', id: active.id })}
+                aria-label="Rename comparison"
               >
-                <Plus className="size-4" />
-                Add knives
+                <Pencil className="size-4" />
+              </Button>
+            ) : undefined
+          }
+          description={
+            active
+              ? `${active.ids.length} ${active.ids.length === 1 ? 'knife' : 'knives'} · Saved comparison`
+              : undefined
+          }
+          actions={
+            active ? (
+              <div
+                data-compare-head-actions
+                className="flex w-full flex-wrap justify-end gap-2 sm:w-auto"
+              >
+                <Button
+                  variant={isModern ? 'outline' : 'default'}
+                  size="sm"
+                  onClick={() => open({ kind: 'add', id: active.id })}
+                  disabled={comparisonsBusy}
+                >
+                  <Plus className="size-4" />
+                  Add knives
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  onClick={() => open({ kind: 'options', id: active.id })}
+                  aria-label="Comparison options"
+                >
+                  <MoreHorizontal className="size-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    void handleExportPdf()
+                  }}
+                  disabled={!hasComparedKnives || comparisonsBusy}
+                >
+                  <FileDown className="mr-2 h-4 w-4" />
+                  Export PDF
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrint}
+                  disabled={!hasComparedKnives || comparisonsBusy}
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print
+                </Button>
+              </div>
+            ) : undefined
+          }
+        />
+      )}
+
+      {isModern && !comparisonsLoading && !comparisonsError && (
+        <div data-alloy-compare-tabs-row={themeStyle === 'alloy' || undefined}>
+          <nav data-compare-tabs aria-label="Saved comparisons">
+            {lists.map((list) => (
+              <Link
+                key={list.id}
+                href={`/compare?list=${encodeURIComponent(list.id)}`}
+                aria-current={active?.id === list.id ? 'page' : undefined}
+              >
+                {list.name}
+                <span>{list.ids.length}</span>
+              </Link>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => open({ kind: 'create' })}
+            >
+              <Plus className="size-3" /> New comparison
+            </Button>
+          </nav>
+          {themeStyle === 'alloy' && active && (
+            <div data-alloy-compare-exports>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                aria-label="Export PDF"
+                title="Export PDF"
+                onClick={() => void handleExportPdf()}
+                disabled={!hasComparedKnives || comparisonsBusy}
+              >
+                <FileDown className="size-4" />
               </Button>
               <Button
                 variant="outline"
                 size="icon-sm"
-                onClick={() => open({ kind: 'options', id: active.id })}
-                aria-label="Comparison options"
-              >
-                <MoreHorizontal className="size-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  void handleExportPdf()
-                }}
-                disabled={!hasComparedKnives || comparisonsBusy}
-              >
-                <FileDown className="mr-2 h-4 w-4" />
-                Export PDF
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
+                aria-label="Print"
+                title="Print"
                 onClick={handlePrint}
                 disabled={!hasComparedKnives || comparisonsBusy}
               >
-                <Printer className="mr-2 h-4 w-4" />
-                Print
+                <Printer className="size-4" />
               </Button>
             </div>
-          ) : undefined
-        }
-      />
-
-      {isModern && !comparisonsLoading && !comparisonsError && (
-        <nav data-compare-tabs aria-label="Saved comparisons">
-          {lists.map((list) => (
-            <Link
-              key={list.id}
-              href={`/compare?list=${encodeURIComponent(list.id)}`}
-              aria-current={active?.id === list.id ? 'page' : undefined}
-            >
-              {list.name}
-              <span>{list.ids.length}</span>
-            </Link>
-          ))}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => open({ kind: 'create' })}
-          >
-            <Plus className="size-3" /> New comparison
-          </Button>
-        </nav>
+          )}
+        </div>
       )}
       {isModern && active && !comparisonsLoading && !comparisonsError && (
         <div data-compare-toolbar>

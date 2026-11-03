@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useId, useMemo, useState, type ReactNode } from 'react'
 import { ArrowUpRight, Plus } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
-import { PageHeader } from '@/components/page-header'
 import { useKnives } from '@/components/providers/knives-provider'
 import {
   createCollectionStats,
@@ -287,13 +286,7 @@ export function ModernInsights() {
       data-alloy-insights={themeStyle === 'alloy' || undefined}
     >
       {themeStyle === 'alloy' && (
-        <div data-alloy-page-heading>
-          <p className={styles.alloyEyebrow}>Personal archive / Insights</p>
-          <PageHeader
-            title="Know your collection."
-            description="The shapes, materials, and habits that make it yours."
-          />
-        </div>
+        <h1 className="sr-only">Collection Insights</h1>
       )}
       {isLoading ? (
         <div
