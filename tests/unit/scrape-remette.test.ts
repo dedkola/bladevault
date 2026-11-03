@@ -7,6 +7,10 @@ import {
   scrapeProduct,
 } from '@/lib/scrape'
 
+vi.mock('dns/promises', () => ({
+  lookup: vi.fn().mockResolvedValue([{ address: '8.8.8.8', family: 4 }]),
+}))
+
 const url =
   'https://www.remetteknife.com/products/remette-button-liner-lock-edc-knife-folding-pocket-outdoor-survival-edc-knife-hand-lapping-14c28n-blade-military-green-micarta-handle-rhino-mc25a'
 const html = readFileSync(
@@ -84,7 +88,13 @@ describe('Remette product scraping', () => {
     })
     const { product, warnings } = await scrapeAndEnrichProduct(html, url)
 
-    expect(fetch).toHaveBeenCalledWith(`${url}.json`, expect.any(Object))
+    expect(fetch).toHaveBeenCalledWith(
+      new URL(`${url}.json`),
+      expect.objectContaining({
+        redirect: 'manual',
+        signal: expect.any(AbortSignal),
+      }),
+    )
     expect(product).toMatchObject(expected)
     expect(product.images).toEqual(
       imageFiles.map(

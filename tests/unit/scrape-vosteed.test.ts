@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { scrapeAndEnrichProduct, scrapeProduct } from '@/lib/scrape'
 
+vi.mock('dns/promises', () => ({
+  lookup: vi.fn().mockResolvedValue([{ address: '8.8.8.8', family: 4 }]),
+}))
+
 const fixture = (name: string) =>
   readFileSync(
     new URL(`../fixtures/scrape/vosteed-${name}.html`, import.meta.url),

@@ -1,71 +1,110 @@
 import { withVaultMutationRequest } from '@/lib/vault-mutation-request'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
-import { scrapeAndEnrichProduct } from '@/lib/scrape'
+import { isSecurityChallengePage, scrapeAndEnrichProduct } from '@/lib/scrape'
 import { fetchExternalUrl, validateExternalUrl } from '@/lib/url-validation'
+import {
+  ScrapeError,
+  scrapeErrorResponse,
+  toScrapeError,
+} from '@/lib/scrape-errors'
+import { createScrapeOperation } from '@/lib/scrape-operation'
+import { vaultAccessErrorResponse } from '@/lib/vault-access'
 
 export async function POST(request: Request) {
   return withVaultMutationRequest(request, async () => {
     const locked = requireAppUnlock(request)
     if (locked) return locked
 
+    const operation = createScrapeOperation({ signal: request.signal })
     try {
-      const body = await request.json()
-      const url = typeof body.url === 'string' ? body.url.trim() : ''
+      return await operation.run(async () => {
+        const body = await operation
+          .run(() => request.json())
+          .catch((error) => {
+            if (error instanceof SyntaxError)
+              throw new ScrapeError('invalid_url')
+            throw error
+          })
+        const url = typeof body?.url === 'string' ? body.url.trim() : ''
 
-      if (!url) {
-        return NextResponse.json({ error: 'URL is required' }, { status: 400 })
-      }
+        if (!url) throw new ScrapeError('invalid_url')
 
-      const validation = await validateExternalUrl(url)
-      if (!validation.ok) {
-        return NextResponse.json({ error: validation.reason }, { status: 400 })
-      }
-
-      const normalizedUrl = validation.url.href
-
-      let html: string
-      let finalUrl: string
-      let screenshot: string | undefined
-      let screenshotWarning: string | undefined
-
-      try {
-        const { fetchRenderedHtml } = await import('@/lib/scrape-playwright')
-        const rendered = await fetchRenderedHtml(normalizedUrl)
-        html = rendered.html
-        finalUrl = rendered.finalUrl
-        screenshot = rendered.screenshot
-        screenshotWarning = rendered.screenshotWarning
-      } catch (renderError) {
-        // Playwright can time out on pages with heavy/never-ending network activity.
-        // Many Shopify stores still render the product HTML server-side, so fall
-        // back to a plain HTTP fetch before giving up.
-        const response = await fetchExternalUrl(validation.url, {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-            Accept:
-              'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-          },
+        const validation = await validateExternalUrl(url, {
+          signal: operation.signal,
         })
-
-        if (!response.ok) {
-          throw renderError
+        if (!validation.ok) {
+          throw new ScrapeError(
+            validation.code ??
+              (validation.reason.includes('Private')
+                ? 'blocked_url'
+                : 'invalid_url'),
+            validation.reason,
+          )
         }
 
-        screenshotWarning =
-          'Product details were imported using the HTML fallback. A webpage screenshot could not be captured; you can retry from the saved item.'
-        html = await response.text()
-        finalUrl = response.url
-      }
+        const normalizedUrl = validation.url.href
 
-      const result = await scrapeAndEnrichProduct(html, finalUrl, normalizedUrl)
-      if (screenshot) result.product.images.push(screenshot)
-      return NextResponse.json({ ...result, screenshotWarning })
+        let html: string
+        let finalUrl: string
+        let screenshot: string | undefined
+        let screenshotWarning: string | undefined
+
+        try {
+          const { fetchRenderedHtml } = await import('@/lib/scrape-playwright')
+          const rendered = await operation.run(() =>
+            fetchRenderedHtml(normalizedUrl, operation),
+          )
+          html = rendered.html
+          finalUrl = rendered.finalUrl
+          screenshot = rendered.screenshot
+          screenshotWarning = rendered.screenshotWarning
+        } catch (renderError) {
+          // The fallback shares the remaining budget; it never starts after the
+          // request has expired, and cannot replace a confirmed challenge.
+          operation.remainingMs()
+          if (vaultAccessErrorResponse(renderError)) throw renderError
+          const failure = toScrapeError(renderError)
+          if (
+            ['challenge', 'invalid_url', 'blocked_url', 'cancelled'].includes(
+              failure.code,
+            )
+          )
+            throw failure
+          const response = await fetchExternalUrl(validation.url, {
+            signal: operation.signal,
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+              Accept:
+                'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.9',
+            },
+          })
+
+          html = await operation.run(() => response.text())
+          if (isSecurityChallengePage(html)) throw new ScrapeError('challenge')
+          if (!response.ok)
+            throw new ScrapeError(
+              'http',
+              `The website returned HTTP ${response.status}. Open the URL in your browser or try again later.`,
+            )
+
+          screenshotWarning =
+            'Product details were imported using the HTML fallback. A webpage screenshot could not be captured; you can retry from the saved item.'
+          finalUrl = response.url || normalizedUrl
+        }
+
+        const result = await operation.run(() =>
+          scrapeAndEnrichProduct(html, finalUrl, normalizedUrl, operation),
+        )
+        if (screenshot) result.product.images.push(screenshot)
+        return NextResponse.json({ ...result, screenshotWarning })
+      })
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error'
-      return NextResponse.json({ error: message }, { status: 500 })
+      return vaultAccessErrorResponse(error) ?? scrapeErrorResponse(error)
+    } finally {
+      operation.dispose()
     }
   })
 }

@@ -82,6 +82,10 @@ describe('product scraping', () => {
       ),
     ).toBe(true)
     expect(isSecurityChallengePage('<html>Just a moment...</html>')).toBe(false)
+    expect(isSecurityChallengePage('<h1>Verify you are human</h1>')).toBe(true)
+    expect(
+      isSecurityChallengePage('<form><div class="g-recaptcha"></div></form>'),
+    ).toBe(false)
   })
 
   it('merges JSON-LD and rendered gallery images while excluding video thumbnails', () => {

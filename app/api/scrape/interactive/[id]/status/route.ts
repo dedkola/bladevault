@@ -1,6 +1,8 @@
 import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import { getInteractiveSessionStatus } from '@/lib/scrape-interactive'
+import { createScrapeOperation } from '@/lib/scrape-operation'
+import { scrapeErrorResponse } from '@/lib/scrape-errors'
 
 export async function GET(
   _request: Request,
@@ -9,12 +11,19 @@ export async function GET(
   const locked = requireAppUnlock(_request)
   if (locked) return locked
 
+  const operation = createScrapeOperation({
+    signal: _request.signal,
+    timeoutMs: 10_000,
+  })
   try {
-    const { id } = await params
-    const status = await getInteractiveSessionStatus(id)
-    return NextResponse.json(status)
+    return await operation.run(async () => {
+      const { id } = await params
+      const status = await getInteractiveSessionStatus(id, operation)
+      return NextResponse.json(status)
+    })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return scrapeErrorResponse(error)
+  } finally {
+    operation.dispose()
   }
 }

@@ -12,7 +12,8 @@ import {
   SkipForward,
 } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
-import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
+import { requestScrape } from '@/lib/scrape-request'
+import { ScrapeError } from '@/lib/scrape-errors'
 import {
   type BatchScrapeItem,
   createBatchItems,
@@ -60,6 +61,7 @@ export function BatchScrapeDialog({
   const stopRef = useRef(false)
   const runningRef = useRef(false)
   const mountedRef = useRef(true)
+  const scrapeRequestRef = useRef<AbortController | null>(null)
 
   const parsed = useMemo(() => parseBatchLinks(input), [input])
   const failedItems = items.filter((item) => item.status === 'failed')
@@ -80,6 +82,8 @@ export function BatchScrapeDialog({
     return () => {
       mountedRef.current = false
       stopRef.current = true
+      scrapeRequestRef.current?.abort()
+      scrapeRequestRef.current = null
     }
   }, [])
 
@@ -92,26 +96,31 @@ export function BatchScrapeDialog({
   }
 
   const scrapeUrl = async (url: string) => {
-    const response = await fetch('/api/scrape', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
-    })
-    const data = await readJsonResponse<{
-      error?: string
-      product: ScrapedProduct
-      finalUrl?: string
-      warnings?: string[]
-    }>(response)
-
-    if (!response.ok) {
-      throw new Error(getApiErrorMessage(data, 'Failed to scrape product page'))
-    }
-
-    return {
-      product: data.product,
-      finalUrl: data.finalUrl,
-      warnings: data.warnings,
+    const controller = new AbortController()
+    scrapeRequestRef.current = controller
+    try {
+      const data = await requestScrape<{
+        product: ScrapedProduct
+        finalUrl?: string
+        warnings?: string[]
+      }>('/api/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+        signal: controller.signal,
+      })
+      if (
+        !data.product ||
+        typeof data.product !== 'object' ||
+        Array.isArray(data.product) ||
+        typeof data.product.name !== 'string'
+      ) {
+        throw new ScrapeError('invalid_response')
+      }
+      return data
+    } finally {
+      if (scrapeRequestRef.current === controller)
+        scrapeRequestRef.current = null
     }
   }
 
@@ -127,7 +136,10 @@ export function BatchScrapeDialog({
     try {
       await runBatchScrape(batch, {
         scrape: scrapeUrl,
-        save: (draft) => addKnife(draft),
+        save: (draft) => {
+          if (!mountedRef.current) throw new ScrapeError('cancelled')
+          return addKnife(draft)
+        },
         getSavedSourceUrls: () =>
           knivesRef.current.map((knife) => knife.sourceUrl),
         onUpdate: (item) => {

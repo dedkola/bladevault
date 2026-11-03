@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
@@ -153,6 +160,7 @@ describe('BatchScrapeDialog', () => {
 
   afterEach(() => {
     cleanup()
+    vi.useRealTimers()
     vi.unstubAllGlobals()
     delete (navigator as { clipboard?: unknown }).clipboard
   })
@@ -255,6 +263,31 @@ describe('BatchScrapeDialog', () => {
     expect(clipboardWrite).toHaveBeenCalledWith('https://a.com/one')
   })
 
+  it('marks a timed-out link failed and continues with the next link', async () => {
+    installFetch({
+      onScrape: (url) =>
+        url === 'https://a.com/one'
+          ? new Promise<void>(() => {})
+          : Promise.resolve(),
+    })
+    const user = userEvent.setup()
+    const { textarea } = await renderDialog()
+    await user.type(textarea, 'https://a.com/one\nhttps://b.com/two')
+    vi.useFakeTimers()
+    fireEvent.click(screen.getByRole('button', { name: 'Start batch' }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60100)
+    })
+    expect(screen.getByText(/2 of 2 handled/)).toBeInTheDocument()
+    expect(screen.getByText(/took longer than 60 seconds/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry failed' })).toBeEnabled()
+    expect(calls).toEqual([
+      'scrape:https://a.com/one',
+      'scrape:https://b.com/two',
+      'save:Knife Two',
+    ])
+  })
+
   it('resumes only waiting links after stopping, without duplicating saved knives', async () => {
     let finishScrape!: () => void
     const firstScrape = new Promise<void>((resolve) => {
@@ -336,7 +369,7 @@ describe('BatchScrapeDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('does not start another link after the Add page unmounts', async () => {
+  it('aborts the active scrape and does not save or start another link after unmount', async () => {
     let finishScrape!: () => void
     installFetch({
       onScrape: () =>
@@ -344,14 +377,22 @@ describe('BatchScrapeDialog', () => {
           finishScrape = resolve
         }),
     })
+    const originalFetch = vi.mocked(fetch).getMockImplementation()!
+    let requestSignal: AbortSignal | null | undefined
+    vi.mocked(fetch).mockImplementation((input, init) => {
+      if (String(input) === '/api/scrape') requestSignal = init?.signal
+      return originalFetch(input, init)
+    })
     const user = userEvent.setup()
     const { textarea, unmount } = await renderDialog()
     await user.type(textarea, 'https://a.com/one\nhttps://b.com/two')
     await user.click(screen.getByRole('button', { name: 'Start batch' }))
     await waitFor(() => expect(finishScrape).toBeDefined())
     unmount()
-    finishScrape()
-    await waitFor(() => expect(calls).toContain('save:Knife One'))
-    expect(calls).toEqual(['scrape:https://a.com/one', 'save:Knife One'])
+    expect(requestSignal?.aborted).toBe(true)
+    await act(async () => {
+      finishScrape()
+    })
+    expect(calls).toEqual(['scrape:https://a.com/one'])
   })
 })

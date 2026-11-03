@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio'
 import { fetchExternalUrl } from './url-validation'
+import { runWithSignal } from './scrape-operation'
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
@@ -24,10 +25,15 @@ function resolveImageUrl(value: string, baseUrl: string): URL | undefined {
   }
 }
 
-async function fetchPoikiloImage(url: URL): Promise<string> {
+async function fetchPoikiloImage(
+  url: URL,
+  signal?: AbortSignal,
+): Promise<string> {
   const response = await fetchExternalUrl(url, {
     headers: { Accept: 'image/*', Referer: 'https://poikiloblade.com/' },
-    signal: AbortSignal.timeout(15_000),
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])
+      : AbortSignal.timeout(15_000),
   })
   const contentType = response.headers.get('content-type')?.split(';')[0].trim()
   if (
@@ -64,6 +70,7 @@ export async function embedPoikiloGalleryImages(
   html: string,
   baseUrl: string,
   images: string[],
+  signal?: AbortSignal,
 ): Promise<{ html: string; images: string[]; warnings: string[] }> {
   const replacements = new Map<string, string>()
   const warnings: string[] = []
@@ -73,7 +80,10 @@ export async function embedPoikiloGalleryImages(
       continue
     if (replacements.has(url.href)) continue
     try {
-      replacements.set(url.href, await fetchPoikiloImage(url))
+      replacements.set(
+        url.href,
+        await runWithSignal(signal, () => fetchPoikiloImage(url, signal)),
+      )
     } catch (error) {
       replacements.set(url.href, '')
       const message =

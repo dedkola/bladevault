@@ -1,5 +1,7 @@
 import { lookup } from 'dns/promises'
 import { isIP } from 'net'
+import { ScrapeError } from '@/lib/scrape-errors'
+import { runWithSignal } from '@/lib/scrape-operation'
 
 const BLOCKED_HOST_PATTERNS = [/^localhost\.?$/i, /^\s*$/]
 const MAX_EXTERNAL_REDIRECTS = 5
@@ -66,22 +68,23 @@ async function isBlockedHost(host: string): Promise<boolean> {
       all: true,
       verbatim: true,
     })
-    return (
-      addresses.length === 0 ||
-      addresses.some(({ address }) => isPrivateIp(address))
-    )
+    if (!addresses.length) throw new ScrapeError('network')
+    return addresses.some(({ address }) => isPrivateIp(address))
   } catch {
-    // A hostname we cannot resolve safely must not be fetched.
-    return true
+    // Fail closed, but distinguish a DNS failure from a private destination.
+    throw new ScrapeError(
+      'network',
+      'The website address could not be resolved. Check the URL and your connection, then try again.',
+    )
   }
 }
 
 export type UrlValidationResult =
-  { ok: true; url: URL } | { ok: false; reason: string }
+  { ok: true; url: URL } | { ok: false; reason: string; code?: 'network' }
 
 export async function validateExternalUrl(
   value: string,
-  options?: { allowDataUrl?: boolean },
+  options?: { allowDataUrl?: boolean; signal?: AbortSignal },
 ): Promise<UrlValidationResult> {
   if (!value) {
     return { ok: false, reason: 'URL is empty' }
@@ -102,8 +105,16 @@ export async function validateExternalUrl(
     return { ok: false, reason: 'Only HTTP and HTTPS URLs are allowed' }
   }
 
-  if (await isBlockedHost(parsed.hostname)) {
-    return { ok: false, reason: 'Private or internal URLs are not allowed' }
+  try {
+    if (
+      await runWithSignal(options?.signal, () => isBlockedHost(parsed.hostname))
+    ) {
+      return { ok: false, reason: 'Private or internal URLs are not allowed' }
+    }
+  } catch (error) {
+    options?.signal?.throwIfAborted()
+    if (!(error instanceof ScrapeError)) throw error
+    return { ok: false, reason: error.message, code: 'network' }
   }
 
   return { ok: true, url: parsed }
@@ -113,33 +124,57 @@ export async function fetchExternalUrl(
   initialUrl: URL,
   init: RequestInit,
 ): Promise<Response> {
-  const initialValidation = await validateExternalUrl(initialUrl.href)
+  const signal = init.signal ?? undefined
+  const initialValidation = await validateExternalUrl(initialUrl.href, {
+    signal,
+  })
   if (!initialValidation.ok) {
-    throw new Error(initialValidation.reason)
+    throw new ScrapeError(
+      initialValidation.code ??
+        (initialValidation.reason.includes('Private')
+          ? 'blocked_url'
+          : 'invalid_url'),
+      initialValidation.reason,
+    )
   }
 
   let url = initialValidation.url
 
   for (let redirects = 0; redirects <= MAX_EXTERNAL_REDIRECTS; redirects += 1) {
-    const response = await fetch(url, { ...init, redirect: 'manual' })
+    const response = await runWithSignal(signal, () =>
+      fetch(url, { ...init, redirect: 'manual' }),
+    )
     const location = response.headers.get('location')
-    const isRedirect = response.status >= 300 && response.status < 400
+    const isRedirect = [301, 302, 303, 307, 308].includes(response.status)
 
-    if (!isRedirect || !location) {
+    if (!isRedirect) {
       return response
     }
 
+    // Redirect bodies are not consumed; release their connection immediately.
+    void response.body?.cancel().catch(() => {})
+    if (!location) throw new ScrapeError('redirect')
     if (redirects === MAX_EXTERNAL_REDIRECTS) {
-      throw new Error('Too many redirects while fetching an external URL')
+      throw new ScrapeError('redirect')
     }
 
-    const validation = await validateExternalUrl(new URL(location, url).href)
+    let nextUrl: URL
+    try {
+      nextUrl = new URL(location, url)
+    } catch {
+      throw new ScrapeError('redirect')
+    }
+    const validation = await validateExternalUrl(nextUrl.href, { signal })
     if (!validation.ok) {
-      throw new Error(validation.reason)
+      throw new ScrapeError(
+        validation.code ??
+          (validation.reason.includes('Private') ? 'blocked_url' : 'redirect'),
+        validation.reason,
+      )
     }
 
     url = validation.url
   }
 
-  throw new Error('Too many redirects while fetching an external URL')
+  throw new ScrapeError('redirect')
 }

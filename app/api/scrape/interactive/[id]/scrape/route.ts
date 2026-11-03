@@ -3,6 +3,9 @@ import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import { captureInteractiveSession } from '@/lib/scrape-interactive'
 import { scrapeAndEnrichProduct } from '@/lib/scrape'
+import { createScrapeOperation } from '@/lib/scrape-operation'
+import { scrapeErrorResponse } from '@/lib/scrape-errors'
+import { vaultAccessErrorResponse } from '@/lib/vault-access'
 
 export async function POST(
   _request: Request,
@@ -12,16 +15,25 @@ export async function POST(
     const locked = requireAppUnlock(_request)
     if (locked) return locked
 
+    const operation = createScrapeOperation({ signal: _request.signal })
     try {
-      const { id } = await params
-      const { html, finalUrl, screenshot, screenshotWarning } =
-        await captureInteractiveSession(id)
-      const result = await scrapeAndEnrichProduct(html, finalUrl, finalUrl)
-      if (screenshot) result.product.images.push(screenshot)
-      return NextResponse.json({ ...result, screenshotWarning })
+      return await operation.run(async () => {
+        const { id } = await params
+        const { html, finalUrl, screenshot, screenshotWarning } =
+          await captureInteractiveSession(id, operation)
+        const result = await scrapeAndEnrichProduct(
+          html,
+          finalUrl,
+          finalUrl,
+          operation,
+        )
+        if (screenshot) result.product.images.push(screenshot)
+        return NextResponse.json({ ...result, screenshotWarning })
+      })
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error'
-      return NextResponse.json({ error: message }, { status: 500 })
+      return vaultAccessErrorResponse(error) ?? scrapeErrorResponse(error)
+    } finally {
+      operation.dispose()
     }
   })
 }

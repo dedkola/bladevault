@@ -13,8 +13,13 @@ const SCROLL_SETTLE_MS = 250
 const FINAL_SETTLE_MS = 750
 
 /** Capture the live page, never a reconstructed HTML preview. */
-export async function captureWebpageScreenshot(page: Page): Promise<string> {
+export async function captureWebpageScreenshot(
+  page: Page,
+  signal?: AbortSignal,
+): Promise<string> {
+  signal?.throwIfAborted()
   return withVaultWrite(async () => {
+    signal?.throwIfAborted()
     const database = getLocalDb()
     const dataDir = getLocalDataDirPath()
     if (isSecurityChallengePage(await page.content())) {
@@ -32,6 +37,7 @@ export async function captureWebpageScreenshot(page: Page): Promise<string> {
       ])
     })
     for (let top = 0; ; top += 700) {
+      signal?.throwIfAborted()
       const size = await page.evaluate(() => ({
         width: document.documentElement.scrollWidth,
         height: Math.max(
@@ -153,24 +159,31 @@ export async function captureWebpageScreenshot(page: Page): Promise<string> {
       timeout: 10000,
       scale: 'css',
     })
+    signal?.throwIfAborted()
     if (buffer.length > MAX_BYTES)
       throw new Error('The screenshot exceeds the 30 MB limit.')
     if (getLocalDataDirPath() !== dataDir || getLocalDb() !== database)
       throw new Error('The active vault changed during capture. Please retry.')
-    return saveScreenshotDraft(buffer, {
-      sourceUrl: page.url(),
-      capturedAt: new Date().toISOString(),
-      ...size,
-    })
+    return saveScreenshotDraft(
+      buffer,
+      {
+        sourceUrl: page.url(),
+        capturedAt: new Date().toISOString(),
+        ...size,
+      },
+      signal,
+    )
   })
 }
 
 export async function tryCaptureWebpageScreenshot(
   page: Page,
+  signal?: AbortSignal,
 ): Promise<{ screenshot?: string; screenshotWarning?: string }> {
   try {
-    return { screenshot: await captureWebpageScreenshot(page) }
+    return { screenshot: await captureWebpageScreenshot(page, signal) }
   } catch (error) {
+    signal?.throwIfAborted()
     return {
       screenshotWarning:
         error instanceof Error

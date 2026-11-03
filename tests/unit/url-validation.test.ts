@@ -38,6 +38,17 @@ describe('external URL validation', () => {
     })
   })
 
+  it('reports an empty DNS answer as a connection failure', async () => {
+    lookup.mockResolvedValue([])
+    await expect(
+      validateExternalUrl('https://missing.example/product'),
+    ).resolves.toMatchObject({
+      ok: false,
+      code: 'network',
+      reason: expect.stringContaining('could not be resolved'),
+    })
+  })
+
   it('allows a public hostname and revalidates every redirect target', async () => {
     lookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
     const validation = await validateExternalUrl('https://public.example/start')

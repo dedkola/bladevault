@@ -1,7 +1,15 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AddKnifeForm } from '@/components/add-knife-form'
@@ -26,8 +34,9 @@ const product = {
 }
 let sourceWarnings: string[] = []
 
-function json(body: unknown) {
+function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
+    status,
     headers: { 'Content-Type': 'application/json' },
   })
 }
@@ -68,6 +77,7 @@ describe('Add knife scrape controls', () => {
 
   afterEach(() => {
     cleanup()
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
 
@@ -82,6 +92,322 @@ describe('Add knife scrape controls', () => {
     await screen.findByDisplayValue('Native Chief')
     return user
   }
+
+  it.each(['request', 'response body'])(
+    'times out a stuck %s, ignores a late result, and allows another scrape',
+    async (stage) => {
+      vi.useFakeTimers()
+      const originalFetch = vi.mocked(fetch).getMockImplementation()!
+      let finish!: (value: Response) => void
+      const pending = new Promise<Response>((resolve) => {
+        finish = resolve
+      })
+      vi.mocked(fetch).mockImplementation((input, init) => {
+        if (String(input) === '/api/scrape') {
+          return stage === 'request'
+            ? pending
+            : Promise.resolve({
+                ok: true,
+                status: 200,
+                text: () => new Promise<string>(() => {}),
+              } as Response)
+        }
+        return originalFetch(input, init)
+      })
+      render(<AddKnifeForm />)
+      fireEvent.change(screen.getByRole('textbox', { name: 'Product URL' }), {
+        target: { value: product.sourceUrl },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Scrape' }))
+      expect(
+        screen.getByRole('textbox', { name: 'Product URL' }),
+      ).toBeDisabled()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60001)
+      })
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        /took longer than 60 seconds/i,
+      )
+      expect(screen.getByRole('button', { name: 'Scrape' })).toBeEnabled()
+
+      await act(async () => {
+        finish(json({ product: { ...product, name: 'Late result' } }))
+      })
+      expect(screen.queryByDisplayValue('Late result')).not.toBeInTheDocument()
+      vi.mocked(fetch).mockImplementation(originalFetch)
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Scrape' }))
+      })
+      expect(screen.getByRole('textbox', { name: 'Model Name' })).toHaveValue(
+        'Native Chief',
+      )
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    },
+  )
+
+  it('shows a network error and resets the automatic scrape controls', async () => {
+    const originalFetch = vi.mocked(fetch).getMockImplementation()!
+    vi.mocked(fetch).mockImplementation((input, init) =>
+      String(input) === '/api/scrape'
+        ? Promise.reject(new TypeError('Failed to fetch'))
+        : originalFetch(input, init),
+    )
+    const user = userEvent.setup()
+    render(<AddKnifeForm />)
+    await user.type(
+      screen.getByRole('textbox', { name: 'Product URL' }),
+      product.sourceUrl,
+    )
+    await user.click(screen.getByRole('button', { name: 'Scrape' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /network|connection|connect/i,
+    )
+    expect(screen.getByRole('button', { name: 'Scrape' })).toBeEnabled()
+    expect(
+      screen.getByRole('button', { name: 'Interact with page' }),
+    ).toBeEnabled()
+  })
+
+  it('reports malformed successful responses without exposing a technical exception', async () => {
+    const originalFetch = vi.mocked(fetch).getMockImplementation()!
+    vi.mocked(fetch).mockImplementation((input, init) =>
+      String(input) === '/api/scrape'
+        ? Promise.resolve(json({ product: null }))
+        : originalFetch(input, init),
+    )
+    const user = userEvent.setup()
+    render(<AddKnifeForm />)
+    await user.type(
+      screen.getByRole('textbox', { name: 'Product URL' }),
+      product.sourceUrl,
+    )
+    await user.click(screen.getByRole('button', { name: 'Scrape' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /invalid server response/i,
+    )
+    expect(screen.getByRole('button', { name: 'Scrape' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Save Item' })).toBeDisabled()
+    expect(screen.queryByTitle('Scraped page preview')).not.toBeInTheDocument()
+  })
+
+  it.each(['start', 'scrape'])(
+    'unlocks the form when interactive %s times out',
+    async (stage) => {
+      vi.useFakeTimers()
+      const originalFetch = vi.mocked(fetch).getMockImplementation()!
+      vi.mocked(fetch).mockImplementation((input, init) =>
+        String(input) ===
+        `/api/scrape/interactive/${stage === 'start' ? 'start' : 'session-1/scrape'}`
+          ? new Promise<Response>(() => {})
+          : originalFetch(input, init),
+      )
+      render(<AddKnifeForm />)
+      fireEvent.change(screen.getByRole('textbox', { name: 'Product URL' }), {
+        target: { value: product.sourceUrl },
+      })
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Interact with page' }),
+        )
+      })
+      if (stage === 'scrape') {
+        fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+      }
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60001)
+      })
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        /took longer than 60 seconds/i,
+      )
+      expect(
+        screen.queryByRole('button', { name: 'Continue' }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Interact with page' }),
+      ).toBeEnabled()
+      expect(screen.getByRole('textbox', { name: 'Product URL' })).toBeEnabled()
+    },
+  )
+
+  it('keeps an unsolved CAPTCHA session available for Continue', async () => {
+    const originalFetch = vi.mocked(fetch).getMockImplementation()!
+    let challenge = true
+    vi.mocked(fetch).mockImplementation((input, init) =>
+      String(input).endsWith('/session-1/scrape') && challenge
+        ? Promise.resolve(
+            json(
+              {
+                code: 'challenge',
+                error:
+                  'Complete verification in the browser, then click Continue.',
+              },
+              409,
+            ),
+          )
+        : originalFetch(input, init),
+    )
+    const user = userEvent.setup()
+    render(<AddKnifeForm />)
+    await user.type(
+      screen.getByRole('textbox', { name: 'Product URL' }),
+      product.sourceUrl,
+    )
+    await user.click(screen.getByRole('button', { name: 'Interact with page' }))
+    await user.click(await screen.findByRole('button', { name: 'Continue' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /Complete verification/,
+    )
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled()
+    expect(screen.getByRole('textbox', { name: 'Product URL' })).toBeDisabled()
+    challenge = false
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    await screen.findByDisplayValue('Native Chief')
+    expect(
+      screen.queryByRole('button', { name: 'Continue' }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('reports expired browser sessions and unlocks the form', async () => {
+    const originalFetch = vi.mocked(fetch).getMockImplementation()!
+    vi.mocked(fetch).mockImplementation((input, init) =>
+      String(input).endsWith('/status')
+        ? Promise.resolve(
+            json({
+              status: 'expired',
+              error:
+                'Verification session expired. Open the interactive browser again.',
+            }),
+          )
+        : originalFetch(input, init),
+    )
+    const user = userEvent.setup()
+    render(<AddKnifeForm />)
+    await user.type(
+      screen.getByRole('textbox', { name: 'Product URL' }),
+      product.sourceUrl,
+    )
+    await user.click(screen.getByRole('button', { name: 'Interact with page' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /session expired/i,
+    )
+    expect(
+      screen.getByRole('button', { name: 'Interact with page' }),
+    ).toBeEnabled()
+    expect(
+      screen.queryByRole('button', { name: 'Continue' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('bounds status checks without overlap and unlocks after a stalled check', async () => {
+    vi.useFakeTimers()
+    const originalFetch = vi.mocked(fetch).getMockImplementation()!
+    vi.mocked(fetch).mockImplementation((input, init) =>
+      String(input).endsWith('/status')
+        ? new Promise<Response>(() => {})
+        : originalFetch(input, init),
+    )
+    render(<AddKnifeForm />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Product URL' }), {
+      target: { value: product.sourceUrl },
+    })
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Interact with page' }),
+      )
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(7500)
+    })
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([input]) => String(input).endsWith('/status')),
+    ).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2501)
+    })
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Interact with page' }),
+    ).toBeEnabled()
+    expect(
+      screen.queryByRole('button', { name: 'Continue' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('cancels an in-flight Continue immediately even when cleanup does not respond', async () => {
+    vi.useFakeTimers()
+    const originalFetch = vi.mocked(fetch).getMockImplementation()!
+    let captureSignal: AbortSignal | null | undefined
+    vi.mocked(fetch).mockImplementation((input, init) => {
+      if (String(input).endsWith('/session-1/scrape')) {
+        captureSignal = init?.signal
+        return new Promise<Response>(() => {})
+      }
+      if (String(input).endsWith('/cancel'))
+        return new Promise<Response>(() => {})
+      return originalFetch(input, init)
+    })
+    render(<AddKnifeForm />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Product URL' }), {
+      target: { value: product.sourceUrl },
+    })
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Interact with page' }),
+      )
+    })
+    const controls = screen.getByRole('button', {
+      name: 'Continue',
+    }).parentElement!
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    })
+    fireEvent.click(within(controls).getByRole('button', { name: 'Cancel' }))
+    expect(captureSignal?.aborted).toBe(true)
+    expect(
+      screen.getByRole('button', { name: 'Interact with page' }),
+    ).toBeEnabled()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10001)
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /browser could not be closed/i,
+    )
+  })
+
+  it.each(['automatic', 'interactive'])(
+    'aborts a pending %s request when the form unmounts',
+    async (mode) => {
+      const originalFetch = vi.mocked(fetch).getMockImplementation()!
+      let requestSignal: AbortSignal | null | undefined
+      vi.mocked(fetch).mockImplementation((input, init) => {
+        if (
+          String(input) === '/api/scrape' ||
+          String(input).endsWith('/start')
+        ) {
+          requestSignal = init?.signal
+          return new Promise<Response>(() => {})
+        }
+        return originalFetch(input, init)
+      })
+      const user = userEvent.setup()
+      const { unmount } = render(<AddKnifeForm />)
+      await user.type(
+        screen.getByRole('textbox', { name: 'Product URL' }),
+        product.sourceUrl,
+      )
+      await user.click(
+        screen.getByRole('button', {
+          name: mode === 'automatic' ? 'Scrape' : 'Interact with page',
+        }),
+      )
+      unmount()
+      expect(requestSignal?.aborted).toBe(true)
+    },
+  )
 
   it('hides and restores preview overlays without changing edits or enabling scripts', async () => {
     const user = await scrape()
@@ -253,6 +579,58 @@ describe('Add knife scrape controls', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Scrape' }))
     await screen.findByText(sourceWarnings[0])
+    expect(screen.getByRole('textbox', { name: 'Model Name' })).toHaveValue(
+      'My knife',
+    )
+  })
+
+  it('times out an edit scrape without changing the record and permits retry', async () => {
+    vi.useFakeTimers()
+    const originalFetch = vi.mocked(fetch).getMockImplementation()!
+    vi.mocked(fetch).mockImplementation((input, init) =>
+      String(input) === '/api/scrape'
+        ? new Promise<Response>(() => {})
+        : originalFetch(input, init),
+    )
+    render(
+      <KnifeScrapeEditor
+        initialData={{
+          ...EMPTY_KNIFE_FORM,
+          name: 'My knife',
+          sourceUrl: product.sourceUrl,
+        }}
+        mode="edit"
+        title="Edit knife"
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Scrape' }))
+      fireEvent.keyDown(screen.getByRole('textbox', { name: 'Product URL' }), {
+        key: 'Enter',
+      })
+    })
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([input]) => String(input) === '/api/scrape'),
+    ).toHaveLength(1)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60001)
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /took longer than 60 seconds/i,
+    )
+    expect(screen.getByRole('textbox', { name: 'Model Name' })).toHaveValue(
+      'My knife',
+    )
+    expect(screen.getByRole('button', { name: 'Scrape' })).toBeEnabled()
+    vi.mocked(fetch).mockImplementation(originalFetch)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Scrape' }))
+    })
+    expect(screen.getByTitle('Scraped page preview')).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Model Name' })).toHaveValue(
       'My knife',
     )
