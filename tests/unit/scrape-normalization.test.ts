@@ -6,6 +6,14 @@ import {
   scrapeProduct,
 } from '@/lib/scrape'
 
+const { requestExternalUrl } = vi.hoisted(() => ({
+  requestExternalUrl: vi.fn(),
+}))
+vi.mock('@/lib/external-http', () => ({ requestExternalUrl }))
+vi.mock('dns/promises', () => ({
+  lookup: vi.fn().mockResolvedValue([{ address: '8.8.8.8', family: 4 }]),
+}))
+
 const cases = [
   {
     fixture: 'tenable-entity-b1036h3',
@@ -59,7 +67,7 @@ const cases = [
   },
 ]
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => requestExternalUrl.mockReset())
 
 describe('issue #379 retailer field normalization', () => {
   it.each(cases)('extracts $name fields from the captured page', (test) => {
@@ -102,7 +110,7 @@ describe('issue #379 retailer field normalization', () => {
         name: test.name,
         brand: test.brand,
       })
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(json)))
+      requestExternalUrl.mockResolvedValue(Response.json(json))
       const { product } = await scrapeAndEnrichProduct(html, test.url)
       expect(product).toMatchObject({
         name: test.name,

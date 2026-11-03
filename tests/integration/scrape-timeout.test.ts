@@ -3,10 +3,12 @@ import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 import * as scrapeRoute from '@/app/api/scrape/route'
 import { SCRAPE_TIMEOUT_MS, ScrapeError } from '@/lib/scrape-errors'
 
-const { rendered, lookup } = vi.hoisted(() => ({
+const { rendered, lookup, requestExternalUrl } = vi.hoisted(() => ({
   rendered: vi.fn(),
   lookup: vi.fn(),
+  requestExternalUrl: vi.fn(),
 }))
+vi.mock('@/lib/external-http', () => ({ requestExternalUrl }))
 vi.mock('@/lib/scrape-playwright', () => ({ fetchRenderedHtml: rendered }))
 vi.mock('dns/promises', () => ({ lookup }))
 
@@ -42,6 +44,7 @@ describe('scrape API deadlines and errors', () => {
     vault = await createTempVault()
     rendered.mockReset()
     lookup.mockReset()
+    requestExternalUrl.mockReset()
     lookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
   })
 
@@ -55,8 +58,7 @@ describe('scrape API deadlines and errors', () => {
   it('returns a timeout for a stuck renderer without starting a fresh fallback', async () => {
     vi.useFakeTimers()
     rendered.mockImplementation(() => new Promise(() => {}))
-    const fetch = vi.fn()
-    vi.stubGlobal('fetch', fetch)
+    const fetch = requestExternalUrl
     const response = scrapeRoute.POST(request())
 
     await vi.advanceTimersByTimeAsync(SCRAPE_TIMEOUT_MS)
@@ -76,8 +78,9 @@ describe('scrape API deadlines and errors', () => {
       await new Promise((resolve) => setTimeout(resolve, 40_000))
       throw new Error('The browser could not load this page')
     })
-    const fetch = vi.fn(() => new Promise<Response>(() => {}))
-    vi.stubGlobal('fetch', fetch)
+    const fetch = requestExternalUrl.mockImplementation(
+      () => new Promise<Response>(() => {}),
+    )
     const response = scrapeRoute.POST(request())
 
     await vi.advanceTimersByTimeAsync(40_000)
@@ -92,13 +95,10 @@ describe('scrape API deadlines and errors', () => {
   it('bounds a fallback response whose headers arrive but body never finishes', async () => {
     vi.useFakeTimers()
     rendered.mockRejectedValue(new Error('Renderer unavailable'))
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(new ReadableStream({ start() {} }), {
-          headers: { 'Content-Type': 'text/html' },
-        }),
-      ),
+    requestExternalUrl.mockResolvedValue(
+      new Response(new ReadableStream({ start() {} }), {
+        headers: { 'Content-Type': 'text/html' },
+      }),
     )
     const response = scrapeRoute.POST(request())
 
@@ -141,14 +141,13 @@ describe('scrape API deadlines and errors', () => {
 
   it('reports a fallback redirect loop instead of an earlier browser error', async () => {
     rendered.mockRejectedValue(new Error('Renderer unavailable'))
-    const fetch = vi.fn().mockImplementation(
+    const fetch = requestExternalUrl.mockImplementation(
       async () =>
         new Response(null, {
           status: 302,
           headers: { Location: '/again' },
         }),
     )
-    vi.stubGlobal('fetch', fetch)
 
     const response = await scrapeRoute.POST(request())
 
@@ -162,10 +161,7 @@ describe('scrape API deadlines and errors', () => {
 
   it('recognizes a CAPTCHA page returned with HTTP 403', async () => {
     rendered.mockRejectedValue(new Error('Website returned HTTP 403'))
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(htmlResponse(challengeHtml, 403)),
-    )
+    requestExternalUrl.mockResolvedValue(htmlResponse(challengeHtml, 403))
 
     const response = await scrapeRoute.POST(request())
 
@@ -178,8 +174,7 @@ describe('scrape API deadlines and errors', () => {
 
   it('keeps a confirmed challenge from being replaced by a generic fallback error', async () => {
     rendered.mockRejectedValue(new ScrapeError('challenge'))
-    const fetch = vi.fn()
-    vi.stubGlobal('fetch', fetch)
+    const fetch = requestExternalUrl
 
     const response = await scrapeRoute.POST(request())
 
@@ -215,24 +210,28 @@ describe('scrape API deadlines and errors', () => {
 
   it('continues to block private redirect destinations', async () => {
     rendered.mockRejectedValue(new Error('Renderer unavailable'))
-    const fetch = vi.fn().mockResolvedValue(
+    const fetch = requestExternalUrl.mockResolvedValue(
       new Response(null, {
         status: 302,
         headers: { Location: 'http://127.0.0.1/private' },
       }),
     )
-    vi.stubGlobal('fetch', fetch)
 
     const response = await scrapeRoute.POST(request())
 
     expect(response.status).toBe(400)
     expect(await response.json()).toMatchObject({ code: 'blocked_url' })
     expect(fetch).toHaveBeenCalledTimes(1)
+    expect(fetch).toHaveBeenCalledWith(
+      new URL(url),
+      { address: '93.184.216.34', family: 4 },
+      expect.objectContaining({ redirect: 'manual' }),
+    )
   })
 
   it('returns usable product details after a successful HTML fallback', async () => {
     rendered.mockRejectedValue(new Error('Renderer unavailable'))
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlResponse(productHtml)))
+    requestExternalUrl.mockResolvedValue(htmlResponse(productHtml))
 
     const response = await scrapeRoute.POST(request())
 
@@ -250,8 +249,9 @@ describe('scrape API deadlines and errors', () => {
       html: `${productHtml}<script>Shopify.shop = 'shop.example.com'</script>`,
       finalUrl: shopifyUrl,
     })
-    const fetch = vi.fn(() => new Promise<Response>(() => {}))
-    vi.stubGlobal('fetch', fetch)
+    const fetch = requestExternalUrl.mockImplementation(
+      () => new Promise<Response>(() => {}),
+    )
     const response = scrapeRoute.POST(request(shopifyUrl))
 
     await vi.advanceTimersByTimeAsync(10_000)
@@ -286,8 +286,7 @@ describe('scrape API deadlines and errors', () => {
     const readBody = vi
       .spyOn(incoming, 'json')
       .mockImplementation(() => new Promise(() => {}))
-    const fetch = vi.fn()
-    vi.stubGlobal('fetch', fetch)
+    const fetch = requestExternalUrl
     const response = scrapeRoute.POST(incoming)
     await vi.advanceTimersByTimeAsync(0)
     expect(readBody).toHaveBeenCalledTimes(1)

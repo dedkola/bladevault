@@ -2,6 +2,11 @@ import * as cheerio from 'cheerio'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { scrapeAndEnrichProduct } from '@/lib/scrape'
 
+const { requestExternalUrl } = vi.hoisted(() => ({
+  requestExternalUrl: vi.fn(),
+}))
+vi.mock('@/lib/external-http', () => ({ requestExternalUrl }))
+
 vi.mock('node:dns/promises', () => ({
   lookup: vi.fn().mockResolvedValue([{ address: '8.8.8.8', family: 4 }]),
 }))
@@ -20,18 +25,15 @@ const html = `<div class="product-detail">
   <div class="product-info"><h1>TASK-DENZOKU STD DSW</h1></div>
 </div>`
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => requestExternalUrl.mockReset())
 
 describe('Poikilo protected gallery images', () => {
   it('fetches each photo with the manufacturer referrer and embeds it in the picker and preview', async () => {
     // The CDN serves WebP even when the source path ends in .png.
-    const fetch = vi
-      .fn()
-      .mockImplementation(
-        async () =>
-          new Response('photo', { headers: { 'Content-Type': 'image/webp' } }),
-      )
-    vi.stubGlobal('fetch', fetch)
+    const fetch = requestExternalUrl.mockImplementation(
+      async () =>
+        new Response('photo', { headers: { 'Content-Type': 'image/webp' } }),
+    )
 
     const result = await scrapeAndEnrichProduct(html, url)
     const dataUrl = `data:image/webp;base64,${Buffer.from('photo').toString('base64')}`
@@ -39,8 +41,9 @@ describe('Poikilo protected gallery images', () => {
     expect(result.confidence.images).toBe(true)
     expect(result.warnings).toBeUndefined()
     expect(fetch).toHaveBeenCalledTimes(2)
-    for (const [target, options] of fetch.mock.calls) {
+    for (const [target, address, options] of fetch.mock.calls) {
       expect([image, secondImage]).toContain(target.href)
+      expect(address).toEqual({ address: '8.8.8.8', family: 4 })
       expect(options.headers.Referer).toBe('https://poikiloblade.com/')
       expect(options.redirect).toBe('manual')
     }
@@ -99,7 +102,7 @@ describe('Poikilo protected gallery images', () => {
   ])(
     'reports %s and excludes unusable images from the import',
     async (_, response) => {
-      vi.stubGlobal('fetch', vi.fn().mockImplementation(response))
+      requestExternalUrl.mockImplementation(response)
       const result = await scrapeAndEnrichProduct(html, url)
       expect(result.product.images).toEqual([])
       expect(result.confidence.images).toBe(false)
@@ -111,15 +114,11 @@ describe('Poikilo protected gallery images', () => {
   )
 
   it('keeps successful photos when another photo fails', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce(
-          new Response('photo', { headers: { 'Content-Type': 'image/png' } }),
-        )
-        .mockRejectedValueOnce(new Error('Connection failed')),
-    )
+    requestExternalUrl
+      .mockResolvedValueOnce(
+        new Response('photo', { headers: { 'Content-Type': 'image/png' } }),
+      )
+      .mockRejectedValueOnce(new Error('Connection failed'))
     const result = await scrapeAndEnrichProduct(html, url)
     expect(result.product.images).toEqual(['data:image/png;base64,cGhvdG8='])
     expect(result.warnings).toHaveLength(1)
@@ -130,16 +129,14 @@ describe('Poikilo protected gallery images', () => {
     'https://poikiloblade.com.example/shop/product/228',
     'https://poikiloblade.com/shop',
   ])('does not embed images for other pages: %s', async (source) => {
-    const fetch = vi.fn()
-    vi.stubGlobal('fetch', fetch)
+    const fetch = requestExternalUrl
     const result = await scrapeAndEnrichProduct(html, source)
     expect(fetch).not.toHaveBeenCalled()
     expect(result.html).toBe(html)
   })
 
   it('only fetches the exact protected image host', async () => {
-    const fetch = vi.fn()
-    vi.stubGlobal('fetch', fetch)
+    const fetch = requestExternalUrl
     const external = 'https://img.poikiloblade.cn.example/photo.png'
     const result = await scrapeAndEnrichProduct(
       html.replaceAll(image, external).replaceAll(secondImage, external),
@@ -150,14 +147,9 @@ describe('Poikilo protected gallery images', () => {
   })
 
   it('ignores malformed unrelated image URLs when rewriting the preview', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockImplementation(
-          async () =>
-            new Response('photo', { headers: { 'Content-Type': 'image/png' } }),
-        ),
+    requestExternalUrl.mockImplementation(
+      async () =>
+        new Response('photo', { headers: { 'Content-Type': 'image/png' } }),
     )
     const result = await scrapeAndEnrichProduct(
       `${html}<img src="https://[invalid">`,

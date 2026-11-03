@@ -2,6 +2,11 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { scrapeAndEnrichProduct, scrapeProduct } from '@/lib/scrape'
 
+const { requestExternalUrl } = vi.hoisted(() => ({
+  requestExternalUrl: vi.fn(),
+}))
+vi.mock('@/lib/external-http', () => ({ requestExternalUrl }))
+
 vi.mock('dns/promises', () => ({
   lookup: vi.fn().mockResolvedValue([{ address: '8.8.8.8', family: 4 }]),
 }))
@@ -14,7 +19,7 @@ const fixture = (name: string) =>
 const url = (name: string) => `https://www.vosteed.com/products/${name}`
 const parse = (name: string) => scrapeProduct(fixture(name), url(name))
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => requestExternalUrl.mockReset())
 
 describe('Vosteed product scraping', () => {
   it('imports the CheesePirates fields without guessing between conflicting source lengths', () => {
@@ -231,19 +236,16 @@ describe('Vosteed product scraping', () => {
   })
 
   it('retains rejected fields and warnings through Shopify enrichment', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            product: {
-              title: 'CheesePirates',
-              vendor: 'Vosteed',
-              body_html: '<p>Current product description</p>',
-              images: [{ src: 'https://cdn.example/knife.jpg' }],
-            },
-          }),
-        ),
+    requestExternalUrl.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          product: {
+            title: 'CheesePirates',
+            vendor: 'Vosteed',
+            body_html: '<p>Current product description</p>',
+            images: [{ src: 'https://cdn.example/knife.jpg' }],
+          },
+        }),
       ),
     )
     const result = await scrapeAndEnrichProduct(
