@@ -58,19 +58,19 @@ test('uses the table-first collection view in the modern theme', async ({
   await expect(page.locator('[data-modern-collection-table]')).toBeVisible()
 
   await page.locator('[data-modern-collection-table] tbody tr').first().click()
-  await expect(page.getByRole('link', { name: 'Open knife' })).toBeVisible()
+  const inspector = page.locator('[data-modern-inspector]')
+  await expect(inspector).not.toHaveAttribute('data-auto-selected', 'true')
+  await expect(
+    inspector.getByRole('link', { name: 'Open knife' }),
+  ).toBeVisible()
   await page.setViewportSize({ width: 390, height: 844 })
-  await expect(page.locator('[data-modern-inspector]')).toHaveCSS(
-    'position',
-    'fixed',
-  )
-  const inspectorBounds = await page
-    .locator('[data-modern-inspector]')
-    .boundingBox()
+  await expect(inspector).toBeVisible()
+  await expect(inspector).toHaveCSS('position', 'fixed')
+  const inspectorBounds = await inspector.boundingBox()
   expect(inspectorBounds?.y).toBe(64)
   expect(inspectorBounds?.height).toBe(746)
   await page.getByRole('button', { name: 'Close selected knife' }).click()
-  await expect(page.locator('[data-modern-inspector]')).toHaveCount(0)
+  await expect(inspector).toHaveCount(0)
 })
 
 test('keeps modern compare inside the workspace shell with saved-list controls and global search', async ({
