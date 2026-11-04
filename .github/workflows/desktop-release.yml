@@ -19,15 +19,26 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["macos-latest"]' || '["macos-latest","windows-latest"]') }}
+        # Avoid the arm64 hosted-runner capacity shortage. macOS still ships arm64.
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["macos-15-intel"]' || '["macos-15-intel","windows-latest"]') }}
 
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Check out repository
+      - name: Check out release tooling
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.release_tag || github.ref }}
+          ref: ${{ github.sha }}
+
+      - name: Preserve macOS release verifier
+        if: runner.os == 'macOS'
+        run: cp scripts/verify-macos-release.cjs "$RUNNER_TEMP/verify-macos-release.cjs"
+
+      - name: Check out recovery release
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_tag }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -96,8 +107,20 @@ jobs:
           EXISTING_KEYCHAINS=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
           security list-keychains -d user -s "$KEYCHAIN_PATH" $EXISTING_KEYCHAINS
 
+      - name: Build desktop runtime
+        run: npm run build:desktop
+
+      - name: Install macOS arm64 runtime dependencies
+        if: runner.os == 'macOS'
+        # Build Next.js with host binaries first, then install the locked arm64
+        # optional dependencies (including sharp/libvips) for the shipped app.
+        # Skip install scripts so they cannot regenerate host-architecture binaries.
+        run: npm ci --os=darwin --cpu=arm64 --include=optional --ignore-scripts
+
       - name: Build desktop app
+        shell: bash
         env:
+          DESKTOP_ARCH: ${{ runner.os == 'macOS' && 'arm64' || 'x64' }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # macOS runners can start after the release has been published for two hours.
           EP_GH_IGNORE_TIME: 'true'
@@ -105,14 +128,30 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          npm run build:desktop
-          npm run rebuild:desktop-native
+          npm run rebuild:desktop-native -- --arch="$DESKTOP_ARCH"
           npm run sync:desktop-runtime
-          npx electron-builder --config electron-builder.config.cjs --publish always
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            lipo -verify_arch arm64 .next/standalone/node_modules/better-sqlite3/prebuilds/darwin-arm64.node
+            lipo -verify_arch arm64 .next/standalone/node_modules/@img/sharp-darwin-arm64/lib/*.node
+            lipo -verify_arch arm64 .next/standalone/node_modules/@img/sharp-libvips-darwin-arm64/lib/*.dylib
+          fi
+          npx electron-builder --config electron-builder.config.cjs --"$DESKTOP_ARCH" --publish always
+
+      - name: Verify packaged macOS arm64 binaries
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          app_contents="dist/desktop/mac-arm64/BladeVault.app/Contents"
+          runtime_modules="$app_contents/Resources/app.asar.unpacked/.next/standalone/node_modules"
+          lipo -verify_arch arm64 "$app_contents/MacOS/BladeVault"
+          lipo -verify_arch arm64 "$runtime_modules/better-sqlite3/prebuilds/darwin-arm64.node"
+          lipo -verify_arch arm64 "$runtime_modules"/@img/sharp-darwin-arm64/lib/*.node
+          lipo -verify_arch arm64 "$runtime_modules"/@img/sharp-libvips-darwin-arm64/lib/*.dylib
 
       - name: Verify macOS desktop app
         if: runner.os == 'macOS'
-        run: npm run verify:desktop:mac
+        # Recovery builds use the workflow's corrected verifier with tagged app sources.
+        run: node "$RUNNER_TEMP/verify-macos-release.cjs"
 
       - name: Verify published macOS assets
         if: runner.os == 'macOS'
