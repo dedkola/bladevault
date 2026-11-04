@@ -6,6 +6,7 @@ import {
   type Page,
 } from 'playwright'
 import { isSecurityChallengePage } from '@/lib/scrape'
+import { waitForSogProductContent } from '@/lib/scrape-sog-browser'
 import { installScrapeBrowserInitScript } from '@/lib/scrape-browser-context'
 import { createScrapeBrowserResources } from '@/lib/scrape-browser-resources'
 import {
@@ -275,6 +276,7 @@ export async function captureInteractiveSession(
       const initialHtml = await session.page.content()
       if (isSecurityChallengePage(initialHtml))
         throw new ScrapeError('challenge')
+      await waitForSogProductContent(session.page, operation)
       await session.page.waitForTimeout(1000)
       await session.page.evaluate(() =>
         window.scrollTo(0, document.body.scrollHeight),

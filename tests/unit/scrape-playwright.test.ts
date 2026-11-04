@@ -35,6 +35,8 @@ function resources() {
     url: vi.fn().mockReturnValue(url),
     waitForSelector: vi.fn().mockResolvedValue(undefined),
     waitForTimeout: vi.fn().mockResolvedValue(undefined),
+    waitForFunction: vi.fn().mockResolvedValue(undefined),
+    locator: vi.fn().mockReturnValue({ count: vi.fn().mockResolvedValue(1) }),
     evaluate: vi.fn().mockResolvedValue(undefined),
   }
   const context = {
@@ -63,6 +65,30 @@ afterEach(() => {
 })
 
 describe('rendered scrape browser lifecycle', () => {
+  it('waits for SOG details before capturing the product HTML and screenshot', async () => {
+    const { page } = resources()
+    const sogUrl = 'https://www.sogknives.com/instinct-mini-g10-satin/'
+    page.url.mockReturnValue(sogUrl)
+    let finishHydration!: () => void
+    page.waitForFunction.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishHydration = resolve
+      }),
+    )
+    const pending = fetchRenderedHtml(sogUrl)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(page.waitForFunction).toHaveBeenCalledWith(
+      expect.any(Function),
+      undefined,
+      { timeout: 15_000 },
+    )
+    expect(page.content).toHaveBeenCalledOnce()
+    expect(mocks.screenshot).not.toHaveBeenCalled()
+    finishHydration()
+    await expect(pending).resolves.toMatchObject({ html })
+    expect(mocks.screenshot).toHaveBeenCalledOnce()
+  })
+
   it('preserves DNS/network failures during guarded navigation', async () => {
     const { page } = resources()
     mocks.validate.mockResolvedValueOnce({ ok: true, url: new URL(url) })

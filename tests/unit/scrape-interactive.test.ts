@@ -37,6 +37,8 @@ function resources() {
     url: vi.fn().mockReturnValue(url),
     waitForSelector: vi.fn().mockResolvedValue(undefined),
     waitForTimeout: vi.fn().mockResolvedValue(undefined),
+    waitForFunction: vi.fn().mockResolvedValue(undefined),
+    locator: vi.fn().mockReturnValue({ count: vi.fn().mockResolvedValue(1) }),
     evaluate: vi.fn().mockResolvedValue(undefined),
   }
   const context = {
@@ -73,6 +75,31 @@ afterEach(async () => {
 })
 
 describe('interactive scrape lifecycle', () => {
+  it('waits for SOG details after verification before capturing the product', async () => {
+    const { page } = resources()
+    page.url.mockReturnValue(
+      'https://www.sogknives.com/instinct-mini-g10-satin/',
+    )
+    const id = await start()
+    let finishHydration!: () => void
+    page.waitForFunction.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishHydration = resolve
+      }),
+    )
+    const pending = captureInteractiveSession(id)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(page.waitForFunction).toHaveBeenCalledWith(
+      expect.any(Function),
+      undefined,
+      { timeout: 15_000 },
+    )
+    expect(mocks.screenshot).not.toHaveBeenCalled()
+    finishHydration()
+    await expect(pending).resolves.toMatchObject({ html })
+    expect(mocks.screenshot).toHaveBeenCalledOnce()
+  })
+
   it('keeps the browser alive when Continue cancels an in-flight status poll', async () => {
     const { browser, page } = resources()
     const id = await start()
