@@ -9,6 +9,7 @@ import {
 } from '@/lib/scrape-operation'
 import { ScrapeError, toScrapeError } from '@/lib/scrape-errors'
 import { isSecurityChallengePage } from '@/lib/scrape'
+import { waitForSogProductContent } from '@/lib/scrape-sog-browser'
 import { validateExternalUrl } from '@/lib/url-validation'
 
 export type RenderedPage = {
@@ -187,6 +188,7 @@ export async function fetchRenderedHtml(
           { timeout: Math.min(15_000, operation.remainingMs()) },
         )
       }
+      await waitForSogProductContent(page, operation)
       await page.waitForTimeout(1000)
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
       await page.waitForTimeout(500)

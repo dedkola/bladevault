@@ -88,6 +88,31 @@ describe('product scraping', () => {
     ).toBe(false)
   })
 
+  it('detects the Incapsula challenge iframe returned with HTTP 200', () => {
+    const html = `
+      <html><head>
+        <script src="/_Incapsula_Resource?SWJIYLWA=monitoring"></script>
+      </head><body>
+        <iframe id="main-iframe" src="/_Incapsula_Resource?SWUDNSAI=31&incident_id=123"></iframe>
+      </body></html>
+    `
+    expect(isSecurityChallengePage(html)).toBe(true)
+    expect(
+      isSecurityChallengePage(
+        '<body>Request unsuccessful. Incapsula incident ID: 123</body>',
+      ),
+    ).toBe(true)
+  })
+
+  it('allows product pages that include only Incapsula monitoring scripts', () => {
+    const html = `
+      <html><head>
+        <script src="/_Incapsula_Resource?SWJIYLWA=monitoring"></script>
+      </head><body><h1>Instinct Mini - G10, Satin</h1></body></html>
+    `
+    expect(isSecurityChallengePage(html)).toBe(false)
+  })
+
   it('merges JSON-LD and rendered gallery images while excluding video thumbnails', () => {
     const html = `
       <html><head>

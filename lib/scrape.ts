@@ -6,6 +6,7 @@ import {
 } from '@/lib/scrape-operation'
 import { fetchExternalUrl } from '@/lib/url-validation'
 import { extractVosteedSpecs, isVosteedProductUrl } from './scrape-vosteed'
+import { extractSogProduct } from './scrape-sog'
 import {
   embedPoikiloGalleryImages,
   isPoikiloProductUrl,
@@ -87,6 +88,16 @@ function resolveUrl(
 export function isSecurityChallengePage(html: string): boolean {
   if (!html) return false
   const normalized = html.toLowerCase()
+  // Imperva can return HTTP 200 with only its challenge iframe. Its monitoring
+  // script also appears on real product pages, so that script alone is not a
+  // challenge marker.
+  if (
+    normalized.includes('request unsuccessful. incapsula incident id') ||
+    /<iframe\b[^>]*\bsrc\s*=\s*["'][^"']*\/_incapsula_resource(?:\?|["'])/.test(
+      normalized,
+    )
+  )
+    return true
   if (
     [
       'verify you are human',
@@ -2379,6 +2390,33 @@ export function scrapeProduct(
   sourceUrl?: string,
 ): ScrapeResult {
   const $ = cheerio.load(html)
+  const sog = extractSogProduct($, baseUrl)
+  if (sog) {
+    const warnings = [...sog.warnings]
+    const product: ScrapedProduct = {
+      name: cleanProductName(sog.name || extractTitle($), sourceUrl ?? baseUrl),
+      brand: 'SOG',
+      description: htmlToPlainText(sog.description),
+      images: sog.images,
+      bladeStyle: sog.attributes.get('blade shape') || '',
+      handleMaterial: sog.attributes.get('handle material') || '',
+      // Normalize explicit SOG attributes without whole-page fallbacks that
+      // could fill missing fields from recommendations or sheath details.
+      specs: extractSpecs(
+        cheerio.load('<div></div>'),
+        undefined,
+        undefined,
+        warnings,
+        sog.attributes,
+      ),
+      sourceUrl: sourceUrl ?? baseUrl,
+    }
+    return {
+      product,
+      confidence: buildConfidence(product),
+      ...(warnings.length ? { warnings } : {}),
+    }
+  }
   const ld = extractJsonLdProduct($, baseUrl)
 
   const rawName = ld.name || extractTitle($)
