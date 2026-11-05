@@ -29,7 +29,7 @@ import { getImageUrl, Knife, matchesGlobalKnifeSearch } from '@/lib/data'
 import { useKnives } from '@/components/providers/knives-provider'
 import { SearchField } from '@/components/search-field'
 import { getHourCycle } from '@/lib/time-format'
-import { formatDimension } from '@/lib/measurements'
+import { formatDimension, formatWeight } from '@/lib/measurements'
 import type { DimensionUnit } from '@/lib/settings-shared'
 import { useDebouncedValue } from '@/lib/use-debounced-value'
 import { cn } from '@/lib/utils'
@@ -166,6 +166,8 @@ function getRowValue(
     ].includes(rowKey)
   )
     return formatDimension(value, dimensionUnit) || '—'
+  if (rowKey === 'specs.weight')
+    return formatWeight(value, dimensionUnit) || '—'
   return value?.trim() || '—'
 }
 

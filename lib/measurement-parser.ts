@@ -33,7 +33,7 @@ function matchMeasurement(value: string, pattern: RegExp): number | undefined {
   // Retailers often omit spaces around the separator in dual-unit values.
   // Separate only after a unit marker so fraction/malformed-number guards hold.
   const separated = value.replace(
-    /((?:(?<=\d)|\b)(?:in(?:ch(?:es)?)?|mm|cm|oz|g)\.?|''|["″“”])\s*\/\s*(?=[+-]?(?:\d|[.,]))/gi,
+    /((?:(?<=\d)|\b)(?:in(?:ch(?:es)?)?|mm|cm|oz|ounces?|kg|lbs?|pounds?|g|grams?)\.?|''|["″“”])\s*\/\s*(?=[+-]?(?:\d|[.,]))/gi,
     '$1 / ',
   )
   const match = separated.match(pattern)
@@ -62,16 +62,29 @@ export function parseLengthToMillimeters(value: string): number | undefined {
   return inches === undefined ? undefined : inches * 25.4
 }
 
+export const GRAMS_PER_OUNCE = 28.349523125
+
 export function parseWeightToOunces(value: string): number | undefined {
   const ounces = matchMeasurement(value, MEASUREMENT_PATTERNS.ounces)
   if (ounces !== undefined) return ounces
 
   const kilograms = matchMeasurement(value, MEASUREMENT_PATTERNS.kilograms)
-  if (kilograms !== undefined) return kilograms * 35.27396195
+  if (kilograms !== undefined) return (kilograms * 1000) / GRAMS_PER_OUNCE
 
   const pounds = matchMeasurement(value, MEASUREMENT_PATTERNS.pounds)
   if (pounds !== undefined) return pounds * 16
 
   const grams = matchMeasurement(value, MEASUREMENT_PATTERNS.grams)
-  return grams === undefined ? undefined : grams / 28.349523125
+  return grams === undefined ? undefined : grams / GRAMS_PER_OUNCE
+}
+
+export function parseWeightToGrams(value: string): number | undefined {
+  const grams = matchMeasurement(value, MEASUREMENT_PATTERNS.grams)
+  if (grams !== undefined) return grams
+
+  const kilograms = matchMeasurement(value, MEASUREMENT_PATTERNS.kilograms)
+  if (kilograms !== undefined) return kilograms * 1000
+
+  const ounces = parseWeightToOunces(value)
+  return ounces === undefined ? undefined : ounces * GRAMS_PER_OUNCE
 }

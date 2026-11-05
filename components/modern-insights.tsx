@@ -143,7 +143,7 @@ function formatDate(value: string): string {
 function compactBinLabel(label: string): string {
   return label.includes(' / ')
     ? label
-    : label.replace(/\.0(?=–|″|\s)/g, '').replace(/″|\s(?:oz|mm|in)/g, '')
+    : label.replace(/\.0(?=–|″|\s)/g, '').replace(/″|\s(?:oz|mm|in|g)/g, '')
 }
 
 type BarDatum = {
@@ -660,11 +660,7 @@ export function ModernInsights() {
                   }))}
                   selectedKey={selectedBinLabel}
                   onSelect={setSelectedBinLabel}
-                  minBarWidth={
-                    dimensionUnit === 'both' && measurement.unit !== 'oz'
-                      ? 110
-                      : 44
-                  }
+                  minBarWidth={measurement.dimensionUnit === 'both' ? 110 : 44}
                 />
               ) : (
                 <div className={styles.chartEmpty}>

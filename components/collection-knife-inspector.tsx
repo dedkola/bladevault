@@ -21,16 +21,11 @@ import { useKnives } from '@/components/providers/knives-provider'
 import { getImageUrl, getKnifeImageCount, type Knife } from '@/lib/data'
 import { getKnifeVariantLabel } from '@/lib/knife-families'
 import { cn } from '@/lib/utils'
-import { formatDimension } from '@/lib/measurements'
+import { formatDimension, formatWeight } from '@/lib/measurements'
 import {
   activeKnifeActionStyle,
   activeKnifeOutlineClassName,
 } from '@/lib/knife-action-styles'
-
-function preferredMetric(value?: string): string {
-  if (!value) return 'Not recorded'
-  return value.split('|').at(-1)?.trim() ?? value
-}
 
 export function CollectionKnifeInspector({
   knife,
@@ -316,7 +311,11 @@ export function CollectionKnifeInspector({
                 formatDimension(knife.specs.bladeLength, dimensionUnit) ||
                   'Not recorded',
               ],
-              ['Weight', preferredMetric(knife.specs.weight)],
+              [
+                'Weight',
+                formatWeight(knife.specs.weight, dimensionUnit) ||
+                  'Not recorded',
+              ],
               ['Lock', knife.specs.lockingMechanism],
               ['Designer', knife.specs.designer],
             ].map(([label, value]) => (

@@ -120,7 +120,9 @@ export function MeasurementDetail({
               <p className="id-note">
                 Units:{' '}
                 {measurement.dimensionUnit === 'both'
-                  ? 'mm and in'
+                  ? measurement.key === 'weight'
+                    ? 'g and oz'
+                    : 'mm and in'
                   : measurement.unit}
                 .{' '}
                 {measurement.uninterpretableCount

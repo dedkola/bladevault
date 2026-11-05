@@ -6,8 +6,7 @@ import Image from '@/components/vault-image'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import { useKnives } from '@/components/providers/knives-provider'
-import { compactMeasurement } from '@/lib/compact-measurement'
-import { formatDimension } from '@/lib/measurements'
+import { formatDimension, formatWeight } from '@/lib/measurements'
 import { getImageUrl, type Knife } from '@/lib/data'
 import { useCollectionItemNavigation } from '@/hooks/use-collection-item-navigation'
 import './alloy-collection.css'
@@ -40,7 +39,7 @@ export const AlloyCollectionCard = memo(function AlloyCollectionCard({
   const metadata = [
     knife.specs.bladeMaterial,
     formatDimension(knife.specs.bladeLength, dimensionUnit),
-    compactMeasurement(knife.specs.weight, ''),
+    formatWeight(knife.specs.weight, dimensionUnit),
   ].filter(Boolean)
 
   async function togglePin() {

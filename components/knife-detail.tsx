@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
 import { Knife, KnifeUpdates } from '@/lib/data'
-import { formatDimension } from '@/lib/measurements'
+import { formatDimension, formatWeight } from '@/lib/measurements'
 import { knifeToFormData, KnifeScrapeEditor } from '@/components/knife-form'
 import { CustomField } from '@/lib/settings-shared'
 import { readJsonResponse } from '@/lib/api-response'
@@ -389,7 +389,10 @@ export default function KnifeDetail({
       label: 'Handle Length',
       value: formatDimension(knife.specs.handleLength, dimensionUnit) || 'N/A',
     },
-    { label: 'Weight', value: knife.specs.weight || 'N/A' },
+    {
+      label: 'Weight',
+      value: formatWeight(knife.specs.weight, dimensionUnit) || 'N/A',
+    },
   ]
 
   const customFieldRows = customFields

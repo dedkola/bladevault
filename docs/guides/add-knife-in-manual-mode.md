@@ -18,9 +18,9 @@ The form groups fields into **Identity** (brand/maker, model name, model number,
 
 Enter overall length, blade length, blade thickness, and handle length in the unit shown beside the input. BladeVault calculates the alternative unit automatically. For example, entering `3.5` in an inches field gives `88.9` in the millimeters field.
 
-Choose **Settings → Appearance → Dimension units → Both (mm + in)** to show separate metric and imperial inputs together, or choose one unit to show only its input. These linked fields also appear when editing a saved knife. If you import a product page, values containing both units populate their matching fields, and a missing counterpart is converted automatically. Existing measurement text remains compatible without rewriting saved records.
+Choose **Settings → Appearance → Measurement units → Both (metric + imperial)** to show separate metric and imperial inputs together, or choose **Metric (mm, g)** or **Imperial (in, oz)** to show only its input. Lengths use mm/in and weights use g/oz, with automatic conversion in either direction. These linked fields also appear when editing a saved knife or bulk editing measurements. If you import a product page, values containing both units populate their matching fields, and a missing counterpart is converted automatically. Existing measurement text remains compatible without rewriting saved records.
 
-Weight remains a single field: include its unit, such as `120 g` or `4.2 oz`.
+For weight, entering `100` in the grams field gives `3.5274` in the ounces field.
 
 ![The dimension fields, with the Bellamy's measurements entered](../images/add-knife-dimensions.png)
 

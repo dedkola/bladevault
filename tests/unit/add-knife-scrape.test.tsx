@@ -110,6 +110,7 @@ describe('Add knife scrape controls', () => {
                   ...product.specs,
                   bladeLength: "3.52''/89.4mm",
                   overallLength: '203.2 mm',
+                  weight: '5.04oz / 142.8g',
                 },
               },
               html,
@@ -127,6 +128,12 @@ describe('Add knife scrape controls', () => {
     expect(
       screen.getByRole('textbox', { name: 'Overall Length (in)' }),
     ).toHaveValue('8')
+    expect(screen.getByRole('textbox', { name: 'Weight (g)' })).toHaveValue(
+      '142.8',
+    )
+    expect(screen.getByRole('textbox', { name: 'Weight (oz)' })).toHaveValue(
+      '5.04',
+    )
     await user.click(screen.getByRole('button', { name: 'Save Item' }))
     await waitFor(() =>
       expect(addKnife).toHaveBeenCalledWith(
@@ -134,6 +141,7 @@ describe('Add knife scrape controls', () => {
           specs: expect.objectContaining({
             bladeLength: "3.52''/89.4mm",
             overallLength: '203.2 mm',
+            weight: '5.04oz / 142.8g',
           }),
         }),
       ),
@@ -149,6 +157,7 @@ describe('Add knife scrape controls', () => {
           ...EMPTY_KNIFE_FORM,
           name: 'My knife',
           bladeLength: '3.5 in',
+          weight: '2.53 oz / 71.8 g',
           sourceUrl: product.sourceUrl,
         }}
         mode="edit"
@@ -159,6 +168,9 @@ describe('Add knife scrape controls', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Scrape' }))
     await screen.findByTitle('Scraped page preview')
+    expect(screen.getByRole('textbox', { name: 'Weight (g)' })).toHaveValue(
+      '71.8',
+    )
     expect(
       screen.getByRole('textbox', { name: 'Blade Length (mm)' }),
     ).toHaveValue('88.9')
@@ -168,10 +180,19 @@ describe('Add knife scrape controls', () => {
     expect(
       screen.getByRole('textbox', { name: 'Blade Length (in)' }),
     ).toHaveValue('4')
+    const grams = screen.getByRole('textbox', { name: 'Weight (g)' })
+    await user.clear(grams)
+    await user.type(grams, '100.000')
+    expect(screen.getByRole('textbox', { name: 'Weight (oz)' })).toHaveValue(
+      '3.5274',
+    )
     await user.click(screen.getByRole('button', { name: 'Save Changes' }))
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
-        expect.objectContaining({ bladeLength: '101.6 mm' }),
+        expect.objectContaining({
+          bladeLength: '101.6 mm',
+          weight: '100.000 g',
+        }),
         expect.any(Set),
       ),
     )

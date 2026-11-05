@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import type { Knife } from '@/lib/data'
+import { useKnives } from '@/components/providers/knives-provider'
+import { DimensionInput } from '@/components/dimension-input'
+import { formatDimension, formatWeight } from '@/lib/measurements'
 import {
   type BulkEditFieldDefinition,
   type BulkEditFieldKey,
@@ -42,6 +45,7 @@ export function BulkEditDialog({
   onOpenChange,
   onApply,
 }: BulkEditDialogProps) {
+  const { dimensionUnit = 'in' } = useKnives()
   const [fieldKey, setFieldKey] = useState<BulkEditFieldKey | ''>('')
   const [value, setValue] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -63,6 +67,23 @@ export function BulkEditDialog({
   }
 
   const selectedField = fields.find((field) => field.key === fieldKey)
+  const measurementKind =
+    fieldKey === 'specs.weight'
+      ? 'weight'
+      : [
+            'specs.overallLength',
+            'specs.bladeLength',
+            'specs.bladeThickness',
+            'specs.handleLength',
+          ].includes(fieldKey)
+        ? 'length'
+        : undefined
+  const formatCurrentValue = (currentValue: string) =>
+    measurementKind === 'weight'
+      ? formatWeight(currentValue, dimensionUnit)
+      : measurementKind === 'length'
+        ? formatDimension(currentValue, dimensionUnit)
+        : currentValue
   const currentValueSummary = useMemo(() => {
     if (!fieldKey) return []
 
@@ -170,7 +191,7 @@ export function BulkEditDialog({
                     key={currentValue}
                     className="rounded-full border border-border/80 bg-background/80 px-2 py-1 text-xs text-foreground"
                   >
-                    {count} {currentValue}
+                    {count} {formatCurrentValue(currentValue)}
                   </span>
                 ))}
               </div>
@@ -178,30 +199,49 @@ export function BulkEditDialog({
           )}
 
           <div className="space-y-2">
-            <label
-              htmlFor="bulk-edit-value"
-              className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-            >
-              New value
-            </label>
-            <Input
-              id="bulk-edit-value"
-              type={selectedField?.type ?? 'text'}
-              value={value}
-              onChange={(event) => {
-                setValue(event.target.value)
-                setError(null)
-              }}
-              placeholder={
-                selectedField
-                  ? `Enter ${selectedField.label.toLowerCase()}`
-                  : 'Choose a field first'
-              }
-              list={selectedField?.type === 'text' ? listId : undefined}
-              disabled={!fieldKey || isSaving}
-              aria-invalid={Boolean(error)}
-              autoFocus={false}
-            />
+            {measurementKind && selectedField ? (
+              <fieldset disabled={isSaving}>
+                <DimensionInput
+                  key={fieldKey}
+                  label={`New ${selectedField.label.toLowerCase()}`}
+                  value={value}
+                  onChange={(nextValue) => {
+                    setValue(nextValue)
+                    setError(null)
+                  }}
+                  kind={measurementKind}
+                  dimensionUnit={dimensionUnit}
+                  list={listId}
+                />
+              </fieldset>
+            ) : (
+              <>
+                <label
+                  htmlFor="bulk-edit-value"
+                  className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                >
+                  New value
+                </label>
+                <Input
+                  id="bulk-edit-value"
+                  type={selectedField?.type ?? 'text'}
+                  value={value}
+                  onChange={(event) => {
+                    setValue(event.target.value)
+                    setError(null)
+                  }}
+                  placeholder={
+                    selectedField
+                      ? `Enter ${selectedField.label.toLowerCase()}`
+                      : 'Choose a field first'
+                  }
+                  list={selectedField?.type === 'text' ? listId : undefined}
+                  disabled={!fieldKey || isSaving}
+                  aria-invalid={Boolean(error)}
+                  autoFocus={false}
+                />
+              </>
+            )}
             {suggestions.length > 0 && selectedField?.type === 'text' && (
               <datalist id={listId}>
                 {suggestions.map((suggestion) => (

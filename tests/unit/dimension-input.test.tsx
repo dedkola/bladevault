@@ -13,18 +13,21 @@ afterEach(cleanup)
 function Editor({
   initial = '',
   unit = 'both',
+  kind = 'length',
 }: {
   initial?: string
   unit?: DimensionUnit
+  kind?: 'length' | 'weight'
 }) {
   const [value, setValue] = useState(initial)
   return (
     <>
       <DimensionInput
-        label="Blade Length"
+        label={kind === 'weight' ? 'Weight' : 'Blade Length'}
         value={value}
         onChange={setValue}
         dimensionUnit={unit}
+        kind={kind}
       />
       <output aria-label="Stored dimension">{value}</output>
     </>
@@ -146,4 +149,46 @@ describe('linked dimension inputs', () => {
       screen.getByRole('textbox', { name: 'Blade Length (mm)' }),
     ).toHaveValue('127')
   })
+})
+
+describe('linked weight inputs', () => {
+  it('shows separate imported grams and ounces and keeps the original source', () => {
+    render(<Editor initial="5.04oz / 142.8g" kind="weight" />)
+    expect(screen.getByRole('textbox', { name: 'Weight (g)' })).toHaveValue(
+      '142.8',
+    )
+    expect(screen.getByRole('textbox', { name: 'Weight (oz)' })).toHaveValue(
+      '5.04',
+    )
+    expect(screen.getByLabelText('Stored dimension')).toHaveTextContent(
+      '5.04oz / 142.8g',
+    )
+  })
+
+  it('calculates in both directions and clears the alternative value', async () => {
+    const user = userEvent.setup()
+    render(<Editor kind="weight" />)
+    const grams = screen.getByRole('textbox', { name: 'Weight (g)' })
+    const ounces = screen.getByRole('textbox', { name: 'Weight (oz)' })
+    await user.type(ounces, '1')
+    expect(grams).toHaveValue('28.35')
+    await user.clear(grams)
+    expect(ounces).toHaveValue('')
+    await user.type(grams, '100')
+    expect(ounces).toHaveValue('3.5274')
+    expect(screen.getByLabelText('Stored dimension')).toHaveTextContent('100 g')
+  })
+
+  it.each(['in', 'mm'] as const)(
+    'shows only the weight field for %s mode',
+    (unit) => {
+      render(<Editor initial="5.04oz / 142.8g" unit={unit} kind="weight" />)
+      expect(screen.getAllByRole('textbox')).toHaveLength(1)
+      expect(
+        screen.getByRole('textbox', {
+          name: unit === 'mm' ? 'Weight (g)' : 'Weight (oz)',
+        }),
+      ).toHaveValue(unit === 'mm' ? '142.8' : '5.04')
+    },
+  )
 })

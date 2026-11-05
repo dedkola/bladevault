@@ -75,7 +75,7 @@ import { AppLockSettings } from '@/components/app-lock-settings'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { KnifeCardDetails } from '@/components/knife-card-details'
-import { formatDimension } from '@/lib/measurements'
+import { formatDimension, formatWeight } from '@/lib/measurements'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   SettingsSection,
@@ -365,7 +365,7 @@ function CardFieldsPreview({
     'specs.bladeLength': formatDimension('80 mm', dimensionUnit),
     'specs.bladeThickness': formatDimension('3 mm', dimensionUnit),
     'specs.handleLength': formatDimension('110 mm', dimensionUnit),
-    'specs.weight': '95 g',
+    'specs.weight': formatWeight('95 g', dimensionUnit),
   }
   const previewFields = fields
     .filter((field) => field !== 'specs.modelNumber')
@@ -2017,8 +2017,8 @@ export default function SettingsView() {
                       </Select>
                     </SettingsRow>
                     <SettingsRow
-                      label="Dimension units"
-                      description="Choose inches, millimeters, or both for dimensions, Add/Edit fields, and Insights charts."
+                      label="Measurement units"
+                      description="Choose metric (mm and g), imperial (in and oz), or both for measurements, Add/Edit fields, and Insights charts."
                     >
                       <Select
                         value={
@@ -2029,23 +2029,25 @@ export default function SettingsView() {
                       >
                         <SelectTrigger
                           size="sm"
-                          aria-label="Dimension units"
-                          className="h-8 w-44 rounded-lg border-border bg-[var(--bladevault-surface-soft)]"
+                          aria-label="Measurement units"
+                          className="h-8 w-48 rounded-lg border-border bg-[var(--bladevault-surface-soft)]"
                         >
                           <SelectValue>
                             {(value: DimensionUnit) =>
                               value === 'mm'
-                                ? 'Millimeters (mm)'
+                                ? 'Metric (mm, g)'
                                 : value === 'both'
-                                  ? 'Both (mm + in)'
-                                  : 'Inches (in)'
+                                  ? 'Both (metric + imperial)'
+                                  : 'Imperial (in, oz)'
                             }
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="in">Inches (in)</SelectItem>
-                          <SelectItem value="mm">Millimeters (mm)</SelectItem>
-                          <SelectItem value="both">Both (mm + in)</SelectItem>
+                          <SelectItem value="in">Imperial (in, oz)</SelectItem>
+                          <SelectItem value="mm">Metric (mm, g)</SelectItem>
+                          <SelectItem value="both">
+                            Both (metric + imperial)
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </SettingsRow>

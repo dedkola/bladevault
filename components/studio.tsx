@@ -32,8 +32,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
-import { compactMeasurement } from '@/lib/compact-measurement'
-import { formatDimension } from '@/lib/measurements'
+import { formatDimension, formatWeight } from '@/lib/measurements'
 import { getImageUrl, type Knife } from '@/lib/data'
 import { groupKnifeFamilies } from '@/lib/knife-families'
 import { createStudioLayout } from '@/lib/studio'
@@ -666,7 +665,7 @@ export function StudioView() {
                     ],
                     [
                       'Weight',
-                      compactMeasurement(selectedKnife.specs.weight, ''),
+                      formatWeight(selectedKnife.specs.weight, dimensionUnit),
                     ],
                     ['Designer', selectedKnife.specs.designer],
                     ['Lock', selectedKnife.specs.lockingMechanism],

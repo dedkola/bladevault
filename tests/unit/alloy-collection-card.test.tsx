@@ -60,21 +60,25 @@ describe('Alloy collection cards', () => {
     expect(onOpen).toHaveBeenCalledWith(knife)
   })
 
-  it('updates metric and dual-unit captions from settings while keeping weight unchanged', () => {
+  it('updates metric and dual-unit lengths and weights from settings', () => {
     const knife = createKnife({
-      specs: { ...createKnife().specs, bladeLength: '3.5 in' },
+      specs: {
+        ...createKnife().specs,
+        bladeLength: '3.5 in',
+        weight: '5.04oz / 142.8g',
+      },
     })
     state.dimensionUnit = 'mm'
     const { rerender } = render(
       <AlloyCollectionCard knife={knife} onOpen={vi.fn()} onSelect={vi.fn()} />,
     )
-    expect(screen.getByText('CPM-S30V · 88.9 mm · 1.85 oz')).toBeVisible()
+    expect(screen.getByText('CPM-S30V · 88.9 mm · 142.8 g')).toBeVisible()
     state.dimensionUnit = 'both'
     rerender(
       <AlloyCollectionCard knife={knife} onOpen={vi.fn()} onSelect={vi.fn()} />,
     )
     expect(
-      screen.getByText('CPM-S30V · 88.9 mm / 3.5 in · 1.85 oz'),
+      screen.getByText('CPM-S30V · 88.9 mm / 3.5 in · 142.8 g / 5.04 oz'),
     ).toBeVisible()
   })
 

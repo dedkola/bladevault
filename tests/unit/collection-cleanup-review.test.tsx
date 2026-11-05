@@ -95,6 +95,30 @@ describe('guided cleanup review', () => {
     ).toBeDisabled()
   })
 
+  it('uses the chosen units when previewing a repaired weight without rewriting its source', async () => {
+    const user = userEvent.setup()
+    state.dimensionUnit = 'both'
+    state.knives = [
+      createKnife({ specs: { ...createKnife().specs, weight: '' } }),
+    ]
+    render(<CompletenessDetail />)
+    await user.click(
+      screen.getByRole('button', { name: 'Review 1 missing weight values' }),
+    )
+    const input = await screen.findByRole('textbox', { name: 'Weight' })
+    await user.type(input, '3 oz / 85 g')
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '85 g / 3 oz — understood',
+    )
+    await user.click(screen.getByRole('button', { name: 'Save and next' }))
+    expect(state.bulkUpdateKnives).toHaveBeenCalledWith(
+      [state.knives[0].id],
+      'specs.weight',
+      '3 oz / 85 g',
+      { [state.knives[0].id]: state.knives[0].updatedAt },
+    )
+  })
+
   it('saves only the reviewed field and version, advances, and resumes progress after returning', async () => {
     const user = userEvent.setup()
     state.knives = ['first', 'second'].map((id) =>

@@ -361,7 +361,7 @@ export function KnifeFormFields({
 
       <FormSection
         title="Dimensions"
-        description="Enter a length in either unit; the other is calculated automatically. Choose inches, millimeters, or both in Settings → Appearance."
+        description="Enter a measurement in either unit; the other is calculated automatically. Choose metric, imperial, or both in Settings → Appearance."
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {(
@@ -380,7 +380,13 @@ export function KnifeFormFields({
               dimensionUnit={dimensionUnit}
             />
           ))}
-          {inputField('Weight', 'weight', 'e.g. 4.7 oz')}
+          <DimensionInput
+            label="Weight"
+            value={form.weight}
+            onChange={(value) => updateField('weight', value)}
+            dimensionUnit={dimensionUnit}
+            kind="weight"
+          />
         </div>
       </FormSection>
 

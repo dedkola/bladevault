@@ -144,7 +144,10 @@ describe('collection statistics', () => {
         imperial.measurements.bladeThickness,
       ),
     ).toBe('0.09 in')
-    expect(metric.measurements.weight).toEqual(imperial.measurements.weight)
+    expect(metric.measurements.weight.unit).toBe('g')
+    expect(metric.measurements.weight.median).toBeCloseTo(52.44661778125)
+    expect(imperial.measurements.weight.unit).toBe('oz')
+    expect(imperial.measurements.weight.median).toBe(1.85)
     expect(
       formatStatsMeasurement(undefined, metric.measurements.bladeLength),
     ).toBe('—')
@@ -199,6 +202,57 @@ describe('collection statistics', () => {
       formatStatsMeasurement(metric.bladeLength.median, metric.bladeLength),
     ).toBe('82.5 mm')
     expect(knives[0].specs.bladeLength).toBe('3.25 in / 82.5 mm')
+  })
+
+  it('uses grams, ounces, or both for weight summaries and correctly bounded drilldowns', () => {
+    const knives = [
+      createKnife({
+        specs: { ...createKnife().specs, weight: '3 oz / 85 g' },
+      }),
+    ]
+    const legacy = createCollectionStats(knives, 'all').measurements.weight
+    const imperial = createCollectionStats(
+      knives,
+      'all',
+      undefined,
+      undefined,
+      'in',
+    ).measurements.weight
+    const metric = createCollectionStats(
+      knives,
+      'all',
+      undefined,
+      undefined,
+      'mm',
+    ).measurements.weight
+    const both = createCollectionStats(
+      knives,
+      'all',
+      undefined,
+      undefined,
+      'both',
+    ).measurements.weight
+    expect(legacy.unit).toBe('oz')
+    expect(legacy.median).toBe(3)
+    expect(imperial.unit).toBe('oz')
+    expect(imperial.median).toBe(3)
+    expect(metric.unit).toBe('g')
+    expect(metric.median).toBe(85)
+    expect(metric.bins.find(({ count }) => count)).toMatchObject({
+      label: '70.8738–85.0486 g',
+      knifeIds: [knives[0].id],
+    })
+    expect(imperial.bins.find(({ count }) => count)?.label).toBe('3.0–3.5 oz')
+    expect(both.unit).toBe('g')
+    expect(both.median).toBe(85)
+    expect(both.bins.find(({ count }) => count)).toMatchObject({
+      label: '70.8738–85.0486 g / 2.5–3 oz',
+      knifeIds: [knives[0].id],
+    })
+    expect(formatStatsMeasurement(metric.median, metric)).toBe('85 g')
+    expect(formatStatsMeasurement(imperial.median, imperial)).toBe('3 oz')
+    expect(formatStatsMeasurement(both.median, both)).toMatch(/^85 g \/ .* oz$/)
+    expect(knives[0].specs.weight).toBe('3 oz / 85 g')
   })
 
   it('filters entries by the selected addition period', () => {

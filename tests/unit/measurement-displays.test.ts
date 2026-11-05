@@ -10,11 +10,12 @@ const knife = createKnife({
     overallLength: '203.2 mm',
     bladeThickness: '0.125 in',
     handleLength: '4.5 in',
+    weight: '5.04oz / 142.8g',
   },
 })
 
-describe('dimension display preferences', () => {
-  it('formats card dimension fields while leaving weight and saved measurements unchanged', () => {
+describe('measurement display preferences', () => {
+  it('formats card dimensions and weights without changing saved measurements', () => {
     const fields = getVisibleCardFields(
       knife,
       [
@@ -32,12 +33,13 @@ describe('dimension display preferences', () => {
       '203.2 mm',
       '3.175 mm',
       '114.3 mm',
-      '1.85 oz',
+      '142.8 g',
     ])
     expect(knife.specs.bladeLength).toBe('3.5 in')
+    expect(knife.specs.weight).toBe('5.04oz / 142.8g')
   })
 
-  it('shows both units in custom collection columns without converting weight', () => {
+  it('shows both length and weight units in collection columns', () => {
     const columns = getCollectionColumns([], 'both')
     const value = (key: string) =>
       columns.find((column) => column.key === key)?.getValue(knife)
@@ -45,8 +47,11 @@ describe('dimension display preferences', () => {
     expect(value('overallLength')).toBe('203.2 mm / 8 in')
     expect(value('bladeThickness')).toBe('3.175 mm / 0.125 in')
     expect(value('handleLength')).toBe('114.3 mm / 4.5 in')
-    expect(value('weight')).toBe('1.85 oz')
+    expect(value('weight')).toBe('142.8 g / 5.04 oz')
     expect(columns.find((column) => column.key === 'blade')?.width).toBe(
+      '160px',
+    )
+    expect(columns.find((column) => column.key === 'weight')?.width).toBe(
       '160px',
     )
   })

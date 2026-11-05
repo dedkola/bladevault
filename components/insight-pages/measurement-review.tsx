@@ -19,7 +19,7 @@ import {
   type CleanupQueue,
 } from '@/lib/collection-cleanup'
 import type { Knife } from '@/lib/data'
-import { formatDimension } from '@/lib/measurements'
+import { formatDimension, formatWeight } from '@/lib/measurements'
 
 function sourceHref(source: string) {
   try {
@@ -147,9 +147,8 @@ function ReviewRecord({
               autoFocus
             />
             <p role="status" className="text-sm text-muted-foreground">
-              {field !== 'weight' &&
-              interpretMeasurement(field, value) !== undefined
-                ? `${formatDimension(value, dimensionUnit)} — understood`
+              {interpretMeasurement(field, value) !== undefined
+                ? `${field === 'weight' ? formatWeight(value, dimensionUnit) : formatDimension(value, dimensionUnit)} — understood`
                 : formatInterpretedMeasurement(field, value)}
             </p>
             <p className="text-xs text-muted-foreground">

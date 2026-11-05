@@ -2,8 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   dimensionInputValue,
   formatDimension,
+  formatWeight,
   splitDimension,
+  splitWeight,
 } from '@/lib/measurements'
+import {
+  parseWeightToGrams,
+  parseWeightToOunces,
+} from '@/lib/measurement-parser'
 
 describe('dimension units', () => {
   it('converts a single source measurement into either display unit', () => {
@@ -53,5 +59,45 @@ describe('dimension units', () => {
     expect(dimensionInputValue('88.9 mm', 'in')).toBe('88.9 mm')
     expect(dimensionInputValue(' ', 'mm')).toBe('')
     expect(dimensionInputValue('unknown', 'mm')).toBe('unknown')
+  })
+})
+
+describe('weight units', () => {
+  it('separates stated grams and ounces without replacing them with rounded conversions', () => {
+    expect(splitWeight('5.04oz / 142.8g')).toEqual({
+      grams: '142.8',
+      ounces: '5.04',
+    })
+    expect(formatWeight('5.04oz / 142.8g', 'mm')).toBe('142.8 g')
+    expect(formatWeight('5.04oz / 142.8g', 'in')).toBe('5.04 oz')
+    expect(formatWeight('5.04oz / 142.8g', 'both')).toBe('142.8 g / 5.04 oz')
+    expect(splitWeight('142.8g/5.04oz')).toEqual({
+      grams: '142.8',
+      ounces: '5.04',
+    })
+    expect(splitWeight('5.04ounces/142.8grams')).toEqual({
+      grams: '142.8',
+      ounces: '5.04',
+    })
+  })
+
+  it('converts single units, fractions, decimal commas, kilograms, and pounds', () => {
+    expect(formatWeight('1 oz', 'mm')).toBe('28.35 g')
+    expect(formatWeight('28.349523125 g', 'in')).toBe('1 oz')
+    expect(formatWeight('1/2 oz', 'mm')).toBe('14.175 g')
+    expect(formatWeight('71,8 g', 'both')).toBe('71.8 g / 2.5327 oz')
+    expect(parseWeightToGrams('0.1 kg')).toBeCloseTo(100)
+    expect(parseWeightToGrams('1 lb')).toBeCloseTo(453.59237)
+    expect(parseWeightToOunces('1 lb')).toBe(16)
+  })
+
+  it('preserves empty, unsupported, and invalid weights without inventing values', () => {
+    expect(formatWeight(undefined, 'mm')).toBe('')
+    expect(formatWeight('', 'both')).toBe('')
+    expect(formatWeight('unknown', 'mm')).toBe('unknown')
+    expect(formatWeight('-3 g', 'in')).toBe('-3 g')
+    expect(formatWeight('1/0 oz', 'mm')).toBe('1/0 oz')
+    expect(dimensionInputValue('71.800', 'g')).toBe('71.800 g')
+    expect(dimensionInputValue('2.5300', 'oz')).toBe('2.5300 oz')
   })
 })

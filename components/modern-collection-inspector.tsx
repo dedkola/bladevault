@@ -12,8 +12,7 @@ import Link from 'next/link'
 import { ChevronLeft, ChevronRight, ImageIcon, Pencil, X } from 'lucide-react'
 import Image from '@/components/vault-image'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { compactMeasurement } from '@/lib/compact-measurement'
-import { formatDimension } from '@/lib/measurements'
+import { formatDimension, formatWeight } from '@/lib/measurements'
 import type { DimensionUnit } from '@/lib/settings-shared'
 import {
   getImageUrl,
@@ -31,8 +30,6 @@ function subscribePhoneInspector(onChange: () => void) {
   media.addEventListener('change', onChange)
   return () => media.removeEventListener('change', onChange)
 }
-
-const metric = (value?: string) => compactMeasurement(value, 'Not recorded')
 
 export function ModernCollectionInspector({
   knife,
@@ -112,7 +109,10 @@ export function ModernCollectionInspector({
               formatDimension(knife.specs.bladeLength, dimensionUnit) ||
                 'Not recorded',
             ],
-            ['Weight', metric(knife.specs.weight)],
+            [
+              'Weight',
+              formatWeight(knife.specs.weight, dimensionUnit) || 'Not recorded',
+            ],
             ['Blade steel', knife.specs.bladeMaterial],
             ['Handle', knife.handleMaterial],
           ]
@@ -120,7 +120,10 @@ export function ModernCollectionInspector({
             ['Maker', knife.brand],
             ['Designer', knife.specs.designer],
             ['Lock', knife.specs.lockingMechanism],
-            ['Weight', metric(knife.specs.weight)],
+            [
+              'Weight',
+              formatWeight(knife.specs.weight, dimensionUnit) || 'Not recorded',
+            ],
             ['Handle', knife.handleMaterial],
             ['Family', knife.name],
           ]

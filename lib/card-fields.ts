@@ -1,5 +1,5 @@
 import type { Knife } from '@/lib/data'
-import { formatDimension } from '@/lib/measurements'
+import { formatDimension, formatWeight } from '@/lib/measurements'
 import type {
   BuiltInCardField,
   CardField,
@@ -124,6 +124,8 @@ export function getCardFieldDisplayValue(
     ].includes(field)
   )
     return formatDimension(value, dimensionUnit)
+  if (dimensionUnit && field === 'specs.weight')
+    return formatWeight(value, dimensionUnit)
   if (field === 'bladeStyle' || field === 'handleMaterial') return value
 
   const customField = field.startsWith('custom:')

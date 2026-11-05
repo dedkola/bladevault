@@ -5,8 +5,7 @@ import type {
   CustomField,
   DimensionUnit,
 } from '@/lib/settings-shared'
-import { formatDimension } from '@/lib/measurements'
-import { compactMeasurement } from '@/lib/compact-measurement'
+import { formatDimension, formatWeight } from '@/lib/measurements'
 
 export type CollectionColumnDefinition = {
   key: CollectionColumn
@@ -32,13 +31,13 @@ const defaultColumns: CollectionColumnDefinition[] = [
     key: 'blade',
     label: 'Blade',
     width: '48px',
-    getValue: (knife) => compactMeasurement(knife.specs.bladeLength),
+    getValue: (knife) => formatDimension(knife.specs.bladeLength),
   },
   {
     key: 'weight',
     label: 'Weight',
     width: '52px',
-    getValue: (knife) => compactMeasurement(knife.specs.weight),
+    getValue: (knife) => formatWeight(knife.specs.weight),
   },
   { key: 'status', label: 'Status', width: '88px', getValue: () => '' },
 ]
@@ -133,6 +132,7 @@ export function getCollectionColumns(
         'overallLength',
         'handleLength',
         'bladeThickness',
+        'weight',
       ].includes(specKey)
     )
       return column
@@ -140,10 +140,12 @@ export function getCollectionColumns(
       ...column,
       width: dimensionUnit === 'both' ? '160px' : column.width,
       getValue: (knife: Knife) =>
-        formatDimension(
-          knife.specs[specKey as keyof Knife['specs']],
-          dimensionUnit,
-        ),
+        specKey === 'weight'
+          ? formatWeight(knife.specs.weight, dimensionUnit)
+          : formatDimension(
+              knife.specs[specKey as keyof Knife['specs']],
+              dimensionUnit,
+            ),
     }
   })
 }

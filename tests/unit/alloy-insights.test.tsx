@@ -39,6 +39,26 @@ describe('Alloy Insights', () => {
     expect(chart).toHaveTextContent('76.2–82.55 mm / 3–3.25 in')
   })
 
+  it('switches the weight chart and data table to metric or dual units', async () => {
+    const user = userEvent.setup()
+    preference.dimensionUnit = 'mm'
+    const { rerender } = render(<InsightsPage />)
+    const measurements = screen.getByRole('region', {
+      name: /^Measurement distribution$/,
+    })
+    await user.click(
+      within(measurements).getByRole('button', { name: 'Weight' }),
+    )
+    expect(measurements).toHaveTextContent('52.447 g')
+    expect(measurements).not.toHaveTextContent('oz')
+    preference.dimensionUnit = 'both'
+    rerender(<InsightsPage />)
+    expect(measurements).toHaveTextContent('52.447 g / 1.85 oz')
+    await user.click(within(measurements).getByText('View distribution data'))
+    expect(within(measurements).getByRole('table')).toHaveTextContent('g /')
+    expect(within(measurements).getByRole('table')).toHaveTextContent('oz')
+  })
+
   it('keeps interactive measurement charts and accessible data in the Alloy view', async () => {
     const user = userEvent.setup()
     const { container } = render(<InsightsPage />)

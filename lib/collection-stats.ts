@@ -1,15 +1,18 @@
 import type { Knife, KnifeActivityEvent } from '@/lib/data'
 import type { DimensionUnit } from '@/lib/settings-shared'
-import { formatDimension } from '@/lib/measurements'
+import { formatDimension, formatWeight } from '@/lib/measurements'
 import {
+  GRAMS_PER_OUNCE,
   parseLengthToInches,
   parseLengthToMillimeters,
+  parseWeightToGrams,
   parseWeightToOunces,
 } from '@/lib/measurement-parser'
 
 export {
   parseLengthToInches,
   parseLengthToMillimeters,
+  parseWeightToGrams,
   parseWeightToOunces,
 } from '@/lib/measurement-parser'
 
@@ -42,7 +45,7 @@ export type MeasurementBin = {
 export type MeasurementStats = {
   key: MeasurementKey
   label: string
-  unit: 'in' | 'oz' | 'mm'
+  unit: 'in' | 'oz' | 'mm' | 'g'
   dimensionUnit?: DimensionUnit
   knownCount: number
   missingCount: number
@@ -332,14 +335,26 @@ function buildCategoryStats(
     )
 }
 
-function formatDimensionBin(
+function measurementConversionFactor(
+  from: MeasurementStats['unit'],
+  to: MeasurementStats['unit'],
+): number {
+  if (from === to) return 1
+  if (from === 'oz' && to === 'g') return GRAMS_PER_OUNCE
+  if (from === 'g' && to === 'oz') return 1 / GRAMS_PER_OUNCE
+  return to === 'mm' ? 25.4 : 1 / 25.4
+}
+
+function formatMeasurementBin(
   definition: MeasurementDefinition,
   index: number,
   dimensionUnit: DimensionUnit,
 ): string {
-  const range = (unit: 'in' | 'mm') => {
-    const factor =
-      definition.unit === unit ? 1 : unit === 'mm' ? 25.4 : 1 / 25.4
+  const isWeight = definition.key === 'weight'
+  const primaryUnit = isWeight ? 'g' : 'mm'
+  const secondaryUnit = isWeight ? 'oz' : 'in'
+  const range = (unit: MeasurementStats['unit']) => {
+    const factor = measurementConversionFactor(definition.unit, unit)
     const amount = (value: number) => Number((value * factor).toFixed(4))
     const lower = definition.boundaries[index - 1]
     const upper = definition.boundaries[index]
@@ -349,11 +364,11 @@ function formatDimensionBin(
         ? `${amount(lower)} ${unit}+`
         : `${amount(lower)}–${amount(upper)} ${unit}`
   }
-  if (dimensionUnit === 'both') return `${range('mm')} / ${range('in')}`
+  if (dimensionUnit === 'both')
+    return `${range(primaryUnit)} / ${range(secondaryUnit)}`
+  const unit = dimensionUnit === 'mm' ? primaryUnit : secondaryUnit
   // Keep familiar labels when the chosen unit matches the original chart.
-  return definition.unit === dimensionUnit
-    ? definition.labels[index]
-    : range(dimensionUnit)
+  return definition.unit === unit ? definition.labels[index] : range(unit)
 }
 
 export function formatStatsMeasurement(
@@ -361,8 +376,11 @@ export function formatStatsMeasurement(
   measurement: Pick<MeasurementStats, 'unit' | 'dimensionUnit'>,
 ): string {
   if (value === undefined) return '—'
-  if (measurement.unit === 'oz')
-    return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} oz`
+  if (measurement.unit === 'oz' || measurement.unit === 'g')
+    return formatWeight(
+      `${value} ${measurement.unit}`,
+      measurement.dimensionUnit ?? (measurement.unit === 'g' ? 'mm' : 'in'),
+    )
   return formatDimension(
     `${value} ${measurement.unit}`,
     measurement.dimensionUnit ?? measurement.unit,
@@ -374,20 +392,25 @@ function buildMeasurementStats(
   definition: MeasurementDefinition,
   dimensionUnit?: DimensionUnit,
 ): MeasurementStats {
-  const unit =
-    definition.unit === 'oz' || !dimensionUnit
-      ? definition.unit
+  const unit = !dimensionUnit
+    ? definition.unit
+    : definition.key === 'weight'
+      ? dimensionUnit === 'in'
+        ? 'oz'
+        : 'g'
       : dimensionUnit === 'in'
         ? 'in'
         : 'mm'
-  const factor = unit === definition.unit ? 1 : unit === 'mm' ? 25.4 : 1 / 25.4
+  const factor = measurementConversionFactor(definition.unit, unit)
   const boundaries = definition.boundaries.map((boundary) => boundary * factor)
   const parse =
     unit === 'oz'
       ? parseWeightToOunces
-      : unit === 'in'
-        ? parseLengthToInches
-        : parseLengthToMillimeters
+      : unit === 'g'
+        ? parseWeightToGrams
+        : unit === 'in'
+          ? parseLengthToInches
+          : parseLengthToMillimeters
   const values: Array<{ value: number; knifeId: string }> = []
   let missingCount = 0
   let uninterpretableCount = 0
@@ -424,7 +447,7 @@ function buildMeasurementStats(
     key: definition.key,
     label: definition.label,
     unit,
-    dimensionUnit: definition.unit === 'oz' ? undefined : dimensionUnit,
+    dimensionUnit,
     knownCount: values.length,
     missingCount,
     uninterpretableCount,
@@ -435,10 +458,9 @@ function buildMeasurementStats(
     max: sortedValues.at(-1),
     bins: bins.map((bin, index) => ({
       ...bin,
-      label:
-        definition.unit === 'oz' || !dimensionUnit
-          ? bin.label
-          : formatDimensionBin(definition, index, dimensionUnit),
+      label: !dimensionUnit
+        ? bin.label
+        : formatMeasurementBin(definition, index, dimensionUnit),
     })),
   }
 }
