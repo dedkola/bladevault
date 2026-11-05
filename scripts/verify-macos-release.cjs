@@ -2,7 +2,7 @@ const { spawnSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 
-function exec(command, args, { allowUnsigned = false } = {}) {
+function exec(command, args) {
   const result = spawnSync(command, args, {
     encoding: 'utf8',
     stdio: 'pipe',
@@ -10,19 +10,7 @@ function exec(command, args, { allowUnsigned = false } = {}) {
 
   const output = `${result.stdout || ''}${result.stderr || ''}`.trim()
 
-  if (result.error) {
-    throw result.error
-  }
-
   if (result.status !== 0) {
-    if (
-      allowUnsigned &&
-      result.status === 1 &&
-      /(?:^|\n|: )code object is not signed at all$/.test(output)
-    ) {
-      return output
-    }
-
     const message = output || `${command} exited with status ${result.status}`
     throw new Error(message)
   }
@@ -64,11 +52,7 @@ function main() {
   const isSignedRelease = process.env.BLADEVAULT_MAC_SIGN === '1'
 
   console.log(`Inspecting ${appPath}`)
-  console.log(
-    exec('codesign', ['-dv', '--verbose=4', appPath], {
-      allowUnsigned: !isSignedRelease,
-    }),
-  )
+  console.log(exec('codesign', ['-dv', '--verbose=4', appPath]))
 
   if (!isSignedRelease) {
     console.log('')
