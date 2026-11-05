@@ -16,11 +16,18 @@ vi.mock('next/image', () => ({
   default: function MockNextImage(props: ComponentProps<typeof NextImage>) {
     const [loads, setLoads] = useState(0)
     imageProps(props)
+    const source = typeof props.src === 'string' ? props.src : '/static.png'
+    const optimized =
+      !props.unoptimized &&
+      source.startsWith('/api/images/') &&
+      !source.split('?')[0].endsWith('.svg')
     return (
       // eslint-disable-next-line @next/next/no-img-element -- NextImage test double.
       <img
         ref={props.ref}
-        src={typeof props.src === 'string' ? props.src : '/static.png'}
+        src={
+          optimized ? `/_next/image?url=${encodeURIComponent(source)}` : source
+        }
         alt={props.alt}
         data-unoptimized={String(props.unoptimized)}
         data-loads={loads}
@@ -28,6 +35,7 @@ vi.mock('next/image', () => ({
           setLoads((value) => value + 1)
           props.onLoad?.(event)
         }}
+        onError={props.onError}
       />
     )
   },
@@ -126,6 +134,131 @@ describe('authenticated vault images', () => {
       src: source,
       unoptimized: true,
     })
+  })
+
+  it('retries a failed local optimization with its original before reporting an error', () => {
+    const ref = createRef<HTMLImageElement>()
+    const onError = vi.fn()
+    const onLoad = vi.fn()
+    render(
+      <VaultImage
+        ref={ref}
+        src={localSource}
+        alt="Large original"
+        width={100}
+        height={100}
+        onError={onError}
+        onLoad={onLoad}
+      />,
+    )
+
+    const image = screen.getByRole('img', { name: 'Large original' })
+    fireEvent.error(image)
+    expect(image).toHaveAttribute('data-unoptimized', 'true')
+    expect(image).toHaveAttribute('src', localSource)
+    expect(ref.current).toBe(image)
+    expect(onError).not.toHaveBeenCalled()
+    fireEvent.load(image)
+    expect(onLoad).toHaveBeenCalledOnce()
+
+    fireEvent.error(image)
+    expect(onError).toHaveBeenCalledOnce()
+    expect(image).toHaveAttribute('data-unoptimized', 'true')
+  })
+
+  it('keeps optimization available when the image source changes', () => {
+    const props = { alt: 'Knife', width: 100, height: 100 }
+    const { rerender } = render(<VaultImage {...props} src={localSource} />)
+    fireEvent.error(screen.getByRole('img', { name: 'Knife' }))
+    expect(imageProps.mock.lastCall?.[0].unoptimized).toBe(true)
+
+    rerender(
+      <VaultImage
+        {...props}
+        src="/api/images/knife/image-02.webp?vault=vault-1"
+      />,
+    )
+    expect(imageProps.mock.lastCall?.[0].unoptimized).toBeUndefined()
+
+    rerender(
+      <VaultImage
+        {...props}
+        src="/api/images/knife/image-01.webp?vault=vault-2"
+      />,
+    )
+    expect(imageProps.mock.lastCall?.[0].unoptimized).toBeUndefined()
+  })
+
+  it.each([
+    { src: localSource, unoptimized: true, appLockEnabled: false },
+    { src: localSource, unoptimized: false, appLockEnabled: true },
+    {
+      src: 'https://cdn.example.com/knife.webp',
+      unoptimized: false,
+      appLockEnabled: false,
+    },
+  ])(
+    'reports errors without retrying an original or external image (%j)',
+    (props) => {
+      setVaultClientState({ ...status, appLockEnabled: props.appLockEnabled })
+      const onError = vi.fn()
+      render(
+        <VaultImage
+          src={props.src}
+          unoptimized={props.unoptimized}
+          alt="Failed image"
+          width={100}
+          height={100}
+          onError={onError}
+        />,
+      )
+      const originalOptimization = imageProps.mock.lastCall?.[0].unoptimized
+
+      fireEvent.error(screen.getByRole('img', { name: 'Failed image' }))
+      expect(onError).toHaveBeenCalledOnce()
+      expect(imageProps.mock.lastCall?.[0].unoptimized).toBe(
+        originalOptimization,
+      )
+    },
+  )
+
+  it('reports a local SVG error without retrying its already-original source', () => {
+    const onError = vi.fn()
+    const src = '/api/images/knife/image-01.svg?vault=vault-1'
+    render(
+      <VaultImage
+        src={src}
+        alt="SVG"
+        width={100}
+        height={100}
+        onError={onError}
+      />,
+    )
+    const image = screen.getByRole('img', { name: 'SVG' })
+    expect(image).toHaveAttribute('src', src)
+
+    fireEvent.error(image)
+    expect(onError).toHaveBeenCalledOnce()
+    expect(imageProps.mock.lastCall?.[0].unoptimized).toBeUndefined()
+  })
+
+  it('reports an already-original local request error when optimization is disabled elsewhere', () => {
+    const onError = vi.fn()
+    render(
+      <VaultImage
+        src={localSource}
+        alt="Original"
+        width={100}
+        height={100}
+        onError={onError}
+      />,
+    )
+    const image = screen.getByRole('img', { name: 'Original' })
+    image.setAttribute('src', localSource)
+
+    fireEvent.error(image)
+    expect(onError).toHaveBeenCalledOnce()
+    expect(imageProps.mock.lastCall?.[0].unoptimized).toBeUndefined()
   })
 
   it('updates optimization when the lock changes without remounting the image or losing its state', () => {

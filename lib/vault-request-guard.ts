@@ -2,6 +2,7 @@ import { requireAppUnlock } from '@/lib/app-lock'
 import {
   assertVaultGeneration,
   getVaultAccessState,
+  getVaultGeneration,
   VAULT_GENERATION_HEADER,
   VaultAccessError,
   vaultAccessErrorResponse,
@@ -35,4 +36,19 @@ export function guardUnproxiedVaultRequest(request: Request): Response | null {
     throw error
   }
   return null
+}
+
+export async function withUnproxiedVaultRequest<T extends Response>(
+  request: Request,
+  action: () => Promise<T>,
+): Promise<T | Response> {
+  const blocked = guardUnproxiedVaultRequest(request)
+  if (blocked) return blocked
+
+  // Capture before the action, as the proxy does. The browser uses this to
+  // discard responses from a different vault after a restore.
+  const generation = getVaultGeneration()
+  const response = await action()
+  response.headers.set(VAULT_GENERATION_HEADER, generation)
+  return response
 }
