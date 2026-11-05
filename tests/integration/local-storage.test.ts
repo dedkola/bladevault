@@ -29,6 +29,7 @@ const baseInput: CreateKnifeInput = {
 }
 
 afterEach(async () => {
+  vi.restoreAllMocks()
   vi.useRealTimers()
   await vault?.cleanup()
   vault = null
@@ -127,6 +128,52 @@ describe('LocalStorage', () => {
     await expect(
       fs.readFile(path.join(vault.dataDir, 'images', first.images[0]), 'utf8'),
     ).resolves.toBe('hello')
+  })
+
+  it('rejects creation when an uploaded photo cannot be written', async () => {
+    vault = await createTempVault()
+    const storage = new LocalStorage()
+    vi.spyOn(fs, 'writeFile').mockRejectedValueOnce(new Error('Disk full'))
+
+    await expect(
+      storage.createKnife({
+        ...baseInput,
+        imageUrls: ['data:image/png;base64,aGVsbG8='],
+      }),
+    ).rejects.toThrow('Disk full')
+
+    expect(await storage.getAllKnives()).toEqual([])
+    expect(await storage.getKnifeActivity()).toEqual([])
+    expect(await storage.getAuditLog()).toEqual([])
+  })
+
+  it('preserves the saved record when an uploaded photo cannot be written', async () => {
+    vault = await createTempVault()
+    const storage = new LocalStorage()
+    const knife = await storage.createKnife({
+      ...baseInput,
+      imageUrls: ['data:image/png;base64,aGVsbG8='],
+    })
+    const activity = await storage.getKnifeActivity()
+    const audit = await storage.getAuditLog()
+    vi.spyOn(fs, 'writeFile').mockRejectedValueOnce(new Error('Disk full'))
+
+    await expect(
+      storage.updateKnife(knife.id, {
+        name: 'Changed name',
+        images: [...knife.images, 'data:image/png;base64,bmV3IHBob3Rv'],
+      }),
+    ).rejects.toThrow('Disk full')
+
+    expect(await storage.getKnifeById(knife.id)).toEqual(knife)
+    expect(await storage.getKnifeActivity()).toEqual(activity)
+    expect(await storage.getAuditLog()).toEqual(audit)
+    await expect(
+      fs.readFile(path.join(vault.dataDir, 'images', knife.images[0]), 'utf8'),
+    ).resolves.toBe('hello')
+    expect(
+      await fs.readdir(path.join(vault.dataDir, 'images', knife.id)),
+    ).toEqual(['image-01.png'])
   })
 
   it('merges partial updates and applies bulk changes atomically', async () => {

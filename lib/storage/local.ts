@@ -581,7 +581,11 @@ export class LocalStorage implements Storage {
           }
           imagePaths.push(relativePath)
         } catch (error) {
-          if (isScreenshotDraft(orderedImages[i])) throw error
+          if (
+            isScreenshotDraft(orderedImages[i]) ||
+            orderedImages[i].startsWith('data:image')
+          )
+            throw error
           // Skip product images that fail to download.
         }
       }
@@ -704,13 +708,9 @@ export class LocalStorage implements Storage {
           continue
         }
         if (src.startsWith('data:image')) {
-          try {
-            const relativePath = await this.saveDataUrl(src, id, nextIndex)
-            processedImages.push(relativePath)
-            nextIndex += 1
-          } catch {
-            // Skip images that fail to decode.
-          }
+          const relativePath = await this.saveDataUrl(src, id, nextIndex)
+          processedImages.push(relativePath)
+          nextIndex += 1
         } else if (src.startsWith('http://') || src.startsWith('https://')) {
           if (existingExternalUrls.has(src)) {
             processedImages.push(src)
