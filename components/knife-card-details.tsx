@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import type { getVisibleCardFields } from '@/lib/card-fields'
 import { CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import type { DimensionUnit } from '@/lib/settings-shared'
 
 /** Shared presentation for collection cards and the noninteractive settings preview. */
 export function KnifeCardDetails({
@@ -10,6 +11,7 @@ export function KnifeCardDetails({
   modelNumber,
   fields,
   bladeLength,
+  dimensionUnit,
   compact = false,
   variantLabel,
   sold = false,
@@ -20,6 +22,7 @@ export function KnifeCardDetails({
   modelNumber?: string
   fields: ReturnType<typeof getVisibleCardFields>
   bladeLength: string
+  dimensionUnit?: DimensionUnit
   compact?: boolean
   variantLabel?: string
   sold?: boolean
@@ -91,7 +94,7 @@ export function KnifeCardDetails({
       >
         <span
           className={cn(
-            'truncate',
+            dimensionUnit === 'both' ? 'py-1' : 'truncate',
             // Compact cards hide their fields on phones, so keep the footer there.
             lengthInFields && (compact ? 'sm:hidden' : 'hidden'),
           )}

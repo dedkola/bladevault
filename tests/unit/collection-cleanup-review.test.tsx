@@ -21,6 +21,7 @@ const state = vi.hoisted(() => ({
   bulkUpdateKnives: vi.fn(),
   refreshVault: vi.fn(),
   showFeedback: vi.fn(),
+  dimensionUnit: 'in' as 'in' | 'mm' | 'both',
 }))
 vi.mock('@/components/providers/knives-provider', () => ({
   useKnives: () => state,
@@ -29,6 +30,7 @@ vi.mock('@/components/insights-chart', () => ({ InsightsChart: () => <div /> }))
 
 beforeEach(() => {
   state.knives = []
+  state.dimensionUnit = 'in'
   state.bulkUpdateKnives.mockReset().mockResolvedValue([])
   state.refreshVault.mockReset().mockResolvedValue(undefined)
   state.showFeedback.mockReset()
@@ -112,9 +114,7 @@ describe('guided cleanup review', () => {
       name: 'Blade thickness',
     })
     await user.type(input, '.090 inches')
-    expect(screen.getByRole('status')).toHaveTextContent(
-      '2.286 mm — understood',
-    )
+    expect(screen.getByRole('status')).toHaveTextContent('0.09 in — understood')
     await user.click(screen.getByRole('button', { name: 'Save and next' }))
     expect(state.bulkUpdateKnives).toHaveBeenCalledWith(
       ['first'],

@@ -1,4 +1,17 @@
 import type { Knife, KnifeActivityEvent } from '@/lib/data'
+import type { DimensionUnit } from '@/lib/settings-shared'
+import { formatDimension } from '@/lib/measurements'
+import {
+  parseLengthToInches,
+  parseLengthToMillimeters,
+  parseWeightToOunces,
+} from '@/lib/measurement-parser'
+
+export {
+  parseLengthToInches,
+  parseLengthToMillimeters,
+  parseWeightToOunces,
+} from '@/lib/measurement-parser'
 
 export type StatsPeriod = 'all' | 'year' | 'twelve-months'
 
@@ -30,6 +43,7 @@ export type MeasurementStats = {
   key: MeasurementKey
   label: string
   unit: 'in' | 'oz' | 'mm'
+  dimensionUnit?: DimensionUnit
   knownCount: number
   missingCount: number
   uninterpretableCount: number
@@ -148,78 +162,6 @@ const IMPORTANT_FIELDS: Array<
     getValue: (knife) => knife.specs.weight,
   },
 ]
-
-function parseNumber(value: string): number | undefined {
-  const fraction = value.match(/^([+-]?)(?:(\d+)\s+)?(\d+)\s*\/\s*(\d+)$/)
-  if (fraction) {
-    const denominator = Number(fraction[4])
-    if (!Number.isFinite(denominator) || denominator === 0) return undefined
-    const magnitude =
-      Number(fraction[2] ?? 0) + Number(fraction[3]) / denominator
-    if (!Number.isFinite(magnitude)) return undefined
-    return fraction[1] === '-' ? -magnitude : magnitude
-  }
-
-  const parsed = Number(value.replace(',', '.'))
-  return Number.isFinite(parsed) ? parsed : undefined
-}
-
-function measurementPattern(unit: string): RegExp {
-  // Match a complete decimal or fraction, never the tail of malformed notation.
-  const amount = String.raw`[+-]?(?:\d+\s+\d+\s*\/\s*\d+|\d+\s*\/\s*\d+|\d+(?:[.,]\d+)?|[.,]\d+)`
-  return new RegExp(String.raw`(?<![\w.,/+-])(${amount})\s*(?:${unit})`, 'i')
-}
-
-const MEASUREMENT_PATTERNS = {
-  inches: measurementPattern(String.raw`in(?:ch(?:es)?)?\b\.?|["″]`),
-  millimeters: measurementPattern(String.raw`mm\b`),
-  centimeters: measurementPattern(String.raw`cm\b`),
-  ounces: measurementPattern(String.raw`(?:oz|ounces?)\b`),
-  kilograms: measurementPattern(String.raw`kg\b`),
-  pounds: measurementPattern(String.raw`(?:lb|lbs|pounds?)\b`),
-  grams: measurementPattern(String.raw`(?:g|grams?)\b`),
-}
-
-function matchMeasurement(value: string, pattern: RegExp): number | undefined {
-  const match = value.match(pattern)
-  return match?.[1] ? parseNumber(match[1]) : undefined
-}
-
-export function parseLengthToInches(value: string): number | undefined {
-  const inches = matchMeasurement(value, MEASUREMENT_PATTERNS.inches)
-  if (inches !== undefined) return inches
-
-  const millimeters = matchMeasurement(value, MEASUREMENT_PATTERNS.millimeters)
-  if (millimeters !== undefined) return millimeters / 25.4
-
-  const centimeters = matchMeasurement(value, MEASUREMENT_PATTERNS.centimeters)
-  return centimeters === undefined ? undefined : centimeters / 2.54
-}
-
-export function parseLengthToMillimeters(value: string): number | undefined {
-  const millimeters = matchMeasurement(value, MEASUREMENT_PATTERNS.millimeters)
-  if (millimeters !== undefined) return millimeters
-
-  const centimeters = matchMeasurement(value, MEASUREMENT_PATTERNS.centimeters)
-  if (centimeters !== undefined) return centimeters * 10
-
-  const inches = parseLengthToInches(value)
-  return inches === undefined ? undefined : inches * 25.4
-}
-
-export function parseWeightToOunces(value: string): number | undefined {
-  const ounces = matchMeasurement(value, MEASUREMENT_PATTERNS.ounces)
-  if (ounces !== undefined) return ounces
-
-  const kilograms = matchMeasurement(value, MEASUREMENT_PATTERNS.kilograms)
-  if (kilograms !== undefined) return kilograms * 35.27396195
-
-  const pounds = matchMeasurement(value, MEASUREMENT_PATTERNS.pounds)
-  if (pounds !== undefined) return pounds * 16
-
-  const grams = matchMeasurement(value, MEASUREMENT_PATTERNS.grams)
-  return grams === undefined ? undefined : grams / 28.349523125
-}
 
 const MEASUREMENT_DEFINITIONS: MeasurementDefinition[] = [
   {
@@ -390,10 +332,62 @@ function buildCategoryStats(
     )
 }
 
+function formatDimensionBin(
+  definition: MeasurementDefinition,
+  index: number,
+  dimensionUnit: DimensionUnit,
+): string {
+  const range = (unit: 'in' | 'mm') => {
+    const factor =
+      definition.unit === unit ? 1 : unit === 'mm' ? 25.4 : 1 / 25.4
+    const amount = (value: number) => Number((value * factor).toFixed(4))
+    const lower = definition.boundaries[index - 1]
+    const upper = definition.boundaries[index]
+    return lower === undefined
+      ? `< ${amount(upper)} ${unit}`
+      : upper === undefined
+        ? `${amount(lower)} ${unit}+`
+        : `${amount(lower)}–${amount(upper)} ${unit}`
+  }
+  if (dimensionUnit === 'both') return `${range('mm')} / ${range('in')}`
+  // Keep familiar labels when the chosen unit matches the original chart.
+  return definition.unit === dimensionUnit
+    ? definition.labels[index]
+    : range(dimensionUnit)
+}
+
+export function formatStatsMeasurement(
+  value: number | undefined,
+  measurement: Pick<MeasurementStats, 'unit' | 'dimensionUnit'>,
+): string {
+  if (value === undefined) return '—'
+  if (measurement.unit === 'oz')
+    return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} oz`
+  return formatDimension(
+    `${value} ${measurement.unit}`,
+    measurement.dimensionUnit ?? measurement.unit,
+  )
+}
+
 function buildMeasurementStats(
   knives: Knife[],
   definition: MeasurementDefinition,
+  dimensionUnit?: DimensionUnit,
 ): MeasurementStats {
+  const unit =
+    definition.unit === 'oz' || !dimensionUnit
+      ? definition.unit
+      : dimensionUnit === 'in'
+        ? 'in'
+        : 'mm'
+  const factor = unit === definition.unit ? 1 : unit === 'mm' ? 25.4 : 1 / 25.4
+  const boundaries = definition.boundaries.map((boundary) => boundary * factor)
+  const parse =
+    unit === 'oz'
+      ? parseWeightToOunces
+      : unit === 'in'
+        ? parseLengthToInches
+        : parseLengthToMillimeters
   const values: Array<{ value: number; knifeId: string }> = []
   let missingCount = 0
   let uninterpretableCount = 0
@@ -404,7 +398,7 @@ function buildMeasurementStats(
       missingCount += 1
       continue
     }
-    const value = definition.parse(rawValue)
+    const value = parse(rawValue)
     if (value !== undefined && Number.isFinite(value) && value >= 0)
       values.push({ value, knifeId: knife.id })
     else uninterpretableCount += 1
@@ -419,9 +413,7 @@ function buildMeasurementStats(
   }))
 
   for (const entry of values) {
-    const binIndex = definition.boundaries.findIndex(
-      (boundary) => entry.value < boundary,
-    )
+    const binIndex = boundaries.findIndex((boundary) => entry.value < boundary)
     const target = bins[binIndex === -1 ? bins.length - 1 : binIndex]
     if (!target) continue
     target.count += 1
@@ -431,7 +423,8 @@ function buildMeasurementStats(
   return {
     key: definition.key,
     label: definition.label,
-    unit: definition.unit,
+    unit,
+    dimensionUnit: definition.unit === 'oz' ? undefined : dimensionUnit,
     knownCount: values.length,
     missingCount,
     uninterpretableCount,
@@ -440,7 +433,13 @@ function buildMeasurementStats(
     median: quantile(sortedValues, 0.5),
     q3: quantile(sortedValues, 0.75),
     max: sortedValues.at(-1),
-    bins,
+    bins: bins.map((bin, index) => ({
+      ...bin,
+      label:
+        definition.unit === 'oz' || !dimensionUnit
+          ? bin.label
+          : formatDimensionBin(definition, index, dimensionUnit),
+    })),
   }
 }
 
@@ -571,6 +570,7 @@ export function createCollectionStats(
   period: StatsPeriod,
   now = new Date(),
   recordedActivity?: KnifeActivityEvent[],
+  dimensionUnit?: DimensionUnit,
 ): CollectionStats {
   const knives = filterKnivesByStatsPeriod(allKnives, period, now)
   const activityEvents =
@@ -589,7 +589,7 @@ export function createCollectionStats(
   const measurements = Object.fromEntries(
     MEASUREMENT_DEFINITIONS.map((definition) => [
       definition.key,
-      buildMeasurementStats(knives, definition),
+      buildMeasurementStats(knives, definition, dimensionUnit),
     ]),
   ) as Record<MeasurementKey, MeasurementStats>
   const { completeness, missingFields } = buildCompleteness(knives)

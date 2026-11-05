@@ -33,6 +33,7 @@ import { getImageUrl, type Knife, type KnifeActivityEvent } from '@/lib/data'
 import {
   collapseCategories,
   createCollectionStats,
+  formatStatsMeasurement,
   type CategoryKey,
   type CategoryStat,
   type MeasurementKey,
@@ -519,7 +520,12 @@ export function getHistogramOption(
   const peakCount = Math.max(0, ...measurement.bins.map(({ count }) => count))
   return {
     animation: false,
-    grid: { left: 12, right: 12, top: 20, bottom: 48 },
+    grid: {
+      left: 12,
+      right: 12,
+      top: 20,
+      bottom: measurement.dimensionUnit === 'both' ? 60 : 48,
+    },
     tooltip: {
       trigger: 'axis',
       axisPointer: {
@@ -540,7 +546,9 @@ export function getHistogramOption(
     xAxis: {
       type: 'category',
       data: measurement.bins.map(({ label }) =>
-        formatMeasurementAxisLabel(label).replace('–', '–\n'),
+        measurement.dimensionUnit === 'both'
+          ? label.replace(' / ', '\n')
+          : formatMeasurementAxisLabel(label).replace('–', '–\n'),
       ),
       axisTick: { show: false },
       axisLine: { lineStyle: { color: palette.line } },
@@ -795,7 +803,7 @@ export function DrilldownKnife({ knife }: { knife: Knife }) {
 }
 
 export function CollectionInsights() {
-  const { knives, isLoading } = useKnives()
+  const { knives, isLoading, dimensionUnit = 'in' } = useKnives()
   const [activity, setActivity] = useState<KnifeActivityEvent[]>()
   const [isActivityLoaded, setIsActivityLoaded] = useState(false)
   const [measurementKey, setMeasurementKey] =
@@ -907,8 +915,8 @@ export function CollectionInsights() {
   }, [isActivityLoaded, isLoading])
 
   const allTimeStats = useMemo(
-    () => createCollectionStats(knives, 'all', now, activity),
-    [activity, knives, now],
+    () => createCollectionStats(knives, 'all', now, activity, dimensionUnit),
+    [activity, knives, now, dimensionUnit],
   )
   const stats = allTimeStats
   const knivesById = useMemo(
@@ -1594,7 +1602,10 @@ export function CollectionInsights() {
                     getHistogramOption(measurement, palette)
                   }
                   ariaLabel={`${measurement.label} distribution`}
-                  className="h-52 min-w-[560px] w-full cursor-pointer"
+                  className={cn(
+                    'h-52 min-w-[560px] w-full cursor-pointer',
+                    measurement.dimensionUnit === 'both' && 'min-w-[1000px]',
+                  )}
                   onChartAreaClick={(event) =>
                     openMeasurementBin(
                       measurement,
@@ -1611,7 +1622,7 @@ export function CollectionInsights() {
                 measurement={measurement}
                 onSelect={(bin) => openMeasurementBin(measurement, bin)}
               />
-              <div className="mt-2 flex justify-between text-[10px] xl:text-xs text-muted-foreground">
+              <div className="mt-2 flex flex-wrap justify-between gap-2 text-[10px] xl:text-xs text-muted-foreground">
                 <span>
                   Most common{' '}
                   <strong className="text-foreground">
@@ -1623,8 +1634,8 @@ export function CollectionInsights() {
                 <span>
                   Range{' '}
                   <strong className="text-foreground">
-                    {formatMetric(measurement.min, measurement.unit)}–
-                    {formatMetric(measurement.max, measurement.unit)}
+                    {formatStatsMeasurement(measurement.min, measurement)}–
+                    {formatStatsMeasurement(measurement.max, measurement)}
                   </strong>
                 </span>
               </div>

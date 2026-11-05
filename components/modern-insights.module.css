@@ -155,6 +155,42 @@
   font-weight: 400;
   letter-spacing: 0;
 }
+.dualMeasurement {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.metricValue > .dualMeasurement {
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+}
+.primaryDimension,
+.rangeDimension {
+  white-space: nowrap;
+}
+.rangeDimension {
+  display: block;
+}
+.primaryDimension small,
+.secondaryDimension {
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: var(--modern-font-body);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.secondaryDimension {
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.dualSummary {
+  flex-wrap: wrap;
+}
+.dualSummary > .summaryAside {
+  margin-left: auto;
+}
 .summaryAside {
   text-align: right;
   padding-bottom: 2px;

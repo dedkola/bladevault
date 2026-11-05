@@ -40,6 +40,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+import { useKnives } from '@/components/providers/knives-provider'
+import { DimensionInput } from '@/components/dimension-input'
 
 export type KnifeFormData = {
   brand: string
@@ -274,6 +276,7 @@ export function KnifeFormFields({
   wideLayout = false,
   showSold = false,
 }: KnifeFormFieldsProps) {
+  const { dimensionUnit } = useKnives()
   const imageInputRef = useRef<HTMLInputElement>(null)
   const formId = useId()
   const [isDraggingImages, setIsDraggingImages] = useState(false)
@@ -356,12 +359,27 @@ export function KnifeFormFields({
         </div>
       </FormSection>
 
-      <FormSection title="Dimensions">
+      <FormSection
+        title="Dimensions"
+        description="Enter a length in either unit; the other is calculated automatically. Choose inches, millimeters, or both in Settings → Appearance."
+      >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {inputField('Overall Length', 'overallLength', 'e.g. 8.33 in')}
-          {inputField('Blade Length', 'bladeLength', 'e.g. 3.61 in')}
-          {inputField('Blade Thickness', 'bladeThickness', 'e.g. 3.7 mm')}
-          {inputField('Handle Length', 'handleLength', 'e.g. 3.77 in')}
+          {(
+            [
+              ['Overall Length', 'overallLength'],
+              ['Blade Length', 'bladeLength'],
+              ['Blade Thickness', 'bladeThickness'],
+              ['Handle Length', 'handleLength'],
+            ] as const
+          ).map(([label, field]) => (
+            <DimensionInput
+              key={field}
+              label={label}
+              value={form[field]}
+              onChange={(value) => updateField(field, value)}
+              dimensionUnit={dimensionUnit}
+            />
+          ))}
           {inputField('Weight', 'weight', 'e.g. 4.7 oz')}
         </div>
       </FormSection>

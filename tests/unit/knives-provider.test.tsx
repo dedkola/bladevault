@@ -53,6 +53,7 @@ function ProviderConsumer({ page = 'Settings' }: { page?: string }) {
   const {
     addToCompare,
     cloudBackupJob,
+    dimensionUnit,
     isLoading,
     scheduleVaultBackup,
     startVaultBackup,
@@ -63,6 +64,7 @@ function ProviderConsumer({ page = 'Settings' }: { page?: string }) {
     <div>
       <h1>{page}</h1>
       <span>{isLoading ? 'loading' : 'ready'}</span>
+      <span data-testid="dimension-unit">{dimensionUnit}</span>
       <span data-testid="backup-status">{cloudBackupJob.status}</span>
       <button onClick={() => void updateKnife('knife', { brand: 'Changed' })}>
         Edit
@@ -141,6 +143,7 @@ describe('KnivesProvider background backup', () => {
               cloudAutoBackupEnabled: true,
               pinnedItemsFirst: true,
               timeFormat: '12h',
+              dimensionUnit: 'mm',
               cardFields: ['bladeStyle', 'handleMaterial'],
               customFields: [],
             },
@@ -185,6 +188,27 @@ describe('KnivesProvider background backup', () => {
       syncedAt: '2026-10-08T11:00:00.000Z',
     }
   }
+
+  it('loads dimension units and updates consumers when the preference changes', async () => {
+    await renderProvider()
+    expect(screen.getByTestId('dimension-unit')).toHaveTextContent('mm')
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent(SETTINGS_UPDATED_EVENT, {
+          detail: { dimensionUnit: 'both' },
+        }),
+      )
+    })
+    expect(screen.getByTestId('dimension-unit')).toHaveTextContent('both')
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent(SETTINGS_UPDATED_EVENT, {
+          detail: { dimensionUnit: 'cm' },
+        }),
+      )
+    })
+    expect(screen.getByTestId('dimension-unit')).toHaveTextContent('in')
+  })
 
   it('coalesces content edits into one backup after 30 quiet seconds', async () => {
     await renderProvider()

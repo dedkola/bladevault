@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   showFeedback: vi.fn(),
   choose: vi.fn(),
   membershipCount: vi.fn(),
+  dimensionUnit: 'in' as 'in' | 'mm' | 'both',
 }))
 
 vi.mock('@/components/providers/knives-provider', () => ({
@@ -27,6 +28,7 @@ vi.mock('@/components/providers/comparisons-provider', () => ({
 }))
 
 beforeEach(() => {
+  state.dimensionUnit = 'in'
   state.updateKnife.mockReset().mockResolvedValue(undefined)
   state.showFeedback.mockReset()
   state.choose.mockReset().mockResolvedValue(undefined)
@@ -35,7 +37,7 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('Alloy collection cards', () => {
-  it('keeps original units and comparison list selection while inspecting separately', async () => {
+  it('keeps preferred units and comparison list selection while inspecting separately', async () => {
     const user = userEvent.setup()
     const knife = createKnife({
       specs: {
@@ -56,6 +58,24 @@ describe('Alloy collection cards', () => {
       screen.getByRole('button', { name: 'Inspect Benchmade Bugout' }),
     )
     expect(onOpen).toHaveBeenCalledWith(knife)
+  })
+
+  it('updates metric and dual-unit captions from settings while keeping weight unchanged', () => {
+    const knife = createKnife({
+      specs: { ...createKnife().specs, bladeLength: '3.5 in' },
+    })
+    state.dimensionUnit = 'mm'
+    const { rerender } = render(
+      <AlloyCollectionCard knife={knife} onOpen={vi.fn()} onSelect={vi.fn()} />,
+    )
+    expect(screen.getByText('CPM-S30V · 88.9 mm · 1.85 oz')).toBeVisible()
+    state.dimensionUnit = 'both'
+    rerender(
+      <AlloyCollectionCard knife={knife} onOpen={vi.fn()} onSelect={vi.fn()} />,
+    )
+    expect(
+      screen.getByText('CPM-S30V · 88.9 mm / 3.5 in · 1.85 oz'),
+    ).toBeVisible()
   })
 
   it('reports a failed pin without converting it into a successful update', async () => {

@@ -20,7 +20,12 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), back: vi.fn() }),
 }))
 vi.mock('@/components/providers/knives-provider', () => ({
-  useKnives: () => ({ addKnife, knives: [], isLoading: false }),
+  useKnives: () => ({
+    addKnife,
+    knives: [],
+    isLoading: false,
+    dimensionUnit: 'both',
+  }),
 }))
 
 const html = `<html><body><main><h1>Native Chief</h1><p>Blade: CTS BD1N</p></main>
@@ -92,6 +97,85 @@ describe('Add knife scrape controls', () => {
     await screen.findByDisplayValue('Native Chief')
     return user
   }
+
+  it('separates imported units in the form and saves the original measurement', async () => {
+    const originalFetch = vi.mocked(fetch).getMockImplementation()!
+    vi.mocked(fetch).mockImplementation((input, init) =>
+      String(input) === '/api/scrape'
+        ? Promise.resolve(
+            json({
+              product: {
+                ...product,
+                specs: {
+                  ...product.specs,
+                  bladeLength: "3.52''/89.4mm",
+                  overallLength: '203.2 mm',
+                },
+              },
+              html,
+            }),
+          )
+        : originalFetch(input, init),
+    )
+    const user = await scrape()
+    expect(
+      screen.getByRole('textbox', { name: 'Blade Length (in)' }),
+    ).toHaveValue('3.52')
+    expect(
+      screen.getByRole('textbox', { name: 'Blade Length (mm)' }),
+    ).toHaveValue('89.4')
+    expect(
+      screen.getByRole('textbox', { name: 'Overall Length (in)' }),
+    ).toHaveValue('8')
+    await user.click(screen.getByRole('button', { name: 'Save Item' }))
+    await waitFor(() =>
+      expect(addKnife).toHaveBeenCalledWith(
+        expect.objectContaining({
+          specs: expect.objectContaining({
+            bladeLength: "3.52''/89.4mm",
+            overallLength: '203.2 mm',
+          }),
+        }),
+      ),
+    )
+  })
+
+  it('preserves a saved dimension during scrape enrichment and saves edits from mm', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(
+      <KnifeScrapeEditor
+        initialData={{
+          ...EMPTY_KNIFE_FORM,
+          name: 'My knife',
+          bladeLength: '3.5 in',
+          sourceUrl: product.sourceUrl,
+        }}
+        mode="edit"
+        title="Edit knife"
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Scrape' }))
+    await screen.findByTitle('Scraped page preview')
+    expect(
+      screen.getByRole('textbox', { name: 'Blade Length (mm)' }),
+    ).toHaveValue('88.9')
+    const mm = screen.getByRole('textbox', { name: 'Blade Length (mm)' })
+    await user.clear(mm)
+    await user.type(mm, '101.6')
+    expect(
+      screen.getByRole('textbox', { name: 'Blade Length (in)' }),
+    ).toHaveValue('4')
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ bladeLength: '101.6 mm' }),
+        expect.any(Set),
+      ),
+    )
+  })
 
   it.each(['request', 'response body'])(
     'times out a stuck %s, ignores a late result, and allows another scrape',

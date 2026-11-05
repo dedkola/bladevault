@@ -33,10 +33,12 @@ import {
   normalizeCardFields,
   normalizeThemeStyle,
   normalizeTimeFormat,
+  normalizeDimensionUnit,
   SETTINGS_UPDATED_EVENT,
   type AppTheme,
   type ThemeStyle,
   type TimeFormat,
+  type DimensionUnit,
 } from '@/lib/settings-shared'
 import {
   canAttemptSilentCloudBackup,
@@ -80,6 +82,7 @@ type KnivesContextValue = {
   pinnedItemsFirst: boolean
   themeStyle: ThemeStyle
   timeFormat: TimeFormat
+  dimensionUnit: DimensionUnit
   cardFields: CardField[]
   customFieldDefinitions: CustomField[]
   showFeedback: (message: string, tone?: FeedbackTone) => void
@@ -143,6 +146,9 @@ export function KnivesProvider({
   const [timeFormat, setTimeFormat] = useState<TimeFormat>(
     DEFAULT_SETTINGS.timeFormat,
   )
+  const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>(
+    DEFAULT_SETTINGS.dimensionUnit,
+  )
   const [cardFields, setCardFields] = useState<CardField[]>(
     DEFAULT_SETTINGS.cardFields,
   )
@@ -172,6 +178,7 @@ export function KnivesProvider({
             cloudAutoBackupEnabled?: boolean
             pinnedItemsFirst?: boolean
             timeFormat?: TimeFormat
+            dimensionUnit?: DimensionUnit
             cardFields?: CardField[]
             customFields?: CustomField[]
           }
@@ -196,6 +203,7 @@ export function KnivesProvider({
           setIsAutoBackupEnabled(Boolean(data.settings?.cloudAutoBackupEnabled))
           setPinnedItemsFirst(Boolean(data.settings?.pinnedItemsFirst))
           setTimeFormat(normalizeTimeFormat(data.settings?.timeFormat))
+          setDimensionUnit(normalizeDimensionUnit(data.settings?.dimensionUnit))
           setCardFields(normalizeCardFields(data.settings?.cardFields))
           setCustomFieldDefinitions(
             Array.isArray(data.settings?.customFields)
@@ -208,6 +216,7 @@ export function KnivesProvider({
           setIsAutoBackupEnabled(DEFAULT_SETTINGS.cloudAutoBackupEnabled)
           setPinnedItemsFirst(DEFAULT_SETTINGS.pinnedItemsFirst)
           setTimeFormat(DEFAULT_SETTINGS.timeFormat)
+          setDimensionUnit(DEFAULT_SETTINGS.dimensionUnit)
           setCardFields(DEFAULT_SETTINGS.cardFields)
           setCustomFieldDefinitions(DEFAULT_SETTINGS.customFields)
         }
@@ -222,6 +231,7 @@ export function KnivesProvider({
           cloudAutoBackupEnabled?: boolean
           pinnedItemsFirst?: boolean
           timeFormat?: TimeFormat
+          dimensionUnit?: DimensionUnit
           cardFields?: CardField[]
           customFields?: CustomField[]
         }>
@@ -255,6 +265,11 @@ export function KnivesProvider({
 
       if (detail?.timeFormat !== undefined) {
         setTimeFormat(normalizeTimeFormat(detail.timeFormat))
+        didUpdate = true
+      }
+
+      if (detail?.dimensionUnit !== undefined) {
+        setDimensionUnit(normalizeDimensionUnit(detail.dimensionUnit))
         didUpdate = true
       }
 
@@ -849,6 +864,7 @@ export function KnivesProvider({
       pinnedItemsFirst,
       themeStyle,
       timeFormat,
+      dimensionUnit,
       cardFields,
       customFieldDefinitions,
       showFeedback,
@@ -878,6 +894,7 @@ export function KnivesProvider({
       pinnedItemsFirst,
       themeStyle,
       timeFormat,
+      dimensionUnit,
       cardFields,
       customFieldDefinitions,
       showFeedback,

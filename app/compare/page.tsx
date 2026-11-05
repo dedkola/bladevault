@@ -29,6 +29,8 @@ import { getImageUrl, Knife, matchesGlobalKnifeSearch } from '@/lib/data'
 import { useKnives } from '@/components/providers/knives-provider'
 import { SearchField } from '@/components/search-field'
 import { getHourCycle } from '@/lib/time-format'
+import { formatDimension } from '@/lib/measurements'
+import type { DimensionUnit } from '@/lib/settings-shared'
 import { useDebouncedValue } from '@/lib/use-debounced-value'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -137,7 +139,11 @@ const builtInCompareRows = [
 type BuiltInCompareRowKey = (typeof builtInCompareRows)[number]['key']
 type CompareRowKey = BuiltInCompareRowKey | `custom:${string}`
 
-function getRowValue(knife: Knife, rowKey: CompareRowKey): string {
+function getRowValue(
+  knife: Knife,
+  rowKey: CompareRowKey,
+  dimensionUnit: DimensionUnit,
+): string {
   let value: string | undefined
 
   if (rowKey.startsWith('custom:')) {
@@ -151,6 +157,15 @@ function getRowValue(knife: Knife, rowKey: CompareRowKey): string {
     value = knife[knifeKey]
   }
 
+  if (
+    [
+      'specs.overallLength',
+      'specs.bladeLength',
+      'specs.bladeThickness',
+      'specs.handleLength',
+    ].includes(rowKey)
+  )
+    return formatDimension(value, dimensionUnit) || '—'
   return value?.trim() || '—'
 }
 
@@ -180,6 +195,7 @@ function buildPrintableHtml(
   generatedAt: string,
   compareRows: { label: string; key: CompareRowKey }[],
   comparisonName: string,
+  dimensionUnit: DimensionUnit,
 ) {
   const headerCells = comparedKnives
     .map((knife) => `<th>${escapeHtml(`${knife.brand} ${knife.name}`)}</th>`)
@@ -188,7 +204,10 @@ function buildPrintableHtml(
   const bodyRows = compareRows
     .map((row) => {
       const cells = comparedKnives
-        .map((knife) => `<td>${escapeHtml(getRowValue(knife, row.key))}</td>`)
+        .map(
+          (knife) =>
+            `<td>${escapeHtml(getRowValue(knife, row.key, dimensionUnit))}</td>`,
+        )
         .join('')
       return `<tr><th>${escapeHtml(row.label)}</th>${cells}</tr>`
     })
@@ -278,6 +297,7 @@ export default function ComparePage() {
     customFieldDefinitions,
     showFeedback,
     themeStyle,
+    dimensionUnit,
   } = useKnives()
   const isModern = themeStyle === 'modern' || themeStyle === 'alloy'
   const [hoveredCell, setHoveredCell] = useState<{
@@ -457,11 +477,13 @@ export default function ComparePage() {
 
     return compareRows.filter((row) => {
       const values = new Set(
-        comparedKnives.map((knife) => getRowValue(knife, row.key)),
+        comparedKnives.map((knife) =>
+          getRowValue(knife, row.key, dimensionUnit),
+        ),
       )
       return values.size > 1
     })
-  }, [compareRows, comparedKnives, showDifferencesOnly])
+  }, [compareRows, comparedKnives, showDifferencesOnly, dimensionUnit])
 
   const handleExportPdf = async () => {
     if (!hasComparedKnives) return
@@ -486,7 +508,9 @@ export default function ComparePage() {
     ]
     const body = visibleCompareRows.map((row) => [
       row.label,
-      ...comparedKnives.map((knife) => getRowValue(knife, row.key)),
+      ...comparedKnives.map((knife) =>
+        getRowValue(knife, row.key, dimensionUnit),
+      ),
     ])
 
     autoTable(doc, {
@@ -535,6 +559,7 @@ export default function ComparePage() {
       generatedAt,
       visibleCompareRows,
       active?.name ?? 'Comparison',
+      dimensionUnit,
     )
 
     printFrameRef.current?.remove()
@@ -1179,7 +1204,11 @@ export default function ComparePage() {
                               : row.label}
                           </TableCell>
                           {comparedKnives.map((knife) => {
-                            const value = getRowValue(knife, row.key)
+                            const value = getRowValue(
+                              knife,
+                              row.key,
+                              dimensionUnit,
+                            )
                             return (
                               <TableCell
                                 key={knife.id}

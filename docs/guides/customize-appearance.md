@@ -2,7 +2,7 @@
 
 [![Watch the Customize Appearance walkthrough on YouTube](https://img.youtube.com/vi/iFuS-uAehS4/hqdefault.jpg)](https://youtu.be/iFuS-uAehS4)
 
-Choose the details you want to see while browsing and adjust BladeVault's theme, time format, and pinned ordering. Open **Settings → Appearance** for the preferences that apply across the vault.
+Choose the details you want to see while browsing and adjust BladeVault's theme, dimension units, time format, and pinned ordering. Open **Settings → Appearance** for the preferences that apply across the vault.
 
 ## Choose the details on knife cards
 
@@ -32,6 +32,14 @@ Open **Collection** and use the two card-density buttons next to the sort contro
 Changing density does not change the saved specifications or your card-field selection. A variant summary may appear in place of the selected detail rows when you browse variants within a model family. Open the knife to see its full record.
 
 Card density is a control on the Collection page. It is separate from the appearance preferences saved in Settings.
+
+## Choose dimension units
+
+Open **Settings → Appearance → Dimension units** and choose **Inches (in)**, **Millimeters (mm)**, or **Both (mm + in)**. The preference applies to displayed lengths and thicknesses, Insights charts, and the dimension fields in Add and Edit. Weight keeps its existing units.
+
+Choose **Both** to see separate metric and imperial inputs for overall length, blade length, blade thickness, and handle length. Enter a value in either field and BladeVault calculates the other. Imported values containing both units populate their matching fields; when only one unit is available, BladeVault converts the missing counterpart.
+
+The preference saves automatically. Changing it does not rewrite saved measurements: existing records and imported measurement text remain compatible.
 
 ## Keep pinned knives first
 

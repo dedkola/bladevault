@@ -4,6 +4,8 @@ export const START_PAGES = ['insights', 'studio', 'collection'] as const
 export type StartPage = (typeof START_PAGES)[number]
 
 export const TIME_FORMATS = ['12h', '24h'] as const
+export const DIMENSION_UNITS = ['in', 'mm', 'both'] as const
+export type DimensionUnit = (typeof DIMENSION_UNITS)[number]
 
 export type AppTheme = (typeof APP_THEMES)[number]
 export type ThemeStyle = (typeof THEME_STYLES)[number]
@@ -155,6 +157,7 @@ export type AppSettings = {
   theme: AppTheme
   themeStyle: ThemeStyle
   timeFormat: TimeFormat
+  dimensionUnit: DimensionUnit
   startPage: StartPage
   pinnedItemsFirst: boolean
   cardFields: CardField[]
@@ -170,6 +173,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'light',
   themeStyle: 'classic',
   timeFormat: '12h',
+  dimensionUnit: 'in',
   startPage: 'insights',
   pinnedItemsFirst: true,
   cardFields: [...DEFAULT_CARD_FIELDS],
@@ -204,6 +208,16 @@ export function normalizeTimeFormat(
 ): TimeFormat {
   return typeof value === 'string' && TIME_FORMATS.includes(value as TimeFormat)
     ? (value as TimeFormat)
+    : fallback
+}
+
+export function normalizeDimensionUnit(
+  value: unknown,
+  fallback: DimensionUnit = DEFAULT_SETTINGS.dimensionUnit,
+): DimensionUnit {
+  return typeof value === 'string' &&
+    DIMENSION_UNITS.includes(value as DimensionUnit)
+    ? (value as DimensionUnit)
     : fallback
 }
 

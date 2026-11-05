@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
 import { Knife, KnifeUpdates } from '@/lib/data'
+import { formatDimension } from '@/lib/measurements'
 import { knifeToFormData, KnifeScrapeEditor } from '@/components/knife-form'
 import { CustomField } from '@/lib/settings-shared'
 import { readJsonResponse } from '@/lib/api-response'
@@ -107,6 +108,7 @@ export default function KnifeDetail({
     deleteKnife,
     refreshVault,
     scheduleVaultBackup,
+    dimensionUnit,
   } = useKnives()
   const [detailKnife, setDetailKnife] = useState(initialKnife)
   const collectionKnife = knives.find((k) => k.id === initialKnife.id)
@@ -370,10 +372,23 @@ export default function KnifeDetail({
   ]
 
   const dimensionRows = [
-    { label: 'Overall Length', value: knife.specs.overallLength || 'N/A' },
-    { label: 'Blade Length', value: knife.specs.bladeLength || 'N/A' },
-    { label: 'Blade Thickness', value: knife.specs.bladeThickness || 'N/A' },
-    { label: 'Handle Length', value: knife.specs.handleLength || 'N/A' },
+    {
+      label: 'Overall Length',
+      value: formatDimension(knife.specs.overallLength, dimensionUnit) || 'N/A',
+    },
+    {
+      label: 'Blade Length',
+      value: formatDimension(knife.specs.bladeLength, dimensionUnit) || 'N/A',
+    },
+    {
+      label: 'Blade Thickness',
+      value:
+        formatDimension(knife.specs.bladeThickness, dimensionUnit) || 'N/A',
+    },
+    {
+      label: 'Handle Length',
+      value: formatDimension(knife.specs.handleLength, dimensionUnit) || 'N/A',
+    },
     { label: 'Weight', value: knife.specs.weight || 'N/A' },
   ]
 

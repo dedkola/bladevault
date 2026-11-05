@@ -21,6 +21,7 @@ import { useKnives } from '@/components/providers/knives-provider'
 import { getImageUrl, getKnifeImageCount, type Knife } from '@/lib/data'
 import { getKnifeVariantLabel } from '@/lib/knife-families'
 import { cn } from '@/lib/utils'
+import { formatDimension } from '@/lib/measurements'
 import {
   activeKnifeActionStyle,
   activeKnifeOutlineClassName,
@@ -46,8 +47,13 @@ export function CollectionKnifeInspector({
   onSelect: (knife: Knife) => void
   onClose: () => void
 }) {
-  const { updateKnife, pinnedItemsFirst, showFeedback, themeStyle } =
-    useKnives()
+  const {
+    updateKnife,
+    pinnedItemsFirst,
+    showFeedback,
+    themeStyle,
+    dimensionUnit,
+  } = useKnives()
   const [fullKnife, setFullKnife] = useState<Knife | null>(null)
   const [imageIndex, setImageIndex] = useState(0)
   const [fullImages, setFullImages] = useState<string[] | null>(null)
@@ -136,6 +142,7 @@ export function CollectionKnifeInspector({
   if (themeStyle === 'modern' || themeStyle === 'alloy')
     return (
       <ModernCollectionInspector
+        dimensionUnit={dimensionUnit}
         variant={themeStyle === 'alloy' ? 'alloy' : 'modern'}
         knife={{
           ...knife,
@@ -304,7 +311,11 @@ export function CollectionKnifeInspector({
             {[
               ['Blade material', knife.specs.bladeMaterial],
               ['Handle', knife.handleMaterial],
-              ['Blade length', preferredMetric(knife.specs.bladeLength)],
+              [
+                'Blade length',
+                formatDimension(knife.specs.bladeLength, dimensionUnit) ||
+                  'Not recorded',
+              ],
               ['Weight', preferredMetric(knife.specs.weight)],
               ['Lock', knife.specs.lockingMechanism],
               ['Designer', knife.specs.designer],

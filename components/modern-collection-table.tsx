@@ -7,7 +7,8 @@ import { getImageUrl, type Knife } from '@/lib/data'
 import { Checkbox } from '@/components/ui/checkbox'
 import type { CollectionColumnDefinition } from '@/lib/collection-columns'
 import { cn } from '@/lib/utils'
-import { compactMeasurement as preferredMetric } from '@/lib/compact-measurement'
+import { formatDimension } from '@/lib/measurements'
+import type { DimensionUnit } from '@/lib/settings-shared'
 import { useCollectionItemNavigation } from '@/hooks/use-collection-item-navigation'
 
 function statusForKnife(knife: Knife) {
@@ -441,11 +442,13 @@ export function ModernCollectionTable({
 
 export function ModernCollectionGallery({
   knives,
+  dimensionUnit = 'in',
   activeKnifeId,
   onOpen,
   onOpenDetail,
 }: {
   knives: Knife[]
+  dimensionUnit?: DimensionUnit
   activeKnifeId?: string | null
   onOpen: (knife: Knife) => void
   onOpenDetail: (knife: Knife) => void
@@ -484,7 +487,15 @@ export function ModernCollectionGallery({
                 {knife.brand} · {knife.specs.bladeMaterial || '—'}
               </span>
             </span>
-            <span>{preferredMetric(knife.specs.bladeLength)}</span>
+            <span
+              style={
+                dimensionUnit === 'both'
+                  ? { whiteSpace: 'normal', textAlign: 'right' }
+                  : undefined
+              }
+            >
+              {formatDimension(knife.specs.bladeLength, dimensionUnit) || '—'}
+            </span>
           </span>
         </button>
       ))}

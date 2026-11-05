@@ -1,6 +1,11 @@
 import { builtInFilterDefinitions } from '@/lib/collection-filters'
 import { getKnifeImageCount, type Knife } from '@/lib/data'
-import type { CollectionColumn, CustomField } from '@/lib/settings-shared'
+import type {
+  CollectionColumn,
+  CustomField,
+  DimensionUnit,
+} from '@/lib/settings-shared'
+import { formatDimension } from '@/lib/measurements'
 import { compactMeasurement } from '@/lib/compact-measurement'
 
 export type CollectionColumnDefinition = {
@@ -45,8 +50,9 @@ function formatDate(value: string) {
 
 export function getCollectionColumns(
   customFields: CustomField[],
+  dimensionUnit: DimensionUnit = 'in',
 ): CollectionColumnDefinition[] {
-  return [
+  const columns: CollectionColumnDefinition[] = [
     ...defaultColumns,
     {
       key: 'name',
@@ -119,4 +125,25 @@ export function getCollectionColumns(
       },
     })),
   ]
+  return columns.map((column) => {
+    const specKey = column.key === 'blade' ? 'bladeLength' : column.key
+    if (
+      ![
+        'bladeLength',
+        'overallLength',
+        'handleLength',
+        'bladeThickness',
+      ].includes(specKey)
+    )
+      return column
+    return {
+      ...column,
+      width: dimensionUnit === 'both' ? '160px' : column.width,
+      getValue: (knife: Knife) =>
+        formatDimension(
+          knife.specs[specKey as keyof Knife['specs']],
+          dimensionUnit,
+        ),
+    }
+  })
 }

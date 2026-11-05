@@ -7,17 +7,38 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { InsightsPage } from '@/components/insights-page'
 import { createKnife } from '@/tests/fixtures/knife'
 
+const preference = vi.hoisted(() => ({
+  dimensionUnit: 'in' as 'in' | 'mm' | 'both',
+}))
+
 vi.mock('@/components/providers/knives-provider', () => ({
   useKnives: () => ({
     knives: [createKnife()],
     isLoading: false,
     themeStyle: 'alloy',
+    dimensionUnit: preference.dimensionUnit,
   }),
 }))
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  preference.dimensionUnit = 'in'
+})
 
 describe('Alloy Insights', () => {
+  it('uses the same dimension preference for the median and chart data', () => {
+    preference.dimensionUnit = 'both'
+    render(<InsightsPage />)
+    expect(
+      screen.getByRole('group', { name: 'Median blade' }),
+    ).toHaveTextContent('82.296 mm / 3.24 in')
+    const chart = screen.getByRole('region', {
+      name: 'Measurement distribution',
+    })
+    expect(chart).toHaveTextContent('82.296 mm / 3.24 in')
+    expect(chart).toHaveTextContent('76.2–82.55 mm / 3–3.25 in')
+  })
+
   it('keeps interactive measurement charts and accessible data in the Alloy view', async () => {
     const user = userEvent.setup()
     const { container } = render(<InsightsPage />)

@@ -28,12 +28,14 @@ import { createKnife } from '@/tests/fixtures/knife'
 const mockKnives = vi.hoisted(() => ({
   current: [] as Knife[],
   isLoading: false,
+  dimensionUnit: 'in' as 'in' | 'mm' | 'both',
 }))
 
 vi.mock('@/components/providers/knives-provider', () => ({
   useKnives: () => ({
     knives: mockKnives.current,
     isLoading: mockKnives.isLoading,
+    dimensionUnit: mockKnives.dimensionUnit,
   }),
   KnivesProvider: ({ children }: { children: React.ReactNode }) => children,
 }))
@@ -49,7 +51,10 @@ function setKnives(knives: Knife[], isLoading = false) {
   mockKnives.isLoading = isLoading
 }
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  mockKnives.dimensionUnit = 'in'
+})
 
 const chartPalette: InsightsChartPalette = {
   card: '#fffdf8',
@@ -307,6 +312,31 @@ describe('MeasurementDetail', () => {
       within(screen.getByRole('dialog')).getByRole('link'),
     ).toHaveAttribute('href', '/collection/benchmade-bugout')
   })
+  it('updates summaries, ranges and drilldown labels with the selected units', async () => {
+    const user = userEvent.setup()
+    setKnives([createKnife()])
+    mockKnives.dimensionUnit = 'mm'
+    const { rerender } = render(<MeasurementDetail />)
+    const blade = screen.getByRole('region', {
+      name: 'Blade length distribution',
+    })
+    expect(blade).toHaveTextContent('82.296 mm')
+    expect(blade).toHaveTextContent('76.2–82.55 mm')
+    mockKnives.dimensionUnit = 'both'
+    rerender(<MeasurementDetail />)
+    expect(blade).toHaveTextContent('82.296 mm / 3.24 in')
+    const bin = within(blade).getByRole('button', {
+      name: 'Blade length 76.2–82.55 mm / 3–3.25 in: 1 knives',
+    })
+    await user.click(bin)
+    expect(screen.getByRole('dialog')).toHaveTextContent(
+      '76.2–82.55 mm / 3–3.25 in',
+    )
+    expect(
+      within(screen.getByRole('dialog')).getByRole('link'),
+    ).toHaveAttribute('href', '/collection/benchmade-bugout')
+  })
+
   it('highlights the requested measurement while keeping the other distributions visible', () => {
     setKnives([createKnife()])
     render(<MeasurementDetail initialTab="weight" />)

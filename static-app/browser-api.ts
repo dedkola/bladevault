@@ -1,6 +1,7 @@
 import {
   DEFAULT_SETTINGS,
   normalizeStartPage,
+  normalizeDimensionUnit,
   type AppSettings,
 } from '@/lib/settings-shared'
 import {
@@ -87,7 +88,14 @@ function getState(): State {
       parsed.settings &&
       parsed.maintenance
     )
-      state = { ...parsed, knives: parsed.knives.map(normalizeKnife) }
+      state = {
+        ...parsed,
+        knives: parsed.knives.map(normalizeKnife),
+        settings: {
+          ...parsed.settings,
+          dimensionUnit: normalizeDimensionUnit(parsed.settings.dimensionUnit),
+        },
+      }
   } catch {
     /* Start empty if session storage is unavailable or invalid. */
   }
@@ -225,6 +233,10 @@ function handle(request: Request, body: Record<string, unknown>) {
       db.settings = {
         ...db.settings,
         ...body,
+        dimensionUnit: normalizeDimensionUnit(
+          body.dimensionUnit,
+          db.settings.dimensionUnit,
+        ),
         cloudAutoBackupEnabled: false,
         mcpEnabled: false,
         mcpWriteEnabled: false,

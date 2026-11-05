@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/dialog'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
 import { compactMeasurement } from '@/lib/compact-measurement'
+import { formatDimension } from '@/lib/measurements'
 import { getImageUrl, type Knife } from '@/lib/data'
 import { groupKnifeFamilies } from '@/lib/knife-families'
 import { createStudioLayout } from '@/lib/studio'
@@ -74,8 +75,14 @@ function StudioImage({
 }
 
 export function StudioView() {
-  const { knives, isLoading, updateKnife, showFeedback, themeStyle } =
-    useKnives()
+  const {
+    knives,
+    isLoading,
+    updateKnife,
+    showFeedback,
+    themeStyle,
+    dimensionUnit,
+  } = useKnives()
   const {
     choose,
     membershipCount,
@@ -652,7 +659,10 @@ export function StudioView() {
                     ['Steel', selectedKnife.specs.bladeMaterial],
                     [
                       'Blade',
-                      compactMeasurement(selectedKnife.specs.bladeLength, ''),
+                      formatDimension(
+                        selectedKnife.specs.bladeLength,
+                        dimensionUnit,
+                      ),
                     ],
                     [
                       'Weight',

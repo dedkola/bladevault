@@ -42,6 +42,7 @@ import {
   START_PAGES,
   THEME_STYLES,
   TIME_FORMATS,
+  DIMENSION_UNITS,
   type AppSettings,
   type AppTheme,
   type CardField,
@@ -49,6 +50,7 @@ import {
   type CustomFieldType,
   type ThemeStyle,
   type TimeFormat,
+  type DimensionUnit,
   type StartPage,
 } from '@/lib/settings-shared'
 import { getHourCycle } from '@/lib/time-format'
@@ -73,6 +75,7 @@ import { AppLockSettings } from '@/components/app-lock-settings'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { KnifeCardDetails } from '@/components/knife-card-details'
+import { formatDimension } from '@/lib/measurements'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   SettingsSection,
@@ -342,9 +345,11 @@ function applyThemePreference(
 function CardFieldsPreview({
   fields,
   customFields,
+  dimensionUnit,
 }: {
   fields: CardField[]
   customFields: CustomField[]
+  dimensionUnit: DimensionUnit
 }) {
   const exampleValues: Record<string, string> = {
     bladeStyle: 'Drop point',
@@ -356,10 +361,10 @@ function CardFieldsPreview({
     'specs.bladeCoating': 'Satin',
     'specs.lockingMechanism': 'Crossbar lock',
     'specs.hardness': '60 HRC',
-    'specs.overallLength': '190 mm',
-    'specs.bladeLength': '80 mm',
-    'specs.bladeThickness': '3 mm',
-    'specs.handleLength': '110 mm',
+    'specs.overallLength': formatDimension('190 mm', dimensionUnit),
+    'specs.bladeLength': formatDimension('80 mm', dimensionUnit),
+    'specs.bladeThickness': formatDimension('3 mm', dimensionUnit),
+    'specs.handleLength': formatDimension('110 mm', dimensionUnit),
     'specs.weight': '95 g',
   }
   const previewFields = fields
@@ -388,7 +393,8 @@ function CardFieldsPreview({
           name="Sample knife"
           modelNumber="BV-01"
           fields={previewFields}
-          bladeLength="80 mm"
+          bladeLength={formatDimension('80 mm', dimensionUnit)}
+          dimensionUnit={dimensionUnit}
           footerAction={
             <span
               className="absolute right-2 inline-flex items-center gap-1"
@@ -1247,6 +1253,18 @@ export default function SettingsView() {
     }
   }
 
+  const handleDimensionUnitChange = async (value: string | null) => {
+    if (!DIMENSION_UNITS.includes(value as DimensionUnit)) return
+
+    try {
+      await saveSettings({ dimensionUnit: value as DimensionUnit })
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : 'Failed to save settings',
+      )
+    }
+  }
+
   const handlePinnedItemsFirstToggle = async (checked: boolean) => {
     if (!settings) return
 
@@ -1998,6 +2016,39 @@ export default function SettingsView() {
                         </SelectContent>
                       </Select>
                     </SettingsRow>
+                    <SettingsRow
+                      label="Dimension units"
+                      description="Choose inches, millimeters, or both for dimensions, Add/Edit fields, and Insights charts."
+                    >
+                      <Select
+                        value={
+                          settings.dimensionUnit ??
+                          DEFAULT_SETTINGS.dimensionUnit
+                        }
+                        onValueChange={handleDimensionUnitChange}
+                      >
+                        <SelectTrigger
+                          size="sm"
+                          aria-label="Dimension units"
+                          className="h-8 w-44 rounded-lg border-border bg-[var(--bladevault-surface-soft)]"
+                        >
+                          <SelectValue>
+                            {(value: DimensionUnit) =>
+                              value === 'mm'
+                                ? 'Millimeters (mm)'
+                                : value === 'both'
+                                  ? 'Both (mm + in)'
+                                  : 'Inches (in)'
+                            }
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="in">Inches (in)</SelectItem>
+                          <SelectItem value="mm">Millimeters (mm)</SelectItem>
+                          <SelectItem value="both">Both (mm + in)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </SettingsRow>
                     <SettingsRow label="Time format">
                       <Select
                         value={settings.timeFormat}
@@ -2045,6 +2096,7 @@ export default function SettingsView() {
                       <CardFieldsPreview
                         fields={settings.cardFields}
                         customFields={settings.customFields}
+                        dimensionUnit={settings.dimensionUnit}
                       />
                       <div
                         className="settings-card-fields-options max-h-[24rem] overflow-y-auto rounded-lg border border-border/70 bg-background"
