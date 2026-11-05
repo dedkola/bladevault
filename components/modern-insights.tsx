@@ -8,6 +8,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { useKnives } from '@/components/providers/knives-provider'
 import {
   createCollectionStats,
+  formatStatsMeasurement,
   type CategoryStat,
   type MeasurementKey,
 } from '@/lib/collection-stats'
@@ -70,6 +71,23 @@ function DetailLink({ href, children }: { href: string; children: ReactNode }) {
   )
 }
 
+function DualDimension({ value }: { value: string }) {
+  const [primary, secondary] = value.split(' / ')
+  const [amount, unit] = primary.split(' ')
+  return (
+    <span className={styles.dualMeasurement}>
+      <span className={styles.primaryDimension}>
+        {amount}
+        <small> {unit}</small>
+      </span>
+      <span className={styles.secondaryDimension}>
+        <span className="sr-only"> / </span>
+        {secondary}
+      </span>
+    </span>
+  )
+}
+
 function Metric({
   label,
   value,
@@ -78,7 +96,7 @@ function Metric({
   href,
 }: {
   label: string
-  value: string | number
+  value: ReactNode
   unit?: string
   detail: string
   href: string
@@ -91,7 +109,7 @@ function Metric({
       </Link>
       <div className={styles.metricValue}>
         {value}
-        {unit && <span>{unit}</span>}
+        {unit && <span> {unit}</span>}
       </div>
       <p>{detail}</p>
     </div>
@@ -122,14 +140,10 @@ function formatDate(value: string): string {
     : 'Date not recorded'
 }
 
-function formatMeasurement(value: number | undefined): string {
-  return value === undefined
-    ? '—'
-    : value.toLocaleString('en-US', { maximumFractionDigits: 2 })
-}
-
 function compactBinLabel(label: string): string {
-  return label.replace(/\.0(?=–|″|\s)/g, '').replace(/″|\s(?:oz|mm)/g, '')
+  return label.includes(' / ')
+    ? label
+    : label.replace(/\.0(?=–|″|\s)/g, '').replace(/″|\s(?:oz|mm|in|g)/g, '')
 }
 
 type BarDatum = {
@@ -213,12 +227,16 @@ function Bars({
 }
 
 export function ModernInsights() {
-  const { knives, isLoading, themeStyle } = useKnives()
+  const { knives, isLoading, themeStyle, dimensionUnit = 'in' } = useKnives()
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>()
   const [measurementKey, setMeasurementKey] =
     useState<MeasurementKey>('bladeLength')
   const [selectedBinLabel, setSelectedBinLabel] = useState<string>()
-  const stats = useMemo(() => createCollectionStats(knives, 'all'), [knives])
+  const stats = useMemo(
+    () =>
+      createCollectionStats(knives, 'all', undefined, undefined, dimensionUnit),
+    [knives, dimensionUnit],
+  )
   const catalogue = useMemo(
     () => buildCatalogueSeries(knives, '12m', new Date()),
     [knives],
@@ -266,12 +284,24 @@ export function ModernInsights() {
   ]
   const makers = stats.categories.brand
   const median = stats.measurements.bladeLength.median
+  const medianText = formatStatsMeasurement(
+    median,
+    stats.measurements.bladeLength,
+  )
+  const [medianValue, ...medianUnits] = medianText.split(' ')
   const soldCount = knives.filter((knife) => knife.sold).length
   const currentMonth = catalogue.points.at(-1)!
   const selectedMonth =
     catalogue.points.find((point) => point.monthKey === selectedMonthKey) ??
     currentMonth
   const measurement = stats.measurements[measurementKey]
+  const measurementText = formatStatsMeasurement(
+    measurement.median,
+    measurement,
+  )
+  const [measurementValue, ...measurementUnits] = measurementText.split(' ')
+  const showBothDimensions =
+    measurement.dimensionUnit === 'both' && measurement.median !== undefined
   const peakBin = measurement.bins.reduce((peak, bin) =>
     bin.count > peak.count ? bin : peak,
   )
@@ -334,8 +364,16 @@ export function ModernInsights() {
             />
             <Metric
               label="Median blade"
-              value={median === undefined ? '—' : median.toFixed(2)}
-              unit={median === undefined ? undefined : 'in'}
+              value={
+                dimensionUnit === 'both' && median !== undefined ? (
+                  <DualDimension value={medianText} />
+                ) : (
+                  medianValue
+                )
+              }
+              unit={
+                dimensionUnit === 'both' ? undefined : medianUnits.join(' ')
+              }
               detail={`${stats.measurements.bladeLength.knownCount} readable measurements`}
               href="/insights/measurements?tab=bladeLength"
             />
@@ -573,17 +611,39 @@ export function ModernInsights() {
                 </div>
               }
             >
-              <div className={styles.chartSummary}>
+              <div
+                className={cn(
+                  styles.chartSummary,
+                  showBothDimensions && styles.dualSummary,
+                )}
+              >
                 <div>
                   <strong className={styles.chartValue}>
-                    {formatMeasurement(measurement.median)}
-                    <small>{measurement.unit}</small>
+                    {showBothDimensions ? (
+                      <DualDimension value={measurementText} />
+                    ) : (
+                      <>
+                        {measurementValue}
+                        <small> {measurementUnits.join(' ')}</small>
+                      </>
+                    )}
                   </strong>
                   <p>median {measurement.label.toLowerCase()}</p>
                 </div>
                 {peakBin.count > 0 && (
                   <div className={styles.summaryAside}>
-                    <strong>{peakBin.label}</strong>
+                    <strong>
+                      {measurement.dimensionUnit === 'both'
+                        ? peakBin.label.split(' / ').map((part, index) => (
+                            <span className={styles.rangeDimension} key={part}>
+                              {index > 0 && (
+                                <span className="sr-only"> / </span>
+                              )}
+                              {part}
+                            </span>
+                          ))
+                        : peakBin.label}
+                    </strong>
                     <p>most common · {number.format(peakBin.count)} knives</p>
                   </div>
                 )}
@@ -600,7 +660,7 @@ export function ModernInsights() {
                   }))}
                   selectedKey={selectedBinLabel}
                   onSelect={setSelectedBinLabel}
-                  minBarWidth={44}
+                  minBarWidth={measurement.dimensionUnit === 'both' ? 110 : 44}
                 />
               ) : (
                 <div className={styles.chartEmpty}>
@@ -660,8 +720,9 @@ export function ModernInsights() {
               )}
               <div className={styles.panelFoot}>
                 <span>
-                  Recorded range: {formatMeasurement(measurement.min)}–
-                  {formatMeasurement(measurement.max)} {measurement.unit}
+                  Recorded range:{' '}
+                  {formatStatsMeasurement(measurement.min, measurement)}–
+                  {formatStatsMeasurement(measurement.max, measurement)}
                 </span>
                 <DetailLink
                   href={`/insights/measurements?tab=${measurementKey}`}

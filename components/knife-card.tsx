@@ -14,14 +14,10 @@ import {
   activeKnifeFloatingClassName,
 } from '@/lib/knife-action-styles'
 import { getVisibleCardFields } from '@/lib/card-fields'
+import { formatDimension } from '@/lib/measurements'
 import { useCollectionItemNavigation } from '@/hooks/use-collection-item-navigation'
 
 export type CollectionCardDensity = 'gallery' | 'compact'
-
-function preferredMetric(value?: string): string {
-  if (!value) return ''
-  return value.split('|').at(-1)?.trim() ?? value
-}
 
 export const KnifeCard = memo(function KnifeCard({
   knife,
@@ -54,6 +50,7 @@ export const KnifeCard = memo(function KnifeCard({
     pinnedItemsFirst,
     cardFields,
     customFieldDefinitions,
+    dimensionUnit,
     showFeedback,
   } = useKnives()
   const pinned = knife.pinned
@@ -72,8 +69,9 @@ export const KnifeCard = memo(function KnifeCard({
     knife,
     cardFields,
     customFieldDefinitions,
+    dimensionUnit,
   )
-  const bladeLength = preferredMetric(knife.specs.bladeLength)
+  const bladeLength = formatDimension(knife.specs.bladeLength, dimensionUnit)
   const modelNumber = knife.specs.modelNumber?.trim()
   const imageCount = getKnifeImageCount(knife)
   const isCompact = density === 'compact'
@@ -204,6 +202,7 @@ export const KnifeCard = memo(function KnifeCard({
           modelNumber={modelNumber}
           fields={visibleCardFields}
           bladeLength={bladeLength}
+          dimensionUnit={dimensionUnit}
           compact={isCompact}
           variantLabel={variantLabel}
           sold={knife.sold}

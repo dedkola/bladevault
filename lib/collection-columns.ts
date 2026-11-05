@@ -1,7 +1,11 @@
 import { builtInFilterDefinitions } from '@/lib/collection-filters'
 import { getKnifeImageCount, type Knife } from '@/lib/data'
-import type { CollectionColumn, CustomField } from '@/lib/settings-shared'
-import { compactMeasurement } from '@/lib/compact-measurement'
+import type {
+  CollectionColumn,
+  CustomField,
+  DimensionUnit,
+} from '@/lib/settings-shared'
+import { formatDimension, formatWeight } from '@/lib/measurements'
 
 export type CollectionColumnDefinition = {
   key: CollectionColumn
@@ -27,13 +31,13 @@ const defaultColumns: CollectionColumnDefinition[] = [
     key: 'blade',
     label: 'Blade',
     width: '48px',
-    getValue: (knife) => compactMeasurement(knife.specs.bladeLength),
+    getValue: (knife) => formatDimension(knife.specs.bladeLength),
   },
   {
     key: 'weight',
     label: 'Weight',
     width: '52px',
-    getValue: (knife) => compactMeasurement(knife.specs.weight),
+    getValue: (knife) => formatWeight(knife.specs.weight),
   },
   { key: 'status', label: 'Status', width: '88px', getValue: () => '' },
 ]
@@ -45,8 +49,9 @@ function formatDate(value: string) {
 
 export function getCollectionColumns(
   customFields: CustomField[],
+  dimensionUnit: DimensionUnit = 'in',
 ): CollectionColumnDefinition[] {
-  return [
+  const columns: CollectionColumnDefinition[] = [
     ...defaultColumns,
     {
       key: 'name',
@@ -119,4 +124,28 @@ export function getCollectionColumns(
       },
     })),
   ]
+  return columns.map((column) => {
+    const specKey = column.key === 'blade' ? 'bladeLength' : column.key
+    if (
+      ![
+        'bladeLength',
+        'overallLength',
+        'handleLength',
+        'bladeThickness',
+        'weight',
+      ].includes(specKey)
+    )
+      return column
+    return {
+      ...column,
+      width: dimensionUnit === 'both' ? '160px' : column.width,
+      getValue: (knife: Knife) =>
+        specKey === 'weight'
+          ? formatWeight(knife.specs.weight, dimensionUnit)
+          : formatDimension(
+              knife.specs[specKey as keyof Knife['specs']],
+              dimensionUnit,
+            ),
+    }
+  })
 }

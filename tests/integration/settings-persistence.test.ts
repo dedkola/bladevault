@@ -106,4 +106,30 @@ describe('settings persistence', () => {
     closeLocalDb()
     expect(getSettings().timeFormat).toBe('24h')
   })
+
+  it.each(['in', 'mm', 'both'] as const)(
+    'persists the %s dimension display across database reopens and unrelated updates',
+    async (dimensionUnit) => {
+      vault = await createTempVault('bladevault-settings-')
+      expect(getSettings().dimensionUnit).toBe('in')
+      saveSettings({ dimensionUnit })
+      saveSettings({ theme: 'dark' })
+      saveSettings({ dimensionUnit: 'cm' as never })
+      closeLocalDb()
+      expect(getSettings().dimensionUnit).toBe(dimensionUnit)
+      const stored = getLocalDb()
+        .prepare('SELECT value FROM settings WHERE key = ?')
+        .get('dimension_unit') as { value: string }
+      expect(stored.value).toBe(dimensionUnit)
+    },
+  )
+
+  it('uses inches when a stored dimension preference is malformed', async () => {
+    vault = await createTempVault('bladevault-settings-')
+    saveSettings({ dimensionUnit: 'mm' })
+    getLocalDb()
+      .prepare('UPDATE settings SET value = ? WHERE key = ?')
+      .run('cm', 'dimension_unit')
+    expect(getSettings().dimensionUnit).toBe('in')
+  })
 })

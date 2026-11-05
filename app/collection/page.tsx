@@ -145,6 +145,7 @@ function CollectionContent() {
     deleteKnife,
     collectionDisplay,
     updateCollectionDisplay,
+    dimensionUnit,
   } = useKnives()
   const isAlloy = themeStyle === 'alloy'
   const isWorkspaceCollection = themeStyle === 'modern' || isAlloy
@@ -275,8 +276,8 @@ function CollectionContent() {
   )
 
   const collectionColumns = useMemo(
-    () => getCollectionColumns(customFieldDefinitions),
-    [customFieldDefinitions],
+    () => getCollectionColumns(customFieldDefinitions, dimensionUnit),
+    [customFieldDefinitions, dimensionUnit],
   )
   const visibleColumns = collectionDisplay.columns.flatMap((key) => {
     const column = collectionColumns.find((item) => item.key === key)
@@ -1316,6 +1317,7 @@ function CollectionContent() {
               </div>
             ) : isWorkspaceCollection && !isFamilyView && !isSelectionMode ? (
               <ModernCollectionGallery
+                dimensionUnit={dimensionUnit}
                 knives={filteredKnives.slice(0, visibleCount)}
                 activeKnifeId={activeKnife?.id}
                 onOpen={inspectKnife}

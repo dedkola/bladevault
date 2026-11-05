@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { formatMetric } from '@/components/collection-insights'
 import { useKnives } from '@/components/providers/knives-provider'
 import {
   InsightPanel,
@@ -11,6 +10,7 @@ import {
 } from '@/components/insight-pages/detail-primitives'
 import {
   createCollectionStats,
+  formatStatsMeasurement,
   type MeasurementKey,
 } from '@/lib/collection-stats'
 
@@ -19,8 +19,12 @@ export function MeasurementDetail({
 }: {
   initialTab?: MeasurementKey
 }) {
-  const { knives } = useKnives(),
-    stats = useMemo(() => createCollectionStats(knives, 'all'), [knives])
+  const { knives, dimensionUnit = 'in' } = useKnives()
+  const stats = useMemo(
+    () =>
+      createCollectionStats(knives, 'all', undefined, undefined, dimensionUnit),
+    [knives, dimensionUnit],
+  )
   const [selection, setSelection] = useState<InsightSelection | null>(null)
   return (
     <>
@@ -50,37 +54,63 @@ export function MeasurementDetail({
                 ].map((item) => (
                   <div key={item.label}>
                     <dt>{item.label}</dt>
-                    <dd>{formatMetric(item.value, measurement.unit)}</dd>
+                    <dd>
+                      {formatStatsMeasurement(item.value, measurement)
+                        .split(' / ')
+                        .map((part, index) => (
+                          <span className="id-dimension-pair" key={part}>
+                            {index > 0 && <span className="sr-only"> / </span>}
+                            {part}
+                          </span>
+                        ))}
+                    </dd>
                   </div>
                 ))}
               </dl>
               {measurement.knownCount ? (
                 <div
-                  className="id-histogram"
-                  aria-label={`${measurement.label} ranges`}
+                  className="overflow-x-auto pb-3"
+                  role="region"
+                  aria-label={`${measurement.label} chart; scroll to see all ranges`}
+                  tabIndex={0}
                 >
-                  {measurement.bins.map((bin) => (
-                    <button
-                      key={bin.label}
-                      type="button"
-                      className="id-bin"
-                      disabled={!bin.count}
-                      aria-label={`${measurement.label} ${bin.label}: ${bin.count} knives`}
-                      onClick={() =>
-                        setSelection({
-                          title: `${measurement.label} · ${bin.label}`,
-                          knifeIds: bin.knifeIds,
-                        })
-                      }
-                    >
-                      <strong>{bin.count}</strong>
-                      <i
-                        aria-hidden="true"
-                        style={{ height: `${(bin.count / max) * 96}px` }}
-                      />
-                      <span>{bin.label}</span>
-                    </button>
-                  ))}
+                  <div
+                    className="id-histogram"
+                    aria-label={`${measurement.label} ranges`}
+                    style={{
+                      minWidth:
+                        measurement.dimensionUnit === 'both'
+                          ? 900
+                          : measurement.dimensionUnit === 'mm'
+                            ? 600
+                            : undefined,
+                    }}
+                  >
+                    {measurement.bins.map((bin) => (
+                      <button
+                        key={bin.label}
+                        type="button"
+                        className="id-bin"
+                        disabled={!bin.count}
+                        aria-label={`${measurement.label} ${bin.label}: ${bin.count} knives`}
+                        onClick={() =>
+                          setSelection({
+                            title: `${measurement.label} · ${bin.label}`,
+                            knifeIds: bin.knifeIds,
+                          })
+                        }
+                      >
+                        <div className="id-bin-plot">
+                          <strong>{bin.count}</strong>
+                          <i
+                            aria-hidden="true"
+                            style={{ height: `${(bin.count / max) * 96}px` }}
+                          />
+                        </div>
+                        <span>{bin.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <p className="py-12 text-center text-sm text-muted-foreground">
@@ -88,7 +118,13 @@ export function MeasurementDetail({
                 </p>
               )}
               <p className="id-note">
-                Units: {measurement.unit}.{' '}
+                Units:{' '}
+                {measurement.dimensionUnit === 'both'
+                  ? measurement.key === 'weight'
+                    ? 'g and oz'
+                    : 'mm and in'
+                  : measurement.unit}
+                .{' '}
                 {measurement.uninterpretableCount
                   ? `${measurement.uninterpretableCount} populated values excluded because their units cannot be interpreted.`
                   : 'All populated values can be interpreted.'}{' '}

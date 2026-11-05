@@ -6,7 +6,7 @@ import Image from '@/components/vault-image'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import { useKnives } from '@/components/providers/knives-provider'
-import { compactMeasurement } from '@/lib/compact-measurement'
+import { formatDimension, formatWeight } from '@/lib/measurements'
 import { getImageUrl, type Knife } from '@/lib/data'
 import { useCollectionItemNavigation } from '@/hooks/use-collection-item-navigation'
 import './alloy-collection.css'
@@ -31,15 +31,15 @@ export const AlloyCollectionCard = memo(function AlloyCollectionCard({
   onSelect: (id: string) => void
 }) {
   const navigation = useCollectionItemNavigation(onOpen, onOpenDetail)
-  const { updateKnife, showFeedback } = useKnives()
+  const { updateKnife, showFeedback, dimensionUnit } = useKnives()
   const { choose, membershipCount, loading, busy, error } = useComparisons()
   const [pinBusy, setPinBusy] = useState(false)
   const [compareBusy, setCompareBusy] = useState(false)
   const inCompare = membershipCount(knife.id) > 0
   const metadata = [
     knife.specs.bladeMaterial,
-    compactMeasurement(knife.specs.bladeLength, ''),
-    compactMeasurement(knife.specs.weight, ''),
+    formatDimension(knife.specs.bladeLength, dimensionUnit),
+    formatWeight(knife.specs.weight, dimensionUnit),
   ].filter(Boolean)
 
   async function togglePin() {

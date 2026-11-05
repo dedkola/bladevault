@@ -10,6 +10,7 @@ import {
   normalizeStartPage,
   normalizeThemeStyle,
   normalizeTimeFormat,
+  normalizeDimensionUnit,
   type AppSettings,
   type AppTheme,
   type CardField,
@@ -26,6 +27,7 @@ export type {
   CustomFieldType,
   ThemeStyle,
   TimeFormat,
+  DimensionUnit,
 } from './settings-shared'
 
 const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
@@ -33,6 +35,7 @@ const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
   theme: 'theme',
   themeStyle: 'theme_style',
   timeFormat: 'time_format',
+  dimensionUnit: 'dimension_unit',
   startPage: 'start_page',
   pinnedItemsFirst: 'pinned_items_first',
   cardFields: 'card_fields',
@@ -133,6 +136,7 @@ export function getSettings(): AppSettings {
     theme: parseTheme(map.get(SETTINGS_KEYS.theme)),
     themeStyle: parseThemeStyle(map.get(SETTINGS_KEYS.themeStyle)),
     timeFormat: normalizeTimeFormat(map.get(SETTINGS_KEYS.timeFormat)),
+    dimensionUnit: normalizeDimensionUnit(map.get(SETTINGS_KEYS.dimensionUnit)),
     startPage: normalizeStartPage(map.get(SETTINGS_KEYS.startPage)),
     pinnedItemsFirst: parseBool(
       map.get(SETTINGS_KEYS.pinnedItemsFirst),
@@ -174,6 +178,10 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
           : normalizeCardFields(settings.cardFields, current.cardFields),
       themeStyle: normalizeThemeStyle(settings.themeStyle, current.themeStyle),
       timeFormat: normalizeTimeFormat(settings.timeFormat, current.timeFormat),
+      dimensionUnit: normalizeDimensionUnit(
+        settings.dimensionUnit,
+        current.dimensionUnit,
+      ),
       startPage: normalizeStartPage(settings.startPage, current.startPage),
     }
 
@@ -186,6 +194,7 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
       ['theme', next.theme],
       ['themeStyle', next.themeStyle],
       ['timeFormat', next.timeFormat],
+      ['dimensionUnit', next.dimensionUnit],
       ['startPage', next.startPage],
       ['pinnedItemsFirst', next.pinnedItemsFirst ? '1' : '0'],
       ['cardFields', JSON.stringify(next.cardFields)],

@@ -5,6 +5,7 @@ import {
   normalizeCollectionDisplay,
   normalizeCardFields,
   normalizeThemeStyle,
+  normalizeDimensionUnit,
 } from '@/lib/settings-shared'
 
 describe('normalizeCardFields', () => {
@@ -97,5 +98,21 @@ describe('normalizeCollectionDisplay', () => {
   it('allows every optional column to be hidden and defaults missing preferences', () => {
     expect(normalizeCollectionDisplay({ columns: [] }).columns).toEqual([])
     expect(normalizeCollectionDisplay(null)).toEqual(DEFAULT_COLLECTION_DISPLAY)
+  })
+})
+
+describe('normalizeDimensionUnit', () => {
+  it('keeps supported choices and defaults missing or malformed values to inches', () => {
+    for (const unit of ['in', 'mm', 'both'] as const) {
+      expect(normalizeDimensionUnit(unit)).toBe(unit)
+    }
+    expect(normalizeDimensionUnit(undefined)).toBe('in')
+    expect(normalizeDimensionUnit('cm')).toBe('in')
+    expect(normalizeDimensionUnit({})).toBe('in')
+  })
+
+  it('preserves the saved preference for an invalid or unrelated update', () => {
+    expect(normalizeDimensionUnit(undefined, 'both')).toBe('both')
+    expect(normalizeDimensionUnit('cm', 'mm')).toBe('mm')
   })
 })

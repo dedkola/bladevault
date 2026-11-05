@@ -69,6 +69,7 @@ export function Sidebar() {
     knives,
     cardFields,
     customFieldDefinitions,
+    dimensionUnit,
     isAutoBackupActive,
     themeStyle,
   } = useKnives()
@@ -417,6 +418,7 @@ export function Sidebar() {
                           item,
                           cardFields,
                           customFieldDefinitions,
+                          dimensionUnit,
                         ).map((field) => field.value),
                       ]
                         .filter(Boolean)

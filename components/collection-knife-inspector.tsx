@@ -21,15 +21,11 @@ import { useKnives } from '@/components/providers/knives-provider'
 import { getImageUrl, getKnifeImageCount, type Knife } from '@/lib/data'
 import { getKnifeVariantLabel } from '@/lib/knife-families'
 import { cn } from '@/lib/utils'
+import { formatDimension, formatWeight } from '@/lib/measurements'
 import {
   activeKnifeActionStyle,
   activeKnifeOutlineClassName,
 } from '@/lib/knife-action-styles'
-
-function preferredMetric(value?: string): string {
-  if (!value) return 'Not recorded'
-  return value.split('|').at(-1)?.trim() ?? value
-}
 
 export function CollectionKnifeInspector({
   knife,
@@ -46,8 +42,13 @@ export function CollectionKnifeInspector({
   onSelect: (knife: Knife) => void
   onClose: () => void
 }) {
-  const { updateKnife, pinnedItemsFirst, showFeedback, themeStyle } =
-    useKnives()
+  const {
+    updateKnife,
+    pinnedItemsFirst,
+    showFeedback,
+    themeStyle,
+    dimensionUnit,
+  } = useKnives()
   const [fullKnife, setFullKnife] = useState<Knife | null>(null)
   const [imageIndex, setImageIndex] = useState(0)
   const [fullImages, setFullImages] = useState<string[] | null>(null)
@@ -136,6 +137,7 @@ export function CollectionKnifeInspector({
   if (themeStyle === 'modern' || themeStyle === 'alloy')
     return (
       <ModernCollectionInspector
+        dimensionUnit={dimensionUnit}
         variant={themeStyle === 'alloy' ? 'alloy' : 'modern'}
         knife={{
           ...knife,
@@ -304,8 +306,16 @@ export function CollectionKnifeInspector({
             {[
               ['Blade material', knife.specs.bladeMaterial],
               ['Handle', knife.handleMaterial],
-              ['Blade length', preferredMetric(knife.specs.bladeLength)],
-              ['Weight', preferredMetric(knife.specs.weight)],
+              [
+                'Blade length',
+                formatDimension(knife.specs.bladeLength, dimensionUnit) ||
+                  'Not recorded',
+              ],
+              [
+                'Weight',
+                formatWeight(knife.specs.weight, dimensionUnit) ||
+                  'Not recorded',
+              ],
               ['Lock', knife.specs.lockingMechanism],
               ['Designer', knife.specs.designer],
             ].map(([label, value]) => (

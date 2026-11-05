@@ -44,6 +44,37 @@ describe('empty static browser app', () => {
     expect(readSessionStartPage()).toBe('collection')
   })
 
+  it('persists and validates dimension units in the browser session', async () => {
+    expect((await request('/api/settings')).data.settings.dimensionUnit).toBe(
+      'in',
+    )
+    await request('/api/settings', 'POST', { dimensionUnit: 'both' })
+    await request('/api/settings', 'POST', { theme: 'dark' })
+    await request('/api/settings', 'POST', { dimensionUnit: 'cm' })
+    expect((await request('/api/settings')).data.settings.dimensionUnit).toBe(
+      'both',
+    )
+    const key = sessionStorage.key(0) as string
+    const saved = sessionStorage.getItem(key) as string
+    resetSession()
+    sessionStorage.setItem(key, saved)
+    expect((await request('/api/settings')).data.settings.dimensionUnit).toBe(
+      'both',
+    )
+  })
+
+  it('defaults missing dimension units in older browser sessions to inches', async () => {
+    await request('/api/settings', 'POST', { theme: 'dark' })
+    const key = sessionStorage.key(0) as string
+    const saved = JSON.parse(sessionStorage.getItem(key) as string)
+    delete saved.settings.dimensionUnit
+    resetSession()
+    sessionStorage.setItem(key, JSON.stringify(saved))
+    expect((await request('/api/settings')).data.settings.dimensionUnit).toBe(
+      'in',
+    )
+  })
+
   it('starts without collection records, activity, logs, or sample collections', async () => {
     expect((await request('/api/knives')).data.knives).toEqual([])
     expect((await request('/api/activity')).data.activity).toEqual([])

@@ -12,7 +12,8 @@ import Link from 'next/link'
 import { ChevronLeft, ChevronRight, ImageIcon, Pencil, X } from 'lucide-react'
 import Image from '@/components/vault-image'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { compactMeasurement } from '@/lib/compact-measurement'
+import { formatDimension, formatWeight } from '@/lib/measurements'
+import type { DimensionUnit } from '@/lib/settings-shared'
 import {
   getImageUrl,
   maintenanceTypeName,
@@ -30,11 +31,10 @@ function subscribePhoneInspector(onChange: () => void) {
   return () => media.removeEventListener('change', onChange)
 }
 
-const metric = (value?: string) => compactMeasurement(value, 'Not recorded')
-
 export function ModernCollectionInspector({
   knife,
   variant = 'modern',
+  dimensionUnit = 'in',
   siblings,
   image,
   hasMoreImages,
@@ -52,6 +52,7 @@ export function ModernCollectionInspector({
 }: {
   knife: Knife
   variant?: 'modern' | 'alloy'
+  dimensionUnit?: DimensionUnit
   siblings: Knife[]
   image?: string
   hasMoreImages: boolean
@@ -103,8 +104,15 @@ export function ModernCollectionInspector({
     tab === 'overview'
       ? variant === 'alloy'
         ? [
-            ['Blade length', metric(knife.specs.bladeLength)],
-            ['Weight', metric(knife.specs.weight)],
+            [
+              'Blade length',
+              formatDimension(knife.specs.bladeLength, dimensionUnit) ||
+                'Not recorded',
+            ],
+            [
+              'Weight',
+              formatWeight(knife.specs.weight, dimensionUnit) || 'Not recorded',
+            ],
             ['Blade steel', knife.specs.bladeMaterial],
             ['Handle', knife.handleMaterial],
           ]
@@ -112,20 +120,39 @@ export function ModernCollectionInspector({
             ['Maker', knife.brand],
             ['Designer', knife.specs.designer],
             ['Lock', knife.specs.lockingMechanism],
-            ['Weight', metric(knife.specs.weight)],
+            [
+              'Weight',
+              formatWeight(knife.specs.weight, dimensionUnit) || 'Not recorded',
+            ],
             ['Handle', knife.handleMaterial],
             ['Family', knife.name],
           ]
       : [
           ['Blade material', knife.specs.bladeMaterial],
           ['Hardness', knife.specs.hardness],
-          ['Blade length', metric(knife.specs.bladeLength)],
-          ['Overall length', metric(knife.specs.overallLength)],
-          ['Thickness', metric(knife.specs.bladeThickness)],
+          [
+            'Blade length',
+            formatDimension(knife.specs.bladeLength, dimensionUnit) ||
+              'Not recorded',
+          ],
+          [
+            'Overall length',
+            formatDimension(knife.specs.overallLength, dimensionUnit) ||
+              'Not recorded',
+          ],
+          [
+            'Thickness',
+            formatDimension(knife.specs.bladeThickness, dimensionUnit) ||
+              'Not recorded',
+          ],
           ['Finish', knife.specs.bladeCoating],
           ['Lock', knife.specs.lockingMechanism],
           ['Model', knife.specs.modelNumber],
-          ['Handle length', metric(knife.specs.handleLength)],
+          [
+            'Handle length',
+            formatDimension(knife.specs.handleLength, dimensionUnit) ||
+              'Not recorded',
+          ],
           ['Country', knife.specs.country],
           ['Price', knife.specs.price],
         ]
@@ -194,7 +221,11 @@ export function ModernCollectionInspector({
       </div>
       {variant === 'alloy' && knife.specs.bladeLength && (
         <div data-alloy-measure>
-          <span>{metric(knife.specs.bladeLength)} blade</span>
+          <span>
+            {formatDimension(knife.specs.bladeLength, dimensionUnit) ||
+              'Not recorded'}{' '}
+            blade
+          </span>
         </div>
       )}
       <div data-inspector-body>
@@ -286,7 +317,8 @@ export function ModernCollectionInspector({
                 {[
                   knife.specs.bladeMaterial,
                   knife.specs.bladeLength
-                    ? metric(knife.specs.bladeLength)
+                    ? formatDimension(knife.specs.bladeLength, dimensionUnit) ||
+                      'Not recorded'
                     : '',
                   knife.bladeStyle,
                 ]

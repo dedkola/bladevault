@@ -1,8 +1,10 @@
 import type { Knife } from '@/lib/data'
+import { formatDimension, formatWeight } from '@/lib/measurements'
 import type {
   BuiltInCardField,
   CardField,
   CustomField,
+  DimensionUnit,
 } from '@/lib/settings-shared'
 
 export type CardFieldDefinition = {
@@ -108,9 +110,22 @@ export function getCardFieldDisplayValue(
   knife: Knife,
   field: CardField,
   customFields: CustomField[],
+  dimensionUnit?: DimensionUnit,
 ): string {
   const value = getCardFieldValue(knife, field)
   if (!value) return ''
+  if (
+    dimensionUnit &&
+    [
+      'specs.overallLength',
+      'specs.bladeLength',
+      'specs.bladeThickness',
+      'specs.handleLength',
+    ].includes(field)
+  )
+    return formatDimension(value, dimensionUnit)
+  if (dimensionUnit && field === 'specs.weight')
+    return formatWeight(value, dimensionUnit)
   if (field === 'bladeStyle' || field === 'handleMaterial') return value
 
   const customField = field.startsWith('custom:')
@@ -136,13 +151,19 @@ export function getVisibleCardFields(
   knife: Knife,
   fields: readonly CardField[],
   customFields: CustomField[],
+  dimensionUnit?: DimensionUnit,
 ): { key: CardField; label: string; value: string }[] {
   return fields
     .filter((field) => field !== 'specs.modelNumber')
     .map((field) => ({
       key: field,
       label: getCardFieldLabel(field, customFields),
-      value: getCardFieldDisplayValue(knife, field, customFields),
+      value: getCardFieldDisplayValue(
+        knife,
+        field,
+        customFields,
+        dimensionUnit,
+      ),
     }))
     .filter((field) => field.value)
 }
