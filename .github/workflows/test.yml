@@ -71,7 +71,7 @@ jobs:
             exit 0
           fi
 
-          if git diff --name-only "$BASE_SHA"...HEAD | grep -Eq '^(electron/|scripts/(prepare-desktop-build|run-desktop-smoke|sync-desktop-runtime-deps)|lib/(local-db|storage/)|package(-lock)?\.json|electron-builder\.config\.cjs)'; then
+          if git diff --name-only "$BASE_SHA"...HEAD | grep -Eq '^(electron/|scripts/(prepare-desktop-build|run-desktop-smoke|sync-desktop-runtime-deps)|lib/(local-db|storage/)|package(-lock)?\.json|electron-builder\.config\.cjs|\.nvmrc$)'; then
             echo "required=true" >> "$GITHUB_OUTPUT"
           else
             echo "required=false" >> "$GITHUB_OUTPUT"

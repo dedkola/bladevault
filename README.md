@@ -271,7 +271,7 @@ Check for updates in **Settings → About**. Download an available update, then 
 
 ## Run from source
 
-**Prerequisites:** Node.js 24 LTS. The repository pins Node.js 24.21.0 in [`.nvmrc`](.nvmrc) for local development and CI. Install Chromium as well if you want to use URL import and webpage capture.
+**Prerequisites:** Node.js 26 LTS. The repository pins Node.js 26.13.0 in [`.nvmrc`](.nvmrc) for local development and CI. Install Chromium as well if you want to use URL import and webpage capture.
 
 ```bash
 git clone https://github.com/dedkola/bladevault.git
@@ -433,7 +433,7 @@ Configure your client to run the built entry point directly:
 ```
 
 Replace both paths with your checkout and existing vault data folder. Use an
-absolute path to your Node.js 24 executable if your client cannot find `node`.
+absolute path to your Node.js 26 executable if your client cannot find `node`.
 The client starts the process, so the web or desktop app does not need to be
 running. Stdio uses the same local database and write-access settings and does
 not require an HTTP token. To start the stdio server manually, run `npm run mcp`.

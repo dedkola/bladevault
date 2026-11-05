@@ -19,9 +19,11 @@ project follows.
 
 ## Requirements
 
-- **Node.js** — the pinned version in [`.nvmrc`](.nvmrc) (currently 24.21.0). CI reads the same
+- **Node.js** — the pinned version in [`.nvmrc`](.nvmrc) (currently 26.13.0). CI reads the same
   file, and the Docker image and dev container use the same version, so matching it locally avoids
-  "works on my machine" failures. `package.json` declares `engines.node: ^24.18.1`.
+  "works on my machine" failures. `package.json` declares
+  `engines.node: ^24.18.1 || ^26.0.0`. The Electron 45 desktop app still bundles Node 24; the
+  development, web, and Docker runtimes are Node 26.
 - **npm** — the repository ships a `package-lock.json`, so use `npm ci` for a reproducible install.
   Do not switch lockfiles or package managers in a PR.
 - Optional, only for the paths you touch: Docker or Podman (container images), a Kubernetes cluster

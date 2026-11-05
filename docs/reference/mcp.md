@@ -88,7 +88,7 @@ Configure your client to run the built entry point directly:
 }
 ```
 
-Replace both paths with the paths to your checkout and existing vault data folder. Use an absolute path to your Node.js 24 executable if your client cannot find `node`. The client starts the process, so the web or desktop app does not need to be running. Stdio uses the same local database and write-access settings and does not require an HTTP token. To start the stdio server manually, run `npm run mcp`.
+Replace both paths with the paths to your checkout and existing vault data folder. Use an absolute path to your Node.js 26 executable if your client cannot find `node`. The client starts the process, so the web or desktop app does not need to be running. Stdio uses the same local database and write-access settings and does not require an HTTP token. To start the stdio server manually, run `npm run mcp`.
 
 ## Tokens and deployment overrides
 

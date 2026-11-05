@@ -65,7 +65,7 @@
 
 ## Requirements
 
-- **Node.js 24 LTS** only if you run from source; the repository pins `24.21.0` in `.nvmrc`.
+- **Node.js 26 LTS** only if you run from source; the repository pins `26.13.0` in `.nvmrc`.
 - A container runtime (Docker or Podman), or a Kubernetes cluster with a `LoadBalancer` implementation such as MetalLB for the Helm path.
 - **Chromium** if you want URL import and webpage capture from a source checkout (`npx playwright install chromium`).
 
