@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Node.js 24 LTS.** The repository pins Node.js `24.21.0` in [`.nvmrc`](https://github.com/dedkola/bladevault/blob/main/.nvmrc) for local development and CI; `package.json` declares `engines.node: ^24.18.1`.
+- **Node.js 26 LTS.** The repository pins Node.js `26.13.0` in [`.nvmrc`](https://github.com/dedkola/bladevault/blob/main/.nvmrc) for local development and CI; `package.json` declares `engines.node: ^24.18.1 || ^26.0.0`.
 - **Chromium** if you want to use URL import and webpage capture.
 - Dependencies are installed with `npm ci` (the repository ships a `package-lock.json`).
 

@@ -12,6 +12,7 @@ on:
       - 'electron-builder.config.cjs'
       - 'package.json'
       - 'package-lock.json'
+      - '.nvmrc'
       - '.github/workflows/desktop-smoke.yml'
   push:
     branches:
@@ -26,6 +27,7 @@ on:
       - 'electron-builder.config.cjs'
       - 'package.json'
       - 'package-lock.json'
+      - '.nvmrc'
       - '.github/workflows/desktop-smoke.yml'
   schedule:
     - cron: '47 4 * * 2'
@@ -72,3 +74,31 @@ jobs:
         run: npm run desktop:smoke
         env:
           electron_config_cache: ${{ runner.tool_cache }}/electron
+
+      - name: Package Windows installer
+        if: runner.os == 'Windows'
+        run: npx electron-builder --config electron-builder.config.cjs --win nsis --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          electron_config_cache: ${{ runner.tool_cache }}/electron
+
+      - name: Locate Windows installer
+        if: runner.os == 'Windows'
+        id: installer
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path dist/desktop -Filter 'BladeVault-Setup.exe' -Recurse | Select-Object -First 1
+          if (-not $installer -or $installer.Length -eq 0) {
+            throw 'Windows installer was not produced.'
+          }
+          "path=$($installer.FullName)" >> $env:GITHUB_OUTPUT
+          Write-Output "Built $($installer.FullName) ($($installer.Length) bytes)"
+
+      - name: Upload Windows installer
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-installer
+          path: ${{ steps.installer.outputs.path }}
+          if-no-files-found: error
+          retention-days: 7

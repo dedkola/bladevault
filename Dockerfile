@@ -1,15 +1,9 @@
-# The Playwright 1.64 image ships Node 26. The project targets Node 24 LTS
-# (keep this version in sync with .nvmrc), so install that runtime over the
-# image's base OS.
-FROM node:24.21.0-bookworm-slim AS node24
-
+# The Playwright 1.64.1 image ships Node 26.x, matching .nvmrc. Fail the build
+# if the image moves to a different Node major so the mismatch is deliberate.
 FROM mcr.microsoft.com/playwright:v1.64.1-noble AS base
 
-COPY --from=node24 /usr/local/bin/node /usr/local/bin/node
-COPY --from=node24 /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
-RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
-  ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx && \
-  node --version && npm --version
+RUN node --version && npm --version && \
+  node -e "const major = process.versions.node.split('.')[0]; if (major !== '26') process.exit(1)"
 
 # Development container target. The dev container mounts the checkout and runs
 # npm ci itself, so this stage only provides the shared runtime.
@@ -71,8 +65,7 @@ RUN apt-get update && \
   rm -rf /var/lib/apt/lists/*
 
 # npm is needed only in the build stages; the runtime starts directly with node.
-RUN rm -rf /usr/lib/node_modules/npm /usr/bin/npm /usr/bin/npx \
-  /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+RUN rm -rf /usr/lib/node_modules/npm /usr/bin/npm /usr/bin/npx
 
 RUN mkdir -p /app/data
 RUN mkdir -p /app/.next/cache/images
