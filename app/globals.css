@@ -621,9 +621,13 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   }
 
   /* Shared by every style that shows the collection table (Classic included). */
-  [data-modern-collection-table] thead,
+  [data-modern-collection-table] table > thead,
   [data-modern-collection-table] td:nth-child(n + 3) {
     display: none;
+  }
+
+  [data-modern-collection-table] tbody tr {
+    grid-template-columns: 28px minmax(0, 1fr);
   }
 
   [data-modern-collection-table] td:first-child {
@@ -1479,12 +1483,13 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   display: none;
 }
 
-[data-modern-collection] [data-modern-collection-table] table,
-[data-modern-collection] [data-modern-collection-table] :is(thead, tbody) {
+/* Grid layout so saved column widths apply in every style, Classic included. */
+[data-modern-collection-table] table,
+[data-modern-collection-table] :is(thead, tbody) {
   display: block;
 }
 
-[data-modern-collection] [data-modern-collection-table] tr {
+[data-modern-collection-table] tr {
   display: grid;
   grid-template-columns: var(--collection-columns);
   align-items: center;
@@ -1492,28 +1497,25 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   padding: 7px 12px;
 }
 
-[data-modern-collection] [data-modern-collection-table] thead tr {
+[data-modern-collection-table] thead tr {
   background: color-mix(in srgb, var(--card) 60%, var(--background));
   padding-block: 8px;
 }
 
-[data-modern-collection] [data-modern-collection-table] :is(th, td) {
+[data-modern-collection-table] :is(th, td) {
   width: auto;
   min-width: 0;
   padding: 0;
 }
 
-[data-modern-collection]
-  [data-modern-collection-table]
-  [data-collection-status]
-  > span {
+[data-modern-collection-table] [data-collection-status] > span {
   display: inline-flex;
   align-items: center;
   height: 24px;
   padding-inline: 8px;
 }
 
-[data-modern-collection] [data-modern-collection-table] [data-column-heading] {
+[data-modern-collection-table] [data-column-heading] {
   position: relative;
   padding-right: 12px;
 }
