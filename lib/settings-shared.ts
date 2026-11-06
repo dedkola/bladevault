@@ -81,7 +81,7 @@ export type CollectionDisplay = {
   columnWidths: Record<string, number>
   view: 'list' | 'grid'
   sort: 'newest' | 'model' | 'brand'
-  density: 'gallery' | 'compact'
+  density: 'gallery' | 'compact' | 'table'
 }
 export const DEFAULT_COLLECTION_DISPLAY: CollectionDisplay = {
   columns: ['maker', 'steel', 'blade', 'weight', 'status'],
@@ -146,7 +146,9 @@ export function normalizeCollectionDisplay(
         ? input.sort
         : fallback.sort,
     density:
-      input.density === 'gallery' || input.density === 'compact'
+      input.density === 'gallery' ||
+      input.density === 'compact' ||
+      input.density === 'table'
         ? input.density
         : fallback.density,
   }

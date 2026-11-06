@@ -173,7 +173,10 @@ function CollectionContent() {
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
   const [isBulkPinning, setIsBulkPinning] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  const density: CollectionCardDensity = collectionDisplay.density
+  const density = collectionDisplay.density
+  const isClassicTable = !isWorkspaceCollection && density === 'table'
+  const cardDensity: CollectionCardDensity =
+    density === 'table' ? 'gallery' : density
   const modernView = isAlloy ? alloyView : collectionDisplay.view
   const sortOrder = collectionDisplay.sort
   const saveDisplay = (patch: Partial<CollectionDisplay>) => {
@@ -186,8 +189,11 @@ function CollectionContent() {
       )
     })
   }
-  const setDensity = (density: CollectionCardDensity) =>
-    saveDisplay({ density })
+  const setDensity = (next: CollectionDisplay['density']) => {
+    // Table checkboxes select outside Select mode; drop them when leaving the table.
+    if (next !== 'table' && !isSelectionMode) setSelectedIds(new Set())
+    saveDisplay({ density: next })
+  }
   const setModernView = (view: 'list' | 'grid') => {
     if (!isAlloy) {
       saveDisplay({ view })
@@ -719,12 +725,47 @@ function CollectionContent() {
     }
   }
 
+  const renderColumnsMenu = (
+    summaryClassName = 'flex cursor-pointer list-none items-center gap-1 rounded-md px-2 py-1.5 text-xs focus-visible:outline-2 focus-visible:outline-ring',
+  ) => (
+    <details className="relative">
+      <summary className={summaryClassName} aria-label="Choose columns">
+        <Columns3 className="size-3.5" /> Columns
+      </summary>
+      <div className="absolute right-0 top-full z-30 mt-2 max-h-[min(65dvh,32rem)] w-56 overflow-y-auto space-y-3 rounded-lg border border-border bg-popover p-3 shadow-lg">
+        <span className="text-xs text-muted-foreground">Show columns</span>
+        {collectionColumns.map((column) => (
+          <label
+            key={column.key}
+            className="flex cursor-pointer items-center gap-2 text-sm"
+          >
+            <Checkbox
+              checked={collectionDisplay.columns.includes(column.key)}
+              onCheckedChange={(checked) => {
+                saveDisplay({
+                  columns: checked
+                    ? [...collectionDisplay.columns, column.key]
+                    : collectionDisplay.columns.filter(
+                        (item) => item !== column.key,
+                      ),
+                })
+              }}
+            />
+            {column.label}
+          </label>
+        ))}
+      </div>
+    </details>
+  )
+
   return (
     <div
       className={cn(
         'w-full flex-1 p-4 sm:p-6 lg:p-8',
         activeKnife && !isAlloy && 'xl:pr-[28rem]',
-        (isSelectionMode || (isWorkspaceCollection && selectedIds.size > 0)) &&
+        (isSelectionMode ||
+          ((isWorkspaceCollection || isClassicTable) &&
+            selectedIds.size > 0)) &&
           'pb-28 lg:pb-28',
       )}
       data-collection-content
@@ -823,39 +864,7 @@ function CollectionContent() {
             >
               <ArrowDownWideNarrow className="size-4" />
             </Button>
-            <details className="relative">
-              <summary
-                className="flex cursor-pointer list-none items-center gap-1 rounded-md px-2 py-1.5 text-xs focus-visible:outline-2 focus-visible:outline-ring"
-                aria-label="Choose columns"
-              >
-                <Columns3 className="size-3.5" /> Columns
-              </summary>
-              <div className="absolute right-0 top-full z-30 mt-2 max-h-[min(65dvh,32rem)] w-56 overflow-y-auto space-y-3 rounded-lg border border-border bg-popover p-3 shadow-lg">
-                <span className="text-xs text-muted-foreground">
-                  Show columns
-                </span>
-                {collectionColumns.map((column) => (
-                  <label
-                    key={column.key}
-                    className="flex cursor-pointer items-center gap-2 text-sm"
-                  >
-                    <Checkbox
-                      checked={collectionDisplay.columns.includes(column.key)}
-                      onCheckedChange={(checked) => {
-                        saveDisplay({
-                          columns: checked
-                            ? [...collectionDisplay.columns, column.key]
-                            : collectionDisplay.columns.filter(
-                                (item) => item !== column.key,
-                              ),
-                        })
-                      }}
-                    />
-                    {column.label}
-                  </label>
-                ))}
-              </div>
-            </details>
+            {renderColumnsMenu()}
             <select
               aria-label="Sort collection"
               value={sortOrder}
@@ -1099,8 +1108,22 @@ function CollectionContent() {
                   >
                     <Grid3X3 className="size-3.5" />
                   </Button>
+                  <Button
+                    type="button"
+                    variant={density === 'table' ? 'secondary' : 'ghost'}
+                    size="icon-xs"
+                    onClick={() => setDensity('table')}
+                    aria-pressed={density === 'table'}
+                    aria-label="Table view"
+                  >
+                    <List className="size-3.5" />
+                  </Button>
                 </div>
               )}
+              {isClassicTable &&
+                renderColumnsMenu(
+                  'flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                )}
               <Button
                 variant="outline"
                 size="default"
@@ -1273,7 +1296,8 @@ function CollectionContent() {
           />
         ) : (
           <div className="space-y-6">
-            {isWorkspaceCollection && modernView === 'list' && !isFamilyView ? (
+            {(isWorkspaceCollection ? modernView === 'list' : isClassicTable) &&
+            !isFamilyView ? (
               <ModernCollectionTable
                 knives={filteredKnives.slice(0, visibleCount)}
                 columnWidths={collectionDisplay.columnWidths}
@@ -1327,16 +1351,16 @@ function CollectionContent() {
               <div
                 className={cn(
                   'grid [overflow-anchor:none]',
-                  density === 'gallery'
+                  cardDensity === 'gallery'
                     ? 'grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4'
                     : 'grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5',
-                  density === 'gallery' &&
+                  cardDensity === 'gallery' &&
                     'xl:grid-cols-[repeat(auto-fit,minmax(19rem,min(100%,22rem)))]',
-                  density === 'compact' &&
+                  cardDensity === 'compact' &&
                     'xl:grid-cols-[repeat(auto-fit,minmax(15rem,min(100%,18rem)))]',
                 )}
                 data-collection-grid
-                data-density={density}
+                data-density={cardDensity}
               >
                 {isFamilyView
                   ? filteredFamilies
@@ -1351,7 +1375,7 @@ function CollectionContent() {
                             allVariants={allVariants}
                             eager={index === 0}
                             activeKnifeId={activeKnifeId ?? undefined}
-                            density={density}
+                            density={cardDensity}
                             onOpen={inspectKnife}
                           />
                         )
@@ -1366,9 +1390,9 @@ function CollectionContent() {
                           selectionMode={isSelectionMode}
                           selected={selectedIds.has(knife.id)}
                           active={knife.id === activeKnifeId}
-                          density={density}
+                          density={cardDensity}
                           imageSizes={
-                            density === 'compact'
+                            cardDensity === 'compact'
                               ? '(min-width: 1280px) 18rem, (max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
                               : '(min-width: 1280px) 22rem, (max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
                           }
@@ -1410,7 +1434,9 @@ function CollectionContent() {
         />
       )}
 
-      {(isSelectionMode || (isWorkspaceCollection && selectedIds.size > 0)) && (
+      {(isSelectionMode ||
+        ((isWorkspaceCollection || isClassicTable) &&
+          selectedIds.size > 0)) && (
         <div
           data-alloy-bulk-actions={isAlloy || undefined}
           className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4"
