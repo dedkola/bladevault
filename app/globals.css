@@ -53,7 +53,7 @@
   --bladevault-olive: #2e3417;
   --bladevault-gold: #c89c3d;
   --bladevault-line: #d3c097;
-  --bladevault-title: #9e6e1b;
+  --bladevault-title: #906316;
   --bladevault-local: #4f5821;
   --bladevault-nav-active-bg: var(--bladevault-olive);
   --bladevault-nav-active-fg: var(--bladevault-gold);
@@ -66,6 +66,7 @@
   --popover: #fffdf8;
   --popover-foreground: #2f2a20;
   --primary: #c89c3d;
+  --primary-hover: color-mix(in srgb, var(--primary) 80%, transparent);
   --primary-foreground: #2e3417;
   --secondary: #f6f0df;
   --secondary-foreground: #2e3417;
@@ -156,7 +157,7 @@
 
 /* Modern theme style.
  *
- * "Current" stays the default warm BladeVault palette. The modern style is a
+ * "Classic" stays the default warm BladeVault palette. The modern style is a
  * cool, neutral, Apple-like theme with blue accents and graphite surfaces.
  * It only changes design tokens — the existing layouts and interactions stay
  * intact, so the theme can ship independently of any page-level redesign.
@@ -174,6 +175,7 @@ html[data-theme-style='modern'] {
   --bladevault-local: #1d7a3a;
   --bladevault-nav-active-bg: #e8f2ff;
   --bladevault-action-active-bg: #e8f2ff;
+  --bladevault-action-active-fg: #0066cc;
   --bladevault-nav-active-fg: #0066cc;
   --bladevault-surface-soft: #f5f5f7;
   --bladevault-surface-hover: #ececf0;
@@ -184,6 +186,7 @@ html[data-theme-style='modern'] {
   --popover: #ffffff;
   --popover-foreground: #1d1d1f;
   --primary: #0071e3;
+  --primary-hover: #0066cc;
   --primary-foreground: #ffffff;
   --secondary: #ffffff;
   --secondary-foreground: #1d1d1f;
@@ -233,6 +236,7 @@ html[data-theme-style='modern'].dark {
   --bladevault-local: #6dd58c;
   --bladevault-nav-active-bg: #162738;
   --bladevault-action-active-bg: #162738;
+  --bladevault-action-active-fg: #64d2ff;
   --bladevault-nav-active-fg: #64d2ff;
   --background: #0d0d0f;
   --foreground: #f5f5f7;
@@ -240,7 +244,8 @@ html[data-theme-style='modern'].dark {
   --card-foreground: #f5f5f7;
   --popover: #1c1c1f;
   --popover-foreground: #f5f5f7;
-  --primary: #0a84ff;
+  --primary: #0071e3;
+  --primary-hover: #0066cc;
   --primary-foreground: #ffffff;
   --secondary: #242427;
   --secondary-foreground: #f5f5f7;
@@ -266,7 +271,7 @@ html[data-theme-style='modern'].dark {
   --bv-chart-heat-4: #64d2ff;
   --sidebar: #151517;
   --sidebar-foreground: #f5f5f7;
-  --sidebar-primary: #0a84ff;
+  --sidebar-primary: #0071e3;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #242427;
   --sidebar-accent-foreground: #f5f5f7;
@@ -1977,6 +1982,15 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
 }
 [data-compare-pill] button {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  border-radius: 4px;
+}
+[data-compare-pill] button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 [data-compare-pill] button:hover {
   color: var(--destructive);
@@ -2079,9 +2093,9 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
 [data-modern-compare] [data-compare-image] button {
   top: 3px;
   right: 3px;
-  width: 19px;
-  height: 19px;
-  padding: 2px;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
   border-radius: 50%;
 }
 [data-modern-compare] [data-compare-image] button svg {
@@ -2280,6 +2294,11 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
 }
 [data-workspace-actions] > [data-workspace-add]:hover {
   background: color-mix(in srgb, var(--primary) 90%, white);
+}
+html[data-theme-style='modern']
+  [data-workspace-actions]
+  > [data-workspace-add]:hover {
+  background: var(--primary-hover);
 }
 [data-workspace-body] {
   display: grid;

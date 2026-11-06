@@ -9,6 +9,7 @@ type SearchFieldProps = {
   value: string
   onChange: (value: string) => void
   placeholder?: string
+  label?: string
   className?: string
   inputRef?: RefObject<HTMLInputElement | null>
   shortcutHint?: string
@@ -18,6 +19,7 @@ export function SearchField({
   value,
   onChange,
   placeholder = 'Search model name…',
+  label = 'Search model name',
   className,
   inputRef,
   shortcutHint,
@@ -37,6 +39,7 @@ export function SearchField({
         <Input
           ref={resolvedInputRef}
           type="search"
+          aria-label={label}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}

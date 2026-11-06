@@ -10,6 +10,7 @@ import {
   type CollectionColumnDefinition,
 } from '@/lib/collection-columns'
 import { cn } from '@/lib/utils'
+import { SoldBadge } from '@/components/sold-badge'
 import { formatDimension } from '@/lib/measurements'
 import type { CollectionColumnSort, DimensionUnit } from '@/lib/settings-shared'
 import { useCollectionItemNavigation } from '@/hooks/use-collection-item-navigation'
@@ -427,8 +428,9 @@ export function ModernCollectionTable({
                         )}
                       </div>
                       <div className="min-w-0">
-                        <div className="truncate text-[length:var(--modern-font-body)] font-[550] tracking-[-0.01em] text-foreground">
-                          {knife.name}
+                        <div className="flex min-w-0 items-center gap-2 text-[length:var(--modern-font-body)] font-[550] tracking-[-0.01em] text-foreground">
+                          <span className="truncate">{knife.name}</span>
+                          {knife.sold && <SoldBadge />}
                         </div>
                         {(modelNumber || designer) && (
                           <div className="truncate mt-px text-[length:var(--modern-font-secondary)] text-muted-foreground">
@@ -458,11 +460,11 @@ export function ModernCollectionTable({
                             className={cn(
                               'inline-flex whitespace-nowrap rounded-full px-1.5 py-1 text-[length:var(--modern-font-caption)] font-medium leading-none',
                               status.tone === 'complete' &&
-                                'bg-[#2f9e6d]/10 text-[#2f9e6d]',
+                                'bg-[#2f9e6d]/10 text-[#216e4c] dark:text-[#74d6a4]',
                               status.tone === 'pinned' &&
                                 'bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)]',
                               status.tone === 'missing' &&
-                                'bg-[#f6821f]/10 text-[#c66a15]',
+                                'bg-[#f6821f]/10 text-[#914409] dark:text-[#ffb477]',
                             )}
                           >
                             {status.label}
@@ -515,6 +517,7 @@ export function ModernCollectionGallery({
           onDoubleClick={() => navigation.onDoubleClick(knife)}
         >
           <span data-modern-object-stage>
+            {knife.sold && <SoldBadge className="absolute left-2 top-2 z-10" />}
             {knife.images[0] ? (
               <Image
                 src={getImageUrl(knife.images[0])}

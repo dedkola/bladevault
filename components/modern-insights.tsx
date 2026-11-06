@@ -1,5 +1,7 @@
 'use client'
 
+import { formatKnifeCount } from '@/lib/knife-count'
+
 import Image from 'next/image'
 import Link from 'next/link'
 import { useId, useMemo, useState, type ReactNode } from 'react'
@@ -420,7 +422,7 @@ export function ModernInsights() {
                           ? point.label
                           : point.label.split(' ')[0],
                       count: point.added,
-                      description: `${point.label}: ${number.format(point.added)} knives added`,
+                      description: `${point.label}: ${formatKnifeCount(point.added, number.format(point.added))} added`,
                       highlighted: point.monthKey === currentMonth.monthKey,
                     }))}
                     selectedKey={selectedMonthKey}
@@ -644,7 +646,13 @@ export function ModernInsights() {
                           ))
                         : peakBin.label}
                     </strong>
-                    <p>most common · {number.format(peakBin.count)} knives</p>
+                    <p>
+                      most common ·{' '}
+                      {formatKnifeCount(
+                        peakBin.count,
+                        number.format(peakBin.count),
+                      )}
+                    </p>
                   </div>
                 )}
               </div>
@@ -655,7 +663,7 @@ export function ModernInsights() {
                     key: bin.label,
                     label: compactBinLabel(bin.label),
                     count: bin.count,
-                    description: `${bin.label}: ${number.format(bin.count)} knives, ${Math.round((bin.count / measurement.knownCount) * 100)}% of measured`,
+                    description: `${bin.label}: ${formatKnifeCount(bin.count, number.format(bin.count))}, ${Math.round((bin.count / measurement.knownCount) * 100)}% of measured`,
                     highlighted: bin.count === peakBin.count,
                   }))}
                   selectedKey={selectedBinLabel}
@@ -682,7 +690,7 @@ export function ModernInsights() {
                 </span>
                 <span aria-live="polite">
                   {selectedBin && measurement.knownCount > 0
-                    ? `${selectedBin.label} · ${number.format(selectedBin.count)} knives · ${Math.round((selectedBin.count / measurement.knownCount) * 100)}%`
+                    ? `${selectedBin.label} · ${formatKnifeCount(selectedBin.count, number.format(selectedBin.count))} · ${Math.round((selectedBin.count / measurement.knownCount) * 100)}%`
                     : 'Select a range to see its share'}
                 </span>
               </div>

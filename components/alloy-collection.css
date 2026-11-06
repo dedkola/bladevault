@@ -84,7 +84,7 @@ html[data-theme-style='alloy'] [data-alloy-card-model] {
   text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: none;
-  color: #70695c;
+  color: #595348;
   font-family: var(--font-mono), monospace;
   font-size: 9px;
   letter-spacing: 0.06em;
