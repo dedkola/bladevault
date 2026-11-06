@@ -733,27 +733,53 @@ function CollectionContent() {
         <Columns3 className="size-3.5" /> Columns
       </summary>
       <div className="absolute right-0 top-full z-30 mt-2 max-h-[min(65dvh,32rem)] w-56 overflow-y-auto space-y-3 rounded-lg border border-border bg-popover p-3 shadow-lg">
-        <span className="text-xs text-muted-foreground">Show columns</span>
-        {collectionColumns.map((column) => (
-          <label
-            key={column.key}
-            className="flex cursor-pointer items-center gap-2 text-sm"
-          >
-            <Checkbox
-              checked={collectionDisplay.columns.includes(column.key)}
-              onCheckedChange={(checked) => {
-                saveDisplay({
-                  columns: checked
-                    ? [...collectionDisplay.columns, column.key]
-                    : collectionDisplay.columns.filter(
-                        (item) => item !== column.key,
-                      ),
-                })
-              }}
-            />
-            {column.label}
-          </label>
-        ))}
+        {[
+          {
+            label: 'Custom fields',
+            columns: collectionColumns.filter((column) =>
+              column.key.startsWith('custom:'),
+            ),
+          },
+          {
+            label: 'Show columns',
+            columns: collectionColumns.filter(
+              (column) => !column.key.startsWith('custom:'),
+            ),
+          },
+        ]
+          .filter((group) => group.columns.length > 0)
+          .map((group) => (
+            <div
+              key={group.label}
+              role="group"
+              aria-label={group.label}
+              className="space-y-3"
+            >
+              <span className="block text-xs text-muted-foreground">
+                {group.label}
+              </span>
+              {group.columns.map((column) => (
+                <label
+                  key={column.key}
+                  className="flex cursor-pointer items-center gap-2 text-sm"
+                >
+                  <Checkbox
+                    checked={collectionDisplay.columns.includes(column.key)}
+                    onCheckedChange={(checked) => {
+                      saveDisplay({
+                        columns: checked
+                          ? [...collectionDisplay.columns, column.key]
+                          : collectionDisplay.columns.filter(
+                              (item) => item !== column.key,
+                            ),
+                      })
+                    }}
+                  />
+                  {column.label}
+                </label>
+              ))}
+            </div>
+          ))}
       </div>
     </details>
   )
