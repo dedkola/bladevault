@@ -2,28 +2,17 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import Image from '@/components/vault-image'
-import { ImageIcon } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ImageIcon } from 'lucide-react'
 import { getImageUrl, type Knife } from '@/lib/data'
 import { Checkbox } from '@/components/ui/checkbox'
-import type { CollectionColumnDefinition } from '@/lib/collection-columns'
+import {
+  statusForKnife,
+  type CollectionColumnDefinition,
+} from '@/lib/collection-columns'
 import { cn } from '@/lib/utils'
 import { formatDimension } from '@/lib/measurements'
-import type { DimensionUnit } from '@/lib/settings-shared'
+import type { CollectionColumnSort, DimensionUnit } from '@/lib/settings-shared'
 import { useCollectionItemNavigation } from '@/hooks/use-collection-item-navigation'
-
-function statusForKnife(knife: Knife) {
-  if (knife.pinned) return { label: 'Pinned', tone: 'pinned' as const }
-  if (
-    !knife.specs.designer ||
-    !knife.specs.bladeLength ||
-    !knife.handleMaterial ||
-    !knife.bladeStyle ||
-    !knife.specs.lockingMechanism
-  ) {
-    return { label: 'Incomplete', tone: 'missing' as const }
-  }
-  return { label: 'Complete', tone: 'complete' as const }
-}
 
 // Collection summaries omit descriptions; load them only when this column is visible.
 function KnifeDescription({ knife }: { knife: Knife }) {
@@ -160,7 +149,12 @@ export function ModernCollectionTable({
   onReorderColumn,
   columnWidths,
   onResizeColumn,
+  sort = null,
+  onSort,
 }: {
+  /** Active header sort; `onSort` enables the header sort buttons. */
+  sort?: CollectionColumnSort | null
+  onSort?: (key: string) => void
   columnWidths: Record<string, number>
   onResizeColumn: (key: string, width: number | undefined) => void
   onReorderColumn: (sourceId: string, targetId: string) => void
@@ -202,6 +196,51 @@ export function ModernCollectionTable({
       />
     )
   }
+  const sortButton = (key: string, label: string) => {
+    if (!onSort) return null
+    const direction = sort?.key === key ? sort.direction : null
+    const Icon =
+      direction === 'asc'
+        ? ArrowUp
+        : direction === 'desc'
+          ? ArrowDown
+          : ArrowUpDown
+    return (
+      <button
+        type="button"
+        data-column-sort={direction ?? undefined}
+        aria-label={
+          direction === 'asc'
+            ? `Sort ${label} descending`
+            : direction === 'desc'
+              ? `Clear ${label} sort`
+              : `Sort ${label} ascending`
+        }
+        title={
+          direction === 'asc'
+            ? 'Sorted ascending · click for descending'
+            : direction === 'desc'
+              ? 'Sorted descending · click to clear'
+              : `Sort by ${label}`
+        }
+        onClick={() => onSort(key)}
+        className={cn(
+          'grid size-4 shrink-0 place-items-center rounded transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring',
+          direction
+            ? 'text-foreground opacity-100'
+            : 'opacity-0 group-hover/heading:opacity-100',
+        )}
+      >
+        <Icon className="size-3" aria-hidden="true" />
+      </button>
+    )
+  }
+  const ariaSort = (key: string) =>
+    sort?.key === key
+      ? sort.direction === 'asc'
+        ? ('ascending' as const)
+        : ('descending' as const)
+      : undefined
   const draggedId = useRef<string | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [announcement, setAnnouncement] = useState('')
@@ -247,19 +286,24 @@ export function ModernCollectionTable({
                 scope="col"
                 data-column-heading
                 aria-label="Knife"
-                className="w-[38%] px-3 py-2 font-medium"
+                aria-sort={ariaSort('knife')}
+                className="group/heading w-[38%] px-3 py-2 font-medium"
               >
-                Knife
+                <div className="flex min-w-0 items-center gap-0.5">
+                  <span className="truncate">Knife</span>
+                  {sortButton('knife', 'Knife')}
+                </div>
                 {resizeGrip('knife', 'Knife')}
               </th>
               {columns.map((column, index) => (
                 <th
                   key={column.key}
                   aria-label={column.label}
+                  aria-sort={ariaSort(column.key)}
                   data-column-heading
                   scope="col"
                   className={cn(
-                    'px-2 py-2 font-medium truncate',
+                    'group/heading px-2 py-2 font-medium',
                     dropTarget === column.key && 'ring-2 ring-inset ring-ring',
                   )}
                   onDragOver={(event) => {
@@ -285,35 +329,39 @@ export function ModernCollectionTable({
                     if (source !== column.key) moveColumn(source, column.key)
                   }}
                 >
-                  <button
-                    type="button"
-                    draggable
-                    aria-label={`Reorder ${column.label} column`}
-                    title="Drag to reorder columns · use Arrow Left or Arrow Right to move"
-                    className="block w-full cursor-grab truncate rounded text-left focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing"
-                    onDragStart={(event) => {
-                      draggedId.current = column.key
-                      event.dataTransfer.effectAllowed = 'move'
-                      event.dataTransfer.setData('text/plain', column.key)
-                    }}
-                    onDragEnd={() => {
-                      draggedId.current = null
-                      setDropTarget(null)
-                    }}
-                    onKeyDown={(event) => {
-                      if (
-                        event.key !== 'ArrowLeft' &&
-                        event.key !== 'ArrowRight'
-                      )
-                        return
-                      event.preventDefault()
-                      const target =
-                        columns[index + (event.key === 'ArrowLeft' ? -1 : 1)]
-                      if (target) moveColumn(column.key, target.key)
-                    }}
-                  >
-                    {column.label}
-                  </button>
+                  <div className="flex min-w-0 items-center gap-0.5">
+                    <button
+                      type="button"
+                      draggable
+                      aria-label={`Reorder ${column.label} column`}
+                      title="Drag to reorder columns · use Arrow Left or Arrow Right to move"
+                      className="block min-w-0 flex-1 cursor-grab truncate rounded text-left focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing"
+                      onDragStart={(event) => {
+                        draggedId.current = column.key
+                        event.dataTransfer.effectAllowed = 'move'
+                        event.dataTransfer.setData('text/plain', column.key)
+                      }}
+                      onDragEnd={() => {
+                        draggedId.current = null
+                        setDropTarget(null)
+                      }}
+                      onKeyDown={(event) => {
+                        if (
+                          event.key !== 'ArrowLeft' &&
+                          event.key !== 'ArrowRight'
+                        )
+                          return
+                        event.preventDefault()
+                        const target =
+                          columns[index + (event.key === 'ArrowLeft' ? -1 : 1)]
+                        if (target) moveColumn(column.key, target.key)
+                      }}
+                    >
+                      {column.label}
+                    </button>
+                    {column.sortable !== false &&
+                      sortButton(column.key, column.label)}
+                  </div>
                   {resizeGrip(column.key, column.label)}
                 </th>
               ))}

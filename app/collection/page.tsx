@@ -53,7 +53,10 @@ import {
   type CollectionDisplay,
   type CustomFieldType,
 } from '@/lib/settings-shared'
-import { getCollectionColumns } from '@/lib/collection-columns'
+import {
+  getCollectionColumns,
+  sortKnivesByColumn,
+} from '@/lib/collection-columns'
 import { useDebouncedValue } from '@/lib/use-debounced-value'
 import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -173,7 +176,10 @@ function CollectionContent() {
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
   const [isBulkPinning, setIsBulkPinning] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  const density: CollectionCardDensity = collectionDisplay.density
+  const density = collectionDisplay.density
+  const isClassicTable = !isWorkspaceCollection && density === 'table'
+  const cardDensity: CollectionCardDensity =
+    density === 'table' ? 'gallery' : density
   const modernView = isAlloy ? alloyView : collectionDisplay.view
   const sortOrder = collectionDisplay.sort
   const saveDisplay = (patch: Partial<CollectionDisplay>) => {
@@ -186,8 +192,11 @@ function CollectionContent() {
       )
     })
   }
-  const setDensity = (density: CollectionCardDensity) =>
-    saveDisplay({ density })
+  const setDensity = (next: CollectionDisplay['density']) => {
+    // Table checkboxes select outside Select mode; drop them when leaving the table.
+    if (next !== 'table' && !isSelectionMode) setSelectedIds(new Set())
+    saveDisplay({ density: next })
+  }
   const setModernView = (view: 'list' | 'grid') => {
     if (!isAlloy) {
       saveDisplay({ view })
@@ -206,7 +215,21 @@ function CollectionContent() {
     }
     window.dispatchEvent(new Event(ALLOY_VIEW_EVENT))
   }
-  const setSortOrder = (sort: CollectionSort) => saveDisplay({ sort })
+  // Picking a dropdown sort replaces any table header sort.
+  const setSortOrder = (sort: CollectionSort) =>
+    saveDisplay({ sort, columnSort: null })
+  const cycleColumnSort = (key: string) => {
+    const current = collectionDisplay.columnSort
+    saveDisplay({
+      columnSort:
+        current?.key !== key
+          ? { key, direction: 'asc' }
+          : current.direction === 'asc'
+            ? { key, direction: 'desc' }
+            : null,
+    })
+    setVisibleCount(PAGE_SIZE)
+  }
   const [inspectorDismissed, setInspectorDismissed] = useState(false)
   const [activeKnifeId, setActiveKnifeId] = useState<string | null>(null)
   const debouncedQuery = useDebouncedValue(query, 200)
@@ -283,6 +306,29 @@ function CollectionContent() {
     const column = collectionColumns.find((item) => item.key === key)
     return column ? [column] : []
   })
+  const isTableView =
+    (isWorkspaceCollection ? modernView === 'list' : isClassicTable) &&
+    !isFamilyView
+  // Header sorts apply only while the table shows that column.
+  const columnSort =
+    isTableView &&
+    collectionDisplay.columnSort &&
+    (collectionDisplay.columnSort.key === 'knife' ||
+      visibleColumns.some(
+        (column) =>
+          column.key === collectionDisplay.columnSort?.key &&
+          column.sortable !== false,
+      ))
+      ? collectionDisplay.columnSort
+      : null
+  const columnSortLabel = columnSort
+    ? `${
+        columnSort.key === 'knife'
+          ? 'Knife'
+          : (visibleColumns.find((column) => column.key === columnSort.key)
+              ?.label ?? 'Column')
+      } ${columnSort.direction === 'asc' ? '↑' : '↓'}`
+    : null
   const reorderColumns = (sourceId: string, targetId: string) => {
     const columns = [...collectionDisplay.columns]
     const source = columns.findIndex((key) => key === sourceId)
@@ -371,6 +417,12 @@ function CollectionContent() {
       (knife) =>
         matchesCollection(knife, params) && (!isPinnedView || knife.pinned),
     )
+    if (columnSort) {
+      return prioritizePinnedKnives(
+        sortKnivesByColumn(matches, columnSort, collectionColumns),
+        pinnedItemsFirst && !isPinnedView,
+      )
+    }
     const sorted = [...matches].sort((left, right) => {
       if (sortOrder === 'model') return left.name.localeCompare(right.name)
       if (sortOrder === 'brand')
@@ -388,6 +440,8 @@ function CollectionContent() {
     pinnedItemsFirst,
     isPinnedView,
     sortOrder,
+    columnSort,
+    collectionColumns,
   ])
 
   const setFilterValues = (key: FilterKey, values: string[]) => {
@@ -719,12 +773,73 @@ function CollectionContent() {
     }
   }
 
+  const renderColumnsMenu = (
+    summaryClassName = 'flex cursor-pointer list-none items-center gap-1 rounded-md px-2 py-1.5 text-xs focus-visible:outline-2 focus-visible:outline-ring',
+  ) => (
+    <details className="relative">
+      <summary className={summaryClassName} aria-label="Choose columns">
+        <Columns3 className="size-3.5" /> Columns
+      </summary>
+      <div className="absolute right-0 top-full z-30 mt-2 max-h-[min(65dvh,32rem)] w-56 overflow-y-auto space-y-3 rounded-lg border border-border bg-popover p-3 shadow-lg">
+        {[
+          {
+            label: 'Custom fields',
+            columns: collectionColumns.filter((column) =>
+              column.key.startsWith('custom:'),
+            ),
+          },
+          {
+            label: 'Show columns',
+            columns: collectionColumns.filter(
+              (column) => !column.key.startsWith('custom:'),
+            ),
+          },
+        ]
+          .filter((group) => group.columns.length > 0)
+          .map((group) => (
+            <div
+              key={group.label}
+              role="group"
+              aria-label={group.label}
+              className="space-y-3"
+            >
+              <span className="block text-xs text-muted-foreground">
+                {group.label}
+              </span>
+              {group.columns.map((column) => (
+                <label
+                  key={column.key}
+                  className="flex cursor-pointer items-center gap-2 text-sm"
+                >
+                  <Checkbox
+                    checked={collectionDisplay.columns.includes(column.key)}
+                    onCheckedChange={(checked) => {
+                      saveDisplay({
+                        columns: checked
+                          ? [...collectionDisplay.columns, column.key]
+                          : collectionDisplay.columns.filter(
+                              (item) => item !== column.key,
+                            ),
+                      })
+                    }}
+                  />
+                  {column.label}
+                </label>
+              ))}
+            </div>
+          ))}
+      </div>
+    </details>
+  )
+
   return (
     <div
       className={cn(
         'w-full flex-1 p-4 sm:p-6 lg:p-8',
         activeKnife && !isAlloy && 'xl:pr-[28rem]',
-        (isSelectionMode || (isWorkspaceCollection && selectedIds.size > 0)) &&
+        (isSelectionMode ||
+          ((isWorkspaceCollection || isClassicTable) &&
+            selectedIds.size > 0)) &&
           'pb-28 lg:pb-28',
       )}
       data-collection-content
@@ -823,73 +938,20 @@ function CollectionContent() {
             >
               <ArrowDownWideNarrow className="size-4" />
             </Button>
-            <details className="relative">
-              <summary
-                className="flex cursor-pointer list-none items-center gap-1 rounded-md px-2 py-1.5 text-xs focus-visible:outline-2 focus-visible:outline-ring"
-                aria-label="Choose columns"
-              >
-                <Columns3 className="size-3.5" /> Columns
-              </summary>
-              <div className="absolute right-0 top-full z-30 mt-2 max-h-[min(65dvh,32rem)] w-56 overflow-y-auto space-y-3 rounded-lg border border-border bg-popover p-3 shadow-lg">
-                {[
-                  {
-                    label: 'Custom fields',
-                    columns: collectionColumns.filter((column) =>
-                      column.key.startsWith('custom:'),
-                    ),
-                  },
-                  {
-                    label: 'Show columns',
-                    columns: collectionColumns.filter(
-                      (column) => !column.key.startsWith('custom:'),
-                    ),
-                  },
-                ]
-                  .filter((group) => group.columns.length > 0)
-                  .map((group) => (
-                    <div
-                      key={group.label}
-                      role="group"
-                      aria-label={group.label}
-                      className="space-y-3"
-                    >
-                      <span className="block text-xs text-muted-foreground">
-                        {group.label}
-                      </span>
-                      {group.columns.map((column) => (
-                        <label
-                          key={column.key}
-                          className="flex cursor-pointer items-center gap-2 text-sm"
-                        >
-                          <Checkbox
-                            checked={collectionDisplay.columns.includes(
-                              column.key,
-                            )}
-                            onCheckedChange={(checked) => {
-                              saveDisplay({
-                                columns: checked
-                                  ? [...collectionDisplay.columns, column.key]
-                                  : collectionDisplay.columns.filter(
-                                      (item) => item !== column.key,
-                                    ),
-                              })
-                            }}
-                          />
-                          {column.label}
-                        </label>
-                      ))}
-                    </div>
-                  ))}
-              </div>
-            </details>
+            {renderColumnsMenu()}
             <select
               aria-label="Sort collection"
-              value={sortOrder}
+              value={columnSort ? 'column' : sortOrder}
               onChange={(event) => {
                 setSortOrder(event.target.value as CollectionSort)
                 setVisibleCount(PAGE_SIZE)
               }}
             >
+              {columnSortLabel && (
+                <option value="column" hidden>
+                  {columnSortLabel}
+                </option>
+              )}
               <option value="newest">Newest added</option>
               <option value="model">Name</option>
               <option value="brand">Maker</option>
@@ -1059,13 +1121,18 @@ function CollectionContent() {
               <select
                 id="collection-sort"
                 hidden={isWorkspaceCollection}
-                value={sortOrder}
+                value={columnSort ? 'column' : sortOrder}
                 onChange={(event) => {
                   setSortOrder(event.target.value as CollectionSort)
                   setVisibleCount(PAGE_SIZE)
                 }}
                 className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
+                {columnSortLabel && (
+                  <option value="column" hidden>
+                    {columnSortLabel}
+                  </option>
+                )}
                 <option value="newest">Newest added</option>
                 <option value="model">Model A–Z</option>
                 <option value="brand">Brand A–Z</option>
@@ -1125,8 +1192,22 @@ function CollectionContent() {
                   >
                     <Grid3X3 className="size-3.5" />
                   </Button>
+                  <Button
+                    type="button"
+                    variant={density === 'table' ? 'secondary' : 'ghost'}
+                    size="icon-xs"
+                    onClick={() => setDensity('table')}
+                    aria-pressed={density === 'table'}
+                    aria-label="Table view"
+                  >
+                    <List className="size-3.5" />
+                  </Button>
                 </div>
               )}
+              {isClassicTable &&
+                renderColumnsMenu(
+                  'flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                )}
               <Button
                 variant="outline"
                 size="default"
@@ -1299,7 +1380,7 @@ function CollectionContent() {
           />
         ) : (
           <div className="space-y-6">
-            {isWorkspaceCollection && modernView === 'list' && !isFamilyView ? (
+            {isTableView ? (
               <ModernCollectionTable
                 knives={filteredKnives.slice(0, visibleCount)}
                 columnWidths={collectionDisplay.columnWidths}
@@ -1322,6 +1403,8 @@ function CollectionContent() {
                 activeKnifeId={activeKnife?.id}
                 onOpen={inspectKnife}
                 onOpenDetail={(knife) => router.push(`/collection/${knife.id}`)}
+                sort={columnSort}
+                onSort={cycleColumnSort}
               />
             ) : isAlloy && !isFamilyView ? (
               <div data-alloy-collection-grid data-collection-grid>
@@ -1353,16 +1436,16 @@ function CollectionContent() {
               <div
                 className={cn(
                   'grid [overflow-anchor:none]',
-                  density === 'gallery'
+                  cardDensity === 'gallery'
                     ? 'grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4'
                     : 'grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5',
-                  density === 'gallery' &&
+                  cardDensity === 'gallery' &&
                     'xl:grid-cols-[repeat(auto-fit,minmax(19rem,min(100%,22rem)))]',
-                  density === 'compact' &&
+                  cardDensity === 'compact' &&
                     'xl:grid-cols-[repeat(auto-fit,minmax(15rem,min(100%,18rem)))]',
                 )}
                 data-collection-grid
-                data-density={density}
+                data-density={cardDensity}
               >
                 {isFamilyView
                   ? filteredFamilies
@@ -1377,7 +1460,7 @@ function CollectionContent() {
                             allVariants={allVariants}
                             eager={index === 0}
                             activeKnifeId={activeKnifeId ?? undefined}
-                            density={density}
+                            density={cardDensity}
                             onOpen={inspectKnife}
                           />
                         )
@@ -1392,9 +1475,9 @@ function CollectionContent() {
                           selectionMode={isSelectionMode}
                           selected={selectedIds.has(knife.id)}
                           active={knife.id === activeKnifeId}
-                          density={density}
+                          density={cardDensity}
                           imageSizes={
-                            density === 'compact'
+                            cardDensity === 'compact'
                               ? '(min-width: 1280px) 18rem, (max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
                               : '(min-width: 1280px) 22rem, (max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
                           }
@@ -1436,7 +1519,9 @@ function CollectionContent() {
         />
       )}
 
-      {(isSelectionMode || (isWorkspaceCollection && selectedIds.size > 0)) && (
+      {(isSelectionMode ||
+        ((isWorkspaceCollection || isClassicTable) &&
+          selectedIds.size > 0)) && (
         <div
           data-alloy-bulk-actions={isAlloy || undefined}
           className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4"
