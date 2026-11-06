@@ -148,11 +148,19 @@ export function parseSavedPage(fileName: string, text: string): SavedPage {
   return page
 }
 
+const ATTRIBUTE_ENTITIES: Record<string, string> = {
+  '&amp;': '&',
+  '&quot;': '"',
+  '&apos;': "'",
+}
+
+// Decode in one pass so "&amp;quot;" stays the literal text "&quot;".
 function decodeAttribute(value: string): string {
   return value
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#0*39;/g, "'")
+    .replace(
+      /&(?:amp|quot|apos|#0*39);/g,
+      (entity) => ATTRIBUTE_ENTITIES[entity] ?? "'",
+    )
     .trim()
 }
 

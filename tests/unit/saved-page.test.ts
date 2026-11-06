@@ -30,6 +30,11 @@ describe('saved page import parsing', () => {
       ),
     ).toBe(`${pageUrl}?a=1&b=2`)
     expect(
+      findSavedPageUrl(
+        `<html><head><meta property="og:url" content="${pageUrl}?q=&amp;quot;&#39;"></head></html>`,
+      ),
+    ).toBe(`${pageUrl}?q=&quot;%27`)
+    expect(
       findSavedPageUrl('<html><link rel="canonical" href="file:///x"></html>'),
     ).toBeUndefined()
   })
