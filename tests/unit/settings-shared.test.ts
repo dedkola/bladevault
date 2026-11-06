@@ -95,6 +95,34 @@ describe('normalizeCollectionDisplay', () => {
     ).toEqual({ knife: 140, steel: 120, maker: 800, 'custom:inventory': 180 })
   })
 
+  it('validates the table header sort and lets it be cleared', () => {
+    expect(
+      normalizeCollectionDisplay({
+        columnSort: { key: 'blade', direction: 'desc' },
+      }).columnSort,
+    ).toEqual({ key: 'blade', direction: 'desc' })
+    expect(
+      normalizeCollectionDisplay({
+        columnSort: { key: 'unknown', direction: 'asc' },
+      }).columnSort,
+    ).toBeNull()
+    expect(
+      normalizeCollectionDisplay({
+        columnSort: { key: 'knife', direction: 'sideways' },
+      }).columnSort,
+    ).toBeNull()
+    const current = {
+      ...DEFAULT_COLLECTION_DISPLAY,
+      columnSort: { key: 'maker', direction: 'asc' as const },
+    }
+    expect(
+      normalizeCollectionDisplay({ sort: 'brand' }, current).columnSort,
+    ).toEqual(current.columnSort)
+    expect(
+      normalizeCollectionDisplay({ columnSort: null }, current).columnSort,
+    ).toBeNull()
+  })
+
   it('allows every optional column to be hidden and defaults missing preferences', () => {
     expect(normalizeCollectionDisplay({ columns: [] }).columns).toEqual([])
     expect(normalizeCollectionDisplay(null)).toEqual(DEFAULT_COLLECTION_DISPLAY)

@@ -53,7 +53,10 @@ import {
   type CollectionDisplay,
   type CustomFieldType,
 } from '@/lib/settings-shared'
-import { getCollectionColumns } from '@/lib/collection-columns'
+import {
+  getCollectionColumns,
+  sortKnivesByColumn,
+} from '@/lib/collection-columns'
 import { useDebouncedValue } from '@/lib/use-debounced-value'
 import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -212,7 +215,21 @@ function CollectionContent() {
     }
     window.dispatchEvent(new Event(ALLOY_VIEW_EVENT))
   }
-  const setSortOrder = (sort: CollectionSort) => saveDisplay({ sort })
+  // Picking a dropdown sort replaces any table header sort.
+  const setSortOrder = (sort: CollectionSort) =>
+    saveDisplay({ sort, columnSort: null })
+  const cycleColumnSort = (key: string) => {
+    const current = collectionDisplay.columnSort
+    saveDisplay({
+      columnSort:
+        current?.key !== key
+          ? { key, direction: 'asc' }
+          : current.direction === 'asc'
+            ? { key, direction: 'desc' }
+            : null,
+    })
+    setVisibleCount(PAGE_SIZE)
+  }
   const [inspectorDismissed, setInspectorDismissed] = useState(false)
   const [activeKnifeId, setActiveKnifeId] = useState<string | null>(null)
   const debouncedQuery = useDebouncedValue(query, 200)
@@ -289,6 +306,29 @@ function CollectionContent() {
     const column = collectionColumns.find((item) => item.key === key)
     return column ? [column] : []
   })
+  const isTableView =
+    (isWorkspaceCollection ? modernView === 'list' : isClassicTable) &&
+    !isFamilyView
+  // Header sorts apply only while the table shows that column.
+  const columnSort =
+    isTableView &&
+    collectionDisplay.columnSort &&
+    (collectionDisplay.columnSort.key === 'knife' ||
+      visibleColumns.some(
+        (column) =>
+          column.key === collectionDisplay.columnSort?.key &&
+          column.sortable !== false,
+      ))
+      ? collectionDisplay.columnSort
+      : null
+  const columnSortLabel = columnSort
+    ? `${
+        columnSort.key === 'knife'
+          ? 'Knife'
+          : (visibleColumns.find((column) => column.key === columnSort.key)
+              ?.label ?? 'Column')
+      } ${columnSort.direction === 'asc' ? '↑' : '↓'}`
+    : null
   const reorderColumns = (sourceId: string, targetId: string) => {
     const columns = [...collectionDisplay.columns]
     const source = columns.findIndex((key) => key === sourceId)
@@ -377,6 +417,12 @@ function CollectionContent() {
       (knife) =>
         matchesCollection(knife, params) && (!isPinnedView || knife.pinned),
     )
+    if (columnSort) {
+      return prioritizePinnedKnives(
+        sortKnivesByColumn(matches, columnSort, collectionColumns),
+        pinnedItemsFirst && !isPinnedView,
+      )
+    }
     const sorted = [...matches].sort((left, right) => {
       if (sortOrder === 'model') return left.name.localeCompare(right.name)
       if (sortOrder === 'brand')
@@ -394,6 +440,8 @@ function CollectionContent() {
     pinnedItemsFirst,
     isPinnedView,
     sortOrder,
+    columnSort,
+    collectionColumns,
   ])
 
   const setFilterValues = (key: FilterKey, values: string[]) => {
@@ -893,12 +941,17 @@ function CollectionContent() {
             {renderColumnsMenu()}
             <select
               aria-label="Sort collection"
-              value={sortOrder}
+              value={columnSort ? 'column' : sortOrder}
               onChange={(event) => {
                 setSortOrder(event.target.value as CollectionSort)
                 setVisibleCount(PAGE_SIZE)
               }}
             >
+              {columnSortLabel && (
+                <option value="column" hidden>
+                  {columnSortLabel}
+                </option>
+              )}
               <option value="newest">Newest added</option>
               <option value="model">Name</option>
               <option value="brand">Maker</option>
@@ -1068,13 +1121,18 @@ function CollectionContent() {
               <select
                 id="collection-sort"
                 hidden={isWorkspaceCollection}
-                value={sortOrder}
+                value={columnSort ? 'column' : sortOrder}
                 onChange={(event) => {
                   setSortOrder(event.target.value as CollectionSort)
                   setVisibleCount(PAGE_SIZE)
                 }}
                 className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
+                {columnSortLabel && (
+                  <option value="column" hidden>
+                    {columnSortLabel}
+                  </option>
+                )}
                 <option value="newest">Newest added</option>
                 <option value="model">Model A–Z</option>
                 <option value="brand">Brand A–Z</option>
@@ -1322,8 +1380,7 @@ function CollectionContent() {
           />
         ) : (
           <div className="space-y-6">
-            {(isWorkspaceCollection ? modernView === 'list' : isClassicTable) &&
-            !isFamilyView ? (
+            {isTableView ? (
               <ModernCollectionTable
                 knives={filteredKnives.slice(0, visibleCount)}
                 columnWidths={collectionDisplay.columnWidths}
@@ -1346,6 +1403,8 @@ function CollectionContent() {
                 activeKnifeId={activeKnife?.id}
                 onOpen={inspectKnife}
                 onOpenDetail={(knife) => router.push(`/collection/${knife.id}`)}
+                sort={columnSort}
+                onSort={cycleColumnSort}
               />
             ) : isAlloy && !isFamilyView ? (
               <div data-alloy-collection-grid data-collection-grid>

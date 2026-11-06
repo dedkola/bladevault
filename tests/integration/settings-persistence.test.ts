@@ -81,6 +81,7 @@ describe('settings persistence', () => {
       view: 'grid' as const,
       sort: 'brand' as const,
       density: 'compact' as const,
+      columnSort: { key: 'blade', direction: 'desc' as const },
     }
     saveSettings({
       collectionDisplay: { ...display, columns: [...display.columns] },

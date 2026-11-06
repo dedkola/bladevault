@@ -76,12 +76,19 @@ export const COLLECTION_COLUMNS = [
 ] as const
 export type CollectionColumn =
   (typeof COLLECTION_COLUMNS)[number] | `custom:${string}`
+export type CollectionColumnSort = {
+  /** A collection column key, or `knife` for the name column. */
+  key: string
+  direction: 'asc' | 'desc'
+}
 export type CollectionDisplay = {
   columns: CollectionColumn[]
   columnWidths: Record<string, number>
   view: 'list' | 'grid'
   sort: 'newest' | 'model' | 'brand'
   density: 'gallery' | 'compact' | 'table'
+  /** Table header sort; overrides `sort` while the table is shown. */
+  columnSort: CollectionColumnSort | null
 }
 export const DEFAULT_COLLECTION_DISPLAY: CollectionDisplay = {
   columns: ['maker', 'steel', 'blade', 'weight', 'status'],
@@ -89,6 +96,24 @@ export const DEFAULT_COLLECTION_DISPLAY: CollectionDisplay = {
   view: 'list',
   sort: 'newest',
   density: 'gallery',
+  columnSort: null,
+}
+
+function isColumnKey(key: unknown): key is string {
+  return (
+    typeof key === 'string' &&
+    (key === 'knife' ||
+      (COLLECTION_COLUMNS as readonly string[]).includes(key) ||
+      (key.startsWith('custom:') && key.length > 'custom:'.length))
+  )
+}
+
+function normalizeColumnSort(value: unknown): CollectionColumnSort | null {
+  if (!value || typeof value !== 'object') return null
+  const { key, direction } = value as Partial<CollectionColumnSort>
+  if (!isColumnKey(key) || (direction !== 'asc' && direction !== 'desc'))
+    return null
+  return { key, direction }
 }
 
 export function normalizeCollectionDisplay(
@@ -151,6 +176,9 @@ export function normalizeCollectionDisplay(
       input.density === 'table'
         ? input.density
         : fallback.density,
+    columnSort: !('columnSort' in input)
+      ? fallback.columnSort
+      : normalizeColumnSort(input.columnSort),
   }
 }
 
