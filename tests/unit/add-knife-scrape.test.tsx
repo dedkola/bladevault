@@ -740,4 +740,49 @@ describe('Add knife scrape controls', () => {
       'My knife',
     )
   })
+
+  it('imports a saved page file and fills the product URL from it', async () => {
+    const originalFetch = vi.mocked(fetch).getMockImplementation()!
+    let body: Record<string, unknown> | undefined
+    vi.mocked(fetch).mockImplementation((input, init) => {
+      if (String(input) !== '/api/scrape/saved-page')
+        return originalFetch(input, init)
+      body = JSON.parse(String(init?.body))
+      return Promise.resolve(
+        json({ product, html, finalUrl: product.sourceUrl }),
+      )
+    })
+    const user = userEvent.setup()
+    render(<AddKnifeForm />)
+    const savedHtml = `<!-- saved from url=(0038)${product.sourceUrl} -->\n${html}`
+    await user.click(screen.getByRole('button', { name: 'Import saved page' }))
+    await user.upload(
+      screen.getByLabelText('Saved product page file'),
+      new File([savedHtml], 'native-chief.html', { type: 'text/html' }),
+    )
+    await screen.findByDisplayValue('Native Chief')
+    expect(body).toEqual({ html: savedHtml, url: '', savedUrl: '' })
+    expect(screen.getByRole('textbox', { name: 'Product URL' })).toHaveValue(
+      product.sourceUrl,
+    )
+    expect(screen.getByTitle('Scraped page preview')).toBeInTheDocument()
+  })
+
+  it('shows an error for a Safari web archive without calling the server', async () => {
+    // File pickers can still return files outside the accept list.
+    const user = userEvent.setup({ applyAccept: false })
+    render(<AddKnifeForm />)
+    await user.upload(
+      screen.getByLabelText('Saved product page file'),
+      new File(['bplist00'], 'knife.webarchive'),
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /Safari web archives are not supported/,
+    )
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([input]) => String(input).includes('saved-page')),
+    ).toBe(false)
+  })
 })

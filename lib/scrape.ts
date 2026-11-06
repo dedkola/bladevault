@@ -136,11 +136,12 @@ export async function scrapeAndEnrichProduct(
   finalUrl: string,
   sourceUrl?: string,
   operation?: ScrapeOperation,
+  options?: { allowChallengeMarkers?: boolean },
 ): Promise<EnrichedScrapeResult> {
   const scrape = operation ?? createScrapeOperation()
   try {
     return await scrape.run(() =>
-      enrichProduct(html, finalUrl, sourceUrl, scrape),
+      enrichProduct(html, finalUrl, sourceUrl, scrape, options),
     )
   } finally {
     if (!operation) scrape.dispose()
@@ -152,8 +153,11 @@ async function enrichProduct(
   finalUrl: string,
   sourceUrl: string | undefined,
   operation: ScrapeOperation,
+  options?: { allowChallengeMarkers?: boolean },
 ): Promise<EnrichedScrapeResult> {
-  if (isSecurityChallengePage(html)) {
+  // Saved pages can embed verification scripts after the person has passed
+  // the check; their caller confirms product markup before allowing them.
+  if (!options?.allowChallengeMarkers && isSecurityChallengePage(html)) {
     throw new ScrapeError('challenge')
   }
 
