@@ -1,28 +1,14 @@
-import * as Sentry from '@sentry/nextjs'
+import { startBrowserErrorReporting } from '@/lib/sentry/client'
 import {
-  DATA_COLLECTION,
   ERROR_REPORTING_ATTRIBUTE,
-  IGNORED_CLIENT_ERRORS,
   parseErrorReportingConfig,
-  scrubBreadcrumb,
-  scrubEvent,
 } from '@/lib/sentry/shared'
 
 // The root layout adds the DSN to <html> at request time only when the server
-// has error reporting configured, so the public image never embeds a DSN.
+// allows reporting (operator DSN, or a "Send Reports" answer), so the public
+// image never starts the browser SDK on its own.
 const config = parseErrorReportingConfig(
   document.documentElement.getAttribute(ERROR_REPORTING_ATTRIBUTE),
 )
 
-if (config) {
-  Sentry.init({
-    dsn: config.dsn,
-    environment: config.environment,
-    dataCollection: DATA_COLLECTION,
-    tracesSampleRate: 0,
-    ignoreErrors: IGNORED_CLIENT_ERRORS,
-    initialScope: { tags: { runtime: config.runtime } },
-    beforeSend: (event) => scrubEvent(event),
-    beforeBreadcrumb: (breadcrumb) => scrubBreadcrumb(breadcrumb),
-  })
-}
+if (config) startBrowserErrorReporting(config)

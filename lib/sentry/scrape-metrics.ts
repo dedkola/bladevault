@@ -1,7 +1,10 @@
 import { isIP } from 'node:net'
 import * as Sentry from '@sentry/nextjs'
 import { toScrapeError } from '@/lib/scrape-errors'
-import { getErrorReportingRuntime } from '@/lib/sentry/server'
+import {
+  getErrorReportingRuntime,
+  isErrorReportingAllowed,
+} from '@/lib/sentry/server'
 
 // Anonymous import statistics: one counter per import attempt, labelled with
 // the retailer's domain and the outcome, so broken retailer extractors show up
@@ -15,7 +18,7 @@ type Env = Record<string, string | undefined>
 // Docker and source servers send usage data whenever their operator set a
 // DSN. The desktop app sends it only after the user agreed to usage data.
 export function isUsageMetricsEnabled(env: Env = process.env) {
-  if (!Sentry.getClient()) return false
+  if (!Sentry.getClient() || !isErrorReportingAllowed(env)) return false
   return (
     getErrorReportingRuntime(env) !== 'desktop' ||
     env.BLADEVAULT_USAGE_METRICS === '1'
