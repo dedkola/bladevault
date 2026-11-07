@@ -393,7 +393,7 @@ export function ModernCollectionTable({
                   className={cn(
                     'group cursor-pointer border-b border-border/70 text-[length:var(--modern-font-body)] text-muted-foreground transition-colors last:border-b-0 hover:bg-[var(--bladevault-surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                     active &&
-                      'bg-[var(--bladevault-nav-active-bg)] shadow-[inset_2px_0_0_var(--bladevault-nav-active-fg)]',
+                      'bg-[color-mix(in_srgb,var(--bladevault-nav-active-fg)_12%,transparent)] shadow-[inset_2px_0_0_var(--bladevault-nav-active-fg)] hover:bg-[color-mix(in_srgb,var(--bladevault-nav-active-fg)_16%,transparent)]',
                   )}
                 >
                   <td
