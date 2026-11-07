@@ -29,8 +29,23 @@ const dmgContents = [
   },
 ]
 
+// Release CI provides the Sentry DSNs. Builds without them (local, forks)
+// ship no DSN, so the desktop error reporting option stays unavailable.
+const sentryDesktopDsn = process.env.SENTRY_DESKTOP_DSN?.trim()
+const sentryAppDsn = process.env.SENTRY_APP_DSN?.trim()
+const errorReportingMetadata =
+  sentryDesktopDsn && sentryAppDsn
+    ? {
+        bladevaultErrorReporting: {
+          desktopDsn: sentryDesktopDsn,
+          appDsn: sentryAppDsn,
+        },
+      }
+    : undefined
+
 const config = {
   appId: 'com.bladevault.desktop',
+  extraMetadata: errorReportingMetadata,
   productName: 'BladeVault',
   asar: true,
   asarUnpack: [

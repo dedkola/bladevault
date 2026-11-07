@@ -108,6 +108,9 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          # Public DSNs for the opt-in desktop error reporting setting.
+          SENTRY_DESKTOP_DSN: ${{ vars.SENTRY_DESKTOP_DSN }}
+          SENTRY_APP_DSN: ${{ vars.SENTRY_APP_DSN }}
         run: |
           npm run build:desktop
           npm run rebuild:desktop-native

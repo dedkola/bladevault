@@ -8,6 +8,12 @@ contextBridge.exposeInMainWorld('bladevaultDesktop', {
   checkForUpdates: () => ipcRenderer.invoke('bladevault:check-for-updates'),
   downloadUpdate: () => ipcRenderer.invoke('bladevault:download-update'),
   installUpdate: () => ipcRenderer.invoke('bladevault:install-update'),
+  errorReporting: {
+    get: () => ipcRenderer.invoke('bladevault:get-error-reporting'),
+    set: (enabled) =>
+      ipcRenderer.invoke('bladevault:set-error-reporting', enabled === true),
+    restart: () => ipcRenderer.invoke('bladevault:restart-app'),
+  },
   scrapeBrowser: {
     open: (url) => ipcRenderer.invoke('bladevault:scrape-browser-open', url),
     capture: () => ipcRenderer.invoke('bladevault:scrape-browser-capture'),

@@ -319,17 +319,23 @@ async function main() {
     assert.equal(await window.title(), 'BladeVault | Knife Collection')
     await window.getByRole('heading', { name: 'Collection Insights' }).waitFor()
 
-    const boundary = await window.evaluate(() => ({
+    const boundary = await window.evaluate(async () => ({
       bridgeKeys: Object.keys(window.bladevaultDesktop ?? {}).sort(),
       scrapeBrowserKeys: Object.keys(
         window.bladevaultDesktop?.scrapeBrowser ?? {},
       ).sort(),
+      errorReportingKeys: Object.keys(
+        window.bladevaultDesktop?.errorReporting ?? {},
+      ).sort(),
+      errorReportingStatus:
+        await window.bladevaultDesktop?.errorReporting?.get(),
       hasNodeProcess: typeof window.process !== 'undefined',
       hasRequire: typeof window.require !== 'undefined',
     }))
     assert.deepEqual(boundary.bridgeKeys, [
       'checkForUpdates',
       'downloadUpdate',
+      'errorReporting',
       'getUpdateStatus',
       'installUpdate',
       'onUpdateStatus',
@@ -343,6 +349,13 @@ async function main() {
       'fetchImages',
       'open',
     ])
+    assert.deepEqual(boundary.errorReportingKeys, ['get', 'restart', 'set'])
+    // Smoke runs never report: the option must be unavailable and off.
+    assert.deepEqual(boundary.errorReportingStatus, {
+      available: false,
+      enabled: false,
+      restartRequired: false,
+    })
     assert.equal(boundary.hasNodeProcess, false)
     assert.equal(boundary.hasRequire, false)
 

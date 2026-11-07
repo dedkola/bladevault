@@ -21,6 +21,8 @@ const {
   closeScrapeBrowser,
   registerScrapeBrowser,
 } = require('./scrape-browser.cjs')
+const errorReporting = require('./error-reporting.cjs')
+const desktopPackage = require('../package.json')
 
 const DEV_SERVER_URL = process.env.ELECTRON_START_URL || 'http://127.0.0.1:3000'
 const DEV_SERVER_ORIGIN = new URL(DEV_SERVER_URL).origin
@@ -37,6 +39,53 @@ const PREFERRED_DESKTOP_PORT = Number.parseInt(
   10,
 )
 const FALLBACK_CLOUD_AUTH_URL = 'https://auth.bladevault.pro'
+
+// Error reporting starts only after the user opts in from Settings, and only
+// in release builds that carry DSNs. A changed choice applies after restart.
+const errorReportingState = errorReporting.getErrorReportingState({
+  userDataDir: app.getPath('userData'),
+  packageJson: desktopPackage,
+  isPackaged: app.isPackaged,
+  smokeTest: SMOKE_TEST_MODE,
+})
+let Sentry = null
+if (errorReportingState.enabled) {
+  Sentry = require('@sentry/electron/main')
+  Sentry.init(
+    errorReporting.getSentryOptions(errorReportingState, {
+      release: `bladevault@${app.getVersion()}`,
+      homeDir: os.homedir(),
+    }),
+  )
+}
+
+function captureDesktopError(error, context) {
+  if (!Sentry) return
+  Sentry.withScope((scope) => {
+    scope.setTag('desktop_context', context)
+    Sentry.captureException(error)
+  })
+}
+
+function getErrorReportingStatus() {
+  const chosen =
+    errorReportingState.available &&
+    errorReporting.readConsent(app.getPath('userData'))
+  return {
+    available: errorReportingState.available,
+    enabled: chosen,
+    restartRequired: chosen !== errorReportingState.enabled,
+  }
+}
+
+function showStartupError(error) {
+  captureDesktopError(error, 'startup')
+  dialog.showErrorBox(
+    'BladeVault failed to start',
+    error instanceof Error ? error.message : 'Unknown error',
+  )
+  app.quit()
+}
 
 function getCloudAuthUrl() {
   const fromEnv = process.env.NEXT_PUBLIC_BLADEVAULT_AUTH_URL?.trim()
@@ -827,9 +876,9 @@ async function startEmbeddedServer() {
     NEXT_TELEMETRY_DISABLED: '1',
     NODE_ENV: 'production',
     PORT: String(port),
-    // Desktop error reporting needs an in-app opt-in first; until then the
-    // embedded server never inherits a DSN from the user's environment.
-    SENTRY_DSN: '',
+    // The embedded server reports only when the user opted in; otherwise
+    // SENTRY_DSN is empty, so it never inherits one from the environment.
+    ...errorReporting.getEmbeddedServerEnv(errorReportingState),
   }
 
   const child = spawn(getNodeExecPath(), [serverEntry], {
@@ -847,11 +896,20 @@ async function startEmbeddedServer() {
     process.stderr.write(`[bladevault-server] ${chunk}`)
   })
 
-  child.once('exit', (code) => {
+  child.once('exit', (code, signal) => {
     const wasCurrentServer = serverProcess === child
     if (wasCurrentServer) {
       serverProcess = null
       serverOrigin = null
+    }
+
+    if (wasCurrentServer && !isQuitting) {
+      captureDesktopError(
+        new Error(
+          `Embedded server exited unexpectedly (code ${code ?? 'none'}, signal ${signal ?? 'none'}).`,
+        ),
+        'embedded-server-exit',
+      )
     }
 
     if (
@@ -1168,6 +1226,23 @@ ipcMain.handle('bladevault:get-update-status', () => updateStatus)
 ipcMain.handle('bladevault:check-for-updates', () => checkForUpdates())
 ipcMain.handle('bladevault:download-update', () => downloadUpdate())
 ipcMain.handle('bladevault:install-update', () => installDownloadedUpdate())
+ipcMain.handle('bladevault:get-error-reporting', () =>
+  getErrorReportingStatus(),
+)
+ipcMain.handle('bladevault:set-error-reporting', (_event, enabled) => {
+  if (typeof enabled !== 'boolean') {
+    throw new Error('Error reporting choice must be true or false.')
+  }
+  if (!errorReportingState.available) {
+    throw new Error('Error reporting is not available in this build.')
+  }
+  errorReporting.writeConsent(app.getPath('userData'), enabled)
+  return getErrorReportingStatus()
+})
+ipcMain.handle('bladevault:restart-app', () => {
+  app.relaunch()
+  app.quit()
+})
 async function createMainWindow() {
   let startUrl = DEV_SERVER_URL
   if (isUsingEmbeddedServer()) {
@@ -1246,11 +1321,7 @@ app.on('activate', async () => {
     try {
       await createMainWindow()
     } catch (error) {
-      dialog.showErrorBox(
-        'BladeVault failed to start',
-        error instanceof Error ? error.message : 'Unknown error',
-      )
-      app.quit()
+      showStartupError(error)
     }
   }
 })
@@ -1294,17 +1365,9 @@ app
     try {
       await createMainWindow()
     } catch (error) {
-      dialog.showErrorBox(
-        'BladeVault failed to start',
-        error instanceof Error ? error.message : 'Unknown error',
-      )
-      app.quit()
+      showStartupError(error)
     }
   })
   .catch((error) => {
-    dialog.showErrorBox(
-      'BladeVault failed to start',
-      error instanceof Error ? error.message : 'Unknown error',
-    )
-    app.quit()
+    showStartupError(error)
   })
