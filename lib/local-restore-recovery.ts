@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { randomUUID } from 'node:crypto'
+import { isProcessAlive as isAlive } from '@/lib/process-liveness'
 
 export type LocalRestoreJournal = {
   ownerPid: number
@@ -19,21 +20,6 @@ export function getLocalRestoreJournalPath(dataDir: string): string {
     '._bladevault-control',
     'restore-journal.json',
   )
-}
-
-function isAlive(pid: number, startedAt?: number): boolean {
-  if (
-    pid === process.pid &&
-    startedAt !== undefined &&
-    startedAt !== performance.timeOrigin
-  )
-    return false
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'EPERM'
-  }
 }
 
 function readJournal(dataDir: string): LocalRestoreJournal | null {

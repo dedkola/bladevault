@@ -5,6 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { getLocalDataDirPath } from '@/lib/local-db'
+import { isProcessAlive as processIsAlive } from '@/lib/process-liveness'
 import {
   getLocalRestoreJournalPath,
   recoverInterruptedLocalRestore,
@@ -88,22 +89,6 @@ function exclusiveWrite(filePath: string, value: unknown) {
     fs.linkSync(temporaryPath, filePath)
   } finally {
     fs.rmSync(temporaryPath, { force: true })
-  }
-}
-
-function processIsAlive(pid: number, startedAt?: number): boolean {
-  if (!Number.isSafeInteger(pid) || pid < 1) return false
-  if (
-    pid === process.pid &&
-    startedAt !== undefined &&
-    startedAt !== performance.timeOrigin
-  )
-    return false
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'EPERM'
   }
 }
 
