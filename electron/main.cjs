@@ -78,6 +78,41 @@ function getErrorReportingStatus() {
   }
 }
 
+// Asks on first launch and after each update until the user agrees. Sentry
+// can only start before the app is ready, so a "yes" relaunches BladeVault
+// once, before the window or embedded server starts.
+async function askForErrorReportingConsent() {
+  const userDataDir = app.getPath('userData')
+  const version = app.getVersion()
+  const record = errorReporting.readConsentRecord(userDataDir)
+  if (
+    !errorReporting.shouldAskForConsent(errorReportingState, record, version)
+  ) {
+    return false
+  }
+
+  const { response } = await dialog.showMessageBox({
+    type: 'question',
+    title: 'BladeVault',
+    message: 'Help improve BladeVault?',
+    detail:
+      'BladeVault can send crash and error reports to its developer through Sentry when something goes wrong. Reports include the error, the app version, and basic system details. Your knives, images, notes, and backups are never included.\n\nYou can change this anytime in Settings → About.',
+    buttons: ['Send Reports', 'Don’t Send'],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  })
+  const agreed = response === 0
+  errorReporting.writeConsent(userDataDir, agreed, version)
+
+  if (agreed) {
+    app.relaunch()
+    app.exit(0)
+    return true
+  }
+  return false
+}
+
 function showStartupError(error) {
   captureDesktopError(error, 'startup')
   dialog.showErrorBox(
@@ -1236,7 +1271,11 @@ ipcMain.handle('bladevault:set-error-reporting', (_event, enabled) => {
   if (!errorReportingState.available) {
     throw new Error('Error reporting is not available in this build.')
   }
-  errorReporting.writeConsent(app.getPath('userData'), enabled)
+  errorReporting.writeConsent(
+    app.getPath('userData'),
+    enabled,
+    app.getVersion(),
+  )
   return getErrorReportingStatus()
 })
 ipcMain.handle('bladevault:restart-app', () => {
@@ -1337,6 +1376,10 @@ app
       forceProductionServer: FORCE_PRODUCTION_SERVER,
       smokeTestMode: SMOKE_TEST_MODE,
     })
+
+    if (await askForErrorReportingConsent()) {
+      return
+    }
 
     const runInitialUpdateFlow = () => {
       if (SKIP_UPDATE_CHECK) {

@@ -5,7 +5,7 @@ BladeVault can send crash and error reports to [Sentry](https://sentry.io). It i
 | Runtime                      | Error reporting                                                              |
 | ---------------------------- | ---------------------------------------------------------------------------- |
 | Docker, Podman, Helm, source | Off until you set `SENTRY_DSN`. You can point it at your own Sentry project. |
-| Desktop app (macOS, Windows) | Off until you turn on **Settings → About → Send error reports**.             |
+| Desktop app (macOS, Windows) | Asks you on first launch and after updates. Off unless you agree.            |
 | Static browser preview       | Off.                                                                         |
 
 ## Turn it on for a server
@@ -25,13 +25,20 @@ SENTRY_DSN=https://<key>@o<org>.ingest.sentry.io/<project>
 
 The DSN is read when the server starts, so one public image works with any Sentry project or none. The browser receives it from the server with each page; it is not built into the image.
 
-## Turn it on in the desktop app
+## The desktop app asks first
+
+On first launch, before the window opens, the desktop app asks **Help improve BladeVault?**
+
+- **Send Reports** turns reporting on. BladeVault restarts once, about a second, and does not ask again.
+- **Don't Send** keeps it off. BladeVault asks again after the next update.
+
+To change your answer later:
 
 1. Open **Settings → About**.
-2. Under **Error reporting**, check **Send error reports**.
-3. Click **Restart now**. Reporting starts after the restart.
+2. Under **Error reporting**, check or uncheck **Send error reports**.
+3. Click **Restart now**. The change applies after the restart.
 
-Uncheck the box and restart to stop. The choice is stored in the app's user-data folder, not in your vault, so it does not travel with backups. The option shows "Not available in this build" in development builds and builds made without the release configuration.
+Turning it off in Settings counts as **Don't Send** for this version. The choice is stored in the app's user-data folder, not in your vault, so it does not travel with backups. The option shows "Not available in this build" in development builds and builds made without the release configuration.
 
 When it is on, the desktop app also reports native crashes (for example a crashed window or GPU process) and unexpected exits of its built-in server.
 

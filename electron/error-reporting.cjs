@@ -59,21 +59,34 @@ function getConsentPath(userDataDir) {
   return path.join(userDataDir, CONSENT_FILE)
 }
 
-function readConsent(userDataDir) {
+// askedVersion is the app version the user last answered for. A "no" is
+// asked again after the next update; a "yes" is never asked again.
+function readConsentRecord(userDataDir) {
   try {
-    const raw = fs.readFileSync(getConsentPath(userDataDir), 'utf8')
-    return JSON.parse(raw).enabled === true
+    const parsed = JSON.parse(
+      fs.readFileSync(getConsentPath(userDataDir), 'utf8'),
+    )
+    return {
+      enabled: parsed.enabled === true,
+      askedVersion:
+        typeof parsed.askedVersion === 'string' ? parsed.askedVersion : null,
+    }
   } catch {
-    return false
+    return { enabled: false, askedVersion: null }
   }
 }
 
-function writeConsent(userDataDir, enabled) {
+function readConsent(userDataDir) {
+  return readConsentRecord(userDataDir).enabled
+}
+
+function writeConsent(userDataDir, enabled, askedVersion) {
   fs.mkdirSync(userDataDir, { recursive: true })
   const target = getConsentPath(userDataDir)
   const temp = `${target}.${process.pid}.tmp`
   const payload = {
     enabled: enabled === true,
+    askedVersion: typeof askedVersion === 'string' ? askedVersion : null,
     updatedAt: new Date().toISOString(),
   }
   fs.writeFileSync(temp, `${JSON.stringify(payload, null, 2)}\n`)
@@ -95,6 +108,12 @@ function getErrorReportingState({
     desktopDsn,
     appDsn,
   }
+}
+
+function shouldAskForConsent(state, record, appVersion) {
+  return Boolean(
+    state.available && !record.enabled && record.askedVersion !== appVersion,
+  )
 }
 
 // The embedded Next.js server reads SENTRY_DSN; an empty value keeps it off.
@@ -202,7 +221,9 @@ module.exports = {
   getSentryOptions,
   readBuildDsns,
   readConsent,
+  readConsentRecord,
   scrubBreadcrumb,
+  shouldAskForConsent,
   scrubEvent,
   scrubText,
   writeConsent,

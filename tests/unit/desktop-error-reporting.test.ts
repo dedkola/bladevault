@@ -40,10 +40,77 @@ describe('desktop error reporting consent', () => {
     expect(fs.readdirSync(dir)).toEqual([errorReporting.CONSENT_FILE])
   })
 
+  it('remembers which version the user answered for', () => {
+    const dir = makeUserDataDir()
+    expect(errorReporting.readConsentRecord(dir)).toEqual({
+      enabled: false,
+      askedVersion: null,
+    })
+    errorReporting.writeConsent(dir, false, '2.1.0')
+    expect(errorReporting.readConsentRecord(dir)).toEqual({
+      enabled: false,
+      askedVersion: '2.1.0',
+    })
+  })
+
   it('treats a corrupt consent file as off', () => {
     const dir = makeUserDataDir()
     fs.writeFileSync(path.join(dir, errorReporting.CONSENT_FILE), '{nope')
     expect(errorReporting.readConsent(dir)).toBe(false)
+  })
+})
+
+describe('desktop error reporting prompt', () => {
+  const available = { available: true }
+
+  it('asks on first launch', () => {
+    expect(
+      errorReporting.shouldAskForConsent(
+        available,
+        { enabled: false, askedVersion: null },
+        '2.1.0',
+      ),
+    ).toBe(true)
+  })
+
+  it('does not ask again in the same version after a no', () => {
+    expect(
+      errorReporting.shouldAskForConsent(
+        available,
+        { enabled: false, askedVersion: '2.1.0' },
+        '2.1.0',
+      ),
+    ).toBe(false)
+  })
+
+  it('asks again after an update when the answer was no', () => {
+    expect(
+      errorReporting.shouldAskForConsent(
+        available,
+        { enabled: false, askedVersion: '2.1.0' },
+        '2.2.0',
+      ),
+    ).toBe(true)
+  })
+
+  it('never asks again after a yes', () => {
+    expect(
+      errorReporting.shouldAskForConsent(
+        available,
+        { enabled: true, askedVersion: '2.1.0' },
+        '3.0.0',
+      ),
+    ).toBe(false)
+  })
+
+  it('never asks in builds without error reporting', () => {
+    expect(
+      errorReporting.shouldAskForConsent(
+        { available: false },
+        { enabled: false, askedVersion: null },
+        '2.1.0',
+      ),
+    ).toBe(false)
   })
 })
 
