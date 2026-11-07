@@ -45,11 +45,26 @@ describe('desktop error reporting consent', () => {
     expect(errorReporting.readConsentRecord(dir)).toEqual({
       enabled: false,
       askedVersion: null,
+      consentVersion: 0,
     })
     errorReporting.writeConsent(dir, false, '2.1.0')
     expect(errorReporting.readConsentRecord(dir)).toEqual({
       enabled: false,
       askedVersion: '2.1.0',
+      consentVersion: errorReporting.CONSENT_VERSION,
+    })
+  })
+
+  it('treats a consent file from 2.2.0 as the first consent version', () => {
+    const dir = makeUserDataDir()
+    fs.writeFileSync(
+      path.join(dir, errorReporting.CONSENT_FILE),
+      JSON.stringify({ enabled: true, askedVersion: '2.2.0' }),
+    )
+    expect(errorReporting.readConsentRecord(dir)).toEqual({
+      enabled: true,
+      askedVersion: '2.2.0',
+      consentVersion: 1,
     })
   })
 
@@ -97,10 +112,24 @@ describe('desktop error reporting prompt', () => {
     expect(
       errorReporting.shouldAskForConsent(
         available,
-        { enabled: true, askedVersion: '2.1.0' },
+        {
+          enabled: true,
+          askedVersion: '2.1.0',
+          consentVersion: errorReporting.CONSENT_VERSION,
+        },
         '3.0.0',
       ),
     ).toBe(false)
+  })
+
+  it('asks again when a yes was given to older wording', () => {
+    expect(
+      errorReporting.shouldAskForConsent(
+        available,
+        { enabled: true, askedVersion: '2.2.0', consentVersion: 1 },
+        '2.2.0',
+      ),
+    ).toBe(true)
   })
 
   it('never asks in builds without error reporting', () => {
@@ -166,14 +195,38 @@ describe('desktop error reporting availability', () => {
     expect(before.enabled).toBe(false)
     expect(errorReporting.getEmbeddedServerEnv(before)).toEqual({
       SENTRY_DSN: '',
+      BLADEVAULT_USAGE_METRICS: '',
     })
 
     errorReporting.writeConsent(dir, true)
     const after = errorReporting.getErrorReportingState(options)
     expect(after.enabled).toBe(true)
+    expect(after.usageMetrics).toBe(true)
     expect(errorReporting.getEmbeddedServerEnv(after)).toEqual({
       SENTRY_DSN: APP_DSN,
       SENTRY_ENVIRONMENT: 'production',
+      BLADEVAULT_USAGE_METRICS: '1',
+    })
+  })
+
+  it('keeps crash reports but not usage data for a 2.2.0 yes', () => {
+    const dir = makeUserDataDir()
+    fs.writeFileSync(
+      path.join(dir, errorReporting.CONSENT_FILE),
+      JSON.stringify({ enabled: true, askedVersion: '2.2.0' }),
+    )
+    const state = errorReporting.getErrorReportingState({
+      userDataDir: dir,
+      packageJson: RELEASE_PACKAGE,
+      isPackaged: true,
+      smokeTest: false,
+    })
+    expect(state.enabled).toBe(true)
+    expect(state.usageMetrics).toBe(false)
+    expect(errorReporting.getEmbeddedServerEnv(state)).toEqual({
+      SENTRY_DSN: APP_DSN,
+      SENTRY_ENVIRONMENT: 'production',
+      BLADEVAULT_USAGE_METRICS: '',
     })
   })
 })

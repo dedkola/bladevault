@@ -96,7 +96,7 @@ async function askForErrorReportingConsent() {
     title: 'BladeVault',
     message: 'Help improve BladeVault?',
     detail:
-      'BladeVault can send crash and error reports to its developer through Sentry when something goes wrong. Reports include the error, the app version, and basic system details. Your knives, images, notes, and backups are never included.\n\nYou can change this anytime in Settings → About.',
+      'BladeVault can send crash reports and anonymous usage data to its developer through Sentry. Crash reports include the error, the app version, and basic system details. Usage data counts which shop websites product imports work or fail on, so broken imports get fixed sooner. Your knives, images, notes, and backups are never included.\n\nYou can change this anytime in Settings → About.',
     buttons: ['Send Reports', 'Don’t Send'],
     defaultId: 0,
     cancelId: 1,
@@ -105,7 +105,9 @@ async function askForErrorReportingConsent() {
   const agreed = response === 0
   errorReporting.writeConsent(userDataDir, agreed, version)
 
-  if (agreed) {
+  // Relaunch to start Sentry after a yes, or to stop an already running
+  // session (an earlier yes) after a no.
+  if (agreed || errorReportingState.enabled) {
     app.relaunch()
     app.exit(0)
     return true

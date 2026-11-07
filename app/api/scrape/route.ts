@@ -10,6 +10,11 @@ import {
 } from '@/lib/scrape-errors'
 import { createScrapeOperation } from '@/lib/scrape-operation'
 import { vaultAccessErrorResponse } from '@/lib/vault-access'
+import {
+  recordScrapeFailure,
+  recordScrapeSuccess,
+  type ScrapeRenderer,
+} from '@/lib/sentry/scrape-metrics'
 
 export async function POST(request: Request) {
   return withVaultMutationRequest(request, async () => {
@@ -17,6 +22,7 @@ export async function POST(request: Request) {
     if (locked) return locked
 
     const operation = createScrapeOperation({ signal: request.signal })
+    let attemptedUrl: URL | undefined
     try {
       return await operation.run(async () => {
         const body = await operation
@@ -44,11 +50,13 @@ export async function POST(request: Request) {
         }
 
         const normalizedUrl = validation.url.href
+        attemptedUrl = validation.url
 
         let html: string
         let finalUrl: string
         let screenshot: string | undefined
         let screenshotWarning: string | undefined
+        let renderer: ScrapeRenderer = 'browser'
 
         try {
           const { fetchRenderedHtml } = await import('@/lib/scrape-playwright')
@@ -93,16 +101,21 @@ export async function POST(request: Request) {
           screenshotWarning =
             'Product details were imported using the HTML fallback. A webpage screenshot could not be captured; you can retry from the saved item.'
           finalUrl = response.url || normalizedUrl
+          renderer = 'html_fallback'
         }
 
         const result = await operation.run(() =>
           scrapeAndEnrichProduct(html, finalUrl, normalizedUrl, operation),
         )
         if (screenshot) result.product.images.push(screenshot)
+        recordScrapeSuccess('url', attemptedUrl, result, renderer)
         return NextResponse.json({ ...result, screenshotWarning })
       })
     } catch (error) {
-      return vaultAccessErrorResponse(error) ?? scrapeErrorResponse(error)
+      const vaultResponse = vaultAccessErrorResponse(error)
+      if (vaultResponse) return vaultResponse
+      recordScrapeFailure('url', attemptedUrl, error)
+      return scrapeErrorResponse(error)
     } finally {
       operation.dispose()
     }

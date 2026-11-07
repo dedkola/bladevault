@@ -6,6 +6,10 @@ import { scrapeAndEnrichProduct } from '@/lib/scrape'
 import { createScrapeOperation } from '@/lib/scrape-operation'
 import { scrapeErrorResponse } from '@/lib/scrape-errors'
 import { vaultAccessErrorResponse } from '@/lib/vault-access'
+import {
+  recordScrapeFailure,
+  recordScrapeSuccess,
+} from '@/lib/sentry/scrape-metrics'
 
 export async function POST(
   _request: Request,
@@ -16,11 +20,13 @@ export async function POST(
     if (locked) return locked
 
     const operation = createScrapeOperation({ signal: _request.signal })
+    let attemptedUrl: string | undefined
     try {
       return await operation.run(async () => {
         const { id } = await params
         const { html, finalUrl, screenshot, screenshotWarning } =
           await captureInteractiveSession(id, operation)
+        attemptedUrl = finalUrl
         const result = await scrapeAndEnrichProduct(
           html,
           finalUrl,
@@ -28,10 +34,14 @@ export async function POST(
           operation,
         )
         if (screenshot) result.product.images.push(screenshot)
+        recordScrapeSuccess('interactive', attemptedUrl, result)
         return NextResponse.json({ ...result, screenshotWarning })
       })
     } catch (error) {
-      return vaultAccessErrorResponse(error) ?? scrapeErrorResponse(error)
+      const vaultResponse = vaultAccessErrorResponse(error)
+      if (vaultResponse) return vaultResponse
+      recordScrapeFailure('interactive', attemptedUrl, error)
+      return scrapeErrorResponse(error)
     } finally {
       operation.dispose()
     }

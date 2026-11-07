@@ -75,7 +75,8 @@ export function DesktopErrorReportingSettings() {
         description={
           status.available ? (
             <>
-              Sends crash and error details to the BladeVault developer through
+              Sends crash reports and anonymous usage data, such as which shop
+              websites imports fail on, to the BladeVault developer through
               Sentry. Your knives, images, notes, and backups are never
               included.{' '}
               <a

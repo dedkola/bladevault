@@ -6,6 +6,9 @@ const path = require('path')
 // electron-builder writes them into the packaged package.json.
 
 const CONSENT_FILE = 'error-reporting.json'
+// 1: crash and error reports (2.2.0). 2: adds anonymous usage data. A "yes"
+// to an older version is asked again so the person sees what changed.
+const CONSENT_VERSION = 2
 const REDACTED = '[redacted]'
 
 // The renderer and embedded server already use lib/sentry/shared.ts; this is
@@ -70,9 +73,12 @@ function readConsentRecord(userDataDir) {
       enabled: parsed.enabled === true,
       askedVersion:
         typeof parsed.askedVersion === 'string' ? parsed.askedVersion : null,
+      consentVersion: Number.isInteger(parsed.consentVersion)
+        ? parsed.consentVersion
+        : 1,
     }
   } catch {
-    return { enabled: false, askedVersion: null }
+    return { enabled: false, askedVersion: null, consentVersion: 0 }
   }
 }
 
@@ -87,6 +93,7 @@ function writeConsent(userDataDir, enabled, askedVersion) {
   const payload = {
     enabled: enabled === true,
     askedVersion: typeof askedVersion === 'string' ? askedVersion : null,
+    consentVersion: CONSENT_VERSION,
     updatedAt: new Date().toISOString(),
   }
   fs.writeFileSync(temp, `${JSON.stringify(payload, null, 2)}\n`)
@@ -102,24 +109,32 @@ function getErrorReportingState({
 }) {
   const { desktopDsn, appDsn } = readBuildDsns(packageJson)
   const available = Boolean(isPackaged && !smokeTest && desktopDsn && appDsn)
+  const record = readConsentRecord(userDataDir)
+  const enabled = available && record.enabled
   return {
     available,
-    enabled: available && readConsent(userDataDir),
+    enabled,
+    // Usage data needs a "yes" given with the current wording.
+    usageMetrics: enabled && record.consentVersion >= CONSENT_VERSION,
     desktopDsn,
     appDsn,
   }
 }
 
 function shouldAskForConsent(state, record, appVersion) {
-  return Boolean(
-    state.available && !record.enabled && record.askedVersion !== appVersion,
-  )
+  if (!state.available) return false
+  if (record.enabled) return record.consentVersion < CONSENT_VERSION
+  return record.askedVersion !== appVersion
 }
 
 // The embedded Next.js server reads SENTRY_DSN; an empty value keeps it off.
 function getEmbeddedServerEnv(state) {
-  if (!state.enabled) return { SENTRY_DSN: '' }
-  return { SENTRY_DSN: state.appDsn, SENTRY_ENVIRONMENT: 'production' }
+  if (!state.enabled) return { SENTRY_DSN: '', BLADEVAULT_USAGE_METRICS: '' }
+  return {
+    SENTRY_DSN: state.appDsn,
+    SENTRY_ENVIRONMENT: 'production',
+    BLADEVAULT_USAGE_METRICS: state.usageMetrics ? '1' : '',
+  }
 }
 
 function escapeRegExp(value) {
@@ -215,6 +230,7 @@ function getSentryOptions(state, { release, homeDir }) {
 
 module.exports = {
   CONSENT_FILE,
+  CONSENT_VERSION,
   EXCLUDED_INTEGRATIONS,
   getEmbeddedServerEnv,
   getErrorReportingState,
