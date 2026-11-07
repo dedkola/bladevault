@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # The Playwright 1.64.1 image ships Node 26.x, matching .nvmrc. Fail the build
 # if the image moves to a different Node major so the mismatch is deliberate.
 FROM mcr.microsoft.com/playwright:v1.64.1-noble AS base
@@ -28,9 +30,19 @@ WORKDIR /app
 
 ENV BLADEVAULT_DOCKER_RUNTIME=1
 
+# Sentry source map upload runs only in release CI. The auth token arrives as a
+# BuildKit secret so it never lands in an image layer; without it the build is
+# unchanged. SENTRY_UPLOAD_REF differs per release so a cached build from main
+# cannot skip the upload.
+ARG SENTRY_ORG=
+ARG SENTRY_PROJECT=
+ARG SENTRY_UPLOAD_REF=
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+RUN --mount=type=secret,id=sentry_auth_token,env=SENTRY_AUTH_TOKEN \
+  SENTRY_ORG="$SENTRY_ORG" SENTRY_PROJECT="$SENTRY_PROJECT" \
+  SENTRY_UPLOAD_REF="$SENTRY_UPLOAD_REF" npm run build
 
 FROM base AS runner
 

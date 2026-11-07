@@ -63,6 +63,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
+          # Upload source maps to Sentry only for release tags.
+          build-args: |
+            SENTRY_ORG=${{ vars.SENTRY_ORG }}
+            SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }}
+            SENTRY_UPLOAD_REF=${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+          secrets: |
+            sentry_auth_token=${{ startsWith(github.ref, 'refs/tags/v') && secrets.SENTRY_AUTH_TOKEN || '' }}
 
       - name: Test container startup and persistence
         run: .github/scripts/container-smoke.sh "${{ steps.image.outputs.ghcr }}"

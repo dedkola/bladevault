@@ -6,6 +6,7 @@ import {
   McpSettingManagedError,
   updateMcpRuntimeSettings,
 } from '@/lib/mcp/config'
+import { reportServerError } from '@/lib/sentry/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -31,6 +32,7 @@ export async function GET(request: Request) {
       { headers: { 'Cache-Control': 'no-store' } },
     )
   } catch (error) {
+    reportServerError(error, '/api/settings/mcp')
     const message =
       error instanceof Error ? error.message : 'Failed to load MCP settings.'
     return Response.json({ error: message }, { status: 500 })
@@ -60,6 +62,9 @@ export async function POST(request: Request) {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to save MCP settings.'
+      if (!(error instanceof McpSettingManagedError)) {
+        reportServerError(error, '/api/settings/mcp')
+      }
       return Response.json(
         { error: message },
         { status: error instanceof McpSettingManagedError ? 409 : 500 },

@@ -9,6 +9,7 @@ import {
 } from '@/lib/local-db'
 import { updateLocalDataDirectory } from '@/lib/local-data-location'
 import { getSettings } from '@/lib/settings'
+import { reportServerError } from '@/lib/sentry/server'
 
 type UpdateLocalDataPathRequest = {
   moveExistingData?: boolean
@@ -50,6 +51,7 @@ async function saveLocalDataPath(request: Request) {
       },
     )
   } catch (error) {
+    reportServerError(error, '/api/settings/local-data-path')
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
   }

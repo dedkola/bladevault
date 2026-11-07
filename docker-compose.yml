@@ -20,6 +20,9 @@ services:
       MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:-}
       NEXT_PUBLIC_BLADEVAULT_AUTH_URL: ${NEXT_PUBLIC_BLADEVAULT_AUTH_URL:-}
       NEXT_PUBLIC_BLADEVAULT_BACKUP_URL: ${NEXT_PUBLIC_BLADEVAULT_BACKUP_URL:-}
+      # Optional error reporting; off unless SENTRY_DSN is set.
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
 
 volumes:
   bladevault-data:

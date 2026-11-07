@@ -8,6 +8,7 @@ import {
   getSmartCollections,
   saveSmartCollection,
 } from '@/lib/smart-collections-storage'
+import { reportServerError } from '@/lib/sentry/server'
 
 const inputSchema = z.object({
   id: z.string().uuid().optional(),
@@ -20,7 +21,8 @@ export async function GET(request: Request) {
 
   try {
     return NextResponse.json({ collections: getSmartCollections() })
-  } catch {
+  } catch (error) {
+    reportServerError(error, '/api/smart-collections')
     return NextResponse.json(
       { error: 'Could not load smart collections.' },
       { status: 500 },
@@ -58,7 +60,8 @@ export async function POST(request: Request) {
           { status: 404 },
         )
       return NextResponse.json({ collection })
-    } catch {
+    } catch (error) {
+      reportServerError(error, '/api/smart-collections')
       return NextResponse.json(
         { error: 'Could not save smart collection.' },
         { status: 500 },
@@ -86,7 +89,8 @@ export async function DELETE(request: Request) {
           { status: 404 },
         )
       return NextResponse.json({ success: true })
-    } catch {
+    } catch (error) {
+      reportServerError(error, '/api/smart-collections')
       return NextResponse.json(
         { error: 'Could not delete smart collection.' },
         { status: 500 },

@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { toKnifeListItem } from '@/lib/data'
 import { getStorage } from '@/lib/storage'
 import { dockerJsonResponse } from '@/lib/server-json-response'
+import { reportServerError } from '@/lib/sentry/server'
 
 export async function GET(request: Request) {
   return withUnproxiedVaultRequest(request, async () => {
@@ -12,6 +13,7 @@ export async function GET(request: Request) {
       const knives = (await storage.getAllKnives()).map(toKnifeListItem)
       return await dockerJsonResponse(request, { knives })
     } catch (error) {
+      reportServerError(error, '/api/knives')
       const message = error instanceof Error ? error.message : 'Unknown error'
       return NextResponse.json({ error: message }, { status: 500 })
     }
@@ -71,6 +73,7 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ knife })
       } catch (error) {
+        reportServerError(error, '/api/knives')
         const message = error instanceof Error ? error.message : 'Unknown error'
         return NextResponse.json({ error: message }, { status: 500 })
       }

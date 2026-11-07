@@ -14,6 +14,7 @@ import * as unzipper from 'unzipper'
 import { ZipFile } from 'yazl'
 import pkg from '@/package.json'
 import { clearStorageCache } from '@/lib/storage'
+import { reportServerError } from '@/lib/sentry/server'
 import {
   beginLocalRestore,
   closeLocalDb,
@@ -566,6 +567,9 @@ async function writeRequestArchive(request: Request, outputPath: string) {
 
 function errorResponse(error: unknown) {
   const message = error instanceof Error ? error.message : 'Unknown error'
+  if (!(error instanceof BackupValidationError)) {
+    reportServerError(error, '/api/local-backup/archive')
+  }
   return Response.json(
     { error: message },
     { status: error instanceof BackupValidationError ? 400 : 500 },

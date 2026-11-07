@@ -19,6 +19,7 @@
 | Back up the vault or restore a saved copy                | [Back up and restore your vault](guides/back-up-and-restore-your-vault.md) |
 | Connect an AI client to my collection                    | [MCP](reference/mcp.md)                                                    |
 | Find my data, back it up, or lock the app                | [Your data](reference/data.md)                                             |
+| Send error reports from a server to Sentry               | [Error reporting](reference/error-reporting.md)                            |
 
 ## What it does
 

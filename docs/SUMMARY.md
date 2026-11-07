@@ -39,3 +39,4 @@
 - [MCP](reference/mcp.md)
 - [Your data](reference/data.md)
 - [Cloud backup](reference/cloud-backup.md)
+- [Error reporting](reference/error-reporting.md)

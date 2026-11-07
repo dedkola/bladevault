@@ -6,6 +6,7 @@ import {
 } from '@/lib/webpage-screenshot-service'
 import { getLocalDb } from '@/lib/local-db'
 import { withVaultMutationRequest } from '@/lib/vault-mutation-request'
+import { reportServerError } from '@/lib/sentry/server'
 
 export const runtime = 'nodejs'
 
@@ -16,6 +17,7 @@ export async function GET(request: Request) {
   try {
     return NextResponse.json({ items: getScreenshotBackfill() })
   } catch (error) {
+    reportServerError(error, '/api/settings/webpage-screenshots')
     return NextResponse.json(
       {
         error:
