@@ -73,6 +73,7 @@ import { formatCloudBackupError } from '@/lib/cloud-backup-client'
 import { ScreenshotBackfill } from '@/components/screenshot-backfill'
 import { AppLockSettings } from '@/components/app-lock-settings'
 import { DesktopErrorReportingSettings } from '@/components/desktop-error-reporting-settings'
+import { ServerErrorReportingSettings } from '@/components/server-error-reporting-settings'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { KnifeCardDetails } from '@/components/knife-card-details'
@@ -2574,7 +2575,11 @@ export default function SettingsView() {
                     </SettingsRow>
                     <SettingsRow label="License" description="MIT" />
                   </SettingsSection>
-                  {isDesktop && <DesktopErrorReportingSettings />}
+                  {isDesktop ? (
+                    <DesktopErrorReportingSettings />
+                  ) : (
+                    <ServerErrorReportingSettings />
+                  )}
                 </div>
               )}
             </div>

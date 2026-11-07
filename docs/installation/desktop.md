@@ -33,7 +33,7 @@ The desktop runtime serves MCP on `http://127.0.0.1:5501/mcp`; if port `5501` is
 
 ## Error reports
 
-On first launch and after updates, the desktop app asks whether to send crash and error reports. It sends nothing unless you agree, and you can change your answer in **Settings → About → Send error reports**. See [Error reporting](../reference/error-reporting.md) for what is sent.
+On first launch and after updates, the desktop app asks whether to send crash reports and anonymous usage data. It sends nothing unless you agree, and you can change your answer in **Settings → About → Send error reports**. See [Error reporting](../reference/error-reporting.md) for what is sent.
 
 ## Desktop development
 

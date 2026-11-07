@@ -4,6 +4,10 @@ import { NextResponse } from 'next/server'
 import { isSecurityChallengePage, scrapeAndEnrichProduct } from '@/lib/scrape'
 import { validateExternalUrl } from '@/lib/url-validation'
 import { ScrapeError, scrapeErrorResponse } from '@/lib/scrape-errors'
+import {
+  recordScrapeFailure,
+  recordScrapeSuccess,
+} from '@/lib/sentry/scrape-metrics'
 import { createScrapeOperation } from '@/lib/scrape-operation'
 import { vaultAccessErrorResponse } from '@/lib/vault-access'
 import {
@@ -26,6 +30,7 @@ export async function POST(request: Request) {
     if (locked) return locked
 
     const operation = createScrapeOperation({ signal: request.signal })
+    let attemptedUrl: URL | undefined
     try {
       return await operation.run(async () => {
         const body = await operation
@@ -68,6 +73,7 @@ export async function POST(request: Request) {
           )
         }
         const normalizedUrl = validation.url.href
+        attemptedUrl = validation.url
 
         const hasChallengeMarkers = isSecurityChallengePage(html)
         if (hasChallengeMarkers && !hasProductMarkup(html))
@@ -88,10 +94,14 @@ export async function POST(request: Request) {
         result.product.images = result.product.images.filter(
           (src) => !isSavedPageLocalImage(src),
         )
+        recordScrapeSuccess('saved_page', attemptedUrl, result)
         return NextResponse.json(result)
       })
     } catch (error) {
-      return vaultAccessErrorResponse(error) ?? scrapeErrorResponse(error)
+      const vaultResponse = vaultAccessErrorResponse(error)
+      if (vaultResponse) return vaultResponse
+      recordScrapeFailure('saved_page', attemptedUrl, error)
+      return scrapeErrorResponse(error)
     } finally {
       operation.dispose()
     }

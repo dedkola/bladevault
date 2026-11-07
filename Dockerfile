@@ -56,6 +56,12 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV BLADEVAULT_DATA_DIR=/app/data
 ENV BLADEVAULT_DOCKER_RUNTIME=1
+# Official images built in release CI carry the BladeVault Sentry DSN as a
+# default. Nothing is sent until someone answers "Send Reports" in the app;
+# local and fork builds leave it empty. Operators can set
+# BLADEVAULT_ERROR_REPORTING=off or their own SENTRY_DSN.
+ARG BLADEVAULT_DEFAULT_SENTRY_DSN=
+ENV BLADEVAULT_DEFAULT_SENTRY_DSN=${BLADEVAULT_DEFAULT_SENTRY_DSN}
 # Tell Playwright's interactive scraper to use a virtual display when no real
 # X server is available (e.g. inside Docker).
 ENV DISPLAY=:99

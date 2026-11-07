@@ -52,6 +52,10 @@ helm install bladevault bladevault/bladevault \
   --set persistence.existingClaim=bladevault-data
 ```
 
+## Error reports
+
+The official image asks once in the app whether to send crash reports and anonymous usage data. To turn this off for good, add `BLADEVAULT_ERROR_REPORTING` with the value `off` to the chart's `env` list. See [Error reporting](../reference/error-reporting.md).
+
 ## Update BladeVault
 
 Each BladeVault release publishes a matching Helm chart and immutable container image. After the GitHub **Build & Push Docker Image** and **Publish Helm Repository** workflows complete, refresh the repository and upgrade the release:

@@ -55,6 +55,10 @@ docker compose up -d --build
 
 If you already have a checkout, run the Compose command from its root directory. Open [http://localhost:5500](http://localhost:5500). To stop it without deleting the persistent volume, run `docker compose down`.
 
+## Error reports
+
+The first time you open BladeVault, it asks whether to send crash reports and anonymous usage data. Nothing is sent unless someone agrees. To turn this off for good, set `BLADEVAULT_ERROR_REPORTING=off`. See [Error reporting](../reference/error-reporting.md).
+
 ## Build the image yourself
 
 ```bash
