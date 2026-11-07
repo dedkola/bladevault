@@ -2,8 +2,11 @@ import type { ErrorEvent } from '@sentry/nextjs'
 import { describe, expect, it } from 'vitest'
 import {
   getErrorReportingConfig,
+  getErrorReportingMode,
   getErrorReportingRuntime,
+  isErrorReportingAllowed,
 } from '@/lib/sentry/server'
+import { setErrorReportingConsentGranted } from '@/lib/sentry/consent-state'
 import {
   parseErrorReportingConfig,
   scrubBreadcrumb,
@@ -69,6 +72,57 @@ describe('error reporting config', () => {
         }),
       ),
     ).toBeNull()
+  })
+})
+
+describe('error reporting modes', () => {
+  const DEFAULT_DSN = 'https://default@o1.ingest.de.sentry.io/9'
+  const docker = {
+    BLADEVAULT_DOCKER_RUNTIME: '1',
+    BLADEVAULT_DEFAULT_SENTRY_DSN: DEFAULT_DSN,
+  }
+
+  it('asks for consent in the official Docker image', () => {
+    expect(getErrorReportingMode(docker)).toBe('consent')
+    expect(getErrorReportingConfig(docker)).toEqual({
+      dsn: DEFAULT_DSN,
+      environment: 'production',
+      runtime: 'docker',
+    })
+  })
+
+  it('lets an operator DSN replace the default without asking', () => {
+    const env = { ...docker, SENTRY_DSN: DSN }
+    expect(getErrorReportingMode(env)).toBe('managed')
+    expect(getErrorReportingConfig(env)?.dsn).toBe(DSN)
+    expect(isErrorReportingAllowed(env)).toBe(true)
+  })
+
+  it('turns off with BLADEVAULT_ERROR_REPORTING=off', () => {
+    const env = { ...docker, BLADEVAULT_ERROR_REPORTING: 'OFF' }
+    expect(getErrorReportingMode(env)).toBe('off')
+    expect(getErrorReportingConfig(env)).toBeNull()
+  })
+
+  it('ignores the default DSN outside Docker', () => {
+    expect(
+      getErrorReportingMode({ BLADEVAULT_DEFAULT_SENTRY_DSN: DEFAULT_DSN }),
+    ).toBe('off')
+    expect(
+      getErrorReportingMode({
+        BLADEVAULT_DESKTOP_RUNTIME: '1',
+        BLADEVAULT_DEFAULT_SENTRY_DSN: DEFAULT_DSN,
+        SENTRY_DSN: '',
+      }),
+    ).toBe('off')
+  })
+
+  it('sends in consent mode only after a yes', () => {
+    setErrorReportingConsentGranted(false)
+    expect(isErrorReportingAllowed(docker)).toBe(false)
+    setErrorReportingConsentGranted(true)
+    expect(isErrorReportingAllowed(docker)).toBe(true)
+    setErrorReportingConsentGranted(false)
   })
 })
 

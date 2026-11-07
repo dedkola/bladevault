@@ -11,6 +11,7 @@ vi.mock('@sentry/nextjs', () => ({
 }))
 
 import { ScrapeError } from '@/lib/scrape-errors'
+import { setErrorReportingConsentGranted } from '@/lib/sentry/consent-state'
 import {
   getScrapeDomain,
   isUsageMetricsEnabled,
@@ -22,6 +23,8 @@ const ENV_KEYS = [
   'BLADEVAULT_DESKTOP_RUNTIME',
   'BLADEVAULT_DOCKER_RUNTIME',
   'BLADEVAULT_USAGE_METRICS',
+  'BLADEVAULT_DEFAULT_SENTRY_DSN',
+  'SENTRY_DSN',
 ] as const
 const savedEnv: Record<string, string | undefined> = {}
 
@@ -30,6 +33,7 @@ beforeEach(() => {
     savedEnv[key] = process.env[key]
     delete process.env[key]
   }
+  process.env.SENTRY_DSN = 'https://public@o1.ingest.de.sentry.io/1'
   sentry.client = {}
   sentry.count.mockClear()
 })
@@ -87,6 +91,18 @@ describe('scrape metric gating', () => {
   it('runs on servers whenever Sentry is configured', () => {
     process.env.BLADEVAULT_DOCKER_RUNTIME = '1'
     expect(isUsageMetricsEnabled()).toBe(true)
+  })
+
+  it('waits for consent with the official image default DSN', () => {
+    delete process.env.SENTRY_DSN
+    process.env.BLADEVAULT_DOCKER_RUNTIME = '1'
+    process.env.BLADEVAULT_DEFAULT_SENTRY_DSN =
+      'https://public@o1.ingest.de.sentry.io/1'
+    setErrorReportingConsentGranted(false)
+    expect(isUsageMetricsEnabled()).toBe(false)
+    setErrorReportingConsentGranted(true)
+    expect(isUsageMetricsEnabled()).toBe(true)
+    setErrorReportingConsentGranted(false)
   })
 })
 

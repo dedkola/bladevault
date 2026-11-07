@@ -20,7 +20,13 @@ import { AppUnlockForm } from '@/components/app-unlock-form'
 import { AppLockSession } from '@/components/app-lock-session'
 import { VaultRestoreProvider } from '@/components/providers/vault-restore-provider'
 import { getVaultAccessState } from '@/lib/vault-access'
-import { getErrorReportingConfig } from '@/lib/sentry/server'
+import {
+  getErrorReportingConfig,
+  getErrorReportingMode,
+  isErrorReportingAllowed,
+} from '@/lib/sentry/server'
+import { getErrorReportingConsent } from '@/lib/error-reporting-consent'
+import { ErrorReportingPrompt } from '@/components/error-reporting-prompt'
 import { ERROR_REPORTING_ATTRIBUTE } from '@/lib/sentry/shared'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-sans' })
@@ -68,6 +74,24 @@ function getInitialTheme() {
   }
 }
 
+// Reads the vault's answer in consent mode, which also refreshes the copy the
+// server's Sentry hooks check. A failed read counts as "not answered".
+function getInitialErrorReporting() {
+  const mode = getErrorReportingMode()
+  let promptForConsent = false
+  if (mode === 'consent') {
+    try {
+      promptForConsent = getErrorReportingConsent() === 'unset'
+    } catch {
+      promptForConsent = false
+    }
+  }
+  return {
+    config: isErrorReportingAllowed() ? getErrorReportingConfig() : null,
+    promptForConsent,
+  }
+}
+
 function getInitialThemeStyle() {
   try {
     return getSettings().themeStyle
@@ -88,7 +112,8 @@ export default async function RootLayout({
     appLockEnabled: isAppLockEnabled(),
   }
   const unlocked = isAppUnlocked((await cookies()).get(APP_LOCK_COOKIE)?.value)
-  const errorReporting = getErrorReportingConfig()
+  const { config: errorReporting, promptForConsent } =
+    getInitialErrorReporting()
 
   return (
     <html
@@ -123,6 +148,7 @@ export default async function RootLayout({
                       </ComparisonsProvider>
                     </Suspense>
                     <GlobalKnifeSearch />
+                    {promptForConsent ? <ErrorReportingPrompt /> : null}
                   </TooltipProvider>
                 </SmartCollectionsProvider>
               </KnivesProvider>
