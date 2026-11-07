@@ -31,6 +31,12 @@ The default data folder is `~/BladeVault/data` on macOS and `%USERPROFILE%\Blade
 
 The desktop runtime serves MCP on `http://127.0.0.1:5501/mcp`; if port `5501` is busy, BladeVault uses a free local port and **Copy config** includes the active URL. See [MCP](../reference/mcp.md).
 
+## What's new after an update
+
+The first time you open BladeVault after an update, it shows a short list of new features and fixes in that version. Select **See All Changes** to open the full release notes on GitHub. A fresh install skips the list, and each version shows it only once.
+
+The list comes from the `feat`, `fix`, and `perf` commit titles since the previous release, features first, at most five. It is built into the app when the release is made, so showing it needs no network.
+
 ## Error reports
 
 On first launch and after updates, the desktop app asks whether to send crash reports and anonymous usage data. It sends nothing unless you agree, and you can change your answer in **Settings → About → Send error reports**. See [Error reporting](../reference/error-reporting.md) for what is sent.

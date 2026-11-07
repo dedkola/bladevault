@@ -1,4 +1,5 @@
 const path = require('path')
+const { readReleaseHighlights } = require('./scripts/release-highlights.cjs')
 
 const isMacHost = process.platform === 'darwin'
 const isMacSigningEnabled = process.env.BLADEVAULT_MAC_SIGN === '1'
@@ -43,9 +44,23 @@ const errorReportingMetadata =
       }
     : undefined
 
+// The short "What's new" list shown after an update, from the commit titles
+// since the previous tag. Shallow clones ship none, and the dialog is skipped.
+const releaseHighlights = readReleaseHighlights(__dirname)
+
+const extraMetadata =
+  errorReportingMetadata || releaseHighlights
+    ? {
+        ...errorReportingMetadata,
+        ...(releaseHighlights
+          ? { bladevaultWhatsNew: releaseHighlights }
+          : undefined),
+      }
+    : undefined
+
 const config = {
   appId: 'com.bladevault.desktop',
-  extraMetadata: errorReportingMetadata,
+  extraMetadata,
   productName: 'BladeVault',
   asar: true,
   asarUnpack: [

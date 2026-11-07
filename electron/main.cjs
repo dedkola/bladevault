@@ -22,6 +22,7 @@ const {
   registerScrapeBrowser,
 } = require('./scrape-browser.cjs')
 const errorReporting = require('./error-reporting.cjs')
+const whatsNew = require('./whats-new.cjs')
 const desktopPackage = require('../package.json')
 
 const DEV_SERVER_URL = process.env.ELECTRON_START_URL || 'http://127.0.0.1:3000'
@@ -47,6 +48,15 @@ const errorReportingState = errorReporting.getErrorReportingState({
   packageJson: desktopPackage,
   isPackaged: app.isPackaged,
   smokeTest: SMOKE_TEST_MODE,
+})
+// Checked before the error reporting prompt can write to the user-data folder,
+// so a fresh install is not mistaken for an update.
+const pendingWhatsNew = whatsNew.getPendingWhatsNew({
+  userDataDir: app.getPath('userData'),
+  packageJson: desktopPackage,
+  version: app.getVersion(),
+  isPackaged: app.isPackaged,
+  disabled: SMOKE_TEST_MODE || UPDATE_AUTO_TEST,
 })
 let Sentry = null
 if (errorReportingState.enabled) {
@@ -113,6 +123,26 @@ async function askForErrorReportingConsent() {
     return true
   }
   return false
+}
+
+// Shown once per update, over the main window after it appears.
+async function showWhatsNew(window) {
+  if (!pendingWhatsNew || window.isDestroyed()) return
+  try {
+    whatsNew.writeLastSeenVersion(
+      app.getPath('userData'),
+      pendingWhatsNew.version,
+    )
+  } catch {
+    // Still show it; it may appear again on the next launch.
+  }
+  const { response } = await dialog.showMessageBox(
+    window,
+    whatsNew.getDialogOptions(pendingWhatsNew),
+  )
+  if (response === 1) {
+    void shell.openExternal(pendingWhatsNew.url)
+  }
 }
 
 function showStartupError(error) {
@@ -1321,6 +1351,7 @@ async function createMainWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
     mainWindow.webContents.send('bladevault:update-status', updateStatus)
+    void showWhatsNew(mainWindow).catch(() => {})
   })
 
   if (SMOKE_TEST_MODE) {
