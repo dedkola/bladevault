@@ -13,6 +13,7 @@ import {
 } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { Popover } from '@base-ui/react/popover'
 import {
   CheckSquare2,
   ChevronDown,
@@ -776,60 +777,70 @@ function CollectionContent() {
   const renderColumnsMenu = (
     summaryClassName = 'flex cursor-pointer list-none items-center gap-1 rounded-md px-2 py-1.5 text-xs focus-visible:outline-2 focus-visible:outline-ring',
   ) => (
-    <details className="relative">
-      <summary className={summaryClassName} aria-label="Choose columns">
+    <Popover.Root>
+      <Popover.Trigger className={summaryClassName} aria-label="Choose columns">
         <Columns3 className="size-3.5" /> Columns
-      </summary>
-      <div className="absolute right-0 top-full z-30 mt-2 max-h-[min(65dvh,32rem)] w-56 overflow-y-auto space-y-3 rounded-lg border border-border bg-popover p-3 shadow-lg">
-        {[
-          {
-            label: 'Custom fields',
-            columns: collectionColumns.filter((column) =>
-              column.key.startsWith('custom:'),
-            ),
-          },
-          {
-            label: 'Show columns',
-            columns: collectionColumns.filter(
-              (column) => !column.key.startsWith('custom:'),
-            ),
-          },
-        ]
-          .filter((group) => group.columns.length > 0)
-          .map((group) => (
-            <div
-              key={group.label}
-              role="group"
-              aria-label={group.label}
-              className="space-y-3"
-            >
-              <span className="block text-xs text-muted-foreground">
-                {group.label}
-              </span>
-              {group.columns.map((column) => (
-                <label
-                  key={column.key}
-                  className="flex cursor-pointer items-center gap-2 text-sm"
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Positioner align="end" sideOffset={8} className="z-40">
+          <Popover.Popup
+            aria-label="Collection columns"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') event.stopPropagation()
+            }}
+            className="max-h-[min(65dvh,var(--available-height))] w-56 max-w-[calc(100vw-2rem)] overflow-y-auto space-y-3 rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-lg outline-none"
+          >
+            {[
+              {
+                label: 'Custom fields',
+                columns: collectionColumns.filter((column) =>
+                  column.key.startsWith('custom:'),
+                ),
+              },
+              {
+                label: 'Show columns',
+                columns: collectionColumns.filter(
+                  (column) => !column.key.startsWith('custom:'),
+                ),
+              },
+            ]
+              .filter((group) => group.columns.length > 0)
+              .map((group) => (
+                <div
+                  key={group.label}
+                  role="group"
+                  aria-label={group.label}
+                  className="space-y-3"
                 >
-                  <Checkbox
-                    checked={collectionDisplay.columns.includes(column.key)}
-                    onCheckedChange={(checked) => {
-                      saveDisplay({
-                        columns: checked
-                          ? [...collectionDisplay.columns, column.key]
-                          : collectionDisplay.columns.filter(
-                              (item) => item !== column.key,
-                            ),
-                      })
-                    }}
-                  />
-                  {column.label}
-                </label>
+                  <span className="block text-xs text-muted-foreground">
+                    {group.label}
+                  </span>
+                  {group.columns.map((column) => (
+                    <label
+                      key={column.key}
+                      className="flex cursor-pointer items-center gap-2 text-sm"
+                    >
+                      <Checkbox
+                        checked={collectionDisplay.columns.includes(column.key)}
+                        onCheckedChange={(checked) => {
+                          saveDisplay({
+                            columns: checked
+                              ? [...collectionDisplay.columns, column.key]
+                              : collectionDisplay.columns.filter(
+                                  (item) => item !== column.key,
+                                ),
+                          })
+                        }}
+                      />
+                      {column.label}
+                    </label>
+                  ))}
+                </div>
               ))}
-            </div>
-          ))}
-      </div>
-    </details>
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
   )
 
   return (

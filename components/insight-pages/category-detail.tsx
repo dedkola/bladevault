@@ -1,5 +1,7 @@
 'use client'
 
+import { formatKnifeCount } from '@/lib/knife-count'
+
 import Link from 'next/link'
 import { useMemo } from 'react'
 import { categoryHref, missingHref } from '@/components/collection-insights'
@@ -74,7 +76,7 @@ export function CategoryDetail({
             footer={
               <>
                 <span>
-                  Top eight: {topCount} knives ·{' '}
+                  Top eight: {formatKnifeCount(topCount)} ·{' '}
                   {stats.total ? Math.round((topCount / stats.total) * 100) : 0}
                   %
                 </span>
@@ -155,7 +157,9 @@ export function CategoryDetail({
               {labels.singular} recorded. Shares include all {stats.total}{' '}
               knives.
             </p>
-            <Link href={missingHref(categoryKey)}>View {missing} knives →</Link>
+            <Link href={missingHref(categoryKey)}>
+              View {formatKnifeCount(missing)} →
+            </Link>
           </div>
         ) : (
           <p className="id-note">

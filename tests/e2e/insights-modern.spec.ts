@@ -75,12 +75,12 @@ test('summarizes current records and switches between independent measurement di
   )
   await expect(measurements).toContainText('median weight')
   const weightBin = measurements.getByRole('button', {
-    name: '3.0–3.5 oz: 1 knives, 50% of measured',
+    name: '3.0–3.5 oz: 1 knife, 50% of measured',
     exact: true,
   })
   await weightBin.press('Enter')
   await expect(weightBin).toHaveAttribute('aria-pressed', 'true')
-  await expect(measurements).toContainText('3.0–3.5 oz · 1 knives · 50%')
+  await expect(measurements).toContainText('3.0–3.5 oz · 1 knife · 50%')
   await measurements
     .getByText('View distribution data', { exact: true })
     .click()

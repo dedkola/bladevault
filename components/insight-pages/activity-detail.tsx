@@ -1,5 +1,7 @@
 'use client'
 
+import { formatKnifeCount } from '@/lib/knife-count'
+
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -197,7 +199,7 @@ export function ActivityDetail() {
                     }
                   >
                     <strong>{date(day.date)}</strong>
-                    <span>{day.count} knives ›</span>
+                    <span>{formatKnifeCount(day.count)} ›</span>
                   </button>
                   <p>
                     {formatActivityCounts(

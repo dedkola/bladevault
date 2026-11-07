@@ -326,7 +326,7 @@ describe('MeasurementDetail', () => {
     rerender(<MeasurementDetail />)
     expect(blade).toHaveTextContent('82.296 mm / 3.24 in')
     const bin = within(blade).getByRole('button', {
-      name: 'Blade length 76.2–82.55 mm / 3–3.25 in: 1 knives',
+      name: 'Blade length 76.2–82.55 mm / 3–3.25 in: 1 knife',
     })
     await user.click(bin)
     expect(screen.getByRole('dialog')).toHaveTextContent(
@@ -354,7 +354,7 @@ describe('MeasurementDetail', () => {
     expect(weight).toHaveTextContent('Units: g and oz.')
     await user.click(
       within(weight).getByRole('button', {
-        name: 'Weight 70.8738–85.0486 g / 2.5–3 oz: 1 knives',
+        name: 'Weight 70.8738–85.0486 g / 2.5–3 oz: 1 knife',
       }),
     )
     expect(screen.getByRole('dialog')).toHaveTextContent(

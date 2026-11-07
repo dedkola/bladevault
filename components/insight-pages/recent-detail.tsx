@@ -1,5 +1,7 @@
 'use client'
 
+import { formatKnifeCount } from '@/lib/knife-count'
+
 import { useMemo, useState } from 'react'
 import { useKnives } from '@/components/providers/knives-provider'
 import {
@@ -73,7 +75,7 @@ export function RecentDetail() {
         </InsightPanel>
         <InsightPanel
           title="All additions"
-          description={`${recent.length} knives · newest first`}
+          description={`${formatKnifeCount(recent.length)} · newest first`}
           footer={
             <>
               <span aria-live="polite">{filtered.length} records</span>

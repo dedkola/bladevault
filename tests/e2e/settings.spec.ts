@@ -23,7 +23,7 @@ test('persists and applies the selected theme style', async ({ page }) => {
   await page.goto('/settings')
   await page.getByRole('button', { name: 'Appearance' }).click()
 
-  const current = page.getByRole('radio', { name: /Current/ })
+  const current = page.getByRole('radio', { name: /Classic/ })
   const modern = page.getByRole('radio', { name: /Modern/ })
   await expect(current).toBeChecked()
   await expect(page.locator('html')).toHaveAttribute(
@@ -257,4 +257,107 @@ test('saves the start page and keeps Insights accessible', async ({ page }) => {
     await page.getByRole('link', { name: 'Insights', exact: true }).click()
     await expect(page).toHaveURL(/\/insights$/)
   }
+})
+
+test('audit: keeps every settings tab in the URL through reload and history', async ({
+  page,
+}) => {
+  const tabs = [
+    ['general', 'Local storage'],
+    ['app-lock', 'App lock'],
+    ['cloud-backup', 'Cloud backup'],
+    ['restore-database', 'Backup & Restore'],
+    ['appearance', 'Appearance'],
+    ['fields', 'Custom fields'],
+    ['mcp', 'AI / MCP'],
+    ['about', 'About'],
+  ]
+  for (const [id, title] of tabs) {
+    await page.goto(`/settings?tab=${id}`)
+    await expect(
+      page.getByRole('heading', { name: title, exact: true }).first(),
+    ).toBeVisible()
+  }
+  await expect(
+    page.getByRole('button', { name: 'Check for updates' }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByText('Automatic updates are available in the desktop app.'),
+  ).toBeVisible()
+  await page
+    .getByRole('button', { name: 'Backup & Restore', exact: true })
+    .click()
+  await expect(page).toHaveURL(/tab=restore-database/)
+  await page.reload()
+  await expect(
+    page
+      .getByRole('heading', { name: 'Backup & Restore', exact: true })
+      .first(),
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Custom fields', exact: true }).click()
+  await expect(page).toHaveURL(/tab=fields/)
+  await page.goBack()
+  await expect(
+    page
+      .getByRole('heading', { name: 'Backup & Restore', exact: true })
+      .first(),
+  ).toBeVisible()
+  await page.goForward()
+  await expect(
+    page.getByRole('heading', { name: 'Custom fields', exact: true }).first(),
+  ).toBeVisible()
+})
+
+test('audit: confirms custom-field removal, preserves stored values, and surfaces save failures', async ({
+  page,
+  request,
+}) => {
+  await request.post('/api/settings', {
+    data: {
+      customFields: [{ id: 'inventory', name: 'Inventory', type: 'text' }],
+      cardFields: ['custom:inventory'],
+    },
+  })
+  const { knife } = await seedKnife(request, {
+    customFields: { inventory: 'SAFE-42' },
+  })
+  await page.goto('/settings?tab=fields')
+  await page.getByRole('button', { name: 'Delete Inventory field' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Delete Inventory field?' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused()
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(
+    page.getByRole('textbox', { name: 'Name for Inventory field' }),
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Delete Inventory field' }).click()
+  await page.route('**/api/settings', async (route) => {
+    if (route.request().method() === 'POST')
+      await route.fulfill({
+        status: 500,
+        json: { error: 'Could not save field changes' },
+      })
+    else await route.continue()
+  })
+  await dialog
+    .getByRole('button', { name: 'Delete field', exact: true })
+    .click()
+  await expect(dialog.getByRole('alert')).toHaveText(
+    'Could not save field changes',
+  )
+  await expect(dialog).toBeVisible()
+  expect(
+    (await (await request.get('/api/settings')).json()).settings.customFields,
+  ).toHaveLength(1)
+  await page.unroute('**/api/settings')
+  await dialog
+    .getByRole('button', { name: 'Delete field', exact: true })
+    .click()
+  await expect(dialog).not.toBeVisible()
+  const settings = (await (await request.get('/api/settings')).json()).settings
+  expect(settings.customFields).toEqual([])
+  expect(settings.cardFields).not.toContain('custom:inventory')
+  const stored = (await (await request.get(`/api/knives/${knife.id}`)).json())
+    .knife
+  expect(stored.customFields.inventory).toBe('SAFE-42')
 })

@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 
 export const activeKnifeActionStyle = {
+  color: 'var(--bladevault-action-active-fg, var(--bladevault-gold))',
   backgroundColor:
     'var(--bladevault-action-active-bg, var(--bladevault-olive))',
 } satisfies CSSProperties

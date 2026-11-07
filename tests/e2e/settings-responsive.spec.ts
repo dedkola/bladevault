@@ -56,6 +56,9 @@ async function openTab(page: Page, tab: string) {
     .locator('[data-settings-rail]')
     .getByRole('button', { name: label })
     .click()
+  // Tab selection navigates asynchronously; the previous grid stays visible
+  // until the requested panel commits. Measure only the selected tab.
+  await expect(page.locator('.settings-head h2')).toHaveText(tab)
   await expect(page.locator('.settings-grid')).toBeVisible()
 }
 

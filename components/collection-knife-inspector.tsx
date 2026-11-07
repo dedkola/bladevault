@@ -21,6 +21,7 @@ import { useKnives } from '@/components/providers/knives-provider'
 import { getImageUrl, getKnifeImageCount, type Knife } from '@/lib/data'
 import { getKnifeVariantLabel } from '@/lib/knife-families'
 import { cn } from '@/lib/utils'
+import { SoldBadge } from '@/components/sold-badge'
 import { formatDimension, formatWeight } from '@/lib/measurements'
 import {
   activeKnifeActionStyle,
@@ -264,6 +265,7 @@ export function CollectionKnifeInspector({
             >
               {knife.name}
             </h2>
+            {knife.sold && <SoldBadge className="mt-2" />}
             <p className="mt-2 font-mono text-xs text-muted-foreground">
               {knife.specs.modelNumber || 'Model number not recorded'}
             </p>

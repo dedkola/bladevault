@@ -1,5 +1,7 @@
 'use client'
 
+import { formatKnifeCount } from '@/lib/knife-count'
+
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -101,7 +103,7 @@ export function LibraryDetail() {
                   key={month.key}
                   type="button"
                   className="id-growth-item"
-                  aria-label={`${month.label}: ${month.knifeIds.length} knives added`}
+                  aria-label={`${month.label}: ${formatKnifeCount(month.knifeIds.length)} added`}
                   onClick={() =>
                     setSelection({
                       title: `Added in ${month.label}`,

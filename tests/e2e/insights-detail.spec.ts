@@ -185,7 +185,7 @@ test('shows monthly library additions and opens pinned knives', async ({
     .getByLabel('Monthly library additions')
     .getByRole('button')
   await expect(months).toHaveCount(6)
-  await expect(months.last()).toHaveAccessibleName(/: 1 knives added$/)
+  await expect(months.last()).toHaveAccessibleName(/: 1 knife added$/)
   await months.last().click()
   await expect(
     page.getByRole('dialog').getByRole('link', { name: /Benchmade Bugout/ }),

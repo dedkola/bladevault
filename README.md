@@ -41,7 +41,7 @@ Catalog your knives, showcase them in Studio, compare them side by side, and kee
 - **Compare:** Create named shortlists, add a knife to several lists, show only differences, and print or export comparisons as PDF.
 - **Maintain:** Log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes and sharpening details. Review maintenance history and collection changes in Logs.
 - **Understand:** Explore makers, materials, dimensions, completeness, and activity through collection insights. The Modern theme adds monthly additions for the last 12 months and blade, overall-length, weight, and thickness distributions. Open chart details to inspect matching knives or print the Overview as a report.
-- **Personalize:** Choose the **Current** or **Modern** theme, light or dark color mode, time format, pinned ordering, and the page BladeVault opens on: **Insights**, **Studio**, or **Collection**.
+- **Personalize:** Choose the **Classic**, **Modern**, or **Alloy** theme, light or dark color mode, time format, pinned ordering, and the page BladeVault opens on: **Insights**, **Studio**, or **Collection**.
 - **Connect:** Use MCP to search and analyze your collection from an AI client, with optional metadata updates and maintenance logging.
 - **Keep control:** Store your vault locally in SQLite, create portable ZIP backups, and optionally sign in for cloud backup.
 

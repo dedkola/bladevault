@@ -35,6 +35,7 @@ import { MaintenanceSection } from '@/components/maintenance/maintenance-section
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { SoldBadge } from '@/components/sold-badge'
 import {
   activeKnifeActionStyle,
   activeKnifeOutlineClassName,
@@ -406,9 +407,10 @@ export default function KnifeDetail({
     <div className="flex-1 p-6 lg:p-8 w-full">
       <PageHeader
         title={
-          <span className="inline-flex items-center gap-2">
+          <span className="inline-flex flex-wrap items-center gap-2">
             {[knife.brand, knife.name].filter(Boolean).join(' ')}
             <ImageCountBadge count={knife.images.length} />
+            {knife.sold && <SoldBadge />}
           </span>
         }
         breadcrumbs={knifeBreadcrumbs}

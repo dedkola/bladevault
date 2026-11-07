@@ -29,7 +29,7 @@
 - **Compare** — create named shortlists, add a knife to several lists, show only the differences, and print or export comparisons as PDF.
 - **Maintain** — log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes, and review the history in Logs.
 - **Understand** — explore makers, materials, dimensions, completeness, and activity through collection insights. The Modern theme adds monthly additions for the last 12 months and blade, overall-length, weight, and thickness distributions.
-- **Personalize** — choose the Current or Modern theme, light or dark color mode, time format, pinned ordering, and the page BladeVault opens on: Insights, Studio, or Collection.
+- **Personalize** — choose the Classic, Modern, or Alloy theme, light or dark color mode, time format, pinned ordering, and the page BladeVault opens on: Insights, Studio, or Collection.
 - **Keep control** — the vault lives in a local SQLite database, ZIP backups are portable, and cloud backup is optional.
 
 ## Feature guides

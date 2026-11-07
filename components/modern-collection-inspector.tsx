@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import Link from 'next/link'
+import { SoldBadge } from '@/components/sold-badge'
 import { ChevronLeft, ChevronRight, ImageIcon, Pencil, X } from 'lucide-react'
 import Image from '@/components/vault-image'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -234,6 +235,7 @@ export function ModernCollectionInspector({
             <p data-alloy-inspector-brand>{knife.brand}</p>
           )}
           <h2 id="collection-inspector-title">{knife.name}</h2>
+          {knife.sold && <SoldBadge className="mt-2" />}
           <p>
             {knife.brand} · {knife.specs.modelNumber || 'Model not recorded'} ·{' '}
             {new Date(knife.addedAt).getFullYear()}

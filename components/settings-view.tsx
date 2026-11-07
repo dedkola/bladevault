@@ -90,6 +90,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import pkg from '@/package.json'
 import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
@@ -152,10 +160,10 @@ const settingsSecondaryButtonClassName =
   'border-border bg-[var(--bladevault-surface-soft)] text-foreground hover:bg-[var(--bladevault-surface-hover)] hover:text-foreground dark:border-input dark:bg-[var(--bladevault-surface-soft)] dark:text-[var(--bladevault-gold)] dark:hover:bg-[var(--bladevault-surface-hover)] dark:hover:text-[var(--bladevault-gold)]'
 
 const settingsPrimaryButtonClassName =
-  'border-[var(--bladevault-gold)] bg-[var(--bladevault-gold)] text-[var(--bladevault-olive)] hover:bg-[var(--bladevault-title)] hover:text-[var(--bladevault-olive)]'
+  'border-primary bg-primary text-primary-foreground hover:bg-[var(--primary-hover)] hover:text-primary-foreground'
 
 const themeStyleLabels: Record<ThemeStyle, { name: string; note: string }> = {
-  classic: { name: 'Current', note: 'Default · warm gold' },
+  classic: { name: 'Classic', note: 'Default · warm gold' },
   modern: { name: 'Modern', note: 'New · cool graphite' },
   alloy: { name: 'Alloy', note: 'Black & gold' },
 }
@@ -416,14 +424,32 @@ function CardFieldsPreview({
 export default function SettingsView() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const requestedTab = [
-    'cloud-backup',
-    'mcp',
+  const tabParam = searchParams.get('tab')
+  const activeTab: SettingsTab = [
+    'general',
     'app-lock',
+    'cloud-backup',
+    'restore-database',
     'appearance',
-  ].includes(searchParams.get('tab') || '')
-    ? (searchParams.get('tab') as SettingsTab)
-    : null
+    'fields',
+    'mcp',
+    'about',
+  ].includes(tabParam || '')
+    ? (tabParam as SettingsTab)
+    : 'general'
+  const setActiveTab = useCallback(
+    (tab: SettingsTab) => {
+      const params = new URLSearchParams(searchParams.toString())
+      params.set('tab', tab)
+      router.push(`/settings?${params}`, { scroll: false })
+    },
+    [router, searchParams],
+  )
+  const isDesktop = useSyncExternalStore(
+    subscribeToBrowserOrigin,
+    () => Boolean(window.bladevaultDesktop),
+    () => false,
+  )
   const { update, checkForUpdates, downloadUpdate, installUpdate } =
     useDesktopUpdates()
   const { knives, refreshVault, cloudBackupJob, startVaultBackup } = useKnives()
@@ -479,9 +505,10 @@ export default function SettingsView() {
   const [localDataStatus, setLocalDataStatus] = useState<StatusTone>('idle')
   const [localDataMessage, setLocalDataMessage] = useState('')
   const [loadAttemptKey, setLoadAttemptKey] = useState(0)
-  const [activeTab, setActiveTab] = useState<SettingsTab>(
-    () => requestedTab ?? 'general',
-  )
+  const [fieldToDelete, setFieldToDelete] = useState<CustomField | null>(null)
+  const [deletingField, setDeletingField] = useState(false)
+  const deletingFieldRef = useRef(false)
+  const [fieldDeleteError, setFieldDeleteError] = useState('')
   const [newFieldName, setNewFieldName] = useState('')
   const [newFieldType, setNewFieldType] = useState<CustomFieldType>('text')
   const [isSavingCardFields, setIsSavingCardFields] = useState(false)
@@ -582,7 +609,7 @@ export default function SettingsView() {
         'bladevault:open-cloud-backup-settings',
         openCloudBackup,
       )
-  }, [])
+  }, [setActiveTab])
 
   const tabs = useMemo(
     () => [
@@ -1420,13 +1447,13 @@ export default function SettingsView() {
   const handleUpdateCustomFields = async (
     updater: (fields: CustomField[]) => CustomField[],
   ) => {
-    if (!settings) return
+    if (!settings) return false
 
     const nextCustomFields = updater(settings.customFields)
     if (
       JSON.stringify(nextCustomFields) === JSON.stringify(settings.customFields)
     ) {
-      return
+      return true
     }
 
     const customFieldIds = new Set(nextCustomFields.map((field) => field.id))
@@ -1441,10 +1468,14 @@ export default function SettingsView() {
         customFields: nextCustomFields,
         cardFields: nextCardFields,
       })
+      setLoadError(null)
+      return true
     } catch (error) {
-      setLoadError(
-        error instanceof Error ? error.message : 'Failed to save settings',
-      )
+      const message =
+        error instanceof Error ? error.message : 'Failed to save settings'
+      setLoadError(message)
+      setFieldDeleteError(message)
+      return false
     }
   }
 
@@ -1547,6 +1578,7 @@ export default function SettingsView() {
                     <SettingsRow label="Change local data folder">
                       <div className="flex w-full gap-2 sm:w-auto">
                         <Input
+                          aria-label="Change local data folder"
                           value={pendingLocalDataPath}
                           onChange={(event) => {
                             setPendingLocalDataPath(event.target.value)
@@ -1903,7 +1935,7 @@ export default function SettingsView() {
                   >
                     <SettingsRow
                       label="Theme"
-                      description="Current is the default warm BladeVault look. Modern offers cool graphite. Alloy pairs black and gold."
+                      description="Classic is the default warm BladeVault look. Modern offers cool graphite. Alloy pairs black and gold."
                       className="settings-theme-row"
                     >
                       <div
@@ -2185,6 +2217,7 @@ export default function SettingsView() {
                             className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center"
                           >
                             <Input
+                              aria-label={`Name for ${field.name} field`}
                               value={field.name}
                               onChange={(event) => {
                                 const value = event.target.value
@@ -2214,6 +2247,7 @@ export default function SettingsView() {
                               }}
                             >
                               <SelectTrigger
+                                aria-label={`Type for ${field.name} field`}
                                 size="sm"
                                 className="h-8 w-full rounded-lg border-border bg-[var(--bladevault-surface-soft)] sm:w-28"
                               >
@@ -2236,13 +2270,10 @@ export default function SettingsView() {
                               variant="outline"
                               size="icon-sm"
                               className={`${settingsSecondaryButtonClassName} h-8 w-8 shrink-0 self-end rounded-lg sm:self-auto`}
-                              onClick={() =>
-                                void handleUpdateCustomFields((fields) =>
-                                  fields.filter(
-                                    (_, itemIndex) => itemIndex !== index,
-                                  ),
-                                )
-                              }
+                              onClick={() => {
+                                setFieldDeleteError('')
+                                setFieldToDelete(field)
+                              }}
                               aria-label={`Delete ${field.name} field`}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -2258,6 +2289,7 @@ export default function SettingsView() {
                       </div>
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                         <Input
+                          aria-label="New field name"
                           value={newFieldName}
                           onChange={(event) =>
                             setNewFieldName(event.target.value)
@@ -2281,6 +2313,7 @@ export default function SettingsView() {
                           }}
                         >
                           <SelectTrigger
+                            aria-label="New field type"
                             size="sm"
                             className="h-8 w-full rounded-lg border-border bg-[var(--bladevault-surface-soft)] sm:w-28"
                           >
@@ -2476,35 +2509,54 @@ export default function SettingsView() {
                 <div className="settings-grid">
                   <SettingsSection title="BladeVault">
                     <SettingsRow label="Version" description={pkg.version}>
-                      <Button
-                        className={`${settingsSecondaryButtonClassName} rounded-lg`}
-                        onClick={handleUpdateAction}
-                        disabled={
-                          update.status === 'checking' ||
-                          update.status === 'downloading'
-                        }
-                      >
-                        {update.status === 'checking' ||
-                        update.status === 'downloading' ? (
-                          <Loader2 className="animate-spin" />
-                        ) : update.status === 'available' ? (
-                          <Download />
-                        ) : update.status === 'downloaded' &&
-                          update.platform === 'win32' ? (
-                          <RefreshCw />
-                        ) : (
-                          <RefreshCw />
-                        )}
-                        {update.status === 'available'
-                          ? 'Download update'
-                          : update.status === 'downloaded' &&
-                              update.platform === 'win32'
-                            ? 'Restart to update'
-                            : 'Check for updates'}
-                      </Button>
+                      {isDesktop && (
+                        <Button
+                          className={`${settingsSecondaryButtonClassName} rounded-lg`}
+                          onClick={handleUpdateAction}
+                          disabled={
+                            update.status === 'checking' ||
+                            update.status === 'downloading'
+                          }
+                        >
+                          {update.status === 'checking' ||
+                          update.status === 'downloading' ? (
+                            <Loader2 className="animate-spin" />
+                          ) : update.status === 'available' ? (
+                            <Download />
+                          ) : update.status === 'downloaded' &&
+                            update.platform === 'win32' ? (
+                            <RefreshCw />
+                          ) : (
+                            <RefreshCw />
+                          )}
+                          {update.status === 'available'
+                            ? 'Download update'
+                            : update.status === 'downloaded' &&
+                                update.platform === 'win32'
+                              ? 'Restart to update'
+                              : 'Check for updates'}
+                        </Button>
+                      )}
                     </SettingsRow>
                     <SettingsRow label="Update status">
-                      <StatusPill status={updateTone} message={updateMessage} />
+                      {isDesktop ? (
+                        updateTone === 'idle' ? (
+                          <span className="text-xs text-muted-foreground">
+                            {update.status === 'available'
+                              ? 'A new version is available.'
+                              : 'Ready to check for updates.'}
+                          </span>
+                        ) : (
+                          <StatusPill
+                            status={updateTone}
+                            message={updateMessage}
+                          />
+                        )
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Automatic updates are available in the desktop app.
+                        </span>
+                      )}
                     </SettingsRow>
                     <SettingsRow
                       label="Repository"
@@ -2534,6 +2586,62 @@ export default function SettingsView() {
           </div>
         </div>
       )}
+      <Dialog
+        open={Boolean(fieldToDelete)}
+        onOpenChange={(open) => {
+          if (!open && !deletingFieldRef.current) setFieldToDelete(null)
+        }}
+      >
+        <DialogContent
+          showCloseButton={!deletingField}
+          initialFocus={() => document.getElementById('cancel-field-delete')}
+        >
+          <DialogHeader>
+            <DialogTitle>Delete {fieldToDelete?.name} field?</DialogTitle>
+            <DialogDescription>
+              This removes the field from every knife’s forms, details, and card
+              options. Existing values remain stored in the vault but will no
+              longer be shown.
+            </DialogDescription>
+          </DialogHeader>
+          {fieldDeleteError && (
+            <p role="alert" className="text-sm text-destructive">
+              {fieldDeleteError}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              id="cancel-field-delete"
+              variant="outline"
+              disabled={deletingField}
+              onClick={() => setFieldToDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deletingField || isVaultReadOnly}
+              onClick={async () => {
+                if (!fieldToDelete || deletingFieldRef.current) return
+                deletingFieldRef.current = true
+                setFieldDeleteError('')
+                setDeletingField(true)
+                try {
+                  const saved = await handleUpdateCustomFields((fields) =>
+                    fields.filter((field) => field.id !== fieldToDelete.id),
+                  )
+                  if (saved) setFieldToDelete(null)
+                } finally {
+                  deletingFieldRef.current = false
+                  setDeletingField(false)
+                }
+              }}
+            >
+              {deletingField ? 'Deleting…' : 'Delete field'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

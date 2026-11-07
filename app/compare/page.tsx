@@ -787,6 +787,7 @@ export default function ComparePage() {
                   disabled={comparisonsBusy}
                   onClick={() => handleRemove(knife.id)}
                   aria-label={`Remove ${knife.brand} ${knife.name} from compare`}
+                  title="Remove from comparison"
                 >
                   <X className="size-3" />
                 </button>
@@ -1001,7 +1002,7 @@ export default function ComparePage() {
                             <button
                               type="button"
                               onClick={() => handleRemove(knife.id)}
-                              className="rounded-sm text-[var(--bladevault-local)] transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                              className="inline-flex size-7 items-center justify-center rounded-sm text-[var(--bladevault-local)] transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                               aria-label={`Remove ${knife.brand} ${knife.name} from compare`}
                               title="Remove"
                             >

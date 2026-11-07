@@ -1,5 +1,7 @@
 'use client'
 
+import { formatKnifeCount } from '@/lib/knife-count'
+
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -92,7 +94,7 @@ export function MeasurementDetail({
                         type="button"
                         className="id-bin"
                         disabled={!bin.count}
-                        aria-label={`${measurement.label} ${bin.label}: ${bin.count} knives`}
+                        aria-label={`${measurement.label} ${bin.label}: ${formatKnifeCount(bin.count)}`}
                         onClick={() =>
                           setSelection({
                             title: `${measurement.label} · ${bin.label}`,

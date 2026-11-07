@@ -1,5 +1,7 @@
 'use client'
 
+import { formatKnifeCount } from '@/lib/knife-count'
+
 import Image from '@/components/vault-image'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -540,7 +542,7 @@ export function getHistogramOption(
             ? Number(item.dataIndex)
             : -1
         const bin = measurement.bins[index]
-        return bin ? `${bin.label}: ${bin.count} knives` : ''
+        return bin ? `${bin.label}: ${formatKnifeCount(bin.count)}` : ''
       },
     },
     xAxis: {
@@ -1021,7 +1023,7 @@ export function CollectionInsights() {
         setDrilldown({
           eyebrow,
           title: 'Other',
-          description: `${category.count} knives · choose a category to view its knives`,
+          description: `${formatKnifeCount(category.count)} · choose a category to view its knives`,
           knifeIds: [],
           categoryKey: key,
           categories: stats.categories[key].filter((item) =>
@@ -1212,12 +1214,12 @@ export function CollectionInsights() {
                         key={month.key}
                         type="button"
                         disabled={!month.knifeIds.length}
-                        aria-label={`${month.title}: ${month.knifeIds.length} knives added`}
+                        aria-label={`${month.title}: ${formatKnifeCount(month.knifeIds.length)} added`}
                         onClick={() =>
                           setDrilldown({
                             eyebrow: 'Added to library',
                             title: month.title,
-                            description: `${month.knifeIds.length} knives added`,
+                            description: `${formatKnifeCount(month.knifeIds.length)} added`,
                             knifeIds: month.knifeIds,
                           })
                         }
@@ -1396,8 +1398,10 @@ export function CollectionInsights() {
                       <strong className="block truncate text-sm xl:text-base text-foreground">
                         {stats.categories.lockingMechanism[0].name}
                       </strong>
-                      {stats.categories.lockingMechanism[0].count} knives ·{' '}
-                      {stats.categories.lockingMechanism[0].percent}%
+                      {formatKnifeCount(
+                        stats.categories.lockingMechanism[0].count,
+                      )}{' '}
+                      · {stats.categories.lockingMechanism[0].percent}%
                     </button>
                   ) : (
                     <p className="mt-4 text-xs xl:text-sm text-muted-foreground">
@@ -1552,7 +1556,10 @@ export function CollectionInsights() {
                     </strong>
                   </span>
                   <strong>
-                    {stats.categories.lockingMechanism[0].count} knives →
+                    {formatKnifeCount(
+                      stats.categories.lockingMechanism[0].count,
+                    )}{' '}
+                    →
                   </strong>
                 </button>
               ) : null}
@@ -1562,7 +1569,7 @@ export function CollectionInsights() {
               eyebrow="Dimensions"
               title={`${measurement.label} distribution`}
               detailHref="/insights/measurements"
-              description={`Known values for ${measurement.knownCount} of ${stats.total} knives`}
+              description={`Known values for ${measurement.knownCount} of ${formatKnifeCount(stats.total)}`}
               action={
                 <Tabs
                   value={measurementKey}
@@ -1810,7 +1817,7 @@ export function CollectionInsights() {
                     setDrilldown({
                       eyebrow: 'Missing field',
                       title: 'Designer not set',
-                      description: `${missing.count} knives need this detail`,
+                      description: `${formatKnifeCount(missing.count)} ${missing.count === 1 ? 'needs' : 'need'} this detail`,
                       knifeIds: missing.knifeIds,
                       collectionHref: missingHref('designer'),
                     })
@@ -2017,7 +2024,7 @@ export function CollectionInsights() {
                   setDrilldown({
                     eyebrow: drilldown.eyebrow,
                     title: category.name,
-                    description: `${category.count} knives · ${category.percent}% of this view`,
+                    description: `${formatKnifeCount(category.count)} · ${category.percent}% of this view`,
                     knifeIds: category.knifeIds,
                     collectionHref: categoryHref(
                       drilldown.categoryKey!,

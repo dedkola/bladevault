@@ -1,5 +1,49 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 import { resetVault, seedKnife } from './helpers'
+
+// Resolve translucent badge backgrounds and modern CSS color functions in the browser.
+async function textContrast(locator: Locator) {
+  return locator.evaluate((element) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 1
+    const context = canvas.getContext('2d', { willReadFrequently: true })!
+    const color = (value: string) => {
+      context.clearRect(0, 0, 1, 1)
+      context.fillStyle = value
+      context.fillRect(0, 0, 1, 1)
+      return Array.from(context.getImageData(0, 0, 1, 1).data)
+    }
+    const blend = (foreground: number[], background: number[]) =>
+      foreground
+        .slice(0, 3)
+        .map(
+          (channel, i) =>
+            (channel * foreground[3]) / 255 +
+            background[i] * (1 - foreground[3] / 255),
+        )
+    const layers = []
+    for (let node: Element | null = element; node; node = node.parentElement)
+      layers.push(color(getComputedStyle(node).backgroundColor))
+    let background = [255, 255, 255]
+    for (const layer of layers.reverse()) background = blend(layer, background)
+    const foreground = blend(color(getComputedStyle(element).color), background)
+    const luminance = (rgb: number[]) =>
+      rgb
+        .map((channel) => {
+          const value = channel / 255
+          return value <= 0.04045
+            ? value / 12.92
+            : ((value + 0.055) / 1.055) ** 2.4
+        })
+        .reduce(
+          (sum, channel, i) => sum + channel * [0.2126, 0.7152, 0.0722][i],
+          0,
+        )
+    const a = luminance(foreground),
+      b = luminance(background)
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+  })
+}
 
 test.beforeEach(async ({ request }) => {
   await resetVault(request)
@@ -102,6 +146,13 @@ test('keeps modern compare inside the workspace shell with saved-list controls a
   await expect(page.locator('[data-compare-editing]')).toContainText(
     'Modern Compare Knife',
   )
+  for (const button of await page
+    .getByRole('button', { name: /Remove .* from compare/ })
+    .all()) {
+    const bounds = await button.boundingBox()
+    expect(bounds?.width).toBeGreaterThanOrEqual(24)
+    expect(bounds?.height).toBeGreaterThanOrEqual(24)
+  }
   await page.getByRole('button', { name: 'Search knives', exact: true }).click()
   await page
     .getByRole('combobox', { name: 'Find a knife by model name' })
@@ -498,3 +549,151 @@ test('resizes column grips and remembers widths after reload and reorder', async
     )
     .toBeUndefined()
 })
+
+for (const themeStyle of ['classic', 'modern', 'alloy']) {
+  for (const theme of ['light', 'dark']) {
+    test(`audit: sold visibility and dismissible columns in ${themeStyle} ${theme}`, async ({
+      page,
+      request,
+    }) => {
+      const { knife } = await seedKnife(request, {
+        name: 'Ownership audit knife',
+        sold: true,
+        pinned: true,
+      })
+      await request.post('/api/settings', {
+        data: {
+          themeStyle,
+          theme,
+          collectionDisplay: { view: 'list', density: 'table' },
+        },
+      })
+      await page.setViewportSize({ width: 1440, height: 1000 })
+      await page.goto('/collection')
+      if (themeStyle === 'alloy')
+        await page
+          .getByRole('button', { name: 'List view', exact: true })
+          .click()
+      const table = page.locator('[data-modern-collection-table]')
+      const sold = table
+        .locator('tbody tr')
+        .filter({ hasText: 'Ownership audit knife' })
+      await expect(sold.locator('[data-sold-badge]')).toHaveText('Sold')
+      await expect(sold).toContainText('Pinned')
+      await page.getByLabel('Choose columns', { exact: true }).click()
+      const popup = page.getByRole('dialog', { name: 'Collection columns' })
+      await expect(popup).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(popup).not.toBeVisible()
+      await expect(
+        page.getByLabel('Choose columns', { exact: true }),
+      ).toBeFocused()
+      await page.getByLabel('Choose columns', { exact: true }).click()
+      await page.mouse.click(10, 500)
+      await expect(popup).not.toBeVisible()
+      await page.screenshot({
+        path: `output/playwright/audit-${themeStyle}-${theme}-table.png`,
+      })
+      await sold.click()
+      await expect(page.locator('#collection-inspector-title')).toBeVisible()
+      await expect(
+        page
+          .locator('#collection-inspector-title')
+          .locator('..')
+          .locator('[data-sold-badge]'),
+      ).toHaveText('Sold')
+      await page.getByRole('button', { name: 'Close selected knife' }).click()
+      await page
+        .getByRole('button', { name: 'Gallery view', exact: true })
+        .click()
+      await expect(
+        page
+          .locator('[data-collection-grid]')
+          .getByText('Sold', { exact: true }),
+      ).toBeVisible()
+      await page.screenshot({
+        path: `output/playwright/audit-${themeStyle}-${theme}-gallery.png`,
+      })
+      await page.goto(`/collection/${knife.id}`)
+      await expect(
+        page.locator('[data-page-header] [data-sold-badge]'),
+      ).toHaveText('Sold')
+      await page.setViewportSize({ width: 390, height: 844 })
+      await expect(
+        page.locator('[data-page-header] [data-sold-badge]'),
+      ).toBeVisible()
+      await expect(
+        page.getByRole('heading', { name: /Ownership audit knife/ }),
+      ).toBeVisible()
+      await page.screenshot({
+        path: `output/playwright/audit-${themeStyle}-${theme}-phone.png`,
+      })
+      await page.goto('/studio')
+      await expect(page.getByText('No photo yet').first()).toBeVisible()
+      await page.screenshot({
+        path: `output/playwright/audit-${themeStyle}-${theme}-studio.png`,
+      })
+      await page.goto('/collection/no-such-audit-knife')
+      await expect(
+        page.getByRole('heading', { name: 'This page is unavailable' }),
+      ).toBeVisible()
+      await expect(
+        page.getByRole('link', { name: 'Back to collection' }),
+      ).toBeVisible()
+    })
+  }
+}
+
+for (const theme of ['light', 'dark']) {
+  test(`audit: readable Modern buttons, statuses, and active actions in ${theme}`, async ({
+    page,
+    request,
+  }) => {
+    const { knife } = await seedKnife(request, {
+      name: 'Incomplete contrast knife',
+    })
+    await seedKnife(request, {
+      name: 'Complete contrast knife',
+      specs: {
+        designer: 'Designer',
+        bladeLength: '3 in',
+        lockingMechanism: 'Liner lock',
+      },
+    })
+    await request.post('/api/settings', {
+      data: { themeStyle: 'modern', theme },
+    })
+    await page.goto('/collection')
+    const add = page.getByRole('link', { name: 'Add knife', exact: true })
+    await expect(add).toBeVisible()
+    expect(await textContrast(add)).toBeGreaterThanOrEqual(4.5)
+    await add.hover()
+    expect(await textContrast(add)).toBeGreaterThanOrEqual(4.5)
+    for (const label of ['Complete', 'Incomplete']) {
+      const badge = page
+        .locator('[data-collection-status] > span')
+        .getByText(label, { exact: true })
+      await expect(badge).toBeVisible()
+      expect(await textContrast(badge)).toBeGreaterThanOrEqual(4.5)
+    }
+    await page.goto(`/collection/${knife.id}`)
+    const pin = page.getByRole('button', { name: 'Pin', exact: true })
+    await pin.click()
+    const pinned = page
+      .getByRole('main')
+      .getByRole('button', { name: 'Pinned', exact: true })
+    await expect(pinned).toHaveAttribute('aria-pressed', 'true')
+    expect(await textContrast(pinned)).toBeGreaterThanOrEqual(4.5)
+    await page.mouse.move(0, 0)
+    expect(await textContrast(pinned)).toBeGreaterThanOrEqual(4.5)
+    await page.goto('/settings?tab=fields')
+    await page
+      .getByRole('textbox', { name: 'New field name' })
+      .fill('Contrast check')
+    const addField = page.getByRole('button', { name: 'Add', exact: true })
+    await expect(addField).toBeEnabled()
+    expect(await textContrast(addField)).toBeGreaterThanOrEqual(4.5)
+    await addField.hover()
+    await expect.poll(() => textContrast(addField)).toBeGreaterThanOrEqual(4.5)
+  })
+}

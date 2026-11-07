@@ -6,6 +6,7 @@
   --studio-stage: var(--bladevault-surface-soft);
   --studio-highlight: var(--card);
   --studio-stage-edge: var(--muted);
+  --studio-stage-ink: var(--muted-foreground);
   color: var(--foreground);
 }
 
@@ -432,7 +433,7 @@
   align-items: center;
   justify-content: center;
   gap: 9px;
-  color: var(--muted-foreground);
+  color: var(--studio-stage-ink);
   font-size: 10px;
 }
 
@@ -657,6 +658,7 @@
 }
 
 :global(.dark) :is(.root, .focus, .quickLook) {
+  --studio-stage-ink: #595348;
   --studio-highlight: color-mix(in srgb, var(--muted) 8%, white);
   --studio-stage: color-mix(in srgb, var(--muted) 18%, white);
   --studio-stage-edge: color-mix(in srgb, var(--muted) 24%, white);
@@ -857,7 +859,7 @@
 :global(html[data-theme-style='alloy']) .caption div > span,
 :global(html[data-theme-style='alloy']) .familyCaption div > span,
 :global(html[data-theme-style='alloy']) .noImage {
-  color: #71695e;
+  color: #595348;
   font-size: 10px;
 }
 
