@@ -44,12 +44,14 @@ describe('desktop error reporting consent', () => {
     const dir = makeUserDataDir()
     expect(errorReporting.readConsentRecord(dir)).toEqual({
       enabled: false,
+      usageMetrics: false,
       askedVersion: null,
       consentVersion: 0,
     })
     errorReporting.writeConsent(dir, false, '2.1.0')
     expect(errorReporting.readConsentRecord(dir)).toEqual({
       enabled: false,
+      usageMetrics: false,
       askedVersion: '2.1.0',
       consentVersion: errorReporting.CONSENT_VERSION,
     })
@@ -63,9 +65,40 @@ describe('desktop error reporting consent', () => {
     )
     expect(errorReporting.readConsentRecord(dir)).toEqual({
       enabled: true,
+      usageMetrics: false,
       askedVersion: '2.2.0',
       consentVersion: 1,
     })
+  })
+
+  it('counts a 2.2.1 yes without a usage field as agreeing to both', () => {
+    const dir = makeUserDataDir()
+    fs.writeFileSync(
+      path.join(dir, errorReporting.CONSENT_FILE),
+      JSON.stringify({
+        enabled: true,
+        askedVersion: '2.2.1',
+        consentVersion: 2,
+      }),
+    )
+    expect(errorReporting.readConsentRecord(dir).usageMetrics).toBe(true)
+  })
+
+  it('stores a crash-reports-only choice', () => {
+    const dir = makeUserDataDir()
+    errorReporting.writeConsent(dir, true, '2.2.2', { usageMetrics: false })
+    expect(errorReporting.readConsentRecord(dir)).toEqual({
+      enabled: true,
+      usageMetrics: false,
+      askedVersion: '2.2.2',
+      consentVersion: errorReporting.CONSENT_VERSION,
+    })
+  })
+
+  it('never stores usage data without crash reports', () => {
+    const dir = makeUserDataDir()
+    errorReporting.writeConsent(dir, false, '2.2.2', { usageMetrics: true })
+    expect(errorReporting.readConsentRecord(dir).usageMetrics).toBe(false)
   })
 
   it('treats a corrupt consent file as off', () => {
@@ -130,6 +163,31 @@ describe('desktop error reporting prompt', () => {
         '2.2.0',
       ),
     ).toBe(true)
+  })
+
+  it('does not ask again after choosing crash reports only', () => {
+    const dir = makeUserDataDir()
+    errorReporting.writeConsent(dir, true, '2.2.2', { usageMetrics: false })
+    const record = errorReporting.readConsentRecord(dir)
+    expect(errorReporting.isUsageDataUpgrade(record)).toBe(false)
+    expect(errorReporting.shouldAskForConsent(available, record, '2.3.0')).toBe(
+      false,
+    )
+  })
+
+  it('uses the what-is-new prompt only for an older yes', () => {
+    expect(
+      errorReporting.isUsageDataUpgrade({ enabled: true, consentVersion: 1 }),
+    ).toBe(true)
+    expect(
+      errorReporting.isUsageDataUpgrade({ enabled: false, consentVersion: 1 }),
+    ).toBe(false)
+    expect(
+      errorReporting.isUsageDataUpgrade({
+        enabled: true,
+        consentVersion: errorReporting.CONSENT_VERSION,
+      }),
+    ).toBe(false)
   })
 
   it('never asks in builds without error reporting', () => {
@@ -228,6 +286,23 @@ describe('desktop error reporting availability', () => {
       SENTRY_ENVIRONMENT: 'production',
       BLADEVAULT_USAGE_METRICS: '',
     })
+  })
+
+  it('keeps usage data off for crash reports only', () => {
+    const dir = makeUserDataDir()
+    errorReporting.writeConsent(dir, true, '2.2.2', { usageMetrics: false })
+    const state = errorReporting.getErrorReportingState({
+      userDataDir: dir,
+      packageJson: RELEASE_PACKAGE,
+      isPackaged: true,
+      smokeTest: false,
+    })
+    expect(state.enabled).toBe(true)
+    expect(state.usageMetrics).toBe(false)
+    expect(errorReporting.getEmbeddedServerEnv(state).SENTRY_DSN).toBe(APP_DSN)
+    expect(
+      errorReporting.getEmbeddedServerEnv(state).BLADEVAULT_USAGE_METRICS,
+    ).toBe('')
   })
 })
 

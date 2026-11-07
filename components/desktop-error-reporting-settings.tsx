@@ -44,13 +44,13 @@ export function DesktopErrorReportingSettings() {
     ) : null
   }
 
-  async function handleToggle(enabled: boolean) {
+  async function handleToggle(enabled: boolean, usageMetrics = true) {
     const bridge = window.bladevaultDesktop?.errorReporting
     if (!bridge) return
     setPending(true)
     setError('')
     try {
-      setStatus(await bridge.set(enabled))
+      setStatus(await bridge.set(enabled, usageMetrics))
     } catch {
       setError('Could not save the error reporting setting.')
     } finally {
@@ -75,10 +75,8 @@ export function DesktopErrorReportingSettings() {
         description={
           status.available ? (
             <>
-              Sends crash reports and anonymous usage data, such as which shop
-              websites imports fail on, to the BladeVault developer through
-              Sentry. Your knives, images, notes, and backups are never
-              included.{' '}
+              Sends crash reports to the BladeVault developer through Sentry.
+              Your knives, images, notes, and backups are never included.{' '}
               <a
                 href={DOCS_URL}
                 target="_blank"
@@ -102,14 +100,25 @@ export function DesktopErrorReportingSettings() {
           />
         ) : null}
       </SettingsRow>
+      {status.available && status.enabled ? (
+        <SettingsRow
+          label="Send anonymous usage data"
+          description="Counts which shop websites product imports work or fail on. Turn this off to send crash reports only."
+        >
+          <Checkbox
+            checked={status.usageMetrics}
+            disabled={pending}
+            onCheckedChange={(checked) =>
+              void handleToggle(true, checked === true)
+            }
+            aria-label="Send anonymous usage data"
+          />
+        </SettingsRow>
+      ) : null}
       {status.available && status.restartRequired ? (
         <SettingsRow
           label="Restart required"
-          description={
-            status.enabled
-              ? 'Error reporting starts after BladeVault restarts.'
-              : 'Error reporting stops after BladeVault restarts.'
-          }
+          description="Your change applies after BladeVault restarts."
         >
           <Button
             type="button"

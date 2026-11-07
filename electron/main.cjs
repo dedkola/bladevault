@@ -68,14 +68,41 @@ function captureDesktopError(error, context) {
 }
 
 function getErrorReportingStatus() {
-  const chosen =
-    errorReportingState.available &&
-    errorReporting.readConsent(app.getPath('userData'))
+  const record = errorReporting.readConsentRecord(app.getPath('userData'))
+  const chosen = errorReportingState.available && record.enabled
+  const chosenUsage = chosen && record.usageMetrics
   return {
     available: errorReportingState.available,
     enabled: chosen,
-    restartRequired: chosen !== errorReportingState.enabled,
+    usageMetrics: chosenUsage,
+    // The embedded server reads the usage setting only when it starts.
+    restartRequired:
+      chosen !== errorReportingState.enabled ||
+      chosenUsage !== errorReportingState.usageMetrics,
   }
+}
+
+// For someone who agreed before usage data existed: crash reports stay on
+// either way, so this asks about the new part only.
+async function askAboutUsageData(userDataDir, version) {
+  const { response } = await dialog.showMessageBox({
+    type: 'question',
+    title: 'BladeVault',
+    message: 'New: anonymous import statistics',
+    detail:
+      'You already send crash reports, and they stay on. BladeVault can now also send anonymous usage data: which shop websites product imports work or fail on, so broken imports get fixed sooner. Your knives, images, notes, and backups are never included.\n\nYou can change this anytime in Settings → About.',
+    buttons: ['Also Send Usage Data', 'Crash Reports Only'],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  })
+  const agreed = response === 0
+  errorReporting.writeConsent(userDataDir, true, version, {
+    usageMetrics: agreed,
+  })
+  // Sentry is already running; the embedded server has not started yet, so
+  // it picks up the new setting without a relaunch.
+  errorReportingState.usageMetrics = agreed && errorReportingState.enabled
 }
 
 // Asks on first launch and after each update until the user agrees. Sentry
@@ -88,6 +115,11 @@ async function askForErrorReportingConsent() {
   if (
     !errorReporting.shouldAskForConsent(errorReportingState, record, version)
   ) {
+    return false
+  }
+
+  if (errorReporting.isUsageDataUpgrade(record)) {
+    await askAboutUsageData(userDataDir, version)
     return false
   }
 
@@ -1266,20 +1298,27 @@ ipcMain.handle('bladevault:install-update', () => installDownloadedUpdate())
 ipcMain.handle('bladevault:get-error-reporting', () =>
   getErrorReportingStatus(),
 )
-ipcMain.handle('bladevault:set-error-reporting', (_event, enabled) => {
-  if (typeof enabled !== 'boolean') {
-    throw new Error('Error reporting choice must be true or false.')
-  }
-  if (!errorReportingState.available) {
-    throw new Error('Error reporting is not available in this build.')
-  }
-  errorReporting.writeConsent(
-    app.getPath('userData'),
-    enabled,
-    app.getVersion(),
-  )
-  return getErrorReportingStatus()
-})
+ipcMain.handle(
+  'bladevault:set-error-reporting',
+  (_event, enabled, usageMetrics) => {
+    if (typeof enabled !== 'boolean') {
+      throw new Error('Error reporting choice must be true or false.')
+    }
+    if (usageMetrics !== undefined && typeof usageMetrics !== 'boolean') {
+      throw new Error('Usage data choice must be true or false.')
+    }
+    if (!errorReportingState.available) {
+      throw new Error('Error reporting is not available in this build.')
+    }
+    errorReporting.writeConsent(
+      app.getPath('userData'),
+      enabled,
+      app.getVersion(),
+      { usageMetrics: usageMetrics !== false },
+    )
+    return getErrorReportingStatus()
+  },
+)
 ipcMain.handle('bladevault:restart-app', () => {
   app.relaunch()
   app.quit()
