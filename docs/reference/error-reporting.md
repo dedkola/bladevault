@@ -1,12 +1,12 @@
 # Error reporting
 
-BladeVault can send crash and error reports to [Sentry](https://sentry.io). It is off by default and sends nothing unless the person running the server turns it on.
+BladeVault can send crash and error reports to [Sentry](https://sentry.io). It is off by default and sends nothing until it is turned on: by the person running a server, or by you in the desktop app.
 
-| Runtime                      | Error reporting                                                                   |
-| ---------------------------- | --------------------------------------------------------------------------------- |
-| Docker, Podman, Helm, source | Off until you set `SENTRY_DSN`. You can point it at your own Sentry project.      |
-| Desktop app (macOS, Windows) | Off. An in-app opt-in is planned; until then the desktop app never sends reports. |
-| Static browser preview       | Off.                                                                              |
+| Runtime                      | Error reporting                                                              |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+| Docker, Podman, Helm, source | Off until you set `SENTRY_DSN`. You can point it at your own Sentry project. |
+| Desktop app (macOS, Windows) | Asks you on first launch and after updates. Off unless you agree.            |
+| Static browser preview       | Off.                                                                         |
 
 ## Turn it on for a server
 
@@ -24,6 +24,23 @@ SENTRY_DSN=https://<key>@o<org>.ingest.sentry.io/<project>
 ```
 
 The DSN is read when the server starts, so one public image works with any Sentry project or none. The browser receives it from the server with each page; it is not built into the image.
+
+## The desktop app asks first
+
+On first launch, before the window opens, the desktop app asks **Help improve BladeVault?**
+
+- **Send Reports** turns reporting on. BladeVault restarts once, about a second, and does not ask again.
+- **Don't Send** keeps it off. BladeVault asks again after the next update.
+
+To change your answer later:
+
+1. Open **Settings → About**.
+2. Under **Error reporting**, check or uncheck **Send error reports**.
+3. Click **Restart now**. The change applies after the restart.
+
+Turning it off in Settings counts as **Don't Send** for this version. The choice is stored in the app's user-data folder, not in your vault, so it does not travel with backups. The option shows "Not available in this build" in development builds and builds made without the release configuration.
+
+When it is on, the desktop app also reports native crashes (for example a crashed window or GPU process) and unexpected exits of its built-in server.
 
 ## What is sent
 
@@ -45,10 +62,14 @@ Release workflows upload source maps so Sentry can show the original TypeScript.
 
 Configure in the GitHub repository:
 
-| Name                | Kind     | Value                                                           |
-| ------------------- | -------- | --------------------------------------------------------------- |
-| `SENTRY_AUTH_TOKEN` | Secret   | Sentry organization token with source map upload access.        |
-| `SENTRY_ORG`        | Variable | Sentry organization slug.                                       |
-| `SENTRY_PROJECT`    | Variable | Sentry project slug for the app (for example `bladevault-app`). |
+| Name                 | Kind     | Value                                                                   |
+| -------------------- | -------- | ----------------------------------------------------------------------- |
+| `SENTRY_AUTH_TOKEN`  | Secret   | Sentry organization token with source map upload access.                |
+| `SENTRY_ORG`         | Variable | Sentry organization slug.                                               |
+| `SENTRY_PROJECT`     | Variable | Sentry project slug for the app (for example `bladevault-app`).         |
+| `SENTRY_DESKTOP_DSN` | Variable | DSN for desktop crashes and Electron errors (`bladevault-desktop`).     |
+| `SENTRY_APP_DSN`     | Variable | DSN the desktop app's built-in server and pages use (`bladevault-app`). |
 
 The Docker workflow passes the token to the image build as a BuildKit secret on release tags only, so it is never stored in an image layer. The desktop release workflow uploads from both the macOS and Windows builds. Source maps are deleted from the build output after upload.
+
+The desktop release workflow also writes `SENTRY_DESKTOP_DSN` and `SENTRY_APP_DSN` into the packaged app's `package.json`. Without both, the desktop option is unavailable. For readable native crash stacks, enable the Electron symbol server in the `bladevault-desktop` project (Sentry → Project Settings → Debug Files → Built-in Repositories).

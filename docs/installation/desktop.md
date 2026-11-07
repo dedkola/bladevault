@@ -31,6 +31,10 @@ The default data folder is `~/BladeVault/data` on macOS and `%USERPROFILE%\Blade
 
 The desktop runtime serves MCP on `http://127.0.0.1:5501/mcp`; if port `5501` is busy, BladeVault uses a free local port and **Copy config** includes the active URL. See [MCP](../reference/mcp.md).
 
+## Error reports
+
+On first launch and after updates, the desktop app asks whether to send crash and error reports. It sends nothing unless you agree, and you can change your answer in **Settings → About → Send error reports**. See [Error reporting](../reference/error-reporting.md) for what is sent.
+
 ## Desktop development
 
 If you want to run or package the desktop shell from a checkout, the source guide lists every script:

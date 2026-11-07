@@ -22,8 +22,19 @@ declare global {
     message?: string
   }
 
+  type BladeVaultErrorReportingStatus = {
+    available: boolean
+    enabled: boolean
+    restartRequired: boolean
+  }
+
   interface Window {
     bladevaultDesktop?: {
+      errorReporting?: {
+        get: () => Promise<BladeVaultErrorReportingStatus>
+        set: (enabled: boolean) => Promise<BladeVaultErrorReportingStatus>
+        restart: () => Promise<void>
+      }
       selectDirectory: () => Promise<string | null>
       saveBackupFile: (defaultName: string) => Promise<boolean>
       getUpdateStatus: () => Promise<BladeVaultUpdateStatus>
