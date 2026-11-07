@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { randomUUID } from 'node:crypto'
-import { isProcessAlive as isAlive } from '@/lib/process-liveness'
+import { isLeaseOwnerAlive } from '@/lib/process-liveness'
 
 export type LocalRestoreJournal = {
   ownerPid: number
@@ -88,10 +88,17 @@ export function rollbackLocalRestore(
   }
 }
 
+function journalOwnerIsAlive(dataDir: string, journal: LocalRestoreJournal) {
+  return isLeaseOwnerAlive(
+    getLocalRestoreJournalPath(dataDir),
+    journal.ownerPid,
+    journal.ownerStartedAt,
+  )
+}
+
 export function recoverInterruptedLocalRestore(dataDir: string): boolean {
   const journal = readJournal(dataDir)
-  if (!journal || isAlive(journal.ownerPid, journal.ownerStartedAt))
-    return false
+  if (!journal || journalOwnerIsAlive(dataDir, journal)) return false
   const lockPath = `${getLocalRestoreJournalPath(dataDir)}.recovery`
   // All cooperating processes recover before opening SQLite. A failed rollback
   // retains the journal and access gate instead of exposing partial contents.
@@ -110,7 +117,7 @@ export function recoverInterruptedLocalRestore(dataDir: string): boolean {
       const previous = JSON.parse(
         fs.readFileSync(lockPath, 'utf8'),
       ) as typeof owner
-      if (isAlive(previous.pid, previous.startedAt))
+      if (isLeaseOwnerAlive(lockPath, previous.pid, previous.startedAt))
         throw new Error('The vault is being recovered. Please wait a moment.')
       // Recheck ownership before reclaiming a dead recovery process's lock.
       if (
@@ -127,8 +134,7 @@ export function recoverInterruptedLocalRestore(dataDir: string): boolean {
     // A competing process may have recovered while we acquired the lock. Only
     // replay the journal that still exists under this ownership.
     const current = readJournal(dataDir)
-    if (!current || isAlive(current.ownerPid, current.ownerStartedAt))
-      return false
+    if (!current || journalOwnerIsAlive(dataDir, current)) return false
     if (current.state === 'switching') rollbackLocalRestore(dataDir, current)
     fs.rmSync(getLocalRestoreJournalPath(dataDir), { force: true })
     fs.rmSync(current.stagingDir, { recursive: true, force: true })
