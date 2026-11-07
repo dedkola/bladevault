@@ -355,6 +355,7 @@ async function main() {
       available: false,
       enabled: false,
       restartRequired: false,
+      usageMetrics: false,
     })
     assert.equal(boundary.hasNodeProcess, false)
     assert.equal(boundary.hasRequire, false)
