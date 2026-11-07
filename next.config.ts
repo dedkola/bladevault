@@ -1,4 +1,8 @@
 import type { NextConfig } from 'next'
+import { withSentryConfig } from '@sentry/nextjs/config'
+import pkg from './package.json'
+
+const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN?.trim()
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -46,4 +50,33 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default nextConfig
+// Source maps upload only from release CI, where SENTRY_AUTH_TOKEN is set.
+// Local, fork, and test builds skip Sentry's source map handling entirely.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: sentryAuthToken,
+  telemetry: false,
+  silent: !process.env.CI,
+  release: {
+    name: process.env.SENTRY_RELEASE?.trim() || `bladevault@${pkg.version}`,
+    create: Boolean(sentryAuthToken),
+    finalize: Boolean(sentryAuthToken),
+    setCommits: false,
+  },
+  sourcemaps: {
+    disable: !sentryAuthToken,
+    deleteSourcemapsAfterUpload: true,
+  },
+  // A failed upload must not block a release build.
+  errorHandler: (error) => {
+    console.warn(`[sentry] Source map upload failed: ${error.message}`)
+  },
+  bundleSizeOptimizations: {
+    excludeDebugStatements: true,
+    excludeReplayIframe: true,
+    excludeReplayShadowDom: true,
+    excludeReplayWorker: true,
+  },
+  suppressOnRouterTransitionStartWarning: true,
+})

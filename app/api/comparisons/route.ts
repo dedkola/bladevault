@@ -7,13 +7,15 @@ import {
   getComparisons,
   mutateComparison,
 } from '@/lib/comparison-storage'
+import { reportServerError } from '@/lib/sentry/server'
 
 export function GET(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
   try {
     return NextResponse.json({ lists: getComparisons() })
-  } catch {
+  } catch (error) {
+    reportServerError(error, '/api/comparisons')
     return NextResponse.json(
       { error: 'Could not load comparisons.' },
       { status: 500 },
@@ -43,6 +45,9 @@ export async function POST(request: Request) {
     try {
       return NextResponse.json(mutateComparison(parsed.data))
     } catch (error) {
+      if (!(error instanceof ComparisonError)) {
+        reportServerError(error, '/api/comparisons')
+      }
       return NextResponse.json(
         {
           error:

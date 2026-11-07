@@ -35,6 +35,8 @@ const child = spawn(process.execPath, [serverEntry], {
     NEXT_TELEMETRY_DISABLED: '1',
     NODE_ENV: 'production',
     PORT: port,
+    // Browser tests must never send errors to a real Sentry project.
+    SENTRY_DSN: '',
   },
   stdio: 'inherit',
 })

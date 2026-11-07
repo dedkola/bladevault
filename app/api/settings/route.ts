@@ -10,6 +10,7 @@ import {
   isContainerizedRuntime,
 } from '@/lib/local-db'
 import { AppSettings, getSettings, saveSettings } from '@/lib/settings'
+import { reportServerError } from '@/lib/sentry/server'
 
 export async function GET(request: Request) {
   const locked = requireAppUnlock(request)
@@ -39,6 +40,7 @@ export async function GET(request: Request) {
       },
     )
   } catch (error) {
+    reportServerError(error, '/api/settings')
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
   }
@@ -74,6 +76,7 @@ export async function POST(request: Request) {
         },
       )
     } catch (error) {
+      reportServerError(error, '/api/settings')
       const message = error instanceof Error ? error.message : 'Unknown error'
       return NextResponse.json({ error: message }, { status: 500 })
     }

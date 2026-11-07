@@ -3,6 +3,7 @@ import { withUnproxiedVaultRequest } from '@/lib/vault-request-guard'
 import { NextResponse } from 'next/server'
 import { KnifeUpdates } from '@/lib/data'
 import { getStorage } from '@/lib/storage'
+import { reportServerError } from '@/lib/sentry/server'
 
 export async function GET(
   _request: Request,
@@ -19,6 +20,7 @@ export async function GET(
 
       return NextResponse.json({ knife })
     } catch (error) {
+      reportServerError(error, '/api/knives/[id]')
       const message = error instanceof Error ? error.message : 'Unknown error'
       return NextResponse.json({ error: message }, { status: 500 })
     }
@@ -113,6 +115,7 @@ export async function PATCH(
         const knife = await storage.updateKnife(id, updates)
         return NextResponse.json({ knife })
       } catch (error) {
+        reportServerError(error, '/api/knives/[id]')
         const message = error instanceof Error ? error.message : 'Unknown error'
         return NextResponse.json({ error: message }, { status: 500 })
       }
@@ -141,6 +144,7 @@ export async function DELETE(
         await storage.deleteKnife(id)
         return NextResponse.json({ success: true })
       } catch (error) {
+        reportServerError(error, '/api/knives/[id]')
         const message = error instanceof Error ? error.message : 'Unknown error'
         return NextResponse.json({ error: message }, { status: 500 })
       }
