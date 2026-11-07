@@ -5,6 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { getLocalDataDirPath } from '@/lib/local-db'
+import { isLeaseOwnerAlive, isProcessAlive } from '@/lib/process-liveness'
 import {
   getLocalRestoreJournalPath,
   recoverInterruptedLocalRestore,
@@ -91,22 +92,6 @@ function exclusiveWrite(filePath: string, value: unknown) {
   }
 }
 
-function processIsAlive(pid: number, startedAt?: number): boolean {
-  if (!Number.isSafeInteger(pid) || pid < 1) return false
-  if (
-    pid === process.pid &&
-    startedAt !== undefined &&
-    startedAt !== performance.timeOrigin
-  )
-    return false
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'EPERM'
-  }
-}
-
 function readOwnerFile(dataDir: string): RestoreOwner | null {
   const filePath = controlPath(dataDir, 'restore.json')
   try {
@@ -163,17 +148,24 @@ export function withVaultControlTransaction<T>(
   return withCoordination(vaultPath(dataDir), action)
 }
 
+function ownerIsAlive(dataDir: string, owner: RestoreOwner): boolean {
+  return isLeaseOwnerAlive(
+    controlPath(dataDir, 'restore.json'),
+    owner.pid,
+    owner.startedAt,
+  )
+}
+
 function readOwner(dataDir: string): RestoreOwner | null {
   const owner = readOwnerFile(dataDir)
-  if (!owner || processIsAlive(owner.pid, owner.startedAt)) return owner
+  if (!owner || ownerIsAlive(dataDir, owner)) return owner
   // The stable coordination database serializes stale reclamation with new
   // acquisitions. A late observer can never unlink a newly acquired marker.
   return withCoordination(
     dataDir,
     () => {
       const current = readOwnerFile(dataDir)
-      if (!current || processIsAlive(current.pid, current.startedAt))
-        return current
+      if (!current || ownerIsAlive(dataDir, current)) return current
       const journalExists = fs.existsSync(getLocalRestoreJournalPath(dataDir))
       let recovered = current.phase === 'preparing' || !journalExists
       if (!recovered) {
@@ -228,8 +220,7 @@ export function getVaultAccessState(
     generation,
     phase: owner?.phase ?? 'idle',
     readOnly: Boolean(owner),
-    ...(owner &&
-    (owner.recoveryRequired || !processIsAlive(owner.pid, owner.startedAt))
+    ...(owner && (owner.recoveryRequired || !ownerIsAlive(resolved, owner))
       ? { recoveryRequired: true }
       : {}),
   }
@@ -452,7 +443,9 @@ async function drainLeases(
       // leave an unreadable lease that blocks recovery permanently.
       const pid = Number(entry.split(/[.-]/)[0])
       let startedAt: number | undefined
+      let writtenAtMs: number | undefined
       try {
+        writtenAtMs = fs.statSync(leasePath).mtimeMs
         startedAt = (
           JSON.parse(fs.readFileSync(leasePath, 'utf8')) as {
             startedAt?: number
@@ -463,7 +456,8 @@ async function drainLeases(
         // A newly registered writer may still be publishing its tiny lease.
         // Retain it while its process is alive rather than starting installation.
       }
-      if (!processIsAlive(pid, startedAt)) fs.rmSync(leasePath, { force: true })
+      if (!isProcessAlive(pid, startedAt, writtenAtMs))
+        fs.rmSync(leasePath, { force: true })
       else remaining += 1
     }
     if (!remaining) return
