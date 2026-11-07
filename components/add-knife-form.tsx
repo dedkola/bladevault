@@ -2,7 +2,14 @@
 
 import { screenshotsLast } from '@/lib/webpage-screenshot-shared'
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Loader2,
@@ -12,6 +19,7 @@ import {
   ExternalLink,
   Eye,
   FileUp,
+  Globe,
   EyeOff,
   Layers,
   Monitor,
@@ -59,6 +67,11 @@ function hasKnifeFormContent(form: KnifeFormData): boolean {
   })
 }
 
+const subscribeToNothing = () => () => {}
+const getHasDesktopBrowser = () =>
+  Boolean(window.bladevaultDesktop?.scrapeBrowser)
+const getServerHasDesktopBrowser = () => false
+
 export function AddKnifeForm() {
   const router = useRouter()
   const formId = useId()
@@ -87,8 +100,14 @@ export function AddKnifeForm() {
   const scrapeRequestRef = useRef<AbortController | null>(null)
   const mountedRef = useRef(true)
   const [interactiveStatus, setInteractiveStatus] = useState<
-    'starting' | 'waiting' | 'scraping' | null
+    'starting' | 'waiting' | 'scraping' | 'browser' | null
   >(null)
+  const desktopBrowserOpenRef = useRef(false)
+  const hasDesktopBrowser = useSyncExternalStore(
+    subscribeToNothing,
+    getHasDesktopBrowser,
+    getServerHasDesktopBrowser,
+  )
   const [interactiveIsChallenge, setInteractiveIsChallenge] = useState<
     boolean | null
   >(null)
@@ -351,8 +370,15 @@ export function AddKnifeForm() {
     }
   }
 
-  const importSavedPage = async (file: File) => {
-    if (scrapeRequestRef.current || interactiveStatus !== null) return
+  const importPage = async (
+    loadPage: () => Promise<{
+      html: string
+      url: string
+      savedUrl?: string
+      source?: 'browser'
+    }>,
+    resolveImages?: (urls: string[]) => Promise<(string | null)[]>,
+  ) => {
     const controller = new AbortController()
     scrapeRequestRef.current = controller
     setIsScraping(true)
@@ -362,11 +388,7 @@ export function AddKnifeForm() {
     setInteractiveError(null)
 
     try {
-      if (file.size > MAX_SAVED_PAGE_FILE_BYTES)
-        throw new Error(
-          'This saved page is too large to import. Save only the product page and try again.',
-        )
-      const page = parseSavedPage(file.name, await file.text())
+      const page = await loadPage()
       const data = await requestScrape<{
         product: ScrapedProduct
         html?: string
@@ -377,8 +399,9 @@ export function AddKnifeForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           html: page.html,
-          url: url.trim(),
-          savedUrl: page.url ?? '',
+          url: page.url,
+          savedUrl: page.savedUrl ?? '',
+          ...(page.source ? { source: page.source } : {}),
         }),
         signal: controller.signal,
       })
@@ -391,12 +414,27 @@ export function AddKnifeForm() {
       ) {
         throw new ScrapeError('invalid_response')
       }
+      const product = data.product
+      if (resolveImages && Array.isArray(product.images)) {
+        // Download images with the same cookies that passed the site's bot
+        // check; keep the original address when a download fails.
+        const downloaded = await resolveImages(product.images).catch(() => [])
+        if (!mountedRef.current || scrapeRequestRef.current !== controller)
+          return
+        product.images = product.images.map((src, index) => {
+          const dataUrl = downloaded[index]
+          return typeof dataUrl === 'string' &&
+            dataUrl.startsWith('data:image/')
+            ? dataUrl
+            : src
+        })
+      }
       const finalUrl =
         typeof data.finalUrl === 'string' ? data.finalUrl : url.trim()
       if (!url.trim() && finalUrl) setUrl(finalUrl)
       setScrapeWarnings(data.warnings || [])
       applyScrapedProduct(
-        data.product,
+        product,
         typeof data.html === 'string' ? data.html : '',
         finalUrl,
       )
@@ -411,6 +449,62 @@ export function AddKnifeForm() {
         if (mountedRef.current) setIsScraping(false)
       }
     }
+  }
+
+  const importSavedPage = async (file: File) => {
+    if (scrapeRequestRef.current || interactiveStatus !== null) return
+    await importPage(async () => {
+      if (file.size > MAX_SAVED_PAGE_FILE_BYTES)
+        throw new Error(
+          'This saved page is too large to import. Save only the product page and try again.',
+        )
+      const page = parseSavedPage(file.name, await file.text())
+      return { html: page.html, url: url.trim(), savedUrl: page.url ?? '' }
+    })
+  }
+
+  const openDesktopBrowser = async () => {
+    const desktopBrowser = window.bladevaultDesktop?.scrapeBrowser
+    if (
+      !desktopBrowser ||
+      !url.trim() ||
+      scrapeRequestRef.current ||
+      interactiveStatus !== null
+    )
+      return
+    desktopBrowserOpenRef.current = true
+    setInteractiveStatus('browser')
+    setInteractiveError(null)
+    setScrapeError(null)
+
+    let result: Awaited<ReturnType<typeof desktopBrowser.open>>
+    try {
+      result = await desktopBrowser.open(url.trim())
+    } catch (error) {
+      if (mountedRef.current)
+        setInteractiveError(
+          error instanceof Error
+            ? error.message.replace(
+                /^Error invoking remote method '[^']+': (Error: )?/,
+                '',
+              )
+            : 'The BladeVault browser could not be opened.',
+        )
+      return
+    } finally {
+      desktopBrowserOpenRef.current = false
+      if (mountedRef.current) setInteractiveStatus(null)
+    }
+    if (!mountedRef.current || result.status !== 'captured') return
+    const captured = result
+    await importPage(
+      async () => ({
+        html: captured.html,
+        url: captured.url,
+        source: 'browser',
+      }),
+      (urls) => desktopBrowser.fetchImages(urls),
+    )
   }
 
   const resetInteractiveState = () => {
@@ -598,6 +692,10 @@ export function AddKnifeForm() {
       mountedRef.current = false
       scrapeRequestRef.current?.abort()
       scrapeRequestRef.current = null
+      if (desktopBrowserOpenRef.current) {
+        desktopBrowserOpenRef.current = false
+        void window.bladevaultDesktop?.scrapeBrowser?.cancel().catch(() => {})
+      }
       const sessionId = interactiveSessionIdRef.current
       interactiveSessionIdRef.current = null
       if (sessionId) {
@@ -678,6 +776,20 @@ export function AddKnifeForm() {
               )}
               Interact with page
             </Button>
+            {hasDesktopBrowser && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={openDesktopBrowser}
+                disabled={
+                  isScraping || interactiveStatus !== null || !url.trim()
+                }
+                title="Open the page in a browser window inside BladeVault. Use it when a site's security check keeps repeating."
+              >
+                <Globe className="h-3.5 w-3.5" />
+                Open in BladeVault browser
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -785,6 +897,46 @@ export function AddKnifeForm() {
                 variant="outline"
                 size="sm"
                 onClick={cancelInteractiveScrape}
+              >
+                <X className="h-3.5 w-3.5" />
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {interactiveStatus === 'browser' && (
+          <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 space-y-2">
+            <div className="flex items-start gap-2 text-xs xl:text-sm">
+              <Globe className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
+              <p>
+                The BladeVault browser is open. Complete any security check,
+                wait for the product page to load, then click{' '}
+                <strong>Continue</strong> in its toolbar or here. Sign-ins and
+                passed checks are remembered for next time.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="flex-1"
+                onClick={() =>
+                  void window.bladevaultDesktop?.scrapeBrowser
+                    ?.capture()
+                    .catch(() => {})
+                }
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Continue
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  void window.bladevaultDesktop?.scrapeBrowser
+                    ?.cancel()
+                    .catch(() => {})
+                }
               >
                 <X className="h-3.5 w-3.5" />
                 Cancel

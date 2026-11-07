@@ -8,6 +8,13 @@ contextBridge.exposeInMainWorld('bladevaultDesktop', {
   checkForUpdates: () => ipcRenderer.invoke('bladevault:check-for-updates'),
   downloadUpdate: () => ipcRenderer.invoke('bladevault:download-update'),
   installUpdate: () => ipcRenderer.invoke('bladevault:install-update'),
+  scrapeBrowser: {
+    open: (url) => ipcRenderer.invoke('bladevault:scrape-browser-open', url),
+    capture: () => ipcRenderer.invoke('bladevault:scrape-browser-capture'),
+    cancel: () => ipcRenderer.invoke('bladevault:scrape-browser-cancel'),
+    fetchImages: (urls) =>
+      ipcRenderer.invoke('bladevault:scrape-browser-fetch-images', urls),
+  },
   onUpdateStatus: (callback) => {
     const listener = (_event, status) => callback(status)
     ipcRenderer.on('bladevault:update-status', listener)

@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'"
+    />
+    <title>BladeVault Browser</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f4f5f2;
+        --fg: #1d201b;
+        --muted: #63685f;
+        --border: #d7dad3;
+        --field: #ffffff;
+        --primary: #2f6b3a;
+        --primary-fg: #ffffff;
+        --warn: #9a5b00;
+        --error: #b42318;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #181b16;
+          --fg: #e8ebe4;
+          --muted: #a2a89c;
+          --border: #343a31;
+          --field: #22261f;
+          --primary: #6fb47c;
+          --primary-fg: #10140f;
+          --warn: #f0b45a;
+          --error: #f97066;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          13px/1.3 system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        overflow: hidden;
+        user-select: none;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 10px;
+        border-bottom: 1px solid var(--border);
+      }
+      button {
+        font: inherit;
+        height: 32px;
+        padding: 0 12px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--field);
+        color: var(--fg);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      button.icon {
+        width: 32px;
+        padding: 0;
+        font-size: 16px;
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+      button:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 1px;
+      }
+      button.primary {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: var(--primary-fg);
+        font-weight: 600;
+      }
+      .address {
+        flex: 1;
+        min-width: 0;
+        height: 32px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 0 10px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--field);
+      }
+      .address span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #url {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      #status {
+        font-size: 12px;
+        max-width: 280px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--muted);
+      }
+      #status.warn {
+        color: var(--warn);
+      }
+      #status.error {
+        color: var(--error);
+      }
+    </style>
+  </head>
+  <body>
+    <button id="back" class="icon" title="Back" aria-label="Back" disabled>
+      ←
+    </button>
+    <button
+      id="forward"
+      class="icon"
+      title="Forward"
+      aria-label="Forward"
+      disabled
+    >
+      →
+    </button>
+    <button id="reload" class="icon" title="Reload" aria-label="Reload">
+      ↻
+    </button>
+    <div class="address" aria-live="polite">
+      <span id="title">Loading…</span>
+      <span id="url"></span>
+    </div>
+    <span id="status" role="status"></span>
+    <button id="cancel">Cancel</button>
+    <button
+      id="continue"
+      class="primary"
+      title="Import this page into BladeVault"
+    >
+      Continue
+    </button>
+    <script src="scrape-browser-toolbar.js"></script>
+  </body>
+</html>

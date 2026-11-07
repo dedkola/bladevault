@@ -785,4 +785,54 @@ describe('Add knife scrape controls', () => {
         .mock.calls.some(([input]) => String(input).includes('saved-page')),
     ).toBe(false)
   })
+
+  it('hides the BladeVault browser outside the desktop app', () => {
+    render(<AddKnifeForm />)
+    expect(
+      screen.queryByRole('button', { name: 'Open in BladeVault browser' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('imports the page captured in the BladeVault browser with its images', async () => {
+    const dataUrl = 'data:image/jpeg;base64,AAAA'
+    const capturedUrl = 'https://shop.example.com/native-chief?variant=1'
+    const scrapeBrowser = {
+      open: vi.fn().mockResolvedValue({
+        status: 'captured',
+        html,
+        url: capturedUrl,
+      }),
+      capture: vi.fn(),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      fetchImages: vi.fn().mockResolvedValue([dataUrl]),
+    }
+    vi.stubGlobal('bladevaultDesktop', { scrapeBrowser })
+    const originalFetch = vi.mocked(fetch).getMockImplementation()!
+    let body: Record<string, unknown> | undefined
+    vi.mocked(fetch).mockImplementation((input, init) => {
+      if (String(input) !== '/api/scrape/saved-page')
+        return originalFetch(input, init)
+      body = JSON.parse(String(init?.body))
+      return Promise.resolve(json({ product: { ...product }, html }))
+    })
+    const user = userEvent.setup()
+    render(<AddKnifeForm />)
+    await user.type(
+      screen.getByRole('textbox', { name: 'Product URL' }),
+      product.sourceUrl,
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Open in BladeVault browser' }),
+    )
+    await screen.findByDisplayValue('Native Chief')
+    expect(scrapeBrowser.open).toHaveBeenCalledWith(product.sourceUrl)
+    expect(body).toEqual({
+      html,
+      url: capturedUrl,
+      savedUrl: '',
+      source: 'browser',
+    })
+    expect(scrapeBrowser.fetchImages).toHaveBeenCalledWith(product.images)
+    expect(document.querySelector(`img[src="${dataUrl}"]`)).toBeInTheDocument()
+  })
 })

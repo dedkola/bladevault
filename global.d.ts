@@ -30,6 +30,17 @@ declare global {
       checkForUpdates: () => Promise<BladeVaultUpdateStatus>
       downloadUpdate: () => Promise<BladeVaultUpdateStatus>
       installUpdate: () => Promise<BladeVaultUpdateStatus>
+      scrapeBrowser?: {
+        open: (
+          url: string,
+        ) => Promise<
+          | { status: 'captured'; html: string; url: string }
+          | { status: 'cancelled' }
+        >
+        capture: () => Promise<void>
+        cancel: () => Promise<void>
+        fetchImages: (urls: string[]) => Promise<(string | null)[]>
+      }
       onUpdateStatus: (
         callback: (status: BladeVaultUpdateStatus) => void,
       ) => () => void

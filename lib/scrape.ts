@@ -649,8 +649,13 @@ function extractImages($: cheerio.CheerioAPI, baseUrl: string): string[] {
     '[data-image] img',
   ]
 
+  // Recommendation and "related products" tiles reuse product-image classes.
+  const inProductCard = (el: Parameters<typeof $>[0]) =>
+    $(el).closest('.product-card, [data-product-card]').length > 0
+
   $(imageSelectors.join(', ')).each((_, el) => {
     const $el = $(el)
+    if (inProductCard(el)) return
     const imageSource =
       $el.attr('data-img-original') ||
       $el.attr('data-large_image') ||
@@ -677,6 +682,7 @@ function extractImages($: cheerio.CheerioAPI, baseUrl: string): string[] {
       const className = $el.attr('class') ?? ''
       if (
         src &&
+        !inProductCard(el) &&
         !/video|youtube/i.test(`${$el.attr('alt') ?? ''} ${src}`) &&
         !/swatch|variant|option/i.test(className) &&
         /product|knife|blade|item/i.test(src)
@@ -2388,6 +2394,38 @@ function isRemetteProductUrl(value: string): boolean {
   }
 }
 
+function isBuckProductUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return (
+      (url.hostname === 'buckknives.com' ||
+        url.hostname === 'www.buckknives.com') &&
+      url.pathname.startsWith('/product/')
+    )
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Buck renders the selected SKU's photos in its image viewer (main image,
+ * thumbnails, and mobile slides). Recommendation cards elsewhere on the page
+ * use the same image classes, so read only the viewer.
+ */
+function extractBuckGallery($: cheerio.CheerioAPI, baseUrl: string): string[] {
+  return $('.product-image-viewer img')
+    .map((_, el) => {
+      const image = $(el)
+      const src = image.attr('data-src') || image.attr('src') || ''
+      if (/video|youtube|vimeo/i.test(`${image.attr('alt') ?? ''} ${src}`))
+        return ''
+      const resolved = resolveUrl(src, baseUrl) ?? ''
+      return /^https?:\/\//.test(resolved) ? resolved : ''
+    })
+    .get()
+    .filter(Boolean)
+}
+
 export function scrapeProduct(
   html: string,
   baseUrl: string,
@@ -2427,6 +2465,9 @@ export function scrapeProduct(
   const brand = extractBrand(rawName, $, ld.brand, sourceUrl ?? baseUrl)
   const isPoikiloProduct = isPoikiloProductUrl(baseUrl)
   const isRemetteProduct = isRemetteProductUrl(baseUrl)
+  const buckGallery = isBuckProductUrl(baseUrl)
+    ? extractBuckGallery($, baseUrl)
+    : []
   // The header contains other products' specifications before the current knife.
   const remetteDescription = isRemetteProduct
     ? $('#tab-description .toggle-content').first().html() ||
@@ -2533,11 +2574,14 @@ export function scrapeProduct(
             })
             .get()
             .filter(Boolean)
-        : extractImages($, baseUrl)
+        : buckGallery.length
+          ? buckGallery
+          : extractImages($, baseUrl)
   const images = [
     ...new Set(
-      // Remette's JSON-LD and meta images repeat resized gallery thumbnails.
-      (isRemetteProduct && galleryImages.length
+      // Remette's JSON-LD and meta images repeat resized gallery thumbnails;
+      // Buck's repeat the first gallery photo under a variant-rule address.
+      ((isRemetteProduct && galleryImages.length) || buckGallery.length
         ? galleryImages
         : [...(ld.images ?? []), ...galleryImages]
       ).map(canonicalizeImageUrl),
