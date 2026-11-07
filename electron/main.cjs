@@ -17,6 +17,10 @@ const path = require('path')
 const net = require('net')
 const { Readable } = require('stream')
 const { pipeline } = require('stream/promises')
+const {
+  closeScrapeBrowser,
+  registerScrapeBrowser,
+} = require('./scrape-browser.cjs')
 
 const DEV_SERVER_URL = process.env.ELECTRON_START_URL || 'http://127.0.0.1:3000'
 const DEV_SERVER_ORIGIN = new URL(DEV_SERVER_URL).origin
@@ -1155,6 +1159,8 @@ ipcMain.handle('bladevault:save-backup-file', async (_event, defaultName) => {
   return true
 })
 
+registerScrapeBrowser(ipcMain, () => mainWindow)
+
 ipcMain.handle('bladevault:get-update-status', () => updateStatus)
 ipcMain.handle('bladevault:check-for-updates', () => checkForUpdates())
 ipcMain.handle('bladevault:download-update', () => downloadUpdate())
@@ -1191,6 +1197,7 @@ async function createMainWindow() {
   })
 
   wireMainWindowSecurity(mainWindow)
+  mainWindow.on('closed', closeScrapeBrowser)
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()

@@ -16,7 +16,10 @@ import {
 const INVALID_PAGE =
   'Choose a product page saved from your browser as “Webpage, Complete” (.html) or “Webpage, Single File” (.mhtml).'
 
-/** Import product details from HTML the person saved in their own browser. */
+/**
+ * Import product details from HTML the person saved in their own browser, or
+ * captured in the desktop app's BladeVault browser (`source: 'browser'`).
+ */
 export async function POST(request: Request) {
   return withVaultMutationRequest(request, async () => {
     const locked = requireAppUnlock(request)
@@ -70,7 +73,9 @@ export async function POST(request: Request) {
         if (hasChallengeMarkers && !hasProductMarkup(html))
           throw new ScrapeError(
             'challenge',
-            'This file is the website’s security verification page, not the product. Open the product page in your browser, wait until it fully loads, then save it again.',
+            body?.source === 'browser'
+              ? 'The BladeVault browser was still showing the website’s security verification. Open it again, wait until the product page fully loads, then click Continue.'
+              : 'This file is the website’s security verification page, not the product. Open the product page in your browser, wait until it fully loads, then save it again.',
           )
 
         const result = await scrapeAndEnrichProduct(

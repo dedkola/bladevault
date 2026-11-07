@@ -68,6 +68,8 @@ Some sites block automated access or display popups over the product details. Bl
 
 If the page needs a click or a verification step, choose **Interact with page** beside the URL. Complete the step in the browser window, then click **Continue** to refresh the import in the same form. Your manually edited fields and image selections are preserved. The browser window opens on the computer running BladeVault. A browser inside a remote container is not streamed to your screen.
 
+In the desktop app, if the verification keeps repeating in that window, choose **Open in BladeVault browser** instead. It opens the page in a browser window inside BladeVault. Complete the check, wait for the product page to load, then click **Continue** in the window's toolbar. BladeVault imports the page and downloads its images through the same window, so protected images still load. Passed checks and sign-ins are remembered for that window, separately from BladeVault itself. This option replaces the form's fields and image selections with the imported values.
+
 ## Capture the source page
 
 BladeVault can also save a permanent full-page screenshot of the page a record came from — the knife imported above has one. See [Capture source pages](capture-sources.md).
