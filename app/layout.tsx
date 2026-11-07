@@ -20,6 +20,8 @@ import { AppUnlockForm } from '@/components/app-unlock-form'
 import { AppLockSession } from '@/components/app-lock-session'
 import { VaultRestoreProvider } from '@/components/providers/vault-restore-provider'
 import { getVaultAccessState } from '@/lib/vault-access'
+import { getErrorReportingConfig } from '@/lib/sentry/server'
+import { ERROR_REPORTING_ATTRIBUTE } from '@/lib/sentry/shared'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-sans' })
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono' })
@@ -86,11 +88,15 @@ export default async function RootLayout({
     appLockEnabled: isAppLockEnabled(),
   }
   const unlocked = isAppUnlocked((await cookies()).get(APP_LOCK_COOKIE)?.value)
+  const errorReporting = getErrorReportingConfig()
 
   return (
     <html
       lang="en"
       data-theme-style={themeStyle}
+      {...(errorReporting
+        ? { [ERROR_REPORTING_ATTRIBUTE]: JSON.stringify(errorReporting) }
+        : {})}
       className={cn(
         geistSans.variable,
         geistMono.variable,

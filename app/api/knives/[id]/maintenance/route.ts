@@ -1,6 +1,7 @@
 import { withVaultMutationRequest } from '@/lib/vault-mutation-request'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
+import { reportServerError } from '@/lib/sentry/server'
 import {
   isMaintenanceType,
   MaintenanceEventInput,
@@ -98,6 +99,9 @@ export async function GET(
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     const status = message.includes('not found') ? 404 : 500
+    if (status === 500) {
+      reportServerError(error, '/api/knives/[id]/maintenance')
+    }
     return NextResponse.json({ error: message }, { status })
   }
 }

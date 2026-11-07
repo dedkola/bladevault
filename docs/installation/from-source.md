@@ -68,16 +68,18 @@ Every script in `package.json`:
 
 The code reads the following environment variables. The ones marked with a default are optional.
 
-| Variable                            | Effect                                                                                                   |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `BLADEVAULT_DATA_DIR`               | Use a different data directory for a source or container runtime. See [Your data](../reference/data.md). |
-| `NEXT_PUBLIC_BLADEVAULT_AUTH_URL`   | Override the cloud backup auth endpoint. Defaults to `https://auth.bladevault.pro`.                      |
-| `NEXT_PUBLIC_BLADEVAULT_BACKUP_URL` | Override the cloud backup endpoint. Defaults to `https://backup.bladevault.pro`.                         |
-| `MCP_AUTH_TOKEN`                    | Use a fixed MCP bearer token instead of the app-generated one.                                           |
-| `MCP_ALLOWED_HOSTS`                 | Restrict the hosts MCP accepts.                                                                          |
-| `MCP_ALLOWED_ORIGINS`               | Restrict the origins MCP accepts.                                                                        |
-| `MCP_ENABLED`                       | Lock the corresponding app control for administrators.                                                   |
-| `MCP_WRITE_ENABLED`                 | Lock the corresponding app control for administrators.                                                   |
+| Variable                            | Effect                                                                                                                  |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `BLADEVAULT_DATA_DIR`               | Use a different data directory for a source or container runtime. See [Your data](../reference/data.md).                |
+| `NEXT_PUBLIC_BLADEVAULT_AUTH_URL`   | Override the cloud backup auth endpoint. Defaults to `https://auth.bladevault.pro`.                                     |
+| `NEXT_PUBLIC_BLADEVAULT_BACKUP_URL` | Override the cloud backup endpoint. Defaults to `https://backup.bladevault.pro`.                                        |
+| `MCP_AUTH_TOKEN`                    | Use a fixed MCP bearer token instead of the app-generated one.                                                          |
+| `MCP_ALLOWED_HOSTS`                 | Restrict the hosts MCP accepts.                                                                                         |
+| `MCP_ALLOWED_ORIGINS`               | Restrict the origins MCP accepts.                                                                                       |
+| `MCP_ENABLED`                       | Lock the corresponding app control for administrators.                                                                  |
+| `MCP_WRITE_ENABLED`                 | Lock the corresponding app control for administrators.                                                                  |
+| `SENTRY_DSN`                        | Turn on error reporting to this Sentry project. Off when unset. See [Error reporting](../reference/error-reporting.md). |
+| `SENTRY_ENVIRONMENT`                | Environment name for error reports. Defaults to `production`.                                                           |
 
 See [Cloud backup](../reference/cloud-backup.md) and [MCP](../reference/mcp.md) for how the service endpoints and MCP overrides behave.
 

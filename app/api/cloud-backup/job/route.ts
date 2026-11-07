@@ -5,6 +5,7 @@ import {
   getCloudBackupJobState,
   startCloudBackupJob,
 } from '@/lib/cloud-backup-job'
+import { reportServerError } from '@/lib/sentry/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
     if (error instanceof VaultOperationBusyError) {
       return NextResponse.json({ error: error.message }, { status: 409 })
     }
+    reportServerError(error, '/api/cloud-backup/job')
     return NextResponse.json(
       { error: 'Could not start background backup. Please try again.' },
       { status: 500 },

@@ -20,6 +20,7 @@ import {
   withLocalRestoreLease,
 } from '@/lib/local-data-restore'
 import type { VaultRestoreLease } from '@/lib/vault-access'
+import { reportServerError } from '@/lib/sentry/server'
 
 function shouldIgnoreBackupEntry(name: string): boolean {
   return (
@@ -223,6 +224,7 @@ async function downloadCloudArchive(request = new Request('http://localhost')) {
       },
     })
   } catch (error) {
+    reportServerError(error, '/api/cloud-backup/archive')
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
   } finally {
@@ -262,6 +264,7 @@ async function restoreUploadedCloudArchive(
     const result = await restoreArchiveFromPath(archivePath, lease)
     return NextResponse.json(result)
   } catch (error) {
+    reportServerError(error, '/api/cloud-backup/archive')
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
   } finally {
@@ -324,6 +327,7 @@ async function restoreCloudArchive(request: Request, lease: VaultRestoreLease) {
     const result = await restoreArchiveFromPath(archivePath, lease)
     return NextResponse.json(result)
   } catch (error) {
+    reportServerError(error, '/api/cloud-backup/archive')
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
   } finally {

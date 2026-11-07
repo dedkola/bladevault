@@ -827,6 +827,9 @@ async function startEmbeddedServer() {
     NEXT_TELEMETRY_DISABLED: '1',
     NODE_ENV: 'production',
     PORT: String(port),
+    // Desktop error reporting needs an in-app opt-in first; until then the
+    // embedded server never inherits a DSN from the user's environment.
+    SENTRY_DSN: '',
   }
 
   const child = spawn(getNodeExecPath(), [serverEntry], {

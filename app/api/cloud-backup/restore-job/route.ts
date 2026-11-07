@@ -9,6 +9,7 @@ import {
   VAULT_GENERATION_HEADER,
 } from '@/lib/vault-access'
 import { VaultOperationBusyError } from '@/lib/vault-operation'
+import { reportServerError } from '@/lib/sentry/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
     if (busy) return busy
     if (error instanceof VaultOperationBusyError)
       return Response.json({ error: error.message }, { status: 409 })
+    reportServerError(error, '/api/cloud-backup/restore-job')
     return Response.json(
       { error: 'Could not start cloud restore. Please try again.' },
       { status: 500 },

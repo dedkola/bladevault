@@ -9,6 +9,7 @@ import {
 } from '@/lib/bulk-edit'
 import { getSettings } from '@/lib/settings'
 import { getStorage } from '@/lib/storage'
+import { reportServerError } from '@/lib/sentry/server'
 
 export async function PATCH(request: Request) {
   return withVaultMutationRequest(request, async () => {
@@ -86,15 +87,13 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ knives })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error'
+      const conflict = message.startsWith(
+        'The collection changed after this review.',
+      )
+      if (!conflict) reportServerError(error, '/api/knives/bulk')
       return NextResponse.json(
         { error: message },
-        {
-          status: message.startsWith(
-            'The collection changed after this review.',
-          )
-            ? 409
-            : 500,
-        },
+        { status: conflict ? 409 : 500 },
       )
     }
   })

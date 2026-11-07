@@ -2,6 +2,7 @@ import { withVaultMutationRequest } from '@/lib/vault-mutation-request'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { NextResponse } from 'next/server'
 import { getStorage } from '@/lib/storage'
+import { reportServerError } from '@/lib/sentry/server'
 
 export async function POST(request: Request) {
   return withVaultMutationRequest(request, async () => {
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
       const knives = await storage.bulkUpdateKnives(ids, { pinned })
       return NextResponse.json({ knives })
     } catch (error) {
+      reportServerError(error, '/api/knives/bulk/pin')
       const message = error instanceof Error ? error.message : 'Unknown error'
       return NextResponse.json({ error: message }, { status: 500 })
     }
