@@ -24,7 +24,7 @@ const ERRORS = {
   ],
   challenge: [
     403,
-    'This website requires CAPTCHA or security verification (bot protection). Use “Interact with page”, complete verification, then click Continue.',
+    'This website requires CAPTCHA or security verification (bot protection). Use “Interact with page”, complete verification, then click Continue, or save the page from your browser and use “Import saved page”.',
   ],
   http: [
     502,

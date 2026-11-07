@@ -11,6 +11,7 @@ import {
   Check,
   ExternalLink,
   Eye,
+  FileUp,
   EyeOff,
   Layers,
   Monitor,
@@ -29,6 +30,11 @@ import {
 import { readJsonResponse } from '@/lib/api-response'
 import { ScrapeError } from '@/lib/scrape-errors'
 import { requestScrape } from '@/lib/scrape-request'
+import {
+  MAX_SAVED_PAGE_FILE_BYTES,
+  SAVED_PAGE_ACCEPT,
+  parseSavedPage,
+} from '@/lib/saved-page'
 import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
 import { ResizablePreviewLayout } from '@/components/resizable-preview-layout'
 import { escapeHtmlAttribute, getSafeExternalUrl } from '@/lib/external-url'
@@ -57,6 +63,7 @@ export function AddKnifeForm() {
   const router = useRouter()
   const formId = useId()
   const previewToggleRef = useRef<HTMLButtonElement>(null)
+  const savedPageInputRef = useRef<HTMLInputElement>(null)
   const editedFieldsRef = useRef(new Set<keyof KnifeFormData>())
   const { addKnife } = useKnives()
   const [activeTab, setActiveTab] = useState<Tab>('Scrape URL')
@@ -330,6 +337,68 @@ export function AddKnifeForm() {
         data.product,
         typeof data.html === 'string' ? data.html : '',
         typeof data.finalUrl === 'string' ? data.finalUrl : url.trim(),
+      )
+    } catch (error) {
+      if (!mountedRef.current || scrapeRequestRef.current !== controller) return
+      setScrapeError(
+        error instanceof Error ? error.message : 'Something went wrong',
+      )
+    } finally {
+      if (scrapeRequestRef.current === controller) {
+        scrapeRequestRef.current = null
+        if (mountedRef.current) setIsScraping(false)
+      }
+    }
+  }
+
+  const importSavedPage = async (file: File) => {
+    if (scrapeRequestRef.current || interactiveStatus !== null) return
+    const controller = new AbortController()
+    scrapeRequestRef.current = controller
+    setIsScraping(true)
+    setScreenshotWarning('')
+    setScrapeWarnings([])
+    setScrapeError(null)
+    setInteractiveError(null)
+
+    try {
+      if (file.size > MAX_SAVED_PAGE_FILE_BYTES)
+        throw new Error(
+          'This saved page is too large to import. Save only the product page and try again.',
+        )
+      const page = parseSavedPage(file.name, await file.text())
+      const data = await requestScrape<{
+        product: ScrapedProduct
+        html?: string
+        warnings?: string[]
+        finalUrl?: string
+      }>('/api/scrape/saved-page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          html: page.html,
+          url: url.trim(),
+          savedUrl: page.url ?? '',
+        }),
+        signal: controller.signal,
+      })
+      if (!mountedRef.current || scrapeRequestRef.current !== controller) return
+      if (
+        !data.product ||
+        typeof data.product !== 'object' ||
+        Array.isArray(data.product) ||
+        typeof data.product.name !== 'string'
+      ) {
+        throw new ScrapeError('invalid_response')
+      }
+      const finalUrl =
+        typeof data.finalUrl === 'string' ? data.finalUrl : url.trim()
+      if (!url.trim() && finalUrl) setUrl(finalUrl)
+      setScrapeWarnings(data.warnings || [])
+      applyScrapedProduct(
+        data.product,
+        typeof data.html === 'string' ? data.html : '',
+        finalUrl,
       )
     } catch (error) {
       if (!mountedRef.current || scrapeRequestRef.current !== controller) return
@@ -618,6 +687,29 @@ export function AddKnifeForm() {
               <Layers className="h-3.5 w-3.5" />
               Batch scrape
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => savedPageInputRef.current?.click()}
+              disabled={isScraping || interactiveStatus !== null}
+              title="Import a product page you saved from your browser (File → Save Page As)"
+            >
+              <FileUp className="h-3.5 w-3.5" />
+              Import saved page
+            </Button>
+            <input
+              ref={savedPageInputRef}
+              type="file"
+              accept={SAVED_PAGE_ACCEPT}
+              className="hidden"
+              aria-label="Saved product page file"
+              tabIndex={-1}
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                event.target.value = ''
+                if (file) void importSavedPage(file)
+              }}
+            />
           </div>
         </div>
 
