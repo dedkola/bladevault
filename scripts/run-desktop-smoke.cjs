@@ -321,6 +321,9 @@ async function main() {
 
     const boundary = await window.evaluate(() => ({
       bridgeKeys: Object.keys(window.bladevaultDesktop ?? {}).sort(),
+      scrapeBrowserKeys: Object.keys(
+        window.bladevaultDesktop?.scrapeBrowser ?? {},
+      ).sort(),
       hasNodeProcess: typeof window.process !== 'undefined',
       hasRequire: typeof window.require !== 'undefined',
     }))
@@ -331,7 +334,14 @@ async function main() {
       'installUpdate',
       'onUpdateStatus',
       'saveBackupFile',
+      'scrapeBrowser',
       'selectDirectory',
+    ])
+    assert.deepEqual(boundary.scrapeBrowserKeys, [
+      'cancel',
+      'capture',
+      'fetchImages',
+      'open',
     ])
     assert.equal(boundary.hasNodeProcess, false)
     assert.equal(boundary.hasRequire, false)
