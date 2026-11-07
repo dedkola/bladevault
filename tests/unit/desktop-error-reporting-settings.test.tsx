@@ -12,8 +12,13 @@ function installBridge(initial: BladeVaultErrorReportingStatus) {
   let current = initial
   const errorReporting = {
     get: vi.fn(async () => current),
-    set: vi.fn(async (enabled: boolean) => {
-      current = { ...current, enabled, restartRequired: true }
+    set: vi.fn(async (enabled: boolean, usageMetrics = true) => {
+      current = {
+        ...current,
+        enabled,
+        usageMetrics: enabled && usageMetrics,
+        restartRequired: true,
+      }
       return current
     }),
     restart: vi.fn(async () => {}),
@@ -36,6 +41,7 @@ it('starts unchecked and asks for a restart after opting in', async () => {
   const bridge = installBridge({
     available: true,
     enabled: false,
+    usageMetrics: false,
     restartRequired: false,
   })
   render(<DesktopErrorReportingSettings />)
@@ -48,11 +54,9 @@ it('starts unchecked and asks for a restart after opting in', async () => {
 
   await userEvent.click(toggle)
 
-  expect(bridge.set).toHaveBeenCalledWith(true)
+  expect(bridge.set).toHaveBeenCalledWith(true, true)
   expect(
-    await screen.findByText(
-      'Error reporting starts after BladeVault restarts.',
-    ),
+    await screen.findByText('Your change applies after BladeVault restarts.'),
   ).toBeInTheDocument()
 
   await userEvent.click(screen.getByRole('button', { name: 'Restart now' }))
@@ -60,11 +64,56 @@ it('starts unchecked and asks for a restart after opting in', async () => {
 })
 
 it('explains when the build has no error reporting', async () => {
-  installBridge({ available: false, enabled: false, restartRequired: false })
+  installBridge({
+    available: false,
+    enabled: false,
+    usageMetrics: false,
+    restartRequired: false,
+  })
   render(<DesktopErrorReportingSettings />)
 
   expect(
     await screen.findByText('Not available in this build.'),
   ).toBeInTheDocument()
   expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+})
+
+it('shows crash reports only and lets usage data be turned on', async () => {
+  const bridge = installBridge({
+    available: true,
+    enabled: true,
+    usageMetrics: false,
+    restartRequired: false,
+  })
+  render(<DesktopErrorReportingSettings />)
+
+  const usage = await screen.findByRole('checkbox', {
+    name: 'Send anonymous usage data',
+  })
+  expect(
+    screen.getByRole('checkbox', { name: 'Send error reports' }),
+  ).toBeChecked()
+  expect(usage).not.toBeChecked()
+
+  await userEvent.click(usage)
+
+  expect(bridge.set).toHaveBeenCalledWith(true, true)
+  expect(
+    await screen.findByRole('checkbox', { name: 'Send anonymous usage data' }),
+  ).toBeChecked()
+})
+
+it('hides the usage data option while error reports are off', async () => {
+  installBridge({
+    available: true,
+    enabled: false,
+    usageMetrics: false,
+    restartRequired: false,
+  })
+  render(<DesktopErrorReportingSettings />)
+
+  await screen.findByRole('checkbox', { name: 'Send error reports' })
+  expect(
+    screen.queryByRole('checkbox', { name: 'Send anonymous usage data' }),
+  ).not.toBeInTheDocument()
 })

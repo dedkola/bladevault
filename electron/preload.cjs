@@ -10,8 +10,12 @@ contextBridge.exposeInMainWorld('bladevaultDesktop', {
   installUpdate: () => ipcRenderer.invoke('bladevault:install-update'),
   errorReporting: {
     get: () => ipcRenderer.invoke('bladevault:get-error-reporting'),
-    set: (enabled) =>
-      ipcRenderer.invoke('bladevault:set-error-reporting', enabled === true),
+    set: (enabled, usageMetrics) =>
+      ipcRenderer.invoke(
+        'bladevault:set-error-reporting',
+        enabled === true,
+        usageMetrics !== false,
+      ),
     restart: () => ipcRenderer.invoke('bladevault:restart-app'),
   },
   scrapeBrowser: {

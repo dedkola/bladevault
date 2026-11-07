@@ -46,12 +46,15 @@ On first launch, before the window opens, the desktop app asks **Help improve Bl
 - **Send Reports** turns on crash reports and anonymous usage data. BladeVault restarts once, about a second, and does not ask again.
 - **Don't Send** keeps it off. BladeVault asks again after the next update.
 
-If you agreed in BladeVault 2.2.0, before usage data was added, you are asked once more so you can see the new wording. Answering **Don't Send** then turns reporting off completely.
+If you agreed in BladeVault 2.2.0, before usage data was added, you are asked once more, about usage data only (**New: anonymous import statistics**). Crash reports stay on either way:
+
+- **Also Send Usage Data** adds anonymous usage data. No restart is needed.
+- **Crash Reports Only** keeps crash reports and leaves usage data off. BladeVault does not ask again.
 
 To change your answer later:
 
 1. Open **Settings → About**.
-2. Under **Error reporting**, check or uncheck **Send error reports**.
+2. Under **Error reporting**, check or uncheck **Send error reports**. While it is on, **Send anonymous usage data** turns usage data on or off separately.
 3. Click **Restart now**. The change applies after the restart.
 
 Turning it off in Settings counts as **Don't Send** for this version. The choice is stored in the app's user-data folder, not in your vault, so it does not travel with backups. The option shows "Not available in this build" in development builds and builds made without the release configuration.

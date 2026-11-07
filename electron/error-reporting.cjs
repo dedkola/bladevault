@@ -7,7 +7,8 @@ const path = require('path')
 
 const CONSENT_FILE = 'error-reporting.json'
 // 1: crash and error reports (2.2.0). 2: adds anonymous usage data. A "yes"
-// to an older version is asked again so the person sees what changed.
+// to an older version is asked again, about the new part only, and the person
+// can keep crash reports without usage data.
 const CONSENT_VERSION = 2
 const REDACTED = '[redacted]'
 
@@ -64,21 +65,34 @@ function getConsentPath(userDataDir) {
 
 // askedVersion is the app version the user last answered for. A "no" is
 // asked again after the next update; a "yes" is never asked again.
+// usageMetrics is false for "crash reports only". Records written before it
+// existed count a current-wording "yes" as agreeing to both.
 function readConsentRecord(userDataDir) {
   try {
     const parsed = JSON.parse(
       fs.readFileSync(getConsentPath(userDataDir), 'utf8'),
     )
+    const enabled = parsed.enabled === true
+    const consentVersion = Number.isInteger(parsed.consentVersion)
+      ? parsed.consentVersion
+      : 1
     return {
-      enabled: parsed.enabled === true,
+      enabled,
+      usageMetrics:
+        enabled &&
+        consentVersion >= CONSENT_VERSION &&
+        parsed.usageMetrics !== false,
       askedVersion:
         typeof parsed.askedVersion === 'string' ? parsed.askedVersion : null,
-      consentVersion: Number.isInteger(parsed.consentVersion)
-        ? parsed.consentVersion
-        : 1,
+      consentVersion,
     }
   } catch {
-    return { enabled: false, askedVersion: null, consentVersion: 0 }
+    return {
+      enabled: false,
+      usageMetrics: false,
+      askedVersion: null,
+      consentVersion: 0,
+    }
   }
 }
 
@@ -86,12 +100,14 @@ function readConsent(userDataDir) {
   return readConsentRecord(userDataDir).enabled
 }
 
-function writeConsent(userDataDir, enabled, askedVersion) {
+// usageMetrics defaults to the main choice; pass false for crash reports only.
+function writeConsent(userDataDir, enabled, askedVersion, options = {}) {
   fs.mkdirSync(userDataDir, { recursive: true })
   const target = getConsentPath(userDataDir)
   const temp = `${target}.${process.pid}.tmp`
   const payload = {
     enabled: enabled === true,
+    usageMetrics: enabled === true && options.usageMetrics !== false,
     askedVersion: typeof askedVersion === 'string' ? askedVersion : null,
     consentVersion: CONSENT_VERSION,
     updatedAt: new Date().toISOString(),
@@ -115,10 +131,16 @@ function getErrorReportingState({
     available,
     enabled,
     // Usage data needs a "yes" given with the current wording.
-    usageMetrics: enabled && record.consentVersion >= CONSENT_VERSION,
+    usageMetrics: enabled && record.usageMetrics,
     desktopDsn,
     appDsn,
   }
+}
+
+// An earlier "yes" given before usage data existed gets the shorter
+// "what's new" prompt instead of the first-launch one.
+function isUsageDataUpgrade(record) {
+  return record.enabled && record.consentVersion < CONSENT_VERSION
 }
 
 function shouldAskForConsent(state, record, appVersion) {
@@ -235,6 +257,7 @@ module.exports = {
   getEmbeddedServerEnv,
   getErrorReportingState,
   getSentryOptions,
+  isUsageDataUpgrade,
   readBuildDsns,
   readConsent,
   readConsentRecord,

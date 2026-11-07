@@ -25,6 +25,7 @@ declare global {
   type BladeVaultErrorReportingStatus = {
     available: boolean
     enabled: boolean
+    usageMetrics: boolean
     restartRequired: boolean
   }
 
@@ -32,7 +33,10 @@ declare global {
     bladevaultDesktop?: {
       errorReporting?: {
         get: () => Promise<BladeVaultErrorReportingStatus>
-        set: (enabled: boolean) => Promise<BladeVaultErrorReportingStatus>
+        set: (
+          enabled: boolean,
+          usageMetrics?: boolean,
+        ) => Promise<BladeVaultErrorReportingStatus>
         restart: () => Promise<void>
       }
       selectDirectory: () => Promise<string | null>
