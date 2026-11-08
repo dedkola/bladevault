@@ -1,31 +1,42 @@
 /*
  * Forge design language, layered on the Modern layout.
  *
- * Shared tokens and the logo live in modern-variants.css. This file holds the
- * Forge-only shell, collection, card, inspector and table treatment. Once it
- * is approved it can be widened to Titanium and Field.
+ * Shared palettes and the logo live in modern-variants.css. This file holds
+ * the shell, collection, card, inspector, table and glow-line control
+ * treatment shared by Forge, Titanium and Field. The `--forge-*` tokens name
+ * the design language; each theme sets its own values below.
  */
 
 /* ------------------------------------------------------------------ */
 /* Surfaces and type                                                   */
 /* ------------------------------------------------------------------ */
-html[data-theme-variant='forge'] {
+html[data-theme-variant] {
   --modern-font-caption: 0.71875rem; /* 11.5px */
   --modern-font-secondary: 0.78125rem; /* 12.5px */
   --modern-font-body: 0.84375rem; /* 13.5px */
   --modern-font-nav: 0.875rem;
 
   --forge-mono: var(--font-mono), ui-monospace, 'SF Mono', Menlo, monospace;
+  --forge-radius: 16px;
+  /* Lines, glows and tints. Field overrides it in light mode, where its
+   * primary is ink. */
+  --forge-accent: var(--primary);
+  --modern-canvas: var(--forge-canvas);
+}
+
+/* ---- Forge: warm ivory and stone, ember accent ---------------------- */
+html[data-theme-variant='forge'] {
   --forge-ink-2: #3c3a35;
   --forge-line-strong: rgb(20 18 15 / 16%);
-  --forge-radius: 16px;
   --forge-shadow:
     0 1px 2px rgb(20 18 15 / 4%), 0 18px 36px -24px rgb(20 18 15 / 26%);
   --forge-ring: rgb(229 84 27 / 50%);
   --forge-glow: rgb(229 84 27 / 45%);
   --forge-shadow-lift: 0 22px 40px -20px rgb(229 84 27 / 34%);
-
-  --modern-canvas: var(--forge-canvas);
+  /* Badges and pin buttons on the photo plate (light in both modes). */
+  --forge-chip-bg: rgb(250 247 242 / 78%);
+  --forge-chip-line: rgb(20 18 15 / 8%);
+  --forge-chip-fg: #3c3a35;
 
   /* Warm ivory and stone instead of pure white. */
   --forge-canvas: #eeeae3;
@@ -78,59 +89,154 @@ html[data-theme-variant='forge'].dark {
   --sidebar: #0e0e10;
 }
 
-html[data-theme-variant='forge'] body {
+/* ---- Titanium: cool lavender stone, violet accent -------------------- */
+html[data-theme-variant='titanium'] {
+  --forge-ink-2: #3b3843;
+  --forge-line-strong: rgb(22 20 27 / 16%);
+  --forge-shadow:
+    0 1px 2px rgb(22 20 27 / 4%), 0 18px 36px -24px rgb(22 20 27 / 26%);
+  --forge-ring: rgb(110 79 240 / 50%);
+  --forge-glow: rgb(110 79 240 / 40%);
+  --forge-shadow-lift: 0 22px 40px -20px rgb(110 79 240 / 30%);
+  --forge-chip-bg: rgb(249 248 251 / 78%);
+  --forge-chip-line: rgb(22 20 27 / 8%);
+  --forge-chip-fg: #3b3843;
+
+  /* Cool lavender stone instead of pure white. */
+  --forge-canvas: #ebe9ef;
+  --forge-chrome: rgb(245 243 248 / 88%);
+  --background: #efedf3;
+  --card: #f9f8fb;
+  --popover: #faf9fc;
+  --secondary: #f9f8fb;
+  --muted: #edebf1;
+  --accent: #e6e3ec;
+  --border: #e0dde7;
+  --input: #d4d0dc;
+  --bladevault-surface-soft: #f1eff5;
+  --bladevault-surface-hover: #e8e5ee;
+  --bladevault-line: #e0dde7;
+  --vv-well-hi: #f8f7fa;
+  --vv-well: #ecebf0;
+  --vv-well-edge: #dedbe5;
+  --sidebar: #f3f1f6;
+  --sidebar-accent: #eae7f0;
+  --sidebar-border: #e0dde7;
+}
+
+html[data-theme-variant='titanium'].dark {
+  --background: #100f14;
+  --card: #15141a;
+  --popover: #19181f;
+  --secondary: #1d1b23;
+  --muted: #1d1b23;
+  --accent: #24222b;
+  --border: rgb(255 255 255 / 8%);
+  --input: rgb(255 255 255 / 14%);
+  --bladevault-surface-soft: #1d1b23;
+  --bladevault-surface-hover: #25232c;
+  --bladevault-line: rgb(255 255 255 / 9%);
+  --vv-well-hi: #f1eff5;
+  --vv-well: #dedae6;
+  --vv-well-edge: #cbc6d5;
+  --sidebar-accent: #1d1b23;
+  --sidebar-border: rgb(255 255 255 / 8%);
+  --forge-canvas: #0c0b0f;
+  --forge-chrome: rgb(16 15 20 / 84%);
+  --forge-ink-2: #cbc7d4;
+  --forge-line-strong: rgb(255 255 255 / 14%);
+  --forge-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 4%), 0 20px 40px -24px rgb(0 0 0 / 80%);
+  --forge-ring: rgb(164 139 255 / 55%);
+  --forge-glow: rgb(164 139 255 / 40%);
+  --forge-shadow-lift: 0 18px 44px -16px rgb(164 139 255 / 30%);
+  --sidebar: #100f14;
+}
+
+/* ---- Field: tactical stone, acid-lime accent ------------------------- */
+/* Field's own palette already avoids pure white, so only the Forge tokens
+ * are added. Light mode lines and glows use an olive lime: the primary is
+ * ink there and plain acid lime is too faint on stone. */
+html[data-theme-variant='field'] {
+  --forge-accent: #7fa80f;
+  --forge-ink-2: #3d3e36;
+  --forge-line-strong: rgb(18 19 15 / 16%);
+  --forge-shadow:
+    0 1px 2px rgb(18 19 15 / 4%), 0 18px 36px -24px rgb(18 19 15 / 26%);
+  --forge-ring: rgb(127 168 15 / 55%);
+  --forge-glow: rgb(127 168 15 / 45%);
+  --forge-shadow-lift: 0 22px 40px -20px rgb(127 168 15 / 32%);
+  --forge-chip-bg: rgb(250 250 246 / 78%);
+  --forge-chip-line: rgb(18 19 15 / 8%);
+  --forge-chip-fg: #3d3e36;
+  --forge-canvas: #ecebe4;
+  --forge-chrome: rgb(240 239 232 / 88%);
+}
+
+html[data-theme-variant='field'].dark {
+  --forge-accent: var(--primary);
+  --forge-ink-2: #cacbc0;
+  --forge-line-strong: rgb(255 255 255 / 14%);
+  --forge-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 4%), 0 20px 40px -24px rgb(0 0 0 / 80%);
+  --forge-ring: rgb(200 240 49 / 50%);
+  --forge-glow: rgb(200 240 49 / 30%);
+  --forge-shadow-lift: 0 18px 44px -16px rgb(200 240 49 / 22%);
+  --forge-canvas: #0f100d;
+  --forge-chrome: rgb(18 19 16 / 84%);
+}
+
+html[data-theme-variant] body {
   font-feature-settings: 'ss01', 'cv11';
 }
 
 /* ------------------------------------------------------------------ */
 /* Shell: header, sidebar, footer                                       */
 /* ------------------------------------------------------------------ */
-html[data-theme-variant='forge'] [data-workspace-header] {
+html[data-theme-variant] [data-workspace-header] {
   background: var(--forge-chrome);
   backdrop-filter: saturate(1.4) blur(14px);
 }
 
-html[data-theme-variant='forge'] [data-workspace-brand] {
+html[data-theme-variant] [data-workspace-brand] {
   min-width: 226px;
   font-size: 16px;
 }
 
-html[data-theme-variant='forge'] [data-workspace-brand] b {
+html[data-theme-variant] [data-workspace-brand] b {
   font-weight: 650;
   letter-spacing: -0.02em;
 }
 
-html[data-theme-variant='forge'] [data-workspace-crumb] {
+html[data-theme-variant] [data-workspace-crumb] {
   font-size: 13px;
 }
 
 /* Larger Add button only where its label shows (Modern hides it below 768px). */
 @media (min-width: 768px) {
-  html[data-theme-variant='forge']
-    [data-workspace-actions]
-    > [data-workspace-add] {
+  html[data-theme-variant] [data-workspace-actions] > [data-workspace-add] {
     height: 32px;
     padding-inline: 14px;
     font-weight: 600;
   }
 }
 
-html[data-theme-variant='forge'] [data-workspace-body] {
+html[data-theme-variant] [data-workspace-body] {
   grid-template-columns: 244px minmax(0, 1fr);
 }
 
-html[data-theme-variant='forge'] [data-workspace-body] [data-sidebar] {
+html[data-theme-variant] [data-workspace-body] [data-sidebar] {
   width: 244px;
   background: var(--sidebar);
   border-right-color: var(--border);
 }
 
-html[data-theme-variant='forge'] [data-workspace-body] [data-sidebar-nav] {
+html[data-theme-variant] [data-workspace-body] [data-sidebar-nav] {
   padding-inline: 10px;
 }
 
 /* Section labels: small mono caps, neutral instead of accent. */
-html[data-theme-variant='forge'] [data-sidebar] [data-sidebar-label] {
+html[data-theme-variant] [data-sidebar] [data-sidebar-label] {
   padding: 16px 10px 6px;
   color: var(--muted-foreground);
   font-family: var(--forge-mono);
@@ -139,20 +245,17 @@ html[data-theme-variant='forge'] [data-sidebar] [data-sidebar-label] {
   letter-spacing: 0.14em;
 }
 
-html[data-theme-variant='forge'] [data-sidebar] [data-sidebar-label]:hover {
+html[data-theme-variant] [data-sidebar] [data-sidebar-label]:hover {
   color: var(--foreground);
 }
 
-html[data-theme-variant='forge'] [data-sidebar] [data-slot='separator'] {
+html[data-theme-variant] [data-sidebar] [data-slot='separator'] {
   display: none;
 }
 
 /* Main links: taller rows, larger type. */
-html[data-theme-variant='forge'] [data-sidebar-nav] > a,
-html[data-theme-variant='forge']
-  [data-sidebar]
-  [data-comparison-navigation]
-  > a {
+html[data-theme-variant] [data-sidebar-nav] > a,
+html[data-theme-variant] [data-sidebar] [data-comparison-navigation] > a {
   min-height: 34px;
   padding-inline: 10px;
   border-radius: 9px;
@@ -161,14 +264,14 @@ html[data-theme-variant='forge']
   font-weight: 500;
 }
 
-html[data-theme-variant='forge'] [data-sidebar-nav] > a > svg {
+html[data-theme-variant] [data-sidebar-nav] > a > svg {
   width: 16px;
   height: 16px;
   opacity: 0.8;
 }
 
 /* Counts read as data, not pills. */
-html[data-theme-variant='forge'][data-theme-variant]
+html[data-theme-variant][data-theme-variant]
   [data-sidebar]
   [data-sidebar-count] {
   min-width: 0;
@@ -180,7 +283,7 @@ html[data-theme-variant='forge'][data-theme-variant]
   font-weight: 500;
 }
 
-html[data-theme-variant='forge'][data-theme-variant]
+html[data-theme-variant][data-theme-variant]
   [data-sidebar]
   a[aria-current='page']
   [data-sidebar-count] {
@@ -190,15 +293,12 @@ html[data-theme-variant='forge'][data-theme-variant]
 /* Compare: the parent row reads as the selected section (tint and edge
  * bar, like other active items); the open list below is a quieter
  * sub-item with no second bar. */
-html[data-theme-variant='forge'] [data-sidebar] [data-comparison-navigation] {
+html[data-theme-variant] [data-sidebar] [data-comparison-navigation] {
   position: relative;
   border-radius: 9px;
 }
 
-html[data-theme-variant='forge']
-  [data-sidebar]
-  [data-comparison-navigation]
-  + div {
+html[data-theme-variant] [data-sidebar] [data-comparison-navigation] + div {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -207,11 +307,7 @@ html[data-theme-variant='forge']
   margin-left: 26px;
 }
 
-html[data-theme-variant='forge']
-  [data-sidebar]
-  [data-comparison-navigation]
-  + div
-  > a {
+html[data-theme-variant] [data-sidebar] [data-comparison-navigation] + div > a {
   min-height: 28px;
   padding: 4px 10px;
   border-radius: 8px;
@@ -220,7 +316,7 @@ html[data-theme-variant='forge']
   font-weight: 500;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-sidebar]
   [data-comparison-navigation]
   + div
@@ -230,7 +326,7 @@ html[data-theme-variant='forge']
   font-weight: 600;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-sidebar]
   [data-comparison-navigation]
   + div
@@ -239,7 +335,7 @@ html[data-theme-variant='forge']
 }
 
 /* Smart collections: rows with a colored marker. */
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-sidebar]
   [data-slot='collapsible-content']
   > a:not([data-sidebar-pinned-item]) {
@@ -251,7 +347,7 @@ html[data-theme-variant='forge']
   font-size: 13px;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-sidebar]
   [data-slot='collapsible-content']
   > a:not([data-sidebar-pinned-item])
@@ -262,18 +358,18 @@ html[data-theme-variant='forge']
   height: 7px;
   margin-right: 10px;
   border-radius: 2px;
-  background: var(--forge-dot, var(--primary));
+  background: var(--forge-dot, var(--forge-accent));
   vertical-align: 1px;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-sidebar]
   [data-slot='collapsible-content']
   > a:nth-of-type(3n + 2) {
   --forge-dot: var(--foreground);
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-sidebar]
   [data-slot='collapsible-content']
   > a:nth-of-type(3n + 3) {
@@ -285,16 +381,14 @@ html[data-theme-variant='forge']
   display: none;
 }
 
-html[data-theme-variant='forge']
-  [data-workspace-body]
-  [data-sidebar-pinned-item] {
+html[data-theme-variant] [data-workspace-body] [data-sidebar-pinned-item] {
   gap: 10px;
   min-height: 42px;
   padding: 5px 8px;
   border-radius: 9px;
 }
 
-html[data-theme-variant='forge'] [data-sidebar-pinned-thumb] {
+html[data-theme-variant] [data-sidebar-pinned-thumb] {
   position: relative;
   display: block;
   flex: none;
@@ -311,14 +405,12 @@ html[data-theme-variant='forge'] [data-sidebar-pinned-thumb] {
   );
 }
 
-html[data-theme-variant='forge'] [data-sidebar-pinned-thumb] img {
+html[data-theme-variant] [data-sidebar-pinned-thumb] img {
   padding: 3px;
   mix-blend-mode: multiply;
 }
 
-html[data-theme-variant='forge']
-  [data-workspace-body]
-  [data-sidebar-pinned-details] {
+html[data-theme-variant] [data-workspace-body] [data-sidebar-pinned-details] {
   display: block;
   margin-top: 1px;
   color: var(--muted-foreground);
@@ -329,7 +421,7 @@ html[data-theme-variant='forge']
   white-space: nowrap;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-workspace-body]
   [data-sidebar-pinned-item]
   > span
@@ -339,7 +431,7 @@ html[data-theme-variant='forge']
   font-weight: 550;
 }
 
-html[data-theme-variant='forge'] [data-workspace-footer] {
+html[data-theme-variant] [data-workspace-footer] {
   background: var(--sidebar);
   font-family: var(--forge-mono);
   font-size: 11px;
@@ -349,44 +441,38 @@ html[data-theme-variant='forge'] [data-workspace-footer] {
 /* Collection layout                                                   */
 /* ------------------------------------------------------------------ */
 @media (min-width: 821px) {
-  html[data-theme-variant='forge'] [data-modern-collection] {
+  html[data-theme-variant] [data-modern-collection] {
     grid-template-rows: auto auto minmax(0, 1fr);
   }
 
-  html[data-theme-variant='forge']
-    [data-modern-collection]
-    > [data-forge-summary] {
+  html[data-theme-variant] [data-modern-collection] > [data-forge-summary] {
     grid-column: 1;
     grid-row: 1;
   }
 
-  html[data-theme-variant='forge']
+  html[data-theme-variant]
     [data-modern-collection]
     > [data-modern-collection-toolbar] {
     grid-column: 1;
     grid-row: 2;
   }
 
-  html[data-theme-variant='forge']
-    [data-modern-collection]
-    [data-collection-main] {
+  html[data-theme-variant] [data-modern-collection] [data-collection-main] {
     grid-row: 3;
   }
 
-  html[data-theme-variant='forge']
-    [data-modern-collection]
-    [data-modern-inspector] {
+  html[data-theme-variant] [data-modern-collection] [data-modern-inspector] {
     grid-row: 1 / span 3;
     max-height: calc(100dvh - 92px);
   }
 }
 
 /* Stats strip. */
-html[data-theme-variant='forge'] [data-forge-summary] {
+html[data-theme-variant] [data-forge-summary] {
   padding: 22px var(--collection-gutter, 24px) 4px;
 }
 
-html[data-theme-variant='forge'] [data-forge-stats] {
+html[data-theme-variant] [data-forge-stats] {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1px;
@@ -398,13 +484,13 @@ html[data-theme-variant='forge'] [data-forge-stats] {
   box-shadow: var(--forge-shadow);
 }
 
-html[data-theme-variant='forge'] [data-forge-stats] > div {
+html[data-theme-variant] [data-forge-stats] > div {
   min-width: 0;
   padding: 14px 16px 15px;
   background: var(--card);
 }
 
-html[data-theme-variant='forge'] [data-forge-stats] dt {
+html[data-theme-variant] [data-forge-stats] dt {
   color: var(--muted-foreground);
   font-family: var(--forge-mono);
   font-size: 10px;
@@ -412,7 +498,7 @@ html[data-theme-variant='forge'] [data-forge-stats] dt {
   text-transform: uppercase;
 }
 
-html[data-theme-variant='forge'] [data-forge-stats] dd {
+html[data-theme-variant] [data-forge-stats] dd {
   margin: 6px 0 0;
   overflow: hidden;
   color: var(--foreground);
@@ -425,7 +511,7 @@ html[data-theme-variant='forge'] [data-forge-stats] dd {
   white-space: nowrap;
 }
 
-html[data-theme-variant='forge'] [data-forge-stats] dd span {
+html[data-theme-variant] [data-forge-stats] dd span {
   margin-left: 6px;
   color: var(--bladevault-title);
   font-size: 12px;
@@ -433,22 +519,20 @@ html[data-theme-variant='forge'] [data-forge-stats] dd span {
 }
 
 /* Toolbar: chips on the left, pill controls on the right. */
-html[data-theme-variant='forge'] [data-modern-collection-toolbar] {
+html[data-theme-variant] [data-modern-collection-toolbar] {
   gap: 10px;
   padding: 18px var(--collection-gutter) 14px;
   border-bottom: 0;
 }
 
-html[data-theme-variant='forge']
-  [data-modern-collection]
-  [data-collection-main] {
+html[data-theme-variant] [data-modern-collection] [data-collection-main] {
   padding-top: 2px;
 }
 
 /* ------------------------------------------------------------------ */
 /* Cards                                                                */
 /* ------------------------------------------------------------------ */
-html[data-theme-variant='forge'] [data-forge-grid] {
+html[data-theme-variant] [data-forge-grid] {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 236px), 1fr));
   gap: 16px;
@@ -456,7 +540,7 @@ html[data-theme-variant='forge'] [data-forge-grid] {
   padding-top: 4px;
 }
 
-html[data-theme-variant='forge'] [data-forge-card] {
+html[data-theme-variant] [data-forge-card] {
   position: relative;
   display: flex;
   min-width: 0;
@@ -472,18 +556,18 @@ html[data-theme-variant='forge'] [data-forge-card] {
     border-color 260ms;
 }
 
-html[data-theme-variant='forge'] [data-forge-card]:hover {
+html[data-theme-variant] [data-forge-card]:hover {
   border-color: var(--forge-ring);
   box-shadow: var(--forge-shadow-lift);
   transform: translateY(-3px);
 }
 
-html[data-theme-variant='forge'] [data-forge-card][data-active] {
+html[data-theme-variant] [data-forge-card][data-active] {
   border-color: var(--forge-ring);
   box-shadow: var(--forge-shadow-lift);
 }
 
-html[data-theme-variant='forge'] [data-forge-well] {
+html[data-theme-variant] [data-forge-well] {
   position: relative;
   display: grid;
   place-items: center;
@@ -498,32 +582,29 @@ html[data-theme-variant='forge'] [data-forge-well] {
   );
 }
 
-html[data-theme-variant='forge'] [data-forge-well] img {
+html[data-theme-variant] [data-forge-well] img {
   padding: 9% 8%;
   mix-blend-mode: multiply;
   transition: transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-html[data-theme-variant='forge'] [data-forge-card]:hover [data-forge-well] img {
+html[data-theme-variant] [data-forge-card]:hover [data-forge-well] img {
   transform: scale(1.045);
 }
 
-html[data-theme-variant='forge']
-  [data-forge-card][data-sold]
-  [data-forge-well]
-  img {
+html[data-theme-variant] [data-forge-card][data-sold] [data-forge-well] img {
   opacity: 0.55;
   filter: grayscale(0.55);
 }
 
-html[data-theme-variant='forge'] [data-forge-well-empty] {
+html[data-theme-variant] [data-forge-well-empty] {
   width: 28px;
   height: 28px;
   color: var(--muted-foreground);
   opacity: 0.5;
 }
 
-html[data-theme-variant='forge'] [data-forge-badges] {
+html[data-theme-variant] [data-forge-badges] {
   position: absolute;
   top: 10px;
   left: 10px;
@@ -533,33 +614,33 @@ html[data-theme-variant='forge'] [data-forge-badges] {
   gap: 6px;
 }
 
-html[data-theme-variant='forge'] [data-forge-badge] {
+html[data-theme-variant] [data-forge-badge] {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   height: 22px;
   padding: 0 7px;
-  border: 1px solid rgb(20 18 15 / 8%);
+  border: 1px solid var(--forge-chip-line);
   border-radius: 6px;
-  background: rgb(250 247 242 / 78%);
+  background: var(--forge-chip-bg);
   backdrop-filter: blur(6px);
-  color: #3c3a35;
+  color: var(--forge-chip-fg);
   font-family: var(--forge-mono);
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
 }
 
-html[data-theme-variant='forge'] [data-forge-badge] svg {
+html[data-theme-variant] [data-forge-badge] svg {
   width: 11px;
   height: 11px;
 }
 
-html[data-theme-variant='forge'] [data-forge-card-body] {
+html[data-theme-variant] [data-forge-card-body] {
   min-width: 0;
   padding: 14px 16px 8px;
 }
 
-html[data-theme-variant='forge'] [data-forge-maker] {
+html[data-theme-variant] [data-forge-maker] {
   display: flex;
   justify-content: space-between;
   gap: 10px;
@@ -571,22 +652,20 @@ html[data-theme-variant='forge'] [data-forge-maker] {
   text-transform: uppercase;
 }
 
-html[data-theme-variant='forge'] [data-forge-maker] span {
+html[data-theme-variant] [data-forge-maker] span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-html[data-theme-variant='forge']
-  [data-forge-maker]
-  span:last-child:not(:first-child) {
+html[data-theme-variant] [data-forge-maker] span:last-child:not(:first-child) {
   flex-shrink: 1;
   max-width: 55%;
   letter-spacing: 0.04em;
 }
 
-html[data-theme-variant='forge'] [data-forge-card] h2[title] {
+html[data-theme-variant] [data-forge-card] h2[title] {
   margin: 4px 0 12px;
   overflow: hidden;
   color: var(--foreground);
@@ -598,7 +677,7 @@ html[data-theme-variant='forge'] [data-forge-card] h2[title] {
   white-space: nowrap;
 }
 
-html[data-theme-variant='forge'] dl[data-forge-specs] {
+html[data-theme-variant] dl[data-forge-specs] {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.3fr);
   margin: 0;
@@ -607,17 +686,17 @@ html[data-theme-variant='forge'] dl[data-forge-specs] {
   border-radius: 10px;
 }
 
-html[data-theme-variant='forge'] [data-forge-specs] > div {
+html[data-theme-variant] [data-forge-specs] > div {
   min-width: 0;
   padding: 7px 8px;
   border-right: 1px solid var(--border);
 }
 
-html[data-theme-variant='forge'] [data-forge-specs] > div:last-child {
+html[data-theme-variant] [data-forge-specs] > div:last-child {
   border-right: 0;
 }
 
-html[data-theme-variant='forge'] [data-forge-specs] dt {
+html[data-theme-variant] [data-forge-specs] dt {
   color: var(--muted-foreground);
   font-family: var(--forge-mono);
   font-size: 9.5px;
@@ -625,7 +704,7 @@ html[data-theme-variant='forge'] [data-forge-specs] dt {
   text-transform: uppercase;
 }
 
-html[data-theme-variant='forge'] [data-forge-specs] dd {
+html[data-theme-variant] [data-forge-specs] dd {
   margin: 1px 0 0;
   overflow: hidden;
   color: var(--foreground);
@@ -636,7 +715,7 @@ html[data-theme-variant='forge'] [data-forge-specs] dd {
   white-space: nowrap;
 }
 
-html[data-theme-variant='forge'] [data-forge-card-foot] {
+html[data-theme-variant] [data-forge-card-foot] {
   display: flex;
   align-items: center;
   min-height: 46px;
@@ -646,7 +725,7 @@ html[data-theme-variant='forge'] [data-forge-card-foot] {
   font-size: 12px;
 }
 
-html[data-theme-variant='forge'] [data-forge-card-open] {
+html[data-theme-variant] [data-forge-card-open] {
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -656,13 +735,13 @@ html[data-theme-variant='forge'] [data-forge-card-open] {
   cursor: pointer;
 }
 
-html[data-theme-variant='forge'] [data-forge-card-open]:focus-visible {
+html[data-theme-variant] [data-forge-card-open]:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
-html[data-theme-variant='forge'] [data-forge-pin],
-html[data-theme-variant='forge'] [data-forge-compare] {
+html[data-theme-variant] [data-forge-pin],
+html[data-theme-variant] [data-forge-compare] {
   position: absolute;
   z-index: 3;
   display: inline-flex;
@@ -678,38 +757,38 @@ html[data-theme-variant='forge'] [data-forge-compare] {
     background-color 180ms;
 }
 
-html[data-theme-variant='forge'] [data-forge-pin] {
+html[data-theme-variant] [data-forge-pin] {
   top: 10px;
   right: 10px;
   width: 28px;
   height: 28px;
-  border-color: rgb(20 18 15 / 8%);
+  border-color: var(--forge-chip-line);
   border-radius: 999px;
-  background: rgb(250 247 242 / 78%);
+  background: var(--forge-chip-bg);
   backdrop-filter: blur(6px);
-  color: #3c3a35;
+  color: var(--forge-chip-fg);
   opacity: 0;
 }
 
-html[data-theme-variant='forge'] [data-forge-pin] svg {
+html[data-theme-variant] [data-forge-pin] svg {
   width: 13px;
   height: 13px;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-forge-card]:is(:hover, :focus-within)
   [data-forge-pin],
-html[data-theme-variant='forge'] [data-forge-pin][data-on] {
+html[data-theme-variant] [data-forge-pin][data-on] {
   opacity: 1;
 }
 
-html[data-theme-variant='forge'] [data-forge-pin][data-on] {
+html[data-theme-variant] [data-forge-pin][data-on] {
   border-color: transparent;
   background: var(--primary);
   color: var(--primary-foreground);
 }
 
-html[data-theme-variant='forge'] [data-forge-compare] {
+html[data-theme-variant] [data-forge-compare] {
   right: 14px;
   bottom: 12px;
   height: 26px;
@@ -720,32 +799,32 @@ html[data-theme-variant='forge'] [data-forge-compare] {
   font-weight: 500;
 }
 
-html[data-theme-variant='forge'] [data-forge-compare] svg {
+html[data-theme-variant] [data-forge-compare] svg {
   width: 13px;
   height: 13px;
 }
 
-html[data-theme-variant='forge'] [data-forge-compare]:hover,
-html[data-theme-variant='forge'] [data-forge-pin]:not([data-on]):hover {
-  border-color: var(--primary);
+html[data-theme-variant] [data-forge-compare]:hover,
+html[data-theme-variant] [data-forge-pin]:not([data-on]):hover {
+  border-color: var(--forge-accent);
   color: var(--bladevault-title);
 }
 
-html[data-theme-variant='forge'] [data-forge-compare][data-on] {
+html[data-theme-variant] [data-forge-compare][data-on] {
   border-color: transparent;
   background: var(--vv-soft);
   color: var(--bladevault-title);
 }
 
-html[data-theme-variant='forge'] [data-forge-pin]:focus-visible,
-html[data-theme-variant='forge'] [data-forge-compare]:focus-visible {
+html[data-theme-variant] [data-forge-pin]:focus-visible,
+html[data-theme-variant] [data-forge-compare]:focus-visible {
   opacity: 1;
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
-html[data-theme-variant='forge'] [data-forge-pin]:disabled,
-html[data-theme-variant='forge'] [data-forge-compare]:disabled {
+html[data-theme-variant] [data-forge-pin]:disabled,
+html[data-theme-variant] [data-forge-compare]:disabled {
   cursor: default;
   opacity: 0.6;
 }
@@ -753,13 +832,11 @@ html[data-theme-variant='forge'] [data-forge-compare]:disabled {
 /* ------------------------------------------------------------------ */
 /* Inspector                                                            */
 /* ------------------------------------------------------------------ */
-html[data-theme-variant='forge'] [data-modern-inspector] {
+html[data-theme-variant] [data-modern-inspector] {
   background: var(--card);
 }
 
-html[data-theme-variant='forge']
-  [data-modern-inspector]
-  [data-inspector-header] {
+html[data-theme-variant] [data-modern-inspector] [data-inspector-header] {
   min-height: 48px;
   padding-inline: 16px;
   color: var(--muted-foreground);
@@ -770,25 +847,25 @@ html[data-theme-variant='forge']
   text-transform: uppercase;
 }
 
-html[data-theme-variant='forge'] [data-inspector-image] {
+html[data-theme-variant] [data-inspector-image] {
   aspect-ratio: 1.35;
   margin: 0 16px;
   border: 1px solid var(--border);
   border-radius: 14px;
 }
 
-html[data-theme-variant='forge'] [data-inspector-body] {
+html[data-theme-variant] [data-inspector-body] {
   padding: 16px 16px 22px;
 }
 
-html[data-theme-variant='forge'] #collection-inspector-title {
+html[data-theme-variant] #collection-inspector-title {
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.025em;
   line-height: 1.15;
 }
 
-html[data-theme-variant='forge'] [data-inspector-identity] > p {
+html[data-theme-variant] [data-inspector-identity] > p {
   margin-top: 6px;
   color: var(--muted-foreground);
   font-family: var(--forge-mono);
@@ -796,49 +873,49 @@ html[data-theme-variant='forge'] [data-inspector-identity] > p {
   letter-spacing: 0.02em;
 }
 
-html[data-theme-variant='forge'] [data-inspector-actions] {
+html[data-theme-variant] [data-inspector-actions] {
   gap: 8px;
   margin-top: 16px;
 }
 
-html[data-theme-variant='forge'] [data-inspector-actions] > * {
+html[data-theme-variant] [data-inspector-actions] > * {
   height: 30px;
   border-radius: 999px;
   font-size: 12.5px;
   font-weight: 550;
 }
 
-html[data-theme-variant='forge'] [data-inspector-actions] > :first-child {
+html[data-theme-variant] [data-inspector-actions] > :first-child {
   grid-column: 1 / -1;
 }
 
-html[data-theme-variant='forge'] [data-inspector-tabs] {
+html[data-theme-variant] [data-inspector-tabs] {
   gap: 18px;
   margin-top: 18px;
 }
 
-html[data-theme-variant='forge'] [data-inspector-tabs] button {
+html[data-theme-variant] [data-inspector-tabs] button {
   padding: 9px 0;
   font-size: 13px;
   font-weight: 500;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-inspector-tabs]
   button[aria-selected='true']::after {
   background: var(--vv-grad);
 }
 
-html[data-theme-variant='forge'] [data-inspector-note] {
+html[data-theme-variant] [data-inspector-note] {
   font-size: 13px;
   line-height: 1.6;
 }
 
-html[data-theme-variant='forge'] [data-inspector-chips] {
+html[data-theme-variant] [data-inspector-chips] {
   gap: 6px;
 }
 
-html[data-theme-variant='forge'] [data-inspector-chips] span {
+html[data-theme-variant] [data-inspector-chips] span {
   padding: 4px 9px;
   background: var(--muted);
   color: var(--forge-ink-2);
@@ -846,20 +923,15 @@ html[data-theme-variant='forge'] [data-inspector-chips] span {
   font-size: 11px;
 }
 
-html[data-theme-variant='forge']
-  [data-modern-inspector]
-  [data-inspector-specs] {
+html[data-theme-variant] [data-modern-inspector] [data-inspector-specs] {
   gap: 0 14px;
 }
 
-html[data-theme-variant='forge']
-  [data-modern-inspector]
-  [data-inspector-specs]
-  > div {
+html[data-theme-variant] [data-modern-inspector] [data-inspector-specs] > div {
   padding: 9px 0;
 }
 
-html[data-theme-variant='forge'] [data-inspector-specs] dt {
+html[data-theme-variant] [data-inspector-specs] dt {
   color: var(--muted-foreground);
   font-family: var(--forge-mono);
   font-size: 9.5px;
@@ -867,13 +939,13 @@ html[data-theme-variant='forge'] [data-inspector-specs] dt {
   text-transform: uppercase;
 }
 
-html[data-theme-variant='forge'] [data-inspector-specs] dd {
+html[data-theme-variant] [data-inspector-specs] dd {
   margin-top: 3px;
   font-size: 13px;
   font-weight: 500;
 }
 
-html[data-theme-variant='forge'] [data-inspector-family] > span {
+html[data-theme-variant] [data-inspector-family] > span {
   color: var(--muted-foreground);
   font-family: var(--forge-mono);
   font-size: 10px;
@@ -884,7 +956,7 @@ html[data-theme-variant='forge'] [data-inspector-family] > span {
 /* ------------------------------------------------------------------ */
 /* Table view                                                           */
 /* ------------------------------------------------------------------ */
-html[data-theme-variant='forge'] [data-modern-collection-table] {
+html[data-theme-variant] [data-modern-collection-table] {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--forge-radius);
@@ -892,11 +964,11 @@ html[data-theme-variant='forge'] [data-modern-collection-table] {
   box-shadow: var(--forge-shadow);
 }
 
-html[data-theme-variant='forge'] [data-modern-collection-table] thead tr {
+html[data-theme-variant] [data-modern-collection-table] thead tr {
   background: color-mix(in srgb, var(--muted) 70%, var(--card));
 }
 
-html[data-theme-variant='forge'] [data-modern-collection-table] th {
+html[data-theme-variant] [data-modern-collection-table] th {
   color: var(--muted-foreground);
   font-family: var(--forge-mono);
   font-size: 10px;
@@ -905,17 +977,15 @@ html[data-theme-variant='forge'] [data-modern-collection-table] th {
   text-transform: uppercase;
 }
 
-html[data-theme-variant='forge'] [data-modern-collection-table] tbody tr {
+html[data-theme-variant] [data-modern-collection-table] tbody tr {
   min-height: 52px;
 }
 
-html[data-theme-variant='forge'] [data-modern-collection-table] tbody tr:hover {
+html[data-theme-variant] [data-modern-collection-table] tbody tr:hover {
   background: color-mix(in srgb, var(--foreground) 3%, transparent);
 }
 
-html[data-theme-variant='forge']
-  [data-modern-collection-table]
-  [data-photo-stage] {
+html[data-theme-variant] [data-modern-collection-table] [data-photo-stage] {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: radial-gradient(
@@ -926,10 +996,7 @@ html[data-theme-variant='forge']
   );
 }
 
-html[data-theme-variant='forge']
-  [data-modern-collection-table]
-  [data-photo-stage]
-  img {
+html[data-theme-variant] [data-modern-collection-table] [data-photo-stage] img {
   mix-blend-mode: multiply;
 }
 
@@ -937,45 +1004,38 @@ html[data-theme-variant='forge']
 /* Narrow screens                                                       */
 /* ------------------------------------------------------------------ */
 @media (max-width: 900px) {
-  html[data-theme-variant='forge'] [data-forge-stats] {
+  html[data-theme-variant] [data-forge-stats] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 820px) {
-  html[data-theme-variant='forge'] [data-forge-summary] {
+  html[data-theme-variant] [data-forge-summary] {
     padding: 16px 14px 0;
   }
 
-  html[data-theme-variant='forge'] [data-modern-collection-toolbar] {
+  html[data-theme-variant] [data-modern-collection-toolbar] {
     padding: 14px;
   }
 }
 
 @media (max-width: 560px) {
-  html[data-theme-variant='forge']
-    [data-forge-stats]
-    > div:first-child
-    dd
-    span {
+  html[data-theme-variant] [data-forge-stats] > div:first-child dd span {
     display: block;
     margin: 4px 0 0;
     font-size: 11px;
   }
 
-  html[data-theme-variant='forge'] [data-forge-grid] {
+  html[data-theme-variant] [data-forge-grid] {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html[data-theme-variant='forge'] [data-forge-card],
-  html[data-theme-variant='forge'] [data-forge-card]:hover,
-  html[data-theme-variant='forge'] [data-forge-well] img,
-  html[data-theme-variant='forge']
-    [data-forge-card]:hover
-    [data-forge-well]
-    img {
+  html[data-theme-variant] [data-forge-card],
+  html[data-theme-variant] [data-forge-card]:hover,
+  html[data-theme-variant] [data-forge-well] img,
+  html[data-theme-variant] [data-forge-card]:hover [data-forge-well] img {
     transform: none;
     transition: none;
   }
@@ -986,23 +1046,23 @@ html[data-theme-variant='forge']
 /* Module class names differ between dev and production builds, so     */
 /* these match on the stable part of each name.                         */
 /* ------------------------------------------------------------------ */
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-modern-insights]
   :is([class*='metrics'], [class*='_panel_'], [class*='__panel ']),
-html[data-theme-variant='forge'] [data-modern-insights] [class$='__panel'] {
+html[data-theme-variant] [data-modern-insights] [class$='__panel'] {
   border-color: var(--border);
   border-radius: var(--forge-radius);
   box-shadow: var(--forge-shadow);
 }
 
-html[data-theme-variant='forge'] [data-modern-insights] [class*='metricLabel'] {
+html[data-theme-variant] [data-modern-insights] [class*='metricLabel'] {
   font-family: var(--forge-mono);
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-modern-insights]
   :is([class*='metricValue'], [class*='chartValue']) {
   font-family: var(--forge-mono);
@@ -1010,19 +1070,13 @@ html[data-theme-variant='forge']
   letter-spacing: -0.04em;
 }
 
-html[data-theme-variant='forge']
-  [data-modern-insights]
-  [class*='metricValue']
-  > span {
+html[data-theme-variant] [data-modern-insights] [class*='metricValue'] > span {
   color: var(--bladevault-title);
   font-size: 13px;
   letter-spacing: 0;
 }
 
-html[data-theme-variant='forge']
-  [data-modern-insights]
-  [class*='panelHeader']
-  h2 {
+html[data-theme-variant] [data-modern-insights] [class*='panelHeader'] h2 {
   font-size: 16px;
   letter-spacing: -0.015em;
 }
@@ -1032,9 +1086,7 @@ html[data-theme-variant='forge']
 /* ------------------------------------------------------------------ */
 
 /* Photo stages (gallery, thumbnails, shared cards) use the lit plate. */
-html[data-theme-variant='forge']
-  :not([data-gallery-viewport])
-  > [data-photo-stage] {
+html[data-theme-variant] :not([data-gallery-viewport]) > [data-photo-stage] {
   background: radial-gradient(
     120% 90% at 50% 0%,
     var(--vv-well-hi),
@@ -1043,45 +1095,41 @@ html[data-theme-variant='forge']
   );
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   :not([data-gallery-viewport])
   > [data-photo-stage]
   img {
   mix-blend-mode: multiply;
 }
 
-html[data-theme-variant='forge'] [data-gallery-stage] {
+html[data-theme-variant] [data-gallery-stage] {
   border-radius: var(--forge-radius);
 }
 
 /* Remaining white utility surfaces in light mode take the ivory card tone. */
-html[data-theme-variant='forge']:not(.dark) .bg-white:not([data-photo-stage]) {
+html[data-theme-variant]:not(.dark) .bg-white:not([data-photo-stage]) {
   background-color: var(--card);
 }
 
 /* Compare table: hovering a feature row tints the whole line, including
  * the sticky label cell, so values can be read across. */
-html[data-theme-variant='forge']
-  [data-compare-content]
-  tbody
-  tr:hover
-  > :is(td, th) {
-  background-color: color-mix(in srgb, var(--primary) 9%, var(--card));
+html[data-theme-variant] [data-compare-content] tbody tr:hover > :is(td, th) {
+  background-color: color-mix(in srgb, var(--forge-accent) 9%, var(--card));
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-compare-content]
   tbody
   tr:hover
   > :is(td, th):first-child {
-  box-shadow: inset 3px 0 0 var(--primary);
+  box-shadow: inset 3px 0 0 var(--forge-accent);
   color: var(--bladevault-title);
 }
 
 /* Insights, in the proposal's chart language: orange caps labels, mono
  * numbers and axes, neutral bars with one gradient highlight. */
-html[data-theme-variant='forge'] [data-modern-insights] [data-insight-eyebrow],
-html[data-theme-variant='forge'] [data-modern-insights] [class*='eyebrow'] {
+html[data-theme-variant] [data-modern-insights] [data-insight-eyebrow],
+html[data-theme-variant] [data-modern-insights] [class*='eyebrow'] {
   display: block;
   margin-bottom: 6px;
   color: var(--bladevault-title);
@@ -1092,14 +1140,11 @@ html[data-theme-variant='forge'] [data-modern-insights] [class*='eyebrow'] {
   text-transform: uppercase;
 }
 
-html[data-theme-variant='forge']
-  [data-modern-insights]
-  [class*='panelHeader']
-  p {
+html[data-theme-variant] [data-modern-insights] [class*='panelHeader'] p {
   font-size: 12.5px;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-modern-insights]
   :is(
     [class*='barCount'],
@@ -1112,39 +1157,37 @@ html[data-theme-variant='forge']
   font-variant-numeric: tabular-nums;
 }
 
-html[data-theme-variant='forge'] [data-modern-insights] [class*='barCount'] {
+html[data-theme-variant] [data-modern-insights] [class*='barCount'] {
   color: var(--muted-foreground);
   font-size: 11px;
 }
 
-html[data-theme-variant='forge'] [data-modern-insights] [class*='barLabel'] {
+html[data-theme-variant] [data-modern-insights] [class*='barLabel'] {
   font-size: 10.5px;
 }
 
-html[data-theme-variant='forge'] [data-modern-insights] [class*='barColumn'] {
+html[data-theme-variant] [data-modern-insights] [class*='barColumn'] {
   border-radius: 6px 6px 3px 3px;
   background: color-mix(in srgb, var(--foreground) 7%, var(--card));
 }
 
-html[data-theme-variant='forge']
-  [data-modern-insights]
-  [class*='barHighlighted'],
-html[data-theme-variant='forge']
+html[data-theme-variant] [data-modern-insights] [class*='barHighlighted'],
+html[data-theme-variant]
   [data-modern-insights]
   [class*='barButton'][aria-pressed='true']
   [class*='barColumn'] {
   background: var(--vv-grad);
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-modern-insights]
   [class*='barButton']:hover
   [class*='barColumn']:not([class*='barHighlighted']) {
-  background: color-mix(in srgb, var(--primary) 30%, var(--card));
+  background: color-mix(in srgb, var(--forge-accent) 30%, var(--card));
 }
 
 /* Numbers and values in lists and legends. */
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-modern-insights]
   :is(
     [class*='makerMeta'] > span:last-child,
@@ -1158,20 +1201,17 @@ html[data-theme-variant='forge']
   font-variant-numeric: tabular-nums;
 }
 
-html[data-theme-variant='forge']
-  [data-modern-insights]
-  [class*='steelLead']
-  strong {
+html[data-theme-variant] [data-modern-insights] [class*='steelLead'] strong {
   font-weight: 500;
   letter-spacing: -0.03em;
 }
 
-html[data-theme-variant='forge'] [data-modern-insights] [class*='makerTrack'] {
+html[data-theme-variant] [data-modern-insights] [class*='makerTrack'] {
   height: 6px;
   border-radius: 99px;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-modern-insights]
   [class*='makerRow']:first-child
   [class*='makerTrack']
@@ -1180,29 +1220,23 @@ html[data-theme-variant='forge']
   opacity: 1;
 }
 
-html[data-theme-variant='forge']
-  [data-modern-insights]
-  [class*='makerTrack']
-  > span {
+html[data-theme-variant] [data-modern-insights] [class*='makerTrack'] > span {
   border-radius: 99px;
 }
 
 /* Segmented range picker (Blade / Overall / Weight / Thickness) as pills. */
-html[data-theme-variant='forge'] [data-modern-insights] [class*='range'] {
+html[data-theme-variant] [data-modern-insights] [class*='range'] {
   border-radius: 999px;
 }
 
-html[data-theme-variant='forge']
-  [data-modern-insights]
-  [class*='range']
-  button {
+html[data-theme-variant] [data-modern-insights] [class*='range'] button {
   border-radius: 999px;
   font-size: 12px;
   font-weight: 500;
 }
 
 /* Page titles across Forge pages: larger, ink rather than accent. */
-html[data-theme-variant='forge'] [data-page-header] .page-title {
+html[data-theme-variant] [data-page-header] .page-title {
   color: var(--foreground);
   font-size: clamp(24px, 2.3vw, 30px);
   font-weight: 600;
@@ -1210,7 +1244,7 @@ html[data-theme-variant='forge'] [data-page-header] .page-title {
 }
 
 /* Knife detail: info panel in the card language. */
-html[data-theme-variant='forge'] [data-slot='card']:has([data-detail-section]) {
+html[data-theme-variant] [data-slot='card']:has([data-detail-section]) {
   border-color: var(--border);
   border-radius: var(--forge-radius);
   background: var(--card);
@@ -1218,8 +1252,8 @@ html[data-theme-variant='forge'] [data-slot='card']:has([data-detail-section]) {
 }
 
 /* Section headings and the Source label: small orange caps. */
-html[data-theme-variant='forge'] [data-detail-section] > h3,
-html[data-theme-variant='forge']
+html[data-theme-variant] [data-detail-section] > h3,
+html[data-theme-variant]
   [data-slot='card']:has([data-detail-section])
   > [data-slot='card-content']
   > div:first-child:not([data-detail-section])
@@ -1233,7 +1267,7 @@ html[data-theme-variant='forge']
   text-transform: uppercase;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-slot='card']:has([data-detail-section])
   > [data-slot='card-content']
   > div:first-child:not([data-detail-section])
@@ -1241,23 +1275,23 @@ html[data-theme-variant='forge']
   margin-bottom: 4px;
 }
 
-html[data-theme-variant='forge'] [data-detail-section] > h3 > svg {
+html[data-theme-variant] [data-detail-section] > h3 > svg {
   width: 13px;
   height: 13px;
   color: var(--bladevault-title);
 }
 
 /* Fields: mono caps labels, larger values, hairline rows. */
-html[data-theme-variant='forge'] [data-detail-section] dl {
+html[data-theme-variant] [data-detail-section] dl {
   row-gap: 0;
 }
 
-html[data-theme-variant='forge'] [data-detail-section] dl > div {
+html[data-theme-variant] [data-detail-section] dl > div {
   padding: 9px 0 10px;
   border-top: 1px solid var(--border);
 }
 
-html[data-theme-variant='forge'] [data-detail-section] dt {
+html[data-theme-variant] [data-detail-section] dt {
   margin-bottom: 3px;
   color: var(--muted-foreground);
   font-family: var(--forge-mono);
@@ -1266,22 +1300,22 @@ html[data-theme-variant='forge'] [data-detail-section] dt {
   text-transform: uppercase;
 }
 
-html[data-theme-variant='forge'] [data-detail-section] dd {
+html[data-theme-variant] [data-detail-section] dd {
   font-size: 14px;
   font-weight: 500;
 }
 
-html[data-theme-variant='forge'] [data-detail-section] {
+html[data-theme-variant] [data-detail-section] {
   border-top-color: var(--border);
 }
 
 /* Gallery thumbnails: softer corners to match the cards. */
-html[data-theme-variant='forge'] [data-gallery-strip] > [data-photo-stage] {
+html[data-theme-variant] [data-gallery-strip] > [data-photo-stage] {
   border-radius: 10px;
 }
 
 /* Studio: floating pill toolbar, chip filters, card-language tiles. */
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-studio]
   [class*='toolbar']:not([class*='toolbarLeft'], [class*='toolbarRight']) {
   border-color: var(--border);
@@ -1290,13 +1324,13 @@ html[data-theme-variant='forge']
   box-shadow: var(--forge-shadow);
 }
 
-html[data-theme-variant='forge'] [data-studio] [class*='segmented'] {
+html[data-theme-variant] [data-studio] [class*='segmented'] {
   gap: 6px;
   padding: 0;
   background: transparent;
 }
 
-html[data-theme-variant='forge'] [data-studio] [class*='segmented'] button {
+html[data-theme-variant] [data-studio] [class*='segmented'] button {
   min-height: 28px;
   padding: 0 12px;
   border: 1px solid var(--forge-line-strong);
@@ -1306,7 +1340,7 @@ html[data-theme-variant='forge'] [data-studio] [class*='segmented'] button {
   font-weight: 500;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-studio]
   [class*='segmented']
   button[aria-pressed='true'] {
@@ -1316,18 +1350,18 @@ html[data-theme-variant='forge']
   color: var(--background);
 }
 
-html[data-theme-variant='forge'] [data-studio] [class*='search'] input,
-html[data-theme-variant='forge'] [data-studio] [class*='sort'] select {
+html[data-theme-variant] [data-studio] [class*='search'] input,
+html[data-theme-variant] [data-studio] [class*='sort'] select {
   border-radius: 999px;
   font-size: 12.5px;
 }
 
-html[data-theme-variant='forge'] [data-studio] [class*='count'] {
+html[data-theme-variant] [data-studio] [class*='count'] {
   font-family: var(--forge-mono);
   font-size: 11px;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-studio]
   [class*='tile']:not([class*='tileActions']) {
   border-color: var(--border);
@@ -1335,25 +1369,25 @@ html[data-theme-variant='forge']
   box-shadow: var(--forge-shadow);
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-studio]
   [class*='tile']:not([class*='tileActions']):hover {
   border-color: var(--forge-ring);
   box-shadow: var(--forge-shadow-lift);
 }
 
-html[data-theme-variant='forge'] [data-studio] [class*='caption'] {
+html[data-theme-variant] [data-studio] [class*='caption'] {
   border-color: var(--border);
   border-radius: 12px;
 }
 
-html[data-theme-variant='forge'] [data-studio] [class*='caption'] b {
+html[data-theme-variant] [data-studio] [class*='caption'] b {
   font-size: 13.5px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
-html[data-theme-variant='forge'] [data-studio] [class*='caption'] div > span {
+html[data-theme-variant] [data-studio] [class*='caption'] div > span {
   font-family: var(--forge-mono);
   font-size: 10px;
   letter-spacing: 0.06em;
@@ -1362,7 +1396,7 @@ html[data-theme-variant='forge'] [data-studio] [class*='caption'] div > span {
 
 /* Logs: a joined stats strip like Collection, chip filters, caps day
  * headings and mono times. */
-html[data-theme-variant='forge'] [data-modern-logs] [data-logs-summary] {
+html[data-theme-variant] [data-modern-logs] [data-logs-summary] {
   gap: 1px;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -1371,7 +1405,7 @@ html[data-theme-variant='forge'] [data-modern-logs] [data-logs-summary] {
   box-shadow: var(--forge-shadow);
 }
 
-html[data-theme-variant='forge'] [data-modern-logs] [data-logs-summary] > div {
+html[data-theme-variant] [data-modern-logs] [data-logs-summary] > div {
   flex-direction: column;
   padding: 14px 16px 15px;
   border: 0;
@@ -1379,7 +1413,7 @@ html[data-theme-variant='forge'] [data-modern-logs] [data-logs-summary] > div {
   box-shadow: none;
 }
 
-html[data-theme-variant='forge'] [data-modern-logs] [data-logs-summary] dt {
+html[data-theme-variant] [data-modern-logs] [data-logs-summary] dt {
   order: -1;
   margin: 0 0 6px;
   font-family: var(--forge-mono);
@@ -1388,7 +1422,7 @@ html[data-theme-variant='forge'] [data-modern-logs] [data-logs-summary] dt {
   text-transform: uppercase;
 }
 
-html[data-theme-variant='forge'] [data-modern-logs] [data-logs-summary] dd {
+html[data-theme-variant] [data-modern-logs] [data-logs-summary] dd {
   font-family: var(--forge-mono);
   font-size: 24px;
   font-weight: 500;
@@ -1396,19 +1430,19 @@ html[data-theme-variant='forge'] [data-modern-logs] [data-logs-summary] dd {
   line-height: 1.1;
 }
 
-html[data-theme-variant='forge'] [data-modern-logs] [data-logs-card] {
+html[data-theme-variant] [data-modern-logs] [data-logs-card] {
   border-color: var(--border);
   border-radius: var(--forge-radius);
   box-shadow: var(--forge-shadow);
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-logs-filter-row]
   [aria-label='Filter log event type'] {
   gap: 6px;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-logs-filter-row]
   [aria-label='Filter log event type']
   > button {
@@ -1422,7 +1456,7 @@ html[data-theme-variant='forge']
   font-weight: 500;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-logs-filter-row]
   [aria-label='Filter log event type']
   > button[aria-pressed='true'] {
@@ -1431,7 +1465,7 @@ html[data-theme-variant='forge']
   color: var(--background);
 }
 
-html[data-theme-variant='forge'] [data-log-day] th {
+html[data-theme-variant] [data-log-day] th {
   color: var(--bladevault-title);
   font-family: var(--forge-mono);
   font-size: 10.5px;
@@ -1439,13 +1473,13 @@ html[data-theme-variant='forge'] [data-log-day] th {
   letter-spacing: 0.14em;
 }
 
-html[data-theme-variant='forge'] [data-log-time] {
+html[data-theme-variant] [data-log-time] {
   font-family: var(--forge-mono);
   font-size: 11.5px;
 }
 
-html[data-theme-variant='forge'] [data-log-entry]:hover {
-  background: color-mix(in srgb, var(--primary) 6%, transparent);
+html[data-theme-variant] [data-log-entry]:hover {
+  background: color-mix(in srgb, var(--forge-accent) 6%, transparent);
 }
 
 /* ================================================================== */
@@ -1454,10 +1488,10 @@ html[data-theme-variant='forge'] [data-log-entry]:hover {
 /* ember with a soft halo; the main action keeps a faint ember glow;    */
 /* selected items hold a lit ember line. Extra-small sizing.            */
 /* ================================================================== */
-html[data-theme-variant='forge'] {
+html[data-theme-variant] {
   --gl-line: color-mix(in srgb, var(--foreground) 12%, transparent);
-  --gl-lit: color-mix(in srgb, var(--primary) 70%, transparent);
-  --gl-sel: color-mix(in srgb, var(--primary) 65%, transparent);
+  --gl-lit: color-mix(in srgb, var(--forge-accent) 70%, transparent);
+  --gl-sel: color-mix(in srgb, var(--forge-accent) 65%, transparent);
   --gl-text: var(--bladevault-title);
   --gl-halo: 0 0 0 3px var(--vv-soft), 0 6px 16px -8px var(--forge-glow);
   --gl-hold: 0 0 14px -6px var(--forge-glow);
@@ -1466,10 +1500,8 @@ html[data-theme-variant='forge'] {
 }
 
 /* ---- Buttons (every Button and button-styled link) ---------------- */
-html[data-theme-variant='forge'] .group\/button:not(.underline-offset-4),
-html[data-theme-variant='forge']
-  [data-workspace-actions]
-  > [data-workspace-add] {
+html[data-theme-variant] .group\/button:not(.underline-offset-4),
+html[data-theme-variant] [data-workspace-actions] > [data-workspace-add] {
   gap: 5px;
   border: 1px solid var(--gl-line);
   border-radius: 999px;
@@ -1489,28 +1521,26 @@ html[data-theme-variant='forge']
 }
 
 /* Text buttons: extra small. Icon-only sizes become round 26px. */
-html[data-theme-variant='forge']
+html[data-theme-variant]
   .group\/button:not(.underline-offset-4, .size-6, .size-7, .size-8, .size-9),
-html[data-theme-variant='forge']
-  [data-workspace-actions]
-  > [data-workspace-add] {
+html[data-theme-variant] [data-workspace-actions] > [data-workspace-add] {
   height: 26px;
   min-height: 26px;
   padding-inline: 11px;
 }
 
-html[data-theme-variant='forge'] .group\/button:is(.size-7, .size-8, .size-9) {
+html[data-theme-variant] .group\/button:is(.size-7, .size-8, .size-9) {
   width: 26px;
   height: 26px;
 }
 
-html[data-theme-variant='forge'] .group\/button svg:not([class*='size-']) {
+html[data-theme-variant] .group\/button svg:not([class*='size-']) {
   width: 12px;
   height: 12px;
 }
 
 /* Quiet (ghost) buttons have no line until hovered. */
-html[data-theme-variant='forge']
+html[data-theme-variant]
   .group\/button:not(
     .underline-offset-4,
     .bg-primary,
@@ -1522,31 +1552,27 @@ html[data-theme-variant='forge']
 }
 
 /* Main action: ember text and line with a faint held glow. */
-html[data-theme-variant='forge'] .group\/button.bg-primary,
-html[data-theme-variant='forge']
-  [data-workspace-actions]
-  > [data-workspace-add] {
-  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+html[data-theme-variant] .group\/button.bg-primary,
+html[data-theme-variant] [data-workspace-actions] > [data-workspace-add] {
+  border-color: color-mix(in srgb, var(--forge-accent) 45%, transparent);
   background: transparent;
   box-shadow: var(--gl-hold);
   color: var(--gl-text);
 }
 
-html[data-theme-variant='forge'] .group\/button[class*='bg-destructive'] {
+html[data-theme-variant] .group\/button[class*='bg-destructive'] {
   border-color: color-mix(in srgb, var(--destructive) 35%, transparent);
   background: transparent;
   color: var(--destructive);
 }
 
 /* Hover: the line lights ember with a halo. */
-html[data-theme-variant='forge']
+html[data-theme-variant]
   .group\/button:not(.underline-offset-4, :disabled, [aria-disabled='true']):is(
     :hover,
     [aria-expanded='true']
   ),
-html[data-theme-variant='forge']
-  [data-workspace-actions]
-  > [data-workspace-add]:hover {
+html[data-theme-variant] [data-workspace-actions] > [data-workspace-add]:hover {
   border-color: var(--gl-lit);
   background: transparent;
   box-shadow: var(--gl-halo);
@@ -1554,15 +1580,13 @@ html[data-theme-variant='forge']
   filter: none;
 }
 
-html[data-theme-variant='forge'] .group\/button.bg-primary:not(:disabled):hover,
-html[data-theme-variant='forge']
-  [data-workspace-actions]
-  > [data-workspace-add]:hover {
-  border-color: var(--primary);
+html[data-theme-variant] .group\/button.bg-primary:not(:disabled):hover,
+html[data-theme-variant] [data-workspace-actions] > [data-workspace-add]:hover {
+  border-color: var(--forge-accent);
   color: var(--gl-text);
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   .group\/button[class*='bg-destructive']:not(:disabled):hover {
   border-color: var(--destructive);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--destructive) 10%, transparent);
@@ -1570,26 +1594,26 @@ html[data-theme-variant='forge']
 }
 
 /* Pressed and selected (aria-pressed) buttons hold a lit line. */
-html[data-theme-variant='forge'] .group\/button[aria-pressed='true'] {
+html[data-theme-variant] .group\/button[aria-pressed='true'] {
   border-color: var(--gl-sel);
   box-shadow: var(--gl-selected);
   color: var(--gl-text);
 }
 
-html[data-theme-variant='forge'] .group\/button:not(:disabled):active,
-html[data-theme-variant='forge']
+html[data-theme-variant] .group\/button:not(:disabled):active,
+html[data-theme-variant]
   [data-workspace-actions]
   > [data-workspace-add]:active {
   transform: scale(0.97);
 }
 
-html[data-theme-variant='forge'] .group\/button:disabled {
+html[data-theme-variant] .group\/button:disabled {
   box-shadow: none;
   opacity: 0.45;
 }
 
 /* Header icon links (backup, settings, theme). */
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-workspace-actions]
   > :is(a, button):not([data-workspace-add]) {
   border: 1px solid transparent;
@@ -1600,7 +1624,7 @@ html[data-theme-variant='forge']
     color 180ms;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-workspace-actions]
   > :is(a, button):not([data-workspace-add]):hover {
   border-color: var(--gl-lit);
@@ -1610,7 +1634,7 @@ html[data-theme-variant='forge']
 }
 
 /* ---- Segmented controls: one lit pill inside a faint track ---------- */
-html[data-theme-variant='forge']
+html[data-theme-variant]
   :is(
     [data-modern-collection-scopes],
     [data-modern-collection-tools] > [data-collection-view-toggle],
@@ -1630,7 +1654,7 @@ html[data-theme-variant='forge']
   box-shadow: none;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   :is(
     [data-modern-collection-scopes],
     [data-modern-collection-tools] > [data-collection-view-toggle],
@@ -1658,7 +1682,7 @@ html[data-theme-variant='forge']
     box-shadow 200ms;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-modern-collection-tools]
   > [data-collection-view-toggle]
   > button {
@@ -1666,7 +1690,7 @@ html[data-theme-variant='forge']
   padding: 0;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   :is(
     [data-modern-collection-scopes],
     [data-modern-collection-tools] > [data-collection-view-toggle],
@@ -1681,7 +1705,7 @@ html[data-theme-variant='forge']
   color: var(--foreground);
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   :is(
     [data-modern-collection-scopes],
     [data-modern-collection-tools] > [data-collection-view-toggle],
@@ -1703,7 +1727,7 @@ html[data-theme-variant='forge']
 }
 
 /* ---- Selects, inputs and other clickable bits ---------------------- */
-html[data-theme-variant='forge'] [data-modern-collection-tools] > select {
+html[data-theme-variant] [data-modern-collection-tools] > select {
   height: 26px;
   border-color: var(--gl-line);
   background-color: transparent;
@@ -1711,24 +1735,24 @@ html[data-theme-variant='forge'] [data-modern-collection-tools] > select {
   font-weight: 500;
 }
 
-html[data-theme-variant='forge'] select:hover,
-html[data-theme-variant='forge'] [data-slot='select-trigger']:hover {
+html[data-theme-variant] select:hover,
+html[data-theme-variant] [data-slot='select-trigger']:hover {
   border-color: var(--gl-lit);
   box-shadow: var(--gl-halo);
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   :is(
     input[data-slot='input'],
     textarea[data-slot='textarea'],
     [data-slot='select-trigger'],
     select
   ):focus-visible {
-  border-color: var(--primary);
+  border-color: var(--forge-accent);
   box-shadow: 0 0 0 3px var(--vv-soft);
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   :is(
     [role='menuitem'],
     [role='menuitemradio'],
@@ -1739,7 +1763,7 @@ html[data-theme-variant='forge']
 }
 
 /* ---- Card and inspector buttons ------------------------------------ */
-html[data-theme-variant='forge'] [data-forge-compare] {
+html[data-theme-variant] [data-forge-compare] {
   height: 24px;
   padding: 0 10px;
   border-color: var(--gl-line);
@@ -1748,7 +1772,7 @@ html[data-theme-variant='forge'] [data-forge-compare] {
   font-size: 11px;
 }
 
-html[data-theme-variant='forge'] [data-forge-pin] {
+html[data-theme-variant] [data-forge-pin] {
   width: 26px;
   height: 26px;
   border-color: var(--gl-line);
@@ -1757,22 +1781,21 @@ html[data-theme-variant='forge'] [data-forge-pin] {
   color: var(--forge-ink-2);
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   :is([data-forge-compare], [data-forge-pin]):not(:disabled):hover {
   border-color: var(--gl-lit);
   box-shadow: var(--gl-halo);
   color: var(--foreground);
 }
 
-html[data-theme-variant='forge']
-  :is([data-forge-compare], [data-forge-pin])[data-on] {
+html[data-theme-variant] :is([data-forge-compare], [data-forge-pin])[data-on] {
   border-color: var(--gl-sel);
   background: transparent;
   box-shadow: var(--gl-selected);
   color: var(--gl-text);
 }
 
-html[data-theme-variant='forge'] [data-inspector-actions] > * {
+html[data-theme-variant] [data-inspector-actions] > * {
   height: 26px;
   font-size: 11.5px;
 }
@@ -1782,17 +1805,17 @@ html[data-theme-variant='forge'] [data-inspector-actions] > * {
  * Collection row shows); hover is a lighter version of that line. Only
  * the item you are on is highlighted: when a comparison list is open,
  * the list row lights up and Compare keeps just its ember icon. */
-html[data-theme-variant='forge'] {
+html[data-theme-variant] {
   --sb-selected:
     inset 0 0 0 1px var(--gl-sel), 0 0 12px -4px var(--forge-glow),
     inset 0 0 10px -6px var(--forge-glow);
   --sb-hover:
-    inset 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--forge-accent) 45%, transparent),
     0 2px 8px -5px var(--forge-glow);
 }
 
-html[data-theme-variant='forge'] [data-sidebar] a,
-html[data-theme-variant='forge'] [data-sidebar] [data-comparison-navigation] {
+html[data-theme-variant] [data-sidebar] a,
+html[data-theme-variant] [data-sidebar] [data-comparison-navigation] {
   border-radius: 999px;
   transition:
     color 180ms,
@@ -1800,15 +1823,15 @@ html[data-theme-variant='forge'] [data-sidebar] [data-comparison-navigation] {
     background-color 180ms;
 }
 
-html[data-theme-variant='forge'] [data-sidebar] [data-comparison-navigation] {
+html[data-theme-variant] [data-sidebar] [data-comparison-navigation] {
   min-height: 34px;
 }
 
 /* Hover. */
-html[data-theme-variant='forge'][data-theme-variant]
+html[data-theme-variant][data-theme-variant]
   [data-sidebar]
   a:not([aria-current='page']):hover,
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-sidebar]
   [data-comparison-navigation]:not([data-selected]):hover {
   background: transparent;
@@ -1817,18 +1840,15 @@ html[data-theme-variant='forge']
 }
 
 /* The Compare link and + button sit inside a row that has its own state. */
-html[data-theme-variant='forge']
-  [data-sidebar]
-  [data-comparison-navigation]
-  > a:hover {
+html[data-theme-variant] [data-sidebar] [data-comparison-navigation] > a:hover {
   box-shadow: none;
 }
 
 /* Selected. */
-html[data-theme-variant='forge'][data-theme-variant]
+html[data-theme-variant][data-theme-variant]
   [data-sidebar]
   a[aria-current='page'],
-html[data-theme-variant='forge'][data-theme-variant]
+html[data-theme-variant][data-theme-variant]
   [data-sidebar]
   [data-comparison-navigation][data-selected]:not(
     :has(+ div > a[aria-current='page'])
@@ -1840,7 +1860,7 @@ html[data-theme-variant='forge'][data-theme-variant]
 }
 
 /* Compare row while one of its lists is open: no line, ember icon only. */
-html[data-theme-variant='forge'][data-theme-variant]
+html[data-theme-variant][data-theme-variant]
   [data-sidebar]
   [data-comparison-navigation][data-selected]:has(
     + div > a[aria-current='page']
@@ -1849,13 +1869,13 @@ html[data-theme-variant='forge'][data-theme-variant]
   box-shadow: none;
 }
 
-html[data-theme-variant='forge'][data-theme-variant]
+html[data-theme-variant][data-theme-variant]
   [data-sidebar]
   a[aria-current='page']::before {
   content: none;
 }
 
-html[data-theme-variant='forge'][data-theme-variant]
+html[data-theme-variant][data-theme-variant]
   [data-sidebar]
   :is(a[aria-current='page'], [data-comparison-navigation][data-selected] > a)
   svg {
@@ -1863,7 +1883,7 @@ html[data-theme-variant='forge'][data-theme-variant]
   opacity: 1;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-sidebar]
   [data-comparison-navigation][data-selected]
   > :is(a, button) {
@@ -1871,7 +1891,7 @@ html[data-theme-variant='forge']
 }
 
 /* Selected list rows read like other selected rows: ink text, ember count. */
-html[data-theme-variant='forge'][data-theme-variant]
+html[data-theme-variant][data-theme-variant]
   [data-sidebar]
   [data-comparison-navigation]
   + div
@@ -1881,13 +1901,13 @@ html[data-theme-variant='forge'][data-theme-variant]
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html[data-theme-variant='forge'] .group\/button:active {
+  html[data-theme-variant] .group\/button:active {
     transform: none;
   }
 }
 
 /* Collection toolbar buttons that aren't shared Buttons (e.g. Columns). */
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-modern-collection-tools]
   > button:not(.group\/button) {
   height: 26px;
@@ -1900,7 +1920,7 @@ html[data-theme-variant='forge']
   font-weight: 500;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-modern-collection-tools]
   > button:not(.group\/button):is(:hover, [aria-expanded='true']) {
   border-color: var(--gl-lit);
@@ -1909,7 +1929,7 @@ html[data-theme-variant='forge']
 }
 
 /* Single-line fields match the pills: 28px, rounded, faint line. */
-html[data-theme-variant='forge'] input[data-slot='input'] {
+html[data-theme-variant] input[data-slot='input'] {
   height: 28px;
   border-color: var(--gl-line);
   border-radius: 999px;
@@ -1917,26 +1937,26 @@ html[data-theme-variant='forge'] input[data-slot='input'] {
   font-size: 12px;
 }
 
-html[data-theme-variant='forge'] input[data-slot='input']:hover:not(:focus) {
-  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+html[data-theme-variant] input[data-slot='input']:hover:not(:focus) {
+  border-color: color-mix(in srgb, var(--forge-accent) 40%, transparent);
 }
 
 /* One row shape in the sidebar: square rows with sharp corners. The
  * tripled attribute outranks the older per-section radius rules. */
-html[data-theme-variant='forge'][data-theme-variant][data-theme-variant]
+html[data-theme-variant][data-theme-variant][data-theme-variant]
   [data-sidebar]
   :is(a, [data-comparison-navigation]) {
   border-radius: 0;
 }
 
 /* Pinned rows: square thumbnail aligned with the row edge. */
-html[data-theme-variant='forge'][data-theme-variant][data-theme-variant]
+html[data-theme-variant][data-theme-variant][data-theme-variant]
   [data-workspace-body]
   [data-sidebar-pinned-item] {
   padding: 5px 10px 5px 6px;
 }
 
-html[data-theme-variant='forge'] [data-sidebar-pinned-thumb] {
+html[data-theme-variant] [data-sidebar-pinned-thumb] {
   width: 40px;
   height: 30px;
   border: 0;
@@ -1946,7 +1966,7 @@ html[data-theme-variant='forge'] [data-sidebar-pinned-thumb] {
 /* Sliding highlight: one lit pill moves to the selected option instead of
  * each option lighting up on its own. components/segmented-highlight.tsx
  * sets --seg-x / --seg-w and data-seg-highlight. */
-html[data-theme-variant='forge']
+html[data-theme-variant]
   :is(
     [data-modern-collection-scopes],
     [data-modern-collection-tools] > [data-collection-view-toggle],
@@ -1959,7 +1979,7 @@ html[data-theme-variant='forge']
   isolation: isolate;
 }
 
-html[data-theme-variant='forge'] [data-seg-highlight]::before {
+html[data-theme-variant] [data-seg-highlight]::before {
   content: '';
   position: absolute;
   z-index: 0;
@@ -1973,23 +1993,23 @@ html[data-theme-variant='forge'] [data-seg-highlight]::before {
   pointer-events: none;
 }
 
-html[data-theme-variant='forge'] [data-seg-highlight='none']::before {
+html[data-theme-variant] [data-seg-highlight='none']::before {
   display: none;
 }
 
-html[data-theme-variant='forge'] [data-seg-highlight='ready']::before {
+html[data-theme-variant] [data-seg-highlight='ready']::before {
   transition:
     left 300ms cubic-bezier(0.3, 0.9, 0.3, 1),
     width 300ms cubic-bezier(0.3, 0.9, 0.3, 1);
 }
 
-html[data-theme-variant='forge'] [data-seg-highlight] > * {
+html[data-theme-variant] [data-seg-highlight] > * {
   position: relative;
   z-index: 1;
 }
 
 /* The moving pill draws the selection, so options stay clear. */
-html[data-theme-variant='forge'][data-theme-variant]
+html[data-theme-variant][data-theme-variant]
   [data-seg-highlight]:not([data-seg-highlight='none'])
   > :is(
     button[aria-pressed='true'],
@@ -2002,7 +2022,7 @@ html[data-theme-variant='forge'][data-theme-variant]
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html[data-theme-variant='forge'] [data-seg-highlight]::before {
+  html[data-theme-variant] [data-seg-highlight]::before {
     transition: none;
   }
 }
@@ -2010,13 +2030,13 @@ html[data-theme-variant='forge'][data-theme-variant]
 /* Light mode: pinned thumbnails sit straight on the sidebar colour. Dark
  * mode keeps the light plate, since blending a white-background photo
  * into a near-black sidebar would darken the whole knife. */
-html[data-theme-variant='forge']:not(.dark) [data-sidebar-pinned-thumb] {
+html[data-theme-variant]:not(.dark) [data-sidebar-pinned-thumb] {
   background: var(--sidebar);
 }
 
 /* Search results: thumbnails blend into the panel (or the highlighted
  * row) in light mode, with no outline. Dark mode keeps the light plate. */
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-global-knife-search]
   [role='listbox']
   [data-photo-stage] {
@@ -2024,7 +2044,7 @@ html[data-theme-variant='forge']
   border-radius: 0;
 }
 
-html[data-theme-variant='forge']:not(.dark)
+html[data-theme-variant]:not(.dark)
   [data-global-knife-search]
   [role='listbox']
   [data-photo-stage] {
@@ -2033,7 +2053,7 @@ html[data-theme-variant='forge']:not(.dark)
 
 /* Compare: list tabs and the editing chips use the glow-line pills. The
  * open list holds the lit line instead of a solid ink fill. */
-html[data-theme-variant='forge'] [data-compare-tabs] > :is(a, button) {
+html[data-theme-variant] [data-compare-tabs] > :is(a, button) {
   height: 26px;
   padding: 0 11px;
   border-color: var(--gl-line);
@@ -2047,7 +2067,7 @@ html[data-theme-variant='forge'] [data-compare-tabs] > :is(a, button) {
     box-shadow 200ms;
 }
 
-html[data-theme-variant='forge']
+html[data-theme-variant]
   [data-compare-tabs]
   > :is(a, button):not([aria-current='page']):hover {
   border-color: var(--gl-lit);
@@ -2055,14 +2075,14 @@ html[data-theme-variant='forge']
   color: var(--foreground);
 }
 
-html[data-theme-variant='forge'] [data-compare-tabs] > a[aria-current='page'] {
+html[data-theme-variant] [data-compare-tabs] > a[aria-current='page'] {
   border-color: var(--gl-sel);
   background: transparent;
   box-shadow: var(--gl-selected);
   color: var(--gl-text);
 }
 
-html[data-theme-variant='forge'] [data-compare-pill] {
+html[data-theme-variant] [data-compare-pill] {
   height: 26px;
   gap: 2px;
   padding: 0 1px 0 11px;
@@ -2074,21 +2094,19 @@ html[data-theme-variant='forge'] [data-compare-pill] {
   font-weight: 500;
 }
 
-html[data-theme-variant='forge'] [data-compare-pill] button {
+html[data-theme-variant] [data-compare-pill] button {
   border-radius: 999px;
   color: var(--muted-foreground);
 }
 
-html[data-theme-variant='forge'] [data-compare-pill]:has(button:hover) {
+html[data-theme-variant] [data-compare-pill]:has(button:hover) {
   border-color: color-mix(in srgb, var(--destructive) 45%, transparent);
 }
 
 /* Phones: the header Add button is icon-only, round like its neighbours,
  * and the search trigger matches. */
 @media (max-width: 767px) {
-  html[data-theme-variant='forge']
-    [data-workspace-actions]
-    > [data-workspace-add] {
+  html[data-theme-variant] [data-workspace-actions] > [data-workspace-add] {
     width: 34px;
     height: 34px;
     min-height: 34px;
@@ -2097,15 +2115,12 @@ html[data-theme-variant='forge'] [data-compare-pill]:has(button:hover) {
     font-size: 0;
   }
 
-  html[data-theme-variant='forge']
-    [data-workspace-actions]
-    > [data-workspace-add]
-    svg {
+  html[data-theme-variant] [data-workspace-actions] > [data-workspace-add] svg {
     width: 15px;
     height: 15px;
   }
 
-  html[data-theme-variant='forge'] [data-workspace-search] button {
+  html[data-theme-variant] [data-workspace-search] button {
     border-radius: 999px;
   }
 }

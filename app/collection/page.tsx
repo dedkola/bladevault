@@ -57,6 +57,7 @@ import { getKnifeFamilyKey, groupKnifeFamilies } from '@/lib/knife-families'
 import {
   type CollectionDisplay,
   type CustomFieldType,
+  getModernThemeVariant,
   isModernThemeFamily,
 } from '@/lib/settings-shared'
 import {
@@ -159,7 +160,8 @@ function CollectionContent() {
   } = useKnives()
   const isAlloy = themeStyle === 'alloy'
   const isWorkspaceCollection = isModernThemeFamily(themeStyle) || isAlloy
-  const isForge = themeStyle === 'forge'
+  // Forge, Titanium and Field share the Forge cards and summary.
+  const isForge = Boolean(getModernThemeVariant(themeStyle))
   const alloyView = useSyncExternalStore(
     subscribeAlloyView,
     readAlloyView,

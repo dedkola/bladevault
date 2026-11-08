@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 
-/** Segmented controls that get a sliding highlight in the Forge theme. */
+/** Segmented controls that get a sliding highlight in the Forge-language themes. */
 export const SEGMENTED_SELECTOR = [
   '[data-modern-collection-scopes]',
   '[data-modern-collection-tools] > [data-collection-view-toggle]',
@@ -19,7 +19,7 @@ const ACTIVE_SELECTOR =
  * Positions one shared highlight under the selected option of each
  * segmented control, so selection slides instead of jumping. It only writes
  * CSS variables and a data attribute; the look lives in the theme CSS.
- * Runs only while the Forge theme is active.
+ * Runs only while Forge, Titanium or Field is active.
  */
 export function SegmentedHighlight() {
   useEffect(() => {
@@ -36,7 +36,7 @@ export function SegmentedHighlight() {
 
     const update = () => {
       frame = 0
-      const enabled = root.dataset.themeVariant === 'forge'
+      const enabled = Boolean(root.dataset.themeVariant)
       const groups = enabled
         ? Array.from(document.querySelectorAll<HTMLElement>(SEGMENTED_SELECTOR))
         : []
