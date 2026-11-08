@@ -27,6 +27,27 @@ html[data-theme-style='alloy'] [data-alloy-card] {
   min-width: 0;
 }
 
+/* Compact: smaller pictures, more per row. Selectors outrank the width rules below. */
+html[data-theme-style='alloy']
+  [data-alloy-collection-grid][data-density='compact'] {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 140px), 1fr));
+  gap: 18px 12px;
+}
+
+html[data-theme-style='alloy']
+  [data-alloy-collection-grid][data-density='compact']
+  [data-alloy-card-stage] {
+  height: clamp(110px, 9vw, 150px);
+  border-radius: 10px;
+}
+
+html[data-theme-style='alloy']
+  [data-alloy-collection-grid][data-density='compact']
+  [data-alloy-card-caption]
+  h2 {
+  font-size: 13px;
+}
+
 html[data-theme-style='alloy'] [data-alloy-card-stage] {
   position: relative;
   isolation: isolate;
@@ -288,5 +309,13 @@ html[data-theme-style='alloy']:not(.dark)
 @media (prefers-reduced-motion: reduce) {
   html[data-theme-style='alloy'] [data-alloy-card-open] img {
     transition: none;
+  }
+}
+
+@media (max-width: 640px) {
+  html[data-theme-style='alloy']
+    [data-alloy-collection-grid][data-density='compact'] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px 8px;
   }
 }
