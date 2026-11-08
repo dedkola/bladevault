@@ -16,10 +16,10 @@ import {
   Pencil,
   Pin,
   Plus,
-  Scale,
   Search,
   X,
 } from 'lucide-react'
+import { CompareIcon } from '@/components/icons/compare-icon'
 import Image from '@/components/vault-image'
 import { useKnives } from '@/components/providers/knives-provider'
 import { PageHeader } from '@/components/page-header'
@@ -320,7 +320,7 @@ export function StudioView() {
                   title={comparisonsError || 'Choose a comparison'}
                   onClick={() => void compare(knife)}
                 >
-                  <Scale aria-hidden="true" />
+                  <CompareIcon aria-hidden="true" />
                 </button>
               </div>
               {knife.sold && <span className={styles.sold}>Sold</span>}
@@ -718,7 +718,7 @@ export function StudioView() {
                     title={comparisonsError || 'Update comparison membership'}
                     onClick={() => void compare(selectedKnife)}
                   >
-                    <Scale />
+                    <CompareIcon />
                     Compare
                   </Button>
                 </div>

@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
-import { Plus, Scale } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { CompareIcon } from '@/components/icons/compare-icon'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -52,7 +53,7 @@ export function ComparisonNavigation({
               : 'text-muted-foreground group-hover:text-foreground',
           )}
         >
-          <Scale className="size-4" />
+          <CompareIcon className="size-4" />
           <span className="flex-1">Compare</span>
         </Link>
         <Button
