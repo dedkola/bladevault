@@ -1939,6 +1939,7 @@ html[data-theme-variant='forge'][data-theme-variant][data-theme-variant]
 html[data-theme-variant='forge'] [data-sidebar-pinned-thumb] {
   width: 40px;
   height: 30px;
+  border: 0;
   border-radius: 0;
 }
 
