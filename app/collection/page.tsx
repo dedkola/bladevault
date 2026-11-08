@@ -1,5 +1,9 @@
 'use client'
 
+import {
+  ForgeCollectionGrid,
+  ForgeCollectionSummary,
+} from '@/components/forge-collection'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 
 import {
@@ -53,6 +57,7 @@ import { getKnifeFamilyKey, groupKnifeFamilies } from '@/lib/knife-families'
 import {
   type CollectionDisplay,
   type CustomFieldType,
+  isModernThemeFamily,
 } from '@/lib/settings-shared'
 import {
   getCollectionColumns,
@@ -152,7 +157,8 @@ function CollectionContent() {
     dimensionUnit,
   } = useKnives()
   const isAlloy = themeStyle === 'alloy'
-  const isWorkspaceCollection = themeStyle === 'modern' || isAlloy
+  const isWorkspaceCollection = isModernThemeFamily(themeStyle) || isAlloy
+  const isForge = themeStyle === 'forge'
   const alloyView = useSyncExternalStore(
     subscribeAlloyView,
     readAlloyView,
@@ -906,6 +912,13 @@ function CollectionContent() {
         />
       )}
 
+      {isForge && knives.length > 0 && (
+        <ForgeCollectionSummary
+          knives={knives}
+          visibleKnives={filteredKnives}
+        />
+      )}
+
       {isWorkspaceCollection && knives.length > 0 && (
         <div data-modern-collection-toolbar>
           <nav aria-label="Collection type" data-modern-collection-scopes>
@@ -1452,6 +1465,14 @@ function CollectionContent() {
                   />
                 ))}
               </div>
+            ) : isForge && !isFamilyView && !isSelectionMode ? (
+              <ForgeCollectionGrid
+                dimensionUnit={dimensionUnit}
+                knives={filteredKnives.slice(0, visibleCount)}
+                activeKnifeId={activeKnife?.id}
+                onOpen={inspectKnife}
+                onOpenDetail={(knife) => router.push(`/collection/${knife.id}`)}
+              />
             ) : isWorkspaceCollection && !isFamilyView && !isSelectionMode ? (
               <ModernCollectionGallery
                 dimensionUnit={dimensionUnit}

@@ -1,5 +1,18 @@
 export const APP_THEMES = ['light', 'dark'] as const
-export const THEME_STYLES = ['classic', 'modern', 'alloy'] as const
+export const THEME_STYLES = [
+  'classic',
+  'modern',
+  'alloy',
+  'forge',
+  'titanium',
+  'field',
+] as const
+/**
+ * Forge, Titanium and Field reuse the Modern workspace layout and only change
+ * its look. The DOM exposes them as `data-theme-style="modern"` plus a
+ * `data-theme-variant`, so every Modern layout rule keeps applying.
+ */
+export const MODERN_THEME_VARIANTS = ['forge', 'titanium', 'field'] as const
 export const START_PAGES = ['insights', 'studio', 'collection'] as const
 export type StartPage = (typeof START_PAGES)[number]
 
@@ -9,6 +22,8 @@ export type DimensionUnit = (typeof DIMENSION_UNITS)[number]
 
 export type AppTheme = (typeof APP_THEMES)[number]
 export type ThemeStyle = (typeof THEME_STYLES)[number]
+export type ModernThemeVariant = (typeof MODERN_THEME_VARIANTS)[number]
+export type ThemeFamily = 'classic' | 'modern' | 'alloy'
 export type TimeFormat = (typeof TIME_FORMATS)[number]
 
 export const CARD_FIELDS = [
@@ -230,6 +245,54 @@ export function normalizeThemeStyle(
   return typeof value === 'string' && THEME_STYLES.includes(value as ThemeStyle)
     ? (value as ThemeStyle)
     : fallback
+}
+
+export function getModernThemeVariant(
+  themeStyle: ThemeStyle,
+): ModernThemeVariant | undefined {
+  return MODERN_THEME_VARIANTS.includes(themeStyle as ModernThemeVariant)
+    ? (themeStyle as ModernThemeVariant)
+    : undefined
+}
+
+/** Layout family for a style: Forge, Titanium and Field use Modern's layout. */
+export function getThemeFamily(themeStyle: ThemeStyle): ThemeFamily {
+  return getModernThemeVariant(themeStyle)
+    ? 'modern'
+    : (themeStyle as ThemeFamily)
+}
+
+export function isModernThemeFamily(themeStyle: ThemeStyle): boolean {
+  return getThemeFamily(themeStyle) === 'modern'
+}
+
+/** Browser chrome color (meta theme-color) for each style and mode. */
+export const THEME_COLORS: Record<ThemeStyle, { light: string; dark: string }> =
+  {
+    classic: { light: '#fcfcfb', dark: '#18150f' },
+    modern: { light: '#f5f5f7', dark: '#0d0d0f' },
+    alloy: { light: '#101010', dark: '#080808' },
+    forge: { light: '#f3f2ef', dark: '#0a0a0b' },
+    titanium: { light: '#f4f3f6', dark: '#0c0b0f' },
+    field: { light: '#ecebe4', dark: '#0f100d' },
+  }
+
+/** Writes the theme style to the root element's data attributes. */
+export function applyThemeStyleToElement(
+  element: HTMLElement,
+  themeStyle: ThemeStyle,
+) {
+  element.dataset.themeStyle = getThemeFamily(themeStyle)
+  const variant = getModernThemeVariant(themeStyle)
+  if (variant) element.dataset.themeVariant = variant
+  else delete element.dataset.themeVariant
+}
+
+/** Reads the theme style back from the root element's data attributes. */
+export function readThemeStyleFromElement(element: HTMLElement): ThemeStyle {
+  return normalizeThemeStyle(
+    element.dataset.themeVariant ?? element.dataset.themeStyle,
+  )
 }
 
 export function normalizeTimeFormat(

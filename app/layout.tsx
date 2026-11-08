@@ -4,16 +4,23 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import './alloy.css'
 import './classic.css'
+import './modern-variants.css'
+import './forge.css'
 import { SmartCollectionsProvider } from '@/components/providers/smart-collections-provider'
 import { AppShell } from '@/components/app-shell'
 import { KnivesProvider } from '@/components/providers/knives-provider'
 import { DEFAULT_SETTINGS, getSettings } from '@/lib/settings'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Geist, Geist_Mono, Space_Grotesk } from 'next/font/google'
 import localFont from 'next/font/local'
 import { cn } from '@/lib/utils'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import { ThemeColorSync } from '@/components/theme-color-sync'
+import {
+  THEME_COLORS,
+  getModernThemeVariant,
+  getThemeFamily,
+} from '@/lib/settings-shared'
 import { cookies } from 'next/headers'
 import { isAppLockEnabled, isAppUnlocked } from '@/lib/app-lock'
 import { APP_LOCK_COOKIE } from '@/lib/app-lock-shared'
@@ -32,6 +39,13 @@ import { ERROR_REPORTING_ATTRIBUTE } from '@/lib/sentry/shared'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-sans' })
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono' })
+const fieldDisplay = Space_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-field-display',
+  weight: ['500', '600', '700'],
+  display: 'swap',
+  preload: false,
+})
 const alloyDisplay = localFont({
   src: '../public/fonts/barlow-condensed-semibold.ttf',
   variable: '--font-display',
@@ -50,18 +64,7 @@ export function generateViewport(): Viewport {
   const themeStyle = getInitialThemeStyle()
 
   return {
-    themeColor:
-      themeStyle === 'alloy'
-        ? theme === 'dark'
-          ? '#080808'
-          : '#101010'
-        : themeStyle === 'modern'
-          ? theme === 'dark'
-            ? '#0d0d0f'
-            : '#f5f5f7'
-          : theme === 'dark'
-            ? '#18150f'
-            : '#fcfcfb',
+    themeColor: THEME_COLORS[themeStyle][theme === 'dark' ? 'dark' : 'light'],
   }
 }
 
@@ -119,7 +122,8 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      data-theme-style={themeStyle}
+      data-theme-style={getThemeFamily(themeStyle)}
+      data-theme-variant={getModernThemeVariant(themeStyle)}
       {...(errorReporting
         ? { [ERROR_REPORTING_ATTRIBUTE]: JSON.stringify(errorReporting) }
         : {})}
@@ -127,6 +131,7 @@ export default async function RootLayout({
         geistSans.variable,
         geistMono.variable,
         alloyDisplay.variable,
+        fieldDisplay.variable,
         'h-full',
         theme === 'dark' && 'dark',
       )}

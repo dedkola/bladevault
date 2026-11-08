@@ -5,6 +5,11 @@ import {
   normalizeCollectionDisplay,
   normalizeCardFields,
   normalizeThemeStyle,
+  applyThemeStyleToElement,
+  getModernThemeVariant,
+  getThemeFamily,
+  isModernThemeFamily,
+  readThemeStyleFromElement,
   normalizeDimensionUnit,
 } from '@/lib/settings-shared'
 
@@ -39,6 +44,9 @@ describe('normalizeThemeStyle', () => {
     expect(normalizeThemeStyle('modern')).toBe('modern')
     expect(normalizeThemeStyle('classic')).toBe('classic')
     expect(normalizeThemeStyle('alloy')).toBe('alloy')
+    expect(normalizeThemeStyle('forge')).toBe('forge')
+    expect(normalizeThemeStyle('titanium')).toBe('titanium')
+    expect(normalizeThemeStyle('field')).toBe('field')
     expect(normalizeThemeStyle('unknown')).toBe('classic')
     expect(normalizeThemeStyle(null)).toBe('classic')
   })
@@ -46,6 +54,31 @@ describe('normalizeThemeStyle', () => {
   it('preserves Alloy when an unrelated or invalid preference is normalized', () => {
     expect(normalizeThemeStyle(undefined, 'alloy')).toBe('alloy')
     expect(normalizeThemeStyle('unknown', 'alloy')).toBe('alloy')
+  })
+})
+
+describe('theme families', () => {
+  it('maps Forge, Titanium and Field onto the Modern layout', () => {
+    expect(getThemeFamily('forge')).toBe('modern')
+    expect(getThemeFamily('field')).toBe('modern')
+    expect(getThemeFamily('alloy')).toBe('alloy')
+    expect(getModernThemeVariant('titanium')).toBe('titanium')
+    expect(getModernThemeVariant('modern')).toBeUndefined()
+    expect(isModernThemeFamily('forge')).toBe(true)
+    expect(isModernThemeFamily('classic')).toBe(false)
+  })
+
+  it('round-trips the style through root data attributes', () => {
+    const element = { dataset: {} as DOMStringMap } as HTMLElement
+    applyThemeStyleToElement(element, 'titanium')
+    expect(element.dataset).toEqual({
+      themeStyle: 'modern',
+      themeVariant: 'titanium',
+    })
+    expect(readThemeStyleFromElement(element)).toBe('titanium')
+    applyThemeStyleToElement(element, 'alloy')
+    expect(element.dataset).toEqual({ themeStyle: 'alloy' })
+    expect(readThemeStyleFromElement(element)).toBe('alloy')
   })
 })
 

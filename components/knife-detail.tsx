@@ -25,7 +25,7 @@ import { useKnives } from '@/components/providers/knives-provider'
 import { Knife, KnifeUpdates } from '@/lib/data'
 import { formatDimension, formatWeight } from '@/lib/measurements'
 import { knifeToFormData, KnifeScrapeEditor } from '@/components/knife-form'
-import { CustomField } from '@/lib/settings-shared'
+import { CustomField, isModernThemeFamily } from '@/lib/settings-shared'
 import { readJsonResponse } from '@/lib/api-response'
 import { getSafeExternalUrl } from '@/lib/external-url'
 import { PageHeader } from '@/components/page-header'
@@ -179,7 +179,7 @@ export default function KnifeDetail({
     dimensionUnit,
     themeStyle,
   } = useKnives()
-  const isClassic = themeStyle !== 'modern' && themeStyle !== 'alloy'
+  const isClassic = !isModernThemeFamily(themeStyle) && themeStyle !== 'alloy'
   const [detailKnife, setDetailKnife] = useState(initialKnife)
   const collectionKnife = knives.find((k) => k.id === initialKnife.id)
   const knife = collectionKnife

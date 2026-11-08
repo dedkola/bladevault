@@ -32,6 +32,7 @@ import {
   DEFAULT_SETTINGS,
   normalizeCardFields,
   normalizeThemeStyle,
+  applyThemeStyleToElement,
   normalizeTimeFormat,
   normalizeDimensionUnit,
   SETTINGS_UPDATED_EVENT,
@@ -193,7 +194,7 @@ export function KnivesProvider({
             data.settings?.theme === 'dark',
           )
           const nextThemeStyle = normalizeThemeStyle(data.settings?.themeStyle)
-          document.documentElement.dataset.themeStyle = nextThemeStyle
+          applyThemeStyleToElement(document.documentElement, nextThemeStyle)
           setThemeStyle(nextThemeStyle)
           const display = normalizeCollectionDisplay(
             data.settings?.collectionDisplay,
@@ -248,7 +249,7 @@ export function KnivesProvider({
 
       if (detail?.themeStyle) {
         const nextThemeStyle = normalizeThemeStyle(detail.themeStyle)
-        document.documentElement.dataset.themeStyle = nextThemeStyle
+        applyThemeStyleToElement(document.documentElement, nextThemeStyle)
         setThemeStyle(nextThemeStyle)
         didUpdate = true
       }

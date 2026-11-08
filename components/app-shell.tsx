@@ -21,8 +21,13 @@ import {
   OPEN_GLOBAL_SEARCH_EVENT,
 } from '@/components/global-knife-search'
 import { useKnives } from '@/components/providers/knives-provider'
+import { BrandMark } from '@/components/brand-mark'
 import { readJsonResponse } from '@/lib/api-response'
-import { SETTINGS_UPDATED_EVENT, type AppSettings } from '@/lib/settings-shared'
+import {
+  SETTINGS_UPDATED_EVENT,
+  type AppSettings,
+  isModernThemeFamily,
+} from '@/lib/settings-shared'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -32,7 +37,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (themeStyle === 'alloy') {
     return <AlloyShell>{children}</AlloyShell>
   }
-  if (themeStyle !== 'modern') {
+  if (!isModernThemeFamily(themeStyle)) {
     return (
       <>
         <SidebarShell />
@@ -87,6 +92,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Link href="/collection" data-workspace-brand aria-label="BladeVault">
           <span data-workspace-logo>
             <Image src="/logo.svg" alt="" width={26} height={26} unoptimized />
+            <BrandMark />
           </span>
           <b>BladeVault</b>
         </Link>

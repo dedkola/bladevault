@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="en" data-dir="forge" data-mode="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Modern Theme Proposal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ------------------------------------------------------------------
+   Tokens. Three directions x two modes. Everything below reads these.
+------------------------------------------------------------------- */
+:root {
+  --font-ui: 'Geist', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Geist', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 20px;
+}
+
+/* A · FORGE — graphite + ember */
+[data-dir='forge'][data-mode='dark'] {
+  --bg:#0A0A0B; --side:#0E0E10; --surface:#141416; --surface-2:#1B1B1E;
+  --well:#161619; --well-hi:#2C2C31; --line:rgba(255,255,255,.07); --line-strong:rgba(255,255,255,.14);
+  --ink:#F2F1EE; --ink-2:#C9C7C2; --muted:#85837E;
+  --accent:#FF6A2B; --accent-text:#FF8A50; --accent-ink:#180A03; --accent-soft:rgba(255,106,43,.13);
+  --btn:linear-gradient(135deg,#FFB067 0%,#FF6A2B 45%,#E2361C 100%);
+  --grad:linear-gradient(135deg,#FFB067,#FF6A2B 50%,#E2361C);
+  --c1:#FF6A2B; --c2:#F2F1EE; --c3:#9A968F; --c4:#55534E; --c5:#FFB067; --track:rgba(255,255,255,.06);
+  --glow:0 0 0 1px rgba(255,106,43,.35), 0 12px 40px -12px rgba(255,106,43,.35);
+  --shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 20px 40px -24px rgba(0,0,0,.8);
+}
+[data-dir='forge'][data-mode='light'] {
+  --bg:#F3F2EF; --side:#FBFAF8; --surface:#FFFFFF; --surface-2:#F7F6F3;
+  --well:#EEECE8; --well-hi:#FFFFFF; --line:rgba(20,18,15,.08); --line-strong:rgba(20,18,15,.16);
+  --ink:#17150F; --ink-2:#3C3A35; --muted:#7A766E;
+  --accent:#E5541B; --accent-text:#C9461A; --accent-ink:#FFFFFF; --accent-soft:rgba(229,84,27,.10);
+  --btn:linear-gradient(135deg,#FF8A3D 0%,#E5541B 55%,#C93A14 100%);
+  --grad:linear-gradient(135deg,#FF9A4D,#E5541B 50%,#C93A14);
+  --c1:#E5541B; --c2:#17150F; --c3:#8F8A80; --c4:#CFCAC0; --c5:#FFA060; --track:rgba(20,18,15,.06);
+  --glow:0 0 0 1px rgba(229,84,27,.35), 0 14px 36px -14px rgba(229,84,27,.35);
+  --shadow:0 1px 2px rgba(20,18,15,.04), 0 18px 36px -24px rgba(20,18,15,.25);
+}
+
+/* B · TITANIUM — anodized gradient, violet-black (not blue) */
+[data-dir='titanium'][data-mode='dark'] {
+  --bg:#0C0B0F; --side:#100F14; --surface:#15141A; --surface-2:#1D1B23;
+  --well:#18171D; --well-hi:#2E2B36; --line:rgba(255,255,255,.07); --line-strong:rgba(255,255,255,.14);
+  --ink:#F1EFF5; --ink-2:#CAC6D3; --muted:#8C8896;
+  --accent:#A48BFF; --accent-text:#B9A6FF; --accent-ink:#0C0B0F; --accent-soft:rgba(164,139,255,.13);
+  --btn:linear-gradient(120deg,#8B6CFF 0%,#3DD9C1 55%,#E9B867 100%);
+  --grad:linear-gradient(120deg,#8B6CFF,#3DD9C1 50%,#E9B867);
+  --c1:#A48BFF; --c2:#3DD9C1; --c3:#E9B867; --c4:#F1EFF5; --c5:#5E5A69; --track:rgba(255,255,255,.06);
+  --glow:0 0 0 1px rgba(164,139,255,.4), 0 14px 40px -14px rgba(61,217,193,.3);
+  --shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 20px 40px -24px rgba(0,0,0,.8);
+}
+[data-dir='titanium'][data-mode='light'] {
+  --bg:#F4F3F6; --side:#FBFAFC; --surface:#FFFFFF; --surface-2:#F7F6F9;
+  --well:#ECEAF0; --well-hi:#FFFFFF; --line:rgba(22,20,27,.08); --line-strong:rgba(22,20,27,.16);
+  --ink:#16141B; --ink-2:#3B3843; --muted:#77737F;
+  --accent:#6E4FF0; --accent-text:#5B3DE0; --accent-ink:#FFFFFF; --accent-soft:rgba(110,79,240,.09);
+  --btn:linear-gradient(120deg,#6E4FF0 0%,#1FB5A0 60%,#C9963E 100%);
+  --grad:linear-gradient(120deg,#6E4FF0,#1FB5A0 50%,#C9963E);
+  --c1:#6E4FF0; --c2:#1FB5A0; --c3:#C9963E; --c4:#16141B; --c5:#C9C4D4; --track:rgba(22,20,27,.06);
+  --glow:0 0 0 1px rgba(110,79,240,.3), 0 14px 36px -14px rgba(110,79,240,.3);
+  --shadow:0 1px 2px rgba(22,20,27,.04), 0 18px 36px -24px rgba(22,20,27,.25);
+}
+
+/* C · FIELD — tactical stone + acid lime */
+[data-dir='field'] { --font-display:'Space Grotesk', 'Geist', sans-serif; }
+[data-dir='field'][data-mode='dark'] {
+  --bg:#0F100D; --side:#121310; --surface:#171814; --surface-2:#1F201B;
+  --well:#1A1B17; --well-hi:#30322A; --line:rgba(255,255,255,.07); --line-strong:rgba(255,255,255,.14);
+  --ink:#EFEFE6; --ink-2:#C9CABF; --muted:#8E8F84;
+  --accent:#C8F031; --accent-text:#D4F55A; --accent-ink:#12140A; --accent-soft:rgba(200,240,49,.11);
+  --btn:#C8F031;
+  --grad:linear-gradient(135deg,#E4FF6B,#C8F031 50%,#8DBA14);
+  --c1:#C8F031; --c2:#EFEFE6; --c3:#8E8F84; --c4:#4F5147; --c5:#8DBA14; --track:rgba(255,255,255,.06);
+  --glow:0 0 0 1px rgba(200,240,49,.4), 0 14px 40px -16px rgba(200,240,49,.25);
+  --shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 20px 40px -24px rgba(0,0,0,.8);
+}
+[data-dir='field'][data-mode='light'] {
+  --bg:#ECEBE4; --side:#F5F4EE; --surface:#FAFAF6; --surface-2:#F2F1EA;
+  --well:#E4E3DA; --well-hi:#FAFAF6; --line:rgba(18,19,15,.09); --line-strong:rgba(18,19,15,.18);
+  --ink:#12130F; --ink-2:#34352E; --muted:#6E6F65;
+  --accent:#C8F031; --accent-text:#4E6B00; --accent-ink:#12140A; --accent-soft:rgba(140,190,20,.16);
+  --btn:#12130F;
+  --grad:linear-gradient(135deg,#C8F031,#8DBA14);
+  --c1:#12130F; --c2:#9BC41C; --c3:#6E6F65; --c4:#C9C8BC; --c5:#C8F031; --track:rgba(18,19,15,.07);
+  --glow:0 0 0 1px rgba(18,19,15,.5), 0 14px 36px -16px rgba(18,19,15,.3);
+  --shadow:0 1px 2px rgba(18,19,15,.05), 0 18px 36px -24px rgba(18,19,15,.25);
+}
+[data-dir='field'][data-mode='light'] .btn-primary { color:#C8F031; }
+
+/* ------------------------------------------------------------------ */
+* { box-sizing: border-box; }
+html, body { margin:0; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-ui);
+  font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased;
+  transition: background .25s, color .25s;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+.mono { font-family: var(--font-mono); font-feature-settings: 'tnum'; }
+.wrap { max-width: 1320px; margin: 0 auto; padding: 0 24px; }
+
+/* Proposal chrome */
+.topbar {
+  position: sticky; top: 0; z-index: 20; backdrop-filter: blur(14px);
+  background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--line);
+}
+.topbar .wrap { display:flex; align-items:center; gap:16px; height:60px; }
+.topbar h1 { font-size: 14px; font-weight: 600; margin:0; white-space:nowrap; }
+.topbar h1 span { color: var(--muted); font-weight: 500; }
+.spacer { flex:1; }
+.seg { display:flex; padding:3px; gap:2px; border-radius: 999px; background: var(--surface); border:1px solid var(--line); }
+.seg button { border:0; background:transparent; padding:6px 12px; border-radius:999px; font-size:12.5px; font-weight:500; color: var(--muted); white-space:nowrap; }
+.seg button[aria-pressed='true'] { background: var(--surface-2); color: var(--ink); box-shadow: 0 0 0 1px var(--line-strong); }
+.seg button:focus-visible, .btn:focus-visible, .nav a:focus-visible, .logo-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.hero { padding: 56px 0 28px; }
+.eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent-text); }
+.hero h2 { font-family: var(--font-display); font-size: clamp(30px, 4.4vw, 52px); line-height: 1.02; letter-spacing: -.03em; margin: 12px 0 14px; font-weight: 600; max-width: 900px; }
+.hero h2 em { font-style: normal; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero p { color: var(--ink-2); max-width: 720px; margin: 0; font-size: 15px; }
+.dir-cards { display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 28px; }
+.dir-card { text-align:left; background: var(--surface); border:1px solid var(--line); border-radius: var(--r-lg); padding: 16px; display:flex; gap:14px; align-items:flex-start; transition: border-color .2s, box-shadow .2s; }
+.dir-card[aria-pressed='true'] { border-color: transparent; box-shadow: var(--glow); }
+.dir-card .sw { width: 44px; height: 44px; border-radius: 12px; flex: none; }
+.dir-card b { display:block; font-size: 14px; margin-bottom: 3px; }
+.dir-card small { color: var(--muted); font-size: 12.5px; display:block; }
+.tag { display:inline-block; margin-left:6px; font-family: var(--font-mono); font-size: 10px; letter-spacing:.08em; text-transform:uppercase; padding: 2px 6px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-text); vertical-align: 2px; }
+
+section.block { padding: 40px 0 8px; }
+.block-head { display:flex; align-items:end; justify-content:space-between; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+.block-head h3 { font-family: var(--font-display); font-size: 22px; letter-spacing: -.02em; margin: 6px 0 0; font-weight: 600; }
+.block-head p { margin: 0; color: var(--muted); max-width: 520px; font-size: 13px; }
+
+/* ---------------- App frame ---------------- */
+.app {
+  display:grid; grid-template-columns: 248px 1fr; height: 820px;
+  border:1px solid var(--line-strong); border-radius: var(--r-xl); overflow:hidden;
+  background: var(--bg); box-shadow: 0 40px 80px -40px rgba(0,0,0,.5);
+}
+.side { background: var(--side); border-right:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+.side-top { padding: 16px 14px 10px; }
+.traffic { display:flex; gap:7px; margin-bottom: 18px; }
+.traffic i { width: 11px; height: 11px; border-radius: 50%; background: var(--line-strong); }
+.brand { display:flex; align-items:center; gap: 10px; padding: 0 4px; }
+.brand .mark { width: 34px; height: 34px; flex:none; }
+.brand .word { font-family: var(--font-display); font-weight: 650; font-size: 17px; letter-spacing: -.02em; }
+.brand .word span { color: var(--muted); font-weight: 500; }
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; height: 36px; padding: 0 14px; border-radius: 10px; border:1px solid var(--line-strong); background: var(--surface); font-size: 13px; font-weight: 550; }
+.btn-primary { background: var(--btn); color: var(--accent-ink); border: 0; box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 8px 20px -10px var(--accent); font-weight: 600; }
+.btn-primary:hover { filter: brightness(1.06); }
+.side .btn-primary { width: 100%; margin-top: 16px; }
+.kbd { font-family: var(--font-mono); font-size: 10.5px; padding: 1px 5px; border-radius: 5px; border:1px solid var(--line-strong); color: var(--muted); }
+.btn-primary .kbd { border-color: color-mix(in srgb, var(--accent-ink) 25%, transparent); color: inherit; opacity: .7; }
+
+.side-scroll { overflow:auto; padding: 4px 10px 12px; flex:1; scrollbar-width: none; }
+.grp { font-family: var(--font-mono); font-size: 10px; letter-spacing:.14em; text-transform: uppercase; color: var(--muted); padding: 16px 8px 6px; display:flex; justify-content:space-between; }
+.nav a { position:relative; display:flex; align-items:center; gap: 10px; height: 34px; padding: 0 10px; border-radius: 9px; color: var(--ink-2); text-decoration:none; font-size: 13.5px; font-weight: 500; }
+.nav a:hover { background: var(--surface); color: var(--ink); }
+.nav a svg { width: 17px; height: 17px; flex:none; opacity:.8; }
+.nav a .n { margin-left:auto; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.nav a.on { background: var(--accent-soft); color: var(--ink); }
+.nav a.on svg { color: var(--accent-text); opacity:1; }
+.nav a.on::before { content:''; position:absolute; left:-10px; top:8px; bottom:8px; width:3px; border-radius: 0 3px 3px 0; background: var(--grad); }
+.nav a.on .n { color: var(--accent-text); }
+.dot { width: 7px; height: 7px; border-radius: 2px; flex:none; }
+.pin { display:flex; align-items:center; gap: 10px; padding: 6px 8px; border-radius: 9px; }
+.pin:hover { background: var(--surface); }
+.pin .th { width: 34px; height: 26px; border-radius: 7px; background: var(--well); display:grid; place-items:center; overflow:hidden; flex:none; border:1px solid var(--line); }
+.pin .th svg { width: 30px; transform: rotate(-12deg); }
+.pin b { display:block; font-size: 12.5px; font-weight: 550; }
+.pin small { display:block; font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+.side-foot { border-top:1px solid var(--line); padding: 10px; display:flex; gap: 6px; align-items:center; }
+.avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--grad); display:grid; place-items:center; color: var(--accent-ink); font-weight: 700; font-size: 12px; flex:none; }
+.side-foot .who { flex:1; min-width:0; }
+.side-foot .who b { display:block; font-size: 12.5px; }
+.side-foot .who small { display:flex; align-items:center; gap:5px; font-size: 11px; color: var(--muted); }
+.side-foot .who small i { width:6px; height:6px; border-radius:50%; background: #3BD16F; box-shadow: 0 0 0 3px rgba(59,209,111,.15); }
+.icon-btn { width: 30px; height: 30px; border-radius: 8px; display:grid; place-items:center; border: 1px solid var(--line); background: transparent; color: var(--muted); }
+.icon-btn svg { width: 15px; height: 15px; }
+
+/* main */
+.main { overflow:auto; min-width:0; scrollbar-width: thin; }
+.main-head { position: sticky; top: 0; z-index: 2; display:flex; align-items:center; gap: 12px; padding: 14px 24px; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.crumbs { font-size: 13px; color: var(--muted); white-space:nowrap; }
+.crumbs b { color: var(--ink); font-weight: 600; }
+.search { flex: 1; max-width: 420px; margin: 0 auto; display:flex; align-items:center; gap: 10px; height: 36px; padding: 0 10px 0 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.search svg { width: 15px; height: 15px; }
+.search .kbd { margin-left: auto; }
+.main-body { padding: 24px; }
+.title-row { display:flex; align-items:end; justify-content:space-between; gap: 16px; flex-wrap: wrap; }
+.title-row h4 { font-family: var(--font-display); font-size: 32px; letter-spacing: -.03em; margin: 0; font-weight: 600; line-height: 1; }
+.title-row h4 sup { font-family: var(--font-mono); font-size: 13px; color: var(--accent-text); letter-spacing: 0; vertical-align: top; margin-left: 6px; font-weight: 500; }
+.stats { display:grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; margin: 20px 0; }
+.stat { background: var(--surface); padding: 14px 16px; position: relative; }
+.stat small { display:block; font-family: var(--font-mono); font-size: 10px; letter-spacing:.12em; text-transform: uppercase; color: var(--muted); }
+.stat b { display:block; font-family: var(--font-mono); font-size: 24px; font-weight: 500; letter-spacing: -.02em; margin-top: 6px; }
+.stat b span { font-size: 12px; color: var(--accent-text); margin-left: 6px; }
+.chips { display:flex; gap: 6px; flex-wrap: wrap; align-items:center; margin-bottom: 16px; }
+.chip { height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; font-size: 12.5px; color: var(--ink-2); display:inline-flex; align-items:center; gap: 6px; }
+.chip.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip .x { font-family: var(--font-mono); font-size: 11px; opacity: .6; }
+.chips .spacer { flex: 1; }
+
+.grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.card {
+  position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  overflow: hidden; box-shadow: var(--shadow); transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s, border-color .25s;
+}
+.card:hover { transform: translateY(-3px); border-color: transparent; box-shadow: var(--glow); }
+.well {
+  position: relative; height: 150px; display:grid; place-items:center;
+  background: radial-gradient(120% 90% at 50% 0%, var(--well-hi) 0%, var(--well) 60%);
+  border-bottom: 1px solid var(--line);
+}
+.well::after { /* faint brushed-steel lines */
+  content:''; position:absolute; inset:0; opacity:.5; pointer-events:none;
+  background: repeating-linear-gradient(90deg, transparent 0 3px, color-mix(in srgb, var(--ink) 2.5%, transparent) 3px 4px);
+}
+.well svg.knife { width: 82%; transform: rotate(-9deg); filter: drop-shadow(0 14px 12px rgba(0,0,0,.35)); transition: transform .4s cubic-bezier(.2,.8,.2,1); position: relative; z-index: 1; }
+.card:hover .well svg.knife { transform: rotate(-4deg) scale(1.04); }
+.badge { position:absolute; z-index: 2; font-family: var(--font-mono); font-size: 10.5px; padding: 3px 7px; border-radius: 6px; background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(6px); border: 1px solid var(--line); color: var(--ink-2); }
+.badge.tl { top: 10px; left: 10px; }
+.badge.tr { top: 10px; right: 10px; }
+.badge.listed { background: var(--accent-soft); color: var(--accent-text); border-color: transparent; }
+.card-body { padding: 14px 16px 12px; }
+.maker { display:flex; justify-content:space-between; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.card h5 { font-family: var(--font-display); font-size: 19px; font-weight: 600; letter-spacing: -.02em; margin: 4px 0 12px; }
+.specs { display:grid; grid-template-columns: repeat(3, 1fr); gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow:hidden; }
+.specs div { padding: 7px 9px; border-right: 1px solid var(--line); min-width: 0; }
+.specs div:last-child { border-right: 0; }
+.specs small { display:block; font-size: 9.5px; letter-spacing:.1em; text-transform:uppercase; color: var(--muted); font-family: var(--font-mono); }
+.specs b { display:block; font-size: 12px; font-weight: 550; font-family: var(--font-mono); white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
+.card-foot { display:flex; align-items:center; justify-content:space-between; padding: 0 16px 14px; font-size: 12px; color: var(--muted); }
+.card-foot .cmp { display:inline-flex; align-items:center; gap: 6px; padding: 5px 9px; border-radius: 7px; border: 1px solid var(--line); background: transparent; font-size: 12px; color: var(--ink-2); }
+.card-foot .cmp:hover { border-color: var(--accent); color: var(--accent-text); }
+.card-foot .cmp svg { width: 13px; height: 13px; }
+
+/* ---------------- Insights ---------------- */
+.ins { display:grid; grid-template-columns: 1.1fr 1.3fr 1fr; gap: 14px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 20px; box-shadow: var(--shadow); min-width: 0; }
+.panel .eyebrow { font-size: 10.5px; }
+.panel h6 { font-family: var(--font-display); font-size: 16px; font-weight: 600; margin: 6px 0 2px; letter-spacing: -.01em; }
+.panel p.sub { margin: 0; color: var(--muted); font-size: 12.5px; }
+.big { font-family: var(--font-mono); font-size: 64px; font-weight: 500; letter-spacing: -.05em; line-height: 1; margin: 14px 0 4px; }
+.big span { font-size: 14px; color: var(--muted); letter-spacing: 0; margin-left: 8px; font-family: var(--font-ui); }
+.delta { display:inline-flex; gap: 6px; align-items:center; font-family: var(--font-mono); font-size: 12px; color: var(--accent-text); background: var(--accent-soft); padding: 3px 8px; border-radius: 999px; }
+.bars { display:flex; align-items:flex-end; gap: 8px; height: 110px; margin-top: 22px; }
+.bars div { flex:1; display:flex; flex-direction: column; justify-content:flex-end; align-items:center; gap: 6px; height:100%; }
+.bars i { display:block; width: 100%; border-radius: 6px 6px 3px 3px; background: var(--track); position: relative; }
+.bars i.hot { background: var(--grad); }
+.bars small { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+.hbars { margin-top: 18px; display:grid; gap: 11px; }
+.hb { display:grid; grid-template-columns: 70px 1fr 60px; gap: 10px; align-items:center; font-size: 12.5px; }
+.hb b { font-family: var(--font-mono); font-weight: 500; font-size: 12px; }
+.hb .tr { height: 8px; border-radius: 99px; background: var(--track); overflow:hidden; }
+.hb .tr i { display:block; height:100%; border-radius: 99px; }
+.hb span { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); text-align:right; }
+.donut-wrap { display:flex; gap: 18px; align-items:center; margin-top: 18px; }
+.donut { width: 128px; height: 128px; border-radius: 50%; flex: none; position: relative;
+  background: conic-gradient(var(--c1) 0 36%, var(--c2) 36% 71%, var(--c3) 71% 80%, var(--c5) 80% 86%, var(--c4) 86% 100%);
+  -webkit-mask: radial-gradient(circle, transparent 47px, #000 48px); mask: radial-gradient(circle, transparent 47px, #000 48px); }
+.donut-c { position: relative; width:128px; height:128px; flex:none; }
+.donut-c .lbl { position:absolute; inset:0; display:grid; place-content:center; text-align:center; }
+.donut-c .lbl b { font-family: var(--font-mono); font-size: 26px; font-weight: 500; letter-spacing: -.03em; }
+.donut-c .lbl small { font-size: 11px; color: var(--muted); }
+.legend { display:grid; gap: 8px; font-size: 12.5px; flex:1; min-width: 0; }
+.legend div { display:flex; align-items:center; gap: 8px; }
+.legend span { margin-left:auto; font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); }
+.heat { display:grid; grid-template-columns: repeat(26, minmax(0, 12px)); gap: 3px; margin-top: 16px; }
+.heat i { aspect-ratio: 1; border-radius: 3px; background: var(--track); }
+
+/* ---------------- Logos ---------------- */
+.logos { display:grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.logo-opt { text-align:left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 0; overflow:hidden; transition: box-shadow .2s, border-color .2s; }
+.logo-opt[aria-pressed='true'] { border-color: transparent; box-shadow: var(--glow); }
+.logo-stage { display:grid; grid-template-columns: 1fr 1fr; height: 150px; }
+.logo-stage > div { display:grid; place-items:center; }
+.logo-stage .dk { background: #0B0B0C; color: #F2F1EE; }
+.logo-stage .lt { background: #F4F3F0; color: #17150F; }
+.logo-stage svg { width: 64px; height: 64px; }
+.logo-meta { padding: 14px 16px 16px; border-top: 1px solid var(--line); }
+.logo-meta b { font-size: 14px; }
+.logo-meta small { display:block; color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+.lockup { display:flex; align-items:center; gap: 14px; margin-top: 14px; padding: 22px; border-radius: var(--r-lg); background: var(--surface); border:1px solid var(--line); flex-wrap: wrap; }
+.lockup .big-mark { width: 56px; height: 56px; }
+.lockup .w { font-family: var(--font-display); font-size: 34px; font-weight: 650; letter-spacing: -.035em; }
+.lockup .w span { color: var(--muted); font-weight: 500; }
+.lockup .app-icon { margin-left: auto; display:flex; gap: 12px; align-items: end; }
+.lockup .app-icon div { border-radius: 22%; display:grid; place-items:center; background: linear-gradient(160deg, #26262A, #0B0B0C); box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 10px 24px -10px rgba(0,0,0,.6); color:#F2F1EE; }
+.lockup .app-icon svg { width: 62%; height: 62%; }
+
+/* ---------------- Specs / changes ---------------- */
+.two { display:grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.swatches { display:grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 14px; }
+.swatches div { border-radius: 10px; height: 72px; border: 1px solid var(--line); padding: 8px; display:flex; flex-direction:column; justify-content:flex-end; font-family: var(--font-mono); font-size: 10px; }
+.type-spec { margin-top: 14px; display:grid; gap: 10px; }
+.type-spec .d { font-family: var(--font-display); font-size: 30px; font-weight: 600; letter-spacing: -.03em; line-height: 1.05; }
+.type-spec .m { font-family: var(--font-mono); font-size: 13px; color: var(--ink-2); }
+.changes { margin: 12px 0 0; padding: 0; list-style: none; display:grid; gap: 10px; }
+.changes li { display:grid; grid-template-columns: 22px 1fr; gap: 10px; font-size: 13.5px; color: var(--ink-2); }
+.changes li::before { content:''; width: 8px; height: 8px; margin: 6px 0 0 6px; border-radius: 2px; background: var(--grad); }
+.changes code { font-family: var(--font-mono); font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); padding: 1px 5px; border-radius: 5px; color: var(--ink); }
+.cmp-row { display:grid; grid-template-columns: 110px 1fr 1fr; gap: 0; font-size: 13px; border-top: 1px solid var(--line); }
+.cmp-row > div { padding: 10px 8px; }
+.cmp-row > div:first-child { color: var(--muted); font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding-left: 0; }
+.cmp-row.h > div { font-weight: 600; color: var(--ink); }
+footer { padding: 48px 0 64px; color: var(--muted); font-size: 12.5px; }
+
+/* ---------------- Responsive ---------------- */
+@media (max-width: 1100px) {
+  .ins { grid-template-columns: 1fr 1fr; }
+  .ins .panel:last-child { grid-column: 1 / -1; }
+  .logos { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 860px) {
+  .wrap { padding: 0 16px; }
+  .topbar .wrap { height: auto; padding-top: 10px; padding-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+  .topbar h1 { width: 100%; }
+  .topbar .spacer { display: none; }
+  .dir-cards, .two { grid-template-columns: 1fr; }
+  .app { grid-template-columns: 1fr; height: auto; }
+  .side { display: none; }
+  .main { overflow: visible; }
+  .main-head { position: static; padding: 12px 16px; }
+  .crumbs { display: none; }
+  .main-body { padding: 16px; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .ins { grid-template-columns: 1fr; }
+  .lockup .app-icon { margin-left: 0; }
+}
+@media (max-width: 520px) {
+  .logos { grid-template-columns: 1fr; }
+  .grid { grid-template-columns: 1fr; }
+  .seg button { padding: 6px 9px; }
+  .cmp-row { grid-template-columns: 80px 1fr 1fr; font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<!-- Shared defs: steel gradients for knife renders -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="steel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F4F5F7" /><stop offset=".45" stop-color="#C3C7CD" /><stop offset=".55" stop-color="#9DA2AA" /><stop offset="1" stop-color="#E3E5E8" />
+    </linearGradient>
+    <linearGradient id="black" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4A4B50" /><stop offset=".5" stop-color="#232427" /><stop offset="1" stop-color="#3A3B3F" />
+    </linearGradient>
+    <linearGradient id="copper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E9B08A" /><stop offset=".5" stop-color="#B26A40" /><stop offset="1" stop-color="#D99470" />
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".22" /><stop offset=".5" stop-color="#fff" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+</svg>
+
+<header class="topbar">
+  <div class="wrap">
+    <h1>BladeVault <span>· Modern theme proposal</span></h1>
+    <div class="spacer"></div>
+    <div class="seg" role="group" aria-label="Direction" id="dirSeg">
+      <button data-dir="forge">A · Forge</button>
+      <button data-dir="titanium">B · Titanium</button>
+      <button data-dir="field">C · Field</button>
+    </div>
+    <div class="seg" role="group" aria-label="Mode" id="modeSeg">
+      <button data-mode="dark">Dark</button>
+      <button data-mode="light">Light</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Proposal · Modern style refresh</div>
+    <h2>Less Apple Settings. More <em>forged steel</em>.</h2>
+    <p>Today's Modern is a token swap to system blue on grey, so it reads plain and could belong to any app. This proposal keeps the layout but changes the material: graphite surfaces, lit image wells that make each knife look like a product shot, mono numerals for specs, one strong accent, and a new mark. Pick a direction and mode above. Every mock on this page follows your choice.</p>
+
+    <div class="dir-cards" id="dirCards">
+      <button class="dir-card" data-dir="forge">
+        <span class="sw" style="background:linear-gradient(135deg,#1B1B1E 0 50%,#FF6A2B 50%)"></span>
+        <span><b>A · Forge <span class="tag">Recommended</span></b><small>Graphite and ember orange. Warm, confident, like a hot edge on a grinder. Easiest to ship.</small></span>
+      </button>
+      <button class="dir-card" data-dir="titanium">
+        <span class="sw" style="background:linear-gradient(120deg,#8B6CFF,#3DD9C1 50%,#E9B867)"></span>
+        <span><b>B · Titanium</b><small>Anodized-titanium gradient (violet → teal → bronze) on violet-black. The flashiest option.</small></span>
+      </button>
+      <button class="dir-card" data-dir="field">
+        <span class="sw" style="background:linear-gradient(135deg,#1F201B 0 50%,#C8F031 50%)"></span>
+        <span><b>C · Field</b><small>Tactical stone and acid lime, with Space Grotesk headings. Reuses the lime already in the favicon.</small></span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ APP PREVIEW ============ -->
+  <section class="block">
+    <div class="block-head">
+      <div><div class="eyebrow">01 · Collection</div><h3>App shell and knife cards</h3></div>
+      <p>Hover a card. The well is lit from above with faint brushed-steel lines, specs sit in a mono grid, and the hover state is an accent glow, not a grey fill.</p>
+    </div>
+
+    <div class="app">
+      <aside class="side">
+        <div class="side-top">
+          <div class="traffic"><i></i><i></i><i></i></div>
+          <div class="brand"><span class="mark" id="sideMark"></span><span class="word">Blade<span>Vault</span></span></div>
+          <button class="btn btn-primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add knife <span class="kbd">N</span></button>
+        </div>
+        <div class="side-scroll">
+          <nav class="nav">
+            <div class="grp">Library</div>
+            <a href="#" class="" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Insights</a>
+            <a href="#" class="on" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m16 6 4 14M12 6v14M8 8v12M4 4v16"/></svg>Collection<span class="n">185</span></a>
+            <a href="#" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 3h16M4 21h16"/><rect x="3" y="7" width="18" height="10" rx="2"/></svg>Studio</a>
+            <a href="#" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M7 21h10M5 7h14M5 7l-3 7a3 3 0 0 0 6 0L5 7zM19 7l-3 7a3 3 0 0 0 6 0l-3-7z"/></svg>Compare<span class="n">3</span></a>
+            <a href="#" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>Logs</a>
+
+            <div class="grp">Smart collections <span>+</span></div>
+            <a href="#" onclick="return false"><span class="dot" style="background:var(--c1)"></span>84mm blade<span class="n">50</span></a>
+            <a href="#" onclick="return false"><span class="dot" style="background:var(--c2)"></span>2.5mm thick<span class="n">25</span></a>
+            <a href="#" onclick="return false"><span class="dot" style="background:var(--c3)"></span>Button lock<span class="n">51</span></a>
+
+            <div class="grp">Pinned</div>
+          </nav>
+          <div id="pins"></div>
+        </div>
+        <div class="side-foot">
+          <div class="avatar">N</div>
+          <div class="who"><b>Local vault</b><small><i></i>Backed up 2h ago</small></div>
+          <button class="icon-btn" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+        </div>
+      </aside>
+
+      <div class="main">
+        <div class="main-head">
+          <div class="crumbs">Library / <b>Collection</b></div>
+          <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Find a knife, maker, steel…<span class="kbd">⌘K</span></div>
+          <button class="btn">Select</button>
+        </div>
+        <div class="main-body">
+          <div class="title-row">
+            <h4>Collection<sup>185</sup></h4>
+            <div class="seg"><button aria-pressed="true">Grid</button><button>Table</button><button>Families</button></div>
+          </div>
+          <div class="stats">
+            <div class="stat"><small>Knives</small><b>185<span>+17 mo</span></b></div>
+            <div class="stat"><small>Makers</small><b>26</b></div>
+            <div class="stat"><small>Top steel</small><b>14C28N</b></div>
+            <div class="stat"><small>Avg blade</small><b>3.21″</b></div>
+          </div>
+          <div class="chips">
+            <button class="chip on">All</button>
+            <button class="chip">Folders</button>
+            <button class="chip">Fixed</button>
+            <button class="chip">Pinned</button>
+            <button class="chip">Steel: M390 <span class="x">✕</span></button>
+            <span class="spacer"></span>
+            <button class="chip">Sort · Recently added ↓</button>
+          </div>
+          <div class="grid" id="grid"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ INSIGHTS ============ -->
+  <section class="block">
+    <div class="block-head">
+      <div><div class="eyebrow">02 · Insights</div><h3>Charts with one hero color</h3></div>
+      <p>The newest value gets the accent gradient and everything else stays neutral, so the eye lands on what matters instead of a rainbow.</p>
+    </div>
+    <div class="ins">
+      <div class="panel">
+        <div class="eyebrow">Library</div>
+        <div class="big">185<span>knives</span></div>
+        <span class="delta">▲ 17 this month</span>
+        <div class="bars" id="bars"></div>
+      </div>
+      <div class="panel">
+        <div class="eyebrow">Materials</div>
+        <h6>Blade steel mix</h6>
+        <p class="sub">14C28N leads with 24% of the collection</p>
+        <div class="hbars" id="hbars"></div>
+      </div>
+      <div class="panel">
+        <div class="eyebrow">Profiles</div>
+        <h6>Blade shapes</h6>
+        <div class="donut-wrap">
+          <div class="donut-c"><div class="donut"></div><div class="lbl"><b>20</b><small>shapes</small></div></div>
+          <div class="legend" id="legend"></div>
+        </div>
+        <div class="heat" id="heat" aria-hidden="true"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LOGOS ============ -->
+  <section class="block">
+    <div class="block-head">
+      <div><div class="eyebrow">03 · Identity</div><h3>New mark, four concepts</h3></div>
+      <p>All four are simple geometric marks that stay crisp at favicon size. Click one to put it in the sidebar mock above. The accent follows the direction you picked.</p>
+    </div>
+    <div class="logos" id="logos"></div>
+    <div class="lockup">
+      <span class="big-mark" id="lockMark"></span>
+      <span class="w">Blade<span>Vault</span></span>
+      <div class="app-icon" aria-label="App icon sizes">
+        <div style="width:76px;height:76px" id="ic1"></div>
+        <div style="width:44px;height:44px" id="ic2"></div>
+        <div style="width:24px;height:24px;border-radius:6px" id="ic3"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SYSTEM + CHANGES ============ -->
+  <section class="block">
+    <div class="block-head">
+      <div><div class="eyebrow">04 · System</div><h3>Palette, type, and what would change</h3></div>
+    </div>
+    <div class="two">
+      <div class="panel">
+        <div class="eyebrow">Palette · current direction</div>
+        <div class="swatches" id="swatches"></div>
+        <div class="type-spec">
+          <div class="d">Vosteed Raccoon 2.0</div>
+          <div class="m">A2905 · 14C28N · 3.25″ / 82.6 mm · 92 g</div>
+          <div style="color:var(--muted);font-size:13px">Display: <span id="fontName">Geist</span> · Numbers and labels: Geist Mono</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="eyebrow">Today vs proposed</div>
+        <div style="margin-top:12px">
+          <div class="cmp-row h"><div></div><div>Modern today</div><div>Proposed</div></div>
+          <div class="cmp-row"><div>Accent</div><div>System blue #0071E3</div><div id="cmpAccent">Ember #FF6A2B</div></div>
+          <div class="cmp-row"><div>Surfaces</div><div>Flat white and grey fills</div><div>Graphite layers, hairline borders, lit image wells</div></div>
+          <div class="cmp-row"><div>Numbers</div><div>Body font</div><div>Mono with tabular figures</div></div>
+          <div class="cmp-row"><div>Active nav</div><div>Pale blue pill</div><div>Tinted row and gradient edge bar</div></div>
+          <div class="cmp-row"><div>Hover</div><div>Grey background</div><div>Lift and accent glow</div></div>
+          <div class="cmp-row"><div>Logo</div><div>Illustrator export, olive and lime</div><div>Geometric mark that follows the accent</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <div class="eyebrow">Implementation sketch (Modern only, Classic and Alloy untouched)</div>
+      <ul class="changes">
+        <li><span>Replace the <code>html[data-theme-style='modern']</code> and <code>.dark</code> token blocks in <code>app/globals.css</code> with the chosen palette. Add <code>--accent-grad</code>, <code>--well</code>, and <code>--glow</code> tokens.</span></li>
+        <li><span>Load Geist and Geist Mono for Modern only, and apply mono plus <code>tabular-nums</code> to spec values, counts, and stats.</span></li>
+        <li><span>Make dark the default for Modern. Light stays fully supported.</span></li>
+        <li><span>Scoped Modern styles for knife cards: lit image well, 3-column spec grid, and hover glow. No layout or behavior changes.</span></li>
+        <li><span>Sidebar: active row with a gradient edge bar, mono counts, and a backup status footer. Same links and actions.</span></li>
+        <li><span>New logo as an inline SVG using <code>currentColor</code> plus the accent token, replacing <code>public/logo.svg</code>, <code>logo-dark.svg</code>, <code>app/icon.svg</code>, and the app icons (a separate step if you want it).</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>Static mockup. Knife renders are placeholders; the real app keeps product photos inside the same lit wells.</footer>
+</main>
+
+<script>
+(function () {
+  const root = document.documentElement;
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  };
+
+  /* ---------- knife renders ---------- */
+  const BLADES = {
+    drop: 'M90 23 C60 22 34 22 16 27 C8 30 3 34 5 36 C30 44 62 45 90 43 Z',
+    tanto: 'M90 23 L24 23 L5 31 L12 41 C40 44 66 44 90 43 Z',
+    sheep: 'M90 23 L14 23 C7 26 5 34 8 41 C40 44 66 44 90 43 Z',
+    cleaver: 'M90 21 L12 21 L8 45 C40 46 66 45 90 43 Z',
+  };
+  const HANDLE = 'M86 21 C120 18 160 18 184 22 Q196 25 194 34 Q192 44 180 45 C150 47 116 46 86 44 Z';
+  function knife(shape, handle, coat) {
+    const fill = coat === 'black' ? 'url(#black)' : coat === 'copper' ? 'url(#copper)' : 'url(#steel)';
+    return `<svg class="knife" viewBox="0 0 200 64" aria-hidden="true">
+      <path d="${BLADES[shape]}" fill="${fill}"/>
+      <path d="M88 35 C62 35 36 35 14 34" stroke="rgba(255,255,255,.45)" stroke-width=".8" fill="none"/>
+      <path d="${HANDLE}" fill="${handle}"/>
+      <path d="${HANDLE}" fill="url(#sheen)"/>
+      <path d="M100 27 H178" stroke="rgba(0,0,0,.25)" stroke-width="1" stroke-dasharray="2 3"/>
+      <circle cx="96" cy="32" r="4.2" fill="#9EA3AA" stroke="#5E626A" stroke-width="1"/>
+      <circle cx="184" cy="33" r="2.6" fill="rgba(0,0,0,.35)"/>
+    </svg>`;
+  }
+
+  const KNIVES = [
+    { maker: 'Vosteed', model: 'A2905', name: 'Raccoon 2.0', steel: '14C28N', blade: '3.25″', lock: 'Top liner', shape: 'drop', handle: '#3E4A36', imgs: 24, listed: true },
+    { maker: 'Kizer', model: 'ZX-FK08A2', name: 'Mithril', steel: 'M390', blade: '3.53″', lock: 'Button', shape: 'tanto', handle: '#202124', coat: 'black', imgs: 18 },
+    { maker: 'Kizer', model: 'ZX-FB03A1', name: 'Pioneer Fix', steel: 'M390', blade: '4.21″', lock: 'Fixed', shape: 'drop', handle: '#7B5B3E', coat: 'black', imgs: 18 },
+    { maker: 'CJRB', model: 'J1925', name: 'Pyrite', steel: 'AR-RPM9', blade: '3.11″', lock: 'Button', shape: 'drop', handle: '#5D6168', imgs: 9 },
+    { maker: 'Vosteed', model: 'A2207', name: 'Psyop', steel: 'Elmax', blade: '3.32″', lock: 'Top liner', shape: 'sheep', handle: '#2B2A30', imgs: 17, listed: true },
+    { maker: 'CIVIVI', model: 'C24074-1', name: 'Baby Banter 2', steel: '14C28N', blade: '2.34″', lock: 'Crossbar', shape: 'sheep', handle: '#A2603A', coat: 'copper', imgs: 12 },
+    { maker: 'DailyCarryCo', model: '—', name: 'Vanguard', steel: 'D2', blade: '2.90″', lock: 'Frame', shape: 'cleaver', handle: '#6E7279', imgs: 14 },
+    { maker: 'Vosteed', model: 'A3105', name: 'Porcupine', steel: '154CM', blade: '3.08″', lock: 'Crossbar', shape: 'tanto', handle: '#8A7356', imgs: 11 },
+  ];
+
+  document.getElementById('grid').innerHTML = KNIVES.map(k => `
+    <article class="card">
+      <div class="well">
+        <span class="badge tl">▣ ${k.imgs}</span>
+        ${k.listed ? '<span class="badge tr listed">In 1 list</span>' : '<span class="badge tr">⌖</span>'}
+        ${knife(k.shape, k.handle, k.coat)}
+      </div>
+      <div class="card-body">
+        <div class="maker"><span>${k.maker}</span><span>${k.model}</span></div>
+        <h5>${k.name}</h5>
+        <div class="specs">
+          <div><small>Steel</small><b>${k.steel}</b></div>
+          <div><small>Blade</small><b>${k.blade}</b></div>
+          <div><small>Lock</small><b>${k.lock}</b></div>
+        </div>
+      </div>
+      <div class="card-foot">
+        <span>Added Oct 15</span>
+        <button class="cmp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v18M5 7h14"/></svg>Compare</button>
+      </div>
+    </article>`).join('');
+
+  document.getElementById('pins').innerHTML = KNIVES.slice(0, 4).map(k => `
+    <div class="pin"><span class="th">${knife(k.shape, k.handle, k.coat)}</span>
+      <span><b>${k.maker} · ${k.name}</b><small>${k.steel} · ${k.blade}</small></span></div>`).join('');
+
+  /* ---------- insights ---------- */
+  const months = [['May', 0], ['Jun', 59], ['Jul', 29], ['Aug', 45], ['Sep', 35], ['Oct', 17]];
+  document.getElementById('bars').innerHTML = months.map(([m, v], i) => `
+    <div><small>${v}</small><i class="${i === months.length - 1 ? 'hot' : ''}" style="height:${Math.max(4, (v / 59) * 80)}%"></i><small>${m}</small></div>`).join('');
+
+  const steels = [['14C28N', 45, 24, 'var(--c1)'], ['M390', 21, 11, 'var(--c2)'], ['Nitro-V', 19, 10, 'var(--c3)'], ['S35VN', 17, 9, 'var(--c3)'], ['154CM', 15, 8, 'var(--c4)'], ['Other', 63, 34, 'var(--c4)']];
+  document.getElementById('hbars').innerHTML = steels.map(([n, c, p, col], i) => `
+    <div class="hb"><b>${n}</b><div class="tr"><i style="width:${(c / 63) * 100}%;background:${i === 0 ? 'var(--grad)' : col}"></i></div><span>${c} · ${p}%</span></div>`).join('');
+
+  const shapes = [['Drop point', '36%', 'var(--c1)'], ['Flat', '35%', 'var(--c2)'], ['Clip point', '9%', 'var(--c3)'], ['Sheepsfoot', '6%', 'var(--c5)'], ['Other', '14%', 'var(--c4)']];
+  document.getElementById('legend').innerHTML = shapes.map(([n, p, c]) => `<div><i class="dot" style="background:${c}"></i>${n}<span>${p}</span></div>`).join('');
+
+  const heat = [];
+  for (let i = 0; i < 78; i++) {
+    const v = i < 40 ? (Math.sin(i * 1.7) > .85 ? 1 : 0) : [0, 1, 2, 1, 3, 2, 0, 1, 2, 3][(i * 7) % 10];
+    const op = [0, .3, .6, 1][v];
+    heat.push(`<i style="${v ? `background:color-mix(in srgb, var(--c1) ${op * 100}%, var(--track))` : ''}"></i>`);
+  }
+  document.getElementById('heat').innerHTML = heat.join('');
+
+  /* ---------- logos ---------- */
+  // Each mark: currentColor = ink, var(--lg-accent) = accent. 48x48 grid.
+  const LOGOS = [
+    { id: 'notch', name: 'Notch', desc: 'Rounded tile cut by a tanto blade. Strong app icon.',
+      svg: a => `<svg viewBox="0 0 48 48"><rect x="2" y="2" width="44" height="44" rx="12" fill="currentColor"/>
+        <path d="M11 37 L30 15 L39 10 L35 19 L16 41 Z" fill="${a}"/>
+        <path d="M13 38.5 L31.5 17" stroke="rgba(255,255,255,.55)" stroke-width="1.2"/></svg>` },
+    { id: 'vedge', name: 'V-Edge', desc: 'A “V” for Vault where one stroke is a blade with its bevel.',
+      svg: a => `<svg viewBox="0 0 48 48"><path d="M5 8 H15 L25 36 L21 44 Z" fill="currentColor"/>
+        <path d="M43 6 L32 6 L21 37 L25 44 Z" fill="${a}"/>
+        <path d="M37.5 6 L24 41" stroke="rgba(255,255,255,.5)" stroke-width="1.2"/></svg>` },
+    { id: 'hex', name: 'Vault Hex', desc: 'Hex vault door with a blade slicing through it.',
+      svg: a => `<svg viewBox="0 0 48 48"><path d="M24 4 L41.3 14 V34 L24 44 L6.7 34 V14 Z" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linejoin="round"/>
+        <path d="M8 40 L36 10 L44 6 L40 14 L12 44 Z" fill="${a}"/>
+        <circle cx="24" cy="24" r="2.4" fill="currentColor"/></svg>` },
+    { id: 'slash', name: 'Bevel B', desc: 'Geometric “B” whose spine is a clean blade grind.',
+      svg: a => `<svg viewBox="0 0 48 48"><path d="M10 6 H28 C35 6 39 10 39 15.5 C39 19 37 21.5 34.5 23 C38.5 24.5 41 28 41 32.5 C41 38.5 36.5 42 29 42 H10 Z" fill="currentColor"/>
+        <path d="M18 13 H27 C29.5 13 31 14.5 31 16.5 C31 18.5 29.5 20 27 20 H18 Z M18 27 H28.5 C31.5 27 33 28.5 33 30.8 C33 33 31.5 35 28.5 35 H18 Z" fill="var(--logo-bg, #0B0B0C)"/>
+        <path d="M6 6 H14 L14 42 L6 42 L2 36 V12 Z" fill="${a}"/></svg>` },
+  ];
+
+  let logoId = store.get('bv-logo') || 'notch';
+  if (!LOGOS.some(l => l.id === logoId)) logoId = 'notch';
+
+  function accent() { return getComputedStyle(root).getPropertyValue('--accent').trim() || '#FF6A2B'; }
+
+  function renderLogos() {
+    const a = accent();
+    const L = LOGOS.find(l => l.id === logoId);
+    document.getElementById('logos').innerHTML = LOGOS.map(l => `
+      <button class="logo-opt" data-logo="${l.id}" aria-pressed="${l.id === logoId}">
+        <div class="logo-stage"><div class="dk" style="--logo-bg:#0B0B0C">${l.svg(a)}</div><div class="lt" style="--logo-bg:#F4F3F0">${l.svg(a)}</div></div>
+        <div class="logo-meta"><b>${l.name}</b><small>${l.desc}</small></div>
+      </button>`).join('');
+    const side = document.getElementById('sideMark');
+    side.style.color = 'var(--ink)';
+    side.style.setProperty('--logo-bg', getComputedStyle(root).getPropertyValue('--side'));
+    side.innerHTML = L.svg(a);
+    const lock = document.getElementById('lockMark');
+    lock.style.color = 'var(--ink)';
+    lock.style.setProperty('--logo-bg', getComputedStyle(root).getPropertyValue('--surface'));
+    lock.innerHTML = L.svg(a);
+    ['ic1', 'ic2', 'ic3'].forEach(id => { const el = document.getElementById(id); el.style.setProperty('--logo-bg', '#18181B'); el.innerHTML = L.svg(a); });
+  }
+  document.getElementById('logos').addEventListener('click', e => {
+    const b = e.target.closest('[data-logo]'); if (!b) return;
+    logoId = b.dataset.logo; store.set('bv-logo', logoId); renderLogos();
+  });
+
+  /* ---------- palette ---------- */
+  function renderSwatches() {
+    const cs = getComputedStyle(root);
+    const items = [['bg', '--bg'], ['surface', '--surface'], ['ink', '--ink'], ['muted', '--muted'], ['accent', '--accent']];
+    document.getElementById('swatches').innerHTML = items.map(([n, v]) => {
+      const val = cs.getPropertyValue(v).trim();
+      const dark = ['ink', 'accent'].includes(n) ? (n === 'accent' ? 'var(--accent-ink)' : 'var(--bg)') : 'var(--ink)';
+      return `<div style="background:${val};color:${dark}"><b>${n}</b>${val}</div>`;
+    }).join('');
+    const dir = root.dataset.dir;
+    document.getElementById('fontName').textContent = dir === 'field' ? 'Space Grotesk' : 'Geist';
+    document.getElementById('cmpAccent').textContent =
+      dir === 'forge' ? `Ember ${cs.getPropertyValue('--accent').trim()}` :
+      dir === 'titanium' ? 'Anodized gradient, violet → teal → bronze' : 'Acid lime #C8F031';
+  }
+
+  /* ---------- switching ---------- */
+  function sync() {
+    document.querySelectorAll('[data-dir]').forEach(b => { if (b !== root) b.setAttribute('aria-pressed', b.dataset.dir === root.dataset.dir); });
+    document.querySelectorAll('#modeSeg [data-mode]').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === root.dataset.mode));
+    renderLogos(); renderSwatches();
+  }
+  function setDir(d) { root.dataset.dir = d; store.set('bv-dir', d); sync(); }
+  function setMode(m) { root.dataset.mode = m; store.set('bv-mode', m); sync(); }
+  document.getElementById('dirSeg').addEventListener('click', e => { const b = e.target.closest('[data-dir]'); if (b) setDir(b.dataset.dir); });
+  document.getElementById('dirCards').addEventListener('click', e => { const b = e.target.closest('[data-dir]'); if (b) setDir(b.dataset.dir); });
+  document.getElementById('modeSeg').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) setMode(b.dataset.mode); });
+
+  const d0 = store.get('bv-dir'); const m0 = store.get('bv-mode');
+  if (['forge', 'titanium', 'field'].includes(d0)) root.dataset.dir = d0;
+  if (['dark', 'light'].includes(m0)) root.dataset.mode = m0;
+  sync();
+})();
+</script>
+</body>
+</html>

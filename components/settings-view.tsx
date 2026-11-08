@@ -168,6 +168,9 @@ const themeStyleLabels: Record<ThemeStyle, { name: string; note: string }> = {
   classic: { name: 'Classic', note: 'Default · warm gold' },
   modern: { name: 'Modern', note: 'New · cool graphite' },
   alloy: { name: 'Alloy', note: 'Black & gold' },
+  forge: { name: 'Forge', note: 'New · graphite & ember' },
+  titanium: { name: 'Titanium', note: 'New · anodized gradient' },
+  field: { name: 'Field', note: 'New · stone & acid lime' },
 }
 
 const subscribeToBrowserOrigin = () => () => {}
@@ -1940,7 +1943,7 @@ export default function SettingsView() {
                   >
                     <SettingsRow
                       label="Theme"
-                      description="Classic is the default warm BladeVault look. Modern offers cool graphite. Alloy pairs black and gold."
+                      description="Classic is the default warm BladeVault look. Modern offers cool graphite. Alloy pairs black and gold. Forge, Titanium and Field use the Modern layout with new colors and a new logo."
                       className="settings-theme-row"
                     >
                       <div

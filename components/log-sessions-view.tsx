@@ -1,5 +1,6 @@
 'use client'
 
+import { isModernThemeFamily } from '@/lib/settings-shared'
 import Link from 'next/link'
 import {
   Fragment,
@@ -271,7 +272,7 @@ export function LogSessionsView() {
     themeStyle,
     isLoading: knivesLoading,
   } = useKnives()
-  const isModern = themeStyle === 'modern' || themeStyle === 'alloy'
+  const isModern = isModernThemeFamily(themeStyle) || themeStyle === 'alloy'
   const [rawEvents, setRawEvents] = useState<AuditLogEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
