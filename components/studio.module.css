@@ -80,7 +80,8 @@
     color 160ms;
 }
 
-.segmented button[aria-pressed='true'] {
+.segmented button[aria-pressed='true'],
+.segmented button[data-active] {
   background: var(--card);
   color: var(--foreground);
   box-shadow: 0 1px 4px color-mix(in srgb, var(--foreground) 8%, transparent);

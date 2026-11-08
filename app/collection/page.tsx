@@ -1217,25 +1217,30 @@ function CollectionContent() {
                   role="group"
                   aria-label="Card density"
                 >
+                  {/* One button cycles card size: large gallery ↔ small compact. */}
                   <Button
                     type="button"
-                    variant={density === 'gallery' ? 'secondary' : 'ghost'}
+                    variant={density === 'table' ? 'ghost' : 'secondary'}
                     size="icon-xs"
-                    onClick={() => setDensity('gallery')}
-                    aria-pressed={density === 'gallery'}
-                    aria-label="Gallery view"
+                    onClick={() =>
+                      setDensity(density === 'gallery' ? 'compact' : 'gallery')
+                    }
+                    aria-label={
+                      density === 'gallery'
+                        ? 'Switch to compact view'
+                        : 'Switch to gallery view'
+                    }
+                    title={
+                      density === 'gallery'
+                        ? 'Switch to compact view'
+                        : 'Switch to gallery view'
+                    }
                   >
-                    <LayoutGrid className="size-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={density === 'compact' ? 'secondary' : 'ghost'}
-                    size="icon-xs"
-                    onClick={() => setDensity('compact')}
-                    aria-pressed={density === 'compact'}
-                    aria-label="Compact view"
-                  >
-                    <Grid3X3 className="size-3.5" />
+                    {density === 'compact' ? (
+                      <Grid3X3 className="size-3.5" />
+                    ) : (
+                      <LayoutGrid className="size-3.5" />
+                    )}
                   </Button>
                   <Button
                     type="button"

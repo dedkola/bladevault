@@ -500,21 +500,25 @@ export function StudioView() {
               role="group"
               aria-label="Tile size"
             >
+              {/* One button cycles tile size: regular ↔ large. */}
               <button
                 type="button"
-                aria-label="Regular size"
-                aria-pressed={size === 'regular'}
-                onClick={() => setSize('regular')}
+                data-active
+                aria-label={
+                  size === 'regular'
+                    ? 'Switch to large size'
+                    : 'Switch to regular size'
+                }
+                title={
+                  size === 'regular'
+                    ? 'Switch to large size'
+                    : 'Switch to regular size'
+                }
+                onClick={() =>
+                  setSize(size === 'regular' ? 'large' : 'regular')
+                }
               >
-                <Grid2X2 />
-              </button>
-              <button
-                type="button"
-                aria-label="Large size"
-                aria-pressed={size === 'large'}
-                onClick={() => setSize('large')}
-              >
-                <LayoutDashboard />
+                {size === 'regular' ? <Grid2X2 /> : <LayoutDashboard />}
               </button>
             </div>
           </div>
