@@ -94,7 +94,7 @@ test('uses the table-first collection view in the modern theme', async ({
     .getByRole('button', { name: 'All', exact: true })
     .click()
 
-  await page.getByRole('button', { name: 'Gallery view' }).click()
+  await page.getByRole('button', { name: 'Switch to gallery view' }).click()
   await expect(page.locator('[data-modern-collection-table]')).toHaveCount(0)
   await expect(page.locator('[data-collection-grid]')).toBeVisible()
 
@@ -288,7 +288,9 @@ test('persists modern column and view choices and selects rows for bulk actions'
   )
   await page.getByLabel('Choose columns').click()
   await tools.getByLabel('Sort collection').selectOption('brand')
-  await page.getByRole('button', { name: 'Gallery view', exact: true }).click()
+  await page
+    .getByRole('button', { name: 'Switch to gallery view', exact: true })
+    .click()
   await expect
     .poll(
       async () =>
@@ -298,8 +300,8 @@ test('persists modern column and view choices and selects rows for bulk actions'
     .toBe('grid')
   await page.reload()
   await expect(
-    page.getByRole('button', { name: 'Gallery view', exact: true }),
-  ).toHaveAttribute('aria-pressed', 'true')
+    page.getByRole('button', { name: 'List view', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'false')
   await expect(tools.getByLabel('Sort collection')).toHaveValue('brand')
   await page.getByRole('button', { name: 'List view', exact: true }).click()
   await expect(table.getByRole('columnheader', { name: 'Weight' })).toHaveCount(
@@ -604,7 +606,7 @@ for (const themeStyle of ['classic', 'modern', 'alloy']) {
       ).toHaveText('Sold')
       await page.getByRole('button', { name: 'Close selected knife' }).click()
       await page
-        .getByRole('button', { name: 'Gallery view', exact: true })
+        .getByRole('button', { name: 'Switch to gallery view', exact: true })
         .click()
       await expect(
         page

@@ -1462,7 +1462,7 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
 html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   [data-modern-collection-tools]
   > [data-collection-view-toggle]
-  button[aria-pressed='true'] {
+  button:is([aria-pressed='true'], [data-active]) {
   background: var(--muted);
   color: var(--foreground);
 }
@@ -1564,6 +1564,13 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+/* Compact: smaller pictures, more per row (also wins over the phone rule). */
+html:is([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-modern-collection-gallery][data-density='compact'] {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
+  gap: 8px;
 }
 
 [data-modern-object-card] {

@@ -711,7 +711,7 @@
 
 :global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
   .segmented
-  button[aria-pressed='true'] {
+  button:is([aria-pressed='true'], [data-active]) {
   background: var(--bladevault-nav-active-bg);
   color: var(--bladevault-nav-active-fg);
   box-shadow: none;

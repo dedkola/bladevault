@@ -498,12 +498,14 @@ export function ModernCollectionTable({
 
 export function ModernCollectionGallery({
   knives,
+  density = 'gallery',
   dimensionUnit = 'in',
   activeKnifeId,
   onOpen,
   onOpenDetail,
 }: {
   knives: Knife[]
+  density?: 'gallery' | 'compact'
   dimensionUnit?: DimensionUnit
   activeKnifeId?: string | null
   onOpen: (knife: Knife) => void
@@ -511,7 +513,11 @@ export function ModernCollectionGallery({
 }) {
   const navigation = useCollectionItemNavigation(onOpen, onOpenDetail)
   return (
-    <div data-collection-grid data-modern-collection-gallery>
+    <div
+      data-collection-grid
+      data-modern-collection-gallery
+      data-density={density}
+    >
       {knives.map((knife, index) => (
         <button
           key={knife.id}
@@ -529,7 +535,11 @@ export function ModernCollectionGallery({
                 src={getImageUrl(knife.images[0])}
                 alt={`${knife.brand} ${knife.name}`}
                 fill
-                sizes="(max-width: 560px) 100vw, (max-width: 820px) 50vw, 350px"
+                sizes={
+                  density === 'compact'
+                    ? '(max-width: 560px) 50vw, 220px'
+                    : '(max-width: 560px) 100vw, (max-width: 820px) 50vw, 350px'
+                }
                 priority={index === 0}
                 className="object-contain"
               />
