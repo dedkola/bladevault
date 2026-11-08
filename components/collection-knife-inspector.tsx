@@ -215,7 +215,11 @@ export function CollectionKnifeInspector({
       </div>
 
       <div className={cn(!isMobileExpanded && 'hidden xl:block')}>
-        <div data-inspector-image className="relative aspect-video bg-white">
+        <div
+          data-inspector-image
+          data-photo-stage
+          className="relative aspect-video bg-white"
+        >
           {image ? (
             <Image
               src={getImageUrl(image)}

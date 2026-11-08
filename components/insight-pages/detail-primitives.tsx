@@ -158,7 +158,7 @@ export function InsightKnifeRow({
       className="id-knife-row"
       href={`/collection/${encodeURIComponent(knife.id)}`}
     >
-      <span className="id-knife-thumb">
+      <span className="id-knife-thumb" data-photo-stage>
         {knife.images[0] ? (
           <Image
             src={getImageUrl(knife.images[0])}
@@ -199,7 +199,7 @@ export function InsightKnifeCard({ knife }: { knife: Knife }) {
       className="id-knife-card"
       href={`/collection/${encodeURIComponent(knife.id)}`}
     >
-      <span className="id-card-image">
+      <span className="id-card-image" data-photo-stage>
         {knife.images[0] ? (
           <Image
             src={getImageUrl(knife.images[0])}

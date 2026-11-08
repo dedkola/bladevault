@@ -271,7 +271,10 @@ export function ModernCollectionTable({
         {announcement}
       </span>
       <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-[0_1px_2px_rgb(0_0_0/4%)]">
-        <table className="w-full table-fixed border-collapse text-left">
+        <table
+          data-collection-table
+          className="w-full table-fixed border-collapse text-left"
+        >
           <thead>
             <tr className="border-b border-border bg-[var(--bladevault-surface-soft)] text-[length:var(--modern-font-secondary)] text-muted-foreground">
               <th scope="col" className="w-10 px-3 py-2">
@@ -410,7 +413,10 @@ export function ModernCollectionTable({
                   </td>
                   <td className="px-3 py-[7px]">
                     <div className="flex min-w-0 items-center gap-[9px]">
-                      <div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-[7px] bg-[#f5f5f7]">
+                      <div
+                        data-photo-stage
+                        className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-[7px] bg-[#f5f5f7]"
+                      >
                         {knife.images[0] ? (
                           <Image
                             src={getImageUrl(knife.images[0])}

@@ -937,7 +937,10 @@ export default function ComparePage() {
                               key={knife.id}
                               className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-[color:var(--bladevault-surface-hover)]/45"
                             >
-                              <div className="relative h-12 w-16 shrink-0 overflow-hidden rounded-md border border-[var(--bladevault-line)]/60 bg-white">
+                              <div
+                                data-photo-stage
+                                className="relative h-12 w-16 shrink-0 overflow-hidden rounded-md border border-[var(--bladevault-line)]/60 bg-white"
+                              >
                                 {knife.images.length > 0 ? (
                                   <Image
                                     src={getImageUrl(knife.images[0])}
@@ -992,27 +995,46 @@ export default function ComparePage() {
                     label="Compare lineup"
                     viewportClassName="overflow-x-auto rounded-lg"
                   >
-                    <div className="flex min-w-max items-center rounded-lg border border-[var(--bladevault-line)]/70 bg-[color:var(--bladevault-surface-soft)]/45 px-3 py-2">
-                      {comparedKnives.map((knife, index) => (
-                        <div key={knife.id} className="flex items-center">
-                          {index > 0 && (
-                            <div className="mx-3 h-4 w-px bg-border" />
-                          )}
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleRemove(knife.id)}
-                              className="inline-flex size-7 items-center justify-center rounded-sm text-[var(--bladevault-local)] transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-                              aria-label={`Remove ${knife.brand} ${knife.name} from compare`}
-                              title="Remove"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                            <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--bladevault-title)]">
-                              {knife.brand} {knife.name}
-                            </span>
-                          </div>
-                        </div>
+                    <div
+                      data-compare-lineup
+                      className="flex min-w-max items-center gap-2 py-0.5 pr-8"
+                    >
+                      {comparedKnives.map((knife) => (
+                        <span
+                          key={knife.id}
+                          className="inline-flex h-8 items-center gap-2 rounded-full border border-border bg-card pl-1 pr-1 text-xs font-medium text-foreground"
+                        >
+                          <span
+                            data-photo-stage
+                            className="relative size-6 shrink-0 overflow-hidden rounded-full border border-border bg-white"
+                          >
+                            {knife.images.length > 0 && (
+                              <Image
+                                src={getImageUrl(knife.images[0])}
+                                alt=""
+                                fill
+                                sizes="24px"
+                                className="object-contain"
+                                referrerPolicy="no-referrer"
+                              />
+                            )}
+                          </span>
+                          <span className="whitespace-nowrap">
+                            <span className="text-muted-foreground">
+                              {knife.brand}
+                            </span>{' '}
+                            {knife.name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemove(knife.id)}
+                            className="inline-flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            aria-label={`Remove ${knife.brand} ${knife.name} from compare`}
+                            title="Remove"
+                          >
+                            <X className="size-3.5" />
+                          </button>
+                        </span>
                       ))}
                     </div>
                   </HorizontalScrollArea>
@@ -1087,7 +1109,14 @@ export default function ComparePage() {
                   >
                     <TableHeader>
                       <TableRow className="bg-[color:var(--bladevault-surface-soft)]/70 hover:bg-[color:var(--bladevault-surface-soft)]/70">
-                        <TableHead className="sticky left-0 top-0 z-30 w-28 min-w-28 max-w-28 whitespace-normal border-r border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] text-[10px] uppercase tracking-wider text-[var(--bladevault-title)] shadow-[1px_0_0_0_var(--bladevault-line)] sm:w-44 sm:min-w-44 sm:max-w-44 xl:w-52 xl:min-w-52 xl:max-w-52 xl:text-xs">
+                        <TableHead
+                          className={cn(
+                            'sticky left-0 top-0 z-30 w-28 min-w-28 max-w-28 whitespace-normal border-r border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] shadow-[1px_0_0_0_var(--bladevault-line)] sm:w-44 sm:min-w-44 sm:max-w-44 xl:w-52 xl:min-w-52 xl:max-w-52',
+                            isModern
+                              ? 'text-[10px] uppercase tracking-wider text-[var(--bladevault-title)] xl:text-xs'
+                              : 'text-xs font-medium text-muted-foreground',
+                          )}
+                        >
                           Feature
                         </TableHead>
                         {comparedKnives.map((knife) => (
@@ -1105,6 +1134,7 @@ export default function ComparePage() {
                             >
                               <div
                                 data-compare-image
+                                data-photo-stage
                                 className="group/image relative aspect-video w-full cursor-pointer overflow-hidden rounded-md border border-[var(--bladevault-line)]/50 bg-[color:var(--bladevault-surface-soft)]/40"
                               >
                                 {knife.images.length > 0 ? (
@@ -1184,7 +1214,7 @@ export default function ComparePage() {
                         <TableRow
                           key={row.key}
                           className={cn(
-                            idx % 2 === 0
+                            idx % 2 === 0 || !isModern
                               ? 'bg-background'
                               : 'bg-[color:var(--bladevault-surface-soft)]/35',
                             hoveredCell?.rowKey === row.key &&
@@ -1193,15 +1223,18 @@ export default function ComparePage() {
                         >
                           <TableCell
                             className={cn(
-                              'sticky left-0 z-10 w-28 min-w-28 max-w-28 whitespace-normal border-r border-[var(--bladevault-line)] text-[11px] leading-tight font-medium uppercase tracking-wider text-[var(--bladevault-title)] shadow-[1px_0_0_0_var(--bladevault-line)] transition-colors sm:w-44 sm:min-w-44 sm:max-w-44 xl:w-52 xl:min-w-52 xl:max-w-52 xl:text-xs',
-                              idx % 2 === 0
+                              'sticky left-0 z-10 w-28 min-w-28 max-w-28 whitespace-normal border-r border-[var(--bladevault-line)] leading-tight font-medium shadow-[1px_0_0_0_var(--bladevault-line)] transition-colors sm:w-44 sm:min-w-44 sm:max-w-44 xl:w-52 xl:min-w-52 xl:max-w-52',
+                              isModern
+                                ? 'text-[11px] uppercase tracking-wider text-[var(--bladevault-title)] xl:text-xs'
+                                : 'text-[13px] text-muted-foreground',
+                              idx % 2 === 0 || !isModern
                                 ? 'bg-background'
                                 : 'bg-[var(--bladevault-surface-soft)]',
                               hoveredCell?.rowKey === row.key &&
                                 'bg-[var(--bladevault-surface-hover)]',
                             )}
                           >
-                            {isModern && !row.key.startsWith('custom:')
+                            {!row.key.startsWith('custom:')
                               ? row.label.charAt(0) +
                                 row.label.slice(1).toLowerCase()
                               : row.label}

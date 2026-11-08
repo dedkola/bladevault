@@ -212,13 +212,18 @@ function DialogBody({ config }: { config: ComparisonDialog }) {
           {knife && (
             <div className="flex items-center gap-3 rounded-lg bg-muted p-3">
               {knife.images[0] && (
-                <Image
-                  src={getImageUrl(knife.images[0])}
-                  width={76}
-                  height={50}
-                  alt=""
-                  className="h-12 w-20 rounded object-contain"
-                />
+                <span
+                  data-photo-stage
+                  className="inline-flex shrink-0 overflow-hidden rounded"
+                >
+                  <Image
+                    src={getImageUrl(knife.images[0])}
+                    width={76}
+                    height={50}
+                    alt=""
+                    className="h-12 w-20 object-contain"
+                  />
+                </span>
               )}
               <div className="min-w-0">
                 <p className="font-medium">{knife.name}</p>
@@ -330,13 +335,18 @@ function DialogBody({ config }: { config: ComparisonDialog }) {
             {results.slice(0, limit).map((k) => (
               <div key={k.id} className="flex items-center gap-3 border-b py-3">
                 {k.images[0] && (
-                  <Image
-                    src={getImageUrl(k.images[0])}
-                    width={72}
-                    height={48}
-                    alt=""
-                    className="h-12 w-18 rounded object-contain"
-                  />
+                  <span
+                    data-photo-stage
+                    className="inline-flex shrink-0 overflow-hidden rounded"
+                  >
+                    <Image
+                      src={getImageUrl(k.images[0])}
+                      width={72}
+                      height={48}
+                      alt=""
+                      className="h-12 w-18 object-contain"
+                    />
+                  </span>
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{k.name}</p>

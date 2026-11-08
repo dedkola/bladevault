@@ -47,11 +47,15 @@ export function KnifeCardDetails({
           <span className="min-w-0 break-words text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
             {brand}
           </span>
-          <span className="min-w-0 break-all font-mono text-[11px] text-muted-foreground">
+          <span
+            data-card-model={modelNumber ? undefined : 'empty'}
+            className="min-w-0 break-all font-mono text-[11px] text-muted-foreground"
+          >
             {modelNumber || '—'}
           </span>
         </div>
         <h2
+          data-card-title
           className={cn(
             'mt-1 min-h-10 line-clamp-2 font-medium leading-tight tracking-tight',
             sold ? 'text-muted-foreground' : 'text-foreground',

@@ -94,6 +94,14 @@ function formatMeasurementAxisLabel(label: string): string {
   return label.replace(/\.0(?=–|″|\s)/g, '')
 }
 
+// Axis ticks show each range's lower bound on one line ("2.25″"); the
+// tooltip and View data keep the full range.
+function formatMeasurementAxisTick(label: string): string {
+  const formatted = formatMeasurementAxisLabel(label)
+  const match = formatted.match(/^([\d.,]+)–[\d.,]+(.*)$/)
+  return match ? `${match[1]}${match[2]}` : formatted
+}
+
 export function getOrdinalDay(day: number): string {
   const lastTwoDigits = day % 100
   if (lastTwoDigits >= 11 && lastTwoDigits <= 13) return `${day}th`
@@ -550,7 +558,7 @@ export function getHistogramOption(
       data: measurement.bins.map(({ label }) =>
         measurement.dimensionUnit === 'both'
           ? label.replace(' / ', '\n')
-          : formatMeasurementAxisLabel(label).replace('–', '–\n'),
+          : formatMeasurementAxisTick(label),
       ),
       axisTick: { show: false },
       axisLine: { lineStyle: { color: palette.line } },
@@ -691,7 +699,7 @@ function MeasurementRows({
   onSelect: (bin: MeasurementStats['bins'][number]) => void
 }) {
   return (
-    <details className="mt-3 text-xs xl:text-sm">
+    <details data-view-data className="mt-3 text-xs xl:text-sm">
       <summary className="w-fit cursor-pointer rounded-sm py-1 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         View data<span className="sr-only">: {measurement.label}</span>
       </summary>
@@ -733,7 +741,10 @@ export function RecentKnife({ knife }: { knife: Knife }) {
       href={`/collection/${knife.id}`}
       className="grid grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span className="relative grid h-10 w-12 place-items-center overflow-hidden rounded-md bg-muted/70">
+      <span
+        data-photo-stage
+        className="relative grid h-10 w-12 place-items-center overflow-hidden rounded-md bg-muted/70"
+      >
         {knife.images[0] ? (
           <Image
             src={getImageUrl(knife.images[0])}
@@ -776,7 +787,10 @@ export function DrilldownKnife({ knife }: { knife: Knife }) {
       href={`/collection/${knife.id}`}
       className="grid grid-cols-[4rem_minmax(0,1fr)] items-center gap-3 rounded-lg border border-border bg-card p-2 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span className="relative grid h-14 w-16 place-items-center overflow-hidden rounded-md bg-muted">
+      <span
+        data-photo-stage
+        className="relative grid h-14 w-16 place-items-center overflow-hidden rounded-md bg-muted"
+      >
         {knife.images[0] ? (
           <Image
             src={getImageUrl(knife.images[0])}
@@ -1146,6 +1160,7 @@ export function CollectionInsights() {
               <CardContent className="flex h-full flex-col p-4">
                 <Link
                   href="/insights/library"
+                  data-insight-label
                   className="block h-4 w-fit text-[10px] xl:text-xs font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)] hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   Library
@@ -1261,6 +1276,7 @@ export function CollectionInsights() {
                 <div>
                   <Link
                     href="/insights/makers"
+                    data-insight-label
                     className="block h-4 w-fit text-[10px] xl:text-xs font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     Maker mix
@@ -1379,6 +1395,7 @@ export function CollectionInsights() {
                 <div>
                   <Link
                     href="/insights/locks"
+                    data-insight-label
                     className="block h-4 w-fit text-[10px] xl:text-xs font-semibold uppercase leading-4 tracking-[0.14em] text-[var(--bladevault-title)] transition-colors hover:text-[var(--bladevault-local)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     Lock types
@@ -1491,7 +1508,7 @@ export function CollectionInsights() {
                   )
                 }
               />
-              <details className="mt-3 text-xs xl:text-sm">
+              <details data-view-data className="mt-3 text-xs xl:text-sm">
                 <summary className="w-fit cursor-pointer rounded-sm py-1 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   View data<span className="sr-only">: Blade steels</span>
                 </summary>
@@ -1699,7 +1716,7 @@ export function CollectionInsights() {
                       onClick={() => openCategory('Brand', 'brand', category)}
                       className="grid w-full grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-1 py-2.5 text-left text-xs xl:text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      <span className="font-serif text-muted-foreground">
+                      <span className="tabular-nums text-muted-foreground">
                         {String(index + 1).padStart(2, '0')}
                       </span>
                       <strong className="truncate">{category.name}</strong>
@@ -1796,7 +1813,7 @@ export function CollectionInsights() {
                     }
                     className="grid w-full grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-1 py-2.5 text-left text-xs xl:text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <span className="font-serif text-muted-foreground">
+                    <span className="tabular-nums text-muted-foreground">
                       {String(index + 1).padStart(2, '0')}
                     </span>
                     <strong className="truncate">{category.name}</strong>

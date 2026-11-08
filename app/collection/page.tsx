@@ -444,6 +444,33 @@ function CollectionContent() {
     columnSort,
     collectionColumns,
   ])
+  // Classic hides the toolbar count when it only repeats the collection total.
+  const showToolbarCount =
+    isWorkspaceCollection ||
+    isSelectionMode ||
+    filteredKnives.length !== knives.length
+  // Classic places this next to Filters; Modern and Alloy keep it at the end.
+  const renderSelectionToggle = () => (
+    <Button
+      variant="outline"
+      size="default"
+      onClick={() => {
+        if (isSelectionMode) {
+          exitSelectionMode()
+        } else {
+          setActiveKnifeId(null)
+          setIsSelectionMode(true)
+        }
+      }}
+    >
+      {isSelectionMode ? (
+        <X className="size-3.5" />
+      ) : (
+        <CheckSquare2 className="size-3.5" />
+      )}
+      {isSelectionMode ? 'Cancel selection' : 'Select'}
+    </Button>
+  )
 
   const setFilterValues = (key: FilterKey, values: string[]) => {
     replaceParams((params) => {
@@ -1022,6 +1049,7 @@ function CollectionContent() {
         {!isWorkspaceCollection && knives.length > 0 && (
           <nav
             aria-label="Collection grouping"
+            data-collection-scopes
             className="mb-5 flex gap-6 border-b border-border"
           >
             {(
@@ -1121,11 +1149,14 @@ function CollectionContent() {
                   aria-hidden="true"
                 />
               </Button>
-              <span className="text-xs tabular-nums text-muted-foreground sm:ml-auto">
-                {isSelectionMode
-                  ? `${selectedIds.size} selected · ${filteredKnives.length} matches`
-                  : `${filteredKnives.length} ${filteredKnives.length === 1 ? 'knife' : 'knives'}`}
-              </span>
+              {!isWorkspaceCollection && renderSelectionToggle()}
+              {showToolbarCount && (
+                <span className="text-xs tabular-nums text-muted-foreground sm:ml-auto">
+                  {isSelectionMode
+                    ? `${selectedIds.size} selected · ${filteredKnives.length} matches`
+                    : `${filteredKnives.length} ${filteredKnives.length === 1 ? 'knife' : 'knives'}`}
+                </span>
+              )}
               <label className="sr-only" htmlFor="collection-sort">
                 Sort collection
               </label>
@@ -1137,7 +1168,10 @@ function CollectionContent() {
                   setSortOrder(event.target.value as CollectionSort)
                   setVisibleCount(PAGE_SIZE)
                 }}
-                className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className={cn(
+                  'h-8 rounded-lg border border-border bg-background px-2 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  !showToolbarCount && 'sm:ml-auto',
+                )}
               >
                 {columnSortLabel && (
                   <option value="column" hidden>
@@ -1219,25 +1253,7 @@ function CollectionContent() {
                 renderColumnsMenu(
                   'flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 )}
-              <Button
-                variant="outline"
-                size="default"
-                onClick={() => {
-                  if (isSelectionMode) {
-                    exitSelectionMode()
-                  } else {
-                    setActiveKnifeId(null)
-                    setIsSelectionMode(true)
-                  }
-                }}
-              >
-                {isSelectionMode ? (
-                  <X className="size-3.5" />
-                ) : (
-                  <CheckSquare2 className="size-3.5" />
-                )}
-                {isSelectionMode ? 'Cancel selection' : 'Select'}
-              </Button>
+              {isWorkspaceCollection && renderSelectionToggle()}
             </div>
 
             <div
@@ -1277,7 +1293,8 @@ function CollectionContent() {
         <div
           className={cn(
             'mb-6 flex flex-col gap-4',
-            isWorkspaceCollection && (hasActiveFilters ? 'mb-3' : 'hidden'),
+            isWorkspaceCollection && hasActiveFilters && 'mb-3',
+            !hasActiveFilters && 'hidden',
           )}
         >
           <div className="flex flex-wrap items-center gap-2">

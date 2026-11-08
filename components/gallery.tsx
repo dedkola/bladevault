@@ -36,6 +36,21 @@ export function Gallery({
   const [activeIdx, setActiveIdx] = useState(0)
   const [isFullScreen, setIsFullScreen] = useState(false)
   const fullscreenThumbnailRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const thumbnailStripRef = useRef<HTMLDivElement>(null)
+
+  // Keep the active thumbnail visible when the strip scrolls sideways.
+  useEffect(() => {
+    const strip = thumbnailStripRef.current
+    const thumb = strip?.children[activeIdx] as HTMLElement | undefined
+    if (!strip || !thumb || strip.scrollWidth <= strip.clientWidth) return
+    const reduceMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches
+    strip.scrollTo({
+      left: thumb.offsetLeft - (strip.clientWidth - thumb.clientWidth) / 2,
+      behavior: reduceMotion ? 'auto' : 'smooth',
+    })
+  }, [activeIdx])
 
   const nextImage = () => setActiveIdx((prev) => (prev + 1) % images.length)
   const prevImage = () =>
@@ -96,6 +111,7 @@ export function Gallery({
         <Card className="group/gallery overflow-hidden p-0">
           <div
             data-gallery-stage
+            data-photo-stage
             className="relative aspect-video lg:aspect-[4/3] lg:max-h-[min(64dvh,64rem)] w-full bg-white"
           >
             {images.length > 0 ? (
@@ -156,10 +172,15 @@ export function Gallery({
         </Card>
 
         {images.length > 1 && (
-          <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-visible lg:pb-0">
+          <div
+            ref={thumbnailStripRef}
+            data-gallery-strip
+            className="relative flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-visible lg:pb-0"
+          >
             {images.map((img, idx) => (
               <div
                 key={idx}
+                data-photo-stage
                 className={cn(
                   'group relative h-20 w-20 shrink-0 snap-start overflow-hidden rounded-md bg-white transition-opacity',
                   activeIdx !== idx && 'opacity-70 hover:opacity-100',
@@ -277,7 +298,15 @@ export function Gallery({
             data-gallery-viewport
             className="h-full w-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.055),transparent_58%)] px-2 pb-28 pt-16 sm:px-20 sm:pb-36 sm:pt-20"
           >
-            <div className="relative h-full w-full">
+            <div
+              data-photo-stage={
+                images.length > 0 &&
+                !isWebpageScreenshot(images[activeIdx] || '')
+                  ? ''
+                  : undefined
+              }
+              className="relative h-full w-full"
+            >
               {images.length > 0 ? (
                 isWebpageScreenshot(images[activeIdx] || '') ? (
                   <div className="flex h-full min-w-0 flex-col gap-3">
@@ -389,6 +418,7 @@ export function Gallery({
                         fullscreenThumbnailRefs.current[index] = node
                       }}
                       onClick={() => setActiveIdx(index)}
+                      data-photo-stage
                       className={cn(
                         'relative h-16 w-16 shrink-0 snap-center overflow-hidden rounded-md border bg-[#171713] shadow-md shadow-black/30 transition-all duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-2 focus-visible:ring-offset-black sm:h-20 sm:w-20',
                         index === activeIdx

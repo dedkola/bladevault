@@ -178,6 +178,7 @@ export function Sidebar() {
           >
             <div className="relative h-12 w-12 shrink-0" data-sidebar-logo>
               <Image
+                data-logo-light
                 src="/logo.svg"
                 alt="BladeVault logo"
                 fill
@@ -185,6 +186,15 @@ export function Sidebar() {
                 unoptimized
                 className="object-contain p-1"
                 priority
+              />
+              <Image
+                data-logo-dark
+                src="/logo-dark.svg"
+                alt=""
+                fill
+                sizes="48px"
+                unoptimized
+                className="object-contain p-1"
               />
             </div>
             <span
@@ -657,6 +667,7 @@ export function Sidebar() {
         <Link href="/" className="flex min-w-0 items-center gap-2.5">
           <div className="relative h-10 w-10 shrink-0">
             <Image
+              data-logo-light
               src="/logo.svg"
               alt="BladeVault logo"
               fill
@@ -664,6 +675,15 @@ export function Sidebar() {
               unoptimized
               className="object-contain p-1"
               priority
+            />
+            <Image
+              data-logo-dark
+              src="/logo-dark.svg"
+              alt=""
+              fill
+              sizes="40px"
+              unoptimized
+              className="object-contain p-1"
             />
           </div>
           <span className="truncate text-xl font-semibold tracking-tight text-foreground">

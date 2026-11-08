@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import localFont from 'next/font/local'
 import '@/app/globals.css'
 import '@/app/alloy.css'
+import '@/app/classic.css'
 import './styles.css'
 
 const sans = Geist({ subsets: ['latin'], variable: '--font-sans' })

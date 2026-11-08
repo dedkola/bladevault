@@ -638,6 +638,7 @@ export function KnifeFormFields({
                   <div
                     key={`${src}-${index}`}
                     onClick={() => toggleImageSelection(src)}
+                    data-photo-stage
                     className={`group relative aspect-square cursor-pointer overflow-hidden rounded-xl border bg-white transition-colors ${
                       isSelected
                         ? 'border-emerald-500 ring-2 ring-emerald-500/15'
