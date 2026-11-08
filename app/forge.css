@@ -600,7 +600,7 @@ html[data-theme-variant='forge'] [data-forge-card] h2[title] {
 
 html[data-theme-variant='forge'] dl[data-forge-specs] {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.3fr);
   margin: 0;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -2029,4 +2029,83 @@ html[data-theme-variant='forge']:not(.dark)
   [role='listbox']
   [data-photo-stage] {
   background: transparent;
+}
+
+/* Compare: list tabs and the editing chips use the glow-line pills. The
+ * open list holds the lit line instead of a solid ink fill. */
+html[data-theme-variant='forge'] [data-compare-tabs] > :is(a, button) {
+  height: 26px;
+  padding: 0 11px;
+  border-color: var(--gl-line);
+  background: transparent;
+  color: var(--forge-ink-2);
+  font-size: 11.5px;
+  font-weight: 500;
+  transition:
+    color 180ms,
+    border-color 180ms,
+    box-shadow 200ms;
+}
+
+html[data-theme-variant='forge']
+  [data-compare-tabs]
+  > :is(a, button):not([aria-current='page']):hover {
+  border-color: var(--gl-lit);
+  box-shadow: var(--gl-halo);
+  color: var(--foreground);
+}
+
+html[data-theme-variant='forge'] [data-compare-tabs] > a[aria-current='page'] {
+  border-color: var(--gl-sel);
+  background: transparent;
+  box-shadow: var(--gl-selected);
+  color: var(--gl-text);
+}
+
+html[data-theme-variant='forge'] [data-compare-pill] {
+  height: 26px;
+  gap: 2px;
+  padding: 0 1px 0 11px;
+  border-color: var(--gl-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--forge-ink-2);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+html[data-theme-variant='forge'] [data-compare-pill] button {
+  border-radius: 999px;
+  color: var(--muted-foreground);
+}
+
+html[data-theme-variant='forge'] [data-compare-pill]:has(button:hover) {
+  border-color: color-mix(in srgb, var(--destructive) 45%, transparent);
+}
+
+/* Phones: the header Add button is icon-only, round like its neighbours,
+ * and the search trigger matches. */
+@media (max-width: 767px) {
+  html[data-theme-variant='forge']
+    [data-workspace-actions]
+    > [data-workspace-add] {
+    width: 34px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+    gap: 0;
+    font-size: 0;
+  }
+
+  html[data-theme-variant='forge']
+    [data-workspace-actions]
+    > [data-workspace-add]
+    svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  html[data-theme-variant='forge'] [data-workspace-search] button {
+    border-radius: 999px;
+  }
 }

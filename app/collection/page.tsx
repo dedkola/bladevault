@@ -155,6 +155,7 @@ function CollectionContent() {
     collectionDisplay,
     updateCollectionDisplay,
     dimensionUnit,
+    isLoading,
   } = useKnives()
   const isAlloy = themeStyle === 'alloy'
   const isWorkspaceCollection = isModernThemeFamily(themeStyle) || isAlloy
@@ -1381,7 +1382,8 @@ function CollectionContent() {
           </div>
         </div>
 
-        {filteredKnives.length === 0 ? (
+        {filteredKnives.length === 0 &&
+        isLoading ? null : filteredKnives.length === 0 ? (
           <EmptyState
             title={
               hasActiveFilters
