@@ -12,7 +12,6 @@ import {
   AlertCircle,
   ExternalLink,
   Pin,
-  Scale,
   IdCard,
   Ruler,
   Layers,
@@ -21,6 +20,7 @@ import {
   ChevronDown,
   type LucideIcon,
 } from 'lucide-react'
+import { CompareIcon } from '@/components/icons/compare-icon'
 import { useKnives } from '@/components/providers/knives-provider'
 import { Knife, KnifeUpdates } from '@/lib/data'
 import { formatDimension, formatWeight } from '@/lib/measurements'
@@ -391,7 +391,7 @@ export default function KnifeDetail({
                 {isTogglingCompare ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <Scale className="h-3.5 w-3.5" />
+                  <CompareIcon className="h-3.5 w-3.5" />
                 )}
                 {inCompare
                   ? `In ${comparisonCount} ${comparisonCount === 1 ? 'list' : 'lists'}`
@@ -508,7 +508,7 @@ export default function KnifeDetail({
               {isTogglingCompare ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <Scale className="h-3.5 w-3.5" />
+                <CompareIcon className="h-3.5 w-3.5" />
               )}
               {inCompare
                 ? `In ${comparisonCount} ${comparisonCount === 1 ? 'list' : 'lists'}`

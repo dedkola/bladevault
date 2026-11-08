@@ -1,7 +1,8 @@
 'use client'
 
 import { memo, useState } from 'react'
-import { Check, ImageIcon, Pin, Scale } from 'lucide-react'
+import { Check, ImageIcon, Pin } from 'lucide-react'
+import { CompareIcon } from '@/components/icons/compare-icon'
 import Image from '@/components/vault-image'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useComparisons } from '@/components/providers/comparisons-provider'
@@ -159,7 +160,7 @@ export const AlloyCollectionCard = memo(function AlloyCollectionCard({
             {inCompare ? (
               <Check aria-hidden="true" />
             ) : (
-              <Scale aria-hidden="true" />
+              <CompareIcon aria-hidden="true" />
             )}
           </button>
         )}

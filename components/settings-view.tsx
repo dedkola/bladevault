@@ -27,11 +27,11 @@ import {
   Printer,
   RefreshCw,
   ShieldCheck,
-  Scale,
   SlidersHorizontal,
   Trash2,
   Upload,
 } from 'lucide-react'
+import { CompareIcon } from '@/components/icons/compare-icon'
 import { FcGoogle } from 'react-icons/fc'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
 import {
@@ -413,7 +413,7 @@ function CardFieldsPreview({
               className="absolute right-2 inline-flex items-center gap-1"
               aria-hidden="true"
             >
-              <Scale className="size-3" /> Compare
+              <CompareIcon className="size-3" /> Compare
             </span>
           }
         />
