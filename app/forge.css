@@ -2006,3 +2006,10 @@ html[data-theme-variant='forge'][data-theme-variant]
     transition: none;
   }
 }
+
+/* Light mode: pinned thumbnails sit straight on the sidebar colour. Dark
+ * mode keeps the light plate, since blending a white-background photo
+ * into a near-black sidebar would darken the whole knife. */
+html[data-theme-variant='forge']:not(.dark) [data-sidebar-pinned-thumb] {
+  background: var(--sidebar);
+}
