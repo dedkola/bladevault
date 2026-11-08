@@ -167,29 +167,6 @@ html[data-theme-variant='forge'] [data-sidebar-nav] > a > svg {
   opacity: 0.8;
 }
 
-html[data-theme-variant='forge']
-  [data-sidebar]
-  a:not([aria-current='page']):hover {
-  background: color-mix(in srgb, var(--foreground) 5%, transparent);
-  color: var(--foreground);
-}
-
-/* Hover: the same thin orange outline and soft glow as the cards. An
- * inset ring keeps rows from shifting and from being clipped by the
- * scrolling sidebar. */
-html[data-theme-variant='forge'] [data-sidebar] a {
-  transition:
-    background-color 180ms,
-    color 180ms,
-    box-shadow 180ms;
-}
-
-html[data-theme-variant='forge'] [data-sidebar] a:hover {
-  box-shadow:
-    inset 0 0 0 1px var(--forge-ring),
-    0 8px 18px -12px var(--forge-glow);
-}
-
 /* Counts read as data, not pills. */
 html[data-theme-variant='forge'][data-theme-variant]
   [data-sidebar]
@@ -216,41 +193,6 @@ html[data-theme-variant='forge'][data-theme-variant]
 html[data-theme-variant='forge'] [data-sidebar] [data-comparison-navigation] {
   position: relative;
   border-radius: 9px;
-}
-
-html[data-theme-variant='forge']
-  [data-sidebar]
-  [data-comparison-navigation][data-selected] {
-  background: var(--vv-soft);
-  color: var(--foreground);
-}
-
-html[data-theme-variant='forge']
-  [data-sidebar]
-  [data-comparison-navigation][data-selected]::before {
-  content: '';
-  position: absolute;
-  top: 7px;
-  bottom: 7px;
-  left: -10px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--vv-grad);
-}
-
-html[data-theme-variant='forge']
-  [data-sidebar]
-  [data-comparison-navigation][data-selected]
-  > a {
-  color: var(--foreground);
-}
-
-html[data-theme-variant='forge']
-  [data-sidebar]
-  [data-comparison-navigation][data-selected]
-  > a
-  > svg {
-  color: var(--bladevault-title);
 }
 
 html[data-theme-variant='forge']
@@ -495,81 +437,6 @@ html[data-theme-variant='forge'] [data-modern-collection-toolbar] {
   gap: 10px;
   padding: 18px var(--collection-gutter) 14px;
   border-bottom: 0;
-}
-
-html[data-theme-variant='forge'] [data-modern-collection-scopes] {
-  gap: 6px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-
-html[data-theme-variant='forge'] [data-modern-collection-scopes] button {
-  height: 28px;
-  padding: 0 12px;
-  border: 1px solid var(--forge-line-strong);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--forge-ink-2);
-  font-size: 12.5px;
-  font-weight: 500;
-}
-
-html[data-theme-variant='forge'] [data-modern-collection-scopes] button:hover {
-  border-color: var(--foreground);
-  color: var(--foreground);
-}
-
-html[data-theme-variant='forge']
-  [data-modern-collection-scopes]
-  button[aria-pressed='true'] {
-  border-color: var(--foreground);
-  background: var(--foreground);
-  box-shadow: none;
-  color: var(--background);
-}
-
-html[data-theme-variant='forge'] [data-modern-collection-tools] {
-  gap: 8px;
-}
-
-html[data-theme-variant='forge'] [data-modern-collection-tools] > select,
-html[data-theme-variant='forge'] [data-modern-collection-tools] > button,
-html[data-theme-variant='forge']
-  [data-modern-collection-tools]
-  > [data-collection-view-toggle] {
-  height: 28px;
-  border-color: var(--forge-line-strong);
-  background-color: var(--card);
-  font-size: 12.5px;
-}
-
-html[data-theme-variant='forge'] [data-modern-collection-tools] > button {
-  border: 1px solid var(--forge-line-strong);
-  padding-inline: 10px;
-}
-
-html[data-theme-variant='forge']
-  [data-modern-collection-tools]
-  > button.size-6 {
-  width: 28px;
-  padding: 0;
-}
-
-html[data-theme-variant='forge']
-  [data-modern-collection-tools]
-  > [data-collection-view-toggle]
-  button {
-  width: 26px;
-  height: 22px;
-}
-
-html[data-theme-variant='forge']
-  [data-modern-collection-tools]
-  > [data-collection-view-toggle]
-  button[aria-pressed='true'] {
-  background: var(--foreground);
-  color: var(--background);
 }
 
 html[data-theme-variant='forge']
@@ -1192,96 +1059,6 @@ html[data-theme-variant='forge']:not(.dark) .bg-white:not([data-photo-stage]) {
   background-color: var(--card);
 }
 
-/* ------------------------------------------------------------------ */
-/* Buttons: pills like the header Add knife button                      */
-/* `group/button` marks every Button and button-styled link.            */
-/* ------------------------------------------------------------------ */
-html[data-theme-variant='forge'] .group\/button:not(.underline-offset-4) {
-  border-radius: 999px;
-  font-weight: 600;
-  letter-spacing: -0.005em;
-}
-
-/* Text buttons (icon-only sizes keep their square footprint, now round). */
-html[data-theme-variant='forge']
-  .group\/button:not(.underline-offset-4, .size-6, .size-7, .size-8, .size-9) {
-  min-height: 30px;
-  gap: 6px;
-  padding-inline: 14px;
-  font-size: 12.5px;
-}
-
-/* Outline and secondary buttons: ivory pill with a soft edge and lift. */
-html[data-theme-variant='forge']
-  .group\/button:is(.border-border, .bg-secondary) {
-  border-color: var(--forge-line-strong);
-  background-color: var(--card);
-  color: var(--foreground);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 55%),
-    0 4px 12px -8px rgb(20 18 15 / 30%);
-}
-
-html[data-theme-variant='forge'].dark
-  .group\/button:is(.border-border, .bg-secondary) {
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 6%),
-    0 4px 12px -8px rgb(0 0 0 / 70%);
-}
-
-html[data-theme-variant='forge']
-  .group\/button:is(.border-border, .bg-secondary):hover {
-  background-color: color-mix(in srgb, var(--card) 70%, var(--muted));
-}
-
-/* Segmented tabs (e.g. Scrape URL / Manual) as pills too. */
-html[data-theme-variant='forge'] [data-slot='tabs-list'] {
-  padding: 3px;
-  border-radius: 999px;
-}
-
-html[data-theme-variant='forge'] [data-slot='tabs-trigger'] {
-  padding-inline: 14px;
-  border-radius: 999px;
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-/* ------------------------------------------------------------------ */
-/* Hover outline on everything clickable                                */
-/* The thin orange ring and soft glow used on cards, applied to          */
-/* buttons, menus, chips, selects and tabs. Inset so nothing shifts or   */
-/* gets clipped. The card's full-size open button is left out because   */
-/* the card itself shows the outline.                                    */
-/* ------------------------------------------------------------------ */
-html[data-theme-variant='forge']
-  :is(
-    button,
-    select,
-    summary,
-    [role='button'],
-    [role='menuitem'],
-    [role='menuitemradio'],
-    [role='menuitemcheckbox'],
-    [role='option'],
-    [role='tab'],
-    [role='radio'],
-    [role='switch'],
-    [role='combobox'],
-    [data-slot='button'],
-    [data-workspace-actions] > a,
-    a.inline-flex,
-    [data-forge-pin],
-    [data-forge-compare]
-  ):not(:disabled, [aria-disabled='true'], [data-forge-card-open]):is(
-    :hover,
-    [data-highlighted]
-  ) {
-  box-shadow:
-    inset 0 0 0 1px var(--forge-ring),
-    0 6px 16px -12px var(--forge-glow);
-}
-
 /* Compare table: hovering a feature row tints the whole line, including
  * the sticky label cell, so values can be read across. */
 html[data-theme-variant='forge']
@@ -1422,4 +1199,745 @@ html[data-theme-variant='forge']
   border-radius: 999px;
   font-size: 12px;
   font-weight: 500;
+}
+
+/* Page titles across Forge pages: larger, ink rather than accent. */
+html[data-theme-variant='forge'] [data-page-header] .page-title {
+  color: var(--foreground);
+  font-size: clamp(24px, 2.3vw, 30px);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+/* Knife detail: info panel in the card language. */
+html[data-theme-variant='forge'] [data-slot='card']:has([data-detail-section]) {
+  border-color: var(--border);
+  border-radius: var(--forge-radius);
+  background: var(--card);
+  box-shadow: var(--forge-shadow);
+}
+
+/* Section headings and the Source label: small orange caps. */
+html[data-theme-variant='forge'] [data-detail-section] > h3,
+html[data-theme-variant='forge']
+  [data-slot='card']:has([data-detail-section])
+  > [data-slot='card-content']
+  > div:first-child:not([data-detail-section])
+  h3 {
+  margin-bottom: 12px;
+  color: var(--bladevault-title);
+  font-family: var(--forge-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+html[data-theme-variant='forge']
+  [data-slot='card']:has([data-detail-section])
+  > [data-slot='card-content']
+  > div:first-child:not([data-detail-section])
+  h3 {
+  margin-bottom: 4px;
+}
+
+html[data-theme-variant='forge'] [data-detail-section] > h3 > svg {
+  width: 13px;
+  height: 13px;
+  color: var(--bladevault-title);
+}
+
+/* Fields: mono caps labels, larger values, hairline rows. */
+html[data-theme-variant='forge'] [data-detail-section] dl {
+  row-gap: 0;
+}
+
+html[data-theme-variant='forge'] [data-detail-section] dl > div {
+  padding: 9px 0 10px;
+  border-top: 1px solid var(--border);
+}
+
+html[data-theme-variant='forge'] [data-detail-section] dt {
+  margin-bottom: 3px;
+  color: var(--muted-foreground);
+  font-family: var(--forge-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+html[data-theme-variant='forge'] [data-detail-section] dd {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+html[data-theme-variant='forge'] [data-detail-section] {
+  border-top-color: var(--border);
+}
+
+/* Gallery thumbnails: softer corners to match the cards. */
+html[data-theme-variant='forge'] [data-gallery-strip] > [data-photo-stage] {
+  border-radius: 10px;
+}
+
+/* Studio: floating pill toolbar, chip filters, card-language tiles. */
+html[data-theme-variant='forge']
+  [data-studio]
+  [class*='toolbar']:not([class*='toolbarLeft'], [class*='toolbarRight']) {
+  border-color: var(--border);
+  border-radius: 999px;
+  padding: 7px 10px 7px 8px;
+  box-shadow: var(--forge-shadow);
+}
+
+html[data-theme-variant='forge'] [data-studio] [class*='segmented'] {
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+}
+
+html[data-theme-variant='forge'] [data-studio] [class*='segmented'] button {
+  min-height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--forge-line-strong);
+  border-radius: 999px;
+  color: var(--forge-ink-2);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+html[data-theme-variant='forge']
+  [data-studio]
+  [class*='segmented']
+  button[aria-pressed='true'] {
+  border-color: var(--foreground);
+  background: var(--foreground);
+  box-shadow: none;
+  color: var(--background);
+}
+
+html[data-theme-variant='forge'] [data-studio] [class*='search'] input,
+html[data-theme-variant='forge'] [data-studio] [class*='sort'] select {
+  border-radius: 999px;
+  font-size: 12.5px;
+}
+
+html[data-theme-variant='forge'] [data-studio] [class*='count'] {
+  font-family: var(--forge-mono);
+  font-size: 11px;
+}
+
+html[data-theme-variant='forge']
+  [data-studio]
+  [class*='tile']:not([class*='tileActions']) {
+  border-color: var(--border);
+  border-radius: var(--forge-radius);
+  box-shadow: var(--forge-shadow);
+}
+
+html[data-theme-variant='forge']
+  [data-studio]
+  [class*='tile']:not([class*='tileActions']):hover {
+  border-color: var(--forge-ring);
+  box-shadow: var(--forge-shadow-lift);
+}
+
+html[data-theme-variant='forge'] [data-studio] [class*='caption'] {
+  border-color: var(--border);
+  border-radius: 12px;
+}
+
+html[data-theme-variant='forge'] [data-studio] [class*='caption'] b {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+html[data-theme-variant='forge'] [data-studio] [class*='caption'] div > span {
+  font-family: var(--forge-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Logs: a joined stats strip like Collection, chip filters, caps day
+ * headings and mono times. */
+html[data-theme-variant='forge'] [data-modern-logs] [data-logs-summary] {
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--forge-radius);
+  background: var(--border);
+  box-shadow: var(--forge-shadow);
+}
+
+html[data-theme-variant='forge'] [data-modern-logs] [data-logs-summary] > div {
+  flex-direction: column;
+  padding: 14px 16px 15px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+html[data-theme-variant='forge'] [data-modern-logs] [data-logs-summary] dt {
+  order: -1;
+  margin: 0 0 6px;
+  font-family: var(--forge-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-theme-variant='forge'] [data-modern-logs] [data-logs-summary] dd {
+  font-family: var(--forge-mono);
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+html[data-theme-variant='forge'] [data-modern-logs] [data-logs-card] {
+  border-color: var(--border);
+  border-radius: var(--forge-radius);
+  box-shadow: var(--forge-shadow);
+}
+
+html[data-theme-variant='forge']
+  [data-logs-filter-row]
+  [aria-label='Filter log event type'] {
+  gap: 6px;
+}
+
+html[data-theme-variant='forge']
+  [data-logs-filter-row]
+  [aria-label='Filter log event type']
+  > button {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--forge-line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--forge-ink-2);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+html[data-theme-variant='forge']
+  [data-logs-filter-row]
+  [aria-label='Filter log event type']
+  > button[aria-pressed='true'] {
+  border-color: var(--foreground);
+  background: var(--foreground);
+  color: var(--background);
+}
+
+html[data-theme-variant='forge'] [data-log-day] th {
+  color: var(--bladevault-title);
+  font-family: var(--forge-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+}
+
+html[data-theme-variant='forge'] [data-log-time] {
+  font-family: var(--forge-mono);
+  font-size: 11.5px;
+}
+
+html[data-theme-variant='forge'] [data-log-entry]:hover {
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+
+/* ================================================================== */
+/* Glow line controls                                                   */
+/* Transparent pills with a faint line at rest. Hover lights the line   */
+/* ember with a soft halo; the main action keeps a faint ember glow;    */
+/* selected items hold a lit ember line. Extra-small sizing.            */
+/* ================================================================== */
+html[data-theme-variant='forge'] {
+  --gl-line: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --gl-lit: color-mix(in srgb, var(--primary) 70%, transparent);
+  --gl-sel: color-mix(in srgb, var(--primary) 65%, transparent);
+  --gl-text: var(--bladevault-title);
+  --gl-halo: 0 0 0 3px var(--vv-soft), 0 6px 16px -8px var(--forge-glow);
+  --gl-hold: 0 0 14px -6px var(--forge-glow);
+  --gl-selected:
+    0 0 12px -4px var(--forge-glow), inset 0 0 10px -6px var(--forge-glow);
+}
+
+/* ---- Buttons (every Button and button-styled link) ---------------- */
+html[data-theme-variant='forge'] .group\/button:not(.underline-offset-4),
+html[data-theme-variant='forge']
+  [data-workspace-actions]
+  > [data-workspace-add] {
+  gap: 5px;
+  border: 1px solid var(--gl-line);
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--forge-ink-2);
+  filter: none;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  text-shadow: none;
+  transition:
+    color 180ms,
+    border-color 180ms,
+    box-shadow 200ms,
+    transform 120ms;
+}
+
+/* Text buttons: extra small. Icon-only sizes become round 26px. */
+html[data-theme-variant='forge']
+  .group\/button:not(.underline-offset-4, .size-6, .size-7, .size-8, .size-9),
+html[data-theme-variant='forge']
+  [data-workspace-actions]
+  > [data-workspace-add] {
+  height: 26px;
+  min-height: 26px;
+  padding-inline: 11px;
+}
+
+html[data-theme-variant='forge'] .group\/button:is(.size-7, .size-8, .size-9) {
+  width: 26px;
+  height: 26px;
+}
+
+html[data-theme-variant='forge'] .group\/button svg:not([class*='size-']) {
+  width: 12px;
+  height: 12px;
+}
+
+/* Quiet (ghost) buttons have no line until hovered. */
+html[data-theme-variant='forge']
+  .group\/button:not(
+    .underline-offset-4,
+    .bg-primary,
+    .border-border,
+    .bg-secondary,
+    [class*='bg-destructive']
+  ) {
+  border-color: transparent;
+}
+
+/* Main action: ember text and line with a faint held glow. */
+html[data-theme-variant='forge'] .group\/button.bg-primary,
+html[data-theme-variant='forge']
+  [data-workspace-actions]
+  > [data-workspace-add] {
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  background: transparent;
+  box-shadow: var(--gl-hold);
+  color: var(--gl-text);
+}
+
+html[data-theme-variant='forge'] .group\/button[class*='bg-destructive'] {
+  border-color: color-mix(in srgb, var(--destructive) 35%, transparent);
+  background: transparent;
+  color: var(--destructive);
+}
+
+/* Hover: the line lights ember with a halo. */
+html[data-theme-variant='forge']
+  .group\/button:not(.underline-offset-4, :disabled, [aria-disabled='true']):is(
+    :hover,
+    [aria-expanded='true']
+  ),
+html[data-theme-variant='forge']
+  [data-workspace-actions]
+  > [data-workspace-add]:hover {
+  border-color: var(--gl-lit);
+  background: transparent;
+  box-shadow: var(--gl-halo);
+  color: var(--foreground);
+  filter: none;
+}
+
+html[data-theme-variant='forge'] .group\/button.bg-primary:not(:disabled):hover,
+html[data-theme-variant='forge']
+  [data-workspace-actions]
+  > [data-workspace-add]:hover {
+  border-color: var(--primary);
+  color: var(--gl-text);
+}
+
+html[data-theme-variant='forge']
+  .group\/button[class*='bg-destructive']:not(:disabled):hover {
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--destructive) 10%, transparent);
+  color: var(--destructive);
+}
+
+/* Pressed and selected (aria-pressed) buttons hold a lit line. */
+html[data-theme-variant='forge'] .group\/button[aria-pressed='true'] {
+  border-color: var(--gl-sel);
+  box-shadow: var(--gl-selected);
+  color: var(--gl-text);
+}
+
+html[data-theme-variant='forge'] .group\/button:not(:disabled):active,
+html[data-theme-variant='forge']
+  [data-workspace-actions]
+  > [data-workspace-add]:active {
+  transform: scale(0.97);
+}
+
+html[data-theme-variant='forge'] .group\/button:disabled {
+  box-shadow: none;
+  opacity: 0.45;
+}
+
+/* Header icon links (backup, settings, theme). */
+html[data-theme-variant='forge']
+  [data-workspace-actions]
+  > :is(a, button):not([data-workspace-add]) {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  transition:
+    border-color 180ms,
+    box-shadow 200ms,
+    color 180ms;
+}
+
+html[data-theme-variant='forge']
+  [data-workspace-actions]
+  > :is(a, button):not([data-workspace-add]):hover {
+  border-color: var(--gl-lit);
+  background: transparent;
+  box-shadow: var(--gl-halo);
+  color: var(--foreground);
+}
+
+/* ---- Segmented controls: one lit pill inside a faint track ---------- */
+html[data-theme-variant='forge']
+  :is(
+    [data-modern-collection-scopes],
+    [data-modern-collection-tools] > [data-collection-view-toggle],
+    [data-slot='tabs-list'],
+    [data-studio] [class*='segmented'],
+    [data-logs-filter-row] [aria-label='Filter log event type'],
+    [data-modern-insights] [class*='range']
+  ) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  height: auto;
+  padding: 2px;
+  border: 1px solid var(--gl-line);
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-theme-variant='forge']
+  :is(
+    [data-modern-collection-scopes],
+    [data-modern-collection-tools] > [data-collection-view-toggle],
+    [data-slot='tabs-list'],
+    [data-studio] [class*='segmented'],
+    [data-logs-filter-row] [aria-label='Filter log event type'],
+    [data-modern-insights] [class*='range']
+  )
+  > :is(button, [data-slot='tabs-trigger']) {
+  width: auto;
+  min-width: 0;
+  height: 22px;
+  min-height: 22px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted-foreground);
+  font-size: 11.5px;
+  font-weight: 500;
+  transition:
+    color 180ms,
+    border-color 180ms,
+    box-shadow 200ms;
+}
+
+html[data-theme-variant='forge']
+  [data-modern-collection-tools]
+  > [data-collection-view-toggle]
+  > button {
+  width: 26px;
+  padding: 0;
+}
+
+html[data-theme-variant='forge']
+  :is(
+    [data-modern-collection-scopes],
+    [data-modern-collection-tools] > [data-collection-view-toggle],
+    [data-slot='tabs-list'],
+    [data-studio] [class*='segmented'],
+    [data-logs-filter-row] [aria-label='Filter log event type'],
+    [data-modern-insights] [class*='range']
+  )
+  > :is(button, [data-slot='tabs-trigger']):hover {
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--foreground);
+}
+
+html[data-theme-variant='forge']
+  :is(
+    [data-modern-collection-scopes],
+    [data-modern-collection-tools] > [data-collection-view-toggle],
+    [data-slot='tabs-list'],
+    [data-studio] [class*='segmented'],
+    [data-logs-filter-row] [aria-label='Filter log event type'],
+    [data-modern-insights] [class*='range']
+  )
+  > :is(
+    button[aria-pressed='true'],
+    button[aria-selected='true'],
+    [data-slot='tabs-trigger'][data-active],
+    [data-slot='tabs-trigger'][aria-selected='true']
+  ) {
+  border-color: var(--gl-sel);
+  background: transparent;
+  box-shadow: var(--gl-selected);
+  color: var(--gl-text);
+}
+
+/* ---- Selects, inputs and other clickable bits ---------------------- */
+html[data-theme-variant='forge'] [data-modern-collection-tools] > select {
+  height: 26px;
+  border-color: var(--gl-line);
+  background-color: transparent;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+html[data-theme-variant='forge'] select:hover,
+html[data-theme-variant='forge'] [data-slot='select-trigger']:hover {
+  border-color: var(--gl-lit);
+  box-shadow: var(--gl-halo);
+}
+
+html[data-theme-variant='forge']
+  :is(
+    input[data-slot='input'],
+    textarea[data-slot='textarea'],
+    [data-slot='select-trigger'],
+    select
+  ):focus-visible {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--vv-soft);
+}
+
+html[data-theme-variant='forge']
+  :is(
+    [role='menuitem'],
+    [role='menuitemradio'],
+    [role='menuitemcheckbox'],
+    [role='option']
+  ):is(:hover, [data-highlighted]) {
+  box-shadow: inset 0 0 0 1px var(--gl-lit);
+}
+
+/* ---- Card and inspector buttons ------------------------------------ */
+html[data-theme-variant='forge'] [data-forge-compare] {
+  height: 24px;
+  padding: 0 10px;
+  border-color: var(--gl-line);
+  background: transparent;
+  color: var(--forge-ink-2);
+  font-size: 11px;
+}
+
+html[data-theme-variant='forge'] [data-forge-pin] {
+  width: 26px;
+  height: 26px;
+  border-color: var(--gl-line);
+  background: transparent;
+  backdrop-filter: none;
+  color: var(--forge-ink-2);
+}
+
+html[data-theme-variant='forge']
+  :is([data-forge-compare], [data-forge-pin]):not(:disabled):hover {
+  border-color: var(--gl-lit);
+  box-shadow: var(--gl-halo);
+  color: var(--foreground);
+}
+
+html[data-theme-variant='forge']
+  :is([data-forge-compare], [data-forge-pin])[data-on] {
+  border-color: var(--gl-sel);
+  background: transparent;
+  box-shadow: var(--gl-selected);
+  color: var(--gl-text);
+}
+
+html[data-theme-variant='forge'] [data-inspector-actions] > * {
+  height: 26px;
+  font-size: 11.5px;
+}
+
+/* ---- Sidebar: one highlight style everywhere -------------------- */
+/* Selected rows use the same thin ember line and small glow (what the
+ * Collection row shows); hover is a lighter version of that line. Only
+ * the item you are on is highlighted: when a comparison list is open,
+ * the list row lights up and Compare keeps just its ember icon. */
+html[data-theme-variant='forge'] {
+  --sb-selected:
+    inset 0 0 0 1px var(--gl-sel), 0 0 12px -4px var(--forge-glow),
+    inset 0 0 10px -6px var(--forge-glow);
+  --sb-hover:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent),
+    0 2px 8px -5px var(--forge-glow);
+}
+
+html[data-theme-variant='forge'] [data-sidebar] a,
+html[data-theme-variant='forge'] [data-sidebar] [data-comparison-navigation] {
+  border-radius: 999px;
+  transition:
+    color 180ms,
+    box-shadow 200ms,
+    background-color 180ms;
+}
+
+html[data-theme-variant='forge'] [data-sidebar] [data-comparison-navigation] {
+  min-height: 34px;
+}
+
+/* Hover. */
+html[data-theme-variant='forge'][data-theme-variant]
+  [data-sidebar]
+  a:not([aria-current='page']):hover,
+html[data-theme-variant='forge']
+  [data-sidebar]
+  [data-comparison-navigation]:not([data-selected]):hover {
+  background: transparent;
+  box-shadow: var(--sb-hover);
+  color: var(--foreground);
+}
+
+/* The Compare link and + button sit inside a row that has its own state. */
+html[data-theme-variant='forge']
+  [data-sidebar]
+  [data-comparison-navigation]
+  > a:hover {
+  box-shadow: none;
+}
+
+/* Selected. */
+html[data-theme-variant='forge'][data-theme-variant]
+  [data-sidebar]
+  a[aria-current='page'],
+html[data-theme-variant='forge'][data-theme-variant]
+  [data-sidebar]
+  [data-comparison-navigation][data-selected]:not(
+    :has(+ div > a[aria-current='page'])
+  ) {
+  position: relative;
+  background: transparent;
+  box-shadow: var(--sb-selected);
+  color: var(--foreground);
+}
+
+/* Compare row while one of its lists is open: no line, ember icon only. */
+html[data-theme-variant='forge'][data-theme-variant]
+  [data-sidebar]
+  [data-comparison-navigation][data-selected]:has(
+    + div > a[aria-current='page']
+  ) {
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-theme-variant='forge'][data-theme-variant]
+  [data-sidebar]
+  a[aria-current='page']::before {
+  content: none;
+}
+
+html[data-theme-variant='forge'][data-theme-variant]
+  [data-sidebar]
+  :is(a[aria-current='page'], [data-comparison-navigation][data-selected] > a)
+  svg {
+  color: var(--gl-text);
+  opacity: 1;
+}
+
+html[data-theme-variant='forge']
+  [data-sidebar]
+  [data-comparison-navigation][data-selected]
+  > :is(a, button) {
+  color: var(--foreground);
+}
+
+/* Selected list rows read like other selected rows: ink text, ember count. */
+html[data-theme-variant='forge'][data-theme-variant]
+  [data-sidebar]
+  [data-comparison-navigation]
+  + div
+  > a[aria-current='page'] {
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-variant='forge'] .group\/button:active {
+    transform: none;
+  }
+}
+
+/* Collection toolbar buttons that aren't shared Buttons (e.g. Columns). */
+html[data-theme-variant='forge']
+  [data-modern-collection-tools]
+  > button:not(.group\/button) {
+  height: 26px;
+  padding-inline: 10px;
+  border: 1px solid var(--gl-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--forge-ink-2);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+html[data-theme-variant='forge']
+  [data-modern-collection-tools]
+  > button:not(.group\/button):is(:hover, [aria-expanded='true']) {
+  border-color: var(--gl-lit);
+  box-shadow: var(--gl-halo);
+  color: var(--foreground);
+}
+
+/* Single-line fields match the pills: 28px, rounded, faint line. */
+html[data-theme-variant='forge'] input[data-slot='input'] {
+  height: 28px;
+  border-color: var(--gl-line);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 12px;
+}
+
+html[data-theme-variant='forge'] input[data-slot='input']:hover:not(:focus) {
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+}
+
+/* One row shape in the sidebar: square rows with sharp corners. The
+ * tripled attribute outranks the older per-section radius rules. */
+html[data-theme-variant='forge'][data-theme-variant][data-theme-variant]
+  [data-sidebar]
+  :is(a, [data-comparison-navigation]) {
+  border-radius: 0;
+}
+
+/* Pinned rows: square thumbnail aligned with the row edge. */
+html[data-theme-variant='forge'][data-theme-variant][data-theme-variant]
+  [data-workspace-body]
+  [data-sidebar-pinned-item] {
+  padding: 5px 10px 5px 6px;
+}
+
+html[data-theme-variant='forge'] [data-sidebar-pinned-thumb] {
+  width: 40px;
+  height: 30px;
+  border-radius: 0;
 }
