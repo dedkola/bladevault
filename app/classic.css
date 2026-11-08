@@ -574,3 +574,21 @@ html:not([data-theme-style='modern'], [data-theme-style='alloy'])
   img {
   mix-blend-mode: multiply;
 }
+
+/* Studio keeps its own stage tokens; in Classic dark mode use the same warm
+ * sand stage as every other knife photo. */
+html.dark:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  :is([data-studio], [data-studio-focus], [data-studio-quick-look]) {
+  --studio-highlight: #d6ccb6;
+  --studio-stage: #bcb19a;
+  --studio-stage-edge: #a99e86;
+  --studio-stage-ink: #4d4536;
+}
+
+/* Full-screen viewer: the photo area becomes a rounded stage panel. */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-gallery-viewport]
+  > [data-photo-stage] {
+  overflow: hidden;
+  border-radius: 16px;
+}

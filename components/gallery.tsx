@@ -298,7 +298,15 @@ export function Gallery({
             data-gallery-viewport
             className="h-full w-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.055),transparent_58%)] px-2 pb-28 pt-16 sm:px-20 sm:pb-36 sm:pt-20"
           >
-            <div className="relative h-full w-full">
+            <div
+              data-photo-stage={
+                images.length > 0 &&
+                !isWebpageScreenshot(images[activeIdx] || '')
+                  ? ''
+                  : undefined
+              }
+              className="relative h-full w-full"
+            >
               {images.length > 0 ? (
                 isWebpageScreenshot(images[activeIdx] || '') ? (
                   <div className="flex h-full min-w-0 flex-col gap-3">
@@ -410,6 +418,7 @@ export function Gallery({
                         fullscreenThumbnailRefs.current[index] = node
                       }}
                       onClick={() => setActiveIdx(index)}
+                      data-photo-stage
                       className={cn(
                         'relative h-16 w-16 shrink-0 snap-center overflow-hidden rounded-md border bg-[#171713] shadow-md shadow-black/30 transition-all duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)] focus-visible:ring-offset-2 focus-visible:ring-offset-black sm:h-20 sm:w-20',
                         index === activeIdx

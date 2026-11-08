@@ -558,6 +558,7 @@ export function StudioView() {
 
       <Dialog open={focus} onOpenChange={setFocus}>
         <DialogContent
+          data-studio-focus
           className={cn(styles.focus, 'translate-x-0 translate-y-0')}
           showCloseButton={false}
           finalFocus={focusButton}
@@ -585,6 +586,7 @@ export function StudioView() {
         }}
       >
         <DialogContent
+          data-studio-quick-look
           className={styles.quickLook}
           finalFocus={() =>
             returnFocus.current?.isConnected
