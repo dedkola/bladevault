@@ -89,6 +89,7 @@ export function KnifeVariantSwitcher({ knife }: { knife: Knife }) {
                 )}
               >
                 <span
+                  data-photo-stage
                   className="relative min-h-28 w-full overflow-hidden rounded-md border border-border/60 bg-white sm:min-h-32"
                   data-variant-preview
                 >

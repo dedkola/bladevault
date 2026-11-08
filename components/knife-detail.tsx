@@ -2,7 +2,7 @@
 
 import { useComparisons } from '@/components/providers/comparisons-provider'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -18,6 +18,7 @@ import {
   Layers,
   FileText,
   ListPlus,
+  ChevronDown,
   type LucideIcon,
 } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -53,6 +54,7 @@ function DetailSection({
   return (
     <section
       aria-label={title}
+      data-detail-section
       className="mx-5 border-t border-border/60 py-5 first:border-t-0"
     >
       <h3 className="mb-4 flex items-center gap-2 text-xs xl:text-lg font-semibold text-foreground">
@@ -95,6 +97,71 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   )
 }
 
+const NOTES_CLAMP_LENGTH = 700
+
+function KnifeNotes({ paragraphs }: { paragraphs: string[] }) {
+  if (paragraphs.length === 0) {
+    return (
+      <p className="text-xs xl:text-sm text-muted-foreground">
+        No description provided.
+      </p>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {paragraphs.map((paragraph, index) => (
+        <p
+          key={index}
+          className="whitespace-pre-line text-xs xl:text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]"
+        >
+          {paragraph}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+// Classic shows notes beside the gallery and clamps long descriptions.
+function ClassicNotesCard({ paragraphs }: { paragraphs: string[] }) {
+  const [expanded, setExpanded] = useState(false)
+  const notesId = useId()
+  const isLong = paragraphs.join('').length > NOTES_CLAMP_LENGTH
+
+  return (
+    <Card size="sm" className="gap-0 border border-border/65 py-0 ring-0">
+      <CardContent className="px-0">
+        <DetailSection title="Notes" icon={FileText}>
+          <div
+            id={notesId}
+            data-notes-body
+            data-clamped={isLong && !expanded ? '' : undefined}
+          >
+            <KnifeNotes paragraphs={paragraphs} />
+          </div>
+          {isLong && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mt-2 -ml-2 text-[var(--bladevault-title)]"
+              aria-expanded={expanded}
+              aria-controls={notesId}
+              onClick={() => setExpanded((current) => !current)}
+            >
+              {expanded ? 'Show less' : 'Show more'}
+              <ChevronDown
+                aria-hidden="true"
+                className={cn('transition-transform', expanded && 'rotate-180')}
+              />
+            </Button>
+          )}
+        </DetailSection>
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function KnifeDetail({
   knife: initialKnife,
   initialEditing = false,
@@ -110,7 +177,9 @@ export default function KnifeDetail({
     refreshVault,
     scheduleVaultBackup,
     dimensionUnit,
+    themeStyle,
   } = useKnives()
+  const isClassic = themeStyle !== 'modern' && themeStyle !== 'alloy'
   const [detailKnife, setDetailKnife] = useState(initialKnife)
   const collectionKnife = knives.find((k) => k.id === initialKnife.id)
   const knife = collectionKnife
@@ -123,6 +192,10 @@ export default function KnifeDetail({
       }
     : detailKnife
   const safeSourceUrl = getSafeExternalUrl(knife.sourceUrl)
+  const descriptionParagraphs = (knife.description ?? '')
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
   const pinned = knife.pinned
   const {
     choose,
@@ -496,13 +569,21 @@ export default function KnifeDetail({
       <KnifeVariantSwitcher key={knife.id} knife={knife} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.25fr_380px] 2xl:grid-cols-[1.5fr_420px]">
-        <div className="contents lg:flex lg:flex-col lg:gap-6">
-          <div className="order-1 lg:order-none">
+        <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-6">
+          <div className="order-1 min-w-0 lg:order-none">
             <Gallery
               images={knife.images}
               screenshot={knife.webpageScreenshot}
             />
           </div>
+          {isClassic && (
+            <div className="order-3 lg:order-none">
+              <ClassicNotesCard
+                key={knife.id}
+                paragraphs={descriptionParagraphs}
+              />
+            </div>
+          )}
           <div className="order-3 lg:order-none">
             <MaintenanceSection knifeId={knife.id} />
           </div>
@@ -561,28 +642,11 @@ export default function KnifeDetail({
                 </dl>
               </DetailSection>
 
-              <DetailSection title="Notes" icon={FileText}>
-                <div className="space-y-3">
-                  {knife.description ? (
-                    knife.description
-                      .split(/\n\s*\n/)
-                      .map((p) => p.trim())
-                      .filter(Boolean)
-                      .map((paragraph, index) => (
-                        <p
-                          key={index}
-                          className="whitespace-pre-line text-xs xl:text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]"
-                        >
-                          {paragraph}
-                        </p>
-                      ))
-                  ) : (
-                    <p className="text-xs xl:text-sm text-muted-foreground">
-                      No description provided.
-                    </p>
-                  )}
-                </div>
-              </DetailSection>
+              {!isClassic && (
+                <DetailSection title="Notes" icon={FileText}>
+                  <KnifeNotes paragraphs={descriptionParagraphs} />
+                </DetailSection>
+              )}
 
               {customFieldRows.length > 0 && (
                 <DetailSection title="Custom Fields" icon={ListPlus}>

@@ -3,6 +3,7 @@ import { ComparisonsProvider } from '@/components/providers/comparisons-provider
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import './alloy.css'
+import './classic.css'
 import { SmartCollectionsProvider } from '@/components/providers/smart-collections-provider'
 import { AppShell } from '@/components/app-shell'
 import { KnivesProvider } from '@/components/providers/knives-provider'

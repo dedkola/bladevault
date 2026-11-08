@@ -41,6 +41,22 @@ export function GlobalKnifeSearch({
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
+  const [hiddenWhileScrolling, setHiddenWhileScrolling] = useState(false)
+
+  // The floating search steps aside while scrolling down so it doesn't cover
+  // page content, and returns on scroll up. Styles decide whether to use it.
+  useEffect(() => {
+    if (embedded) return
+    let lastY = window.scrollY
+    const handleScroll = () => {
+      const y = window.scrollY
+      if (Math.abs(y - lastY) < 8) return
+      setHiddenWhileScrolling(y > lastY && y > 120)
+      lastY = y
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [embedded])
   const modern = themeStyle === 'modern' || themeStyle === 'alloy'
   const showGlobalSearch = modern
     ? embedded
@@ -161,6 +177,7 @@ export function GlobalKnifeSearch({
       data-global-knife-search
       data-embedded={embedded || undefined}
       data-state={open ? 'open' : 'closed'}
+      data-scroll-hidden={hiddenWhileScrolling && !open ? '' : undefined}
       className={cn(
         embedded
           ? 'absolute inset-x-0 top-0 z-40 overflow-hidden rounded-lg border bg-popover text-popover-foreground'
@@ -326,7 +343,10 @@ export function GlobalKnifeSearch({
                       )}
                       aria-hidden="true"
                     />
-                    <span className="relative h-11 w-14 shrink-0 overflow-hidden rounded-lg border border-[var(--bladevault-line)]/60 bg-white">
+                    <span
+                      data-photo-stage
+                      className="relative h-11 w-14 shrink-0 overflow-hidden rounded-lg border border-[var(--bladevault-line)]/60 bg-white"
+                    >
                       {knife.images.length > 0 ? (
                         <Image
                           src={getImageUrl(knife.images[0])}

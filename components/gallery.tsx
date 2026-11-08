@@ -36,6 +36,21 @@ export function Gallery({
   const [activeIdx, setActiveIdx] = useState(0)
   const [isFullScreen, setIsFullScreen] = useState(false)
   const fullscreenThumbnailRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const thumbnailStripRef = useRef<HTMLDivElement>(null)
+
+  // Keep the active thumbnail visible when the strip scrolls sideways.
+  useEffect(() => {
+    const strip = thumbnailStripRef.current
+    const thumb = strip?.children[activeIdx] as HTMLElement | undefined
+    if (!strip || !thumb || strip.scrollWidth <= strip.clientWidth) return
+    const reduceMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches
+    strip.scrollTo({
+      left: thumb.offsetLeft - (strip.clientWidth - thumb.clientWidth) / 2,
+      behavior: reduceMotion ? 'auto' : 'smooth',
+    })
+  }, [activeIdx])
 
   const nextImage = () => setActiveIdx((prev) => (prev + 1) % images.length)
   const prevImage = () =>
@@ -96,6 +111,7 @@ export function Gallery({
         <Card className="group/gallery overflow-hidden p-0">
           <div
             data-gallery-stage
+            data-photo-stage
             className="relative aspect-video lg:aspect-[4/3] lg:max-h-[min(64dvh,64rem)] w-full bg-white"
           >
             {images.length > 0 ? (
@@ -156,10 +172,15 @@ export function Gallery({
         </Card>
 
         {images.length > 1 && (
-          <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-visible lg:pb-0">
+          <div
+            ref={thumbnailStripRef}
+            data-gallery-strip
+            className="relative flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-visible lg:pb-0"
+          >
             {images.map((img, idx) => (
               <div
                 key={idx}
+                data-photo-stage
                 className={cn(
                   'group relative h-20 w-20 shrink-0 snap-start overflow-hidden rounded-md bg-white transition-opacity',
                   activeIdx !== idx && 'opacity-70 hover:opacity-100',

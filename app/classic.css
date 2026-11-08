@@ -1,0 +1,575 @@
+/* Classic theme polish.
+ *
+ * Classic keeps its olive and gold identity. These rules soften borders to
+ * warm-neutral hairlines, keep gold for accents, and add light depth.
+ * Classic is also the fallback when no style attribute is set yet, so every
+ * rule is scoped to "not Modern and not Alloy". These rules are unlayered on
+ * purpose so they take precedence over Tailwind utilities.
+ */
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy']) {
+  --classic-ink-soft: #45463a;
+  --classic-faint: #958e78;
+  --classic-gold-ink: #8a6418;
+  --classic-gold-wash: rgb(200 156 61 / 12%);
+  --classic-shadow-xs: 0 1px 0 rgb(46 52 23 / 4%);
+  --classic-shadow-sm:
+    0 1px 2px rgb(46 52 23 / 5%), 0 1px 1px rgb(46 52 23 / 3%);
+  --classic-shadow-md:
+    0 1px 2px rgb(46 52 23 / 4%), 0 8px 24px -8px rgb(46 52 23 / 16%);
+
+  --bladevault-line: #e7e0cf;
+  --bladevault-title: var(--classic-gold-ink);
+  --bladevault-nav-active-fg: #f4ead0;
+  --bladevault-surface-soft: #f6f2e9;
+  --bladevault-surface-hover: #efe8d8;
+  --background: #faf8f3;
+  --foreground: #23251a;
+  --card: #fffefb;
+  --card-foreground: #23251a;
+  --popover: #fffefb;
+  --popover-foreground: #23251a;
+  --secondary: #f3eee2;
+  --muted: #f4f0e6;
+  --muted-foreground: #6c6755;
+  --accent: #efe9da;
+  --border: #e7e0cf;
+  --input: #d9cdb1;
+  --sidebar: #f5f1e8;
+  --sidebar-foreground: #23251a;
+  --sidebar-accent: #ece5d4;
+  --sidebar-border: #e7e0cf;
+}
+
+html.dark:not([data-theme-style='modern'], [data-theme-style='alloy']) {
+  --classic-ink-soft: #ddd2b2;
+  --classic-faint: #857a62;
+  --classic-gold-ink: #dcb465;
+  --classic-gold-wash: rgb(209 166 80 / 14%);
+  --classic-shadow-xs: none;
+  --classic-shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+  --classic-shadow-md:
+    0 1px 2px rgb(0 0 0 / 30%), 0 10px 28px -10px rgb(0 0 0 / 60%);
+
+  --bladevault-line: rgb(242 230 194 / 10%);
+  --bladevault-title: var(--classic-gold-ink);
+  --bladevault-surface-soft: #241f16;
+  --bladevault-surface-hover: #2c261a;
+  --background: #14120d;
+  --foreground: #f3eacf;
+  --card: #1e1a12;
+  --card-foreground: #f3eacf;
+  --popover: #1e1a12;
+  --popover-foreground: #f3eacf;
+  --secondary: #262016;
+  --secondary-foreground: #f3eacf;
+  --muted: #221d14;
+  --muted-foreground: #ab9f80;
+  --accent: #2c261a;
+  --accent-foreground: #f3eacf;
+  --border: rgb(242 230 194 / 9%);
+  --input: rgb(242 230 194 / 16%);
+  --sidebar: #191610;
+  --sidebar-foreground: #f3eacf;
+  --sidebar-accent: #2c261a;
+  --sidebar-accent-foreground: #f3eacf;
+  --sidebar-border: rgb(242 230 194 / 9%);
+}
+
+/* Type */
+html:not([data-theme-style='modern'], [data-theme-style='alloy']) body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy']) .page-title {
+  color: var(--foreground);
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+
+/* Surfaces: hairline ring plus a soft shadow. Setting --tw-shadow keeps the
+ * card's own ring and any selection ring intact. */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-slot='card'] {
+  --tw-shadow: var(--classic-shadow-sm);
+  border-radius: 14px;
+}
+
+/* Buttons */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-slot='button'].bg-primary {
+  background-image: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 14%),
+    transparent
+  );
+  border-color: rgb(46 52 23 / 16%);
+  font-weight: 600;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 30%),
+    0 1px 2px rgb(46 52 23 / 12%);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-slot='button'].bg-primary:hover {
+  filter: brightness(1.04);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-slot='button'].border-border {
+  border-color: var(--input);
+  background-color: var(--card);
+  box-shadow: var(--classic-shadow-xs);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-slot='button'].border-border:hover {
+  background-color: var(--bladevault-surface-soft);
+}
+
+/* Inputs */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  :is([data-slot='input'], [data-slot='select-trigger']) {
+  background-color: var(--card);
+  box-shadow: var(--classic-shadow-xs);
+}
+
+/* Sidebar */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-brand-row] {
+  padding-bottom: 12px;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-logo] {
+  width: 36px;
+  height: 36px;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-brand] {
+  font-size: 1.25rem;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-add] {
+  height: 32px;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-label] {
+  color: var(--classic-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-nav]
+  > a,
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-comparison-navigation]
+  a {
+  min-height: 34px;
+  font-weight: 500;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar]
+  a[aria-current='page'] {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 6%),
+    0 1px 2px rgb(46 52 23 / 18%);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar]
+  a[aria-current='page']
+  > svg {
+  color: var(--bladevault-gold);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar]
+  a[aria-current='page']
+  [data-sidebar-count] {
+  background: rgb(200 156 61 / 22%);
+  color: var(--bladevault-gold);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-count] {
+  color: var(--muted-foreground);
+}
+
+/* Floating knife search: sit at the top right instead of over the page. */
+@media (min-width: 1280px) {
+  html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+    [data-global-knife-search]:not([data-embedded]) {
+    left: auto;
+    right: 24px;
+    translate: none;
+    border-color: var(--input);
+    border-radius: 10px;
+    box-shadow: var(--classic-shadow-md);
+  }
+}
+
+@media (max-width: 1279px) {
+  html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+    [data-global-knife-search]:not([data-embedded]) {
+    border-color: var(--input);
+    border-radius: 10px;
+  }
+}
+
+/* Collection: grouping tabs, toolbar and cards */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-collection-scopes]
+  button {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-collection-scopes]
+  button
+  > span {
+  border-radius: 999px;
+  color: var(--muted-foreground);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-collection-filter-panel] {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-collection-filter-panel]
+  select {
+  border-color: var(--input);
+  background-color: var(--card);
+  box-shadow: var(--classic-shadow-xs);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-knife-card] {
+  transition: transform 200ms;
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+    [data-knife-card]:hover {
+    transform: translateY(-2px);
+  }
+
+  html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+    [data-knife-card]:hover
+    > [data-slot='card'] {
+    --tw-shadow: var(--classic-shadow-md);
+  }
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-knife-card]
+  [data-card-image] {
+  width: auto;
+  margin: 6px 6px 0;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-card-footer] {
+  border-top-color: var(--border);
+}
+
+/* Show the pin button on hover or focus; pinned knives keep it visible. */
+@media (hover: hover) {
+  html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+    [data-knife-card]
+    > button[aria-label^='Pin '] {
+    opacity: 0;
+    transition: opacity 150ms;
+  }
+
+  html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+    [data-knife-card]:is(:hover, :focus-within)
+    > button[aria-label^='Pin '] {
+    opacity: 1;
+  }
+}
+
+/* Knife detail */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-detail-section]
+  > h3 {
+  margin-bottom: 12px;
+  color: var(--classic-gold-ink);
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-detail-section]
+  dd {
+  font-size: 13.5px;
+}
+
+/* Insights eyebrow labels */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-insight-label] {
+  letter-spacing: 0.09em;
+  white-space: nowrap;
+}
+
+/* Let the toolbar search shrink before the buttons wrap onto a new row. */
+@media (min-width: 640px) {
+  html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+    [data-collection-toolbar]
+    > :has(> div > input[type='search']) {
+    flex: 1 1 200px;
+    min-width: 160px;
+    max-width: 24rem;
+  }
+}
+
+/* On narrower windows the Columns button shows only its icon. It keeps its
+ * "Choose columns" accessible name. */
+@media (min-width: 640px) and (max-width: 1279px) {
+  html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+    [data-collection-toolbar]
+    button[aria-label='Choose columns'] {
+    width: 32px;
+    justify-content: center;
+    padding-inline: 0;
+    font-size: 0;
+  }
+}
+
+/* Knife page: long notes are clamped until "Show more". */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-notes-body][data-clamped] {
+  max-height: 14rem;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 65%, transparent);
+}
+
+/* Knife page: thumbnails stay on one row and scroll sideways. */
+@media (min-width: 1024px) {
+  html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+    [data-gallery-strip] {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scrollbar-width: thin;
+  }
+}
+
+/* Collection: cards fill the row instead of leaving a strip on the right. */
+@media (min-width: 1280px) {
+  html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+    [data-collection-grid] {
+    grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  }
+
+  html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+    [data-collection-grid][data-density='compact'] {
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  }
+}
+
+/* Knife cards: no reserved second title line, no lone dash for a missing
+ * model number. */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-card-title] {
+  min-height: 0;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-card-model='empty'] {
+  display: none;
+}
+
+/* Model families: match the knife cards. */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-family-entry]
+  > button {
+  border-color: var(--border);
+  border-radius: 14px;
+  background-color: var(--card);
+  box-shadow:
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+    var(--classic-shadow-sm);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-family-entry]
+  > button:hover {
+  border-color: var(--input);
+  box-shadow:
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+    var(--classic-shadow-md);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-family-cover] {
+  width: auto;
+  margin: 6px 6px 0;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-family-brand] {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+/* Logo: the dark-mode version keeps the olive half visible. */
+[data-logo-dark] {
+  display: none;
+}
+
+html.dark:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-logo-light] {
+  display: none;
+}
+
+html.dark:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-logo-dark] {
+  display: block;
+}
+
+/* Settings: one panel, and tabs wrap instead of being cut off. */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  .settings-surface {
+  border-color: transparent;
+  border-radius: 0;
+  background: transparent;
+}
+
+@media (max-width: 1279px) {
+  html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+    [data-settings-rail] {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+}
+
+/* Sidebar: pinned knives on one line; details remain in the hover title. */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-pinned-details] {
+  display: none;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-pinned-item] {
+  min-height: 30px;
+  font-size: 12.5px;
+}
+
+/* Insights: "View data" as a styled disclosure. */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-view-data]
+  > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--classic-gold-ink);
+  list-style: none;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-view-data]
+  > summary::-webkit-details-marker {
+  display: none;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-view-data]
+  > summary::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 150ms;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-view-data][open]
+  > summary::after {
+  transform: translateY(1px) rotate(-135deg);
+}
+
+/* Floating search steps aside while scrolling down. */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-global-knife-search]:not([data-embedded]) {
+  transition:
+    left 300ms,
+    right 300ms,
+    width 300ms,
+    box-shadow 300ms,
+    opacity 200ms,
+    transform 250ms;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-global-knife-search][data-scroll-hidden]:not(:focus-within) {
+  opacity: 0;
+  transform: translateY(-140%);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+    [data-global-knife-search][data-scroll-hidden]:not(:focus-within) {
+    transform: none;
+  }
+}
+
+/* Table view: the selected row uses the hover background plus a gold edge. */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-collection-table]
+  tbody
+  tr[aria-current='true'] {
+  background-color: var(--bladevault-surface-soft);
+  box-shadow: inset 2px 0 0 var(--bladevault-gold);
+}
+
+/* Every knife photo frame uses the Studio stage: a soft beige light with the
+ * photo multiplied in, so white product backgrounds disappear. Dark mode uses
+ * Studio's lighter stage. */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-photo-stage] {
+  --classic-stage-highlight: var(--card);
+  --classic-stage: var(--bladevault-surface-soft);
+  --classic-stage-edge: var(--muted);
+  background: radial-gradient(
+    100% 90% at 50% 0%,
+    var(--classic-stage-highlight),
+    var(--classic-stage) 70%,
+    var(--classic-stage-edge)
+  );
+}
+
+html.dark:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-photo-stage] {
+  --classic-stage-highlight: color-mix(in srgb, var(--muted) 8%, white);
+  --classic-stage: color-mix(in srgb, var(--muted) 18%, white);
+  --classic-stage-edge: color-mix(in srgb, var(--muted) 24%, white);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-photo-stage]
+  img {
+  mix-blend-mode: multiply;
+}

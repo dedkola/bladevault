@@ -138,6 +138,7 @@ export const KnifeCard = memo(function KnifeCard({
       >
         <div
           data-card-image
+          data-photo-stage
           className={cn(
             'relative w-full bg-white',
             isCompact ? 'aspect-[1.7]' : 'aspect-video',

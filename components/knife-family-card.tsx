@@ -47,6 +47,8 @@ export function KnifeFamilyCard({
   const summaryContent = (
     <>
       <span
+        data-family-cover
+        data-photo-stage
         className={cn(
           'relative block w-full shrink-0 bg-white',
           isCompact ? 'aspect-[1.7]' : 'aspect-video',
@@ -68,7 +70,10 @@ export function KnifeFamilyCard({
         )}
       </span>
       <span className={cn('block min-w-0 flex-1 p-3', !isCompact && 'sm:p-4')}>
-        <span className="block truncate text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <span
+          data-family-brand
+          className="block truncate text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
+        >
           {family.brand}
         </span>
         <span

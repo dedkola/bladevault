@@ -392,7 +392,10 @@ function CardFieldsPreview({
       aria-label="Card appearance preview"
     >
       <Card className="@container/knife-card gap-0 p-0">
-        <div className="relative flex aspect-video items-center justify-center overflow-hidden bg-white">
+        <div
+          data-photo-stage
+          className="relative flex aspect-video items-center justify-center overflow-hidden bg-white"
+        >
           <div className="relative h-7 w-32 -rotate-[24deg]" aria-hidden="true">
             <div className="absolute right-0 top-0 h-7 w-14 rounded-r-md bg-[var(--bladevault-olive)] shadow-sm" />
             <div className="absolute left-0 top-1 h-5 w-[4.75rem] rounded-l-full border border-[#aaa59b] bg-gradient-to-b from-[#f0f0ed] to-[#c9c9c4] shadow-sm [clip-path:polygon(0_50%,18%_0,100%_0,100%_100%,18%_100%)]" />
