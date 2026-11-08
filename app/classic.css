@@ -547,7 +547,8 @@ html:not([data-theme-style='modern'], [data-theme-style='alloy'])
 
 /* Every knife photo frame uses the Studio stage: a soft beige light with the
  * photo multiplied in, so white product backgrounds disappear. Dark mode uses
- * Studio's lighter stage. */
+ * a warm sand stage: dark enough to sit in the theme, light enough to keep
+ * dark knives visible. */
 html:not([data-theme-style='modern'], [data-theme-style='alloy'])
   [data-photo-stage] {
   --classic-stage-highlight: var(--card);
@@ -563,9 +564,9 @@ html:not([data-theme-style='modern'], [data-theme-style='alloy'])
 
 html.dark:not([data-theme-style='modern'], [data-theme-style='alloy'])
   [data-photo-stage] {
-  --classic-stage-highlight: color-mix(in srgb, var(--muted) 8%, white);
-  --classic-stage: color-mix(in srgb, var(--muted) 18%, white);
-  --classic-stage-edge: color-mix(in srgb, var(--muted) 24%, white);
+  --classic-stage-highlight: #d6ccb6;
+  --classic-stage: #bcb19a;
+  --classic-stage-edge: #a99e86;
 }
 
 html:not([data-theme-style='modern'], [data-theme-style='alloy'])
