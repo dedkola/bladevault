@@ -2013,3 +2013,20 @@ html[data-theme-variant='forge'][data-theme-variant]
 html[data-theme-variant='forge']:not(.dark) [data-sidebar-pinned-thumb] {
   background: var(--sidebar);
 }
+
+/* Search results: thumbnails blend into the panel (or the highlighted
+ * row) in light mode, with no outline. Dark mode keeps the light plate. */
+html[data-theme-variant='forge']
+  [data-global-knife-search]
+  [role='listbox']
+  [data-photo-stage] {
+  border: 0;
+  border-radius: 0;
+}
+
+html[data-theme-variant='forge']:not(.dark)
+  [data-global-knife-search]
+  [role='listbox']
+  [data-photo-stage] {
+  background: transparent;
+}
