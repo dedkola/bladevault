@@ -16,6 +16,7 @@ import localFont from 'next/font/local'
 import { cn } from '@/lib/utils'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import { ThemeColorSync } from '@/components/theme-color-sync'
+import { SegmentedHighlight } from '@/components/segmented-highlight'
 import {
   THEME_COLORS,
   getModernThemeVariant,
@@ -139,6 +140,7 @@ export default async function RootLayout({
     >
       <body className="bg-background text-foreground flex min-h-dvh w-full flex-col font-sans md:flex-row">
         <ThemeColorSync />
+        <SegmentedHighlight />
         {!unlocked ? (
           <AppUnlockForm />
         ) : (

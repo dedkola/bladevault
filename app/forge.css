@@ -1941,3 +1941,67 @@ html[data-theme-variant='forge'] [data-sidebar-pinned-thumb] {
   height: 30px;
   border-radius: 0;
 }
+
+/* Sliding highlight: one lit pill moves to the selected option instead of
+ * each option lighting up on its own. components/segmented-highlight.tsx
+ * sets --seg-x / --seg-w and data-seg-highlight. */
+html[data-theme-variant='forge']
+  :is(
+    [data-modern-collection-scopes],
+    [data-modern-collection-tools] > [data-collection-view-toggle],
+    [data-slot='tabs-list'],
+    [data-studio] [class*='segmented'],
+    [data-logs-filter-row] [aria-label='Filter log event type'],
+    [data-modern-insights] [class*='range']
+  ) {
+  position: relative;
+  isolation: isolate;
+}
+
+html[data-theme-variant='forge'] [data-seg-highlight]::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  top: 2px;
+  bottom: 2px;
+  left: var(--seg-x, 0);
+  width: var(--seg-w, 0);
+  border: 1px solid var(--gl-sel);
+  border-radius: 999px;
+  box-shadow: var(--gl-selected);
+  pointer-events: none;
+}
+
+html[data-theme-variant='forge'] [data-seg-highlight='none']::before {
+  display: none;
+}
+
+html[data-theme-variant='forge'] [data-seg-highlight='ready']::before {
+  transition:
+    left 300ms cubic-bezier(0.3, 0.9, 0.3, 1),
+    width 300ms cubic-bezier(0.3, 0.9, 0.3, 1);
+}
+
+html[data-theme-variant='forge'] [data-seg-highlight] > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* The moving pill draws the selection, so options stay clear. */
+html[data-theme-variant='forge'][data-theme-variant]
+  [data-seg-highlight]:not([data-seg-highlight='none'])
+  > :is(
+    button[aria-pressed='true'],
+    button[aria-selected='true'],
+    [data-slot='tabs-trigger'][data-active],
+    [data-slot='tabs-trigger'][aria-selected='true']
+  ) {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-variant='forge'] [data-seg-highlight]::before {
+    transition: none;
+  }
+}
