@@ -187,10 +187,42 @@ describe('Cloudflare deployment reporting', () => {
     expect(rest.repos.createDeploymentStatus).toHaveBeenCalledWith(
       expect.objectContaining({
         state: 'success',
-        environment_url: previewLog,
+        environment_url:
+          'https://dev-change-bladevault.maiden-tech.workers.dev',
         log_url: previewLog,
         auto_inactive: false,
       }),
+    )
+  })
+
+  it('links a failed preview build to its log instead of the preview site', async () => {
+    const { check, suite, options, rest } = setup()
+    suite.head_branch = 'dev/change'
+    check.details_url = previewLog
+    check.conclusion = 'failure'
+
+    await reportCloudflareDeployments(options)
+
+    expect(rest.repos.createDeploymentStatus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: 'failure',
+        environment_url: previewLog,
+        log_url: previewLog,
+      }),
+    )
+  })
+
+  it('falls back to the build log when a preview name cannot form a hostname', async () => {
+    const { check, suite, options, rest } = setup()
+    const name = 'x'.repeat(60)
+    const log = previewLog.replace('dev-change', name)
+    suite.head_branch = 'dev/change'
+    check.details_url = log
+
+    await reportCloudflareDeployments(options)
+
+    expect(rest.repos.createDeploymentStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ environment_url: log, log_url: log }),
     )
   })
 
