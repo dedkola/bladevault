@@ -39,6 +39,7 @@ import {
   CUSTOM_FIELD_TYPES,
   DEFAULT_SETTINGS,
   SETTINGS_UPDATED_EVENT,
+  applyThemeStyleToElement,
   START_PAGES,
   THEME_STYLES,
   TIME_FORMATS,
@@ -352,7 +353,9 @@ function applyThemePreference(
   themeStyle: AppSettings['themeStyle'],
 ) {
   document.documentElement.classList.toggle('dark', theme === 'dark')
-  document.documentElement.dataset.themeStyle = themeStyle
+  // Forge, Titanium and Field are variants of the Modern layout, so the root
+  // needs `data-theme-style="modern"` plus a variant, not the raw style name.
+  applyThemeStyleToElement(document.documentElement, themeStyle)
 }
 
 function CardFieldsPreview({

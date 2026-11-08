@@ -1352,8 +1352,9 @@ html[data-theme-variant]
 
 html[data-theme-variant] [data-studio] [class*='search'] input,
 html[data-theme-variant] [data-studio] [class*='sort'] select {
+  height: 28px;
   border-radius: 999px;
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 html[data-theme-variant] [data-studio] [class*='count'] {
@@ -2122,5 +2123,183 @@ html[data-theme-variant] [data-compare-pill]:has(button:hover) {
 
   html[data-theme-variant] [data-workspace-search] button {
     border-radius: 999px;
+  }
+}
+
+/* ================================================================== */
+/* Polish pass                                                          */
+/* Brings the remaining off-language pieces into the glow-line system.  */
+/* ================================================================== */
+
+/* Settings rail: the same glow-line rows as the sidebar. The open section
+ * holds the lit ember line instead of a filled peach block, and hover is
+ * the lighter version of that line. */
+html[data-theme-variant][data-theme-variant] [data-settings-rail] > button {
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--forge-ink-2);
+  transition:
+    color 180ms,
+    box-shadow 200ms;
+}
+
+html[data-theme-variant][data-theme-variant]
+  [data-settings-rail]
+  > button:not([class*='nav-active-bg']):hover {
+  box-shadow: var(--sb-hover);
+  color: var(--foreground);
+}
+
+html[data-theme-variant][data-theme-variant]
+  [data-settings-rail]
+  > button[class*='nav-active-bg'] {
+  box-shadow: var(--sb-selected);
+  color: var(--foreground);
+}
+
+html[data-theme-variant]
+  [data-settings-rail]
+  > button[class*='nav-active-bg']
+  > svg {
+  color: var(--gl-text);
+}
+
+html[data-theme-variant] [data-settings-rail] > button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* The Beta badge: an outlined mono tag in light and dark alike. */
+html[data-theme-variant] [data-settings-rail] > button > span:not(.flex-1) {
+  height: 16px;
+  border: 1px solid var(--gl-line);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-family: var(--forge-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+}
+
+html[data-theme-variant]
+  [data-settings-rail]
+  > button[class*='nav-active-bg']
+  > span:not(.flex-1) {
+  border-color: var(--gl-sel);
+  color: var(--gl-text);
+}
+
+/* The folder field is wide enough to show most of the path, like the
+ * current-folder value above it. A fixed width: its row sizes to content,
+ * so a percentage would resolve to nothing. */
+@media (min-width: 640px) {
+  html[data-theme-variant] input[aria-label='Change local data folder'] {
+    min-width: min(24rem, calc(100vw - 8rem));
+  }
+}
+
+/* Studio sort: the same pill as the Collection sort, with the thin chevron
+ * instead of the native arrow. */
+html[data-theme-variant] [data-studio] [class*='sort'] select {
+  appearance: none;
+  padding: 0 26px 0 12px;
+  border-color: var(--gl-line);
+  background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2386868b' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  color: var(--forge-ink-2);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* Insights "View ... data" disclosure: a quiet mono label with a small
+ * chevron instead of the default triangle. */
+html[data-theme-variant] [data-modern-insights] [class*='chartData'] summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted-foreground);
+  font-family: var(--forge-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  list-style: none;
+  text-transform: uppercase;
+  transition: color 180ms;
+}
+
+html[data-theme-variant]
+  [data-modern-insights]
+  [class*='chartData']
+  summary::-webkit-details-marker {
+  display: none;
+}
+
+html[data-theme-variant]
+  [data-modern-insights]
+  [class*='chartData']
+  summary::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 180ms;
+}
+
+html[data-theme-variant]
+  [data-modern-insights]
+  [class*='chartData'][open]
+  > summary::before {
+  transform: rotate(45deg);
+}
+
+html[data-theme-variant]
+  [data-modern-insights]
+  [class*='chartData']
+  summary:hover {
+  color: var(--bladevault-title);
+}
+
+/* Narrow screens ---------------------------------------------------- */
+/* With the inspector off to the side (or an overlay), the auto-selected
+ * first card should not read as a stray highlight. */
+@media (max-width: 820px) {
+  html[data-theme-variant] [data-forge-card][data-active]:not(:hover) {
+    border-color: var(--border);
+    box-shadow: var(--forge-shadow);
+  }
+}
+
+/* Columns is icon-only on small phones so the whole tool row fits on one
+ * line (its aria-label stays "Choose columns"). */
+@media (max-width: 560px) {
+  html[data-theme-variant]
+    [data-modern-collection-tools]
+    > button:not(.group\/button) {
+    justify-content: center;
+    width: 26px;
+    gap: 0;
+    padding: 0;
+    font-size: 0;
+  }
+}
+
+/* The closed phone search trigger is a ghost round icon like the buttons
+ * beside it, not a boxed card. Opened, it keeps the full-width field. */
+@media (max-width: 767px) {
+  html[data-theme-variant]
+    [data-global-knife-search][data-embedded][data-state='closed'] {
+    border-color: transparent;
+    border-radius: 999px;
+    background: transparent;
+  }
+
+  html[data-theme-variant]
+    [data-global-knife-search][data-embedded][data-state='closed']
+    svg {
+    color: var(--muted-foreground);
   }
 }
