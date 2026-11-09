@@ -1597,6 +1597,27 @@ html[data-theme-variant]
     color 180ms;
 }
 
+/* Desktop: same height as the Add knife pill. Phones keep 34px, where the
+ * Add button is a 34px round icon too. */
+@media (min-width: 768px) {
+  html[data-theme-variant]
+    [data-workspace-actions]
+    > :is(a, button):not([data-workspace-add]),
+  html[data-theme-variant] #studio-header-actions > button {
+    width: 26px;
+    height: 26px;
+  }
+
+  html[data-theme-variant]
+    [data-workspace-actions]
+    > :is(a, button):not([data-workspace-add])
+    svg,
+  html[data-theme-variant] #studio-header-actions > button svg {
+    width: 15px;
+    height: 15px;
+  }
+}
+
 html[data-theme-variant]
   [data-workspace-actions]
   > :is(a, button):not([data-workspace-add]):hover {
@@ -2004,8 +2025,10 @@ html[data-theme-variant][data-theme-variant]
 
 /* Light mode: pinned thumbnails sit straight on the sidebar colour. Dark
  * mode keeps the light plate, since blending a white-background photo
- * into a near-black sidebar would darken the whole knife. */
-html[data-theme-variant]:not(.dark) [data-sidebar-pinned-thumb] {
+ * into a near-black sidebar would darken the whole knife. Field keeps the
+ * plate too: its sidebar is dark in light mode as well. */
+html[data-theme-variant]:not(.dark):not([data-theme-variant='field'])
+  [data-sidebar-pinned-thumb] {
   background: var(--sidebar);
 }
 
