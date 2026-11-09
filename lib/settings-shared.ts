@@ -6,13 +6,21 @@ export const THEME_STYLES = [
   'forge',
   'titanium',
   'field',
+  'lumen',
 ] as const
 /**
  * Forge, Titanium and Field reuse the Modern workspace layout and only change
  * its look. The DOM exposes them as `data-theme-style="modern"` plus a
  * `data-theme-variant`, so every Modern layout rule keeps applying.
  */
-export const MODERN_THEME_VARIANTS = ['forge', 'titanium', 'field'] as const
+export const MODERN_THEME_VARIANTS = [
+  'forge',
+  'titanium',
+  'field',
+  'lumen',
+] as const
+/** Styles that always render light and ignore the dark color mode. */
+export const LIGHT_ONLY_THEME_STYLES = ['lumen'] as const
 export const START_PAGES = ['insights', 'studio', 'collection'] as const
 export type StartPage = (typeof START_PAGES)[number]
 
@@ -275,7 +283,32 @@ export const THEME_COLORS: Record<ThemeStyle, { light: string; dark: string }> =
     forge: { light: '#f3f2ef', dark: '#0a0a0b' },
     titanium: { light: '#f4f3f6', dark: '#0c0b0f' },
     field: { light: '#ecebe4', dark: '#0f100d' },
+    lumen: { light: '#ffffff', dark: '#ffffff' },
   }
+
+export function isLightOnlyThemeStyle(themeStyle: ThemeStyle): boolean {
+  return (LIGHT_ONLY_THEME_STYLES as readonly ThemeStyle[]).includes(themeStyle)
+}
+
+/** Whether the root should carry the `dark` class for a mode and style. */
+export function isDarkThemeActive(
+  theme: AppTheme,
+  themeStyle: ThemeStyle,
+): boolean {
+  return theme === 'dark' && !isLightOnlyThemeStyle(themeStyle)
+}
+
+/**
+ * Records the chosen color mode on the root and applies the `dark` class.
+ * Light-only styles keep the saved mode but render light.
+ */
+export function applyThemeModeToElement(element: HTMLElement, theme: AppTheme) {
+  element.dataset.themeMode = theme
+  element.classList.toggle(
+    'dark',
+    isDarkThemeActive(theme, readThemeStyleFromElement(element)),
+  )
+}
 
 /** Writes the theme style to the root element's data attributes. */
 export function applyThemeStyleToElement(
@@ -286,6 +319,11 @@ export function applyThemeStyleToElement(
   const variant = getModernThemeVariant(themeStyle)
   if (variant) element.dataset.themeVariant = variant
   else delete element.dataset.themeVariant
+  // Re-apply the saved mode: a light-only style drops the `dark` class.
+  const mode = element.dataset.themeMode
+  if (mode === 'light' || mode === 'dark') {
+    element.classList.toggle('dark', isDarkThemeActive(mode, themeStyle))
+  }
 }
 
 /** Reads the theme style back from the root element's data attributes. */

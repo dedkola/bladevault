@@ -18,6 +18,8 @@ html[data-theme-variant] {
 
   --forge-mono: var(--font-mono), ui-monospace, 'SF Mono', Menlo, monospace;
   --forge-radius: 16px;
+  /* Corner radius of pills (buttons, chips, fields, sidebar rows). */
+  --forge-pill: 999px;
   /* Lines, glows and tints. Field overrides it in light mode, where its
    * primary is ink. */
   --forge-accent: var(--primary);
@@ -184,6 +186,26 @@ html[data-theme-variant='field'].dark {
   --forge-shadow-lift: 0 18px 44px -16px rgb(200 240 49 / 22%);
   --forge-canvas: #0f100d;
   --forge-chrome: rgb(18 19 16 / 84%);
+}
+
+/* ---- Lumen: pure white, neutral greys, small orange accents ---------- */
+/* Light only (no dark block): the root never gets `dark` for Lumen. Flat
+ * hairline surfaces and small corners after Cloudflare's Kumo. */
+html[data-theme-variant='lumen'] {
+  --forge-radius: 8px;
+  --forge-pill: 6px;
+  --forge-ink-2: #3f3f46;
+  --forge-line-strong: rgb(10 10 10 / 12%);
+  --forge-shadow: 0 1px 2px rgb(0 0 0 / 3%);
+  --forge-ring: #d4d4d4;
+  --forge-glow: transparent;
+  --forge-shadow-lift:
+    0 1px 2px rgb(0 0 0 / 4%), 0 6px 16px -8px rgb(0 0 0 / 12%);
+  --forge-chip-bg: rgb(255 255 255 / 92%);
+  --forge-chip-line: #ebebeb;
+  --forge-chip-fg: #3f3f46;
+  --forge-canvas: #ffffff;
+  --forge-chrome: rgb(255 255 255 / 94%);
 }
 
 html[data-theme-variant] body {
@@ -745,7 +767,7 @@ html[data-theme-variant] [data-forge-pin] {
   width: 28px;
   height: 28px;
   border-color: var(--forge-chip-line);
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   background: var(--forge-chip-bg);
   backdrop-filter: blur(6px);
   color: var(--forge-chip-fg);
@@ -775,7 +797,7 @@ html[data-theme-variant] [data-forge-compare] {
   bottom: 12px;
   height: 26px;
   padding: 0 11px;
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   background: var(--card);
   font-size: 11.5px;
   font-weight: 500;
@@ -862,7 +884,7 @@ html[data-theme-variant] [data-inspector-actions] {
 
 html[data-theme-variant] [data-inspector-actions] > * {
   height: 30px;
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   font-size: 12.5px;
   font-weight: 550;
 }
@@ -1198,11 +1220,11 @@ html[data-theme-variant] [data-modern-insights] [class*='makerTrack'] > span {
 
 /* Segmented range picker (Blade / Overall / Weight / Thickness) as pills. */
 html[data-theme-variant] [data-modern-insights] [class*='range'] {
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
 }
 
 html[data-theme-variant] [data-modern-insights] [class*='range'] button {
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   font-size: 12px;
   font-weight: 500;
 }
@@ -1291,7 +1313,7 @@ html[data-theme-variant]
   [data-studio]
   [class*='toolbar']:not([class*='toolbarLeft'], [class*='toolbarRight']) {
   border-color: var(--border);
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   padding: 7px 10px 7px 8px;
   box-shadow: var(--forge-shadow);
 }
@@ -1306,7 +1328,7 @@ html[data-theme-variant] [data-studio] [class*='segmented'] button {
   min-height: 28px;
   padding: 0 12px;
   border: 1px solid var(--forge-line-strong);
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   color: var(--forge-ink-2);
   font-size: 12.5px;
   font-weight: 500;
@@ -1325,7 +1347,7 @@ html[data-theme-variant]
 html[data-theme-variant] [data-studio] [class*='search'] input,
 html[data-theme-variant] [data-studio] [class*='sort'] select {
   height: 28px;
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   font-size: 12px;
 }
 
@@ -1422,7 +1444,7 @@ html[data-theme-variant]
   height: 28px;
   padding: 0 12px;
   border: 1px solid var(--forge-line-strong);
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   background: transparent;
   color: var(--forge-ink-2);
   font-size: 12.5px;
@@ -1477,7 +1499,7 @@ html[data-theme-variant] .group\/button:not(.underline-offset-4),
 html[data-theme-variant] [data-workspace-actions] > [data-workspace-add] {
   gap: 5px;
   border: 1px solid var(--gl-line);
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   background: transparent;
   box-shadow: none;
   color: var(--forge-ink-2);
@@ -1590,7 +1612,7 @@ html[data-theme-variant]
   [data-workspace-actions]
   > :is(a, button):not([data-workspace-add]) {
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   transition:
     border-color 180ms,
     box-shadow 200ms,
@@ -1643,7 +1665,7 @@ html[data-theme-variant]
   height: auto;
   padding: 2px;
   border: 1px solid var(--gl-line);
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   background: transparent;
   box-shadow: none;
 }
@@ -1664,7 +1686,7 @@ html[data-theme-variant]
   min-height: 22px;
   padding: 0 10px;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   background: transparent;
   box-shadow: none;
   color: var(--muted-foreground);
@@ -1810,7 +1832,7 @@ html[data-theme-variant] {
 
 html[data-theme-variant] [data-sidebar] a,
 html[data-theme-variant] [data-sidebar] [data-comparison-navigation] {
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   transition:
     color 180ms,
     box-shadow 200ms,
@@ -1907,7 +1929,7 @@ html[data-theme-variant]
   height: 26px;
   padding-inline: 10px;
   border: 1px solid var(--gl-line);
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   background: transparent;
   color: var(--forge-ink-2);
   font-size: 11.5px;
@@ -1926,7 +1948,7 @@ html[data-theme-variant]
 html[data-theme-variant] input[data-slot='input'] {
   height: 28px;
   border-color: var(--gl-line);
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   background: transparent;
   font-size: 12px;
 }
@@ -1941,7 +1963,7 @@ html[data-theme-variant] input[data-slot='input']:hover:not(:focus) {
 html[data-theme-variant][data-theme-variant][data-theme-variant]
   [data-sidebar]
   :is(a, [data-comparison-navigation]) {
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
 }
 
 /* Pinned rows: the thumbnail is a small rounded plate, inset far enough
@@ -1984,7 +2006,7 @@ html[data-theme-variant] [data-seg-highlight]::before {
   left: var(--seg-x, 0);
   width: var(--seg-w, 0);
   border: 1px solid var(--gl-sel);
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   box-shadow: var(--gl-selected);
   pointer-events: none;
 }
@@ -2085,7 +2107,7 @@ html[data-theme-variant] [data-compare-pill] {
   gap: 2px;
   padding: 0 1px 0 11px;
   border-color: var(--gl-line);
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   background: transparent;
   color: var(--forge-ink-2);
   font-size: 11.5px;
@@ -2093,7 +2115,7 @@ html[data-theme-variant] [data-compare-pill] {
 }
 
 html[data-theme-variant] [data-compare-pill] button {
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   color: var(--muted-foreground);
 }
 
@@ -2119,7 +2141,7 @@ html[data-theme-variant] [data-compare-pill]:has(button:hover) {
   }
 
   html[data-theme-variant] [data-workspace-search] button {
-    border-radius: 999px;
+    border-radius: var(--forge-pill);
   }
 }
 
@@ -2132,7 +2154,7 @@ html[data-theme-variant] [data-compare-pill]:has(button:hover) {
  * holds the lit ember line instead of a filled peach block, and hover is
  * the lighter version of that line. */
 html[data-theme-variant][data-theme-variant] [data-settings-rail] > button {
-  border-radius: 999px;
+  border-radius: var(--forge-pill);
   background: transparent;
   box-shadow: none;
   color: var(--forge-ink-2);
@@ -2290,7 +2312,7 @@ html[data-theme-variant]
   html[data-theme-variant]
     [data-global-knife-search][data-embedded][data-state='closed'] {
     border-color: transparent;
-    border-radius: 999px;
+    border-radius: var(--forge-pill);
     background: transparent;
   }
 
@@ -2299,4 +2321,154 @@ html[data-theme-variant]
     svg {
     color: var(--muted-foreground);
   }
+}
+
+/* ================================================================== */
+/* Lumen finish                                                         */
+/* Flat and quiet like the Cloudflare dashboard: hairline borders, grey */
+/* hover and selection, no glows. Orange only marks the main action,    */
+/* selected icons, focus and hovered control lines.                     */
+/* ================================================================== */
+html[data-theme-variant='lumen'] {
+  --gl-line: #e2e2e2;
+  --gl-lit: #a3a3a3;
+  --gl-sel: #f6821f;
+  --gl-text: #c2570c;
+  --gl-halo: none;
+  --gl-hold: none;
+  --gl-selected: none;
+  --sb-selected: none;
+  --sb-hover: none;
+}
+
+html[data-theme-variant='lumen'] body {
+  font-feature-settings: 'cv11';
+}
+
+html[data-theme-variant='lumen'] [data-workspace-header] {
+  backdrop-filter: none;
+  border-bottom-color: var(--border);
+}
+
+html[data-theme-variant='lumen'] [data-workspace-brand] b,
+html[data-theme-variant='lumen'] .page-title {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Buttons: white with a hairline; hover tints grey. */
+html[data-theme-variant='lumen'] .group\/button:not(.underline-offset-4) {
+  background: #ffffff;
+  color: var(--foreground);
+  font-size: 12.5px;
+  transition:
+    color 150ms,
+    border-color 150ms,
+    background-color 150ms;
+}
+
+html[data-theme-variant='lumen']
+  .group\/button:not(
+    .underline-offset-4,
+    .bg-primary,
+    .border-border,
+    .bg-secondary,
+    [class*='bg-destructive']
+  ) {
+  background: transparent;
+}
+
+html[data-theme-variant='lumen']
+  .group\/button:not(
+    .underline-offset-4,
+    .bg-primary,
+    [class*='bg-destructive'],
+    :disabled,
+    [aria-disabled='true']
+  ):is(:hover, [aria-expanded='true']) {
+  background: #f5f5f5;
+  color: var(--foreground);
+}
+
+/* Main action: solid orange, like the dashboard's primary button. */
+html[data-theme-variant='lumen'] .group\/button.bg-primary,
+html[data-theme-variant='lumen']
+  [data-workspace-actions]
+  > [data-workspace-add] {
+  border-color: transparent;
+  background: var(--primary);
+  box-shadow: none;
+  color: var(--primary-foreground);
+  font-weight: 500;
+}
+
+html[data-theme-variant='lumen'] .group\/button.bg-primary:not(:disabled):hover,
+html[data-theme-variant='lumen']
+  [data-workspace-actions]
+  > [data-workspace-add]:hover {
+  border-color: transparent;
+  background: var(--primary-hover);
+  color: var(--primary-foreground);
+  filter: none;
+}
+
+html[data-theme-variant='lumen'] .group\/button[aria-pressed='true'] {
+  background: #f5f5f5;
+  color: var(--foreground);
+}
+
+html[data-theme-variant='lumen'] .group\/button:not(:disabled):active,
+html[data-theme-variant='lumen']
+  [data-workspace-actions]
+  > [data-workspace-add]:active {
+  transform: none;
+}
+
+html[data-theme-variant='lumen'] .group\/button:focus-visible,
+html[data-theme-variant='lumen'] input[data-slot='input']:focus-visible {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgb(246 130 31 / 18%);
+}
+
+/* Sidebar: grey fill on the current row, lighter grey on hover. */
+html[data-theme-variant='lumen'][data-theme-variant][data-theme-variant]
+  [data-sidebar]
+  a:not([aria-current='page']):hover,
+html[data-theme-variant='lumen'][data-theme-variant][data-theme-variant]
+  [data-sidebar]
+  [data-comparison-navigation]:not([data-selected]):hover {
+  background: #fafafa;
+  box-shadow: none;
+}
+
+html[data-theme-variant='lumen'][data-theme-variant][data-theme-variant]
+  [data-sidebar]
+  a[aria-current='page'],
+html[data-theme-variant='lumen'][data-theme-variant][data-theme-variant]
+  [data-sidebar]
+  [data-comparison-navigation][data-selected]:not(
+    :has(+ div > a[aria-current='page'])
+  ) {
+  background: #f5f5f5;
+  box-shadow: none;
+  color: var(--foreground);
+}
+
+html[data-theme-variant='lumen'] [data-sidebar-nav] > a,
+html[data-theme-variant='lumen']
+  [data-sidebar]
+  [data-comparison-navigation]
+  > a {
+  color: #262626;
+}
+
+/* Cards: hairline frame, no lift. */
+html[data-theme-variant='lumen'] [data-forge-card]:hover {
+  transform: none;
+}
+
+html[data-theme-variant='lumen']
+  [data-modern-collection-table]
+  tr[aria-current='true'] {
+  background: #fafafa;
 }

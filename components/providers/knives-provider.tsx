@@ -36,6 +36,7 @@ import {
   normalizeTimeFormat,
   normalizeDimensionUnit,
   SETTINGS_UPDATED_EVENT,
+  applyThemeModeToElement,
   type AppTheme,
   type ThemeStyle,
   type TimeFormat,
@@ -189,9 +190,9 @@ export function KnivesProvider({
         }
 
         if (!cancelled) {
-          document.documentElement.classList.toggle(
-            'dark',
-            data.settings?.theme === 'dark',
+          applyThemeModeToElement(
+            document.documentElement,
+            data.settings?.theme === 'dark' ? 'dark' : 'light',
           )
           const nextThemeStyle = normalizeThemeStyle(data.settings?.themeStyle)
           applyThemeStyleToElement(document.documentElement, nextThemeStyle)
@@ -240,10 +241,7 @@ export function KnivesProvider({
       let didUpdate = false
 
       if (detail?.theme) {
-        document.documentElement.classList.toggle(
-          'dark',
-          detail.theme === 'dark',
-        )
+        applyThemeModeToElement(document.documentElement, detail.theme)
         didUpdate = true
       }
 

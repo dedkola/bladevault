@@ -1,5 +1,5 @@
 /*
- * Forge, Titanium and Field: looks built on the Modern layout.
+ * Forge, Titanium, Field and Lumen: looks built on the Modern layout.
  *
  * The root keeps `data-theme-style="modern"`, so every Modern layout rule
  * still applies. `data-theme-variant` adds the palette, the folding-knife logo and a
@@ -463,6 +463,81 @@ html[data-theme-variant='field'].dark {
 }
 
 /* Field uses Space Grotesk for titles. */
+/* ------------------------------------------------------------------ */
+/* Lumen: pure white, neutral greys and small orange accents (light only) */
+/* Neutral scale and accents follow Cloudflare's Kumo tokens.           */
+/* ------------------------------------------------------------------ */
+html[data-theme-variant='lumen'] {
+  --vv-grad: linear-gradient(135deg, #fbad41, #f6821f 55%, #e3620c);
+  --vv-btn: #f6821f;
+  --vv-btn-fg: #ffffff;
+  --vv-soft: rgb(246 130 31 / 10%);
+  --vv-glow: none;
+  --vv-well-hi: #ffffff;
+  --vv-well: #ffffff;
+  --vv-well-edge: #ffffff;
+  --brand-blade-from: #fbad41;
+  --brand-blade-mid: #f6821f;
+  --brand-blade-to: #e3620c;
+
+  --modern-canvas: #ffffff;
+  --bladevault-olive: #18181b;
+  --bladevault-gold: #f6821f;
+  --bladevault-line: #ebebeb;
+  --bladevault-title: #c2570c;
+  --bladevault-local: #047857;
+  --bladevault-nav-active-bg: #f5f5f5;
+  --bladevault-nav-active-fg: #0a0a0a;
+  --bladevault-action-active-bg: #f5f5f5;
+  --bladevault-action-active-fg: #0a0a0a;
+  --bladevault-surface-soft: #fafafa;
+  --bladevault-surface-hover: #f5f5f5;
+  --background: #ffffff;
+  --foreground: #18181b;
+  --card: #ffffff;
+  --card-foreground: #18181b;
+  --popover: #ffffff;
+  --popover-foreground: #18181b;
+  --primary: #f6821f;
+  --primary-hover: #e3730f;
+  --primary-foreground: #ffffff;
+  --secondary: #ffffff;
+  --secondary-foreground: #18181b;
+  --muted: #f7f7f7;
+  --muted-foreground: #737373;
+  --accent: #f5f5f5;
+  --accent-foreground: #18181b;
+  --destructive: #dc2626;
+  --border: #ebebeb;
+  --input: #e2e2e2;
+  --ring: #f6821f;
+  --chart-1: #f6821f;
+  --chart-2: #262626;
+  --chart-3: #a3a3a3;
+  --chart-4: #fbad41;
+  --chart-5: #d4d4d4;
+  --bv-chart-1: #f6821f;
+  --bv-chart-2: #404040;
+  --bv-chart-3: #a3a3a3;
+  --bv-chart-4: #fbad41;
+  --bv-chart-5: #c4c4c4;
+  --bv-chart-6: #e5e5e5;
+  --bv-chart-track: #f2f2f2;
+  --bv-chart-wash: rgb(246 130 31 / 10%);
+  --bv-chart-heat-1: #feecd9;
+  --bv-chart-heat-2: #fcc48a;
+  --bv-chart-heat-3: #f9a04f;
+  --bv-chart-heat-4: #f6821f;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #18181b;
+  --sidebar-primary: #f6821f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f5f5f5;
+  --sidebar-accent-foreground: #18181b;
+  --sidebar-border: #ebebeb;
+  --sidebar-ring: #f6821f;
+}
+
 html[data-theme-variant='field'] :is(.page-title, [data-workspace-brand] b) {
   font-family: var(--font-field-display), var(--font-sans), sans-serif;
   letter-spacing: -0.02em;
