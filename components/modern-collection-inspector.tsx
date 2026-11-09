@@ -1,26 +1,16 @@
 'use client'
 
-import {
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type RefObject,
-} from 'react'
+import { useRef, useSyncExternalStore, type RefObject } from 'react'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import Link from 'next/link'
 import { SoldBadge } from '@/components/sold-badge'
 import { ChevronLeft, ChevronRight, ImageIcon, Pencil, X } from 'lucide-react'
 import Image from '@/components/vault-image'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { formatDimension, formatWeight } from '@/lib/measurements'
+import { formatDimension } from '@/lib/measurements'
+import { InspectorTabs } from '@/components/inspector-tabs'
 import type { DimensionUnit } from '@/lib/settings-shared'
-import {
-  getImageUrl,
-  maintenanceTypeName,
-  type Knife,
-  type MaintenanceEvent,
-} from '@/lib/data'
+import { getImageUrl, type Knife } from '@/lib/data'
 
 const phoneInspectorQuery = '(max-width: 950px)'
 const phoneInspectorSnapshot = () =>
@@ -76,87 +66,6 @@ export function ModernCollectionInspector({
   )
   const isPhoneDialog = variant === 'alloy' && isPhone && !autoSelected
   const closeButtonRef = useRef<HTMLButtonElement>(null)
-  const [tab, setTab] = useState<'overview' | 'specifications' | 'history'>(
-    'overview',
-  )
-  const [history, setHistory] = useState<MaintenanceEvent[]>([])
-  const [historyStatus, setHistoryStatus] = useState<
-    'loading' | 'ready' | 'error'
-  >('loading')
-  useEffect(() => {
-    if (tab !== 'history') return
-    const controller = new AbortController()
-    fetch(`/api/knives/${encodeURIComponent(knife.id)}/maintenance`, {
-      signal: controller.signal,
-      cache: 'no-store',
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error('History unavailable')
-        const data = (await response.json()) as { events?: MaintenanceEvent[] }
-        setHistory(data.events ?? [])
-        setHistoryStatus('ready')
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setHistoryStatus('error')
-      })
-    return () => controller.abort()
-  }, [knife.id, tab])
-  const specs =
-    tab === 'overview'
-      ? variant === 'alloy'
-        ? [
-            [
-              'Blade length',
-              formatDimension(knife.specs.bladeLength, dimensionUnit) ||
-                'Not recorded',
-            ],
-            [
-              'Weight',
-              formatWeight(knife.specs.weight, dimensionUnit) || 'Not recorded',
-            ],
-            ['Blade steel', knife.specs.bladeMaterial],
-            ['Handle', knife.handleMaterial],
-          ]
-        : [
-            ['Maker', knife.brand],
-            ['Designer', knife.specs.designer],
-            ['Lock', knife.specs.lockingMechanism],
-            [
-              'Weight',
-              formatWeight(knife.specs.weight, dimensionUnit) || 'Not recorded',
-            ],
-            ['Handle', knife.handleMaterial],
-            ['Family', knife.name],
-          ]
-      : [
-          ['Blade material', knife.specs.bladeMaterial],
-          ['Hardness', knife.specs.hardness],
-          [
-            'Blade length',
-            formatDimension(knife.specs.bladeLength, dimensionUnit) ||
-              'Not recorded',
-          ],
-          [
-            'Overall length',
-            formatDimension(knife.specs.overallLength, dimensionUnit) ||
-              'Not recorded',
-          ],
-          [
-            'Thickness',
-            formatDimension(knife.specs.bladeThickness, dimensionUnit) ||
-              'Not recorded',
-          ],
-          ['Finish', knife.specs.bladeCoating],
-          ['Lock', knife.specs.lockingMechanism],
-          ['Model', knife.specs.modelNumber],
-          [
-            'Handle length',
-            formatDimension(knife.specs.handleLength, dimensionUnit) ||
-              'Not recorded',
-          ],
-          ['Country', knife.specs.country],
-          ['Price', knife.specs.price],
-        ]
   const contents = (
     <>
       <div data-inspector-header>
@@ -267,111 +176,11 @@ export function ModernCollectionInspector({
             {inCompare ? 'In list' : 'Compare'}
           </Button>
         </div>
-        <div data-inspector-tabs role="tablist" aria-label="Knife information">
-          {(['overview', 'specifications', 'history'] as const).map((value) => (
-            <button
-              key={value}
-              id={`inspector-tab-${value}`}
-              role="tab"
-              aria-selected={tab === value}
-              aria-controls={`inspector-panel-${value}`}
-              tabIndex={tab === value ? 0 : -1}
-              onClick={() => setTab(value)}
-              onKeyDown={(event) => {
-                const tabs = ['overview', 'specifications', 'history'] as const
-                const index = tabs.indexOf(value)
-                const next =
-                  event.key === 'ArrowRight'
-                    ? tabs[(index + 1) % 3]
-                    : event.key === 'ArrowLeft'
-                      ? tabs[(index + 2) % 3]
-                      : event.key === 'Home'
-                        ? tabs[0]
-                        : event.key === 'End'
-                          ? tabs[2]
-                          : null
-                if (next) {
-                  event.preventDefault()
-                  setTab(next)
-                  document.getElementById(`inspector-tab-${next}`)?.focus()
-                }
-              }}
-            >
-              {value.charAt(0).toUpperCase() + value.slice(1)}
-            </button>
-          ))}
-        </div>
-        <div
-          data-inspector-panel
-          id={`inspector-panel-${tab}`}
-          role="tabpanel"
-          aria-labelledby={`inspector-tab-${tab}`}
-        >
-          {tab === 'overview' && (
-            <>
-              <p data-inspector-note>
-                {variant === 'alloy' && (
-                  <span data-alloy-note-label>Collector’s note</span>
-                )}
-                {knife.description || 'No notes recorded.'}
-              </p>
-              <div data-inspector-chips>
-                {[
-                  knife.specs.bladeMaterial,
-                  knife.specs.bladeLength
-                    ? formatDimension(knife.specs.bladeLength, dimensionUnit) ||
-                      'Not recorded'
-                    : '',
-                  knife.bladeStyle,
-                ]
-                  .filter(Boolean)
-                  .map((value, index) => (
-                    <span key={`${value}-${index}`}>{value}</span>
-                  ))}
-              </div>
-            </>
-          )}
-          {tab === 'history' ? (
-            <ul data-inspector-history>
-              <li>
-                <b>Catalogued</b>
-                <span>{new Date(knife.addedAt).toLocaleDateString()}</span>
-              </li>
-              {knife.updatedAt !== knife.addedAt && (
-                <li>
-                  <b>Record updated</b>
-                  <span>{new Date(knife.updatedAt).toLocaleDateString()}</span>
-                </li>
-              )}
-              {historyStatus === 'loading' ? (
-                <li role="status">Loading maintenance history…</li>
-              ) : historyStatus === 'error' ? (
-                <li role="status">
-                  Maintenance history is unavailable. Open the knife to retry.
-                </li>
-              ) : (
-                history.map((event) => (
-                  <li key={event.id}>
-                    <b>{maintenanceTypeName(event.type)}</b>
-                    <span>
-                      {new Date(event.occurredAt).toLocaleDateString()}
-                      {event.notes ? ` · ${event.notes}` : ''}
-                    </span>
-                  </li>
-                ))
-              )}
-            </ul>
-          ) : (
-            <dl data-inspector-specs>
-              {specs.map(([label, value]) => (
-                <div key={label}>
-                  <dt>{label}</dt>
-                  <dd>{value || 'Not recorded'}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </div>
+        <InspectorTabs
+          knife={knife}
+          variant={variant}
+          dimensionUnit={dimensionUnit}
+        />
         <div data-inspector-family>
           <span>In the family</span>
           {siblings.length > 1 ? (

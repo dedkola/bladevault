@@ -2579,3 +2579,66 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
     overflow: visible;
   }
 }
+
+/* Classic's floating inspector shares the tab strip and panel with the Modern
+ * layouts; only the spec grid needs its own rules here. */
+[data-collection-inspector]:not([data-modern-inspector])
+  [data-inspector-specs] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 24px;
+}
+[data-collection-inspector]:not([data-modern-inspector])
+  [data-inspector-specs]
+  > div {
+  min-width: 0;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+[data-collection-inspector]:not([data-modern-inspector])
+  [data-inspector-specs]
+  dt {
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+[data-collection-inspector]:not([data-modern-inspector])
+  [data-inspector-specs]
+  dd {
+  margin-top: 2px;
+  font-size: var(--modern-font-body);
+  font-weight: 500;
+}
+[data-collection-inspector]:not([data-modern-inspector]) [data-inspector-tabs] {
+  gap: 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+[data-collection-inspector]:not([data-modern-inspector])
+  [data-inspector-tabs]
+  button {
+  flex: none;
+  white-space: nowrap;
+}
+[data-collection-inspector]:not([data-modern-inspector])
+  [data-inspector-tabs]
+  button[aria-selected='true']::after {
+  bottom: 0;
+}
+@media (max-width: 480px) {
+  [data-collection-inspector]:not([data-modern-inspector])
+    [data-inspector-tabs] {
+    gap: 10px;
+  }
+  [data-collection-inspector]:not([data-modern-inspector])
+    [data-inspector-tabs]
+    button {
+    font-size: 12px;
+  }
+}
+[data-collection-inspector]:not([data-modern-inspector])
+  [data-inspector-chips]
+  span {
+  padding: 3px 9px;
+  font-size: 11px;
+}
