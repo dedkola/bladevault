@@ -1,589 +1,2030 @@
 <!doctype html>
 <html lang="en" data-dir="forged" data-mode="light">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Forge Controls</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-<style>
-/* ------------------------------------------------------------------
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Forge Controls</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ------------------------------------------------------------------
    Forge palette (same as the app), light and dark.
 ------------------------------------------------------------------- */
-:root {
-  --font: 'Geist', ui-sans-serif, system-ui, sans-serif;
-  --mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-}
-[data-mode='light'] {
-  --bg: #eeeae3; --surface: #faf7f2; --surface-2: #f3efe8; --hover: rgb(20 18 15 / 5%);
-  --ink: #17150f; --ink-2: #3c3a35; --muted: #7a766e;
-  --line: #e3ddd2; --line-strong: rgb(20 18 15 / 16%);
-  --ember: #e5541b; --ember-hi: #ff8f4f; --ember-lo: #c23f0c; --ember-text: #c2410c;
-  --ember-soft: rgb(229 84 27 / 10%); --glow: rgb(229 84 27 / 45%);
-  --danger: #c8102e;
-  /* machined keys */
-  --key-top: #fffdf9; --key-bot: #efe9df; --key-edge: #d6cdbf; --key-hi: #ffffff; --key-shade: rgb(20 18 15 / 7%);
-  --track: #e6e0d6; --track-in: rgb(20 18 15 / 14%); --track-lip: rgb(255 255 255 / 65%);
-  --graphite-top: #34312b; --graphite-bot: #17150f;
-  /* glass */
-  --glass: rgb(255 252 247 / 72%); --glass-strong: rgb(255 252 247 / 88%);
-  --shadow: 0 1px 2px rgb(20 18 15 / 5%), 0 18px 36px -24px rgb(20 18 15 / 28%);
-}
-[data-mode='dark'] {
-  --bg: #0a0a0b; --surface: #141416; --surface-2: #1b1b1e; --hover: rgb(255 255 255 / 6%);
-  --ink: #f2f1ee; --ink-2: #c9c7c2; --muted: #8d8a84;
-  --line: rgb(255 255 255 / 8%); --line-strong: rgb(255 255 255 / 15%);
-  --ember: #ff6a2b; --ember-hi: #ffb067; --ember-lo: #e2361c; --ember-text: #ff8a50;
-  --ember-soft: rgb(255 106 43 / 13%); --glow: rgb(255 106 43 / 40%);
-  --danger: #ff5c5c;
-  --key-top: #26262b; --key-bot: #19191c; --key-edge: rgb(255 255 255 / 10%); --key-hi: rgb(255 255 255 / 9%); --key-shade: rgb(0 0 0 / 45%);
-  --track: #0d0d0f; --track-in: rgb(0 0 0 / 70%); --track-lip: rgb(255 255 255 / 5%);
-  --graphite-top: #f2f1ee; --graphite-bot: #d8d5ce;
-  --glass: rgb(32 32 36 / 62%); --glass-strong: rgb(40 40 46 / 82%);
-  --shadow: inset 0 1px 0 rgb(255 255 255 / 4%), 0 20px 40px -24px rgb(0 0 0 / 80%);
-}
+      :root {
+        --font: 'Geist', ui-sans-serif, system-ui, sans-serif;
+        --mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+      }
+      [data-mode='light'] {
+        --bg: #eeeae3;
+        --surface: #faf7f2;
+        --surface-2: #f3efe8;
+        --hover: rgb(20 18 15 / 5%);
+        --ink: #17150f;
+        --ink-2: #3c3a35;
+        --muted: #7a766e;
+        --line: #e3ddd2;
+        --line-strong: rgb(20 18 15 / 16%);
+        --ember: #e5541b;
+        --ember-hi: #ff8f4f;
+        --ember-lo: #c23f0c;
+        --ember-text: #c2410c;
+        --ember-soft: rgb(229 84 27 / 10%);
+        --glow: rgb(229 84 27 / 45%);
+        --danger: #c8102e;
+        /* machined keys */
+        --key-top: #fffdf9;
+        --key-bot: #efe9df;
+        --key-edge: #d6cdbf;
+        --key-hi: #ffffff;
+        --key-shade: rgb(20 18 15 / 7%);
+        --track: #e6e0d6;
+        --track-in: rgb(20 18 15 / 14%);
+        --track-lip: rgb(255 255 255 / 65%);
+        --graphite-top: #34312b;
+        --graphite-bot: #17150f;
+        /* glass */
+        --glass: rgb(255 252 247 / 72%);
+        --glass-strong: rgb(255 252 247 / 88%);
+        --shadow:
+          0 1px 2px rgb(20 18 15 / 5%), 0 18px 36px -24px rgb(20 18 15 / 28%);
+      }
+      [data-mode='dark'] {
+        --bg: #0a0a0b;
+        --surface: #141416;
+        --surface-2: #1b1b1e;
+        --hover: rgb(255 255 255 / 6%);
+        --ink: #f2f1ee;
+        --ink-2: #c9c7c2;
+        --muted: #8d8a84;
+        --line: rgb(255 255 255 / 8%);
+        --line-strong: rgb(255 255 255 / 15%);
+        --ember: #ff6a2b;
+        --ember-hi: #ffb067;
+        --ember-lo: #e2361c;
+        --ember-text: #ff8a50;
+        --ember-soft: rgb(255 106 43 / 13%);
+        --glow: rgb(255 106 43 / 40%);
+        --danger: #ff5c5c;
+        --key-top: #26262b;
+        --key-bot: #19191c;
+        --key-edge: rgb(255 255 255 / 10%);
+        --key-hi: rgb(255 255 255 / 9%);
+        --key-shade: rgb(0 0 0 / 45%);
+        --track: #0d0d0f;
+        --track-in: rgb(0 0 0 / 70%);
+        --track-lip: rgb(255 255 255 / 5%);
+        --graphite-top: #f2f1ee;
+        --graphite-bot: #d8d5ce;
+        --glass: rgb(32 32 36 / 62%);
+        --glass-strong: rgb(40 40 46 / 82%);
+        --shadow:
+          inset 0 1px 0 rgb(255 255 255 / 4%),
+          0 20px 40px -24px rgb(0 0 0 / 80%);
+      }
 
-* { box-sizing: border-box; }
-html, body { margin: 0; }
-body {
-  background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.45;
-  -webkit-font-smoothing: antialiased; transition: background .25s, color .25s;
-}
-[data-dir='glass'] body {
-  background:
-    radial-gradient(40rem 26rem at 12% 8%, color-mix(in srgb, var(--ember) 16%, transparent), transparent 70%),
-    radial-gradient(34rem 24rem at 92% 60%, color-mix(in srgb, var(--ember-hi) 14%, transparent), transparent 70%),
-    var(--bg);
-  background-attachment: fixed;
-}
-button { font: inherit; color: inherit; }
-.wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font);
+        font-size: 14px;
+        line-height: 1.45;
+        -webkit-font-smoothing: antialiased;
+        transition:
+          background 0.25s,
+          color 0.25s;
+      }
+      [data-dir='glass'] body {
+        background:
+          radial-gradient(
+            40rem 26rem at 12% 8%,
+            color-mix(in srgb, var(--ember) 16%, transparent),
+            transparent 70%
+          ),
+          radial-gradient(
+            34rem 24rem at 92% 60%,
+            color-mix(in srgb, var(--ember-hi) 14%, transparent),
+            transparent 70%
+          ),
+          var(--bg);
+        background-attachment: fixed;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+      }
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
 
-/* ---------- page chrome ---------- */
-.top { position: sticky; top: 0; z-index: 30; backdrop-filter: blur(14px); background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--line); }
-.top .wrap { display: flex; align-items: center; gap: 14px; min-height: 60px; flex-wrap: wrap; padding-block: 10px; }
-.top h1 { margin: 0; font-size: 14px; font-weight: 600; white-space: nowrap; }
-.top h1 span { color: var(--muted); font-weight: 500; }
-.grow { flex: 1; }
-.switcher { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
-.switcher button { border: 0; background: none; padding: 6px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 500; color: var(--muted); cursor: pointer; white-space: nowrap; }
-.switcher button[aria-pressed='true'] { background: var(--ink); color: var(--bg); }
-.switcher button:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+      /* ---------- page chrome ---------- */
+      .top {
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        backdrop-filter: blur(14px);
+        background: color-mix(in srgb, var(--bg) 82%, transparent);
+        border-bottom: 1px solid var(--line);
+      }
+      .top .wrap {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-height: 60px;
+        flex-wrap: wrap;
+        padding-block: 10px;
+      }
+      .top h1 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .top h1 span {
+        color: var(--muted);
+        font-weight: 500;
+      }
+      .grow {
+        flex: 1;
+      }
+      .switcher {
+        display: inline-flex;
+        gap: 2px;
+        padding: 3px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--surface);
+      }
+      .switcher button {
+        border: 0;
+        background: none;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 12.5px;
+        font-weight: 500;
+        color: var(--muted);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .switcher button[aria-pressed='true'] {
+        background: var(--ink);
+        color: var(--bg);
+      }
+      .switcher button:focus-visible {
+        outline: 2px solid var(--ember);
+        outline-offset: 2px;
+      }
 
-.hero { padding: 44px 0 10px; }
-.eyebrow { font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ember-text); }
-.hero h2 { margin: 10px 0 10px; font-size: clamp(28px, 4vw, 44px); letter-spacing: -.035em; line-height: 1.04; font-weight: 600; }
-.hero p { margin: 0; max-width: 760px; color: var(--ink-2); font-size: 15px; }
-.dir-note { margin-top: 18px; display: flex; gap: 14px; align-items: flex-start; padding: 16px 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
-.dir-note b { display: block; font-size: 15px; margin-bottom: 4px; }
-.dir-note p { margin: 0; color: var(--ink-2); font-size: 13.5px; max-width: 900px; }
-.dir-note .tag { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; background: var(--ember-soft); color: var(--ember-text); white-space: nowrap; }
+      .hero {
+        padding: 44px 0 10px;
+      }
+      .eyebrow {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ember-text);
+      }
+      .hero h2 {
+        margin: 10px 0 10px;
+        font-size: clamp(28px, 4vw, 44px);
+        letter-spacing: -0.035em;
+        line-height: 1.04;
+        font-weight: 600;
+      }
+      .hero p {
+        margin: 0;
+        max-width: 760px;
+        color: var(--ink-2);
+        font-size: 15px;
+      }
+      .dir-note {
+        margin-top: 18px;
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        padding: 16px 18px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+      .dir-note b {
+        display: block;
+        font-size: 15px;
+        margin-bottom: 4px;
+      }
+      .dir-note p {
+        margin: 0;
+        color: var(--ink-2);
+        font-size: 13.5px;
+        max-width: 900px;
+      }
+      .dir-note .tag {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: var(--ember-soft);
+        color: var(--ember-text);
+        white-space: nowrap;
+      }
 
-.grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; padding: 22px 0 60px; }
-.panel { grid-column: span 12; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 20px 22px 24px; box-shadow: var(--shadow); min-width: 0; }
-[data-dir='glass'] .panel { background: color-mix(in srgb, var(--surface) 78%, transparent); backdrop-filter: blur(18px); }
-.panel.half { grid-column: span 6; }
-.panel.third { grid-column: span 4; }
-.panel.two-thirds { grid-column: span 8; }
-.panel h3 { margin: 6px 0 4px; font-size: 16px; font-weight: 600; letter-spacing: -.015em; }
-.panel .sub { margin: 0 0 18px; color: var(--muted); font-size: 12.5px; }
-.row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.row + .row { margin-top: 16px; }
-.label { width: 100%; font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: -2px; }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 16px;
+        padding: 22px 0 60px;
+      }
+      .panel {
+        grid-column: span 12;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 20px 22px 24px;
+        box-shadow: var(--shadow);
+        min-width: 0;
+      }
+      [data-dir='glass'] .panel {
+        background: color-mix(in srgb, var(--surface) 78%, transparent);
+        backdrop-filter: blur(18px);
+      }
+      .panel.half {
+        grid-column: span 6;
+      }
+      .panel.third {
+        grid-column: span 4;
+      }
+      .panel.two-thirds {
+        grid-column: span 8;
+      }
+      .panel h3 {
+        margin: 6px 0 4px;
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: -0.015em;
+      }
+      .panel .sub {
+        margin: 0 0 18px;
+        color: var(--muted);
+        font-size: 12.5px;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+      }
+      .row + .row {
+        margin-top: 16px;
+      }
+      .label {
+        width: 100%;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: -2px;
+      }
 
-/* ------------------------------------------------------------------
+      /* ------------------------------------------------------------------
    Shared control skeleton. Each direction below sets the look.
 ------------------------------------------------------------------- */
-.btn {
-  position: relative; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  height: 26px; padding: 0 10px; border: 1px solid transparent; background: none; color: var(--ink);
-  font-weight: 600; font-size: 11.5px; letter-spacing: -0.005em; line-height: 1; white-space: nowrap; cursor: pointer; user-select: none;
-  transition: transform .12s, box-shadow .18s, background .18s, border-color .18s, color .18s, filter .18s;
-}
-.btn { gap: 5px; }
-.btn svg { width: 12px; height: 12px; flex: none; }
-.btn kbd { font-family: var(--mono); font-size: 9px; font-weight: 500; padding: 0 3px; border-radius: 4px; border: 1px solid currentColor; opacity: .55; }
-.btn:disabled { cursor: not-allowed; }
-.btn:focus-visible, .icon-btn:focus-visible, .seg button:focus-visible, .chip:focus-visible, .nav-item:focus-visible, .switch:focus-visible {
-  outline: 2px solid var(--ember); outline-offset: 3px;
-}
-.btn.sm { height: 24px; padding: 0 9px; font-size: 11px; }
-.icon-btn { position: relative; isolation: isolate; width: 26px; height: 26px; display: inline-grid; place-items: center; border: 1px solid transparent; background: none; color: var(--ink-2); cursor: pointer; transition: transform .12s, box-shadow .18s, background .18s, border-color .18s, color .18s; }
-.icon-btn svg { width: 13px; height: 13px; }
-.icon-btn.sm { width: 24px; height: 24px; }
-.spinner { width: 11px; height: 11px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
+      .btn {
+        position: relative;
+        isolation: isolate;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        height: 26px;
+        padding: 0 10px;
+        border: 1px solid transparent;
+        background: none;
+        color: var(--ink);
+        font-weight: 600;
+        font-size: 11.5px;
+        letter-spacing: -0.005em;
+        line-height: 1;
+        white-space: nowrap;
+        cursor: pointer;
+        user-select: none;
+        transition:
+          transform 0.12s,
+          box-shadow 0.18s,
+          background 0.18s,
+          border-color 0.18s,
+          color 0.18s,
+          filter 0.18s;
+      }
+      .btn {
+        gap: 5px;
+      }
+      .btn svg {
+        width: 12px;
+        height: 12px;
+        flex: none;
+      }
+      .btn kbd {
+        font-family: var(--mono);
+        font-size: 9px;
+        font-weight: 500;
+        padding: 0 3px;
+        border-radius: 4px;
+        border: 1px solid currentColor;
+        opacity: 0.55;
+      }
+      .btn:disabled {
+        cursor: not-allowed;
+      }
+      .btn:focus-visible,
+      .icon-btn:focus-visible,
+      .seg button:focus-visible,
+      .chip:focus-visible,
+      .nav-item:focus-visible,
+      .switch:focus-visible {
+        outline: 2px solid var(--ember);
+        outline-offset: 3px;
+      }
+      .btn.sm {
+        height: 24px;
+        padding: 0 9px;
+        font-size: 11px;
+      }
+      .icon-btn {
+        position: relative;
+        isolation: isolate;
+        width: 26px;
+        height: 26px;
+        display: inline-grid;
+        place-items: center;
+        border: 1px solid transparent;
+        background: none;
+        color: var(--ink-2);
+        cursor: pointer;
+        transition:
+          transform 0.12s,
+          box-shadow 0.18s,
+          background 0.18s,
+          border-color 0.18s,
+          color 0.18s;
+      }
+      .icon-btn svg {
+        width: 13px;
+        height: 13px;
+      }
+      .icon-btn.sm {
+        width: 24px;
+        height: 24px;
+      }
+      .spinner {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        animation: spin 0.7s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
 
-.seg { position: relative; display: inline-flex; align-items: center; isolation: isolate; }
-.seg button { position: relative; z-index: 2; border: 0; background: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 10px; font-size: 11.5px; font-weight: 600; color: var(--muted); transition: color .2s; white-space: nowrap; }
-.seg button svg { width: 12px; height: 12px; }
-.seg button[aria-pressed='true'] { color: var(--ink); }
-.seg button .n { font-family: var(--mono); font-size: 10.5px; font-weight: 500; opacity: .7; }
-.seg-thumb { position: absolute; z-index: 1; top: 2px; bottom: 2px; left: 0; width: 0; transition: left .32s cubic-bezier(.3,.9,.3,1), width .32s cubic-bezier(.3,.9,.3,1); pointer-events: none; }
+      .seg {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        isolation: isolate;
+      }
+      .seg button {
+        position: relative;
+        z-index: 2;
+        border: 0;
+        background: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 22px;
+        padding: 0 10px;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--muted);
+        transition: color 0.2s;
+        white-space: nowrap;
+      }
+      .seg button svg {
+        width: 12px;
+        height: 12px;
+      }
+      .seg button[aria-pressed='true'] {
+        color: var(--ink);
+      }
+      .seg button .n {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        font-weight: 500;
+        opacity: 0.7;
+      }
+      .seg-thumb {
+        position: absolute;
+        z-index: 1;
+        top: 2px;
+        bottom: 2px;
+        left: 0;
+        width: 0;
+        transition:
+          left 0.32s cubic-bezier(0.3, 0.9, 0.3, 1),
+          width 0.32s cubic-bezier(0.3, 0.9, 0.3, 1);
+        pointer-events: none;
+      }
 
-.chip { position: relative; isolation: isolate; display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px; border: 1px solid transparent; background: none; color: var(--ink-2); font-size: 11.5px; font-weight: 600; cursor: pointer; transition: all .18s; white-space: nowrap; }
-.chip .n { font-family: var(--mono); font-size: 9.5px; font-weight: 500; color: var(--muted); }
-.chip .x { font-size: 13px; opacity: .6; margin-right: -2px; }
+      .chip {
+        position: relative;
+        isolation: isolate;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        height: 22px;
+        padding: 0 9px;
+        border: 1px solid transparent;
+        background: none;
+        color: var(--ink-2);
+        font-size: 11.5px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.18s;
+        white-space: nowrap;
+      }
+      .chip .n {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        font-weight: 500;
+        color: var(--muted);
+      }
+      .chip .x {
+        font-size: 13px;
+        opacity: 0.6;
+        margin-right: -2px;
+      }
 
-.nav { display: flex; flex-direction: column; gap: 3px; width: 100%; max-width: 280px; padding: 10px; border-radius: 16px; background: var(--surface-2); border: 1px solid var(--line); }
-.nav .grp { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); padding: 10px 10px 6px; }
-.nav-item { position: relative; isolation: isolate; display: flex; align-items: center; gap: 11px; height: 36px; padding: 0 12px; border: 1px solid transparent; color: var(--ink-2); font-size: 13.5px; font-weight: 500; text-decoration: none; cursor: pointer; background: none; text-align: left; width: 100%; transition: all .18s; }
-.nav-item svg { width: 16px; height: 16px; flex: none; opacity: .8; }
-.nav-item .n { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); }
-.nav-item.is-sub { height: 30px; margin-left: 26px; width: calc(100% - 26px); font-size: 12.5px; }
-.nav-item .plus { margin-left: auto; opacity: .7; }
+      .nav {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        width: 100%;
+        max-width: 280px;
+        padding: 10px;
+        border-radius: 16px;
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+      }
+      .nav .grp {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        padding: 10px 10px 6px;
+      }
+      .nav-item {
+        position: relative;
+        isolation: isolate;
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        height: 36px;
+        padding: 0 12px;
+        border: 1px solid transparent;
+        color: var(--ink-2);
+        font-size: 13.5px;
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+        background: none;
+        text-align: left;
+        width: 100%;
+        transition: all 0.18s;
+      }
+      .nav-item svg {
+        width: 16px;
+        height: 16px;
+        flex: none;
+        opacity: 0.8;
+      }
+      .nav-item .n {
+        margin-left: auto;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .nav-item.is-sub {
+        height: 30px;
+        margin-left: 26px;
+        width: calc(100% - 26px);
+        font-size: 12.5px;
+      }
+      .nav-item .plus {
+        margin-left: auto;
+        opacity: 0.7;
+      }
 
-.switch { position: relative; width: 30px; height: 18px; border: 0; padding: 0; cursor: pointer; flex: none; background: none; }
-.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; transition: left .25s cubic-bezier(.3,.9,.3,1), background .2s; }
-.switch[aria-checked='true']::after { left: 15px; }
-.toggle-row { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-2); }
+      .switch {
+        position: relative;
+        width: 30px;
+        height: 18px;
+        border: 0;
+        padding: 0;
+        cursor: pointer;
+        flex: none;
+        background: none;
+      }
+      .switch::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 12px;
+        height: 12px;
+        transition:
+          left 0.25s cubic-bezier(0.3, 0.9, 0.3, 1),
+          background 0.2s;
+      }
+      .switch[aria-checked='true']::after {
+        left: 15px;
+      }
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        color: var(--ink-2);
+      }
 
-.field { position: relative; isolation: isolate; display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 10px; min-width: 260px; flex: 1; max-width: 420px; color: var(--muted); border: 1px solid transparent; transition: all .18s; }
-.field svg { width: 13px; height: 13px; flex: none; }
-.field input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: inherit; font-size: 12px; color: var(--ink); }
-.field input::placeholder { color: var(--muted); }
-.field kbd { font-family: var(--mono); font-size: 10px; padding: 2px 5px; border-radius: 5px; border: 1px solid var(--line-strong); }
+      .field {
+        position: relative;
+        isolation: isolate;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        height: 28px;
+        padding: 0 10px;
+        min-width: 260px;
+        flex: 1;
+        max-width: 420px;
+        color: var(--muted);
+        border: 1px solid transparent;
+        transition: all 0.18s;
+      }
+      .field svg {
+        width: 13px;
+        height: 13px;
+        flex: none;
+      }
+      .field input {
+        flex: 1;
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        background: none;
+        font: inherit;
+        font-size: 12px;
+        color: var(--ink);
+      }
+      .field input::placeholder {
+        color: var(--muted);
+      }
+      .field kbd {
+        font-family: var(--mono);
+        font-size: 10px;
+        padding: 2px 5px;
+        border-radius: 5px;
+        border: 1px solid var(--line-strong);
+      }
 
-.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px; border-radius: 16px; background: var(--surface-2); border: 1px solid var(--line); }
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        padding: 14px;
+        border-radius: 16px;
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+      }
 
-/* ==================================================================
+      /* ==================================================================
    A · FORGED — machined, tactile keys
    Raised keys with a lit top edge and a darker bottom lip; they press
    down. Segmented controls sit in a recessed track with a raised key
    that slides. Active items carry an ember "pilot light".
 ================================================================== */
-[data-dir='forged'] .btn, [data-dir='forged'] .icon-btn { border-radius: 7px; }
-[data-dir='forged'] .btn--primary {
-  color: #fff; text-shadow: 0 1px 0 rgb(0 0 0 / 20%);
-  background: linear-gradient(180deg, var(--ember-hi) 0%, var(--ember) 52%, var(--ember-lo) 100%);
-  border-color: color-mix(in srgb, var(--ember-lo) 80%, #000);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 38%), inset 0 -2px 0 rgb(0 0 0 / 16%), 0 1px 1px rgb(0 0 0 / 14%), 0 8px 18px -8px var(--glow);
-}
-[data-dir='forged'] .btn--primary:hover:not(:disabled) { filter: brightness(1.06) saturate(1.05); box-shadow: inset 0 1px 0 rgb(255 255 255 / 42%), inset 0 -2px 0 rgb(0 0 0 / 16%), 0 1px 1px rgb(0 0 0 / 14%), 0 12px 26px -8px var(--glow); }
-[data-dir='forged'] .btn--primary:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 2px 6px rgb(0 0 0 / 30%), 0 1px 0 rgb(255 255 255 / 25%); }
-[data-dir='forged'] :is(.btn--secondary, .btn--danger, .icon-btn) {
-  background: linear-gradient(180deg, var(--key-top), var(--key-bot));
-  border-color: var(--key-edge);
-  box-shadow: inset 0 1px 0 var(--key-hi), inset 0 -2px 0 var(--key-shade), 0 1px 2px rgb(20 18 15 / 8%);
-}
-[data-dir='forged'] :is(.btn--secondary, .icon-btn):hover:not(:disabled) { border-color: color-mix(in srgb, var(--ember) 55%, var(--key-edge)); color: var(--ink); box-shadow: inset 0 1px 0 var(--key-hi), inset 0 -2px 0 var(--key-shade), 0 0 0 3px var(--ember-soft), 0 4px 10px -6px var(--glow); }
-[data-dir='forged'] :is(.btn--secondary, .btn--danger, .icon-btn):active:not(:disabled) { transform: translateY(1px); background: linear-gradient(180deg, var(--key-bot), var(--key-top)); box-shadow: inset 0 2px 4px rgb(20 18 15 / 16%); }
-[data-dir='forged'] .btn--danger { color: var(--danger); }
-[data-dir='forged'] .btn--danger:hover:not(:disabled) { border-color: color-mix(in srgb, var(--danger) 55%, var(--key-edge)); box-shadow: inset 0 1px 0 var(--key-hi), inset 0 -2px 0 var(--key-shade), 0 0 0 3px color-mix(in srgb, var(--danger) 12%, transparent); }
-[data-dir='forged'] .btn--ghost:hover { background: var(--hover); }
-[data-dir='forged'] .btn--ghost:active { transform: translateY(1px); }
-[data-dir='forged'] .btn:disabled { color: var(--muted); text-shadow: none; filter: none; background: linear-gradient(180deg, var(--surface-2), var(--track)); border-color: var(--line); box-shadow: inset 0 1px 0 var(--key-hi); }
+      [data-dir='forged'] .btn,
+      [data-dir='forged'] .icon-btn {
+        border-radius: 7px;
+      }
+      [data-dir='forged'] .btn--primary {
+        color: #fff;
+        text-shadow: 0 1px 0 rgb(0 0 0 / 20%);
+        background: linear-gradient(
+          180deg,
+          var(--ember-hi) 0%,
+          var(--ember) 52%,
+          var(--ember-lo) 100%
+        );
+        border-color: color-mix(in srgb, var(--ember-lo) 80%, #000);
+        box-shadow:
+          inset 0 1px 0 rgb(255 255 255 / 38%),
+          inset 0 -2px 0 rgb(0 0 0 / 16%),
+          0 1px 1px rgb(0 0 0 / 14%),
+          0 8px 18px -8px var(--glow);
+      }
+      [data-dir='forged'] .btn--primary:hover:not(:disabled) {
+        filter: brightness(1.06) saturate(1.05);
+        box-shadow:
+          inset 0 1px 0 rgb(255 255 255 / 42%),
+          inset 0 -2px 0 rgb(0 0 0 / 16%),
+          0 1px 1px rgb(0 0 0 / 14%),
+          0 12px 26px -8px var(--glow);
+      }
+      [data-dir='forged'] .btn--primary:active:not(:disabled) {
+        transform: translateY(1px);
+        box-shadow:
+          inset 0 2px 6px rgb(0 0 0 / 30%),
+          0 1px 0 rgb(255 255 255 / 25%);
+      }
+      [data-dir='forged'] :is(.btn--secondary, .btn--danger, .icon-btn) {
+        background: linear-gradient(180deg, var(--key-top), var(--key-bot));
+        border-color: var(--key-edge);
+        box-shadow:
+          inset 0 1px 0 var(--key-hi),
+          inset 0 -2px 0 var(--key-shade),
+          0 1px 2px rgb(20 18 15 / 8%);
+      }
+      [data-dir='forged'] :is(.btn--secondary, .icon-btn):hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--ember) 55%, var(--key-edge));
+        color: var(--ink);
+        box-shadow:
+          inset 0 1px 0 var(--key-hi),
+          inset 0 -2px 0 var(--key-shade),
+          0 0 0 3px var(--ember-soft),
+          0 4px 10px -6px var(--glow);
+      }
+      [data-dir='forged']
+        :is(.btn--secondary, .btn--danger, .icon-btn):active:not(:disabled) {
+        transform: translateY(1px);
+        background: linear-gradient(180deg, var(--key-bot), var(--key-top));
+        box-shadow: inset 0 2px 4px rgb(20 18 15 / 16%);
+      }
+      [data-dir='forged'] .btn--danger {
+        color: var(--danger);
+      }
+      [data-dir='forged'] .btn--danger:hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--danger) 55%, var(--key-edge));
+        box-shadow:
+          inset 0 1px 0 var(--key-hi),
+          inset 0 -2px 0 var(--key-shade),
+          0 0 0 3px color-mix(in srgb, var(--danger) 12%, transparent);
+      }
+      [data-dir='forged'] .btn--ghost:hover {
+        background: var(--hover);
+      }
+      [data-dir='forged'] .btn--ghost:active {
+        transform: translateY(1px);
+      }
+      [data-dir='forged'] .btn:disabled {
+        color: var(--muted);
+        text-shadow: none;
+        filter: none;
+        background: linear-gradient(180deg, var(--surface-2), var(--track));
+        border-color: var(--line);
+        box-shadow: inset 0 1px 0 var(--key-hi);
+      }
 
-[data-dir='forged'] .seg { padding: 2px; border-radius: 8px; background: var(--track); box-shadow: inset 0 1px 3px var(--track-in), inset 0 -1px 0 var(--track-lip); }
-[data-dir='forged'] .seg-thumb { border-radius: 6px; background: linear-gradient(180deg, var(--key-top), var(--key-bot)); border: 1px solid var(--key-edge); box-shadow: inset 0 1px 0 var(--key-hi), 0 1px 2px rgb(20 18 15 / 14%), 0 3px 8px -4px rgb(20 18 15 / 25%); }
-[data-dir='forged'] .seg-thumb::after { content: ''; position: absolute; left: 5px; top: 50%; width: 4px; height: 4px; border-radius: 50%; transform: translateY(-50%); background: var(--ember); box-shadow: 0 0 6px var(--glow); }
-[data-dir='forged'] .seg button { padding: 0 10px 0 14px; }
-[data-dir='forged'] .seg button:hover:not([aria-pressed='true']) { color: var(--ink-2); }
+      [data-dir='forged'] .seg {
+        padding: 2px;
+        border-radius: 8px;
+        background: var(--track);
+        box-shadow:
+          inset 0 1px 3px var(--track-in),
+          inset 0 -1px 0 var(--track-lip);
+      }
+      [data-dir='forged'] .seg-thumb {
+        border-radius: 6px;
+        background: linear-gradient(180deg, var(--key-top), var(--key-bot));
+        border: 1px solid var(--key-edge);
+        box-shadow:
+          inset 0 1px 0 var(--key-hi),
+          0 1px 2px rgb(20 18 15 / 14%),
+          0 3px 8px -4px rgb(20 18 15 / 25%);
+      }
+      [data-dir='forged'] .seg-thumb::after {
+        content: '';
+        position: absolute;
+        left: 5px;
+        top: 50%;
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        transform: translateY(-50%);
+        background: var(--ember);
+        box-shadow: 0 0 6px var(--glow);
+      }
+      [data-dir='forged'] .seg button {
+        padding: 0 10px 0 14px;
+      }
+      [data-dir='forged'] .seg button:hover:not([aria-pressed='true']) {
+        color: var(--ink-2);
+      }
 
-[data-dir='forged'] .chip { height: 22px; border-radius: 6px; background: linear-gradient(180deg, var(--key-top), var(--key-bot)); border-color: var(--key-edge); box-shadow: inset 0 1px 0 var(--key-hi), inset 0 -2px 0 var(--key-shade); }
-[data-dir='forged'] .chip:hover { border-color: color-mix(in srgb, var(--ember) 55%, var(--key-edge)); box-shadow: inset 0 1px 0 var(--key-hi), inset 0 -2px 0 var(--key-shade), 0 0 0 3px var(--ember-soft); }
-[data-dir='forged'] .chip:active { transform: translateY(1px); }
-[data-dir='forged'] .chip[aria-pressed='true'] { color: var(--bg); background: linear-gradient(180deg, var(--graphite-top), var(--graphite-bot)); border-color: var(--graphite-bot); box-shadow: inset 0 1px 0 rgb(255 255 255 / 14%), 0 3px 8px -4px rgb(20 18 15 / 45%); }
-[data-dir='forged'] .chip[aria-pressed='true'] .n { color: var(--ember-hi); }
-[data-mode='dark'][data-dir='forged'] .chip[aria-pressed='true'] .n { color: var(--ember-lo); }
+      [data-dir='forged'] .chip {
+        height: 22px;
+        border-radius: 6px;
+        background: linear-gradient(180deg, var(--key-top), var(--key-bot));
+        border-color: var(--key-edge);
+        box-shadow:
+          inset 0 1px 0 var(--key-hi),
+          inset 0 -2px 0 var(--key-shade);
+      }
+      [data-dir='forged'] .chip:hover {
+        border-color: color-mix(in srgb, var(--ember) 55%, var(--key-edge));
+        box-shadow:
+          inset 0 1px 0 var(--key-hi),
+          inset 0 -2px 0 var(--key-shade),
+          0 0 0 3px var(--ember-soft);
+      }
+      [data-dir='forged'] .chip:active {
+        transform: translateY(1px);
+      }
+      [data-dir='forged'] .chip[aria-pressed='true'] {
+        color: var(--bg);
+        background: linear-gradient(
+          180deg,
+          var(--graphite-top),
+          var(--graphite-bot)
+        );
+        border-color: var(--graphite-bot);
+        box-shadow:
+          inset 0 1px 0 rgb(255 255 255 / 14%),
+          0 3px 8px -4px rgb(20 18 15 / 45%);
+      }
+      [data-dir='forged'] .chip[aria-pressed='true'] .n {
+        color: var(--ember-hi);
+      }
+      [data-mode='dark'][data-dir='forged'] .chip[aria-pressed='true'] .n {
+        color: var(--ember-lo);
+      }
 
-[data-dir='forged'] .nav-item { border-radius: 10px; }
-[data-dir='forged'] .nav-item:hover { background: var(--hover); color: var(--ink); }
-[data-dir='forged'] .nav-item.is-active { padding-left: 18px; color: var(--ink); background: linear-gradient(180deg, var(--key-top), var(--key-bot)); border-color: var(--key-edge); box-shadow: inset 0 1px 0 var(--key-hi), inset 0 -2px 0 var(--key-shade), 0 2px 6px -3px rgb(20 18 15 / 20%); }
-[data-dir='forged'] .nav-item.is-active::before { content: ''; position: absolute; left: 7px; top: 11px; bottom: 11px; width: 3px; border-radius: 3px; background: var(--ember); box-shadow: 0 0 8px var(--glow); }
-[data-dir='forged'] .nav-item.is-active svg { color: var(--ember-text); opacity: 1; }
-[data-dir='forged'] .nav-item.is-active .n { color: var(--ember-text); }
-[data-dir='forged'] .nav-item.is-sub.is-active { padding-left: 16px; }
+      [data-dir='forged'] .nav-item {
+        border-radius: 10px;
+      }
+      [data-dir='forged'] .nav-item:hover {
+        background: var(--hover);
+        color: var(--ink);
+      }
+      [data-dir='forged'] .nav-item.is-active {
+        padding-left: 18px;
+        color: var(--ink);
+        background: linear-gradient(180deg, var(--key-top), var(--key-bot));
+        border-color: var(--key-edge);
+        box-shadow:
+          inset 0 1px 0 var(--key-hi),
+          inset 0 -2px 0 var(--key-shade),
+          0 2px 6px -3px rgb(20 18 15 / 20%);
+      }
+      [data-dir='forged'] .nav-item.is-active::before {
+        content: '';
+        position: absolute;
+        left: 7px;
+        top: 11px;
+        bottom: 11px;
+        width: 3px;
+        border-radius: 3px;
+        background: var(--ember);
+        box-shadow: 0 0 8px var(--glow);
+      }
+      [data-dir='forged'] .nav-item.is-active svg {
+        color: var(--ember-text);
+        opacity: 1;
+      }
+      [data-dir='forged'] .nav-item.is-active .n {
+        color: var(--ember-text);
+      }
+      [data-dir='forged'] .nav-item.is-sub.is-active {
+        padding-left: 16px;
+      }
 
-[data-dir='forged'] .switch { border-radius: 999px; background: var(--track); box-shadow: inset 0 1px 3px var(--track-in), inset 0 -1px 0 var(--track-lip); }
-[data-dir='forged'] .switch::after { border-radius: 50%; background: linear-gradient(180deg, var(--key-top), var(--key-bot)); box-shadow: inset 0 1px 0 var(--key-hi), 0 1px 3px rgb(20 18 15 / 30%); }
-[data-dir='forged'] .switch[aria-checked='true'] { background: linear-gradient(180deg, var(--ember-lo), var(--ember)); box-shadow: inset 0 1px 3px rgb(0 0 0 / 25%), 0 0 10px -2px var(--glow); }
+      [data-dir='forged'] .switch {
+        border-radius: 999px;
+        background: var(--track);
+        box-shadow:
+          inset 0 1px 3px var(--track-in),
+          inset 0 -1px 0 var(--track-lip);
+      }
+      [data-dir='forged'] .switch::after {
+        border-radius: 50%;
+        background: linear-gradient(180deg, var(--key-top), var(--key-bot));
+        box-shadow:
+          inset 0 1px 0 var(--key-hi),
+          0 1px 3px rgb(20 18 15 / 30%);
+      }
+      [data-dir='forged'] .switch[aria-checked='true'] {
+        background: linear-gradient(180deg, var(--ember-lo), var(--ember));
+        box-shadow:
+          inset 0 1px 3px rgb(0 0 0 / 25%),
+          0 0 10px -2px var(--glow);
+      }
 
-[data-dir='forged'] .field { border-radius: 7px; background: var(--track); box-shadow: inset 0 1px 3px var(--track-in), inset 0 -1px 0 var(--track-lip); }
-[data-dir='forged'] .field:focus-within { box-shadow: inset 0 1px 3px var(--track-in), 0 0 0 1px var(--ember), 0 0 0 4px var(--ember-soft); }
+      [data-dir='forged'] .field {
+        border-radius: 7px;
+        background: var(--track);
+        box-shadow:
+          inset 0 1px 3px var(--track-in),
+          inset 0 -1px 0 var(--track-lip);
+      }
+      [data-dir='forged'] .field:focus-within {
+        box-shadow:
+          inset 0 1px 3px var(--track-in),
+          0 0 0 1px var(--ember),
+          0 0 0 4px var(--ember-soft);
+      }
 
-/* ==================================================================
+      /* ==================================================================
    B · TANTO — blade-sharp and technical
    Chamfered corners cut like a tanto tip, mono caps labels, crisp 1px
    edges, and a light sweep across the surface on hover, like light
    running along a blade.
 ================================================================== */
-[data-dir='tanto'] {
-  --cut: 6px;
-}
-[data-dir='tanto'] :is(.btn, .icon-btn, .chip, .seg-thumb, .nav-item.is-active, .field, .switch, .switch::after) {
-  --c: var(--cut);
-  clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c));
-}
-[data-dir='tanto'] .switch::after {
-  --c: var(--cut);
-  clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c));
-}
-[data-dir='tanto'] :is(.btn, .icon-btn, .chip, .field) { border: 0; background: var(--edge, var(--line-strong)); }
-[data-dir='tanto'] :is(.btn, .icon-btn, .chip, .field)::before {
-  content: ''; position: absolute; inset: 1px; z-index: -1; background: var(--fill, var(--surface));
-  --c: calc(var(--cut) - .6px);
-  clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c));
-  transition: background .18s;
-}
-[data-dir='tanto'] :is(.btn, .icon-btn, .chip)::after {
-  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 45%) 50%, transparent 65%);
-  transform: translateX(-130%); transition: transform .55s cubic-bezier(.3,.8,.3,1);
-}
-[data-dir='tanto'] :is(.btn, .icon-btn, .chip):hover:not(:disabled)::after { transform: translateX(130%); }
-[data-dir='tanto'] .btn { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
-[data-dir='tanto'] .btn kbd { letter-spacing: 0; }
-[data-dir='tanto'] .btn--primary { --edge: var(--ember-lo); --fill: linear-gradient(100deg, var(--ember-lo), var(--ember) 45%, var(--ember-hi)); color: #fff; }
-[data-dir='tanto'] .btn--primary:hover:not(:disabled) { --fill: linear-gradient(100deg, var(--ember), var(--ember-hi)); }
-[data-dir='tanto'] :is(.btn--secondary, .icon-btn) { --edge: var(--line-strong); --fill: var(--surface); color: var(--ink); }
-[data-dir='tanto'] :is(.btn--secondary, .icon-btn):hover:not(:disabled) { --edge: var(--ember); color: var(--ink); }
-[data-dir='tanto'] :is(.btn--secondary, .icon-btn)::after { background: linear-gradient(105deg, transparent 35%, var(--ember-soft) 50%, transparent 65%); }
-[data-dir='tanto'] .btn--ghost { --edge: transparent; --fill: transparent; }
-[data-dir='tanto'] .btn--ghost:hover { --fill: color-mix(in srgb, var(--ink) 6%, var(--surface)); }
-[data-dir='tanto'] .btn--danger { --edge: color-mix(in srgb, var(--danger) 45%, transparent); --fill: var(--surface); color: var(--danger); }
-[data-dir='tanto'] .btn--danger:hover { --fill: color-mix(in srgb, var(--danger) 8%, var(--surface)); --edge: var(--danger); }
-[data-dir='tanto'] :is(.btn, .icon-btn, .chip):active:not(:disabled) { transform: translateY(1px) scale(.99); }
-[data-dir='tanto'] .btn:disabled { --edge: var(--line); --fill: var(--surface-2); color: var(--muted); }
-[data-dir='tanto'] .btn:disabled::after { display: none; }
+      [data-dir='tanto'] {
+        --cut: 6px;
+      }
+      [data-dir='tanto']
+        :is(
+          .btn,
+          .icon-btn,
+          .chip,
+          .seg-thumb,
+          .nav-item.is-active,
+          .field,
+          .switch,
+          .switch::after
+        ) {
+        --c: var(--cut);
+        clip-path: polygon(
+          var(--c) 0,
+          100% 0,
+          100% calc(100% - var(--c)),
+          calc(100% - var(--c)) 100%,
+          0 100%,
+          0 var(--c)
+        );
+      }
+      [data-dir='tanto'] .switch::after {
+        --c: var(--cut);
+        clip-path: polygon(
+          var(--c) 0,
+          100% 0,
+          100% calc(100% - var(--c)),
+          calc(100% - var(--c)) 100%,
+          0 100%,
+          0 var(--c)
+        );
+      }
+      [data-dir='tanto'] :is(.btn, .icon-btn, .chip, .field) {
+        border: 0;
+        background: var(--edge, var(--line-strong));
+      }
+      [data-dir='tanto'] :is(.btn, .icon-btn, .chip, .field)::before {
+        content: '';
+        position: absolute;
+        inset: 1px;
+        z-index: -1;
+        background: var(--fill, var(--surface));
+        --c: calc(var(--cut) - 0.6px);
+        clip-path: polygon(
+          var(--c) 0,
+          100% 0,
+          100% calc(100% - var(--c)),
+          calc(100% - var(--c)) 100%,
+          0 100%,
+          0 var(--c)
+        );
+        transition: background 0.18s;
+      }
+      [data-dir='tanto'] :is(.btn, .icon-btn, .chip)::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        background: linear-gradient(
+          105deg,
+          transparent 35%,
+          rgb(255 255 255 / 45%) 50%,
+          transparent 65%
+        );
+        transform: translateX(-130%);
+        transition: transform 0.55s cubic-bezier(0.3, 0.8, 0.3, 1);
+      }
+      [data-dir='tanto']
+        :is(.btn, .icon-btn, .chip):hover:not(:disabled)::after {
+        transform: translateX(130%);
+      }
+      [data-dir='tanto'] .btn {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      [data-dir='tanto'] .btn kbd {
+        letter-spacing: 0;
+      }
+      [data-dir='tanto'] .btn--primary {
+        --edge: var(--ember-lo);
+        --fill: linear-gradient(
+          100deg,
+          var(--ember-lo),
+          var(--ember) 45%,
+          var(--ember-hi)
+        );
+        color: #fff;
+      }
+      [data-dir='tanto'] .btn--primary:hover:not(:disabled) {
+        --fill: linear-gradient(100deg, var(--ember), var(--ember-hi));
+      }
+      [data-dir='tanto'] :is(.btn--secondary, .icon-btn) {
+        --edge: var(--line-strong);
+        --fill: var(--surface);
+        color: var(--ink);
+      }
+      [data-dir='tanto'] :is(.btn--secondary, .icon-btn):hover:not(:disabled) {
+        --edge: var(--ember);
+        color: var(--ink);
+      }
+      [data-dir='tanto'] :is(.btn--secondary, .icon-btn)::after {
+        background: linear-gradient(
+          105deg,
+          transparent 35%,
+          var(--ember-soft) 50%,
+          transparent 65%
+        );
+      }
+      [data-dir='tanto'] .btn--ghost {
+        --edge: transparent;
+        --fill: transparent;
+      }
+      [data-dir='tanto'] .btn--ghost:hover {
+        --fill: color-mix(in srgb, var(--ink) 6%, var(--surface));
+      }
+      [data-dir='tanto'] .btn--danger {
+        --edge: color-mix(in srgb, var(--danger) 45%, transparent);
+        --fill: var(--surface);
+        color: var(--danger);
+      }
+      [data-dir='tanto'] .btn--danger:hover {
+        --fill: color-mix(in srgb, var(--danger) 8%, var(--surface));
+        --edge: var(--danger);
+      }
+      [data-dir='tanto'] :is(.btn, .icon-btn, .chip):active:not(:disabled) {
+        transform: translateY(1px) scale(0.99);
+      }
+      [data-dir='tanto'] .btn:disabled {
+        --edge: var(--line);
+        --fill: var(--surface-2);
+        color: var(--muted);
+      }
+      [data-dir='tanto'] .btn:disabled::after {
+        display: none;
+      }
 
-[data-dir='tanto'] .seg { padding: 3px 0; gap: 2px; border-bottom: 1px solid var(--line-strong); }
-[data-dir='tanto'] .seg button { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
-[data-dir='tanto'] .seg button:not(:first-of-type)::before { content: '/'; position: absolute; left: -3px; color: var(--line-strong); }
-[data-dir='tanto'] .seg button[aria-pressed='true'] { color: var(--bg); }
-[data-dir='tanto'] .seg-thumb { --cut: 7px; background: var(--ink); }
-[data-dir='tanto'] .seg-thumb::after { content: ''; position: absolute; left: 0; right: 0; bottom: -4px; height: 2px; background: var(--ember); }
+      [data-dir='tanto'] .seg {
+        padding: 3px 0;
+        gap: 2px;
+        border-bottom: 1px solid var(--line-strong);
+      }
+      [data-dir='tanto'] .seg button {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      [data-dir='tanto'] .seg button:not(:first-of-type)::before {
+        content: '/';
+        position: absolute;
+        left: -3px;
+        color: var(--line-strong);
+      }
+      [data-dir='tanto'] .seg button[aria-pressed='true'] {
+        color: var(--bg);
+      }
+      [data-dir='tanto'] .seg-thumb {
+        --cut: 7px;
+        background: var(--ink);
+      }
+      [data-dir='tanto'] .seg-thumb::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -4px;
+        height: 2px;
+        background: var(--ember);
+      }
 
-[data-dir='tanto'] .chip { --cut: 7px; --edge: var(--line-strong); --fill: var(--surface); font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
-[data-dir='tanto'] .chip:hover { --edge: var(--ember); }
-[data-dir='tanto'] .chip::after { background: linear-gradient(105deg, transparent 35%, var(--ember-soft) 50%, transparent 65%); }
-[data-dir='tanto'] .chip[aria-pressed='true'] { --edge: var(--ember); --fill: color-mix(in srgb, var(--ember) 11%, var(--surface)); color: var(--ember-text); }
-[data-dir='tanto'] .chip[aria-pressed='true'] .n { color: var(--ember-text); }
+      [data-dir='tanto'] .chip {
+        --cut: 7px;
+        --edge: var(--line-strong);
+        --fill: var(--surface);
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      [data-dir='tanto'] .chip:hover {
+        --edge: var(--ember);
+      }
+      [data-dir='tanto'] .chip::after {
+        background: linear-gradient(
+          105deg,
+          transparent 35%,
+          var(--ember-soft) 50%,
+          transparent 65%
+        );
+      }
+      [data-dir='tanto'] .chip[aria-pressed='true'] {
+        --edge: var(--ember);
+        --fill: color-mix(in srgb, var(--ember) 11%, var(--surface));
+        color: var(--ember-text);
+      }
+      [data-dir='tanto'] .chip[aria-pressed='true'] .n {
+        color: var(--ember-text);
+      }
 
-[data-dir='tanto'] .nav { border-radius: 0; }
-[data-dir='tanto'] .nav-item { border-radius: 0; }
-[data-dir='tanto'] .nav-item:hover { background: var(--hover); color: var(--ink); }
-[data-dir='tanto'] .nav-item.is-active { --cut: 10px; color: var(--ink); background: linear-gradient(90deg, var(--ember-soft), transparent 85%); box-shadow: inset 3px 0 0 var(--ember); }
-[data-dir='tanto'] .nav-item.is-active svg { color: var(--ember-text); opacity: 1; }
-[data-dir='tanto'] .nav-item.is-active .n { color: var(--ember-text); }
-[data-dir='tanto'] .nav-item .n { letter-spacing: .04em; }
+      [data-dir='tanto'] .nav {
+        border-radius: 0;
+      }
+      [data-dir='tanto'] .nav-item {
+        border-radius: 0;
+      }
+      [data-dir='tanto'] .nav-item:hover {
+        background: var(--hover);
+        color: var(--ink);
+      }
+      [data-dir='tanto'] .nav-item.is-active {
+        --cut: 10px;
+        color: var(--ink);
+        background: linear-gradient(90deg, var(--ember-soft), transparent 85%);
+        box-shadow: inset 3px 0 0 var(--ember);
+      }
+      [data-dir='tanto'] .nav-item.is-active svg {
+        color: var(--ember-text);
+        opacity: 1;
+      }
+      [data-dir='tanto'] .nav-item.is-active .n {
+        color: var(--ember-text);
+      }
+      [data-dir='tanto'] .nav-item .n {
+        letter-spacing: 0.04em;
+      }
 
-[data-dir='tanto'] .switch { --cut: 6px; background: var(--line-strong); }
-[data-dir='tanto'] .switch::after { --cut: 5px; background: var(--surface); }
-[data-dir='tanto'] .switch[aria-checked='true'] { background: var(--ember); }
+      [data-dir='tanto'] .switch {
+        --cut: 6px;
+        background: var(--line-strong);
+      }
+      [data-dir='tanto'] .switch::after {
+        --cut: 5px;
+        background: var(--surface);
+      }
+      [data-dir='tanto'] .switch[aria-checked='true'] {
+        background: var(--ember);
+      }
 
-[data-dir='tanto'] .field { --edge: var(--line-strong); --fill: var(--surface); }
-[data-dir='tanto'] .field:focus-within { --edge: var(--ember); }
-[data-dir='tanto'] .field input { font-family: var(--mono); font-size: 12px; }
+      [data-dir='tanto'] .field {
+        --edge: var(--line-strong);
+        --fill: var(--surface);
+      }
+      [data-dir='tanto'] .field:focus-within {
+        --edge: var(--ember);
+      }
+      [data-dir='tanto'] .field input {
+        font-family: var(--mono);
+        font-size: 12px;
+      }
 
-/* ==================================================================
+      /* ==================================================================
    C · EMBER GLASS — soft, luminous
    Frosted pills with a gradient rim that catches ember light. The
    primary button glows and a sheen passes over it on hover. Active
    items carry a small glowing ember dot.
 ================================================================== */
-[data-dir='glass'] :is(.btn, .icon-btn, .chip, .field) { border-radius: 999px; }
-[data-dir='glass'] .btn--primary {
-  color: #fff; overflow: hidden;
-  background: radial-gradient(120% 160% at 25% 0%, var(--ember-hi), var(--ember) 48%, var(--ember-lo));
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 20%), inset 0 1px 0 rgb(255 255 255 / 40%), 0 10px 24px -10px var(--glow);
-}
-[data-dir='glass'] .btn--primary::after { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 40%) 50%, transparent 70%); transform: translateX(-130%); transition: transform .7s cubic-bezier(.3,.8,.3,1); }
-[data-dir='glass'] .btn--primary:hover:not(:disabled)::after { transform: translateX(130%); }
-[data-dir='glass'] .btn--primary:hover:not(:disabled) { box-shadow: inset 0 0 0 1px rgb(255 255 255 / 24%), inset 0 1px 0 rgb(255 255 255 / 45%), 0 0 0 4px var(--ember-soft), 0 14px 30px -10px var(--glow); }
-[data-dir='glass'] .btn--primary:active:not(:disabled) { transform: scale(.97); }
-[data-dir='glass'] :is(.btn--secondary, .btn--danger, .icon-btn, .chip) {
-  border: 1px solid transparent;
-  background:
-    linear-gradient(var(--glass), var(--glass)) padding-box,
-    linear-gradient(135deg, color-mix(in srgb, var(--ember) 55%, transparent), var(--line-strong) 38%, var(--line-strong) 70%, color-mix(in srgb, var(--ember-hi) 35%, transparent)) border-box;
-  backdrop-filter: blur(12px);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 35%), 0 6px 16px -10px rgb(20 18 15 / 35%);
-}
-[data-dir='glass'] :is(.btn--secondary, .icon-btn, .chip):hover:not(:disabled) {
-  background:
-    linear-gradient(var(--glass-strong), var(--glass-strong)) padding-box,
-    linear-gradient(135deg, var(--ember), color-mix(in srgb, var(--ember) 35%, var(--line-strong)) 50%, var(--ember-hi)) border-box;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 40%), 0 0 0 4px var(--ember-soft), 0 10px 22px -12px var(--glow);
-  color: var(--ink);
-}
-[data-dir='glass'] :is(.btn--secondary, .btn--danger, .icon-btn, .chip):active:not(:disabled) { transform: scale(.97); }
-[data-dir='glass'] .btn--danger { color: var(--danger); }
-[data-dir='glass'] .btn--ghost:hover { background: var(--hover); }
-[data-dir='glass'] .btn--ghost { border-radius: 999px; }
-[data-dir='glass'] .btn:disabled { color: var(--muted); background: var(--glass); box-shadow: inset 0 0 0 1px var(--line); }
-[data-dir='glass'] .btn:disabled::after { display: none; }
+      [data-dir='glass'] :is(.btn, .icon-btn, .chip, .field) {
+        border-radius: 999px;
+      }
+      [data-dir='glass'] .btn--primary {
+        color: #fff;
+        overflow: hidden;
+        background: radial-gradient(
+          120% 160% at 25% 0%,
+          var(--ember-hi),
+          var(--ember) 48%,
+          var(--ember-lo)
+        );
+        box-shadow:
+          inset 0 0 0 1px rgb(255 255 255 / 20%),
+          inset 0 1px 0 rgb(255 255 255 / 40%),
+          0 10px 24px -10px var(--glow);
+      }
+      [data-dir='glass'] .btn--primary::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          110deg,
+          transparent 30%,
+          rgb(255 255 255 / 40%) 50%,
+          transparent 70%
+        );
+        transform: translateX(-130%);
+        transition: transform 0.7s cubic-bezier(0.3, 0.8, 0.3, 1);
+      }
+      [data-dir='glass'] .btn--primary:hover:not(:disabled)::after {
+        transform: translateX(130%);
+      }
+      [data-dir='glass'] .btn--primary:hover:not(:disabled) {
+        box-shadow:
+          inset 0 0 0 1px rgb(255 255 255 / 24%),
+          inset 0 1px 0 rgb(255 255 255 / 45%),
+          0 0 0 4px var(--ember-soft),
+          0 14px 30px -10px var(--glow);
+      }
+      [data-dir='glass'] .btn--primary:active:not(:disabled) {
+        transform: scale(0.97);
+      }
+      [data-dir='glass'] :is(.btn--secondary, .btn--danger, .icon-btn, .chip) {
+        border: 1px solid transparent;
+        background:
+          linear-gradient(var(--glass), var(--glass)) padding-box,
+          linear-gradient(
+              135deg,
+              color-mix(in srgb, var(--ember) 55%, transparent),
+              var(--line-strong) 38%,
+              var(--line-strong) 70%,
+              color-mix(in srgb, var(--ember-hi) 35%, transparent)
+            )
+            border-box;
+        backdrop-filter: blur(12px);
+        box-shadow:
+          inset 0 1px 0 rgb(255 255 255 / 35%),
+          0 6px 16px -10px rgb(20 18 15 / 35%);
+      }
+      [data-dir='glass']
+        :is(.btn--secondary, .icon-btn, .chip):hover:not(:disabled) {
+        background:
+          linear-gradient(var(--glass-strong), var(--glass-strong)) padding-box,
+          linear-gradient(
+              135deg,
+              var(--ember),
+              color-mix(in srgb, var(--ember) 35%, var(--line-strong)) 50%,
+              var(--ember-hi)
+            )
+            border-box;
+        box-shadow:
+          inset 0 1px 0 rgb(255 255 255 / 40%),
+          0 0 0 4px var(--ember-soft),
+          0 10px 22px -12px var(--glow);
+        color: var(--ink);
+      }
+      [data-dir='glass']
+        :is(.btn--secondary, .btn--danger, .icon-btn, .chip):active:not(
+          :disabled
+        ) {
+        transform: scale(0.97);
+      }
+      [data-dir='glass'] .btn--danger {
+        color: var(--danger);
+      }
+      [data-dir='glass'] .btn--ghost:hover {
+        background: var(--hover);
+      }
+      [data-dir='glass'] .btn--ghost {
+        border-radius: 999px;
+      }
+      [data-dir='glass'] .btn:disabled {
+        color: var(--muted);
+        background: var(--glass);
+        box-shadow: inset 0 0 0 1px var(--line);
+      }
+      [data-dir='glass'] .btn:disabled::after {
+        display: none;
+      }
 
-[data-dir='glass'] .seg { padding: 3px; border-radius: 999px; background: linear-gradient(var(--glass), var(--glass)) padding-box, linear-gradient(135deg, var(--line-strong), transparent 60%, var(--line-strong)) border-box; border: 1px solid transparent; backdrop-filter: blur(12px); }
-[data-dir='glass'] .seg-thumb { top: 3px; bottom: 3px; border-radius: 999px; border: 1px solid transparent; background: linear-gradient(color-mix(in srgb, var(--ember) 12%, var(--glass-strong)), color-mix(in srgb, var(--ember) 12%, var(--glass-strong))) padding-box, linear-gradient(135deg, var(--ember), color-mix(in srgb, var(--ember) 25%, transparent) 55%, var(--ember-hi)) border-box; box-shadow: 0 6px 16px -8px var(--glow); }
-[data-dir='glass'] .seg button[aria-pressed='true'] { color: var(--ember-text); }
+      [data-dir='glass'] .seg {
+        padding: 3px;
+        border-radius: 999px;
+        background:
+          linear-gradient(var(--glass), var(--glass)) padding-box,
+          linear-gradient(
+              135deg,
+              var(--line-strong),
+              transparent 60%,
+              var(--line-strong)
+            )
+            border-box;
+        border: 1px solid transparent;
+        backdrop-filter: blur(12px);
+      }
+      [data-dir='glass'] .seg-thumb {
+        top: 3px;
+        bottom: 3px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        background:
+          linear-gradient(
+              color-mix(in srgb, var(--ember) 12%, var(--glass-strong)),
+              color-mix(in srgb, var(--ember) 12%, var(--glass-strong))
+            )
+            padding-box,
+          linear-gradient(
+              135deg,
+              var(--ember),
+              color-mix(in srgb, var(--ember) 25%, transparent) 55%,
+              var(--ember-hi)
+            )
+            border-box;
+        box-shadow: 0 6px 16px -8px var(--glow);
+      }
+      [data-dir='glass'] .seg button[aria-pressed='true'] {
+        color: var(--ember-text);
+      }
 
-[data-dir='glass'] .chip[aria-pressed='true'] { color: var(--ember-text); background: linear-gradient(color-mix(in srgb, var(--ember) 12%, var(--glass-strong)), color-mix(in srgb, var(--ember) 12%, var(--glass-strong))) padding-box, linear-gradient(135deg, var(--ember), color-mix(in srgb, var(--ember) 30%, transparent) 55%, var(--ember-hi)) border-box; box-shadow: 0 6px 16px -8px var(--glow); }
-[data-dir='glass'] .chip[aria-pressed='true']::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 8px var(--ember); }
-[data-dir='glass'] .chip[aria-pressed='true'] .n { color: var(--ember-text); }
+      [data-dir='glass'] .chip[aria-pressed='true'] {
+        color: var(--ember-text);
+        background:
+          linear-gradient(
+              color-mix(in srgb, var(--ember) 12%, var(--glass-strong)),
+              color-mix(in srgb, var(--ember) 12%, var(--glass-strong))
+            )
+            padding-box,
+          linear-gradient(
+              135deg,
+              var(--ember),
+              color-mix(in srgb, var(--ember) 30%, transparent) 55%,
+              var(--ember-hi)
+            )
+            border-box;
+        box-shadow: 0 6px 16px -8px var(--glow);
+      }
+      [data-dir='glass'] .chip[aria-pressed='true']::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--ember);
+        box-shadow: 0 0 8px var(--ember);
+      }
+      [data-dir='glass'] .chip[aria-pressed='true'] .n {
+        color: var(--ember-text);
+      }
 
-[data-dir='glass'] .nav { background: color-mix(in srgb, var(--surface-2) 70%, transparent); backdrop-filter: blur(14px); }
-[data-dir='glass'] .nav-item { border-radius: 999px; }
-[data-dir='glass'] .nav-item:hover { background: var(--hover); color: var(--ink); }
-[data-dir='glass'] .nav-item.is-active { color: var(--ink); background: linear-gradient(color-mix(in srgb, var(--ember) 10%, var(--glass-strong)), color-mix(in srgb, var(--ember) 10%, var(--glass-strong))) padding-box, linear-gradient(135deg, var(--ember), color-mix(in srgb, var(--ember) 20%, transparent) 55%, var(--ember-hi)) border-box; box-shadow: 0 8px 18px -12px var(--glow); }
-[data-dir='glass'] .nav-item.is-active svg { color: var(--ember-text); opacity: 1; }
-[data-dir='glass'] .nav-item.is-active .n { color: var(--ember-text); }
-[data-dir='glass'] .nav-item.is-active::after { content: ''; position: absolute; right: 12px; width: 6px; height: 6px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 10px var(--ember); }
-[data-dir='glass'] .nav-item.is-active .n { margin-right: 14px; }
+      [data-dir='glass'] .nav {
+        background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+        backdrop-filter: blur(14px);
+      }
+      [data-dir='glass'] .nav-item {
+        border-radius: 999px;
+      }
+      [data-dir='glass'] .nav-item:hover {
+        background: var(--hover);
+        color: var(--ink);
+      }
+      [data-dir='glass'] .nav-item.is-active {
+        color: var(--ink);
+        background:
+          linear-gradient(
+              color-mix(in srgb, var(--ember) 10%, var(--glass-strong)),
+              color-mix(in srgb, var(--ember) 10%, var(--glass-strong))
+            )
+            padding-box,
+          linear-gradient(
+              135deg,
+              var(--ember),
+              color-mix(in srgb, var(--ember) 20%, transparent) 55%,
+              var(--ember-hi)
+            )
+            border-box;
+        box-shadow: 0 8px 18px -12px var(--glow);
+      }
+      [data-dir='glass'] .nav-item.is-active svg {
+        color: var(--ember-text);
+        opacity: 1;
+      }
+      [data-dir='glass'] .nav-item.is-active .n {
+        color: var(--ember-text);
+      }
+      [data-dir='glass'] .nav-item.is-active::after {
+        content: '';
+        position: absolute;
+        right: 12px;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--ember);
+        box-shadow: 0 0 10px var(--ember);
+      }
+      [data-dir='glass'] .nav-item.is-active .n {
+        margin-right: 14px;
+      }
 
-[data-dir='glass'] .switch { border-radius: 999px; background: var(--glass); box-shadow: inset 0 0 0 1px var(--line-strong); backdrop-filter: blur(10px); }
-[data-dir='glass'] .switch::after { border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgb(20 18 15 / 25%); }
-[data-dir='glass'] .switch[aria-checked='true'] { background: radial-gradient(120% 160% at 25% 0%, var(--ember-hi), var(--ember) 55%, var(--ember-lo)); box-shadow: 0 0 0 4px var(--ember-soft), 0 6px 16px -6px var(--glow); }
+      [data-dir='glass'] .switch {
+        border-radius: 999px;
+        background: var(--glass);
+        box-shadow: inset 0 0 0 1px var(--line-strong);
+        backdrop-filter: blur(10px);
+      }
+      [data-dir='glass'] .switch::after {
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 2px 6px rgb(20 18 15 / 25%);
+      }
+      [data-dir='glass'] .switch[aria-checked='true'] {
+        background: radial-gradient(
+          120% 160% at 25% 0%,
+          var(--ember-hi),
+          var(--ember) 55%,
+          var(--ember-lo)
+        );
+        box-shadow:
+          0 0 0 4px var(--ember-soft),
+          0 6px 16px -6px var(--glow);
+      }
 
-[data-dir='glass'] .field { border: 1px solid transparent; background: linear-gradient(var(--glass), var(--glass)) padding-box, linear-gradient(135deg, var(--line-strong), transparent 60%, var(--line-strong)) border-box; backdrop-filter: blur(12px); }
-[data-dir='glass'] .field:focus-within { background: linear-gradient(var(--glass-strong), var(--glass-strong)) padding-box, linear-gradient(135deg, var(--ember), color-mix(in srgb, var(--ember) 30%, transparent) 55%, var(--ember-hi)) border-box; box-shadow: 0 0 0 4px var(--ember-soft); }
+      [data-dir='glass'] .field {
+        border: 1px solid transparent;
+        background:
+          linear-gradient(var(--glass), var(--glass)) padding-box,
+          linear-gradient(
+              135deg,
+              var(--line-strong),
+              transparent 60%,
+              var(--line-strong)
+            )
+            border-box;
+        backdrop-filter: blur(12px);
+      }
+      [data-dir='glass'] .field:focus-within {
+        background:
+          linear-gradient(var(--glass-strong), var(--glass-strong)) padding-box,
+          linear-gradient(
+              135deg,
+              var(--ember),
+              color-mix(in srgb, var(--ember) 30%, transparent) 55%,
+              var(--ember-hi)
+            )
+            border-box;
+        box-shadow: 0 0 0 4px var(--ember-soft);
+      }
 
-/* ---------- layout responsiveness ---------- */
-@media (max-width: 900px) {
-  .panel.half, .panel.third, .panel.two-thirds { grid-column: span 12; }
-}
-@media (max-width: 560px) {
-  .wrap { padding: 0 16px; }
-  .top h1 { width: 100%; }
-  .grow { display: none; }
-  .panel { padding: 18px 16px 20px; }
-  .field { min-width: 0; width: 100%; max-width: none; }
-}
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
-</style>
-</head>
-<body>
+      /* ---------- layout responsiveness ---------- */
+      @media (max-width: 900px) {
+        .panel.half,
+        .panel.third,
+        .panel.two-thirds {
+          grid-column: span 12;
+        }
+      }
+      @media (max-width: 560px) {
+        .wrap {
+          padding: 0 16px;
+        }
+        .top h1 {
+          width: 100%;
+        }
+        .grow {
+          display: none;
+        }
+        .panel {
+          padding: 18px 16px 20px;
+        }
+        .field {
+          min-width: 0;
+          width: 100%;
+          max-width: none;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          transition: none !important;
+          animation: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <symbol
+        id="i-plus"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.2"
+        stroke-linecap="round"
+      >
+        <path d="M12 5v14M5 12h14" />
+      </symbol>
+      <symbol
+        id="i-check"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="m5 12.5 4.5 4.5L19 7.5" />
+      </symbol>
+      <symbol
+        id="i-cols"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+      >
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M9 4v16M15 4v16" />
+      </symbol>
+      <symbol
+        id="i-sort"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+      >
+        <path d="m3 16 4 4 4-4M7 20V4M11 4h10M11 8h7M11 12h4" />
+      </symbol>
+      <symbol
+        id="i-trash"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+      >
+        <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+      </symbol>
+      <symbol
+        id="i-gear"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+      >
+        <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+        <circle cx="16" cy="7" r="2" />
+        <circle cx="10" cy="17" r="2" />
+      </symbol>
+      <symbol
+        id="i-moon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z" />
+      </symbol>
+      <symbol
+        id="i-pin"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M12 17v5M9 3h6l-1 6 3 3H7l3-3z" />
+      </symbol>
+      <symbol
+        id="i-scale"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path
+          d="M12 3v18M7 21h10M5 7h14M5 7l-3 7a3 3 0 0 0 6 0L5 7zM19 7l-3 7a3 3 0 0 0 6 0l-3-7z"
+        />
+      </symbol>
+      <symbol
+        id="i-list"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+      >
+        <path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" />
+      </symbol>
+      <symbol
+        id="i-grid"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+      >
+        <rect x="3" y="3" width="7" height="7" rx="1.5" />
+        <rect x="14" y="3" width="7" height="7" rx="1.5" />
+        <rect x="3" y="14" width="7" height="7" rx="1.5" />
+        <rect x="14" y="14" width="7" height="7" rx="1.5" />
+      </symbol>
+      <symbol
+        id="i-insights"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+      >
+        <rect x="3" y="3" width="7" height="9" rx="1.5" />
+        <rect x="14" y="3" width="7" height="5" rx="1.5" />
+        <rect x="14" y="12" width="7" height="9" rx="1.5" />
+        <rect x="3" y="16" width="7" height="5" rx="1.5" />
+      </symbol>
+      <symbol
+        id="i-lib"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+      >
+        <path d="m16 6 4 14M12 6v14M8 8v12M4 4v16" />
+      </symbol>
+      <symbol
+        id="i-studio"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+      >
+        <path d="M4 3h16M4 21h16" />
+        <rect x="3" y="7" width="18" height="10" rx="2" />
+      </symbol>
+      <symbol
+        id="i-logs"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+      >
+        <rect x="5" y="3" width="14" height="18" rx="2" />
+        <path d="M9 8h6M9 12h6M9 16h4" />
+      </symbol>
+      <symbol
+        id="i-search"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      >
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-3.5-3.5" />
+      </symbol>
+      <symbol
+        id="i-link"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+      >
+        <path
+          d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"
+        />
+      </symbol>
+    </svg>
 
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
-  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
-  <symbol id="i-cols" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></symbol>
-  <symbol id="i-sort" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m3 16 4 4 4-4M7 20V4M11 4h10M11 8h7M11 12h4"/></symbol>
-  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
-  <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
-  <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></symbol>
-  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-1 6 3 3H7l3-3z"/></symbol>
-  <symbol id="i-scale" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M7 21h10M5 7h14M5 7l-3 7a3 3 0 0 0 6 0L5 7zM19 7l-3 7a3 3 0 0 0 6 0l-3-7z"/></symbol>
-  <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
-  <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
-  <symbol id="i-insights" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></symbol>
-  <symbol id="i-lib" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m16 6 4 14M12 6v14M8 8v12M4 4v16"/></symbol>
-  <symbol id="i-studio" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 3h16M4 21h16"/><rect x="3" y="7" width="18" height="10" rx="2"/></symbol>
-  <symbol id="i-logs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></symbol>
-  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
-  <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></symbol>
-</svg>
-
-<header class="top">
-  <div class="wrap">
-    <h1>BladeVault <span>· Forge controls proposal</span></h1>
-    <div class="grow"></div>
-    <div class="switcher" id="dirSwitch" role="group" aria-label="Control style">
-      <button data-dir="forged">A · Forged</button>
-      <button data-dir="tanto">B · Tanto</button>
-      <button data-dir="glass">C · Ember glass</button>
-    </div>
-    <div class="switcher" id="modeSwitch" role="group" aria-label="Color mode">
-      <button data-mode="light">Light</button>
-      <button data-mode="dark">Dark</button>
-    </div>
-  </div>
-</header>
-
-<main class="wrap">
-  <section class="hero">
-    <div class="eyebrow">Proposal · Buttons and clickable elements</div>
-    <h2>Controls with a material, not just a shape.</h2>
-    <p>Today's buttons are flat pills with a thin outline. Below are three directions for every clickable element in Forge, all in the same palette. Hover, press, tab to focus, and click the segmented controls, chips, switches and sidebar items: they all react.</p>
-    <div class="dir-note" id="dirNote"></div>
-  </section>
-
-  <div class="grid">
-    <!-- Buttons -->
-    <section class="panel">
-      <div class="eyebrow">01 · Buttons</div>
-      <h3>Primary, secondary, quiet, destructive</h3>
-      <p class="sub">Primary is reserved for the one main action on a screen (Add knife, Save item, Open knife).</p>
-      <div class="row">
-        <span class="label">Default</span>
-        <button class="btn btn--primary"><svg><use href="#i-plus"/></svg>Add knife <kbd>N</kbd></button>
-        <button class="btn btn--primary"><svg><use href="#i-check"/></svg>Save item</button>
-        <button class="btn btn--secondary">Cancel</button>
-        <button class="btn btn--secondary"><svg><use href="#i-scale"/></svg>Compare</button>
-        <button class="btn btn--ghost"><svg><use href="#i-sort"/></svg>Sort</button>
-        <button class="btn btn--danger"><svg><use href="#i-trash"/></svg>Delete</button>
-      </div>
-      <div class="row">
-        <span class="label">Icon, disabled, loading, small</span>
-        <button class="icon-btn" aria-label="Settings"><svg><use href="#i-gear"/></svg></button>
-        <button class="icon-btn" aria-label="Pin"><svg><use href="#i-pin"/></svg></button>
-        <button class="icon-btn" aria-label="Dark mode"><svg><use href="#i-moon"/></svg></button>
-        <button class="btn btn--primary" disabled><svg><use href="#i-check"/></svg>Save item</button>
-        <button class="btn btn--primary" id="loadingBtn"><svg><use href="#i-check"/></svg>Save item</button>
-        <button class="btn btn--secondary sm"><svg><use href="#i-cols"/></svg>Columns</button>
-        <button class="btn btn--secondary sm">Clear</button>
-      </div>
-    </section>
-
-    <!-- Segmented and chips -->
-    <section class="panel two-thirds">
-      <div class="eyebrow">02 · Segmented and chips</div>
-      <h3>Filters, views and tabs</h3>
-      <p class="sub">The selected thumb slides between options. Chips toggle on and off.</p>
-      <div class="row">
-        <span class="label">Collection type</span>
-        <div class="seg" role="group" aria-label="Collection type">
-          <span class="seg-thumb"></span>
-          <button aria-pressed="true">All <span class="n">219</span></button>
-          <button aria-pressed="false">Folding</button>
-          <button aria-pressed="false">Fixed</button>
-          <button aria-pressed="false">Pinned</button>
-        </div>
-        <div class="seg" role="group" aria-label="View">
-          <span class="seg-thumb"></span>
-          <button aria-pressed="false" aria-label="List view"><svg><use href="#i-list"/></svg></button>
-          <button aria-pressed="true" aria-label="Grid view"><svg><use href="#i-grid"/></svg></button>
-        </div>
-      </div>
-      <div class="row">
-        <span class="label">Add knife tabs</span>
-        <div class="seg" role="group" aria-label="Add mode">
-          <span class="seg-thumb"></span>
-          <button aria-pressed="true">Scrape URL</button>
-          <button aria-pressed="false">Manual</button>
-        </div>
-      </div>
-      <div class="row">
-        <span class="label">Filter chips</span>
-        <button class="chip" aria-pressed="true">Vosteed <span class="n">95</span></button>
-        <button class="chip" aria-pressed="false">Kizer <span class="n">56</span></button>
-        <button class="chip" aria-pressed="false">M390 <span class="n">21</span></button>
-        <button class="chip" aria-pressed="true">Steel: 14C28N <span class="x">✕</span></button>
-        <button class="chip" aria-pressed="false">Button lock <span class="n">57</span></button>
-      </div>
-    </section>
-
-    <!-- Sidebar -->
-    <section class="panel third">
-      <div class="eyebrow">03 · Sidebar</div>
-      <h3>Navigation items</h3>
-      <p class="sub">Click to move the selection.</p>
-      <nav class="nav" id="nav">
-        <div class="grp">Main</div>
-        <button class="nav-item"><svg><use href="#i-insights"/></svg>Insights</button>
-        <button class="nav-item is-active"><svg><use href="#i-lib"/></svg>Collection<span class="n">219</span></button>
-        <button class="nav-item"><svg><use href="#i-studio"/></svg>Studio</button>
-        <button class="nav-item"><svg><use href="#i-scale"/></svg>Compare<svg class="plus"><use href="#i-plus"/></svg></button>
-        <button class="nav-item is-sub">Vosteed<span class="n">7</span></button>
-        <button class="nav-item is-sub">Mix<span class="n">2</span></button>
-        <button class="nav-item"><svg><use href="#i-logs"/></svg>Logs</button>
-      </nav>
-    </section>
-
-    <!-- Form controls -->
-    <section class="panel half">
-      <div class="eyebrow">04 · Fields and toggles</div>
-      <h3>Inputs, switches</h3>
-      <p class="sub">Fields read as recessed or framed. Focus lights up in ember.</p>
-      <div class="row">
-        <label class="field"><svg><use href="#i-search"/></svg><input placeholder="Search knives, makers, steel…" /><kbd>⌘K</kbd></label>
-      </div>
-      <div class="row">
-        <label class="field"><svg><use href="#i-link"/></svg><input placeholder="https://retailer.com/…" /></label>
-        <button class="btn btn--primary">Scrape</button>
-      </div>
-      <div class="row">
-        <div class="toggle-row"><button class="switch" role="switch" aria-checked="true" aria-label="Pinned first"></button>Pinned items first</div>
-        <div class="toggle-row"><button class="switch" role="switch" aria-checked="false" aria-label="Cloud backup"></button>Cloud auto backup</div>
-      </div>
-    </section>
-
-    <!-- In context -->
-    <section class="panel half">
-      <div class="eyebrow">05 · In context</div>
-      <h3>Collection toolbar</h3>
-      <p class="sub">How the pieces sit together on a real screen.</p>
-      <div class="toolbar">
-        <div class="seg" role="group" aria-label="Type">
-          <span class="seg-thumb"></span>
-          <button aria-pressed="true">All</button>
-          <button aria-pressed="false">Folding</button>
-          <button aria-pressed="false">Fixed</button>
-        </div>
+    <header class="top">
+      <div class="wrap">
+        <h1>BladeVault <span>· Forge controls proposal</span></h1>
         <div class="grow"></div>
-        <button class="icon-btn sm" aria-label="Sort"><svg><use href="#i-sort"/></svg></button>
-        <button class="btn btn--secondary sm"><svg><use href="#i-cols"/></svg>Columns</button>
-        <button class="btn btn--primary sm"><svg><use href="#i-plus"/></svg>Add knife</button>
+        <div
+          class="switcher"
+          id="dirSwitch"
+          role="group"
+          aria-label="Control style"
+        >
+          <button data-dir="forged">A · Forged</button>
+          <button data-dir="tanto">B · Tanto</button>
+          <button data-dir="glass">C · Ember glass</button>
+        </div>
+        <div
+          class="switcher"
+          id="modeSwitch"
+          role="group"
+          aria-label="Color mode"
+        >
+          <button data-mode="light">Light</button>
+          <button data-mode="dark">Dark</button>
+        </div>
       </div>
-      <div class="row" style="margin-top:16px">
-        <button class="btn btn--secondary">Cancel</button>
-        <button class="btn btn--primary"><svg><use href="#i-check"/></svg>Save item</button>
+    </header>
+
+    <main class="wrap">
+      <section class="hero">
+        <div class="eyebrow">Proposal · Buttons and clickable elements</div>
+        <h2>Controls with a material, not just a shape.</h2>
+        <p>
+          Today's buttons are flat pills with a thin outline. Below are three
+          directions for every clickable element in Forge, all in the same
+          palette. Hover, press, tab to focus, and click the segmented controls,
+          chips, switches and sidebar items: they all react.
+        </p>
+        <div class="dir-note" id="dirNote"></div>
+      </section>
+
+      <div class="grid">
+        <!-- Buttons -->
+        <section class="panel">
+          <div class="eyebrow">01 · Buttons</div>
+          <h3>Primary, secondary, quiet, destructive</h3>
+          <p class="sub">
+            Primary is reserved for the one main action on a screen (Add knife,
+            Save item, Open knife).
+          </p>
+          <div class="row">
+            <span class="label">Default</span>
+            <button class="btn btn--primary">
+              <svg><use href="#i-plus" /></svg>Add knife <kbd>N</kbd>
+            </button>
+            <button class="btn btn--primary">
+              <svg><use href="#i-check" /></svg>Save item
+            </button>
+            <button class="btn btn--secondary">Cancel</button>
+            <button class="btn btn--secondary">
+              <svg><use href="#i-scale" /></svg>Compare
+            </button>
+            <button class="btn btn--ghost">
+              <svg><use href="#i-sort" /></svg>Sort
+            </button>
+            <button class="btn btn--danger">
+              <svg><use href="#i-trash" /></svg>Delete
+            </button>
+          </div>
+          <div class="row">
+            <span class="label">Icon, disabled, loading, small</span>
+            <button class="icon-btn" aria-label="Settings">
+              <svg><use href="#i-gear" /></svg>
+            </button>
+            <button class="icon-btn" aria-label="Pin">
+              <svg><use href="#i-pin" /></svg>
+            </button>
+            <button class="icon-btn" aria-label="Dark mode">
+              <svg><use href="#i-moon" /></svg>
+            </button>
+            <button class="btn btn--primary" disabled>
+              <svg><use href="#i-check" /></svg>Save item
+            </button>
+            <button class="btn btn--primary" id="loadingBtn">
+              <svg><use href="#i-check" /></svg>Save item
+            </button>
+            <button class="btn btn--secondary sm">
+              <svg><use href="#i-cols" /></svg>Columns
+            </button>
+            <button class="btn btn--secondary sm">Clear</button>
+          </div>
+        </section>
+
+        <!-- Segmented and chips -->
+        <section class="panel two-thirds">
+          <div class="eyebrow">02 · Segmented and chips</div>
+          <h3>Filters, views and tabs</h3>
+          <p class="sub">
+            The selected thumb slides between options. Chips toggle on and off.
+          </p>
+          <div class="row">
+            <span class="label">Collection type</span>
+            <div class="seg" role="group" aria-label="Collection type">
+              <span class="seg-thumb"></span>
+              <button aria-pressed="true">
+                All <span class="n">219</span>
+              </button>
+              <button aria-pressed="false">Folding</button>
+              <button aria-pressed="false">Fixed</button>
+              <button aria-pressed="false">Pinned</button>
+            </div>
+            <div class="seg" role="group" aria-label="View">
+              <span class="seg-thumb"></span>
+              <button aria-pressed="false" aria-label="List view">
+                <svg><use href="#i-list" /></svg>
+              </button>
+              <button aria-pressed="true" aria-label="Grid view">
+                <svg><use href="#i-grid" /></svg>
+              </button>
+            </div>
+          </div>
+          <div class="row">
+            <span class="label">Add knife tabs</span>
+            <div class="seg" role="group" aria-label="Add mode">
+              <span class="seg-thumb"></span>
+              <button aria-pressed="true">Scrape URL</button>
+              <button aria-pressed="false">Manual</button>
+            </div>
+          </div>
+          <div class="row">
+            <span class="label">Filter chips</span>
+            <button class="chip" aria-pressed="true">
+              Vosteed <span class="n">95</span>
+            </button>
+            <button class="chip" aria-pressed="false">
+              Kizer <span class="n">56</span>
+            </button>
+            <button class="chip" aria-pressed="false">
+              M390 <span class="n">21</span>
+            </button>
+            <button class="chip" aria-pressed="true">
+              Steel: 14C28N <span class="x">✕</span>
+            </button>
+            <button class="chip" aria-pressed="false">
+              Button lock <span class="n">57</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- Sidebar -->
+        <section class="panel third">
+          <div class="eyebrow">03 · Sidebar</div>
+          <h3>Navigation items</h3>
+          <p class="sub">Click to move the selection.</p>
+          <nav class="nav" id="nav">
+            <div class="grp">Main</div>
+            <button class="nav-item">
+              <svg><use href="#i-insights" /></svg>Insights
+            </button>
+            <button class="nav-item is-active">
+              <svg><use href="#i-lib" /></svg>Collection<span class="n"
+                >219</span
+              >
+            </button>
+            <button class="nav-item">
+              <svg><use href="#i-studio" /></svg>Studio
+            </button>
+            <button class="nav-item">
+              <svg><use href="#i-scale" /></svg>Compare<svg class="plus">
+                <use href="#i-plus" />
+              </svg>
+            </button>
+            <button class="nav-item is-sub">
+              Vosteed<span class="n">7</span>
+            </button>
+            <button class="nav-item is-sub">Mix<span class="n">2</span></button>
+            <button class="nav-item">
+              <svg><use href="#i-logs" /></svg>Logs
+            </button>
+          </nav>
+        </section>
+
+        <!-- Form controls -->
+        <section class="panel half">
+          <div class="eyebrow">04 · Fields and toggles</div>
+          <h3>Inputs, switches</h3>
+          <p class="sub">
+            Fields read as recessed or framed. Focus lights up in ember.
+          </p>
+          <div class="row">
+            <label class="field"
+              ><svg><use href="#i-search" /></svg
+              ><input placeholder="Search knives, makers, steel…" /><kbd
+                >⌘K</kbd
+              ></label
+            >
+          </div>
+          <div class="row">
+            <label class="field"
+              ><svg><use href="#i-link" /></svg
+              ><input placeholder="https://retailer.com/…"
+            /></label>
+            <button class="btn btn--primary">Scrape</button>
+          </div>
+          <div class="row">
+            <div class="toggle-row">
+              <button
+                class="switch"
+                role="switch"
+                aria-checked="true"
+                aria-label="Pinned first"
+              ></button
+              >Pinned items first
+            </div>
+            <div class="toggle-row">
+              <button
+                class="switch"
+                role="switch"
+                aria-checked="false"
+                aria-label="Cloud backup"
+              ></button
+              >Cloud auto backup
+            </div>
+          </div>
+        </section>
+
+        <!-- In context -->
+        <section class="panel half">
+          <div class="eyebrow">05 · In context</div>
+          <h3>Collection toolbar</h3>
+          <p class="sub">How the pieces sit together on a real screen.</p>
+          <div class="toolbar">
+            <div class="seg" role="group" aria-label="Type">
+              <span class="seg-thumb"></span>
+              <button aria-pressed="true">All</button>
+              <button aria-pressed="false">Folding</button>
+              <button aria-pressed="false">Fixed</button>
+            </div>
+            <div class="grow"></div>
+            <button class="icon-btn sm" aria-label="Sort">
+              <svg><use href="#i-sort" /></svg>
+            </button>
+            <button class="btn btn--secondary sm">
+              <svg><use href="#i-cols" /></svg>Columns
+            </button>
+            <button class="btn btn--primary sm">
+              <svg><use href="#i-plus" /></svg>Add knife
+            </button>
+          </div>
+          <div class="row" style="margin-top: 16px">
+            <button class="btn btn--secondary">Cancel</button>
+            <button class="btn btn--primary">
+              <svg><use href="#i-check" /></svg>Save item
+            </button>
+          </div>
+        </section>
       </div>
-    </section>
-  </div>
-</main>
+    </main>
 
-<script>
-(() => {
-  const root = document.documentElement;
-  const store = {
-    get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
-    set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
-  };
-  const NOTES = {
-    forged: ['A · Forged', 'Machined keys. Buttons have a lit top edge and a darker bottom lip, and they press down when clicked. Filters sit in a recessed track with a raised key that slides, marked by a small ember pilot light. The selected sidebar item is a raised plate with a glowing ember strip.', 'Tactile'],
-    tanto: ['B · Tanto', 'Blade-sharp. Corners are cut like a tanto tip, labels are small mono capitals, and edges are crisp 1px lines. On hover a light sweep runs across the surface, like light along a blade. Selected filters are solid ink with an ember underline.', 'Technical'],
-    glass: ['C · Ember glass', 'Soft and luminous. Frosted pills with a gradient rim that catches ember light. The primary button glows, and a sheen passes over it on hover. Selected items are tinted glass with a small glowing ember dot.', 'Premium'],
-  };
+    <script>
+      ;(() => {
+        const root = document.documentElement
+        const store = {
+          get: (k) => {
+            try {
+              return localStorage.getItem(k)
+            } catch {
+              return null
+            }
+          },
+          set: (k, v) => {
+            try {
+              localStorage.setItem(k, v)
+            } catch {}
+          },
+        }
+        const NOTES = {
+          forged: [
+            'A · Forged',
+            'Machined keys. Buttons have a lit top edge and a darker bottom lip, and they press down when clicked. Filters sit in a recessed track with a raised key that slides, marked by a small ember pilot light. The selected sidebar item is a raised plate with a glowing ember strip.',
+            'Tactile',
+          ],
+          tanto: [
+            'B · Tanto',
+            'Blade-sharp. Corners are cut like a tanto tip, labels are small mono capitals, and edges are crisp 1px lines. On hover a light sweep runs across the surface, like light along a blade. Selected filters are solid ink with an ember underline.',
+            'Technical',
+          ],
+          glass: [
+            'C · Ember glass',
+            'Soft and luminous. Frosted pills with a gradient rim that catches ember light. The primary button glows, and a sheen passes over it on hover. Selected items are tinted glass with a small glowing ember dot.',
+            'Premium',
+          ],
+        }
 
-  function placeThumb(seg) {
-    const thumb = seg.querySelector('.seg-thumb');
-    const on = seg.querySelector('button[aria-pressed="true"]');
-    if (!thumb || !on) return;
-    thumb.style.left = on.offsetLeft + 'px';
-    thumb.style.width = on.offsetWidth + 'px';
-  }
-  function placeAll() { document.querySelectorAll('.seg').forEach(placeThumb); }
+        function placeThumb(seg) {
+          const thumb = seg.querySelector('.seg-thumb')
+          const on = seg.querySelector('button[aria-pressed="true"]')
+          if (!thumb || !on) return
+          thumb.style.left = on.offsetLeft + 'px'
+          thumb.style.width = on.offsetWidth + 'px'
+        }
+        function placeAll() {
+          document.querySelectorAll('.seg').forEach(placeThumb)
+        }
 
-  document.querySelectorAll('.seg').forEach((seg) => {
-    seg.addEventListener('click', (e) => {
-      const b = e.target.closest('button'); if (!b) return;
-      seg.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-      placeThumb(seg);
-    });
-  });
-  document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => c.setAttribute('aria-pressed', String(c.getAttribute('aria-pressed') !== 'true'))));
-  document.querySelectorAll('.switch').forEach((s) => s.addEventListener('click', () => s.setAttribute('aria-checked', String(s.getAttribute('aria-checked') !== 'true'))));
-  document.getElementById('nav').addEventListener('click', (e) => {
-    const b = e.target.closest('.nav-item'); if (!b) return;
-    document.querySelectorAll('.nav-item').forEach((x) => x.classList.toggle('is-active', x === b));
-  });
-  const loading = document.getElementById('loadingBtn');
-  loading.addEventListener('click', () => {
-    if (loading.dataset.busy) return;
-    loading.dataset.busy = '1';
-    const html = loading.innerHTML;
-    loading.innerHTML = '<span class="spinner"></span>Saving…';
-    setTimeout(() => { loading.innerHTML = html; delete loading.dataset.busy; }, 1600);
-  });
+        document.querySelectorAll('.seg').forEach((seg) => {
+          seg.addEventListener('click', (e) => {
+            const b = e.target.closest('button')
+            if (!b) return
+            seg
+              .querySelectorAll('button')
+              .forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+            placeThumb(seg)
+          })
+        })
+        document
+          .querySelectorAll('.chip')
+          .forEach((c) =>
+            c.addEventListener('click', () =>
+              c.setAttribute(
+                'aria-pressed',
+                String(c.getAttribute('aria-pressed') !== 'true'),
+              ),
+            ),
+          )
+        document
+          .querySelectorAll('.switch')
+          .forEach((s) =>
+            s.addEventListener('click', () =>
+              s.setAttribute(
+                'aria-checked',
+                String(s.getAttribute('aria-checked') !== 'true'),
+              ),
+            ),
+          )
+        document.getElementById('nav').addEventListener('click', (e) => {
+          const b = e.target.closest('.nav-item')
+          if (!b) return
+          document
+            .querySelectorAll('.nav-item')
+            .forEach((x) => x.classList.toggle('is-active', x === b))
+        })
+        const loading = document.getElementById('loadingBtn')
+        loading.addEventListener('click', () => {
+          if (loading.dataset.busy) return
+          loading.dataset.busy = '1'
+          const html = loading.innerHTML
+          loading.innerHTML = '<span class="spinner"></span>Saving…'
+          setTimeout(() => {
+            loading.innerHTML = html
+            delete loading.dataset.busy
+          }, 1600)
+        })
 
-  function sync() {
-    document.querySelectorAll('#dirSwitch button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.dir === root.dataset.dir)));
-    document.querySelectorAll('#modeSwitch button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === root.dataset.mode)));
-    const [name, text, tag] = NOTES[root.dataset.dir];
-    document.getElementById('dirNote').innerHTML = `<div><b>${name}</b><p>${text}</p></div><span class="tag">${tag}</span>`;
-    requestAnimationFrame(placeAll);
-  }
-  document.getElementById('dirSwitch').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; root.dataset.dir = b.dataset.dir; store.set('fc-dir', b.dataset.dir); sync(); });
-  document.getElementById('modeSwitch').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; root.dataset.mode = b.dataset.mode; store.set('fc-mode', b.dataset.mode); sync(); });
+        function sync() {
+          document
+            .querySelectorAll('#dirSwitch button')
+            .forEach((b) =>
+              b.setAttribute(
+                'aria-pressed',
+                String(b.dataset.dir === root.dataset.dir),
+              ),
+            )
+          document
+            .querySelectorAll('#modeSwitch button')
+            .forEach((b) =>
+              b.setAttribute(
+                'aria-pressed',
+                String(b.dataset.mode === root.dataset.mode),
+              ),
+            )
+          const [name, text, tag] = NOTES[root.dataset.dir]
+          document.getElementById('dirNote').innerHTML =
+            `<div><b>${name}</b><p>${text}</p></div><span class="tag">${tag}</span>`
+          requestAnimationFrame(placeAll)
+        }
+        document.getElementById('dirSwitch').addEventListener('click', (e) => {
+          const b = e.target.closest('button')
+          if (!b) return
+          root.dataset.dir = b.dataset.dir
+          store.set('fc-dir', b.dataset.dir)
+          sync()
+        })
+        document.getElementById('modeSwitch').addEventListener('click', (e) => {
+          const b = e.target.closest('button')
+          if (!b) return
+          root.dataset.mode = b.dataset.mode
+          store.set('fc-mode', b.dataset.mode)
+          sync()
+        })
 
-  const d = store.get('fc-dir'); if (NOTES[d]) root.dataset.dir = d;
-  const m = store.get('fc-mode'); if (m === 'light' || m === 'dark') root.dataset.mode = m;
-  sync();
-  window.addEventListener('resize', placeAll);
-  document.fonts?.ready.then(placeAll);
-})();
-</script>
-</body>
+        const d = store.get('fc-dir')
+        if (NOTES[d]) root.dataset.dir = d
+        const m = store.get('fc-mode')
+        if (m === 'light' || m === 'dark') root.dataset.mode = m
+        sync()
+        window.addEventListener('resize', placeAll)
+        document.fonts?.ready.then(placeAll)
+      })()
+    </script>
+  </body>
 </html>

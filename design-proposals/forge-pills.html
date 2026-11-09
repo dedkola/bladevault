@@ -1,289 +1,1104 @@
 <!doctype html>
 <html lang="en" data-mode="light">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Forge Pill Options</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<style>
-:root { --font: 'Geist', ui-sans-serif, system-ui, sans-serif; --mono: 'Geist Mono', ui-monospace, Menlo, monospace; }
-[data-mode='light'] {
-  --bg: #eeeae3; --panel: #faf7f2; --ink: #17150f; --ink-2: #3c3a35; --muted: #7a766e;
-  --line: #e3ddd2; --line-strong: rgb(20 18 15 / 16%); --hover: rgb(20 18 15 / 5%);
-  --ember: #e5541b; --ember-hi: #ff8f4f; --ember-lo: #c23f0c; --ember-text: #c2410c;
-  --ember-soft: rgb(229 84 27 / 9%); --glow: rgb(229 84 27 / 40%); --danger: #c8102e;
-  --hi: rgb(255 255 255 / 85%); --lo: rgb(20 18 15 / 12%); --drop: rgb(20 18 15 / 30%);
-  --shadow: 0 1px 2px rgb(20 18 15 / 5%), 0 18px 36px -24px rgb(20 18 15 / 28%);
-}
-[data-mode='dark'] {
-  --bg: #0a0a0b; --panel: #141416; --ink: #f2f1ee; --ink-2: #c9c7c2; --muted: #8d8a84;
-  --line: rgb(255 255 255 / 8%); --line-strong: rgb(255 255 255 / 16%); --hover: rgb(255 255 255 / 6%);
-  --ember: #ff6a2b; --ember-hi: #ffb067; --ember-lo: #e2361c; --ember-text: #ff8a50;
-  --ember-soft: rgb(255 106 43 / 12%); --glow: rgb(255 106 43 / 38%); --danger: #ff6b6b;
-  --hi: rgb(255 255 255 / 9%); --lo: rgb(0 0 0 / 55%); --drop: rgb(0 0 0 / 75%);
-  --shadow: inset 0 1px 0 rgb(255 255 255 / 4%), 0 20px 40px -24px rgb(0 0 0 / 80%);
-}
-* { box-sizing: border-box; }
-html, body { margin: 0; }
-body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; font-weight: 400; line-height: 1.45; -webkit-font-smoothing: antialiased; transition: background .25s, color .25s; }
-button { font: inherit; color: inherit; }
-.wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Forge Pill Options</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --font: 'Geist', ui-sans-serif, system-ui, sans-serif;
+        --mono: 'Geist Mono', ui-monospace, Menlo, monospace;
+      }
+      [data-mode='light'] {
+        --bg: #eeeae3;
+        --panel: #faf7f2;
+        --ink: #17150f;
+        --ink-2: #3c3a35;
+        --muted: #7a766e;
+        --line: #e3ddd2;
+        --line-strong: rgb(20 18 15 / 16%);
+        --hover: rgb(20 18 15 / 5%);
+        --ember: #e5541b;
+        --ember-hi: #ff8f4f;
+        --ember-lo: #c23f0c;
+        --ember-text: #c2410c;
+        --ember-soft: rgb(229 84 27 / 9%);
+        --glow: rgb(229 84 27 / 40%);
+        --danger: #c8102e;
+        --hi: rgb(255 255 255 / 85%);
+        --lo: rgb(20 18 15 / 12%);
+        --drop: rgb(20 18 15 / 30%);
+        --shadow:
+          0 1px 2px rgb(20 18 15 / 5%), 0 18px 36px -24px rgb(20 18 15 / 28%);
+      }
+      [data-mode='dark'] {
+        --bg: #0a0a0b;
+        --panel: #141416;
+        --ink: #f2f1ee;
+        --ink-2: #c9c7c2;
+        --muted: #8d8a84;
+        --line: rgb(255 255 255 / 8%);
+        --line-strong: rgb(255 255 255 / 16%);
+        --hover: rgb(255 255 255 / 6%);
+        --ember: #ff6a2b;
+        --ember-hi: #ffb067;
+        --ember-lo: #e2361c;
+        --ember-text: #ff8a50;
+        --ember-soft: rgb(255 106 43 / 12%);
+        --glow: rgb(255 106 43 / 38%);
+        --danger: #ff6b6b;
+        --hi: rgb(255 255 255 / 9%);
+        --lo: rgb(0 0 0 / 55%);
+        --drop: rgb(0 0 0 / 75%);
+        --shadow:
+          inset 0 1px 0 rgb(255 255 255 / 4%),
+          0 20px 40px -24px rgb(0 0 0 / 80%);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font);
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 1.45;
+        -webkit-font-smoothing: antialiased;
+        transition:
+          background 0.25s,
+          color 0.25s;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+      }
+      .wrap {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
 
-.top { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(14px); background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--line); }
-.top .wrap { display: flex; align-items: center; gap: 14px; min-height: 56px; }
-.top h1 { margin: 0; font-size: 14px; font-weight: 500; }
-.top h1 span { color: var(--muted); font-weight: 400; }
-.grow { flex: 1; }
-.mode { display: inline-flex; padding: 3px; border: 1px solid var(--line); border-radius: 999px; }
-.mode button { border: 0; background: none; padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 500; color: var(--muted); cursor: pointer; }
-.mode button[aria-pressed='true'] { background: var(--ink); color: var(--bg); }
+      .top {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        backdrop-filter: blur(14px);
+        background: color-mix(in srgb, var(--bg) 82%, transparent);
+        border-bottom: 1px solid var(--line);
+      }
+      .top .wrap {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-height: 56px;
+      }
+      .top h1 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .top h1 span {
+        color: var(--muted);
+        font-weight: 400;
+      }
+      .grow {
+        flex: 1;
+      }
+      .mode {
+        display: inline-flex;
+        padding: 3px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+      }
+      .mode button {
+        border: 0;
+        background: none;
+        padding: 5px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      .mode button[aria-pressed='true'] {
+        background: var(--ink);
+        color: var(--bg);
+      }
 
-.hero { padding: 40px 0 6px; }
-.eyebrow { font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ember-text); }
-.hero h2 { margin: 10px 0 8px; font-size: clamp(26px, 3.6vw, 40px); font-weight: 500; letter-spacing: -.035em; line-height: 1.05; }
-.hero p { margin: 0; max-width: 760px; color: var(--ink-2); font-size: 14.5px; }
-.legend { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
-.tag { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted); }
-.tag.is-3d { border-color: color-mix(in srgb, var(--ember) 40%, transparent); color: var(--ember-text); }
+      .hero {
+        padding: 40px 0 6px;
+      }
+      .eyebrow {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ember-text);
+      }
+      .hero h2 {
+        margin: 10px 0 8px;
+        font-size: clamp(26px, 3.6vw, 40px);
+        font-weight: 500;
+        letter-spacing: -0.035em;
+        line-height: 1.05;
+      }
+      .hero p {
+        margin: 0;
+        max-width: 760px;
+        color: var(--ink-2);
+        font-size: 14.5px;
+      }
+      .legend {
+        display: flex;
+        gap: 8px;
+        margin-top: 14px;
+        flex-wrap: wrap;
+      }
+      .tag {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        padding: 3px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--line-strong);
+        color: var(--muted);
+      }
+      .tag.is-3d {
+        border-color: color-mix(in srgb, var(--ember) 40%, transparent);
+        color: var(--ember-text);
+      }
 
-.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 22px 0 60px; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px 20px 20px; box-shadow: var(--shadow); min-width: 0; }
-.card-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
-.card-head b { font-size: 15px; font-weight: 500; letter-spacing: -.01em; }
-.card-head .num { font-family: var(--mono); font-size: 11px; color: var(--ember-text); }
-.card-head .tag { margin-left: auto; }
-.card p.desc { margin: 0 0 14px; color: var(--muted); font-size: 12.5px; }
-.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.row + .row { margin-top: 12px; }
-.lbl { width: 100%; font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: -2px; }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+        padding: 22px 0 60px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 18px 20px 20px;
+        box-shadow: var(--shadow);
+        min-width: 0;
+      }
+      .card-head {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 4px;
+      }
+      .card-head b {
+        font-size: 15px;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+      }
+      .card-head .num {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ember-text);
+      }
+      .card-head .tag {
+        margin-left: auto;
+      }
+      .card p.desc {
+        margin: 0 0 14px;
+        color: var(--muted);
+        font-size: 12.5px;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+      .row + .row {
+        margin-top: 12px;
+      }
+      .lbl {
+        width: 100%;
+        font-family: var(--mono);
+        font-size: 9.5px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: -2px;
+      }
 
-/* ---------------- shared pill skeleton (extra small) ---------------- */
-.b {
-  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
-  height: 26px; padding: 0 11px; border-radius: 999px; border: 1px solid transparent; background: transparent;
-  color: var(--ink-2); font-size: 11.5px; font-weight: 500; letter-spacing: -.005em; line-height: 1; white-space: nowrap;
-  cursor: pointer; user-select: none; transition: color .18s, background .18s, border-color .18s, box-shadow .2s, transform .12s;
-}
-.b svg { width: 12px; height: 12px; flex: none; }
-.b.i { width: 26px; padding: 0; }
-.b.i svg { width: 13px; height: 13px; }
-.b:disabled { cursor: not-allowed; opacity: .45; }
-.b:focus-visible, .seg button:focus-visible, .chip:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
-.b.p { color: var(--ember-text); }
-.b.d { color: var(--danger); }
+      /* ---------------- shared pill skeleton (extra small) ---------------- */
+      .b {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        height: 26px;
+        padding: 0 11px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--ink-2);
+        font-size: 11.5px;
+        font-weight: 500;
+        letter-spacing: -0.005em;
+        line-height: 1;
+        white-space: nowrap;
+        cursor: pointer;
+        user-select: none;
+        transition:
+          color 0.18s,
+          background 0.18s,
+          border-color 0.18s,
+          box-shadow 0.2s,
+          transform 0.12s;
+      }
+      .b svg {
+        width: 12px;
+        height: 12px;
+        flex: none;
+      }
+      .b.i {
+        width: 26px;
+        padding: 0;
+      }
+      .b.i svg {
+        width: 13px;
+        height: 13px;
+      }
+      .b:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+      }
+      .b:focus-visible,
+      .seg button:focus-visible,
+      .chip:focus-visible {
+        outline: 2px solid var(--ember);
+        outline-offset: 2px;
+      }
+      .b.p {
+        color: var(--ember-text);
+      }
+      .b.d {
+        color: var(--danger);
+      }
 
-.seg { position: relative; display: inline-flex; align-items: center; padding: 2px; border-radius: 999px; isolation: isolate; }
-.seg button { position: relative; z-index: 2; display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 10px; border: 0; border-radius: 999px; background: none; color: var(--muted); font-size: 11.5px; font-weight: 500; cursor: pointer; transition: color .2s; }
-.seg button svg { width: 12px; height: 12px; }
-.seg button .n { font-family: var(--mono); font-size: 9.5px; opacity: .75; }
-.seg button[aria-pressed='true'] { color: var(--ink); }
-.seg .th { position: absolute; z-index: 1; top: 2px; bottom: 2px; border-radius: 999px; transition: left .3s cubic-bezier(.3,.9,.3,1), width .3s cubic-bezier(.3,.9,.3,1); pointer-events: none; }
+      .seg {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        padding: 2px;
+        border-radius: 999px;
+        isolation: isolate;
+      }
+      .seg button {
+        position: relative;
+        z-index: 2;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        height: 22px;
+        padding: 0 10px;
+        border: 0;
+        border-radius: 999px;
+        background: none;
+        color: var(--muted);
+        font-size: 11.5px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: color 0.2s;
+      }
+      .seg button svg {
+        width: 12px;
+        height: 12px;
+      }
+      .seg button .n {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        opacity: 0.75;
+      }
+      .seg button[aria-pressed='true'] {
+        color: var(--ink);
+      }
+      .seg .th {
+        position: absolute;
+        z-index: 1;
+        top: 2px;
+        bottom: 2px;
+        border-radius: 999px;
+        transition:
+          left 0.3s cubic-bezier(0.3, 0.9, 0.3, 1),
+          width 0.3s cubic-bezier(0.3, 0.9, 0.3, 1);
+        pointer-events: none;
+      }
 
-.chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px; border-radius: 999px; border: 1px solid transparent; background: transparent; color: var(--ink-2); font-size: 11px; font-weight: 500; cursor: pointer; transition: all .18s; }
-.chip .n { font-family: var(--mono); font-size: 9.5px; color: var(--muted); }
-.chip .x { opacity: .6; font-size: 11px; }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        height: 22px;
+        padding: 0 9px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--ink-2);
+        font-size: 11px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.18s;
+      }
+      .chip .n {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        color: var(--muted);
+      }
+      .chip .x {
+        opacity: 0.6;
+        font-size: 11px;
+      }
 
-/* =========================================================
+      /* =========================================================
    1 · HAIRLINE (clean) — 1px outline, colour from the text.
 ========================================================= */
-.o1 .b { border-color: var(--line-strong); color: var(--ink); }
-.o1 .b:hover:not(:disabled) { border-color: color-mix(in srgb, var(--ink) 45%, transparent); background: var(--hover); }
-.o1 .b.p { border-color: color-mix(in srgb, var(--ember) 55%, transparent); color: var(--ember-text); }
-.o1 .b.p:hover:not(:disabled) { border-color: var(--ember); background: var(--ember-soft); }
-.o1 .b.d { border-color: color-mix(in srgb, var(--danger) 35%, transparent); color: var(--danger); }
-.o1 .b.d:hover { background: color-mix(in srgb, var(--danger) 7%, transparent); border-color: var(--danger); }
-.o1 .b:active:not(:disabled) { transform: scale(.97); }
-.o1 .seg { border: 1px solid var(--line-strong); }
-.o1 .seg .th { border: 1px solid color-mix(in srgb, var(--ember) 60%, transparent); background: var(--ember-soft); }
-.o1 .seg button[aria-pressed='true'] { color: var(--ember-text); }
-.o1 .chip { border-color: var(--line-strong); }
-.o1 .chip:hover { border-color: color-mix(in srgb, var(--ink) 40%, transparent); }
-.o1 .chip[aria-pressed='true'] { border-color: var(--ember); color: var(--ember-text); }
-.o1 .chip[aria-pressed='true'] .n { color: var(--ember-text); }
+      .o1 .b {
+        border-color: var(--line-strong);
+        color: var(--ink);
+      }
+      .o1 .b:hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--ink) 45%, transparent);
+        background: var(--hover);
+      }
+      .o1 .b.p {
+        border-color: color-mix(in srgb, var(--ember) 55%, transparent);
+        color: var(--ember-text);
+      }
+      .o1 .b.p:hover:not(:disabled) {
+        border-color: var(--ember);
+        background: var(--ember-soft);
+      }
+      .o1 .b.d {
+        border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+        color: var(--danger);
+      }
+      .o1 .b.d:hover {
+        background: color-mix(in srgb, var(--danger) 7%, transparent);
+        border-color: var(--danger);
+      }
+      .o1 .b:active:not(:disabled) {
+        transform: scale(0.97);
+      }
+      .o1 .seg {
+        border: 1px solid var(--line-strong);
+      }
+      .o1 .seg .th {
+        border: 1px solid color-mix(in srgb, var(--ember) 60%, transparent);
+        background: var(--ember-soft);
+      }
+      .o1 .seg button[aria-pressed='true'] {
+        color: var(--ember-text);
+      }
+      .o1 .chip {
+        border-color: var(--line-strong);
+      }
+      .o1 .chip:hover {
+        border-color: color-mix(in srgb, var(--ink) 40%, transparent);
+      }
+      .o1 .chip[aria-pressed='true'] {
+        border-color: var(--ember);
+        color: var(--ember-text);
+      }
+      .o1 .chip[aria-pressed='true'] .n {
+        color: var(--ember-text);
+      }
 
-/* =========================================================
+      /* =========================================================
    2 · QUIET (clean) — no edges at rest; a soft tint appears
    on hover. Primary carries a small ember dot.
 ========================================================= */
-.o2 .b { color: var(--ink-2); }
-.o2 .b:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); }
-.o2 .b.p { color: var(--ember-text); font-weight: 600; }
-.o2 .b.p:not(:has(svg))::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 6px var(--glow); }
-.o2 .b.p svg { color: var(--ember); }
-.o2 .b.p:hover:not(:disabled) { background: var(--ember-soft); color: var(--ember-text); }
-.o2 .b.d:hover { background: color-mix(in srgb, var(--danger) 8%, transparent); color: var(--danger); }
-.o2 .b:active:not(:disabled) { transform: scale(.96); }
-.o2 .seg .th { background: color-mix(in srgb, var(--ink) 8%, transparent); }
-.o2 .chip { background: color-mix(in srgb, var(--ink) 4%, transparent); }
-.o2 .chip:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
-.o2 .chip[aria-pressed='true'] { background: var(--ember-soft); color: var(--ember-text); }
-.o2 .chip[aria-pressed='true'] .n { color: var(--ember-text); }
+      .o2 .b {
+        color: var(--ink-2);
+      }
+      .o2 .b:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--ink) 7%, transparent);
+        color: var(--ink);
+      }
+      .o2 .b.p {
+        color: var(--ember-text);
+        font-weight: 600;
+      }
+      .o2 .b.p:not(:has(svg))::before {
+        content: '';
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--ember);
+        box-shadow: 0 0 6px var(--glow);
+      }
+      .o2 .b.p svg {
+        color: var(--ember);
+      }
+      .o2 .b.p:hover:not(:disabled) {
+        background: var(--ember-soft);
+        color: var(--ember-text);
+      }
+      .o2 .b.d:hover {
+        background: color-mix(in srgb, var(--danger) 8%, transparent);
+        color: var(--danger);
+      }
+      .o2 .b:active:not(:disabled) {
+        transform: scale(0.96);
+      }
+      .o2 .seg .th {
+        background: color-mix(in srgb, var(--ink) 8%, transparent);
+      }
+      .o2 .chip {
+        background: color-mix(in srgb, var(--ink) 4%, transparent);
+      }
+      .o2 .chip:hover {
+        background: color-mix(in srgb, var(--ink) 8%, transparent);
+      }
+      .o2 .chip[aria-pressed='true'] {
+        background: var(--ember-soft);
+        color: var(--ember-text);
+      }
+      .o2 .chip[aria-pressed='true'] .n {
+        color: var(--ember-text);
+      }
 
-/* =========================================================
+      /* =========================================================
    3 · EMBER RIM (3D-lite) — clear pill with a light-catching
    rim: brighter on top, darker below. Primary rim is ember.
 ========================================================= */
-.o3 .b, .o3 .chip, .o3 .seg {
-  background: linear-gradient(var(--panel), var(--panel)) padding-box, linear-gradient(180deg, var(--hi), var(--line-strong) 45%, color-mix(in srgb, var(--ink) 22%, transparent)) border-box;
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--drop) 25%, transparent);
-}
-.o3 .b { color: var(--ink); }
-.o3 .b.p { background: linear-gradient(var(--panel), var(--panel)) padding-box, linear-gradient(180deg, var(--ember-hi), var(--ember) 50%, var(--ember-lo)) border-box; box-shadow: 0 4px 12px -6px var(--glow); color: var(--ember-text); }
-.o3 .b.d { color: var(--danger); }
-.o3 .b:hover:not(:disabled) { background: linear-gradient(color-mix(in srgb, var(--ink) 4%, var(--panel)), color-mix(in srgb, var(--ink) 4%, var(--panel))) padding-box, linear-gradient(180deg, var(--ember-hi), color-mix(in srgb, var(--ember) 45%, var(--line-strong))) border-box; box-shadow: 0 6px 16px -8px var(--glow); }
-.o3 .b.p:hover:not(:disabled) { background: linear-gradient(color-mix(in srgb, var(--ember) 7%, var(--panel)), color-mix(in srgb, var(--ember) 7%, var(--panel))) padding-box, linear-gradient(180deg, var(--ember-hi), var(--ember-lo)) border-box; box-shadow: 0 8px 20px -8px var(--glow); }
-.o3 .b:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }
-.o3 .seg .th { border: 1px solid transparent; background: linear-gradient(color-mix(in srgb, var(--ember) 8%, var(--panel)), color-mix(in srgb, var(--ember) 8%, var(--panel))) padding-box, linear-gradient(180deg, var(--ember-hi), var(--ember-lo)) border-box; box-shadow: 0 3px 8px -4px var(--glow); }
-.o3 .seg button[aria-pressed='true'] { color: var(--ember-text); }
-.o3 .chip[aria-pressed='true'] { background: linear-gradient(color-mix(in srgb, var(--ember) 8%, var(--panel)), color-mix(in srgb, var(--ember) 8%, var(--panel))) padding-box, linear-gradient(180deg, var(--ember-hi), var(--ember-lo)) border-box; color: var(--ember-text); }
-.o3 .chip[aria-pressed='true'] .n { color: var(--ember-text); }
+      .o3 .b,
+      .o3 .chip,
+      .o3 .seg {
+        background:
+          linear-gradient(var(--panel), var(--panel)) padding-box,
+          linear-gradient(
+              180deg,
+              var(--hi),
+              var(--line-strong) 45%,
+              color-mix(in srgb, var(--ink) 22%, transparent)
+            )
+            border-box;
+        box-shadow: 0 1px 2px color-mix(in srgb, var(--drop) 25%, transparent);
+      }
+      .o3 .b {
+        color: var(--ink);
+      }
+      .o3 .b.p {
+        background:
+          linear-gradient(var(--panel), var(--panel)) padding-box,
+          linear-gradient(
+              180deg,
+              var(--ember-hi),
+              var(--ember) 50%,
+              var(--ember-lo)
+            )
+            border-box;
+        box-shadow: 0 4px 12px -6px var(--glow);
+        color: var(--ember-text);
+      }
+      .o3 .b.d {
+        color: var(--danger);
+      }
+      .o3 .b:hover:not(:disabled) {
+        background:
+          linear-gradient(
+              color-mix(in srgb, var(--ink) 4%, var(--panel)),
+              color-mix(in srgb, var(--ink) 4%, var(--panel))
+            )
+            padding-box,
+          linear-gradient(
+              180deg,
+              var(--ember-hi),
+              color-mix(in srgb, var(--ember) 45%, var(--line-strong))
+            )
+            border-box;
+        box-shadow: 0 6px 16px -8px var(--glow);
+      }
+      .o3 .b.p:hover:not(:disabled) {
+        background:
+          linear-gradient(
+              color-mix(in srgb, var(--ember) 7%, var(--panel)),
+              color-mix(in srgb, var(--ember) 7%, var(--panel))
+            )
+            padding-box,
+          linear-gradient(180deg, var(--ember-hi), var(--ember-lo)) border-box;
+        box-shadow: 0 8px 20px -8px var(--glow);
+      }
+      .o3 .b:active:not(:disabled) {
+        transform: translateY(1px);
+        box-shadow: none;
+      }
+      .o3 .seg .th {
+        border: 1px solid transparent;
+        background:
+          linear-gradient(
+              color-mix(in srgb, var(--ember) 8%, var(--panel)),
+              color-mix(in srgb, var(--ember) 8%, var(--panel))
+            )
+            padding-box,
+          linear-gradient(180deg, var(--ember-hi), var(--ember-lo)) border-box;
+        box-shadow: 0 3px 8px -4px var(--glow);
+      }
+      .o3 .seg button[aria-pressed='true'] {
+        color: var(--ember-text);
+      }
+      .o3 .chip[aria-pressed='true'] {
+        background:
+          linear-gradient(
+              color-mix(in srgb, var(--ember) 8%, var(--panel)),
+              color-mix(in srgb, var(--ember) 8%, var(--panel))
+            )
+            padding-box,
+          linear-gradient(180deg, var(--ember-hi), var(--ember-lo)) border-box;
+        color: var(--ember-text);
+      }
+      .o3 .chip[aria-pressed='true'] .n {
+        color: var(--ember-text);
+      }
 
-/* =========================================================
+      /* =========================================================
    4 · EMBOSSED (3D) — no fill; the pill is pressed out of the
    surface with a top highlight and a bottom shade. Clicking
    presses it in.
 ========================================================= */
-.o4 .b, .o4 .chip { box-shadow: inset 0 1px 0 var(--hi), inset 0 -1px 0 var(--lo), 0 0 0 1px color-mix(in srgb, var(--ink) 9%, transparent), 0 2px 4px -2px var(--drop); color: var(--ink); }
-.o4 .b.p { color: var(--ember-text); box-shadow: inset 0 1px 0 var(--hi), inset 0 -1px 0 color-mix(in srgb, var(--ember) 30%, transparent), 0 0 0 1px color-mix(in srgb, var(--ember) 40%, transparent), 0 3px 8px -4px var(--glow); }
-.o4 .b.d { color: var(--danger); }
-.o4 .b:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 3%, transparent); }
-.o4 .b.p:hover:not(:disabled) { background: var(--ember-soft); }
-.o4 .b:active:not(:disabled), .o4 .chip:active { box-shadow: inset 0 1px 3px var(--lo), 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent); transform: translateY(.5px); }
-.o4 .seg { box-shadow: inset 0 1px 3px var(--lo), inset 0 -1px 0 var(--hi); }
-.o4 .seg .th { box-shadow: inset 0 1px 0 var(--hi), inset 0 -1px 0 var(--lo), 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent), 0 2px 5px -2px var(--drop); }
-.o4 .seg .th::after { content: ''; position: absolute; left: 6px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 6px var(--glow); }
-.o4 .seg button { padding-left: 14px; }
-.o4 .chip[aria-pressed='true'] { color: var(--ember-text); box-shadow: inset 0 1px 3px var(--lo), 0 0 0 1px color-mix(in srgb, var(--ember) 45%, transparent); }
-.o4 .chip[aria-pressed='true'] .n { color: var(--ember-text); }
+      .o4 .b,
+      .o4 .chip {
+        box-shadow:
+          inset 0 1px 0 var(--hi),
+          inset 0 -1px 0 var(--lo),
+          0 0 0 1px color-mix(in srgb, var(--ink) 9%, transparent),
+          0 2px 4px -2px var(--drop);
+        color: var(--ink);
+      }
+      .o4 .b.p {
+        color: var(--ember-text);
+        box-shadow:
+          inset 0 1px 0 var(--hi),
+          inset 0 -1px 0 color-mix(in srgb, var(--ember) 30%, transparent),
+          0 0 0 1px color-mix(in srgb, var(--ember) 40%, transparent),
+          0 3px 8px -4px var(--glow);
+      }
+      .o4 .b.d {
+        color: var(--danger);
+      }
+      .o4 .b:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--ink) 3%, transparent);
+      }
+      .o4 .b.p:hover:not(:disabled) {
+        background: var(--ember-soft);
+      }
+      .o4 .b:active:not(:disabled),
+      .o4 .chip:active {
+        box-shadow:
+          inset 0 1px 3px var(--lo),
+          0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
+        transform: translateY(0.5px);
+      }
+      .o4 .seg {
+        box-shadow:
+          inset 0 1px 3px var(--lo),
+          inset 0 -1px 0 var(--hi);
+      }
+      .o4 .seg .th {
+        box-shadow:
+          inset 0 1px 0 var(--hi),
+          inset 0 -1px 0 var(--lo),
+          0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent),
+          0 2px 5px -2px var(--drop);
+      }
+      .o4 .seg .th::after {
+        content: '';
+        position: absolute;
+        left: 6px;
+        top: 50%;
+        width: 4px;
+        height: 4px;
+        margin-top: -2px;
+        border-radius: 50%;
+        background: var(--ember);
+        box-shadow: 0 0 6px var(--glow);
+      }
+      .o4 .seg button {
+        padding-left: 14px;
+      }
+      .o4 .chip[aria-pressed='true'] {
+        color: var(--ember-text);
+        box-shadow:
+          inset 0 1px 3px var(--lo),
+          0 0 0 1px color-mix(in srgb, var(--ember) 45%, transparent);
+      }
+      .o4 .chip[aria-pressed='true'] .n {
+        color: var(--ember-text);
+      }
 
-/* =========================================================
+      /* =========================================================
    5 · GLOW LINE (clean, lit) — faint line at rest; hover lights
    it ember with a soft halo. Primary always holds a faint glow.
 ========================================================= */
-.o5 .b, .o5 .chip { border-color: var(--line); color: var(--ink-2); }
-.o5 .b:hover:not(:disabled), .o5 .chip:hover { border-color: color-mix(in srgb, var(--ember) 70%, transparent); color: var(--ink); box-shadow: 0 0 0 3px var(--ember-soft), 0 6px 16px -8px var(--glow); }
-.o5 .b.p { border-color: color-mix(in srgb, var(--ember) 45%, transparent); color: var(--ember-text); box-shadow: 0 0 14px -6px var(--glow); }
-.o5 .b.p:hover:not(:disabled) { border-color: var(--ember); box-shadow: 0 0 0 3px var(--ember-soft), 0 8px 22px -8px var(--glow); }
-.o5 .b.d:hover { border-color: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
-.o5 .b:active:not(:disabled) { transform: scale(.97); }
-.o5 .seg { border: 1px solid var(--line); }
-.o5 .seg .th { border: 1px solid color-mix(in srgb, var(--ember) 65%, transparent); box-shadow: 0 0 12px -4px var(--glow), inset 0 0 10px -6px var(--glow); }
-.o5 .seg button[aria-pressed='true'] { color: var(--ember-text); }
-.o5 .chip[aria-pressed='true'] { border-color: var(--ember); color: var(--ember-text); box-shadow: 0 0 12px -5px var(--glow); }
-.o5 .chip[aria-pressed='true'] .n { color: var(--ember-text); }
+      .o5 .b,
+      .o5 .chip {
+        border-color: var(--line);
+        color: var(--ink-2);
+      }
+      .o5 .b:hover:not(:disabled),
+      .o5 .chip:hover {
+        border-color: color-mix(in srgb, var(--ember) 70%, transparent);
+        color: var(--ink);
+        box-shadow:
+          0 0 0 3px var(--ember-soft),
+          0 6px 16px -8px var(--glow);
+      }
+      .o5 .b.p {
+        border-color: color-mix(in srgb, var(--ember) 45%, transparent);
+        color: var(--ember-text);
+        box-shadow: 0 0 14px -6px var(--glow);
+      }
+      .o5 .b.p:hover:not(:disabled) {
+        border-color: var(--ember);
+        box-shadow:
+          0 0 0 3px var(--ember-soft),
+          0 8px 22px -8px var(--glow);
+      }
+      .o5 .b.d:hover {
+        border-color: var(--danger);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 10%, transparent);
+        color: var(--danger);
+      }
+      .o5 .b:active:not(:disabled) {
+        transform: scale(0.97);
+      }
+      .o5 .seg {
+        border: 1px solid var(--line);
+      }
+      .o5 .seg .th {
+        border: 1px solid color-mix(in srgb, var(--ember) 65%, transparent);
+        box-shadow:
+          0 0 12px -4px var(--glow),
+          inset 0 0 10px -6px var(--glow);
+      }
+      .o5 .seg button[aria-pressed='true'] {
+        color: var(--ember-text);
+      }
+      .o5 .chip[aria-pressed='true'] {
+        border-color: var(--ember);
+        color: var(--ember-text);
+        box-shadow: 0 0 12px -5px var(--glow);
+      }
+      .o5 .chip[aria-pressed='true'] .n {
+        color: var(--ember-text);
+      }
 
-/* =========================================================
+      /* =========================================================
    6 · MONO CAPS (clean, technical) — Geist Mono capitals,
    hairline pills; primary in ember.
 ========================================================= */
-.o6 .b, .o6 .seg button, .o6 .chip { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; }
-.o6 .b { border-color: var(--line-strong); color: var(--ink); }
-.o6 .b:hover:not(:disabled) { border-color: var(--ink); }
-.o6 .b.p { border-color: var(--ember); color: var(--ember-text); }
-.o6 .b.p:hover:not(:disabled) { background: var(--ember-soft); }
-.o6 .b.d { border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
-.o6 .b:active:not(:disabled) { transform: scale(.97); }
-.o6 .seg { border: 1px solid var(--line-strong); }
-.o6 .seg .th { background: var(--ink); }
-.o6 .seg button[aria-pressed='true'] { color: var(--panel); }
-.o6 .chip { border-color: var(--line-strong); }
-.o6 .chip[aria-pressed='true'] { border-color: var(--ember); color: var(--ember-text); }
-.o6 .chip[aria-pressed='true'] .n { color: var(--ember-text); }
+      .o6 .b,
+      .o6 .seg button,
+      .o6 .chip {
+        font-family: var(--mono);
+        font-size: 10px;
+        font-weight: 500;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .o6 .b {
+        border-color: var(--line-strong);
+        color: var(--ink);
+      }
+      .o6 .b:hover:not(:disabled) {
+        border-color: var(--ink);
+      }
+      .o6 .b.p {
+        border-color: var(--ember);
+        color: var(--ember-text);
+      }
+      .o6 .b.p:hover:not(:disabled) {
+        background: var(--ember-soft);
+      }
+      .o6 .b.d {
+        border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+      }
+      .o6 .b:active:not(:disabled) {
+        transform: scale(0.97);
+      }
+      .o6 .seg {
+        border: 1px solid var(--line-strong);
+      }
+      .o6 .seg .th {
+        background: var(--ink);
+      }
+      .o6 .seg button[aria-pressed='true'] {
+        color: var(--panel);
+      }
+      .o6 .chip {
+        border-color: var(--line-strong);
+      }
+      .o6 .chip[aria-pressed='true'] {
+        border-color: var(--ember);
+        color: var(--ember-text);
+      }
+      .o6 .chip[aria-pressed='true'] .n {
+        color: var(--ember-text);
+      }
 
-/* =========================================================
+      /* =========================================================
    7 · FLOATING (3D) — clear pill with a thin edge that floats
    on a soft shadow; lifts on hover, settles when pressed.
    Primary floats on an ember shadow.
 ========================================================= */
-.o7 .b, .o7 .chip { border-color: color-mix(in srgb, var(--ink) 10%, transparent); color: var(--ink); box-shadow: 0 1px 1px color-mix(in srgb, var(--drop) 30%, transparent), 0 6px 14px -8px var(--drop); }
-.o7 .b:hover:not(:disabled), .o7 .chip:hover { transform: translateY(-1px); box-shadow: 0 1px 1px color-mix(in srgb, var(--drop) 30%, transparent), 0 10px 20px -8px var(--drop); }
-.o7 .b.p { border-color: color-mix(in srgb, var(--ember) 45%, transparent); color: var(--ember-text); box-shadow: 0 1px 1px color-mix(in srgb, var(--ember) 25%, transparent), 0 8px 18px -8px var(--glow); }
-.o7 .b.p:hover:not(:disabled) { box-shadow: 0 1px 1px color-mix(in srgb, var(--ember) 30%, transparent), 0 12px 24px -8px var(--glow); }
-.o7 .b.d { color: var(--danger); }
-.o7 .b:active:not(:disabled), .o7 .chip:active { transform: translateY(0); box-shadow: 0 1px 2px color-mix(in srgb, var(--drop) 40%, transparent); }
-.o7 .seg { border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent); }
-.o7 .seg .th { border: 1px solid color-mix(in srgb, var(--ember) 40%, transparent); box-shadow: 0 4px 10px -5px var(--glow); }
-.o7 .seg button[aria-pressed='true'] { color: var(--ember-text); }
-.o7 .chip[aria-pressed='true'] { border-color: color-mix(in srgb, var(--ember) 50%, transparent); color: var(--ember-text); box-shadow: 0 6px 14px -8px var(--glow); }
-.o7 .chip[aria-pressed='true'] .n { color: var(--ember-text); }
+      .o7 .b,
+      .o7 .chip {
+        border-color: color-mix(in srgb, var(--ink) 10%, transparent);
+        color: var(--ink);
+        box-shadow:
+          0 1px 1px color-mix(in srgb, var(--drop) 30%, transparent),
+          0 6px 14px -8px var(--drop);
+      }
+      .o7 .b:hover:not(:disabled),
+      .o7 .chip:hover {
+        transform: translateY(-1px);
+        box-shadow:
+          0 1px 1px color-mix(in srgb, var(--drop) 30%, transparent),
+          0 10px 20px -8px var(--drop);
+      }
+      .o7 .b.p {
+        border-color: color-mix(in srgb, var(--ember) 45%, transparent);
+        color: var(--ember-text);
+        box-shadow:
+          0 1px 1px color-mix(in srgb, var(--ember) 25%, transparent),
+          0 8px 18px -8px var(--glow);
+      }
+      .o7 .b.p:hover:not(:disabled) {
+        box-shadow:
+          0 1px 1px color-mix(in srgb, var(--ember) 30%, transparent),
+          0 12px 24px -8px var(--glow);
+      }
+      .o7 .b.d {
+        color: var(--danger);
+      }
+      .o7 .b:active:not(:disabled),
+      .o7 .chip:active {
+        transform: translateY(0);
+        box-shadow: 0 1px 2px color-mix(in srgb, var(--drop) 40%, transparent);
+      }
+      .o7 .seg {
+        border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+      }
+      .o7 .seg .th {
+        border: 1px solid color-mix(in srgb, var(--ember) 40%, transparent);
+        box-shadow: 0 4px 10px -5px var(--glow);
+      }
+      .o7 .seg button[aria-pressed='true'] {
+        color: var(--ember-text);
+      }
+      .o7 .chip[aria-pressed='true'] {
+        border-color: color-mix(in srgb, var(--ember) 50%, transparent);
+        color: var(--ember-text);
+        box-shadow: 0 6px 14px -8px var(--glow);
+      }
+      .o7 .chip[aria-pressed='true'] .n {
+        color: var(--ember-text);
+      }
 
-/* =========================================================
+      /* =========================================================
    8 · PILOT DOT (clean) — hairline pills with a leading status
    dot. Primary and selected items light the dot in ember.
 ========================================================= */
-.o8 .b, .o8 .chip { border-color: var(--line-strong); color: var(--ink); }
-.o8 .b:not(.i)::before, .o8 .chip::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--line-strong); transition: background .2s, box-shadow .2s; }
-.o8 .b:not(.i):has(svg)::before { display: none; }
-.o8 .b:hover:not(:disabled) { background: var(--hover); }
-.o8 .b:hover:not(:disabled)::before { background: var(--ember); }
-.o8 .b.p { border-color: color-mix(in srgb, var(--ember) 50%, transparent); color: var(--ember-text); }
-.o8 .b.p::before { background: var(--ember); box-shadow: 0 0 6px var(--glow); }
-.o8 .b.d { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
-.o8 .b.d::before { background: var(--danger); }
-.o8 .b:active:not(:disabled) { transform: scale(.97); }
-.o8 .seg { border: 1px solid var(--line-strong); }
-.o8 .seg .th { background: color-mix(in srgb, var(--ink) 6%, transparent); }
-.o8 .seg .th::after { content: ''; position: absolute; left: 7px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 6px var(--glow); }
-.o8 .seg button { padding-left: 15px; }
-.o8 .chip[aria-pressed='true'] { border-color: color-mix(in srgb, var(--ember) 55%, transparent); color: var(--ember-text); }
-.o8 .chip[aria-pressed='true']::before { background: var(--ember); box-shadow: 0 0 6px var(--glow); }
-.o8 .chip[aria-pressed='true'] .n { color: var(--ember-text); }
+      .o8 .b,
+      .o8 .chip {
+        border-color: var(--line-strong);
+        color: var(--ink);
+      }
+      .o8 .b:not(.i)::before,
+      .o8 .chip::before {
+        content: '';
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--line-strong);
+        transition:
+          background 0.2s,
+          box-shadow 0.2s;
+      }
+      .o8 .b:not(.i):has(svg)::before {
+        display: none;
+      }
+      .o8 .b:hover:not(:disabled) {
+        background: var(--hover);
+      }
+      .o8 .b:hover:not(:disabled)::before {
+        background: var(--ember);
+      }
+      .o8 .b.p {
+        border-color: color-mix(in srgb, var(--ember) 50%, transparent);
+        color: var(--ember-text);
+      }
+      .o8 .b.p::before {
+        background: var(--ember);
+        box-shadow: 0 0 6px var(--glow);
+      }
+      .o8 .b.d {
+        color: var(--danger);
+        border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+      }
+      .o8 .b.d::before {
+        background: var(--danger);
+      }
+      .o8 .b:active:not(:disabled) {
+        transform: scale(0.97);
+      }
+      .o8 .seg {
+        border: 1px solid var(--line-strong);
+      }
+      .o8 .seg .th {
+        background: color-mix(in srgb, var(--ink) 6%, transparent);
+      }
+      .o8 .seg .th::after {
+        content: '';
+        position: absolute;
+        left: 7px;
+        top: 50%;
+        width: 4px;
+        height: 4px;
+        margin-top: -2px;
+        border-radius: 50%;
+        background: var(--ember);
+        box-shadow: 0 0 6px var(--glow);
+      }
+      .o8 .seg button {
+        padding-left: 15px;
+      }
+      .o8 .chip[aria-pressed='true'] {
+        border-color: color-mix(in srgb, var(--ember) 55%, transparent);
+        color: var(--ember-text);
+      }
+      .o8 .chip[aria-pressed='true']::before {
+        background: var(--ember);
+        box-shadow: 0 0 6px var(--glow);
+      }
+      .o8 .chip[aria-pressed='true'] .n {
+        color: var(--ember-text);
+      }
 
-@media (max-width: 900px) { .cards { grid-template-columns: minmax(0, 1fr); } }
-@media (max-width: 520px) { .wrap { padding: 0 16px; } .top h1 span { display: none; } }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-</style>
-</head>
-<body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
-  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
-  <symbol id="i-scale" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M7 21h10M5 7h14M5 7l-3 7a3 3 0 0 0 6 0L5 7zM19 7l-3 7a3 3 0 0 0 6 0l-3-7z"/></symbol>
-  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
-  <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
-  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-1 6 3 3H7l3-3z"/></symbol>
-  <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
-  <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
-  <symbol id="i-cols" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></symbol>
-</svg>
+      @media (max-width: 900px) {
+        .cards {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 520px) {
+        .wrap {
+          padding: 0 16px;
+        }
+        .top h1 span {
+          display: none;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <symbol
+        id="i-plus"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      >
+        <path d="M12 5v14M5 12h14" />
+      </symbol>
+      <symbol
+        id="i-check"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="m5 12.5 4.5 4.5L19 7.5" />
+      </symbol>
+      <symbol
+        id="i-scale"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path
+          d="M12 3v18M7 21h10M5 7h14M5 7l-3 7a3 3 0 0 0 6 0L5 7zM19 7l-3 7a3 3 0 0 0 6 0l-3-7z"
+        />
+      </symbol>
+      <symbol
+        id="i-trash"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+      >
+        <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+      </symbol>
+      <symbol
+        id="i-gear"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+      >
+        <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+        <circle cx="16" cy="7" r="2" />
+        <circle cx="10" cy="17" r="2" />
+      </symbol>
+      <symbol
+        id="i-pin"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M12 17v5M9 3h6l-1 6 3 3H7l3-3z" />
+      </symbol>
+      <symbol
+        id="i-list"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+      >
+        <path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" />
+      </symbol>
+      <symbol
+        id="i-grid"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+      >
+        <rect x="3" y="3" width="7" height="7" rx="1.5" />
+        <rect x="14" y="3" width="7" height="7" rx="1.5" />
+        <rect x="3" y="14" width="7" height="7" rx="1.5" />
+        <rect x="14" y="14" width="7" height="7" rx="1.5" />
+      </symbol>
+      <symbol
+        id="i-cols"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+      >
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M9 4v16M15 4v16" />
+      </symbol>
+    </svg>
 
-<header class="top">
-  <div class="wrap">
-    <h1>BladeVault <span>· Forge pill buttons, 8 options</span></h1>
-    <div class="grow"></div>
-    <div class="mode" id="mode">
-      <button data-mode="light">Light</button>
-      <button data-mode="dark">Dark</button>
-    </div>
-  </div>
-</header>
+    <header class="top">
+      <div class="wrap">
+        <h1>BladeVault <span>· Forge pill buttons, 8 options</span></h1>
+        <div class="grow"></div>
+        <div class="mode" id="mode">
+          <button data-mode="light">Light</button>
+          <button data-mode="dark">Dark</button>
+        </div>
+      </div>
+    </header>
 
-<main class="wrap">
-  <section class="hero">
-    <div class="eyebrow">Forge · Buttons and clickable elements</div>
-    <h2>Transparent pills, coloured by their text.</h2>
-    <p>Eight directions, all rounded pills at extra-small size, with lighter Geist type. No solid colour fills: the main action is ember text and edge. Hover, press and click each one. The filters slide and the chips toggle.</p>
-    <div class="legend"><span class="tag">Clean</span><span class="tag is-3d">3D</span></div>
-  </section>
-  <div class="cards" id="cards"></div>
-</main>
+    <main class="wrap">
+      <section class="hero">
+        <div class="eyebrow">Forge · Buttons and clickable elements</div>
+        <h2>Transparent pills, coloured by their text.</h2>
+        <p>
+          Eight directions, all rounded pills at extra-small size, with lighter
+          Geist type. No solid colour fills: the main action is ember text and
+          edge. Hover, press and click each one. The filters slide and the chips
+          toggle.
+        </p>
+        <div class="legend">
+          <span class="tag">Clean</span><span class="tag is-3d">3D</span>
+        </div>
+      </section>
+      <div class="cards" id="cards"></div>
+    </main>
 
-<script>
-(() => {
-  const OPTIONS = [
-    ['o1', 'Hairline', 'Clean', 'A thin outline on every pill. The main action is ember text and edge; hover adds a light tint.'],
-    ['o2', 'Quiet', 'Clean', 'No edges at rest, just text. A soft tint appears on hover. The main action carries a glowing ember dot.'],
-    ['o3', 'Ember rim', '3D', 'Clear pill with a rim that catches light: bright on top, darker below. The main action has an ember rim and glow.'],
-    ['o4', 'Embossed', '3D', 'Raised out of the surface with a top highlight and bottom shade, no fill. Pressing pushes it in; filters sit in a sunken track.'],
-    ['o5', 'Glow line', 'Clean', 'Faint line at rest; hover lights it ember with a soft halo. The main action always holds a faint glow.'],
-    ['o6', 'Mono caps', 'Clean', 'Geist Mono capitals in hairline pills, like the labels in the first template. Selected filter is solid ink.'],
-    ['o7', 'Floating', '3D', 'Clear pill with a thin edge that floats on a soft shadow; lifts on hover and settles when pressed. The main action floats on ember light.'],
-    ['o8', 'Pilot dot', 'Clean', 'Hairline pills with a small status dot. The main action and selected items light the dot in ember.'],
-  ];
+    <script>
+      ;(() => {
+        const OPTIONS = [
+          [
+            'o1',
+            'Hairline',
+            'Clean',
+            'A thin outline on every pill. The main action is ember text and edge; hover adds a light tint.',
+          ],
+          [
+            'o2',
+            'Quiet',
+            'Clean',
+            'No edges at rest, just text. A soft tint appears on hover. The main action carries a glowing ember dot.',
+          ],
+          [
+            'o3',
+            'Ember rim',
+            '3D',
+            'Clear pill with a rim that catches light: bright on top, darker below. The main action has an ember rim and glow.',
+          ],
+          [
+            'o4',
+            'Embossed',
+            '3D',
+            'Raised out of the surface with a top highlight and bottom shade, no fill. Pressing pushes it in; filters sit in a sunken track.',
+          ],
+          [
+            'o5',
+            'Glow line',
+            'Clean',
+            'Faint line at rest; hover lights it ember with a soft halo. The main action always holds a faint glow.',
+          ],
+          [
+            'o6',
+            'Mono caps',
+            'Clean',
+            'Geist Mono capitals in hairline pills, like the labels in the first template. Selected filter is solid ink.',
+          ],
+          [
+            'o7',
+            'Floating',
+            '3D',
+            'Clear pill with a thin edge that floats on a soft shadow; lifts on hover and settles when pressed. The main action floats on ember light.',
+          ],
+          [
+            'o8',
+            'Pilot dot',
+            'Clean',
+            'Hairline pills with a small status dot. The main action and selected items light the dot in ember.',
+          ],
+        ]
 
-  const body = () => `
+        const body = () => `
     <div class="row">
       <span class="lbl">Buttons</span>
       <button class="b p"><svg><use href="#i-check"/></svg>Save item</button>
@@ -315,41 +1130,75 @@ button { font: inherit; color: inherit; }
       <button class="chip" aria-pressed="false">Kizer <span class="n">56</span></button>
       <button class="chip" aria-pressed="false">M390 <span class="n">21</span></button>
       <button class="chip" aria-pressed="true">Steel: 14C28N <span class="x">✕</span></button>
-    </div>`;
+    </div>`
 
-  document.getElementById('cards').innerHTML = OPTIONS.map(([cls, name, kind, desc], i) => `
+        document.getElementById('cards').innerHTML = OPTIONS.map(
+          ([cls, name, kind, desc], i) => `
     <section class="card ${cls}">
       <div class="card-head"><span class="num">${String(i + 1).padStart(2, '0')}</span><b>${name}</b><span class="tag ${kind === '3D' ? 'is-3d' : ''}">${kind}</span></div>
       <p class="desc">${desc}</p>
       ${body()}
-    </section>`).join('');
+    </section>`,
+        ).join('')
 
-  const place = (seg) => {
-    const th = seg.querySelector('.th'), on = seg.querySelector('button[aria-pressed="true"]');
-    if (th && on) { th.style.left = on.offsetLeft + 'px'; th.style.width = on.offsetWidth + 'px'; }
-  };
-  const placeAll = () => document.querySelectorAll('.seg').forEach(place);
-  document.querySelectorAll('.seg').forEach((seg) => seg.addEventListener('click', (e) => {
-    const b = e.target.closest('button'); if (!b) return;
-    seg.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-    place(seg);
-  }));
-  document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => c.setAttribute('aria-pressed', String(c.getAttribute('aria-pressed') !== 'true'))));
+        const place = (seg) => {
+          const th = seg.querySelector('.th'),
+            on = seg.querySelector('button[aria-pressed="true"]')
+          if (th && on) {
+            th.style.left = on.offsetLeft + 'px'
+            th.style.width = on.offsetWidth + 'px'
+          }
+        }
+        const placeAll = () => document.querySelectorAll('.seg').forEach(place)
+        document.querySelectorAll('.seg').forEach((seg) =>
+          seg.addEventListener('click', (e) => {
+            const b = e.target.closest('button')
+            if (!b) return
+            seg
+              .querySelectorAll('button')
+              .forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+            place(seg)
+          }),
+        )
+        document
+          .querySelectorAll('.chip')
+          .forEach((c) =>
+            c.addEventListener('click', () =>
+              c.setAttribute(
+                'aria-pressed',
+                String(c.getAttribute('aria-pressed') !== 'true'),
+              ),
+            ),
+          )
 
-  const root = document.documentElement;
-  const sync = () => document.querySelectorAll('#mode button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === root.dataset.mode)));
-  document.getElementById('mode').addEventListener('click', (e) => {
-    const b = e.target.closest('button'); if (!b) return;
-    root.dataset.mode = b.dataset.mode;
-    try { localStorage.setItem('fp-mode', b.dataset.mode); } catch {}
-    sync();
-  });
-  try { const m = localStorage.getItem('fp-mode'); if (m === 'light' || m === 'dark') root.dataset.mode = m; } catch {}
-  sync();
-  placeAll();
-  document.fonts?.ready.then(placeAll);
-  window.addEventListener('resize', placeAll);
-})();
-</script>
-</body>
+        const root = document.documentElement
+        const sync = () =>
+          document
+            .querySelectorAll('#mode button')
+            .forEach((b) =>
+              b.setAttribute(
+                'aria-pressed',
+                String(b.dataset.mode === root.dataset.mode),
+              ),
+            )
+        document.getElementById('mode').addEventListener('click', (e) => {
+          const b = e.target.closest('button')
+          if (!b) return
+          root.dataset.mode = b.dataset.mode
+          try {
+            localStorage.setItem('fp-mode', b.dataset.mode)
+          } catch {}
+          sync()
+        })
+        try {
+          const m = localStorage.getItem('fp-mode')
+          if (m === 'light' || m === 'dark') root.dataset.mode = m
+        } catch {}
+        sync()
+        placeAll()
+        document.fonts?.ready.then(placeAll)
+        window.addEventListener('resize', placeAll)
+      })()
+    </script>
+  </body>
 </html>
