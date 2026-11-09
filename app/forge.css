@@ -867,6 +867,23 @@ html[data-theme-variant] [data-inspector-actions] > * {
   font-weight: 550;
 }
 
+/* Pin and Compare icons belong to Forge, Titanium and Field only; the
+ * shared inspector renders them for every Modern-layout style. */
+[data-inspector-action-icon] {
+  display: none;
+}
+
+html[data-theme-variant] [data-inspector-action-icon] {
+  display: block;
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+
+html[data-theme-variant] [data-inspector-actions] > button {
+  gap: 6px;
+}
+
 html[data-theme-variant] [data-inspector-actions] > :first-child {
   grid-column: 1 / -1;
 }

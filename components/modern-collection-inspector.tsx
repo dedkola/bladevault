@@ -10,7 +10,15 @@ import {
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import Link from 'next/link'
 import { SoldBadge } from '@/components/sold-badge'
-import { ChevronLeft, ChevronRight, ImageIcon, Pencil, X } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  ImageIcon,
+  Pencil,
+  Pin,
+  X,
+} from 'lucide-react'
+import { CompareIcon } from '@/components/icons/compare-icon'
 import Image from '@/components/vault-image'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { formatDimension, formatWeight } from '@/lib/measurements'
@@ -255,6 +263,7 @@ export function ModernCollectionInspector({
             aria-pressed={knife.pinned}
             disabled={pinBusy}
           >
+            <Pin data-inspector-action-icon aria-hidden="true" />
             {knife.pinned ? 'Pinned' : 'Pin'}
           </Button>
           <Button
@@ -264,6 +273,7 @@ export function ModernCollectionInspector({
             aria-pressed={inCompare}
             disabled={compareBusy}
           >
+            <CompareIcon data-inspector-action-icon aria-hidden="true" />
             {inCompare ? 'In list' : 'Compare'}
           </Button>
         </div>
