@@ -208,24 +208,25 @@ html[data-theme-variant='lumen'] {
   --forge-chrome: rgb(255 255 255 / 94%);
 }
 
-/* ---- Amber: GitHub light surfaces, amber accents --------------------- */
-/* Light only, flat like Lumen. White sidebar on a white canvas. */
-html[data-theme-variant='amber'] {
-  --forge-radius: 8px;
-  --forge-pill: 6px;
+/* ---- Espresso: cream and dark roast --------------------------------------- */
+/* Light only. Cream paper, a dark roast sidebar and warm amber glow lines.
+ * Its finish (sidebar, buttons) is at the end of this file. */
+html[data-theme-variant='espresso'] {
+  --forge-radius: 12px;
+  --forge-pill: 8px;
   --forge-accent: #d97706;
-  --forge-ink-2: #424a53;
-  --forge-line-strong: rgb(31 35 40 / 15%);
-  --forge-shadow: 0 1px 0 rgb(31 35 40 / 4%);
-  --forge-ring: #d1d9e0;
-  --forge-glow: transparent;
-  --forge-shadow-lift:
-    0 1px 0 rgb(31 35 40 / 4%), 0 8px 24px -12px rgb(66 74 83 / 20%);
-  --forge-chip-bg: rgb(255 255 255 / 92%);
-  --forge-chip-line: #d1d9e0;
-  --forge-chip-fg: #424a53;
-  --forge-canvas: #ffffff;
-  --forge-chrome: rgb(255 255 255 / 94%);
+  --forge-ink-2: #4a3d2f;
+  --forge-line-strong: rgb(42 32 24 / 16%);
+  --forge-shadow:
+    0 1px 2px rgb(60 40 15 / 5%), 0 14px 30px -22px rgb(60 40 15 / 32%);
+  --forge-ring: rgb(217 119 6 / 45%);
+  --forge-glow: rgb(217 119 6 / 30%);
+  --forge-shadow-lift: 0 18px 34px -18px rgb(120 72 12 / 34%);
+  --forge-chip-bg: rgb(255 252 246 / 86%);
+  --forge-chip-line: rgb(42 32 24 / 10%);
+  --forge-chip-fg: #4a3d2f;
+  --forge-canvas: #f6efe2;
+  --forge-chrome: rgb(248 242 231 / 90%);
 }
 
 html[data-theme-variant] body {
@@ -2084,9 +2085,12 @@ html[data-theme-variant][data-theme-variant]
 
 /* Light mode: pinned thumbnails sit straight on the sidebar colour. Dark
  * mode keeps the light plate, since blending a white-background photo
- * into a near-black sidebar would darken the whole knife. Field keeps the
- * plate too: its sidebar is dark in light mode as well. */
-html[data-theme-variant]:not(.dark):not([data-theme-variant='field'])
+ * into a near-black sidebar would darken the whole knife. Field and Espresso
+ * keep the plate too: their sidebars are dark in light mode as well. */
+html[data-theme-variant]:not(.dark):not(
+    [data-theme-variant='field'],
+    [data-theme-variant='espresso']
+  )
   [data-sidebar-pinned-thumb] {
   background: var(--sidebar);
 }
@@ -2361,12 +2365,12 @@ html[data-theme-variant]
 }
 
 /* ================================================================== */
-/* Lumen and Amber finish                                               */
+/* Lumen finish                                                         */
 /* Flat and quiet like the Cloudflare dashboard: hairline borders, grey */
 /* hover and selection, no glows. Orange only marks the main action,    */
 /* selected icons, focus and hovered control lines.                     */
 /* ================================================================== */
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber']) {
+html[data-theme-variant='lumen'] {
   --gl-halo: none;
   --gl-hold: none;
   --gl-selected: none;
@@ -2387,43 +2391,23 @@ html[data-theme-variant='lumen'] {
   --flat-focus: rgb(246 130 31 / 18%);
 }
 
-/* Amber follows GitHub's Primer greys: grey hover and selection on the
- * white sidebar, amber for the main action, focus and lit lines. */
-html[data-theme-variant='amber'] {
-  --gl-line: #d1d9e0;
-  --gl-lit: #818b98;
-  --gl-sel: #f59e0b;
-  --gl-text: #9a6700;
-  --flat-btn: #f6f8fa;
-  --flat-hover: #eff2f5;
-  --flat-row-hover: rgb(129 139 152 / 10%);
-  --flat-selected: rgb(129 139 152 / 18%);
-  --flat-nav-fg: #1f2328;
-  --flat-focus: rgb(245 158 11 / 30%);
-}
-
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber']) body {
+html[data-theme-variant='lumen'] body {
   font-feature-settings: 'cv11';
 }
 
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
-  [data-workspace-header] {
+html[data-theme-variant='lumen'] [data-workspace-header] {
   backdrop-filter: none;
   border-bottom-color: var(--border);
 }
 
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
-  [data-workspace-brand]
-  b,
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
-  .page-title {
+html[data-theme-variant='lumen'] [data-workspace-brand] b,
+html[data-theme-variant='lumen'] .page-title {
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
 /* Buttons: white with a hairline; hover tints grey. */
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
-  .group\/button:not(.underline-offset-4) {
+html[data-theme-variant='lumen'] .group\/button:not(.underline-offset-4) {
   background: var(--flat-btn);
   color: var(--foreground);
   font-size: 12.5px;
@@ -2433,7 +2417,7 @@ html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
     background-color 150ms;
 }
 
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
+html[data-theme-variant='lumen']
   .group\/button:not(
     .underline-offset-4,
     .bg-primary,
@@ -2444,7 +2428,7 @@ html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
   background: transparent;
 }
 
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
+html[data-theme-variant='lumen']
   .group\/button:not(
     .underline-offset-4,
     .bg-primary,
@@ -2457,9 +2441,8 @@ html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
 }
 
 /* Main action: solid orange, like the dashboard's primary button. */
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
-  .group\/button.bg-primary,
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
+html[data-theme-variant='lumen'] .group\/button.bg-primary,
+html[data-theme-variant='lumen']
   [data-workspace-actions]
   > [data-workspace-add] {
   border-color: transparent;
@@ -2469,9 +2452,8 @@ html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
   font-weight: 500;
 }
 
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
-  .group\/button.bg-primary:not(:disabled):hover,
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
+html[data-theme-variant='lumen'] .group\/button.bg-primary:not(:disabled):hover,
+html[data-theme-variant='lumen']
   [data-workspace-actions]
   > [data-workspace-add]:hover {
   border-color: transparent;
@@ -2480,55 +2462,39 @@ html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
   filter: none;
 }
 
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
-  .group\/button[aria-pressed='true'] {
+html[data-theme-variant='lumen'] .group\/button[aria-pressed='true'] {
   background: var(--flat-hover);
   color: var(--foreground);
 }
 
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
-  .group\/button:not(:disabled):active,
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
+html[data-theme-variant='lumen'] .group\/button:not(:disabled):active,
+html[data-theme-variant='lumen']
   [data-workspace-actions]
   > [data-workspace-add]:active {
   transform: none;
 }
 
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
-  .group\/button:focus-visible,
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
-  input[data-slot='input']:focus-visible {
+html[data-theme-variant='lumen'] .group\/button:focus-visible,
+html[data-theme-variant='lumen'] input[data-slot='input']:focus-visible {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--flat-focus);
 }
 
 /* Sidebar: grey fill on the current row, lighter grey on hover. */
-html:is(
-    [data-theme-variant='lumen'],
-    [data-theme-variant='amber']
-  )[data-theme-variant][data-theme-variant]
+html[data-theme-variant='lumen'][data-theme-variant][data-theme-variant]
   [data-sidebar]
   a:not([aria-current='page']):hover,
-html:is(
-    [data-theme-variant='lumen'],
-    [data-theme-variant='amber']
-  )[data-theme-variant][data-theme-variant]
+html[data-theme-variant='lumen'][data-theme-variant][data-theme-variant]
   [data-sidebar]
   [data-comparison-navigation]:not([data-selected]):hover {
   background: var(--flat-row-hover);
   box-shadow: none;
 }
 
-html:is(
-    [data-theme-variant='lumen'],
-    [data-theme-variant='amber']
-  )[data-theme-variant][data-theme-variant]
+html[data-theme-variant='lumen'][data-theme-variant][data-theme-variant]
   [data-sidebar]
   a[aria-current='page'],
-html:is(
-    [data-theme-variant='lumen'],
-    [data-theme-variant='amber']
-  )[data-theme-variant][data-theme-variant]
+html[data-theme-variant='lumen'][data-theme-variant][data-theme-variant]
   [data-sidebar]
   [data-comparison-navigation][data-selected]:not(
     :has(+ div > a[aria-current='page'])
@@ -2538,10 +2504,8 @@ html:is(
   color: var(--foreground);
 }
 
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
-  [data-sidebar-nav]
-  > a,
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
+html[data-theme-variant='lumen'] [data-sidebar-nav] > a,
+html[data-theme-variant='lumen']
   [data-sidebar]
   [data-comparison-navigation]
   > a {
@@ -2549,13 +2513,98 @@ html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
 }
 
 /* Cards: hairline frame, no lift. */
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
-  [data-forge-card]:hover {
+html[data-theme-variant='lumen'] [data-forge-card]:hover {
   transform: none;
 }
 
-html:is([data-theme-variant='lumen'], [data-theme-variant='amber'])
+html[data-theme-variant='lumen']
   [data-modern-collection-table]
   tr[aria-current='true'] {
   background: var(--flat-row-hover);
+}
+
+/* ================================================================== */
+/* Espresso finish                                                         */
+/* A dark roast sidebar on cream paper. The sidebar re-points the ink   */
+/* tokens so every shared sidebar rule reads light on espresso. The     */
+/* current row is an amber wash, not a grey fill.                      */
+/* ================================================================== */
+html[data-theme-variant='espresso'] {
+  --gl-line: #e3d5ba;
+  --gl-sel: #f59e0b;
+  --gl-text: #b45309;
+}
+
+html[data-theme-variant='espresso'] [data-sidebar] {
+  --foreground: #f5ead6;
+  --muted-foreground: #a8957a;
+  --forge-ink-2: #d9cbb2;
+  --forge-accent: #fbbf24;
+  --bladevault-title: #fbbf24;
+  --gl-text: #fbbf24;
+  --border: rgb(255 255 255 / 8%);
+  --vv-well-hi: #fffdf8;
+  --vv-well: #efe4cf;
+  --vv-well-edge: #dccdb0;
+  --sb-hover: none;
+  --sb-selected: none;
+
+  color: var(--foreground);
+  color-scheme: dark;
+}
+
+html[data-theme-variant='espresso'][data-theme-variant][data-theme-variant]
+  [data-sidebar]
+  a:not([aria-current='page']):hover,
+html[data-theme-variant='espresso'][data-theme-variant][data-theme-variant]
+  [data-sidebar]
+  [data-comparison-navigation]:not([data-selected]):hover {
+  background: rgb(255 255 255 / 6%);
+}
+
+html[data-theme-variant='espresso'][data-theme-variant][data-theme-variant]
+  [data-sidebar]
+  a[aria-current='page'],
+html[data-theme-variant='espresso'][data-theme-variant][data-theme-variant]
+  [data-sidebar]
+  [data-comparison-navigation][data-selected]:not(
+    :has(+ div > a[aria-current='page'])
+  ) {
+  background: rgb(251 191 36 / 14%);
+  color: #fcd34d;
+}
+
+html[data-theme-variant='espresso']
+  [data-sidebar]
+  [data-comparison-navigation]
+  + div
+  > a[aria-current='page'] {
+  background: rgb(251 191 36 / 14%);
+}
+
+/* The footer stays on the cream page, not the sidebar colour. */
+html[data-theme-variant='espresso'] [data-workspace-footer] {
+  background: var(--background);
+}
+
+/* Main action: espresso with amber type. */
+html[data-theme-variant='espresso'] .group\/button.bg-primary,
+html[data-theme-variant='espresso']
+  [data-workspace-actions]
+  > [data-workspace-add] {
+  border-color: transparent;
+  background: var(--primary);
+  box-shadow: 0 6px 14px -8px rgb(42 32 24 / 50%);
+  color: var(--primary-foreground);
+}
+
+html[data-theme-variant='espresso']
+  .group\/button.bg-primary:not(:disabled):hover,
+html[data-theme-variant='espresso']
+  [data-workspace-actions]
+  > [data-workspace-add]:hover {
+  border-color: transparent;
+  background: var(--primary-hover);
+  color: #fcd34d;
+  filter: none;
 }
