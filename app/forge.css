@@ -2540,9 +2540,18 @@ html[data-theme-variant='lumen']
   color: var(--flat-nav-fg);
 }
 
-/* Cards: hairline frame, no lift. */
+/* Cards: hairline frame, no lift. Hovered and active cards get a thin
+ * orange edge and a soft orange glow, like Forge. */
 html[data-theme-variant='lumen'] [data-forge-card]:hover {
   transform: none;
+}
+
+html[data-theme-variant='lumen'] [data-forge-card]:is(:hover, [data-active]) {
+  border-color: rgb(246 130 31 / 50%);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 3%),
+    0 0 0 3px rgb(246 130 31 / 8%),
+    0 22px 40px -20px rgb(246 130 31 / 38%);
 }
 
 html[data-theme-variant='lumen']
