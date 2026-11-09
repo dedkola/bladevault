@@ -50,6 +50,7 @@ describe('normalizeThemeStyle', () => {
     expect(normalizeThemeStyle('titanium')).toBe('titanium')
     expect(normalizeThemeStyle('field')).toBe('field')
     expect(normalizeThemeStyle('lumen')).toBe('lumen')
+    expect(normalizeThemeStyle('amber')).toBe('amber')
     expect(normalizeThemeStyle('unknown')).toBe('classic')
     expect(normalizeThemeStyle(null)).toBe('classic')
   })
@@ -106,6 +107,9 @@ describe('light-only styles', () => {
     expect(element.classList.contains('dark')).toBe(true)
     applyThemeStyleToElement(element, 'lumen')
     expect(element.classList.contains('dark')).toBe(false)
+    applyThemeStyleToElement(element, 'amber')
+    expect(element.classList.contains('dark')).toBe(false)
+    expect(isDarkThemeActive('dark', 'amber')).toBe(false)
   })
 })
 

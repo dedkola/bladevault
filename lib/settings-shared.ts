@@ -7,6 +7,7 @@ export const THEME_STYLES = [
   'titanium',
   'field',
   'lumen',
+  'amber',
 ] as const
 /**
  * Forge, Titanium and Field reuse the Modern workspace layout and only change
@@ -18,9 +19,10 @@ export const MODERN_THEME_VARIANTS = [
   'titanium',
   'field',
   'lumen',
+  'amber',
 ] as const
 /** Styles that always render light and ignore the dark color mode. */
-export const LIGHT_ONLY_THEME_STYLES = ['lumen'] as const
+export const LIGHT_ONLY_THEME_STYLES = ['lumen', 'amber'] as const
 export const START_PAGES = ['insights', 'studio', 'collection'] as const
 export type StartPage = (typeof START_PAGES)[number]
 
@@ -284,6 +286,7 @@ export const THEME_COLORS: Record<ThemeStyle, { light: string; dark: string }> =
     titanium: { light: '#f4f3f6', dark: '#0c0b0f' },
     field: { light: '#ecebe4', dark: '#0f100d' },
     lumen: { light: '#ffffff', dark: '#ffffff' },
+    amber: { light: '#ffffff', dark: '#ffffff' },
   }
 
 export function isLightOnlyThemeStyle(themeStyle: ThemeStyle): boolean {
