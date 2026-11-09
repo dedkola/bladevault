@@ -444,7 +444,7 @@
   }
 }
 
-/* Forge, Titanium, Field, Lumen and Amber previews. */
+/* Forge, Titanium, Field, Lumen and Espresso previews. */
 .theme-style-swatch.is-forge {
   background: #141416;
 }
@@ -533,27 +533,26 @@
   background: #ffffff;
 }
 
-.theme-style-swatch.is-amber {
-  background: #ffffff;
-  box-shadow: inset 0 0 0 1px #d1d9e0;
+.theme-style-swatch.is-espresso {
+  background: #f8f2e7;
+  box-shadow: inset 0 0 0 1px #e6d9c0;
 }
 
-.theme-style-swatch.is-amber .theme-style-swatch-rail {
-  background: #ffffff;
-  border-right: 1px solid #d1d9e0;
+.theme-style-swatch.is-espresso .theme-style-swatch-rail {
+  background: #1f1812;
 }
 
-.theme-style-swatch.is-amber .theme-style-swatch-title {
+.theme-style-swatch.is-espresso .theme-style-swatch-title {
   background: #f59e0b;
 }
 
-.theme-style-swatch.is-amber .theme-style-swatch-line {
-  background: #d1d9e0;
+.theme-style-swatch.is-espresso .theme-style-swatch-line {
+  background: #d9c8a8;
 }
 
-.theme-style-swatch.is-amber .theme-style-swatch-card {
-  border: 1px solid #d1d9e0;
-  background: #ffffff;
+.theme-style-swatch.is-espresso .theme-style-swatch-card {
+  border: 1px solid #e6d9c0;
+  background: #fffcf6;
 }
 
 .theme-style-swatch.is-phosphor {
