@@ -41,7 +41,7 @@ import {
   SETTINGS_UPDATED_EVENT,
   applyThemeStyleToElement,
   applyThemeModeToElement,
-  isLightOnlyThemeStyle,
+  hasFixedColorMode,
   START_PAGES,
   THEME_STYLES,
   TIME_FORMATS,
@@ -179,6 +179,7 @@ const themeStyleLabels: Record<ThemeStyle, { name: string; note: string }> = {
     name: 'Espresso',
     note: 'New · Cream and dark roast, light only',
   },
+  phosphor: { name: 'Phosphor', note: 'New · amber terminal, dark only' },
 }
 
 const subscribeToBrowserOrigin = () => () => {}
@@ -361,7 +362,7 @@ function applyThemePreference(
 ) {
   // Forge, Titanium, Field, Lumen and Espresso are variants of the Modern layout, so the
   // root needs `data-theme-style="modern"` plus a variant, not the raw style
-  // name. The mode goes second so light-only styles can drop `dark`.
+  // name. The mode goes second so fixed-mode styles can set `dark` themselves.
   applyThemeStyleToElement(document.documentElement, themeStyle)
   applyThemeModeToElement(document.documentElement, theme)
 }
@@ -1954,7 +1955,7 @@ export default function SettingsView() {
                   >
                     <SettingsRow
                       label="Theme"
-                      description="Classic is the default warm BladeVault look. Modern offers cool graphite. Alloy pairs black and gold. Forge, Titanium, Field, Lumen and Espresso use the Modern layout with new colors and a new logo. Lumen and Espresso are always light."
+                      description="Classic is the default warm BladeVault look. Modern offers cool graphite. Alloy pairs black and gold. Forge, Titanium, Field, Lumen, Espresso and Phosphor use the Modern layout with new colors and a new logo. Lumen and Espresso are always light; Phosphor is always dark."
                       className="settings-theme-row"
                     >
                       <div
@@ -2018,7 +2019,7 @@ export default function SettingsView() {
                       <Select
                         value={settings.theme}
                         onValueChange={handleThemeChange}
-                        disabled={isLightOnlyThemeStyle(settings.themeStyle)}
+                        disabled={hasFixedColorMode(settings.themeStyle)}
                       >
                         <SelectTrigger
                           size="sm"

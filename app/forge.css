@@ -229,6 +229,26 @@ html[data-theme-variant='espresso'] {
   --forge-chrome: rgb(248 242 231 / 90%);
 }
 
+/* ---- Phosphor: amber phosphor terminal ----------------------------- */
+/* Dark only (the root always carries `dark`). Square corners, mono type. */
+html[data-theme-variant='phosphor'][data-theme-variant] {
+  --forge-radius: 2px;
+  --forge-pill: 2px;
+  --forge-accent: #ffb000;
+  --forge-ink-2: #d9ad5e;
+  --forge-line-strong: #3a2e1e;
+  --forge-shadow: none;
+  --forge-ring: #ffb000;
+  --forge-glow: rgb(255 176 0 / 35%);
+  --forge-shadow-lift:
+    0 0 0 1px rgb(255 176 0 / 25%), 0 0 14px -4px rgb(255 176 0 / 40%);
+  --forge-chip-bg: rgb(13 11 8 / 86%);
+  --forge-chip-line: #3a2e1e;
+  --forge-chip-fg: #f5c66b;
+  --forge-canvas: #0d0b08;
+  --forge-chrome: rgb(13 11 8 / 94%);
+}
+
 html[data-theme-variant] body {
   font-feature-settings: 'ss01', 'cv11';
 }
@@ -2615,4 +2635,142 @@ html[data-theme-variant='espresso']
   background: var(--primary-hover);
   color: #fcd34d;
   filter: none;
+}
+
+/* ================================================================== */
+/* Phosphor finish                                                      */
+/* An amber phosphor terminal: flat near-black panels, mono labels,     */
+/* a solid amber block on the current sidebar row, outlined main action */
+/* and a thin amber edge with a soft glow on the active card.           */
+/* ================================================================== */
+html[data-theme-variant='phosphor'] {
+  --gl-line: #3a2e1e;
+  --gl-lit: #a8875a;
+  --gl-sel: #ffb000;
+  --gl-text: #ffb000;
+  --gl-halo: 0 0 0 1px rgb(255 176 0 / 30%);
+  --gl-hold: none;
+  --gl-selected: 0 0 10px -4px rgb(255 176 0 / 45%);
+  --sb-selected: none;
+  --sb-hover: none;
+}
+
+html[data-theme-variant='phosphor'] body {
+  font-feature-settings: normal;
+}
+
+html[data-theme-variant='phosphor'] [data-workspace-header] {
+  backdrop-filter: none;
+  border-bottom-color: var(--border);
+}
+
+/* Mono for headings, labels and navigation. Body text stays Geist. */
+html[data-theme-variant='phosphor']
+  :is(
+    .page-title,
+    h1,
+    h2,
+    h3,
+    [data-workspace-brand],
+    [data-workspace-crumb],
+    [data-sidebar-label],
+    [data-sidebar-nav] > a,
+    [data-sidebar] [data-comparison-navigation] > a,
+    [data-slot='button'],
+    [data-workspace-add],
+    th
+  ) {
+  font-family: var(--forge-mono);
+  letter-spacing: 0;
+}
+
+html[data-theme-variant='phosphor'] :is(.page-title, [data-workspace-brand] b) {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Main action: amber outline and text, fills amber on hover. */
+html[data-theme-variant='phosphor'] :is([data-slot='button'], a).bg-primary,
+html[data-theme-variant='phosphor']
+  [data-workspace-actions]
+  > [data-workspace-add] {
+  border: 1px solid #ffb000;
+  background: transparent;
+  box-shadow: none;
+  color: #ffb000;
+}
+
+html[data-theme-variant='phosphor']
+  :is([data-slot='button'], a).bg-primary:not(:disabled):hover,
+html[data-theme-variant='phosphor']
+  [data-workspace-actions]
+  > [data-workspace-add]:hover {
+  border-color: #ffb000;
+  background: #ffb000;
+  color: #0d0b08;
+  filter: none;
+}
+
+html[data-theme-variant='phosphor'] .group\/button:not(:disabled):active,
+html[data-theme-variant='phosphor']
+  [data-workspace-actions]
+  > [data-workspace-add]:active {
+  transform: none;
+}
+
+html[data-theme-variant='phosphor'] .group\/button:focus-visible,
+html[data-theme-variant='phosphor'] input[data-slot='input']:focus-visible {
+  border-color: #ffb000;
+  box-shadow:
+    0 0 0 1px #ffb000,
+    0 0 10px -2px rgb(255 176 0 / 45%);
+}
+
+/* Sidebar: solid amber block for the current row, faint wash on hover. */
+html[data-theme-variant='phosphor'][data-theme-variant][data-theme-variant]
+  [data-sidebar]
+  a:not([aria-current='page']):hover,
+html[data-theme-variant='phosphor'][data-theme-variant][data-theme-variant]
+  [data-sidebar]
+  [data-comparison-navigation]:not([data-selected]):hover {
+  background: rgb(255 176 0 / 8%);
+  box-shadow: none;
+}
+
+html[data-theme-variant='phosphor'][data-theme-variant][data-theme-variant]
+  [data-sidebar]
+  a[aria-current='page'],
+html[data-theme-variant='phosphor'][data-theme-variant][data-theme-variant]
+  [data-sidebar]
+  [data-comparison-navigation][data-selected]:not(
+    :has(+ div > a[aria-current='page'])
+  ) {
+  background: #ffb000;
+  box-shadow: none;
+  color: #0d0b08;
+}
+
+html[data-theme-variant='phosphor'][data-theme-variant][data-theme-variant]
+  [data-sidebar]
+  :is(a[aria-current='page'], [data-comparison-navigation][data-selected])
+  :is(svg, [data-sidebar-count]) {
+  color: #0d0b08;
+}
+
+html[data-theme-variant='phosphor']
+  [data-sidebar]
+  a[aria-current='page']::before {
+  display: none;
+}
+
+/* Cards: flat; a thin amber edge and soft glow when hovered or active. */
+html[data-theme-variant='phosphor'] [data-forge-card]:hover {
+  transform: none;
+}
+
+html[data-theme-variant='phosphor']
+  [data-modern-collection-table]
+  tr[aria-current='true'] {
+  background: rgb(255 176 0 / 8%);
 }

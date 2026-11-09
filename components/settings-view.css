@@ -554,3 +554,28 @@
   border: 1px solid #e6d9c0;
   background: #fffcf6;
 }
+
+.theme-style-swatch.is-phosphor {
+  border-radius: 2px;
+  background: #0d0b08;
+  box-shadow: inset 0 0 0 1px #3a2e1e;
+}
+
+.theme-style-swatch.is-phosphor .theme-style-swatch-rail {
+  background: #0d0b08;
+  border-right: 1px solid #2a2218;
+}
+
+.theme-style-swatch.is-phosphor .theme-style-swatch-title {
+  background: #ffb000;
+}
+
+.theme-style-swatch.is-phosphor .theme-style-swatch-line {
+  background: #a8875a;
+}
+
+.theme-style-swatch.is-phosphor .theme-style-swatch-card {
+  border: 1px solid #ffb000;
+  background: #15110b;
+  box-shadow: 0 0 6px -1px rgb(255 176 0 / 45%);
+}

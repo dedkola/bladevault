@@ -27,7 +27,7 @@ import {
   SETTINGS_UPDATED_EVENT,
   THEME_STYLE_NAMES,
   type AppSettings,
-  isLightOnlyThemeStyle,
+  hasFixedColorMode,
   isModernThemeFamily,
 } from '@/lib/settings-shared'
 
@@ -138,8 +138,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/settings" aria-label="Workspace settings">
             <Settings />
           </Link>
-          {/* Light-only styles have no dark mode to switch to. */}
-          {!isLightOnlyThemeStyle(themeStyle) && (
+          {/* Light-only and dark-only styles have no other mode to switch to. */}
+          {!hasFixedColorMode(themeStyle) && (
             <button
               type="button"
               onClick={toggleTheme}

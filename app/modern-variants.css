@@ -1,5 +1,5 @@
 /*
- * Forge, Titanium, Field, Lumen and Espresso: looks built on the Modern layout.
+ * Forge, Titanium, Field, Lumen, Espresso and Phosphor: looks built on the Modern layout.
  *
  * The root keeps `data-theme-style="modern"`, so every Modern layout rule
  * still applies. `data-theme-variant` adds the palette, the folding-knife logo and a
@@ -612,6 +612,83 @@ html[data-theme-variant='espresso'] {
   --sidebar-accent-foreground: #fcd34d;
   --sidebar-border: #1f1812;
   --sidebar-ring: #fbbf24;
+}
+
+/* ------------------------------------------------------------------ */
+/* Phosphor: amber phosphor terminal (dark only)                        */
+/* Near-black warm surfaces, amber text and accents. The doubled        */
+/* attribute outranks Modern's `.dark` palette.                          */
+/* ------------------------------------------------------------------ */
+html[data-theme-variant='phosphor'][data-theme-variant] {
+  --vv-grad: linear-gradient(135deg, #ffd27a, #ffb000 55%, #c77f00);
+  --vv-btn: transparent;
+  --vv-btn-fg: #ffb000;
+  --vv-soft: rgb(255 176 0 / 10%);
+  --vv-glow: 0 0 12px -4px rgb(255 176 0 / 45%);
+  /* Photo plates stay light so product shots on white keep their shape. */
+  --vv-well-hi: #f7ecd3;
+  --vv-well: #ecdbb6;
+  --vv-well-edge: #d8c08f;
+  --brand-blade-from: #ffd27a;
+  --brand-blade-mid: #ffb000;
+  --brand-blade-to: #c77f00;
+
+  --modern-canvas: #0d0b08;
+  --bladevault-olive: #f5c66b;
+  --bladevault-gold: #ffb000;
+  --bladevault-line: #2a2218;
+  --bladevault-title: #ffb000;
+  --bladevault-local: #c9d66b;
+  --bladevault-nav-active-bg: #ffb000;
+  --bladevault-nav-active-fg: #0d0b08;
+  --bladevault-action-active-bg: rgb(255 176 0 / 14%);
+  --bladevault-action-active-fg: #ffb000;
+  --bladevault-surface-soft: #15110b;
+  --bladevault-surface-hover: #1e180f;
+  --background: #0d0b08;
+  --foreground: #f5c66b;
+  --card: #15110b;
+  --card-foreground: #f5c66b;
+  --popover: #15110b;
+  --popover-foreground: #f5c66b;
+  --primary: #ffb000;
+  --primary-hover: #ffc233;
+  --primary-foreground: #0d0b08;
+  --secondary: #1a150d;
+  --secondary-foreground: #f5c66b;
+  --muted: #1a150d;
+  --muted-foreground: #a8875a;
+  --accent: #221b10;
+  --accent-foreground: #f5c66b;
+  --destructive: #ff5f3d;
+  --border: #2a2218;
+  --input: #3a2e1e;
+  --ring: #ffb000;
+  --chart-1: #ffb000;
+  --chart-2: #f5c66b;
+  --chart-3: #a8875a;
+  --chart-4: #c77f00;
+  --chart-5: #3a2e1e;
+  --bv-chart-1: #ffb000;
+  --bv-chart-2: #f5c66b;
+  --bv-chart-3: #a8875a;
+  --bv-chart-4: #c77f00;
+  --bv-chart-5: #6b5332;
+  --bv-chart-6: #3a2e1e;
+  --bv-chart-track: #1e180f;
+  --bv-chart-wash: rgb(255 176 0 / 12%);
+  --bv-chart-heat-1: #2a2010;
+  --bv-chart-heat-2: #6b4a0a;
+  --bv-chart-heat-3: #c77f00;
+  --bv-chart-heat-4: #ffb000;
+  --sidebar: #0d0b08;
+  --sidebar-foreground: #f5c66b;
+  --sidebar-primary: #ffb000;
+  --sidebar-primary-foreground: #0d0b08;
+  --sidebar-accent: rgb(255 176 0 / 8%);
+  --sidebar-accent-foreground: #f5c66b;
+  --sidebar-border: #2a2218;
+  --sidebar-ring: #ffb000;
 }
 
 html[data-theme-variant='field'] :is(.page-title, [data-workspace-brand] b) {
