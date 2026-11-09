@@ -534,6 +534,11 @@ html:not([data-theme-style='modern'], [data-theme-style='alloy'])
     [data-global-knife-search][data-scroll-hidden]:not(:focus-within) {
     transform: none;
   }
+
+  html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+    [data-global-knife-search]:not([data-embedded]) {
+    transition: none;
+  }
 }
 
 /* Table view: the selected row uses the hover background plus a gold edge. */
