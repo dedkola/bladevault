@@ -2,7 +2,7 @@
  * Forge, Titanium and Field: looks built on the Modern layout.
  *
  * The root keeps `data-theme-style="modern"`, so every Modern layout rule
- * still applies. `data-theme-variant` adds the palette, the V-Edge logo and a
+ * still applies. `data-theme-variant` adds the palette, the folding-knife logo and a
  * few finishing touches. Plain Modern (no variant) is unaffected.
  *
  * Product photos have white backgrounds and are blended with `multiply`, so
@@ -483,7 +483,7 @@ html[data-theme-variant] [data-modern-shell] {
   display: none;
 }
 
-/* Logo: V-Edge replaces the image logo, without the blue tile. */
+/* Logo: the folding-knife mark replaces the image logo, without the blue tile. */
 [data-brand-mark] {
   display: none;
 }

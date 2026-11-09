@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Knife V Logo Options</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --font: 'Geist', ui-sans-serif, system-ui, sans-serif;
+        --mono: 'Geist Mono', ui-monospace, Menlo, monospace;
+        --page: #e9e6e0;
+        --ink: #17150f;
+        --muted: #6f6b63;
+        --line: #d9d3c8;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 40px 24px 80px;
+        background: var(--page);
+        color: var(--ink);
+        font: 14px/1.5 var(--font);
+      }
+      header,
+      section {
+        max-width: 1240px;
+        margin: 0 auto;
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 26px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+      header p {
+        margin: 0 0 32px;
+        color: var(--muted);
+        max-width: 70ch;
+      }
+      section {
+        padding: 28px 0;
+        border-top: 1px solid var(--line);
+      }
+      .head {
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+      .num {
+        font: 500 12px var(--mono);
+        color: var(--muted);
+      }
+      h2 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .head p {
+        margin: 0;
+        color: var(--muted);
+        flex-basis: 100%;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 10px;
+      }
+      @media (max-width: 980px) {
+        .grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+      @media (max-width: 560px) {
+        .grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      .tile {
+        background: var(--bg);
+        color: var(--fg);
+        border-radius: 14px;
+        padding: 16px 14px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        box-shadow: inset 0 0 0 1px var(--edge);
+      }
+      .tile .big {
+        width: 100%;
+        max-width: 120px;
+        aspect-ratio: 1;
+        margin: 4px auto 0;
+      }
+      .tile svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        font-size: 15px;
+        letter-spacing: -0.02em;
+      }
+      .brand .m {
+        width: 24px;
+        height: 24px;
+        flex: none;
+      }
+      .sizes {
+        display: flex;
+        align-items: end;
+        gap: 10px;
+      }
+      .sizes span {
+        display: block;
+      }
+      .label {
+        font: 500 10.5px var(--mono);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        opacity: 0.55;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>BladeVault logo · knife V</h1>
+      <p>
+        The theme-coloured stroke of the V becomes a knife. The other stroke
+        stays the text colour. Each option is shown in Forge, Titanium and
+        Field, light and dark, at large size, sidebar size (24px) and favicon
+        size (16px).
+      </p>
+    </header>
+    <main id="out"></main>
+
+    <script>
+      const THEMES = [
+        ['Forge', '#f1efeb', '#17150f', ['#ffa060', '#e5541b', '#c93a14']],
+        ['Forge dark', '#0e0e10', '#f2f1ee', ['#ffb067', '#ff6a2b', '#e2361c']],
+        ['Titanium', '#f1f0f4', '#16141b', ['#6e4ff0', '#1fb5a0', '#c9963e']],
+        [
+          'Titanium dark',
+          '#100f14',
+          '#f1eff5',
+          ['#8b6cff', '#3dd9c1', '#e9b867'],
+        ],
+        ['Field', '#e6e5dd', '#12130f', ['#e4ff6b', '#b5e021', '#7fa80f']],
+        ['Field dark', '#121310', '#efefe6', ['#e4ff6b', '#c8f031', '#8dba14']],
+      ]
+
+      // Left stroke of the V, same as the current mark.
+      const LEFT = '<path d="M5 8H15L25 36L21 44Z" fill="currentColor"/>'
+      // Circle as a subpath, so holes cut through with evenodd.
+      const hole = (cx, cy, r) =>
+        `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0Z`
+      const sheen = 'rgb(255 255 255 / 55%)'
+      // Knife drawn pointing up from its tip at 0,0, then turned into place.
+      const ARM = 'translate(23 44) rotate(21.5)'
+
+      const MARKS = [
+        {
+          name: 'Current · V-Edge',
+          note: 'Today’s mark, for comparison: a slanted bar with an edge line.',
+          svg: (g) => `${LEFT}
+            <path d="M43 6L32 6L21 37L25 44Z" fill="url(#${g})"/>
+            <path d="M37.5 6L24 41" stroke="${sheen}" stroke-width="1.2"/>`,
+        },
+        {
+          name: 'Tanto',
+          note: 'Whole stroke is a blade with an angled tanto tip at the bottom of the V and a ridge line. Most geometric, closest to today’s shape, holds up best at 16px.',
+          svg: (g) => `${LEFT}
+            <g transform="${ARM}">
+              <path d="M0 0V-41H9V-8.5Z" fill="url(#${g})"/>
+              <path d="M3.4 -40V-5.4L9 -8.5" fill="none" stroke="${sheen}" stroke-width="0.9"/>
+            </g>`,
+        },
+        {
+          name: 'Full tang',
+          note: 'Knife without handle scales: curved belly edge, a small choil notch, and three rivet holes cut through the tang. Reads as a knife but keeps the one-colour stroke.',
+          svg: (g) => `${LEFT}
+            <g transform="${ARM}">
+              <path fill-rule="evenodd" fill="url(#${g})" d="M0 0V-39Q0 -41.5 2.5 -41.5H6.5Q9 -41.5 9 -39V-29.6A1.7 1.7 0 0 0 9 -26.2V-17C9 -9 5 -3 0.4 0Z
+                ${hole(4.5, -38.4, 1.05)}${hole(4.5, -35, 1.05)}${hole(4.5, -31.6, 1.05)}"/>
+              <path d="M6.8 -25V-17C6.8 -10.5 4 -5 1.2 -1.6" fill="none" stroke="${sheen}" stroke-width="0.9"/>
+            </g>`,
+        },
+        {
+          name: 'Chef’s knife',
+          note: 'Coloured blade, tip at the bottom of the V, with a text-colour bolster and riveted handle at the top. Most literal knife; the handle shortens the coloured part.',
+          svg: (g) => `${LEFT}
+            <g transform="${ARM}">
+              <path d="M0 -26V-1.5L0.6 0C4.6 -3 8.6 -9 8.6 -15.5V-26Z" fill="url(#${g})"/>
+              <path d="M6.9 -25V-15.5C6.9 -10 4.2 -4.8 1.3 -1.6" fill="none" stroke="${sheen}" stroke-width="0.9"/>
+              <rect x="-0.3" y="-28.6" width="7.6" height="2.4" rx="0.6" fill="currentColor" opacity="0.6"/>
+              <path fill-rule="evenodd" fill="currentColor" d="M2.6 -41.8H4.2Q6.8 -41.8 6.8 -39.2V-29.2H0V-39.2Q0 -41.8 2.6 -41.8Z
+                ${hole(3.4, -38.6, 0.85)}${hole(3.4, -32.6, 0.85)}"/>
+            </g>`,
+        },
+        {
+          name: 'Folding knife',
+          note: 'The V is a half-open folding knife: left stroke is the handle, right stroke the blade, joined at a pivot pin at the bottom. Most original idea.',
+          svg: (g) => `
+            <g transform="translate(23 40) rotate(22)">
+              <path d="M-4.6 0V-29Q-4.6 -34.6 -1.6 -37.6Q4.6 -32 4.6 -22V0Z" fill="url(#${g})"/>
+              <path d="M2.6 -2V-22Q2.6 -30 -1.2 -35" fill="none" stroke="${sheen}" stroke-width="0.9"/>
+            </g>
+            <g transform="translate(23 40) rotate(-22)">
+              <path fill-rule="evenodd" fill="currentColor" d="M-4.6 -32Q-4.6 -36.6 0 -36.6Q4.6 -36.6 4.6 -32V0A4.6 4.6 0 0 1 -4.6 0Z${hole(0, 0, 1.9)}"/>
+            </g>
+            <circle cx="23" cy="40" r="0.9" fill="currentColor"/>`,
+        },
+        {
+          name: 'Dagger',
+          note: 'Double-edged blade with a centre ridge, crossguard, grip and pommel in the text colour. Bold and symmetric, but busier at small sizes.',
+          svg: (g) => `${LEFT}
+            <g transform="translate(25 44) rotate(21.5)">
+              <path d="M0 0L4.4 -10V-31H-4.4V-10Z" fill="url(#${g})"/>
+              <path d="M0 -1.5V-30.5" stroke="${sheen}" stroke-width="0.9"/>
+              <rect x="-6.6" y="-33.6" width="13.2" height="2.6" rx="1.3" fill="currentColor"/>
+              <rect x="-2" y="-40" width="4" height="6.6" fill="currentColor"/>
+              <circle cx="0" cy="-41.6" r="2.3" fill="currentColor"/>
+            </g>`,
+        },
+      ]
+
+      let n = 0
+      const svg = (mark, blade) => {
+        const g = `g${n++}`
+        return `<svg viewBox="0 0 48 48" aria-hidden="true">
+          <defs><linearGradient id="${g}" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="${blade[0]}"/>
+            <stop offset="0.5" stop-color="${blade[1]}"/>
+            <stop offset="1" stop-color="${blade[2]}"/>
+          </linearGradient></defs>${mark.svg(g)}</svg>`
+      }
+
+      document.getElementById('out').innerHTML = MARKS.map(
+        (mark, i) => `
+        <section>
+          <div class="head">
+            <span class="num">${String(i).padStart(2, '0')}</span>
+            <h2>${mark.name}</h2>
+            <p>${mark.note}</p>
+          </div>
+          <div class="grid">
+            ${THEMES.map(([name, bg, fg, blade]) => {
+              const dark = name.includes('dark')
+              return `<div class="tile" style="--bg:${bg};--fg:${fg};--edge:${dark ? 'rgb(255 255 255 / 6%)' : 'rgb(0 0 0 / 6%)'}">
+                <span class="label">${name}</span>
+                <div class="big">${svg(mark, blade)}</div>
+                <div class="brand"><span class="m">${svg(mark, blade)}</span>BladeVault</div>
+                <div class="sizes">
+                  <span style="width:16px;height:16px">${svg(mark, blade)}</span>
+                  <span style="width:32px;height:32px">${svg(mark, blade)}</span>
+                </div>
+              </div>`
+            }).join('')}
+          </div>
+        </section>`,
+      ).join('')
+    </script>
+  </body>
+</html>

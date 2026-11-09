@@ -4,9 +4,10 @@ import { useId } from 'react'
 import { cn } from '@/lib/utils'
 
 /**
- * V-Edge mark used by the Forge, Titanium and Field themes: a "V" whose right
- * stroke is a blade. The left stroke follows `currentColor`; the blade reads
- * its gradient from the `--brand-blade-*` theme tokens.
+ * Folding-knife mark used by the Forge, Titanium and Field themes: a half-open
+ * folding knife shaped like a "V". The handle (left stroke) follows
+ * `currentColor`; the blade (right stroke) reads its gradient from the
+ * `--brand-blade-*` theme tokens. They meet at a pivot pin at the bottom.
  */
 export function BrandMark({ className }: { className?: string }) {
   const gradientId = `brand-blade-${useId().replace(/:/g, '')}`
@@ -26,13 +27,25 @@ export function BrandMark({ className }: { className?: string }) {
           <stop offset="1" style={{ stopColor: 'var(--brand-blade-to)' }} />
         </linearGradient>
       </defs>
-      <path d="M5 8H15L25 36L21 44Z" fill="currentColor" />
-      <path d="M43 6L32 6L21 37L25 44Z" fill={`url(#${gradientId})`} />
+      <g transform="translate(23 40) rotate(22)">
+        <path
+          d="M-4.6 0V-29Q-4.6 -34.6 -1.6 -37.6Q4.6 -32 4.6 -22V0Z"
+          fill={`url(#${gradientId})`}
+        />
+        <path
+          d="M2.6 -2V-22Q2.6 -30 -1.2 -35"
+          fill="none"
+          stroke="rgb(255 255 255 / 55%)"
+          strokeWidth="0.9"
+        />
+      </g>
       <path
-        d="M37.5 6L24 41"
-        stroke="rgb(255 255 255 / 50%)"
-        strokeWidth="1.2"
+        transform="translate(23 40) rotate(-22)"
+        fillRule="evenodd"
+        fill="currentColor"
+        d="M-4.6 -32Q-4.6 -36.6 0 -36.6Q4.6 -36.6 4.6 -32V0A4.6 4.6 0 0 1 -4.6 0ZM-1.9 0a1.9 1.9 0 1 0 3.8 0a1.9 1.9 0 1 0 -3.8 0Z"
       />
+      <circle cx="23" cy="40" r="0.9" fill="currentColor" />
     </svg>
   )
 }
