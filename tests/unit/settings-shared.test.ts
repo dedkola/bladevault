@@ -6,6 +6,8 @@ import {
   normalizeCardFields,
   normalizeThemeStyle,
   applyThemeStyleToElement,
+  applyThemeModeToElement,
+  isDarkThemeActive,
   getModernThemeVariant,
   getThemeFamily,
   isModernThemeFamily,
@@ -47,6 +49,7 @@ describe('normalizeThemeStyle', () => {
     expect(normalizeThemeStyle('forge')).toBe('forge')
     expect(normalizeThemeStyle('titanium')).toBe('titanium')
     expect(normalizeThemeStyle('field')).toBe('field')
+    expect(normalizeThemeStyle('lumen')).toBe('lumen')
     expect(normalizeThemeStyle('unknown')).toBe('classic')
     expect(normalizeThemeStyle(null)).toBe('classic')
   })
@@ -79,6 +82,30 @@ describe('theme families', () => {
     applyThemeStyleToElement(element, 'alloy')
     expect(element.dataset).toEqual({ themeStyle: 'alloy' })
     expect(readThemeStyleFromElement(element)).toBe('alloy')
+  })
+})
+
+describe('light-only styles', () => {
+  it('keeps Lumen light while remembering the saved dark mode', () => {
+    const classes = new Set<string>()
+    const element = {
+      dataset: {} as DOMStringMap,
+      classList: {
+        toggle: (name: string, on: boolean) =>
+          on ? classes.add(name) : classes.delete(name),
+        contains: (name: string) => classes.has(name),
+      },
+    } as unknown as HTMLElement
+    applyThemeStyleToElement(element, 'lumen')
+    applyThemeModeToElement(element, 'dark')
+    expect(element.dataset.themeMode).toBe('dark')
+    expect(element.classList.contains('dark')).toBe(false)
+    expect(isDarkThemeActive('dark', 'lumen')).toBe(false)
+
+    applyThemeStyleToElement(element, 'forge')
+    expect(element.classList.contains('dark')).toBe(true)
+    applyThemeStyleToElement(element, 'lumen')
+    expect(element.classList.contains('dark')).toBe(false)
   })
 })
 

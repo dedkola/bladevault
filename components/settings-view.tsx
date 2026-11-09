@@ -40,6 +40,8 @@ import {
   DEFAULT_SETTINGS,
   SETTINGS_UPDATED_EVENT,
   applyThemeStyleToElement,
+  applyThemeModeToElement,
+  isLightOnlyThemeStyle,
   START_PAGES,
   THEME_STYLES,
   TIME_FORMATS,
@@ -172,6 +174,7 @@ const themeStyleLabels: Record<ThemeStyle, { name: string; note: string }> = {
   forge: { name: 'Forge', note: 'New · graphite & ember' },
   titanium: { name: 'Titanium', note: 'New · anodized gradient' },
   field: { name: 'Field', note: 'New · stone & acid lime' },
+  lumen: { name: 'Lumen', note: 'New · white & orange, light only' },
 }
 
 const subscribeToBrowserOrigin = () => () => {}
@@ -352,10 +355,11 @@ function applyThemePreference(
   theme: AppSettings['theme'],
   themeStyle: AppSettings['themeStyle'],
 ) {
-  document.documentElement.classList.toggle('dark', theme === 'dark')
-  // Forge, Titanium and Field are variants of the Modern layout, so the root
-  // needs `data-theme-style="modern"` plus a variant, not the raw style name.
+  // Forge, Titanium, Field and Lumen are variants of the Modern layout, so the
+  // root needs `data-theme-style="modern"` plus a variant, not the raw style
+  // name. The mode goes second so light-only styles can drop `dark`.
   applyThemeStyleToElement(document.documentElement, themeStyle)
+  applyThemeModeToElement(document.documentElement, theme)
 }
 
 function CardFieldsPreview({
@@ -1946,7 +1950,7 @@ export default function SettingsView() {
                   >
                     <SettingsRow
                       label="Theme"
-                      description="Classic is the default warm BladeVault look. Modern offers cool graphite. Alloy pairs black and gold. Forge, Titanium and Field use the Modern layout with new colors and a new logo."
+                      description="Classic is the default warm BladeVault look. Modern offers cool graphite. Alloy pairs black and gold. Forge, Titanium, Field and Lumen use the Modern layout with new colors and a new logo. Lumen is always light."
                       className="settings-theme-row"
                     >
                       <div
@@ -2010,6 +2014,7 @@ export default function SettingsView() {
                       <Select
                         value={settings.theme}
                         onValueChange={handleThemeChange}
+                        disabled={isLightOnlyThemeStyle(settings.themeStyle)}
                       >
                         <SelectTrigger
                           size="sm"

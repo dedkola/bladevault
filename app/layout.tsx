@@ -20,6 +20,7 @@ import { SegmentedHighlight } from '@/components/segmented-highlight'
 import {
   THEME_COLORS,
   getModernThemeVariant,
+  isDarkThemeActive,
   getThemeFamily,
 } from '@/lib/settings-shared'
 import { cookies } from 'next/headers'
@@ -65,7 +66,10 @@ export function generateViewport(): Viewport {
   const themeStyle = getInitialThemeStyle()
 
   return {
-    themeColor: THEME_COLORS[themeStyle][theme === 'dark' ? 'dark' : 'light'],
+    themeColor:
+      THEME_COLORS[themeStyle][
+        isDarkThemeActive(theme, themeStyle) ? 'dark' : 'light'
+      ],
   }
 }
 
@@ -125,6 +129,7 @@ export default async function RootLayout({
       lang="en"
       data-theme-style={getThemeFamily(themeStyle)}
       data-theme-variant={getModernThemeVariant(themeStyle)}
+      data-theme-mode={theme}
       {...(errorReporting
         ? { [ERROR_REPORTING_ATTRIBUTE]: JSON.stringify(errorReporting) }
         : {})}
@@ -134,7 +139,7 @@ export default async function RootLayout({
         alloyDisplay.variable,
         fieldDisplay.variable,
         'h-full',
-        theme === 'dark' && 'dark',
+        isDarkThemeActive(theme, themeStyle) && 'dark',
       )}
       suppressHydrationWarning
     >

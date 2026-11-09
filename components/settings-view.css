@@ -444,7 +444,7 @@
   }
 }
 
-/* Forge, Titanium and Field previews. */
+/* Forge, Titanium, Field and Lumen previews. */
 .theme-style-swatch.is-forge {
   background: #141416;
 }
@@ -508,4 +508,27 @@
 .theme-style-swatch.is-field .theme-style-swatch-card {
   border: 1px solid rgb(18 19 15 / 14%);
   background: #fafaf6;
+}
+
+.theme-style-swatch.is-lumen {
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px #ebebeb;
+}
+
+.theme-style-swatch.is-lumen .theme-style-swatch-rail {
+  background: #ffffff;
+  border-right: 1px solid #ebebeb;
+}
+
+.theme-style-swatch.is-lumen .theme-style-swatch-title {
+  background: #f6821f;
+}
+
+.theme-style-swatch.is-lumen .theme-style-swatch-line {
+  background: #d4d4d4;
+}
+
+.theme-style-swatch.is-lumen .theme-style-swatch-card {
+  border: 1px solid #ebebeb;
+  background: #ffffff;
 }

@@ -26,6 +26,7 @@ import { readJsonResponse } from '@/lib/api-response'
 import {
   SETTINGS_UPDATED_EVENT,
   type AppSettings,
+  isLightOnlyThemeStyle,
   isModernThemeFamily,
 } from '@/lib/settings-shared'
 
@@ -131,14 +132,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/settings" aria-label="Workspace settings">
             <Settings />
           </Link>
-          <button
-            type="button"
-            onClick={toggleTheme}
-            aria-label="Toggle workspace appearance"
-          >
-            <Moon className="dark:hidden" />
-            <Sun className="hidden dark:block" />
-          </button>
+          {/* Light-only styles have no dark mode to switch to. */}
+          {!isLightOnlyThemeStyle(themeStyle) && (
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-label="Toggle workspace appearance"
+            >
+              <Moon className="dark:hidden" />
+              <Sun className="hidden dark:block" />
+            </button>
+          )}
           <Link href="/add" data-workspace-add>
             <Plus />
             Add knife
