@@ -25,6 +25,7 @@ import { BrandMark } from '@/components/brand-mark'
 import { readJsonResponse } from '@/lib/api-response'
 import {
   SETTINGS_UPDATED_EVENT,
+  THEME_STYLE_NAMES,
   type AppSettings,
   isLightOnlyThemeStyle,
   isModernThemeFamily,
@@ -95,7 +96,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Image src="/logo.svg" alt="" width={26} height={26} unoptimized />
             <BrandMark />
           </span>
-          <b>BladeVault</b>
+          <span data-workspace-wordmark>
+            <b>BladeVault</b>
+            <small data-workspace-theme-name>
+              {THEME_STYLE_NAMES[themeStyle]}
+            </small>
+          </span>
         </Link>
         <nav aria-label="Breadcrumb" data-workspace-crumb>
           <span>{crumb[0]}</span>

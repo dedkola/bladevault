@@ -42,6 +42,7 @@ import {
 } from '@/components/ui/collapsible'
 import {
   SETTINGS_UPDATED_EVENT,
+  THEME_STYLE_NAMES,
   type AppSettings,
   isModernThemeFamily,
 } from '@/lib/settings-shared'
@@ -204,12 +205,20 @@ export function Sidebar() {
               />
               <BrandMark />
             </div>
-            <span
-              className="truncate text-2xl font-semibold tracking-tight text-foreground"
-              data-sidebar-brand
-            >
-              <span>Blade</span>
-              <span style={{ color: 'var(--bladevault-title)' }}>Vault</span>
+            <span className="flex min-w-0 flex-col">
+              <span
+                className="truncate text-2xl font-semibold tracking-tight text-foreground"
+                data-sidebar-brand
+              >
+                <span>Blade</span>
+                <span style={{ color: 'var(--bladevault-title)' }}>Vault</span>
+              </span>
+              <span
+                className="truncate text-[10px] leading-tight font-medium tracking-[0.12em] text-muted-foreground uppercase"
+                data-sidebar-theme-name
+              >
+                {THEME_STYLE_NAMES[themeStyle]}
+              </span>
             </span>
           </Link>
 
