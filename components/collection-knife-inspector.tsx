@@ -19,11 +19,11 @@ import { CompareIcon } from '@/components/icons/compare-icon'
 import { useEffect, useState, type RefObject } from 'react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { useKnives } from '@/components/providers/knives-provider'
-import { getImageUrl, getKnifeImageCount, type Knife } from '@/lib/data'
+import { getImageUrl, type Knife } from '@/lib/data'
 import { getKnifeVariantLabel } from '@/lib/knife-families'
 import { cn } from '@/lib/utils'
 import { SoldBadge } from '@/components/sold-badge'
-import { formatDimension, formatWeight } from '@/lib/measurements'
+import { InspectorTabs } from '@/components/inspector-tabs'
 import {
   activeKnifeActionStyle,
   activeKnifeOutlineClassName,
@@ -66,7 +66,6 @@ export function CollectionKnifeInspector({
   } = useComparisons()
   const comparisonCount = membershipCount(knife.id)
   const inCompare = comparisonCount > 0
-  const imageCount = getKnifeImageCount(knife)
   const images = fullImages ?? knife.images
   const image = images[imageIndex]
   const nextImage = () =>
@@ -75,13 +74,6 @@ export function CollectionKnifeInspector({
     setImageIndex((current) => (current - 1 + images.length) % images.length)
 
   useEffect(() => {
-    if (
-      imageCount <= knife.images.length &&
-      !isModernThemeFamily(themeStyle) &&
-      themeStyle !== 'alloy'
-    )
-      return
-
     const controller = new AbortController()
     void fetch(`/api/knives/${encodeURIComponent(knife.id)}`, {
       signal: controller.signal,
@@ -99,7 +91,7 @@ export function CollectionKnifeInspector({
       })
 
     return () => controller.abort()
-  }, [imageCount, knife.id, knife.images.length, themeStyle])
+  }, [knife.id])
 
   const togglePin = async () => {
     setIsUpdatingPin(true)
@@ -259,89 +251,23 @@ export function CollectionKnifeInspector({
 
         <div data-inspector-body className="border-t border-border px-5 py-6">
           <div data-inspector-identity>
-            {
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                {knife.brand}
-              </p>
-            }
             <h2
               id="collection-inspector-title"
-              className="mt-1 text-3xl font-medium tracking-tight text-foreground"
+              className="text-3xl font-medium tracking-tight text-foreground"
             >
               {knife.name}
             </h2>
             {knife.sold && <SoldBadge className="mt-2" />}
             <p className="mt-2 font-mono text-xs text-muted-foreground">
-              {knife.specs.modelNumber || 'Model number not recorded'}
+              {knife.brand} · {knife.specs.modelNumber || 'Model not recorded'}{' '}
+              · {new Date(knife.addedAt).getFullYear()}
             </p>
           </div>
 
-          {siblings.length > 1 && (
-            <section
-              className="mt-6"
-              aria-labelledby="inspector-variants-title"
-            >
-              <h3
-                id="inspector-variants-title"
-                className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
-              >
-                {siblings.length} variants in your collection
-              </h3>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {siblings.map((sibling) => (
-                  <Button
-                    key={sibling.id}
-                    type="button"
-                    variant={sibling.id === knife.id ? 'secondary' : 'outline'}
-                    size="xs"
-                    onClick={() => onSelect(sibling)}
-                    aria-pressed={sibling.id === knife.id}
-                    title={getKnifeVariantLabel(sibling, siblings)}
-                    className="font-mono"
-                  >
-                    {sibling.specs.modelNumber || sibling.name}
-                  </Button>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <dl
-            data-inspector-specs
-            className="mt-7 grid grid-cols-2 gap-x-6 gap-y-5"
-          >
-            {[
-              ['Blade material', knife.specs.bladeMaterial],
-              ['Handle', knife.handleMaterial],
-              [
-                'Blade length',
-                formatDimension(knife.specs.bladeLength, dimensionUnit) ||
-                  'Not recorded',
-              ],
-              [
-                'Weight',
-                formatWeight(knife.specs.weight, dimensionUnit) ||
-                  'Not recorded',
-              ],
-              ['Lock', knife.specs.lockingMechanism],
-              ['Designer', knife.specs.designer],
-            ].map(([label, value]) => (
-              <div key={label} className="min-w-0">
-                <dt className="text-[10px] text-muted-foreground">{label}</dt>
-                <dd className="mt-1 text-xs font-medium text-foreground [overflow-wrap:anywhere]">
-                  {value || 'Not recorded'}
-                </dd>
-              </div>
-            ))}
-          </dl>
-
-          <div
-            data-inspector-actions
-            className="mt-7 flex flex-wrap gap-2 border-b border-border pb-5"
-          >
+          <div data-inspector-actions className="mt-5 flex flex-wrap gap-2">
             <Link
               href={`/collection/${knife.id}`}
-              className={cn(buttonVariants({ size: 'sm' }))}
+              className={cn(buttonVariants({ size: 'sm' }), 'w-full')}
             >
               Open full page →
             </Link>
@@ -386,6 +312,45 @@ export function CollectionKnifeInspector({
               Edit
             </Link>
           </div>
+
+          <div className="mt-6">
+            <InspectorTabs
+              knife={{
+                ...knife,
+                description: fullKnife?.description ?? knife.description,
+              }}
+              dimensionUnit={dimensionUnit}
+              maintenanceTab
+            />
+          </div>
+
+          {siblings.length > 1 && (
+            <section
+              data-inspector-family
+              className="mt-6"
+              aria-labelledby="inspector-variants-title"
+            >
+              <h3 id="inspector-variants-title">
+                {siblings.length} variants in your collection
+              </h3>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {siblings.map((sibling) => (
+                  <Button
+                    key={sibling.id}
+                    type="button"
+                    variant={sibling.id === knife.id ? 'secondary' : 'outline'}
+                    size="xs"
+                    onClick={() => onSelect(sibling)}
+                    aria-pressed={sibling.id === knife.id}
+                    title={getKnifeVariantLabel(sibling, siblings)}
+                    className="font-mono"
+                  >
+                    {sibling.specs.modelNumber || sibling.name}
+                  </Button>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       </div>
     </aside>
