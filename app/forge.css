@@ -442,83 +442,26 @@ html[data-theme-variant] [data-workspace-footer] {
 /* ------------------------------------------------------------------ */
 @media (min-width: 821px) {
   html[data-theme-variant] [data-modern-collection] {
-    grid-template-rows: auto auto minmax(0, 1fr);
-  }
-
-  html[data-theme-variant] [data-modern-collection] > [data-forge-summary] {
-    grid-column: 1;
-    grid-row: 1;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   html[data-theme-variant]
     [data-modern-collection]
     > [data-modern-collection-toolbar] {
     grid-column: 1;
-    grid-row: 2;
+    grid-row: 1;
   }
 
   html[data-theme-variant] [data-modern-collection] [data-collection-main] {
-    grid-row: 3;
+    grid-row: 2;
   }
 
   html[data-theme-variant] [data-modern-collection] [data-modern-inspector] {
-    grid-row: 1 / span 3;
+    grid-row: 1 / span 2;
     max-height: calc(100dvh - 92px);
   }
 }
 
-/* Stats strip. */
-html[data-theme-variant] [data-forge-summary] {
-  padding: 22px var(--collection-gutter, 24px) 4px;
-}
-
-html[data-theme-variant] [data-forge-stats] {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1px;
-  margin: 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--forge-radius);
-  background: var(--border);
-  box-shadow: var(--forge-shadow);
-}
-
-html[data-theme-variant] [data-forge-stats] > div {
-  min-width: 0;
-  padding: 14px 16px 15px;
-  background: var(--card);
-}
-
-html[data-theme-variant] [data-forge-stats] dt {
-  color: var(--muted-foreground);
-  font-family: var(--forge-mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-html[data-theme-variant] [data-forge-stats] dd {
-  margin: 6px 0 0;
-  overflow: hidden;
-  color: var(--foreground);
-  font-family: var(--forge-mono);
-  font-size: 24px;
-  font-weight: 500;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-html[data-theme-variant] [data-forge-stats] dd span {
-  margin-left: 6px;
-  color: var(--bladevault-title);
-  font-size: 12px;
-  letter-spacing: 0;
-}
-
-/* Toolbar: chips on the left, pill controls on the right. */
 html[data-theme-variant] [data-modern-collection-toolbar] {
   gap: 10px;
   padding: 18px var(--collection-gutter) 14px;
@@ -538,6 +481,45 @@ html[data-theme-variant] [data-forge-grid] {
   gap: 16px;
   /* Room for the hover lift inside the scrolling list. */
   padding-top: 4px;
+}
+
+/* Compact: smaller cards, more per row; name and maker only. */
+html[data-theme-variant] [data-forge-grid][data-density='compact'] {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr));
+  gap: 12px;
+}
+
+html[data-theme-variant]
+  [data-forge-grid][data-density='compact']
+  [data-forge-card-body] {
+  padding: 10px 12px 4px;
+}
+
+html[data-theme-variant]
+  [data-forge-grid][data-density='compact']
+  [data-forge-card]
+  h2[title] {
+  margin: 3px 0 0;
+  font-size: 14px;
+}
+
+html[data-theme-variant]
+  [data-forge-grid][data-density='compact']
+  :is([data-forge-specs], [data-forge-card-foot] > span) {
+  display: none;
+}
+
+html[data-theme-variant]
+  [data-forge-grid][data-density='compact']
+  [data-forge-card-foot] {
+  min-height: 40px;
+}
+
+html[data-theme-variant]
+  [data-forge-grid][data-density='compact']
+  [data-forge-compare] {
+  right: 10px;
+  bottom: 9px;
 }
 
 html[data-theme-variant] [data-forge-card] {
@@ -1003,31 +985,21 @@ html[data-theme-variant] [data-modern-collection-table] [data-photo-stage] img {
 /* ------------------------------------------------------------------ */
 /* Narrow screens                                                       */
 /* ------------------------------------------------------------------ */
-@media (max-width: 900px) {
-  html[data-theme-variant] [data-forge-stats] {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 820px) {
-  html[data-theme-variant] [data-forge-summary] {
-    padding: 16px 14px 0;
-  }
-
   html[data-theme-variant] [data-modern-collection-toolbar] {
     padding: 14px;
   }
 }
 
 @media (max-width: 560px) {
-  html[data-theme-variant] [data-forge-stats] > div:first-child dd span {
-    display: block;
-    margin: 4px 0 0;
-    font-size: 11px;
-  }
-
   html[data-theme-variant] [data-forge-grid] {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Compact keeps two small cards per row on phones. */
+  html[data-theme-variant] [data-forge-grid][data-density='compact'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 }
 

@@ -1,9 +1,6 @@
 'use client'
 
-import {
-  ForgeCollectionGrid,
-  ForgeCollectionSummary,
-} from '@/components/forge-collection'
+import { ForgeCollectionGrid } from '@/components/forge-collection'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 
 import {
@@ -938,7 +935,7 @@ function CollectionContent() {
         (isAlloy && Boolean(activeKnife) && !isSelectionMode) || undefined
       }
     >
-      {isAlloy && <h1 className="sr-only">Collection</h1>}
+      {(isAlloy || isForge) && <h1 className="sr-only">Collection</h1>}
       {!isWorkspaceCollection && (
         <PageHeader
           title="Your collection."
@@ -954,13 +951,6 @@ function CollectionContent() {
               }}
             />
           }
-        />
-      )}
-
-      {isForge && knives.length > 0 && (
-        <ForgeCollectionSummary
-          knives={knives}
-          visibleKnives={filteredKnives}
         />
       )}
 
@@ -1486,6 +1476,7 @@ function CollectionContent() {
               </div>
             ) : isForge && !isFamilyView && !isSelectionMode ? (
               <ForgeCollectionGrid
+                density={cardDensity}
                 dimensionUnit={dimensionUnit}
                 knives={filteredKnives.slice(0, visibleCount)}
                 activeKnifeId={activeKnife?.id}
