@@ -130,7 +130,7 @@ export function ForgeActivityMap({
 
   useEffect(() => {
     const node = wrapRef.current
-    if (!node) return
+    if (!node || typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(([entry]) => {
       const width = entry.contentRect.width
       setPerPage(
