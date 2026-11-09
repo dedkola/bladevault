@@ -4,17 +4,19 @@ import { formatKnifeCount } from '@/lib/knife-count'
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useId, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import { ArrowUpRight, Plus } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { useKnives } from '@/components/providers/knives-provider'
+import { ForgeActivityMap } from '@/components/forge-activity-map'
+import { readJsonResponse } from '@/lib/api-response'
 import {
   createCollectionStats,
   formatStatsMeasurement,
   type CategoryStat,
   type MeasurementKey,
 } from '@/lib/collection-stats'
-import { getImageUrl, type Knife } from '@/lib/data'
+import { getImageUrl, type Knife, type KnifeActivityEvent } from '@/lib/data'
 import { groupKnifeFamilies } from '@/lib/knife-families'
 import { buildCatalogueSeries } from '@/lib/modern-insights'
 import { cn } from '@/lib/utils'
@@ -238,11 +240,36 @@ export function ModernInsights() {
   const [measurementKey, setMeasurementKey] =
     useState<MeasurementKey>('bladeLength')
   const [selectedBinLabel, setSelectedBinLabel] = useState<string>()
+  // The activity map is a Forge-only trial; other styles skip the request.
+  const showActivity = themeStyle === 'forge'
+  const [activity, setActivity] = useState<KnifeActivityEvent[]>()
   const stats = useMemo(
     () =>
-      createCollectionStats(knives, 'all', undefined, undefined, dimensionUnit),
-    [knives, dimensionUnit],
+      createCollectionStats(knives, 'all', undefined, activity, dimensionUnit),
+    [knives, activity, dimensionUnit],
   )
+
+  useEffect(() => {
+    if (!showActivity) return
+    let cancelled = false
+    async function loadActivity() {
+      try {
+        const response = await fetch('/api/activity', { cache: 'no-store' })
+        const data = await readJsonResponse<{
+          activity?: KnifeActivityEvent[]
+        }>(response)
+        if (!cancelled && response.ok && Array.isArray(data.activity)) {
+          setActivity(data.activity)
+        }
+      } catch {
+        // Keep the additions-only fallback if activity history cannot load.
+      }
+    }
+    void loadActivity()
+    return () => {
+      cancelled = true
+    }
+  }, [showActivity])
   const catalogue = useMemo(
     () => buildCatalogueSeries(knives, '12m', new Date()),
     [knives],
@@ -853,6 +880,19 @@ export function ModernInsights() {
                 <DetailLink href="/insights/recent">All additions</DetailLink>
               </div>
             </Panel>
+
+            {showActivity && (
+              <Panel
+                eyebrow="Activity"
+                title="Collection activity"
+                description="Additions, edits and maintenance over the last 52 weeks."
+                action={
+                  <DetailLink href="/insights/activity">Details</DetailLink>
+                }
+              >
+                <ForgeActivityMap stats={stats} knivesById={knivesById} />
+              </Panel>
+            )}
           </div>
         </>
       )}
