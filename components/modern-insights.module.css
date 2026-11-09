@@ -784,13 +784,6 @@
     grid-column: span 6;
   }
 }
-/* Coverage pairs with Maker mix at this width; give it the row when the
-   full-width Forge activity map sits between them. */
-@container (min-width: 640px) and (max-width: 939.98px) {
-  .coverage:has(+ .activity) {
-    grid-column: span 12;
-  }
-}
 @container (min-width: 940px) {
   .growth,
   .carry,
@@ -801,6 +794,14 @@
   .makers,
   .recent {
     grid-column: span 4;
+  }
+  /* With the Forge activity map second, additions take the full row and
+     the map pairs with Coverage so every row stays filled. */
+  .growth:has(+ .activity) {
+    grid-column: span 12;
+  }
+  .activity {
+    grid-column: span 8;
   }
   .coverageSummary {
     margin-block: 22px;
