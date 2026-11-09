@@ -1,5 +1,6 @@
-node_modules
-.next
+# Nested copies too (static-app, worktrees).
+**/node_modules
+**/.next
 dist
 output
 playwright-report
@@ -11,6 +12,9 @@ test-results
 # Local code graph links point outside the Docker build context.
 .codegraph
 .idea
+# Claude Code worktrees are full project copies with their own builds.
+.claude
+static-app/out
 data
 docs/
 *.md
