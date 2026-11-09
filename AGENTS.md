@@ -16,6 +16,7 @@
 - Start with a focused `query_graph` or `graphify_rank_files` query. Inspect callers, dependencies, impact, or related tests when relevant to the change. Use `recall` when prior decisions or known pitfalls matter.
 - Check the indexed commit and verify relevant definitions and behavior against the current checkout. Graph results can omit dynamic callers, unindexed files, and local edits. Missing links do not prove safety; matching bodies do not prove equivalent behavior. Treat unverified recalled notes as leads.
 - If Graphify is unavailable or insufficient, state that briefly and continue with targeted `rg` searches and source reads. Skip Graphify for text-only or trivial edits.
+- For complex or unfamiliar library work (Next.js App Router, React, Electron, electron-builder, better-sqlite3, Playwright, MCP SDK, or any version-sensitive API), look up current docs with the Context7 MCP (`resolve-library-id`, then `get-library-docs`) before writing code, matching the versions in `package.json`. Skip it for small fixes and theme/CSS tweaks.
 
 ## Architecture and runtime boundaries
 
