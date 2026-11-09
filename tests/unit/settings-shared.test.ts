@@ -8,6 +8,7 @@ import {
   applyThemeStyleToElement,
   applyThemeModeToElement,
   isDarkThemeActive,
+  hasFixedColorMode,
   getModernThemeVariant,
   getThemeFamily,
   isModernThemeFamily,
@@ -50,6 +51,7 @@ describe('normalizeThemeStyle', () => {
     expect(normalizeThemeStyle('titanium')).toBe('titanium')
     expect(normalizeThemeStyle('field')).toBe('field')
     expect(normalizeThemeStyle('lumen')).toBe('lumen')
+    expect(normalizeThemeStyle('phosphor')).toBe('phosphor')
     expect(normalizeThemeStyle('amber')).toBe('amber')
     expect(normalizeThemeStyle('unknown')).toBe('classic')
     expect(normalizeThemeStyle(null)).toBe('classic')
@@ -110,6 +112,36 @@ describe('light-only styles', () => {
     applyThemeStyleToElement(element, 'amber')
     expect(element.classList.contains('dark')).toBe(false)
     expect(isDarkThemeActive('dark', 'amber')).toBe(false)
+  })
+})
+
+describe('dark-only styles', () => {
+  it('keeps Phosphor dark while remembering the saved light mode', () => {
+    const classes = new Set<string>()
+    const element = {
+      dataset: {} as DOMStringMap,
+      classList: {
+        toggle: (name: string, on: boolean) =>
+          on ? classes.add(name) : classes.delete(name),
+        contains: (name: string) => classes.has(name),
+      },
+    } as unknown as HTMLElement
+    applyThemeStyleToElement(element, 'phosphor')
+    applyThemeModeToElement(element, 'light')
+    expect(element.dataset.themeStyle).toBe('modern')
+    expect(element.dataset.themeVariant).toBe('phosphor')
+    expect(element.dataset.themeMode).toBe('light')
+    expect(element.classList.contains('dark')).toBe(true)
+    expect(isDarkThemeActive('light', 'phosphor')).toBe(true)
+    expect(hasFixedColorMode('phosphor')).toBe(true)
+    expect(hasFixedColorMode('forge')).toBe(false)
+
+    applyThemeStyleToElement(element, 'forge')
+    expect(element.classList.contains('dark')).toBe(false)
+    applyThemeStyleToElement(element, 'lumen')
+    expect(element.classList.contains('dark')).toBe(false)
+    applyThemeStyleToElement(element, 'phosphor')
+    expect(element.classList.contains('dark')).toBe(true)
   })
 })
 

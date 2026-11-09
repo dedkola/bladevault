@@ -8,9 +8,10 @@ export const THEME_STYLES = [
   'field',
   'lumen',
   'amber',
+  'phosphor',
 ] as const
 /**
- * Forge, Titanium and Field reuse the Modern workspace layout and only change
+ * Forge, Titanium, Field, Lumen, Amber and Phosphor reuse the Modern workspace layout and only change
  * its look. The DOM exposes them as `data-theme-style="modern"` plus a
  * `data-theme-variant`, so every Modern layout rule keeps applying.
  */
@@ -20,6 +21,7 @@ export const MODERN_THEME_VARIANTS = [
   'field',
   'lumen',
   'amber',
+  'phosphor',
 ] as const
 /** Display names for each style, shown in Settings and under the app logo. */
 export const THEME_STYLE_NAMES: Record<(typeof THEME_STYLES)[number], string> =
@@ -32,9 +34,12 @@ export const THEME_STYLE_NAMES: Record<(typeof THEME_STYLES)[number], string> =
     field: 'Field',
     lumen: 'Lumen',
     amber: 'Amber',
+    phosphor: 'Phosphor',
   }
 /** Styles that always render light and ignore the dark color mode. */
 export const LIGHT_ONLY_THEME_STYLES = ['lumen', 'amber'] as const
+/** Styles that always render dark and ignore the light color mode. */
+export const DARK_ONLY_THEME_STYLES = ['phosphor'] as const
 export const START_PAGES = ['insights', 'studio', 'collection'] as const
 export type StartPage = (typeof START_PAGES)[number]
 
@@ -299,10 +304,20 @@ export const THEME_COLORS: Record<ThemeStyle, { light: string; dark: string }> =
     field: { light: '#ecebe4', dark: '#0f100d' },
     lumen: { light: '#ffffff', dark: '#ffffff' },
     amber: { light: '#ffffff', dark: '#ffffff' },
+    phosphor: { light: '#0d0b08', dark: '#0d0b08' },
   }
 
 export function isLightOnlyThemeStyle(themeStyle: ThemeStyle): boolean {
   return (LIGHT_ONLY_THEME_STYLES as readonly ThemeStyle[]).includes(themeStyle)
+}
+
+export function isDarkOnlyThemeStyle(themeStyle: ThemeStyle): boolean {
+  return (DARK_ONLY_THEME_STYLES as readonly ThemeStyle[]).includes(themeStyle)
+}
+
+/** Styles locked to one mode, where the light/dark choice does nothing. */
+export function hasFixedColorMode(themeStyle: ThemeStyle): boolean {
+  return isLightOnlyThemeStyle(themeStyle) || isDarkOnlyThemeStyle(themeStyle)
 }
 
 /** Whether the root should carry the `dark` class for a mode and style. */
@@ -310,12 +325,14 @@ export function isDarkThemeActive(
   theme: AppTheme,
   themeStyle: ThemeStyle,
 ): boolean {
+  if (isDarkOnlyThemeStyle(themeStyle)) return true
   return theme === 'dark' && !isLightOnlyThemeStyle(themeStyle)
 }
 
 /**
  * Records the chosen color mode on the root and applies the `dark` class.
- * Light-only styles keep the saved mode but render light.
+ * Light-only and dark-only styles keep the saved mode but render in their
+ * fixed mode.
  */
 export function applyThemeModeToElement(element: HTMLElement, theme: AppTheme) {
   element.dataset.themeMode = theme
@@ -334,7 +351,8 @@ export function applyThemeStyleToElement(
   const variant = getModernThemeVariant(themeStyle)
   if (variant) element.dataset.themeVariant = variant
   else delete element.dataset.themeVariant
-  // Re-apply the saved mode: a light-only style drops the `dark` class.
+  // Re-apply the saved mode: a light-only style drops the `dark` class and a
+  // dark-only style adds it.
   const mode = element.dataset.themeMode
   if (mode === 'light' || mode === 'dark') {
     element.classList.toggle('dark', isDarkThemeActive(mode, themeStyle))
