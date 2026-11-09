@@ -2213,6 +2213,19 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   color: var(--muted-foreground);
   font-weight: 450;
 }
+[data-workspace-brand] > [data-workspace-wordmark] {
+  display: flex;
+  flex-direction: column;
+  color: inherit;
+  line-height: 1.1;
+}
+[data-workspace-theme-name] {
+  color: var(--muted-foreground);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
 [data-workspace-crumb] {
   display: flex;
   align-items: center;
@@ -2455,7 +2468,8 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   }
 }
 @media (max-width: 900px) {
-  [data-workspace-brand] > span:not([data-workspace-logo]) {
+  [data-workspace-brand]
+    > span:not([data-workspace-logo], [data-workspace-wordmark]) {
     display: none;
   }
   [data-workspace-brand] {

@@ -21,6 +21,18 @@ export const MODERN_THEME_VARIANTS = [
   'lumen',
   'amber',
 ] as const
+/** Display names for each style, shown in Settings and under the app logo. */
+export const THEME_STYLE_NAMES: Record<(typeof THEME_STYLES)[number], string> =
+  {
+    classic: 'Classic',
+    modern: 'Modern',
+    alloy: 'Alloy',
+    forge: 'Forge',
+    titanium: 'Titanium',
+    field: 'Field',
+    lumen: 'Lumen',
+    amber: 'Amber',
+  }
 /** Styles that always render light and ignore the dark color mode. */
 export const LIGHT_ONLY_THEME_STYLES = ['lumen', 'amber'] as const
 export const START_PAGES = ['insights', 'studio', 'collection'] as const
