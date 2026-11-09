@@ -1005,6 +1005,14 @@ html[data-theme-variant] [data-modern-collection-table] {
   box-shadow: var(--forge-shadow);
 }
 
+/* The frame above replaces the component's own; keeping both draws two
+ * lines at the corners when the radii differ (Lumen, Amber). */
+html[data-theme-variant] [data-modern-collection-table] > div {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 html[data-theme-variant] [data-modern-collection-table] thead tr {
   background: color-mix(in srgb, var(--muted) 70%, var(--card));
 }
