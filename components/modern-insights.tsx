@@ -240,8 +240,8 @@ export function ModernInsights() {
   const [measurementKey, setMeasurementKey] =
     useState<MeasurementKey>('bladeLength')
   const [selectedBinLabel, setSelectedBinLabel] = useState<string>()
-  // The activity map is a Forge-only trial; other styles skip the request.
-  const showActivity = themeStyle === 'forge'
+  // Every style that renders this page (all but Classic) shows the activity map.
+  const showActivity = themeStyle !== 'classic'
   const [activity, setActivity] = useState<KnifeActivityEvent[]>()
   const stats = useMemo(
     () =>

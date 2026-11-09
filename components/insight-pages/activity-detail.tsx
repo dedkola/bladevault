@@ -84,7 +84,7 @@ export function ActivityDetail() {
   )
   return (
     <div className="id-activity">
-      {themeStyle === 'forge' ? (
+      {themeStyle !== 'classic' ? (
         <>
           {failedNotice}
           <ForgeActivityDetail

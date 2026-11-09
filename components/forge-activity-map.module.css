@@ -1,5 +1,5 @@
-/* Forge activity heatmap. Rendered only inside Forge's Insights page, so it
- * leans on the --forge-* tokens from app/forge.css. */
+/* Activity heatmap for every style except Classic. Forge-family variants
+ * set the --forge-* tokens (app/forge.css); Modern and Alloy use the fallbacks. */
 .root {
   --act-gap: 4px;
   --act-radius: 4px;
@@ -233,25 +233,33 @@
 .day[data-level='2'] {
   background: var(--bv-chart-heat-2);
 }
+.day[data-level='3'] {
+  --act-cell: var(--bv-chart-heat-3);
+}
+.day[data-level='4'] {
+  --act-cell: var(--bv-chart-heat-4);
+  box-shadow: 0 0 10px -2px var(--act-glow);
+}
+/* Hot cells are dark in some styles and bright in others, so the number
+ * turns white on dark cells and near-black on light ones. */
 .day[data-level='3'],
 .day[data-level='4'] {
+  --act-cell-ink: oklch(
+    from var(--act-cell) calc(0.2 + clamp(0, (0.68 - l) * 100, 1) * 0.8) 0 0
+  );
+  background: var(--act-cell);
   color: #fff;
+  color: var(--act-cell-ink);
   font-weight: 500;
-}
-.day[data-level='3'] {
-  background: var(--bv-chart-heat-3);
-}
-.day[data-level='4'] {
-  background: var(--bv-chart-heat-4);
-  box-shadow: 0 0 10px -2px var(--act-glow);
 }
 .day[data-today] {
   color: var(--act-accent);
   font-weight: 700;
 }
-.day[data-today][data-level='3'],
-.day[data-today][data-level='4'] {
+.day[data-today][data-level='3']:not([aria-pressed='true']),
+.day[data-today][data-level='4']:not([aria-pressed='true']) {
   color: #fff;
+  color: var(--act-cell-ink);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
