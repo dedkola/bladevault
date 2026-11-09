@@ -41,3 +41,6 @@ data/images/*/
 /static-app/public/
 /static-app/tsconfig.tsbuildinfo
 /.wrangler/
+
+# Local Claude Code config
+.claude/
