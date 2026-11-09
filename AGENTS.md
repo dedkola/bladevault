@@ -6,6 +6,9 @@
 - Check the working tree and active branch first. Preserve unrelated changes and keep fixes focused; do not refactor adjacent code just because an analysis tool suggests it.
 - Treat investigation, audit, proposal, and read-only requests as inspection and reporting. Implement when the user authorizes implementation; do not ask again for routine steps already covered by that authorization.
 - Do not commit, push, create a PR, deploy, publish, or merge unless requested. When authorized, stage only reviewed paths, use a `dev/` branch for new work, and distinguish local validation from hosted CI and deployment results. Do not poll CI unless requested.
+- Never add AI attribution to commits or PRs: no `Co-Authored-By` trailers for agents and no "Generated with" lines. Check `git log` before pushing.
+- When reporting finished work, name the branch, the worktree path, and whether the changes are committed, pushed, or still uncommitted.
+- If a `desktop-release.yml` job (often the macOS DMG build) fails, first check whether it failed on GitHub runner capacity or infrastructure; if so, rerun only the failed jobs (`gh run rerun <run-id> --failed`) before changing code.
 
 ## Code investigation and Graphify
 
@@ -13,6 +16,7 @@
 - Start with a focused `query_graph` or `graphify_rank_files` query. Inspect callers, dependencies, impact, or related tests when relevant to the change. Use `recall` when prior decisions or known pitfalls matter.
 - Check the indexed commit and verify relevant definitions and behavior against the current checkout. Graph results can omit dynamic callers, unindexed files, and local edits. Missing links do not prove safety; matching bodies do not prove equivalent behavior. Treat unverified recalled notes as leads.
 - If Graphify is unavailable or insufficient, state that briefly and continue with targeted `rg` searches and source reads. Skip Graphify for text-only or trivial edits.
+- For complex or unfamiliar library work (Next.js App Router, React, Electron, electron-builder, better-sqlite3, Playwright, MCP SDK, or any version-sensitive API), look up current docs with the Context7 MCP (`resolve-library-id`, then `get-library-docs`) before writing code, matching the versions in `package.json`. Skip it for small fixes and theme/CSS tweaks.
 
 ## Architecture and runtime boundaries
 
@@ -26,14 +30,16 @@
 
 ## Collection data safety
 
-- A new worktree is not a new vault. Without an explicit data directory, the app can discover an existing personal database in home or legacy locations. Set `BLADEVAULT_DATA_DIR` to a disposable directory for manual development/QA that opens the vault, or use an intentionally prepared copy when real data is needed.
+- A new worktree is not a new vault. Without an explicit data directory, the app can discover an existing personal database in home or legacy locations. For live UI checks the user will review, run the dev server against the default (real) vault and treat it as read-only. Use a disposable `BLADEVAULT_DATA_DIR` for any manual QA that writes, imports, restores, or deletes data. Automated tests always use temporary vaults.
 - Keep the database and its local images together. Do not rescrape, bulk-update, restore, migrate manually, or delete the user's saved records merely to investigate a code issue. Reading records does not authorize changing them.
 - Storage tests should use `tests/helpers/temp-vault.ts` for database/cache cleanup and environment restoration. Browser tests must retain the temporary-vault server in `playwright.config.ts`; `tests/e2e/helpers.ts` resets delete records, so never point them at a user instance.
 - `npm run desktop:dev` uses a persistent development vault and overrides the data directory internally; do not assume it honors a disposable `BLADEVAULT_DATA_DIR` from the shell.
 
 ## UI and scraper changes
 
-- Check `lib/settings-shared.ts` for supported styles (currently Classic, Modern, and Alloy) and light/dark modes. Reuse theme tokens from `app/globals.css` and `app/alloy.css`, existing UI primitives, and image helpers such as `getImageUrl`/`VaultImage`. Scope theme-specific styling; preserve affected behavior across styles for shared changes.
+- Supported styles and light/dark modes are defined by `THEME_STYLES` in `lib/settings-shared.ts`; check it rather than relying on a list here. Forge, Titanium, Field, Lumen, Espresso, and Phosphor are variants of the Modern layout (`data-theme-style="modern"` plus `data-theme-variant`): shared variant styling lives in `app/forge.css` and per-variant tokens in `app/modern-variants.css`. When renaming a style, map the old id in `normalizeThemeStyle` so saved settings keep working.
+- For redesign or "propose options" requests, show 2–3 options as local HTML mockups in `design-proposals/` before changing the app; do not commit the mockups. Keep similar elements (buttons, pills, filters, sidebar rows) consistent within a style.
+- Reuse theme tokens from `app/globals.css`, `app/alloy.css`, and `app/forge.css`, existing UI primitives, and image helpers such as `getImageUrl`/`VaultImage`. Scope theme-specific styling; preserve affected behavior across styles for shared changes.
 - Follow supplied prototypes in both appearance and interaction. For visual behavior changes, inspect the affected flow at desktop and narrow widths, with relevant theme/mode coverage. Wait for provider loading before judging empty states or screenshots; preserve keyboard access, focus, and readable labels.
 - For scraper fixes, inspect the actual product/variant markup and existing extractor before changing rules. Scope extraction away from related products; inspect structured data, lazy attributes, and original gallery URLs. Leave unsupported or contradictory values empty, and ensure later enrichment/fallbacks cannot reintroduce rejected values.
 - Use source fixtures in `tests/fixtures/scrape/` and focused `tests/unit/scrape-*.test.ts` regressions for meaningful extraction changes. Check extraction separately from Add/Edit form application and saved-state behavior; preserve manual field edits and image selections.
