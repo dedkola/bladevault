@@ -1,5 +1,6 @@
 'use client'
 
+import { BrandMark } from '@/components/brand-mark'
 import Link from 'next/link'
 import { ComparisonNavigation } from '@/components/comparison-navigation'
 import { useSmartCollections } from '@/components/providers/smart-collections-provider'
@@ -27,6 +28,7 @@ import {
 } from 'lucide-react'
 import { CompareIcon } from '@/components/icons/compare-icon'
 import { cn } from '@/lib/utils'
+import { getImageUrl } from '@/lib/data'
 import { getKnifeFamilyKey, groupKnifeFamilies } from '@/lib/knife-families'
 import { getVisibleCardFields } from '@/lib/card-fields'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -38,7 +40,11 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { SETTINGS_UPDATED_EVENT, type AppSettings } from '@/lib/settings-shared'
+import {
+  SETTINGS_UPDATED_EVENT,
+  type AppSettings,
+  isModernThemeFamily,
+} from '@/lib/settings-shared'
 import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
 import {
   Dialog,
@@ -196,6 +202,7 @@ export function Sidebar() {
                 unoptimized
                 className="object-contain p-1"
               />
+              <BrandMark />
             </div>
             <span
               className="truncate text-2xl font-semibold tracking-tight text-foreground"
@@ -222,7 +229,7 @@ export function Sidebar() {
           )}
         </div>
 
-        {themeStyle !== 'modern' && (
+        {!isModernThemeFamily(themeStyle) && (
           <div className="px-4 pb-2">
             <Button
               data-sidebar-add
@@ -459,6 +466,17 @@ export function Sidebar() {
                             : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                         )}
                       >
+                        {knife.images[0] && (
+                          <span data-sidebar-pinned-thumb aria-hidden="true">
+                            <Image
+                              src={getImageUrl(knife.images[0])}
+                              alt=""
+                              fill
+                              sizes="80px"
+                              className="object-contain"
+                            />
+                          </span>
+                        )}
                         <Pin className="size-3 shrink-0" />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate">
@@ -571,7 +589,7 @@ export function Sidebar() {
           )}
         </nav>
 
-        {themeStyle !== 'modern' && (
+        {!isModernThemeFamily(themeStyle) && (
           <div className="flex flex-col gap-2 border-t bg-muted/30 p-3">
             <div className="flex items-center gap-2">
               <Button
@@ -671,7 +689,7 @@ export function Sidebar() {
               src="/logo.svg"
               alt="BladeVault logo"
               fill
-              sizes="40px"
+              sizes="80px"
               unoptimized
               className="object-contain p-1"
               priority
@@ -681,10 +699,11 @@ export function Sidebar() {
               src="/logo-dark.svg"
               alt=""
               fill
-              sizes="40px"
+              sizes="80px"
               unoptimized
               className="object-contain p-1"
             />
+            <BrandMark />
           </div>
           <span className="truncate text-xl font-semibold tracking-tight text-foreground">
             <span>Blade</span>

@@ -1,5 +1,6 @@
 'use client'
 
+import { isModernThemeFamily } from '@/lib/settings-shared'
 import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
@@ -381,7 +382,9 @@ export function StudioView() {
         ref={focusButton}
         variant="outline"
         size={
-          themeStyle === 'modern' || themeStyle === 'alloy' ? 'sm' : 'default'
+          isModernThemeFamily(themeStyle) || themeStyle === 'alloy'
+            ? 'sm'
+            : 'default'
         }
         onClick={() => setFocus(true)}
         disabled={isLoading || !visible.length}
@@ -393,7 +396,7 @@ export function StudioView() {
         href="/add"
         className={buttonVariants({
           size:
-            themeStyle === 'modern' || themeStyle === 'alloy'
+            isModernThemeFamily(themeStyle) || themeStyle === 'alloy'
               ? 'sm'
               : 'default',
         })}
@@ -406,7 +409,7 @@ export function StudioView() {
 
   return (
     <>
-      {themeStyle === 'modern' &&
+      {isModernThemeFamily(themeStyle) &&
         headerTarget &&
         createPortal(
           <button
@@ -428,7 +431,7 @@ export function StudioView() {
       >
         {themeStyle === 'alloy' ? (
           <h1 className="sr-only">Studio</h1>
-        ) : themeStyle !== 'modern' ? (
+        ) : !isModernThemeFamily(themeStyle) ? (
           <PageHeader
             title="Studio"
             description="Your collection, at a glance."

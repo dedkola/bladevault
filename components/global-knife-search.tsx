@@ -1,5 +1,6 @@
 'use client'
 
+import { isModernThemeFamily } from '@/lib/settings-shared'
 import Image from '@/components/vault-image'
 import { usePathname, useRouter } from 'next/navigation'
 import { ImageIcon, Search, X } from 'lucide-react'
@@ -57,7 +58,7 @@ export function GlobalKnifeSearch({
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [embedded])
-  const modern = themeStyle === 'modern' || themeStyle === 'alloy'
+  const modern = isModernThemeFamily(themeStyle) || themeStyle === 'alloy'
   const showGlobalSearch = modern
     ? embedded
     : pathname !== '/collection' && pathname !== '/compare'

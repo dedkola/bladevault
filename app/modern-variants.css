@@ -1,0 +1,657 @@
+/*
+ * Forge, Titanium and Field: looks built on the Modern layout.
+ *
+ * The root keeps `data-theme-style="modern"`, so every Modern layout rule
+ * still applies. `data-theme-variant` adds the palette, the folding-knife logo and a
+ * few finishing touches. Plain Modern (no variant) is unaffected.
+ *
+ * Product photos have white backgrounds and are blended with `multiply`, so
+ * photo areas stay light in dark mode too, tinted to match each look.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Forge: graphite and ember                                           */
+/* ------------------------------------------------------------------ */
+html[data-theme-variant='forge'] {
+  --vv-grad: linear-gradient(135deg, #ff9a4d, #e5541b 50%, #c93a14);
+  --vv-btn: linear-gradient(135deg, #ff8a3d 0%, #e5541b 55%, #c93a14 100%);
+  --vv-btn-fg: #ffffff;
+  --vv-soft: rgb(229 84 27 / 10%);
+  --vv-glow:
+    0 0 0 1px rgb(229 84 27 / 38%), 0 14px 34px -16px rgb(229 84 27 / 45%);
+  --vv-well-hi: #ffffff;
+  --vv-well: #f1efeb;
+  --vv-well-edge: #e3e0d9;
+  --brand-blade-from: #ffa060;
+  --brand-blade-mid: #e5541b;
+  --brand-blade-to: #c93a14;
+
+  --modern-canvas: #f7f6f3;
+  --bladevault-olive: #17150f;
+  --bladevault-gold: #e5541b;
+  --bladevault-line: #e2dfd8;
+  --bladevault-title: #c2410c;
+  --bladevault-local: #2f7d46;
+  --bladevault-nav-active-bg: rgb(229 84 27 / 10%);
+  --bladevault-nav-active-fg: #b83c0d;
+  --bladevault-action-active-bg: rgb(229 84 27 / 10%);
+  --bladevault-action-active-fg: #b83c0d;
+  --bladevault-surface-soft: #f3f1ed;
+  --bladevault-surface-hover: #ebe8e2;
+  --background: #f1efeb;
+  --foreground: #17150f;
+  --card: #ffffff;
+  --card-foreground: #17150f;
+  --popover: #ffffff;
+  --popover-foreground: #17150f;
+  --primary: #d9480f;
+  --primary-hover: #c23f0c;
+  --primary-foreground: #ffffff;
+  --secondary: #ffffff;
+  --secondary-foreground: #17150f;
+  --muted: #efede8;
+  --muted-foreground: #74706a;
+  --accent: #e9e6e0;
+  --accent-foreground: #17150f;
+  --destructive: #c8102e;
+  --border: #e2dfd8;
+  --input: #d6d2ca;
+  --ring: #e5541b;
+  --chart-1: #e5541b;
+  --chart-2: #17150f;
+  --chart-3: #8f8a80;
+  --chart-4: #ffa060;
+  --chart-5: #cfcac0;
+  --bv-chart-1: #e5541b;
+  --bv-chart-2: #3c3a35;
+  --bv-chart-3: #8f8a80;
+  --bv-chart-4: #ffa060;
+  --bv-chart-5: #b9b3a8;
+  --bv-chart-6: #d8d3ca;
+  --bv-chart-track: #ebe8e2;
+  --bv-chart-wash: rgb(229 84 27 / 12%);
+  --bv-chart-heat-1: #fbd9c6;
+  --bv-chart-heat-2: #f6a57a;
+  --bv-chart-heat-3: #ec7440;
+  --bv-chart-heat-4: #d9480f;
+  --sidebar: #fbfaf8;
+  --sidebar-foreground: #17150f;
+  --sidebar-primary: #e5541b;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1efeb;
+  --sidebar-accent-foreground: #17150f;
+  --sidebar-border: #e2dfd8;
+  --sidebar-ring: #e5541b;
+}
+
+html[data-theme-variant='forge'].dark {
+  --vv-grad: linear-gradient(135deg, #ffb067, #ff6a2b 50%, #e2361c);
+  --vv-btn: linear-gradient(135deg, #ffb067 0%, #ff6a2b 45%, #e2361c 100%);
+  --vv-btn-fg: #180a03;
+  --vv-soft: rgb(255 106 43 / 13%);
+  --vv-glow:
+    0 0 0 1px rgb(255 106 43 / 40%), 0 14px 40px -14px rgb(255 106 43 / 38%);
+  --vv-well-hi: #f4f2ee;
+  --vv-well: #e3e0da;
+  --vv-well-edge: #cfcbc3;
+  --brand-blade-from: #ffb067;
+  --brand-blade-mid: #ff6a2b;
+  --brand-blade-to: #e2361c;
+
+  --modern-canvas: #0a0a0b;
+  --bladevault-olive: #1b1b1e;
+  --bladevault-gold: #ff6a2b;
+  --bladevault-line: rgb(255 255 255 / 9%);
+  --bladevault-title: #ff8a50;
+  --bladevault-local: #5fd38a;
+  --bladevault-nav-active-bg: rgb(255 106 43 / 13%);
+  --bladevault-nav-active-fg: #ff9a62;
+  --bladevault-action-active-bg: rgb(255 106 43 / 13%);
+  --bladevault-action-active-fg: #ff9a62;
+  --bladevault-surface-soft: #1b1b1e;
+  --bladevault-surface-hover: #232327;
+  --background: #0e0e10;
+  --foreground: #f2f1ee;
+  --card: #141416;
+  --card-foreground: #f2f1ee;
+  --popover: #18181b;
+  --popover-foreground: #f2f1ee;
+  --primary: #ff6a2b;
+  --primary-hover: #ff7d45;
+  --primary-foreground: #180a03;
+  --secondary: #1b1b1e;
+  --secondary-foreground: #f2f1ee;
+  --muted: #1b1b1e;
+  --muted-foreground: #8d8a84;
+  --accent: #222226;
+  --accent-foreground: #f2f1ee;
+  --destructive: #ff5c5c;
+  --border: rgb(255 255 255 / 8%);
+  --input: rgb(255 255 255 / 14%);
+  --ring: #ff6a2b;
+  --chart-1: #ff6a2b;
+  --chart-2: #f2f1ee;
+  --chart-3: #9a968f;
+  --chart-4: #ffb067;
+  --chart-5: #55534e;
+  --bv-chart-1: #ff6a2b;
+  --bv-chart-2: #e6e4df;
+  --bv-chart-3: #9a968f;
+  --bv-chart-4: #ffb067;
+  --bv-chart-5: #6a6862;
+  --bv-chart-6: #45433f;
+  --bv-chart-track: rgb(255 255 255 / 7%);
+  --bv-chart-wash: rgb(255 106 43 / 14%);
+  --bv-chart-heat-1: #3a2218;
+  --bv-chart-heat-2: #7a3518;
+  --bv-chart-heat-3: #c24e1d;
+  --bv-chart-heat-4: #ff6a2b;
+  --sidebar: #0e0e10;
+  --sidebar-foreground: #f2f1ee;
+  --sidebar-primary: #ff6a2b;
+  --sidebar-primary-foreground: #180a03;
+  --sidebar-accent: #1b1b1e;
+  --sidebar-accent-foreground: #f2f1ee;
+  --sidebar-border: rgb(255 255 255 / 8%);
+  --sidebar-ring: #ff6a2b;
+}
+
+/* ------------------------------------------------------------------ */
+/* Titanium: anodized violet, teal and bronze on violet-black          */
+/* ------------------------------------------------------------------ */
+html[data-theme-variant='titanium'] {
+  --vv-grad: linear-gradient(120deg, #6e4ff0, #1fb5a0 50%, #c9963e);
+  --vv-btn: linear-gradient(
+    120deg,
+    #6e4ff0 0%,
+    #4a63e8 30%,
+    #1fa894 70%,
+    #b8893a 100%
+  );
+  --vv-btn-fg: #ffffff;
+  --vv-soft: rgb(110 79 240 / 9%);
+  --vv-glow:
+    0 0 0 1px rgb(110 79 240 / 32%), 0 14px 34px -16px rgb(31 181 160 / 40%);
+  --vv-well-hi: #ffffff;
+  --vv-well: #f2f0f6;
+  --vv-well-edge: #e4e1ea;
+  --brand-blade-from: #6e4ff0;
+  --brand-blade-mid: #1fb5a0;
+  --brand-blade-to: #c9963e;
+
+  --modern-canvas: #f7f6f9;
+  --bladevault-olive: #16141b;
+  --bladevault-gold: #6e4ff0;
+  --bladevault-line: #e2dfe8;
+  --bladevault-title: #5b3de0;
+  --bladevault-local: #12866f;
+  --bladevault-nav-active-bg: rgb(110 79 240 / 9%);
+  --bladevault-nav-active-fg: #5236d4;
+  --bladevault-action-active-bg: rgb(110 79 240 / 9%);
+  --bladevault-action-active-fg: #5236d4;
+  --bladevault-surface-soft: #f3f1f6;
+  --bladevault-surface-hover: #eae7f0;
+  --background: #f1f0f4;
+  --foreground: #16141b;
+  --card: #ffffff;
+  --card-foreground: #16141b;
+  --popover: #ffffff;
+  --popover-foreground: #16141b;
+  --primary: #6e4ff0;
+  --primary-hover: #5f40e2;
+  --primary-foreground: #ffffff;
+  --secondary: #ffffff;
+  --secondary-foreground: #16141b;
+  --muted: #eeecf2;
+  --muted-foreground: #73707c;
+  --accent: #e8e5ee;
+  --accent-foreground: #16141b;
+  --destructive: #d1123f;
+  --border: #e2dfe8;
+  --input: #d5d1dd;
+  --ring: #6e4ff0;
+  --chart-1: #6e4ff0;
+  --chart-2: #1fb5a0;
+  --chart-3: #c9963e;
+  --chart-4: #16141b;
+  --chart-5: #c9c4d4;
+  --bv-chart-1: #6e4ff0;
+  --bv-chart-2: #1fb5a0;
+  --bv-chart-3: #c9963e;
+  --bv-chart-4: #3b3843;
+  --bv-chart-5: #a49fb0;
+  --bv-chart-6: #d3cfdb;
+  --bv-chart-track: #eae7f0;
+  --bv-chart-wash: rgb(110 79 240 / 11%);
+  --bv-chart-heat-1: #ddd5fd;
+  --bv-chart-heat-2: #ad9af8;
+  --bv-chart-heat-3: #8667f4;
+  --bv-chart-heat-4: #6e4ff0;
+  --sidebar: #fbfafc;
+  --sidebar-foreground: #16141b;
+  --sidebar-primary: #6e4ff0;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f0f4;
+  --sidebar-accent-foreground: #16141b;
+  --sidebar-border: #e2dfe8;
+  --sidebar-ring: #6e4ff0;
+}
+
+html[data-theme-variant='titanium'].dark {
+  --vv-grad: linear-gradient(120deg, #8b6cff, #3dd9c1 50%, #e9b867);
+  --vv-btn: linear-gradient(
+    120deg,
+    #8b6cff 0%,
+    #5d8cf0 32%,
+    #3dd9c1 68%,
+    #e9b867 100%
+  );
+  --vv-btn-fg: #0c0b0f;
+  --vv-soft: rgb(164 139 255 / 13%);
+  --vv-glow:
+    0 0 0 1px rgb(164 139 255 / 40%), 0 14px 40px -14px rgb(61 217 193 / 32%);
+  --vv-well-hi: #f1eff5;
+  --vv-well: #dedae6;
+  --vv-well-edge: #cbc6d5;
+  --brand-blade-from: #8b6cff;
+  --brand-blade-mid: #3dd9c1;
+  --brand-blade-to: #e9b867;
+
+  --modern-canvas: #0c0b0f;
+  --bladevault-olive: #1d1b23;
+  --bladevault-gold: #a48bff;
+  --bladevault-line: rgb(255 255 255 / 9%);
+  --bladevault-title: #b9a6ff;
+  --bladevault-local: #3dd9c1;
+  --bladevault-nav-active-bg: rgb(164 139 255 / 14%);
+  --bladevault-nav-active-fg: #c3b3ff;
+  --bladevault-action-active-bg: rgb(164 139 255 / 14%);
+  --bladevault-action-active-fg: #c3b3ff;
+  --bladevault-surface-soft: #1d1b23;
+  --bladevault-surface-hover: #25232c;
+  --background: #100f14;
+  --foreground: #f1eff5;
+  --card: #15141a;
+  --card-foreground: #f1eff5;
+  --popover: #19181f;
+  --popover-foreground: #f1eff5;
+  --primary: #a48bff;
+  --primary-hover: #b39dff;
+  --primary-foreground: #0c0b0f;
+  --secondary: #1d1b23;
+  --secondary-foreground: #f1eff5;
+  --muted: #1d1b23;
+  --muted-foreground: #8f8b99;
+  --accent: #24222b;
+  --accent-foreground: #f1eff5;
+  --destructive: #ff5c7a;
+  --border: rgb(255 255 255 / 8%);
+  --input: rgb(255 255 255 / 14%);
+  --ring: #a48bff;
+  --chart-1: #a48bff;
+  --chart-2: #3dd9c1;
+  --chart-3: #e9b867;
+  --chart-4: #f1eff5;
+  --chart-5: #5e5a69;
+  --bv-chart-1: #a48bff;
+  --bv-chart-2: #3dd9c1;
+  --bv-chart-3: #e9b867;
+  --bv-chart-4: #d9d5e2;
+  --bv-chart-5: #75707f;
+  --bv-chart-6: #47434f;
+  --bv-chart-track: rgb(255 255 255 / 7%);
+  --bv-chart-wash: rgb(164 139 255 / 14%);
+  --bv-chart-heat-1: #2a2540;
+  --bv-chart-heat-2: #4a3d86;
+  --bv-chart-heat-3: #7660d0;
+  --bv-chart-heat-4: #a48bff;
+  --sidebar: #100f14;
+  --sidebar-foreground: #f1eff5;
+  --sidebar-primary: #a48bff;
+  --sidebar-primary-foreground: #0c0b0f;
+  --sidebar-accent: #1d1b23;
+  --sidebar-accent-foreground: #f1eff5;
+  --sidebar-border: rgb(255 255 255 / 8%);
+  --sidebar-ring: #a48bff;
+}
+
+/* ------------------------------------------------------------------ */
+/* Field: tactical stone and acid lime                                 */
+/* ------------------------------------------------------------------ */
+html[data-theme-variant='field'] {
+  --vv-grad: linear-gradient(135deg, #c8f031, #8dba14);
+  --vv-btn: #12130f;
+  --vv-btn-fg: #c8f031;
+  --vv-soft: rgb(140 190 20 / 16%);
+  --vv-glow:
+    0 0 0 1px rgb(18 19 15 / 45%), 0 14px 34px -18px rgb(18 19 15 / 35%);
+  --vv-well-hi: #fcfcf8;
+  --vv-well: #eeede5;
+  --vv-well-edge: #dfded3;
+  --brand-blade-from: #e4ff6b;
+  --brand-blade-mid: #b5e021;
+  --brand-blade-to: #7fa80f;
+
+  --modern-canvas: #ecebe4;
+  --bladevault-olive: #12130f;
+  --bladevault-gold: #9bc41c;
+  --bladevault-line: #d9d8cd;
+  --bladevault-title: #4e6b00;
+  --bladevault-local: #4e6b00;
+  --bladevault-nav-active-bg: #12130f;
+  --bladevault-nav-active-fg: #c8f031;
+  --bladevault-action-active-bg: rgb(140 190 20 / 18%);
+  --bladevault-action-active-fg: #3f5700;
+  --bladevault-surface-soft: #f2f1ea;
+  --bladevault-surface-hover: #e7e6dd;
+  --background: #e6e5dd;
+  --foreground: #12130f;
+  --card: #fafaf6;
+  --card-foreground: #12130f;
+  --popover: #fafaf6;
+  --popover-foreground: #12130f;
+  --primary: #12130f;
+  --primary-hover: #262820;
+  --primary-foreground: #c8f031;
+  --secondary: #fafaf6;
+  --secondary-foreground: #12130f;
+  --muted: #e9e8e0;
+  --muted-foreground: #66675d;
+  --accent: #e1e0d6;
+  --accent-foreground: #12130f;
+  --destructive: #c8102e;
+  --border: #d9d8cd;
+  --input: #cbcabd;
+  --ring: #7fa80f;
+  --chart-1: #12130f;
+  --chart-2: #9bc41c;
+  --chart-3: #6e6f65;
+  --chart-4: #c8f031;
+  --chart-5: #c9c8bc;
+  --bv-chart-1: #12130f;
+  --bv-chart-2: #9bc41c;
+  --bv-chart-3: #6e6f65;
+  --bv-chart-4: #c8f031;
+  --bv-chart-5: #a3a497;
+  --bv-chart-6: #cfcec2;
+  --bv-chart-track: #e1e0d6;
+  --bv-chart-wash: rgb(140 190 20 / 18%);
+  --bv-chart-heat-1: #e3f3a8;
+  --bv-chart-heat-2: #c8f031;
+  --bv-chart-heat-3: #8dba14;
+  --bv-chart-heat-4: #4e6b00;
+  --sidebar: #f2f1ea;
+  --sidebar-foreground: #12130f;
+  --sidebar-primary: #12130f;
+  --sidebar-primary-foreground: #c8f031;
+  --sidebar-accent: #e6e5dd;
+  --sidebar-accent-foreground: #12130f;
+  --sidebar-border: #d9d8cd;
+  --sidebar-ring: #7fa80f;
+}
+
+html[data-theme-variant='field'].dark {
+  --vv-grad: linear-gradient(135deg, #e4ff6b, #c8f031 50%, #8dba14);
+  --vv-btn: #c8f031;
+  --vv-btn-fg: #12140a;
+  --vv-soft: rgb(200 240 49 / 11%);
+  --vv-glow:
+    0 0 0 1px rgb(200 240 49 / 42%), 0 14px 40px -16px rgb(200 240 49 / 26%);
+  --vv-well-hi: #efefe6;
+  --vv-well: #dcdcd0;
+  --vv-well-edge: #c9c9bb;
+  --brand-blade-from: #e4ff6b;
+  --brand-blade-mid: #c8f031;
+  --brand-blade-to: #8dba14;
+
+  --modern-canvas: #0f100d;
+  --bladevault-olive: #12140a;
+  --bladevault-gold: #c8f031;
+  --bladevault-line: rgb(255 255 255 / 9%);
+  --bladevault-title: #d4f55a;
+  --bladevault-local: #c8f031;
+  --bladevault-nav-active-bg: rgb(200 240 49 / 12%);
+  --bladevault-nav-active-fg: #d4f55a;
+  --bladevault-action-active-bg: rgb(200 240 49 / 12%);
+  --bladevault-action-active-fg: #d4f55a;
+  --bladevault-surface-soft: #1f201b;
+  --bladevault-surface-hover: #272822;
+  --background: #121310;
+  --foreground: #efefe6;
+  --card: #171814;
+  --card-foreground: #efefe6;
+  --popover: #1b1c18;
+  --popover-foreground: #efefe6;
+  --primary: #c8f031;
+  --primary-hover: #d4f55a;
+  --primary-foreground: #12140a;
+  --secondary: #1f201b;
+  --secondary-foreground: #efefe6;
+  --muted: #1f201b;
+  --muted-foreground: #8e8f84;
+  --accent: #262720;
+  --accent-foreground: #efefe6;
+  --destructive: #ff6b5c;
+  --border: rgb(255 255 255 / 8%);
+  --input: rgb(255 255 255 / 14%);
+  --ring: #c8f031;
+  --chart-1: #c8f031;
+  --chart-2: #efefe6;
+  --chart-3: #8e8f84;
+  --chart-4: #8dba14;
+  --chart-5: #4f5147;
+  --bv-chart-1: #c8f031;
+  --bv-chart-2: #e3e3d8;
+  --bv-chart-3: #8e8f84;
+  --bv-chart-4: #8dba14;
+  --bv-chart-5: #65675c;
+  --bv-chart-6: #42443b;
+  --bv-chart-track: rgb(255 255 255 / 7%);
+  --bv-chart-wash: rgb(200 240 49 / 12%);
+  --bv-chart-heat-1: #2c3418;
+  --bv-chart-heat-2: #556b16;
+  --bv-chart-heat-3: #8dba14;
+  --bv-chart-heat-4: #c8f031;
+  --sidebar: #121310;
+  --sidebar-foreground: #efefe6;
+  --sidebar-primary: #c8f031;
+  --sidebar-primary-foreground: #12140a;
+  --sidebar-accent: #1f201b;
+  --sidebar-accent-foreground: #efefe6;
+  --sidebar-border: rgb(255 255 255 / 8%);
+  --sidebar-ring: #c8f031;
+}
+
+/* Field uses Space Grotesk for titles. */
+html[data-theme-variant='field'] :is(.page-title, [data-workspace-brand] b) {
+  font-family: var(--font-field-display), var(--font-sans), sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared finishing for all three                                       */
+/* ------------------------------------------------------------------ */
+
+/* Shared Modern rules set a darker hairline on the workspace; keep it
+ * matched to each palette. */
+html[data-theme-variant] [data-modern-shell] {
+  --border: color-mix(in srgb, var(--foreground) 9%, transparent);
+}
+
+/* Insight panel labels exist for themes that style them (Forge). */
+[data-insight-eyebrow] {
+  display: none;
+}
+
+/* Logo: the folding-knife mark replaces the image logo, without the blue tile. */
+[data-brand-mark] {
+  display: none;
+}
+
+html[data-theme-variant] :is([data-workspace-logo], [data-sidebar-logo]) {
+  background: none;
+  box-shadow: none;
+  color: var(--foreground);
+}
+
+html[data-theme-variant] :is([data-logo-light], [data-logo-dark]),
+html[data-theme-variant] [data-workspace-logo] img {
+  display: none !important;
+}
+
+html[data-theme-variant] [data-brand-mark] {
+  display: block;
+}
+
+html[data-theme-variant] [data-workspace-logo] [data-brand-mark] {
+  width: 24px;
+  height: 24px;
+}
+
+html[data-theme-variant] .relative > [data-brand-mark] {
+  position: absolute;
+  inset: 3px;
+  width: calc(100% - 6px);
+  height: calc(100% - 6px);
+  color: var(--foreground);
+}
+
+/* Primary actions use the accent gradient. */
+html[data-theme-variant] :is([data-slot='button'], a).bg-primary,
+html[data-theme-variant] [data-workspace-actions] > [data-workspace-add] {
+  border-color: transparent;
+  background: var(--vv-btn);
+  color: var(--vv-btn-fg);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 22%),
+    0 8px 20px -12px var(--primary);
+}
+
+html[data-theme-variant] :is([data-slot='button'], a).bg-primary:hover,
+html[data-theme-variant] [data-workspace-actions] > [data-workspace-add]:hover {
+  background: var(--vv-btn);
+  filter: brightness(1.07);
+}
+
+/* Sidebar: tinted active row with a gradient edge bar. */
+html[data-theme-variant] [data-sidebar] a[aria-current='page'] {
+  position: relative;
+  background: var(--vv-soft);
+  color: var(--foreground);
+}
+
+html[data-theme-variant] [data-sidebar] a[aria-current='page'] > svg {
+  color: var(--bladevault-title);
+}
+
+html[data-theme-variant] [data-sidebar] a[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  left: -6px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--vv-grad);
+}
+
+/* Doubled attribute matches the strength of Modern's dark-mode rule. */
+html[data-theme-variant][data-theme-variant]
+  [data-sidebar]
+  a[aria-current='page']
+  [data-sidebar-count] {
+  background: transparent;
+  color: var(--bladevault-title);
+}
+
+html[data-theme-variant] [data-sidebar-count] {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-weight: 500;
+}
+
+/* Tables: selected row matches the active nav tint. */
+html[data-theme-variant]
+  [data-modern-collection-table]
+  tr[aria-current='true'] {
+  background: var(--vv-soft);
+  box-shadow: inset 2px 0 0 var(--primary);
+}
+
+/* Photo areas: a softly lit plate. */
+html[data-theme-variant]
+  :is(
+    [data-collection-grid] [data-card-image],
+    [data-inspector-image],
+    [data-modern-object-stage],
+    [data-modern-compare] [data-compare-image]
+  ) {
+  background: radial-gradient(
+    120% 90% at 50% 0%,
+    var(--vv-well-hi),
+    var(--vv-well) 58%,
+    var(--vv-well-edge)
+  );
+}
+
+html[data-theme-variant] [data-studio] {
+  --studio-highlight: var(--vv-well-hi);
+  --studio-stage: var(--vv-well);
+  --studio-stage-edge: var(--vv-well-edge);
+  --studio-stage-ink: #5b5850;
+}
+
+/* Cards lift and glow on hover instead of turning grey. */
+html[data-theme-variant]
+  [data-collection-grid]
+  [data-knife-card]
+  > [data-slot='card'] {
+  border-color: var(--border);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 4%),
+    0 16px 32px -26px rgb(0 0 0 / 55%);
+}
+
+html[data-theme-variant]
+  [data-collection-grid]
+  [data-knife-card]:hover
+  > [data-slot='card'],
+html[data-theme-variant] [data-modern-object-card]:hover,
+html[data-theme-variant] [data-modern-object-card][aria-pressed='true'] {
+  border-color: transparent;
+  box-shadow: var(--vv-glow);
+}
+
+html[data-theme-variant]
+  [data-collection-grid]
+  [data-knife-card]:hover
+  > [data-slot='card'] {
+  transform: translateY(-2px);
+}
+
+/* Specs and numbers read as data: mono with tabular figures. */
+html[data-theme-variant] [data-collection-grid] dt {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+html[data-theme-variant] [data-collection-grid] dd,
+html[data-theme-variant] [data-inspector-specs] dd,
+html[data-theme-variant] [data-modern-collection-table] td {
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-theme-variant] [data-collection-grid] dd {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-variant]
+    [data-collection-grid]
+    [data-knife-card]:hover
+    > [data-slot='card'] {
+    transform: none;
+  }
+}

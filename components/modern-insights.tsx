@@ -37,12 +37,15 @@ const COLORS = [
 ]
 
 function Panel({
+  eyebrow,
   title,
   description,
   action,
   children,
   className,
 }: {
+  /** Small section label; shown only by themes that style it (Forge). */
+  eyebrow?: string
   title: string
   description: string
   action?: ReactNode
@@ -54,6 +57,7 @@ function Panel({
     <section aria-labelledby={id} className={cn(styles.panel, className)}>
       <div className={styles.panelHeader}>
         <div>
+          {eyebrow && <span data-insight-eyebrow>{eyebrow}</span>}
           <h2 id={id}>{title}</h2>
           <p>{description}</p>
         </div>
@@ -388,6 +392,7 @@ export function ModernInsights() {
           </div>
           <div className={styles.grid}>
             <Panel
+              eyebrow="Library"
               title="Collection additions"
               description="A month-by-month view of your catalogue."
               className={styles.growth}
@@ -482,6 +487,7 @@ export function ModernInsights() {
             </Panel>
 
             <Panel
+              eyebrow="Health"
               title="Catalogue coverage"
               description="A little detail makes a better catalogue."
               className={styles.coverage}
@@ -544,6 +550,7 @@ export function ModernInsights() {
             </Panel>
 
             <Panel
+              eyebrow="Brands"
               title="Maker mix"
               description={`${makers.length} makers across your catalogue.`}
               className={styles.makers}
@@ -588,6 +595,7 @@ export function ModernInsights() {
             </Panel>
 
             <Panel
+              eyebrow="Dimensions"
               title="Measurement distribution"
               description="See the sizes and weights you collect most."
               className={styles.carry}
@@ -741,6 +749,7 @@ export function ModernInsights() {
             </Panel>
 
             <Panel
+              eyebrow="Materials"
               title="Steel mix"
               description="The materials behind your collection."
               className={styles.steels}
@@ -799,6 +808,7 @@ export function ModernInsights() {
             </Panel>
 
             <Panel
+              eyebrow="Latest"
               title="Recent additions"
               description="The latest knives in your catalogue."
               className={styles.recent}

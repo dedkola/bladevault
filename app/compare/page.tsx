@@ -1,5 +1,6 @@
 'use client'
 
+import { isModernThemeFamily } from '@/lib/settings-shared'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import { useSearchParams } from 'next/navigation'
 import { MoreHorizontal, Plus, Pencil } from 'lucide-react'
@@ -301,7 +302,7 @@ export default function ComparePage() {
     themeStyle,
     dimensionUnit,
   } = useKnives()
-  const isModern = themeStyle === 'modern' || themeStyle === 'alloy'
+  const isModern = isModernThemeFamily(themeStyle) || themeStyle === 'alloy'
   const [hoveredCell, setHoveredCell] = useState<{
     knifeId: string
     rowKey: CompareRowKey

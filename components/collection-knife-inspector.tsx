@@ -1,5 +1,6 @@
 'use client'
 
+import { isModernThemeFamily } from '@/lib/settings-shared'
 import { ModernCollectionInspector } from '@/components/modern-collection-inspector'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 
@@ -76,7 +77,7 @@ export function CollectionKnifeInspector({
   useEffect(() => {
     if (
       imageCount <= knife.images.length &&
-      themeStyle !== 'modern' &&
+      !isModernThemeFamily(themeStyle) &&
       themeStyle !== 'alloy'
     )
       return
@@ -135,7 +136,7 @@ export function CollectionKnifeInspector({
     }
   }
 
-  if (themeStyle === 'modern' || themeStyle === 'alloy')
+  if (isModernThemeFamily(themeStyle) || themeStyle === 'alloy')
     return (
       <ModernCollectionInspector
         dimensionUnit={dimensionUnit}

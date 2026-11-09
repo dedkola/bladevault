@@ -7,6 +7,7 @@ import { ThemeColorSync } from '@/components/theme-color-sync'
 afterEach(() => {
   document.documentElement.classList.remove('dark')
   delete document.documentElement.dataset.themeStyle
+  delete document.documentElement.dataset.themeVariant
   document.querySelector('meta[name="theme-color"]')?.remove()
 })
 
@@ -27,6 +28,28 @@ it('updates browser chrome when the theme style or color mode changes', async ()
   ] as const) {
     await act(async () => {
       document.documentElement.dataset.themeStyle = style
+      document.documentElement.classList.toggle('dark', dark)
+    })
+    await waitFor(() => expect(meta.content).toBe(color))
+  }
+
+  unmount()
+})
+
+it('uses the variant color for Modern-based styles', async () => {
+  const meta = document.createElement('meta')
+  meta.name = 'theme-color'
+  document.head.append(meta)
+  const { unmount } = render(<ThemeColorSync />)
+
+  for (const [variant, dark, color] of [
+    ['forge', true, '#0a0a0b'],
+    ['titanium', false, '#f4f3f6'],
+    ['field', true, '#0f100d'],
+  ] as const) {
+    await act(async () => {
+      document.documentElement.dataset.themeStyle = 'modern'
+      document.documentElement.dataset.themeVariant = variant
       document.documentElement.classList.toggle('dark', dark)
     })
     await waitFor(() => expect(meta.content).toBe(color))

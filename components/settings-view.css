@@ -443,3 +443,69 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Forge, Titanium and Field previews. */
+.theme-style-swatch.is-forge {
+  background: #141416;
+}
+
+.theme-style-swatch.is-forge .theme-style-swatch-rail {
+  background: #0e0e10;
+  border-right: 1px solid rgb(255 255 255 / 8%);
+}
+
+.theme-style-swatch.is-forge .theme-style-swatch-title {
+  background: linear-gradient(135deg, #ffb067, #ff6a2b 50%, #e2361c);
+}
+
+.theme-style-swatch.is-forge .theme-style-swatch-line {
+  background: #55534e;
+}
+
+.theme-style-swatch.is-forge .theme-style-swatch-card {
+  border: 1px solid rgb(255 255 255 / 10%);
+  background: #e6e3dd;
+}
+
+.theme-style-swatch.is-titanium {
+  background: #15141a;
+}
+
+.theme-style-swatch.is-titanium .theme-style-swatch-rail {
+  background: #100f14;
+  border-right: 1px solid rgb(255 255 255 / 8%);
+}
+
+.theme-style-swatch.is-titanium .theme-style-swatch-title {
+  background: linear-gradient(120deg, #8b6cff, #3dd9c1 50%, #e9b867);
+}
+
+.theme-style-swatch.is-titanium .theme-style-swatch-line {
+  background: #5e5a69;
+}
+
+.theme-style-swatch.is-titanium .theme-style-swatch-card {
+  border: 1px solid rgb(255 255 255 / 10%);
+  background: #e4e1ea;
+}
+
+.theme-style-swatch.is-field {
+  background: #ecebe4;
+}
+
+.theme-style-swatch.is-field .theme-style-swatch-rail {
+  background: #12130f;
+}
+
+.theme-style-swatch.is-field .theme-style-swatch-title {
+  background: #c8f031;
+}
+
+.theme-style-swatch.is-field .theme-style-swatch-line {
+  background: #9a9b90;
+}
+
+.theme-style-swatch.is-field .theme-style-swatch-card {
+  border: 1px solid rgb(18 19 15 / 14%);
+  background: #fafaf6;
+}

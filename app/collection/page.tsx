@@ -1,5 +1,6 @@
 'use client'
 
+import { ForgeCollectionGrid } from '@/components/forge-collection'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 
 import {
@@ -53,6 +54,8 @@ import { getKnifeFamilyKey, groupKnifeFamilies } from '@/lib/knife-families'
 import {
   type CollectionDisplay,
   type CustomFieldType,
+  getModernThemeVariant,
+  isModernThemeFamily,
 } from '@/lib/settings-shared'
 import {
   getCollectionColumns,
@@ -150,9 +153,12 @@ function CollectionContent() {
     collectionDisplay,
     updateCollectionDisplay,
     dimensionUnit,
+    isLoading,
   } = useKnives()
   const isAlloy = themeStyle === 'alloy'
-  const isWorkspaceCollection = themeStyle === 'modern' || isAlloy
+  const isWorkspaceCollection = isModernThemeFamily(themeStyle) || isAlloy
+  // Forge, Titanium and Field share the Forge cards and summary.
+  const isForge = Boolean(getModernThemeVariant(themeStyle))
   const alloyView = useSyncExternalStore(
     subscribeAlloyView,
     readAlloyView,
@@ -929,7 +935,7 @@ function CollectionContent() {
         (isAlloy && Boolean(activeKnife) && !isSelectionMode) || undefined
       }
     >
-      {isAlloy && <h1 className="sr-only">Collection</h1>}
+      {(isAlloy || isForge) && <h1 className="sr-only">Collection</h1>}
       {!isWorkspaceCollection && (
         <PageHeader
           title="Your collection."
@@ -1379,7 +1385,8 @@ function CollectionContent() {
           </div>
         </div>
 
-        {filteredKnives.length === 0 ? (
+        {filteredKnives.length === 0 &&
+        isLoading ? null : filteredKnives.length === 0 ? (
           <EmptyState
             title={
               hasActiveFilters
@@ -1467,6 +1474,15 @@ function CollectionContent() {
                   />
                 ))}
               </div>
+            ) : isForge && !isFamilyView && !isSelectionMode ? (
+              <ForgeCollectionGrid
+                density={cardDensity}
+                dimensionUnit={dimensionUnit}
+                knives={filteredKnives.slice(0, visibleCount)}
+                activeKnifeId={activeKnife?.id}
+                onOpen={inspectKnife}
+                onOpenDetail={(knife) => router.push(`/collection/${knife.id}`)}
+              />
             ) : isWorkspaceCollection && !isFamilyView && !isSelectionMode ? (
               <ModernCollectionGallery
                 density={cardDensity}
