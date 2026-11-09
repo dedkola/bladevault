@@ -96,9 +96,9 @@ function Thumb({ knife, size }: { knife: Knife; size: number }) {
 }
 
 /**
- * Forge's take on the Classic activity heatmap: the totals double as the
- * filter, hovering a day shows its breakdown, and picking a day or a month
- * lists what changed underneath instead of opening a dialog.
+ * The newer styles' take on the Classic activity heatmap: the totals double
+ * as the filter, hovering a day shows its breakdown, and picking a day or a
+ * month lists what changed underneath instead of opening a dialog.
  */
 export function ForgeActivityMap({
   stats,

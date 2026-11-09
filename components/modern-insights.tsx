@@ -240,8 +240,8 @@ export function ModernInsights() {
   const [measurementKey, setMeasurementKey] =
     useState<MeasurementKey>('bladeLength')
   const [selectedBinLabel, setSelectedBinLabel] = useState<string>()
-  // The activity map is a Forge-only trial; other styles skip the request.
-  const showActivity = themeStyle === 'forge'
+  // Every style that renders this page (all but Classic) shows the activity map.
+  const showActivity = themeStyle !== 'classic'
   const [activity, setActivity] = useState<KnifeActivityEvent[]>()
   const stats = useMemo(
     () =>
@@ -418,6 +418,19 @@ export function ModernInsights() {
             />
           </div>
           <div className={styles.grid}>
+            {showActivity && (
+              <Panel
+                eyebrow="Activity"
+                title="Collection activity"
+                description="Additions, edits and maintenance over the last 52 weeks."
+                action={
+                  <DetailLink href="/insights/activity">Details</DetailLink>
+                }
+              >
+                <ForgeActivityMap stats={stats} knivesById={knivesById} />
+              </Panel>
+            )}
+
             <Panel
               eyebrow="Library"
               title="Collection additions"
@@ -880,19 +893,6 @@ export function ModernInsights() {
                 <DetailLink href="/insights/recent">All additions</DetailLink>
               </div>
             </Panel>
-
-            {showActivity && (
-              <Panel
-                eyebrow="Activity"
-                title="Collection activity"
-                description="Additions, edits and maintenance over the last 52 weeks."
-                action={
-                  <DetailLink href="/insights/activity">Details</DetailLink>
-                }
-              >
-                <ForgeActivityMap stats={stats} knivesById={knivesById} />
-              </Panel>
-            )}
           </div>
         </>
       )}

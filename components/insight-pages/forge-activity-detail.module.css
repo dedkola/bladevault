@@ -1,4 +1,5 @@
-/* Forge activity detail page. Uses the --forge-* tokens from app/forge.css. */
+/* Activity detail page for every style except Classic. Uses the --forge-*
+ * tokens from app/forge.css, with fallbacks for Modern and Alloy. */
 .root {
   --act-accent: var(--forge-accent, var(--primary));
   --act-glow: var(--forge-glow, transparent);

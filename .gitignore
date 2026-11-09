@@ -42,5 +42,6 @@ data/images/*/
 /static-app/tsconfig.tsbuildinfo
 /.wrangler/
 
-# Local Claude Code config
-.claude/
+# Local Claude Code config; the shared run-server config is tracked
+.claude/*
+!.claude/launch.json
