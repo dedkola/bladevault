@@ -7,7 +7,7 @@ export const THEME_STYLES = [
   'titanium',
   'field',
   'lumen',
-  'amber',
+  'espresso',
 ] as const
 /**
  * Forge, Titanium and Field reuse the Modern workspace layout and only change
@@ -19,7 +19,7 @@ export const MODERN_THEME_VARIANTS = [
   'titanium',
   'field',
   'lumen',
-  'amber',
+  'espresso',
 ] as const
 /** Display names for each style, shown in Settings and under the app logo. */
 export const THEME_STYLE_NAMES: Record<(typeof THEME_STYLES)[number], string> =
@@ -31,10 +31,10 @@ export const THEME_STYLE_NAMES: Record<(typeof THEME_STYLES)[number], string> =
     titanium: 'Titanium',
     field: 'Field',
     lumen: 'Lumen',
-    amber: 'Amber',
+    espresso: 'Espresso',
   }
 /** Styles that always render light and ignore the dark color mode. */
-export const LIGHT_ONLY_THEME_STYLES = ['lumen', 'amber'] as const
+export const LIGHT_ONLY_THEME_STYLES = ['lumen', 'espresso'] as const
 export const START_PAGES = ['insights', 'studio', 'collection'] as const
 export type StartPage = (typeof START_PAGES)[number]
 
@@ -264,6 +264,8 @@ export function normalizeThemeStyle(
   value: unknown,
   fallback: ThemeStyle = DEFAULT_SETTINGS.themeStyle,
 ): ThemeStyle {
+  // Espresso was called Amber before it was redesigned.
+  if (value === 'amber') return 'espresso'
   return typeof value === 'string' && THEME_STYLES.includes(value as ThemeStyle)
     ? (value as ThemeStyle)
     : fallback
@@ -298,7 +300,7 @@ export const THEME_COLORS: Record<ThemeStyle, { light: string; dark: string }> =
     titanium: { light: '#f4f3f6', dark: '#0c0b0f' },
     field: { light: '#ecebe4', dark: '#0f100d' },
     lumen: { light: '#ffffff', dark: '#ffffff' },
-    amber: { light: '#ffffff', dark: '#ffffff' },
+    espresso: { light: '#f8f2e7', dark: '#f8f2e7' },
   }
 
 export function isLightOnlyThemeStyle(themeStyle: ThemeStyle): boolean {

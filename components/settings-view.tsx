@@ -175,7 +175,10 @@ const themeStyleLabels: Record<ThemeStyle, { name: string; note: string }> = {
   titanium: { name: 'Titanium', note: 'New · anodized gradient' },
   field: { name: 'Field', note: 'New · stone & acid lime' },
   lumen: { name: 'Lumen', note: 'New · white & orange, light only' },
-  amber: { name: 'Amber', note: 'New · GitHub light & amber, light only' },
+  espresso: {
+    name: 'Espresso',
+    note: 'New · Cream and dark roast, light only',
+  },
 }
 
 const subscribeToBrowserOrigin = () => () => {}
@@ -356,7 +359,7 @@ function applyThemePreference(
   theme: AppSettings['theme'],
   themeStyle: AppSettings['themeStyle'],
 ) {
-  // Forge, Titanium, Field, Lumen and Amber are variants of the Modern layout, so the
+  // Forge, Titanium, Field, Lumen and Espresso are variants of the Modern layout, so the
   // root needs `data-theme-style="modern"` plus a variant, not the raw style
   // name. The mode goes second so light-only styles can drop `dark`.
   applyThemeStyleToElement(document.documentElement, themeStyle)
@@ -1951,7 +1954,7 @@ export default function SettingsView() {
                   >
                     <SettingsRow
                       label="Theme"
-                      description="Classic is the default warm BladeVault look. Modern offers cool graphite. Alloy pairs black and gold. Forge, Titanium, Field, Lumen and Amber use the Modern layout with new colors and a new logo. Lumen and Amber are always light."
+                      description="Classic is the default warm BladeVault look. Modern offers cool graphite. Alloy pairs black and gold. Forge, Titanium, Field, Lumen and Espresso use the Modern layout with new colors and a new logo. Lumen and Espresso are always light."
                       className="settings-theme-row"
                     >
                       <div
