@@ -1942,26 +1942,28 @@ html[data-theme-variant] input[data-slot='input']:hover:not(:focus) {
   border-color: color-mix(in srgb, var(--forge-accent) 40%, transparent);
 }
 
-/* One row shape in the sidebar: square rows with sharp corners. The
- * tripled attribute outranks the older per-section radius rules. */
+/* One row shape in the sidebar: fully rounded, like the pill buttons in
+ * the Collection toolbar. The tripled attribute outranks the older
+ * per-section radius rules. */
 html[data-theme-variant][data-theme-variant][data-theme-variant]
   [data-sidebar]
   :is(a, [data-comparison-navigation]) {
-  border-radius: 0;
+  border-radius: 999px;
 }
 
-/* Pinned rows: square thumbnail aligned with the row edge. */
+/* Pinned rows: the thumbnail is a small rounded plate, inset far enough
+ * that it clears the curve at the row's left end. */
 html[data-theme-variant][data-theme-variant][data-theme-variant]
   [data-workspace-body]
   [data-sidebar-pinned-item] {
-  padding: 5px 10px 5px 6px;
+  padding: 5px 12px 5px 8px;
 }
 
 html[data-theme-variant] [data-sidebar-pinned-thumb] {
   width: 40px;
   height: 30px;
   border: 0;
-  border-radius: 0;
+  border-radius: 8px;
 }
 
 /* Sliding highlight: one lit pill moves to the selected option instead of
@@ -2135,7 +2137,7 @@ html[data-theme-variant] [data-compare-pill]:has(button:hover) {
  * holds the lit ember line instead of a filled peach block, and hover is
  * the lighter version of that line. */
 html[data-theme-variant][data-theme-variant] [data-settings-rail] > button {
-  border-radius: 0;
+  border-radius: 999px;
   background: transparent;
   box-shadow: none;
   color: var(--forge-ink-2);
