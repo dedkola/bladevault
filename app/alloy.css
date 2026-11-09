@@ -578,7 +578,7 @@ html[data-theme-style='alloy'] [data-collection-view-toggle] button {
 html[data-theme-style='alloy']
   [data-modern-collection-tools]
   > [data-collection-view-toggle]
-  button[aria-pressed='true'] {
+  button:is([aria-pressed='true'], [data-active]) {
   background: var(--foreground);
   color: var(--background);
 }

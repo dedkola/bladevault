@@ -6,6 +6,20 @@ const CHECK_NAME = 'Workers Builds: bladevault'
 const SOURCE = 'cloudflare-workers-builds'
 const DASHBOARD_PATH =
   '/73026fc18aa364a3cc60305b6c6fb75c/workers/services/view/bladevault/production/'
+// Workers Previews are served at <preview-name>-<worker>.<account subdomain>.
+const PREVIEW_HOST_SUFFIX = '-bladevault.maiden-tech.workers.dev'
+const PRODUCTION_URL = 'https://bladevault.tkweb.dev'
+
+// Workers Builds does not include the public preview URL in its check output,
+// but its dashboard link names the Preview. Fall back to the build log when the
+// name cannot form a valid hostname label.
+function previewUrl(name) {
+  const label = `${name}${PREVIEW_HOST_SUFFIX.split('.')[0]}`
+  if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label) || label.length > 63) {
+    return null
+  }
+  return `https://${name}${PREVIEW_HOST_SUFFIX}`
+}
 
 function isCloudflareCheck(run) {
   return (
@@ -41,9 +55,10 @@ function buildDetails(run, suite, repository) {
   const url = new URL(run.details_url)
   const production = suite.head_branch === 'main'
   const suffix = url.pathname.slice(DASHBOARD_PATH.length)
+  const previewMatch = /^previews\/([^/]+)\/builds\/([^/]+)$/.exec(suffix)
   const expectedPath = production
     ? suffix === `builds/${run.external_id}`
-    : /^previews\/[^/]+\/builds\/([^/]+)$/.exec(suffix)?.[1] === run.external_id
+    : previewMatch?.[2] === run.external_id
   if (
     url.origin !== 'https://dash.cloudflare.com' ||
     url.username ||
@@ -60,8 +75,11 @@ function buildDetails(run, suite, repository) {
     environment: production ? 'Production' : 'Preview',
     production,
     branch: suite.head_branch,
-    // Workers Builds does not include the public preview URL in its check output.
-    environmentUrl: production ? 'https://bladevault.tkweb.dev' : url.href,
+    // A failed Preview build may have no live site yet; link its log instead.
+    environmentUrl: production
+      ? PRODUCTION_URL
+      : (run.conclusion === 'success' && previewUrl(previewMatch[1])) ||
+        url.href,
     logUrl: url.href,
   }
 }

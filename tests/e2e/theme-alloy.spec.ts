@@ -65,7 +65,10 @@ test('switches gallery and table while pinning and comparing the selected knife'
     data: { action: 'create', name: 'Alloy carry', ids: [] },
   })
   await page.goto('/collection')
-  await page.getByRole('button', { name: 'Gallery view', exact: true }).click()
+  // Alloy opens in gallery view with large cards.
+  await expect(
+    page.getByRole('button', { name: 'Switch to compact view', exact: true }),
+  ).toBeVisible()
   await expect(page.locator('[data-alloy-collection-grid]')).toBeVisible()
   await page
     .getByRole('button', { name: 'Inspect Alpha Alloy Folder', exact: true })

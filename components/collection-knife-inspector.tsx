@@ -13,9 +13,9 @@ import {
   ImageIcon,
   Pencil,
   Pin,
-  Scale,
   X,
 } from 'lucide-react'
+import { CompareIcon } from '@/components/icons/compare-icon'
 import { useEffect, useState, type RefObject } from 'react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -356,7 +356,7 @@ export function CollectionKnifeInspector({
                 Boolean(comparisonsError)
               }
             >
-              <Scale className="size-3.5" />
+              <CompareIcon className="size-3.5" />
               {comparisonLists.length > 1
                 ? inCompare
                   ? `In ${comparisonCount} ${comparisonCount === 1 ? 'list' : 'lists'}`

@@ -1,7 +1,8 @@
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import Image from '@/components/vault-image'
 import { memo, useCallback, useState } from 'react'
-import { Check, ImageIcon, Pin, Scale, Tag } from 'lucide-react'
+import { Check, ImageIcon, Pin, Tag } from 'lucide-react'
+import { CompareIcon } from '@/components/icons/compare-icon'
 import { getImageUrl, getKnifeImageCount, Knife } from '@/lib/data'
 import { cn } from '@/lib/utils'
 import { ImageCountBadge } from '@/components/image-count-badge'
@@ -267,7 +268,7 @@ export const KnifeCard = memo(function KnifeCard({
                 : `${inCompare ? 'Remove' : 'Add'} ${knife.brand} ${knife.name} ${inCompare ? 'from' : 'to'} compare`
             }
           >
-            <Scale className="size-3" />
+            <CompareIcon className="size-3" />
             {inCompare
               ? `In ${comparisonCount} ${comparisonCount === 1 ? 'list' : 'lists'}`
               : 'Compare'}

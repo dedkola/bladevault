@@ -225,6 +225,48 @@ function CollectionContent() {
     }
     window.dispatchEvent(new Event(ALLOY_VIEW_EVENT))
   }
+  // Modern/Alloy match Classic: one card-size button (gallery ↔ compact)
+  // plus a separate List button.
+  const isWorkspaceGrid = modernView === 'grid'
+  const workspaceSizeLabel =
+    isWorkspaceGrid && cardDensity === 'gallery'
+      ? 'Switch to compact view'
+      : 'Switch to gallery view'
+  const workspaceViewButtons = (
+    <>
+      <Button
+        type="button"
+        size="icon-xs"
+        variant={isWorkspaceGrid ? 'secondary' : 'ghost'}
+        data-active={isWorkspaceGrid || undefined}
+        aria-label={workspaceSizeLabel}
+        title={workspaceSizeLabel}
+        onClick={() => {
+          if (!isWorkspaceGrid) setModernView('grid')
+          else
+            saveDisplay({
+              density: cardDensity === 'gallery' ? 'compact' : 'gallery',
+            })
+        }}
+      >
+        {cardDensity === 'compact' ? (
+          <Grid3X3 className="size-3.5" />
+        ) : (
+          <LayoutGrid className="size-3.5" />
+        )}
+      </Button>
+      <Button
+        type="button"
+        size="icon-xs"
+        variant={isWorkspaceGrid ? 'ghost' : 'secondary'}
+        aria-label="List view"
+        aria-pressed={!isWorkspaceGrid}
+        onClick={() => setModernView('list')}
+      >
+        <List className="size-3.5" />
+      </Button>
+    </>
+  )
   // Picking a dropdown sort replaces any table header sort.
   const setSortOrder = (sort: CollectionSort) =>
     saveDisplay({ sort, columnSort: null })
@@ -1015,24 +1057,7 @@ function CollectionContent() {
               role="group"
               aria-label="Collection view"
             >
-              <Button
-                size="icon-xs"
-                variant={modernView === 'list' ? 'secondary' : 'ghost'}
-                aria-label="List view"
-                aria-pressed={modernView === 'list'}
-                onClick={() => setModernView('list')}
-              >
-                <List className="size-3.5" />
-              </Button>
-              <Button
-                size="icon-xs"
-                variant={modernView === 'grid' ? 'secondary' : 'ghost'}
-                aria-label="Gallery view"
-                aria-pressed={modernView === 'grid'}
-                onClick={() => setModernView('grid')}
-              >
-                <LayoutGrid className="size-3.5" />
-              </Button>
+              {workspaceViewButtons}
             </div>
             <Button
               variant="outline"
@@ -1206,26 +1231,7 @@ function CollectionContent() {
                   role="group"
                   aria-label="Collection view"
                 >
-                  <Button
-                    type="button"
-                    variant={modernView === 'list' ? 'secondary' : 'ghost'}
-                    size="icon-xs"
-                    onClick={() => setModernView('list')}
-                    aria-pressed={modernView === 'list'}
-                    aria-label="List view"
-                  >
-                    <List className="size-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={modernView === 'grid' ? 'secondary' : 'ghost'}
-                    size="icon-xs"
-                    onClick={() => setModernView('grid')}
-                    aria-pressed={modernView === 'grid'}
-                    aria-label="Gallery view"
-                  >
-                    <LayoutGrid className="size-3.5" />
-                  </Button>
+                  {workspaceViewButtons}
                 </div>
               ) : (
                 <div
@@ -1233,25 +1239,30 @@ function CollectionContent() {
                   role="group"
                   aria-label="Card density"
                 >
+                  {/* One button cycles card size: large gallery ↔ small compact. */}
                   <Button
                     type="button"
-                    variant={density === 'gallery' ? 'secondary' : 'ghost'}
+                    variant={density === 'table' ? 'ghost' : 'secondary'}
                     size="icon-xs"
-                    onClick={() => setDensity('gallery')}
-                    aria-pressed={density === 'gallery'}
-                    aria-label="Gallery view"
+                    onClick={() =>
+                      setDensity(density === 'gallery' ? 'compact' : 'gallery')
+                    }
+                    aria-label={
+                      density === 'gallery'
+                        ? 'Switch to compact view'
+                        : 'Switch to gallery view'
+                    }
+                    title={
+                      density === 'gallery'
+                        ? 'Switch to compact view'
+                        : 'Switch to gallery view'
+                    }
                   >
-                    <LayoutGrid className="size-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={density === 'compact' ? 'secondary' : 'ghost'}
-                    size="icon-xs"
-                    onClick={() => setDensity('compact')}
-                    aria-pressed={density === 'compact'}
-                    aria-label="Compact view"
-                  >
-                    <Grid3X3 className="size-3.5" />
+                    {density === 'compact' ? (
+                      <Grid3X3 className="size-3.5" />
+                    ) : (
+                      <LayoutGrid className="size-3.5" />
+                    )}
                   </Button>
                   <Button
                     type="button"
@@ -1452,7 +1463,11 @@ function CollectionContent() {
                 onSort={cycleColumnSort}
               />
             ) : isAlloy && !isFamilyView ? (
-              <div data-alloy-collection-grid data-collection-grid>
+              <div
+                data-alloy-collection-grid
+                data-collection-grid
+                data-density={cardDensity}
+              >
                 {filteredKnives.slice(0, visibleCount).map((knife, index) => (
                   <AlloyCollectionCard
                     key={knife.id}
@@ -1479,6 +1494,7 @@ function CollectionContent() {
               />
             ) : isWorkspaceCollection && !isFamilyView && !isSelectionMode ? (
               <ModernCollectionGallery
+                density={cardDensity}
                 dimensionUnit={dimensionUnit}
                 knives={filteredKnives.slice(0, visibleCount)}
                 activeKnifeId={activeKnife?.id}

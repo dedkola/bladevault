@@ -17,10 +17,10 @@ import {
   Pencil,
   Pin,
   Plus,
-  Scale,
   Search,
   X,
 } from 'lucide-react'
+import { CompareIcon } from '@/components/icons/compare-icon'
 import Image from '@/components/vault-image'
 import { useKnives } from '@/components/providers/knives-provider'
 import { PageHeader } from '@/components/page-header'
@@ -321,7 +321,7 @@ export function StudioView() {
                   title={comparisonsError || 'Choose a comparison'}
                   onClick={() => void compare(knife)}
                 >
-                  <Scale aria-hidden="true" />
+                  <CompareIcon aria-hidden="true" />
                 </button>
               </div>
               {knife.sold && <span className={styles.sold}>Sold</span>}
@@ -503,21 +503,25 @@ export function StudioView() {
               role="group"
               aria-label="Tile size"
             >
+              {/* One button cycles tile size: regular ↔ large. */}
               <button
                 type="button"
-                aria-label="Regular size"
-                aria-pressed={size === 'regular'}
-                onClick={() => setSize('regular')}
+                data-active
+                aria-label={
+                  size === 'regular'
+                    ? 'Switch to large size'
+                    : 'Switch to regular size'
+                }
+                title={
+                  size === 'regular'
+                    ? 'Switch to large size'
+                    : 'Switch to regular size'
+                }
+                onClick={() =>
+                  setSize(size === 'regular' ? 'large' : 'regular')
+                }
               >
-                <Grid2X2 />
-              </button>
-              <button
-                type="button"
-                aria-label="Large size"
-                aria-pressed={size === 'large'}
-                onClick={() => setSize('large')}
-              >
-                <LayoutDashboard />
+                {size === 'regular' ? <Grid2X2 /> : <LayoutDashboard />}
               </button>
             </div>
           </div>
@@ -717,7 +721,7 @@ export function StudioView() {
                     title={comparisonsError || 'Update comparison membership'}
                     onClick={() => void compare(selectedKnife)}
                   >
-                    <Scale />
+                    <CompareIcon />
                     Compare
                   </Button>
                 </div>

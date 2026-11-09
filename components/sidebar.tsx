@@ -12,7 +12,6 @@ import {
   LayoutDashboard,
   Library,
   GalleryVertical,
-  Scale,
   PlusCircle,
   Settings,
   Sun,
@@ -24,9 +23,10 @@ import {
   Loader2,
   Menu,
   Pin,
-  ScrollText,
+  History,
   X,
 } from 'lucide-react'
+import { CompareIcon } from '@/components/icons/compare-icon'
 import { cn } from '@/lib/utils'
 import { getImageUrl } from '@/lib/data'
 import { getKnifeFamilyKey, groupKnifeFamilies } from '@/lib/knife-families'
@@ -59,8 +59,8 @@ const links = [
   { href: '/insights', label: 'Insights', icon: LayoutDashboard },
   { href: '/collection', label: 'Collection', icon: Library },
   { href: '/studio', label: 'Studio', icon: GalleryVertical },
-  { href: '/compare', label: 'Compare', icon: Scale },
-  { href: '/logs', label: 'Logs', icon: ScrollText },
+  { href: '/compare', label: 'Compare', icon: CompareIcon },
+  { href: '/logs', label: 'Logs', icon: History },
 ]
 
 export function Sidebar() {
