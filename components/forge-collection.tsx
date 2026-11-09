@@ -1,7 +1,8 @@
 'use client'
 
 import { memo, useCallback, useState } from 'react'
-import { ImageIcon, Pin, Scale } from 'lucide-react'
+import { ImageIcon, Pin } from 'lucide-react'
+import { CompareIcon } from '@/components/icons/compare-icon'
 import Image from '@/components/vault-image'
 import { SoldBadge } from '@/components/sold-badge'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -206,7 +207,7 @@ const ForgeCollectionCard = memo(function ForgeCollectionCard({
             : `${inCompare ? 'Remove' : 'Add'} ${label} ${inCompare ? 'from' : 'to'} compare`
         }
       >
-        <Scale aria-hidden="true" />
+        <CompareIcon aria-hidden="true" />
         {inCompare
           ? `In ${comparisonCount} ${comparisonCount === 1 ? 'list' : 'lists'}`
           : 'Compare'}
