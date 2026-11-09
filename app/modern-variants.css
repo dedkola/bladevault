@@ -1,5 +1,5 @@
 /*
- * Forge, Titanium, Field and Lumen: looks built on the Modern layout.
+ * Forge, Titanium, Field, Lumen and Amber: looks built on the Modern layout.
  *
  * The root keeps `data-theme-style="modern"`, so every Modern layout rule
  * still applies. `data-theme-variant` adds the palette, the folding-knife logo and a
@@ -536,6 +536,81 @@ html[data-theme-variant='lumen'] {
   --sidebar-accent-foreground: #18181b;
   --sidebar-border: #ebebeb;
   --sidebar-ring: #f6821f;
+}
+
+/* ------------------------------------------------------------------ */
+/* Amber: GitHub's light surfaces with amber accents (light only)       */
+/* White canvas and sidebar, Primer greys and hairlines.              */
+/* ------------------------------------------------------------------ */
+html[data-theme-variant='amber'] {
+  --vv-grad: linear-gradient(135deg, #fcd34d, #f59e0b 55%, #d97706);
+  --vv-btn: #f59e0b;
+  --vv-btn-fg: #1f2328;
+  --vv-soft: rgb(245 158 11 / 12%);
+  --vv-glow: none;
+  --vv-well-hi: #ffffff;
+  --vv-well: #ffffff;
+  --vv-well-edge: #ffffff;
+  --brand-blade-from: #fcd34d;
+  --brand-blade-mid: #f59e0b;
+  --brand-blade-to: #d97706;
+
+  --modern-canvas: #ffffff;
+  --bladevault-olive: #1f2328;
+  --bladevault-gold: #f59e0b;
+  --bladevault-line: #d1d9e0;
+  --bladevault-title: #9a6700;
+  --bladevault-local: #1a7f37;
+  --bladevault-nav-active-bg: rgb(129 139 152 / 15%);
+  --bladevault-nav-active-fg: #1f2328;
+  --bladevault-action-active-bg: rgb(129 139 152 / 15%);
+  --bladevault-action-active-fg: #1f2328;
+  --bladevault-surface-soft: #f6f8fa;
+  --bladevault-surface-hover: #eff2f5;
+  --background: #ffffff;
+  --foreground: #1f2328;
+  --card: #ffffff;
+  --card-foreground: #1f2328;
+  --popover: #ffffff;
+  --popover-foreground: #1f2328;
+  --primary: #f59e0b;
+  --primary-hover: #e08e06;
+  --primary-foreground: #1f2328;
+  --secondary: #f6f8fa;
+  --secondary-foreground: #1f2328;
+  --muted: #f6f8fa;
+  --muted-foreground: #59636e;
+  --accent: #eff2f5;
+  --accent-foreground: #1f2328;
+  --destructive: #d1242f;
+  --border: #d1d9e0;
+  --input: #d1d9e0;
+  --ring: #f59e0b;
+  --chart-1: #f59e0b;
+  --chart-2: #1f2328;
+  --chart-3: #818b98;
+  --chart-4: #fcd34d;
+  --chart-5: #d1d9e0;
+  --bv-chart-1: #f59e0b;
+  --bv-chart-2: #424a53;
+  --bv-chart-3: #818b98;
+  --bv-chart-4: #fcd34d;
+  --bv-chart-5: #c4ccd5;
+  --bv-chart-6: #e6eaef;
+  --bv-chart-track: #eff2f5;
+  --bv-chart-wash: rgb(245 158 11 / 12%);
+  --bv-chart-heat-1: #fff8c5;
+  --bv-chart-heat-2: #fde68a;
+  --bv-chart-heat-3: #fbbf24;
+  --bv-chart-heat-4: #d97706;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1f2328;
+  --sidebar-primary: #f59e0b;
+  --sidebar-primary-foreground: #1f2328;
+  --sidebar-accent: rgb(129 139 152 / 15%);
+  --sidebar-accent-foreground: #1f2328;
+  --sidebar-border: #d1d9e0;
+  --sidebar-ring: #f59e0b;
 }
 
 html[data-theme-variant='field'] :is(.page-title, [data-workspace-brand] b) {
