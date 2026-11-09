@@ -576,6 +576,20 @@ export function ModernInsights() {
               </div>
             </Panel>
 
+            {showActivity && (
+              <Panel
+                eyebrow="Activity"
+                className={styles.activity}
+                title="Collection activity"
+                description="Additions, edits and maintenance over the last 52 weeks."
+                action={
+                  <DetailLink href="/insights/activity">Details</DetailLink>
+                }
+              >
+                <ForgeActivityMap stats={stats} knivesById={knivesById} />
+              </Panel>
+            )}
+
             <Panel
               eyebrow="Brands"
               title="Maker mix"
@@ -880,19 +894,6 @@ export function ModernInsights() {
                 <DetailLink href="/insights/recent">All additions</DetailLink>
               </div>
             </Panel>
-
-            {showActivity && (
-              <Panel
-                eyebrow="Activity"
-                title="Collection activity"
-                description="Additions, edits and maintenance over the last 52 weeks."
-                action={
-                  <DetailLink href="/insights/activity">Details</DetailLink>
-                }
-              >
-                <ForgeActivityMap stats={stats} knivesById={knivesById} />
-              </Panel>
-            )}
           </div>
         </>
       )}
