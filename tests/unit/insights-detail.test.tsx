@@ -29,6 +29,7 @@ const mockKnives = vi.hoisted(() => ({
   current: [] as Knife[],
   isLoading: false,
   dimensionUnit: 'in' as 'in' | 'mm' | 'both',
+  themeStyle: 'classic' as string,
 }))
 
 vi.mock('@/components/providers/knives-provider', () => ({
@@ -36,6 +37,7 @@ vi.mock('@/components/providers/knives-provider', () => ({
     knives: mockKnives.current,
     isLoading: mockKnives.isLoading,
     dimensionUnit: mockKnives.dimensionUnit,
+    themeStyle: mockKnives.themeStyle,
   }),
   KnivesProvider: ({ children }: { children: React.ReactNode }) => children,
 }))
@@ -433,6 +435,10 @@ describe('CompletenessDetail', () => {
 })
 
 describe('ActivityDetail', () => {
+  afterEach(() => {
+    mockKnives.themeStyle = 'classic'
+  })
+
   it('renders the heatmap and active-day lists', () => {
     setKnives([createKnife({ id: 'a', addedAt: new Date().toISOString() })])
     render(<ActivityDetail />)
@@ -441,6 +447,17 @@ describe('ActivityDetail', () => {
     expect(
       screen.getByRole('region', { name: 'Active days' }),
     ).toHaveTextContent('1 knife added')
+  })
+
+  it('renders the calendar map outside the Classic style', () => {
+    mockKnives.themeStyle = 'modern'
+    setKnives([createKnife({ id: 'a', addedAt: new Date().toISOString() })])
+    render(<ActivityDetail />)
+
+    expect(screen.queryByText('Last 52 weeks')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('group', { name: 'Activity type' }),
+    ).toBeInTheDocument()
   })
 })
 
