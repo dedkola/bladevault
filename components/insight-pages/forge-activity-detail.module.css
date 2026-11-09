@@ -1,0 +1,396 @@
+/* Forge activity detail page. Uses the --forge-* tokens from app/forge.css. */
+.root {
+  --act-accent: var(--forge-accent, var(--primary));
+  --act-glow: var(--forge-glow, transparent);
+  --act-line: var(--id-line, var(--border));
+  --act-mono: var(--forge-mono, ui-monospace, monospace);
+  --act-added: var(--act-accent);
+  --act-edited: var(--forge-ink-2, var(--foreground));
+  --act-maintained: var(--bv-chart-4, var(--muted-foreground));
+  container-type: inline-size;
+  display: grid;
+  gap: 20px;
+}
+
+/* Type colours shared by stacks, legend and knife badges. */
+.root [data-kind='added'] {
+  --kind: var(--act-added);
+}
+.root [data-kind='edited'] {
+  --kind: var(--act-edited);
+}
+.root [data-kind='maintained'] {
+  --kind: var(--act-maintained);
+}
+.root [data-kind] > i {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--kind);
+}
+
+/* ---- Summary facts -------------------------------------------------- */
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  border: 1px solid var(--act-line);
+  border-radius: var(--forge-radius, 14px);
+  background: var(--card);
+  overflow: hidden;
+}
+.fact {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 16px 18px;
+  border-top: 1px solid var(--act-line);
+}
+.fact:nth-child(-n + 2) {
+  border-top: 0;
+}
+.fact:nth-child(even) {
+  border-left: 1px solid var(--act-line);
+}
+.fact dt {
+  color: var(--muted-foreground);
+  font-family: var(--act-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.fact dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0;
+}
+.fact strong {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.fact span {
+  color: var(--muted-foreground);
+  font-size: var(--modern-font-caption, 11.5px);
+}
+
+/* ---- Rows of panels ------------------------------------------------- */
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  align-items: stretch;
+}
+.row > * {
+  min-width: 0;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-bottom: 14px;
+  color: var(--muted-foreground);
+  font-size: var(--modern-font-caption, 11.5px);
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* Monthly stacked columns. */
+.columns {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 6px;
+  height: 200px;
+}
+.column {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 6px;
+  justify-items: center;
+  min-width: 0;
+  padding: 0;
+  border-radius: 8px;
+}
+.column strong {
+  min-height: 14px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.column small {
+  color: var(--muted-foreground);
+  font-family: var(--act-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+}
+.columnStack {
+  display: flex;
+  flex-direction: column-reverse;
+  width: min(100%, 26px);
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--bv-chart-track, var(--muted));
+}
+.columnStack > span[data-kind] {
+  min-height: 3px;
+  background: var(--kind);
+}
+.column:not(:disabled):hover .columnStack {
+  box-shadow:
+    0 0 0 1.5px var(--act-accent),
+    0 0 12px -2px var(--act-glow);
+}
+.column:not(:disabled) {
+  cursor: pointer;
+}
+.column:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* Weekday horizontal stacks. */
+.rows {
+  display: grid;
+  gap: 8px;
+}
+.weekdayRow {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 4px;
+  border-radius: 8px;
+  text-align: left;
+}
+.weekdayRow:not(:disabled):hover {
+  background: var(--bladevault-surface-hover, var(--muted));
+}
+.weekdayRow:disabled {
+  opacity: 0.55;
+}
+.weekdayName {
+  color: var(--muted-foreground);
+  font-family: var(--act-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.weekdayRow strong {
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.rowStack {
+  display: flex;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bv-chart-track, var(--muted));
+}
+.rowStack > span[data-kind] {
+  min-width: 3px;
+  background: var(--kind);
+}
+
+/* Most active knives. */
+.knives {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.knife {
+  display: grid;
+  grid-template-columns: 22px 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px 5px 4px;
+  border-radius: 12px;
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.2s ease;
+}
+.knife:hover {
+  background: var(--bladevault-surface-soft, var(--muted));
+  box-shadow: inset 0 0 0 1px var(--act-line);
+}
+.knife:focus-visible {
+  outline: 2px solid var(--forge-ring, var(--ring));
+  outline-offset: 2px;
+}
+.rank {
+  color: var(--muted-foreground);
+  font-family: var(--act-mono);
+  font-size: 10.5px;
+  text-align: right;
+}
+.thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border-radius: 9px;
+  background: linear-gradient(
+    160deg,
+    var(--vv-well-hi, #f6f3ee),
+    var(--vv-well, #ebe7e0)
+  );
+  color: var(--muted-foreground);
+}
+.thumb img {
+  padding: 3px;
+}
+.knifeText {
+  display: grid;
+  min-width: 0;
+  line-height: 1.3;
+}
+.knifeText strong,
+.knifeText span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.knifeText strong {
+  font-size: var(--modern-font-secondary, 12.5px);
+  font-weight: 600;
+}
+.knifeText span {
+  color: var(--muted-foreground);
+  font-size: var(--modern-font-caption, 11.5px);
+}
+.knifeKinds {
+  display: inline-flex;
+  gap: 10px;
+}
+.knifeKinds span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Time of day. */
+.hours {
+  display: grid;
+  gap: 8px;
+}
+.hourBars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 150px;
+  padding-bottom: 1px;
+  border-bottom: 1px solid var(--act-line);
+}
+.hourBars span {
+  flex: 1 1 0;
+  min-width: 0;
+  border-radius: 4px 4px 1px 1px;
+  background: color-mix(in srgb, var(--act-accent) 40%, transparent);
+}
+.hourBars span[data-peak] {
+  background: var(--act-accent);
+  box-shadow: 0 0 12px -2px var(--act-glow);
+}
+.hourAxis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  color: var(--muted-foreground);
+  font-family: var(--act-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+}
+.dayParts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0 0;
+}
+.dayParts div {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bladevault-surface-soft, var(--muted));
+}
+.dayParts dt {
+  color: var(--muted-foreground);
+  font-family: var(--act-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.dayParts dd {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.empty {
+  color: var(--muted-foreground);
+  font-size: var(--modern-font-caption, 11.5px);
+}
+
+.column:focus-visible,
+.weekdayRow:focus-visible {
+  outline: 2px solid var(--forge-ring, var(--ring));
+  outline-offset: 2px;
+}
+
+@container (min-width: 720px) {
+  .facts {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .fact {
+    border-top: 0;
+  }
+  .fact:nth-child(even) {
+    border-left: 0;
+  }
+  .fact + .fact {
+    border-left: 1px solid var(--act-line);
+  }
+}
+
+@container (min-width: 900px) {
+  .row {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+  .wide {
+    grid-column: span 8;
+  }
+  .narrow {
+    grid-column: span 4;
+  }
+  .half {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 520px) {
+  .columns {
+    height: 170px;
+    gap: 3px;
+  }
+  .dayParts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

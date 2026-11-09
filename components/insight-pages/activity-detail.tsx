@@ -9,6 +9,7 @@ import {
   formatActivityDayLabel,
 } from '@/components/collection-insights'
 import { useKnives } from '@/components/providers/knives-provider'
+import { ForgeActivityDetail } from '@/components/insight-pages/forge-activity-detail'
 import {
   InsightMetrics,
   InsightPanel,
@@ -20,7 +21,7 @@ import { createCollectionStats } from '@/lib/collection-stats'
 import { type KnifeActivityEvent } from '@/lib/data'
 
 export function ActivityDetail() {
-  const { knives } = useKnives(),
+  const { knives, themeStyle } = useKnives(),
     [recordedActivity, setRecordedActivity] = useState<KnifeActivityEvent[]>(),
     [failed, setFailed] = useState(false),
     [now] = useState(() => new Date()),
@@ -75,111 +76,126 @@ export function ActivityDetail() {
       month: 'short',
       year: 'numeric',
     })
+  const failedNotice = failed && (
+    <p role="status" className="mb-4 text-sm text-muted-foreground">
+      Recorded activity unavailable. Showing additions from collection records.
+      Reload to try again.
+    </p>
+  )
   return (
     <div className="id-activity">
-      <InsightMetrics
-        items={[
-          {
-            value: stats.additionsInActivityRange,
-            label: 'Additions',
-            helper: 'Knives added in the last 52 weeks',
-          },
-          {
-            value: stats.editsInActivityRange,
-            label: 'Edited knives',
-            helper: 'Daily unique edited records, summed',
-          },
-          {
-            value: stats.maintainedKnivesInActivityRange,
-            label: 'Maintained knives',
-            helper: 'Daily unique maintained records, summed',
-          },
-        ]}
-      />
-      {failed && (
-        <p role="status" className="mb-4 text-sm text-muted-foreground">
-          Recorded activity unavailable. Showing additions from collection
-          records. Reload to try again.
-        </p>
+      {themeStyle === 'forge' ? (
+        <>
+          {failedNotice}
+          <ForgeActivityDetail
+            stats={stats}
+            events={events}
+            knivesById={byId}
+            onSelect={setSelection}
+          />
+        </>
+      ) : (
+        <>
+          <InsightMetrics
+            items={[
+              {
+                value: stats.additionsInActivityRange,
+                label: 'Additions',
+                helper: 'Knives added in the last 52 weeks',
+              },
+              {
+                value: stats.editsInActivityRange,
+                label: 'Edited knives',
+                helper: 'Daily unique edited records, summed',
+              },
+              {
+                value: stats.maintainedKnivesInActivityRange,
+                label: 'Maintained knives',
+                helper: 'Daily unique maintained records, summed',
+              },
+            ]}
+          />
+          {failedNotice}
+          <InsightPanel
+            title="Activity calendar"
+            description={`${stats.activeDays} active days · last 52 weeks`}
+            footer={
+              <>
+                <span>Last 52 weeks</span>
+                <span className="id-legend">
+                  Less{' '}
+                  {colors.map((color) => (
+                    <i key={color} style={{ background: color }} />
+                  ))}{' '}
+                  More
+                </span>
+              </>
+            }
+          >
+            <div
+              className="id-heatmap-wrap"
+              role="region"
+              aria-label="Activity calendar; scroll to see all weeks"
+              tabIndex={0}
+            >
+              <div className="id-heatmap-inner">
+                <div className="id-months" aria-hidden="true">
+                  {Array.from({ length: 52 }, (_, index) => {
+                    const day = stats.activity[index * 7],
+                      previous = stats.activity[(index - 1) * 7]
+                    return (
+                      <span key={day.dateKey}>
+                        {!previous ||
+                        day.date.getMonth() !== previous.date.getMonth()
+                          ? day.date.toLocaleDateString(undefined, {
+                              month: 'short',
+                            })
+                          : ''}
+                      </span>
+                    )
+                  })}
+                </div>
+                <div className="id-heatmap">
+                  {stats.activity.map((day) => (
+                    <button
+                      key={day.dateKey}
+                      type="button"
+                      className="id-day"
+                      aria-label={formatActivityDayLabel(
+                        day.date,
+                        day.addedCount,
+                        day.editedCount,
+                        day.maintainedCount,
+                      )}
+                      title={formatActivityDayLabel(
+                        day.date,
+                        day.addedCount,
+                        day.editedCount,
+                        day.maintainedCount,
+                      )}
+                      style={{
+                        background:
+                          colors[
+                            day.count
+                              ? Math.max(1, Math.ceil((day.count / max) * 4))
+                              : 0
+                          ],
+                      }}
+                      onClick={() => {
+                        if (day.count)
+                          setSelection({
+                            title: `${date(day.date)} · activity`,
+                            knifeIds: day.knifeIds,
+                          })
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </InsightPanel>
+        </>
       )}
-      <InsightPanel
-        title="Activity calendar"
-        description={`${stats.activeDays} active days · last 52 weeks`}
-        footer={
-          <>
-            <span>Last 52 weeks</span>
-            <span className="id-legend">
-              Less{' '}
-              {colors.map((color) => (
-                <i key={color} style={{ background: color }} />
-              ))}{' '}
-              More
-            </span>
-          </>
-        }
-      >
-        <div
-          className="id-heatmap-wrap"
-          role="region"
-          aria-label="Activity calendar; scroll to see all weeks"
-          tabIndex={0}
-        >
-          <div className="id-heatmap-inner">
-            <div className="id-months" aria-hidden="true">
-              {Array.from({ length: 52 }, (_, index) => {
-                const day = stats.activity[index * 7],
-                  previous = stats.activity[(index - 1) * 7]
-                return (
-                  <span key={day.dateKey}>
-                    {!previous ||
-                    day.date.getMonth() !== previous.date.getMonth()
-                      ? day.date.toLocaleDateString(undefined, {
-                          month: 'short',
-                        })
-                      : ''}
-                  </span>
-                )
-              })}
-            </div>
-            <div className="id-heatmap">
-              {stats.activity.map((day) => (
-                <button
-                  key={day.dateKey}
-                  type="button"
-                  className="id-day"
-                  aria-label={formatActivityDayLabel(
-                    day.date,
-                    day.addedCount,
-                    day.editedCount,
-                    day.maintainedCount,
-                  )}
-                  title={formatActivityDayLabel(
-                    day.date,
-                    day.addedCount,
-                    day.editedCount,
-                    day.maintainedCount,
-                  )}
-                  style={{
-                    background:
-                      colors[
-                        day.count
-                          ? Math.max(1, Math.ceil((day.count / max) * 4))
-                          : 0
-                      ],
-                  }}
-                  onClick={() => {
-                    if (day.count)
-                      setSelection({
-                        title: `${date(day.date)} · activity`,
-                        knifeIds: day.knifeIds,
-                      })
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </InsightPanel>
       <div className="id-grid id-two id-bottom">
         <InsightPanel
           title="Active days"

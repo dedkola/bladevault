@@ -177,6 +177,59 @@ export function ForgeActivityMap({
   const visibleMonths = monthInfo.slice(visibleStart, visibleEnd + 1)
   const visibleKeys = new Set(visibleMonths.map((item) => item.key))
 
+  const firstPage = Math.max(0, Math.min(perPage, months.length) - 1)
+  /** Show the calendars ending at the given month index. */
+  function pageTo(end: number) {
+    setPageEnd(Math.min(lastPage, Math.max(firstPage, end)))
+  }
+  // Week index where each month's calendar starts, for the scrubber labels.
+  const monthStarts = monthInfo.map((info) => {
+    const index = days.findIndex((day) => monthKeyOf(day.date) === info.key)
+    return { ...info, week: Math.floor(Math.max(0, index) / 7) }
+  })
+  const windowStart = monthStarts[visibleStart]?.week ?? 0
+  const windowEnd = monthStarts[visibleEnd + 1]?.week ?? 52
+  const scrubRef = useRef<HTMLDivElement>(null)
+  const wheelRef = useRef(0)
+  const swipeRef = useRef<number>(undefined)
+  // Latest paging state for the native wheel listener below.
+  const pagingRef = useRef({ visibleEnd, pageTo })
+  useEffect(() => {
+    pagingRef.current = { visibleEnd, pageTo }
+  })
+
+  /** Centre the calendars on the month under a point of the scrubber. */
+  function scrubTo(clientX: number) {
+    const box = scrubRef.current?.getBoundingClientRect()
+    if (!box) return
+    const week = Math.min(
+      51,
+      Math.max(0, Math.floor(((clientX - box.left) / box.width) * 52)),
+    )
+    const middle = weeks[week]?.[3] ?? weeks[week]?.[0]
+    if (!middle) return
+    const index = months.indexOf(monthKeyOf(middle.date))
+    pageTo(index + Math.floor((perPage - 1) / 2))
+  }
+
+  // Sideways trackpad scrolling pages months. It needs a non-passive
+  // listener so the browser's back-swipe gesture does not fire instead.
+  useEffect(() => {
+    const node = wrapRef.current
+    if (!node) return
+    const onWheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return
+      event.preventDefault()
+      wheelRef.current += event.deltaX
+      if (Math.abs(wheelRef.current) < 60) return
+      const { visibleEnd: end, pageTo: go } = pagingRef.current
+      go(end + Math.sign(wheelRef.current))
+      wheelRef.current = 0
+    }
+    node.addEventListener('wheel', onWheel, { passive: false })
+    return () => node.removeEventListener('wheel', onWheel)
+  }, [])
+
   /** Page the calendars so the given month is on screen. */
   function revealMonth(key: string) {
     const index = months.indexOf(key)
@@ -397,9 +450,7 @@ export function ForgeActivityMap({
         <div className={styles.calendarNav}>
           <button
             type="button"
-            onClick={() =>
-              setPageEnd(Math.max(0, visibleStart - 1) + perPage - 1)
-            }
+            onClick={() => pageTo(visibleEnd - 1)}
             disabled={visibleStart === 0}
             aria-label="Earlier months"
           >
@@ -407,7 +458,7 @@ export function ForgeActivityMap({
           </button>
           <button
             type="button"
-            onClick={() => setPageEnd(Math.min(lastPage, visibleEnd + 1))}
+            onClick={() => pageTo(visibleEnd + 1)}
             disabled={visibleEnd >= lastPage}
             aria-label="Later months"
           >
@@ -426,6 +477,18 @@ export function ForgeActivityMap({
             if (event.pointerType === 'mouse') showHover(event.target)
           }}
           onPointerLeave={() => setHover(undefined)}
+          onPointerDown={(event) => {
+            if (event.pointerType === 'touch') swipeRef.current = event.clientX
+          }}
+          onPointerUp={(event) => {
+            const start = swipeRef.current
+            swipeRef.current = undefined
+            if (start === undefined) return
+            const distance = event.clientX - start
+            // Swipe left for later months, right for earlier ones.
+            if (Math.abs(distance) > 48)
+              pageTo(visibleEnd - Math.sign(distance))
+          }}
           onFocus={(event) => {
             if (event.target.matches(':focus-visible')) {
               showHover(event.target)
@@ -525,23 +588,98 @@ export function ForgeActivityMap({
             )
           })}
         </div>
-        <div className={styles.weekBars} aria-hidden="true">
-          {weekTotals.map((total, index) => (
-            <span
-              key={index}
-              data-active={hoverWeekIndex === index || undefined}
-              data-visible={
-                weeks[index]?.some((day) =>
-                  visibleKeys.has(monthKeyOf(day.date)),
-                ) || undefined
-              }
+        <div
+          ref={scrubRef}
+          className={styles.scrubber}
+          role="slider"
+          tabIndex={0}
+          aria-label="Months shown. Drag or use arrow keys to move through the year."
+          aria-valuemin={firstPage}
+          aria-valuemax={lastPage}
+          aria-valuenow={visibleEnd}
+          aria-valuetext={visibleMonths
+            .map((info) =>
+              new Date(info.year, info.month, 1).toLocaleDateString(undefined, {
+                month: 'long',
+                year: 'numeric',
+              }),
+            )
+            .join(' to ')}
+          onPointerDown={(event) => {
+            event.currentTarget.setPointerCapture(event.pointerId)
+            scrubTo(event.clientX)
+          }}
+          onPointerMove={(event) => {
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+              scrubTo(event.clientX)
+            }
+          }}
+          onKeyDown={(event) => {
+            const moves: Record<string, number> = {
+              ArrowLeft: visibleEnd - 1,
+              ArrowRight: visibleEnd + 1,
+              PageUp: visibleEnd - perPage,
+              PageDown: visibleEnd + perPage,
+              Home: firstPage,
+              End: lastPage,
+            }
+            const next = moves[event.key]
+            if (next === undefined) return
+            event.preventDefault()
+            pageTo(next)
+          }}
+        >
+          <div className={styles.weekBars} aria-hidden="true">
+            {weekTotals.map((total, index) => (
+              <span
+                key={index}
+                data-active={hoverWeekIndex === index || undefined}
+                data-visible={
+                  weeks[index]?.some((day) =>
+                    visibleKeys.has(monthKeyOf(day.date)),
+                  ) || undefined
+                }
+                style={{
+                  height: total
+                    ? `${Math.max(10, (Math.sqrt(total) / maxWeek) * 100)}%`
+                    : 0,
+                }}
+              />
+            ))}
+            <i
+              className={styles.scrubWindow}
               style={{
-                height: total
-                  ? `${Math.max(10, (Math.sqrt(total) / maxWeek) * 100)}%`
-                  : 0,
+                left: `${(windowStart / 52) * 100}%`,
+                width: `${((windowEnd - windowStart) / 52) * 100}%`,
               }}
             />
-          ))}
+          </div>
+          <div className={styles.scrubMonths} aria-hidden="true">
+            {monthStarts.map((info, index) => (
+              <span
+                key={info.key}
+                // A partial leading month would collide with the next label.
+                hidden={(monthStarts[index + 1]?.week ?? 99) - info.week < 2}
+                data-visible={
+                  (index >= visibleStart && index <= visibleEnd) || undefined
+                }
+                style={{ left: `${(info.week / 52) * 100}%` }}
+              >
+                <span className={styles.scrubShort}>
+                  {new Date(info.year, info.month, 1).toLocaleDateString(
+                    undefined,
+                    { month: 'short' },
+                  )}
+                </span>
+                <span className={styles.scrubNarrow}>
+                  {new Date(info.year, info.month, 1).toLocaleDateString(
+                    undefined,
+                    { month: 'narrow' },
+                  )}
+                </span>
+              </span>
+            ))}
+          </div>
         </div>
 
         {hoverDay && hover && (

@@ -153,6 +153,7 @@
 }
 .calendars {
   display: grid;
+  touch-action: pan-y;
   gap: 28px;
 }
 .calendar {
@@ -278,14 +279,68 @@ button.day:focus-visible {
   outline-offset: 2px;
 }
 
-/* Weekly totals under the map. */
+/* Weekly totals under the calendars, doubling as a month scrubber. */
+.scrubber {
+  container-type: inline-size;
+  display: grid;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--act-line);
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+}
+.scrubber:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid var(--forge-ring, var(--ring));
+  outline-offset: 4px;
+}
 .weekBars {
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: var(--act-gap);
-  height: 26px;
-  padding-top: 2px;
-  border-top: 1px dashed var(--act-line);
+  height: 30px;
+}
+.scrubWindow {
+  position: absolute;
+  inset-block: -4px;
+  border: 1px solid var(--act-accent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--act-accent) 7%, transparent);
+  box-shadow: 0 0 14px -4px var(--act-glow);
+  pointer-events: none;
+  transition:
+    left 0.25s ease,
+    width 0.25s ease;
+}
+.scrubMonths {
+  position: relative;
+  height: 13px;
+  color: var(--muted-foreground);
+  font-family: var(--act-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+}
+.scrubMonths > span {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+.scrubMonths > span[data-visible] {
+  color: var(--foreground);
+}
+.scrubNarrow {
+  display: none;
+}
+@container (max-width: 460px) {
+  .scrubShort {
+    display: none;
+  }
+  .scrubNarrow {
+    display: inline;
+  }
 }
 .weekBars span {
   flex: 1 1 0;
@@ -664,6 +719,9 @@ button.day:focus-visible {
   }
   .hoverCard {
     animation: none;
+  }
+  .scrubWindow {
+    transition: none;
   }
   .knife:hover {
     transform: none;
