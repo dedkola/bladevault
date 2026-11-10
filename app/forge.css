@@ -722,9 +722,12 @@ html[data-theme-variant] [data-forge-card] h2[title] {
   white-space: nowrap;
 }
 
+/* Steel and blade share the first row; the lock gets the full second row so
+   long mechanism names do not collapse to an ellipsis on narrow cards. */
 html[data-theme-variant] dl[data-forge-specs] {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.3fr);
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0;
   margin: 0;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -738,6 +741,16 @@ html[data-theme-variant] [data-forge-specs] > div {
 }
 
 html[data-theme-variant] [data-forge-specs] > div:last-child {
+  border-right: 0;
+}
+
+html[data-theme-variant] [data-forge-specs] > div:nth-child(2) {
+  border-right: 0;
+}
+
+html[data-theme-variant] [data-forge-specs] > div:nth-child(3) {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--border);
   border-right: 0;
 }
 
