@@ -7,7 +7,7 @@ import Image from '@/components/vault-image'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import { useKnives } from '@/components/providers/knives-provider'
-import { formatDimension, formatWeight } from '@/lib/measurements'
+import { getVisibleCardFields } from '@/lib/card-fields'
 import { getImageUrl, type Knife } from '@/lib/data'
 import { useCollectionItemNavigation } from '@/hooks/use-collection-item-navigation'
 import './alloy-collection.css'
@@ -32,16 +32,24 @@ export const AlloyCollectionCard = memo(function AlloyCollectionCard({
   onSelect: (id: string) => void
 }) {
   const navigation = useCollectionItemNavigation(onOpen, onOpenDetail)
-  const { updateKnife, showFeedback, dimensionUnit } = useKnives()
+  const {
+    updateKnife,
+    showFeedback,
+    dimensionUnit,
+    cardFields,
+    customFieldDefinitions,
+  } = useKnives()
   const { choose, membershipCount, loading, busy, error } = useComparisons()
   const [pinBusy, setPinBusy] = useState(false)
   const [compareBusy, setCompareBusy] = useState(false)
   const inCompare = membershipCount(knife.id) > 0
-  const metadata = [
-    knife.specs.bladeMaterial,
-    formatDimension(knife.specs.bladeLength, dimensionUnit),
-    formatWeight(knife.specs.weight, dimensionUnit),
-  ].filter(Boolean)
+  const fields = getVisibleCardFields(
+    knife,
+    cardFields,
+    customFieldDefinitions,
+    dimensionUnit,
+  )
+  const metadata = fields.map((field) => field.value)
 
   async function togglePin() {
     setPinBusy(true)
@@ -142,7 +150,16 @@ export const AlloyCollectionCard = memo(function AlloyCollectionCard({
         <div>
           <p data-alloy-card-brand>{knife.brand}</p>
           <h2>{knife.name}</h2>
-          <p data-alloy-card-meta>
+          <p
+            data-alloy-card-meta
+            title={
+              fields.length
+                ? fields
+                    .map((field) => `${field.label}: ${field.value}`)
+                    .join(' · ')
+                : undefined
+            }
+          >
             {metadata.length
               ? metadata.join(' · ')
               : 'Specifications not recorded'}

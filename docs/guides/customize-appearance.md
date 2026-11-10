@@ -26,7 +26,7 @@ Open **Collection** and use the two card-density buttons next to the sort contro
 
 - **Gallery view** gives each card more space for the image and selected details.
   ![The collection in Gallery view](../images/customize-appearance-gallery.png)
-- **Compact view** fits more cards on screen. It shows up to two selected detail rows on larger screens and hides those rows on phones.
+- **Compact view** fits more cards on screen. Every selected detail stays visible in Modern, Alloy, and the other non-Classic themes. Classic shows up to two selected detail rows on larger screens and hides those rows on phones.
   ![The same collection in Compact view, fitting more cards](../images/customize-appearance-compact.png)
 
 Changing density does not change the saved specifications or your card-field selection. A variant summary may appear in place of the selected detail rows when you browse variants within a model family. Open the knife to see its full record.

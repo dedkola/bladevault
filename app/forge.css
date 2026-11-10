@@ -546,7 +546,7 @@ html[data-theme-variant] [data-forge-grid] {
   padding-top: 4px;
 }
 
-/* Compact: smaller cards, more per row; name and maker only. */
+/* Compact: smaller cards, more per row; selected fields stay visible. */
 html[data-theme-variant] [data-forge-grid][data-density='compact'] {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr));
   gap: 12px;
@@ -568,8 +568,39 @@ html[data-theme-variant]
 
 html[data-theme-variant]
   [data-forge-grid][data-density='compact']
-  :is([data-forge-specs], [data-forge-card-foot] > span) {
+  [data-forge-card-foot]
+  > span {
   display: none;
+}
+
+html[data-theme-variant]
+  [data-forge-grid][data-density='compact']
+  [data-forge-specs] {
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 8px;
+}
+
+html[data-theme-variant]
+  [data-forge-grid][data-density='compact']
+  [data-forge-specs]
+  > div {
+  padding: 6px 8px;
+  border-right: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+html[data-theme-variant]
+  [data-forge-grid][data-density='compact']
+  [data-forge-specs]
+  > div:nth-last-child(2):nth-child(odd) {
+  border-bottom: 1px solid var(--border);
+}
+
+html[data-theme-variant]
+  [data-forge-grid][data-density='compact']
+  [data-forge-specs]
+  > div:last-child {
+  border-bottom: 0;
 }
 
 html[data-theme-variant]
@@ -722,11 +753,11 @@ html[data-theme-variant] [data-forge-card] h2[title] {
   white-space: nowrap;
 }
 
-/* Steel and blade share the first row; the lock gets the full second row so
-   long mechanism names do not collapse to an ellipsis on narrow cards. */
+/* Two selected fields per row; long values wrap instead of collapsing to an
+   ellipsis on narrow cards. */
 html[data-theme-variant] dl[data-forge-specs] {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0;
   margin: 0;
   overflow: hidden;
@@ -738,19 +769,25 @@ html[data-theme-variant] [data-forge-specs] > div {
   min-width: 0;
   padding: 7px 8px;
   border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+html[data-theme-variant] [data-forge-specs] > div:nth-child(2n) {
+  border-right: 0;
 }
 
 html[data-theme-variant] [data-forge-specs] > div:last-child {
-  border-right: 0;
+  border-bottom: 0;
 }
 
-html[data-theme-variant] [data-forge-specs] > div:nth-child(2) {
-  border-right: 0;
+html[data-theme-variant]
+  [data-forge-specs]
+  > div:nth-last-child(2):nth-child(odd) {
+  border-bottom: 0;
 }
 
-html[data-theme-variant] [data-forge-specs] > div:nth-child(3) {
+html[data-theme-variant] [data-forge-specs] > div:last-child:nth-child(odd) {
   grid-column: 1 / -1;
-  border-top: 1px solid var(--border);
   border-right: 0;
 }
 
@@ -769,8 +806,8 @@ html[data-theme-variant] [data-forge-specs] dd {
   font-family: var(--forge-mono);
   font-size: 11.5px;
   font-weight: 550;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 html[data-theme-variant] [data-forge-card-foot] {

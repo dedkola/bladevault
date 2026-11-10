@@ -14,6 +14,8 @@ import { SoldBadge } from '@/components/sold-badge'
 import { formatDimension } from '@/lib/measurements'
 import type { CollectionColumnSort, DimensionUnit } from '@/lib/settings-shared'
 import { useCollectionItemNavigation } from '@/hooks/use-collection-item-navigation'
+import { getVisibleCardFields } from '@/lib/card-fields'
+import { useKnives } from '@/components/providers/knives-provider'
 
 // Collection summaries omit descriptions; load them only when this column is visible.
 function KnifeDescription({ knife }: { knife: Knife }) {
@@ -512,60 +514,91 @@ export function ModernCollectionGallery({
   onOpenDetail: (knife: Knife) => void
 }) {
   const navigation = useCollectionItemNavigation(onOpen, onOpenDetail)
+  const { cardFields, customFieldDefinitions } = useKnives()
   return (
     <div
       data-collection-grid
       data-modern-collection-gallery
       data-density={density}
     >
-      {knives.map((knife, index) => (
-        <button
-          key={knife.id}
-          type="button"
-          data-modern-object-card
-          aria-label={`Preview ${knife.brand} ${knife.name}`}
-          aria-pressed={knife.id === activeKnifeId}
-          onClick={(event) => navigation.onClick(event, knife)}
-          onDoubleClick={() => navigation.onDoubleClick(knife)}
-        >
-          <span data-modern-object-stage>
-            {knife.sold && <SoldBadge className="absolute left-2 top-2 z-10" />}
-            {knife.images[0] ? (
-              <Image
-                src={getImageUrl(knife.images[0])}
-                alt={`${knife.brand} ${knife.name}`}
-                fill
-                sizes={
-                  density === 'compact'
-                    ? '(max-width: 560px) 50vw, 220px'
-                    : '(max-width: 560px) 100vw, (max-width: 820px) 50vw, 350px'
-                }
-                priority={index === 0}
-                className="object-contain"
-              />
-            ) : (
-              <ImageIcon className="size-6 text-muted-foreground" />
-            )}
-          </span>
-          <span data-modern-object-caption>
-            <span>
-              <b>{knife.name}</b>
+      {knives.map((knife, index) => {
+        const fields = getVisibleCardFields(
+          knife,
+          cardFields,
+          customFieldDefinitions,
+          dimensionUnit,
+        )
+        const modelNumber = knife.specs.modelNumber?.trim()
+        const hasBladeLength = fields.some(
+          (field) => field.key === 'specs.bladeLength',
+        )
+        return (
+          <button
+            key={knife.id}
+            type="button"
+            data-modern-object-card
+            aria-label={`Preview ${knife.brand} ${knife.name}`}
+            aria-pressed={knife.id === activeKnifeId}
+            onClick={(event) => navigation.onClick(event, knife)}
+            onDoubleClick={() => navigation.onDoubleClick(knife)}
+          >
+            <span data-modern-object-stage>
+              {knife.sold && (
+                <SoldBadge className="absolute left-2 top-2 z-10" />
+              )}
+              {knife.images[0] ? (
+                <Image
+                  src={getImageUrl(knife.images[0])}
+                  alt={`${knife.brand} ${knife.name}`}
+                  fill
+                  sizes={
+                    density === 'compact'
+                      ? '(max-width: 560px) 50vw, 220px'
+                      : '(max-width: 560px) 100vw, (max-width: 820px) 50vw, 350px'
+                  }
+                  priority={index === 0}
+                  className="object-contain"
+                />
+              ) : (
+                <ImageIcon className="size-6 text-muted-foreground" />
+              )}
+            </span>
+            <span data-modern-object-caption>
               <span>
-                {knife.brand} · {knife.specs.bladeMaterial || '—'}
+                <b>{knife.name}</b>
+                <span>
+                  {[knife.brand, modelNumber].filter(Boolean).join(' · ')}
+                </span>
               </span>
+              {!hasBladeLength && (
+                <span
+                  data-modern-object-blade-length
+                  style={
+                    dimensionUnit === 'both'
+                      ? { whiteSpace: 'normal', textAlign: 'right' }
+                      : undefined
+                  }
+                >
+                  {formatDimension(knife.specs.bladeLength, dimensionUnit) ||
+                    '—'}
+                </span>
+              )}
             </span>
-            <span
-              style={
-                dimensionUnit === 'both'
-                  ? { whiteSpace: 'normal', textAlign: 'right' }
-                  : undefined
-              }
-            >
-              {formatDimension(knife.specs.bladeLength, dimensionUnit) || '—'}
-            </span>
-          </span>
-        </button>
-      ))}
+            {fields.length > 0 && (
+              <span data-modern-object-fields>
+                {fields.map((field) => (
+                  <span key={field.key} data-modern-object-field>
+                    <span data-modern-object-field-label>{field.label}</span>
+                    <span data-modern-object-field-value title={field.value}>
+                      {field.value}
+                    </span>
+                  </span>
+                ))}
+              </span>
+            )}
+          </button>
+        )
+      })}
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { DEFAULT_COLLECTION_DISPLAY } from '@/lib/settings-shared'
 import { resetVault, seedKnife } from './helpers'
 
 test.beforeEach(async ({ request }) => {
@@ -56,6 +57,143 @@ test('keeps pinned sidebar details in sync with collection card settings', async
     'Edition',
     'Blade material',
   ])
+})
+
+test('applies card fields to Modern gallery cards and pinned sidebar details', async ({
+  page,
+  request,
+}) => {
+  await seedKnife(request, {
+    name: 'Modern Abrams',
+    brand: 'Kizer',
+    pinned: true,
+    specs: {
+      modelNumber: '1133A3',
+      lockingMechanism: 'Fix',
+      bladeMaterial: '14C28N',
+      bladeLength: '3.25 in',
+      designer: 'Kizer',
+      country: 'China',
+      price: '$79',
+    },
+    customFields: { edition: 'Limited run' },
+  })
+  await request.post('/api/settings', {
+    data: {
+      themeStyle: 'modern',
+      collectionDisplay: { ...DEFAULT_COLLECTION_DISPLAY, view: 'grid' },
+      cardFields: [
+        'specs.lockingMechanism',
+        'specs.bladeMaterial',
+        'specs.bladeLength',
+        'specs.designer',
+        'specs.country',
+        'specs.price',
+        'custom:edition',
+      ],
+      customFields: [{ id: 'edition', name: 'Edition', type: 'text' }],
+    },
+  })
+
+  await page.goto('/collection')
+  const card = page.locator('[data-modern-object-card]').first()
+  await expect(card.locator('[data-modern-object-field-label]')).toHaveText([
+    'Locking mechanism',
+    'Blade material',
+    'Blade length',
+    'Designer',
+    'Country',
+    'Price',
+    'Edition',
+  ])
+  await expect(card.locator('[data-modern-object-field-value]')).toHaveText([
+    'Fix',
+    '14C28N',
+    '3.25 in',
+    'Kizer',
+    'China',
+    '$79',
+    'Limited run',
+  ])
+  await expect(page.locator('[data-sidebar-pinned-details]')).toBeVisible()
+  await expect(page.locator('[data-sidebar-pinned-details]')).toContainText(
+    '1133A3 · Fix · 14C28N · 3.25 in · Kizer · China · $79 · Limited run',
+  )
+
+  await page.getByRole('button', { name: 'Switch to compact view' }).click()
+  await expect(
+    page.locator('[data-modern-collection-gallery]'),
+  ).toHaveAttribute('data-density', 'compact')
+  await expect(card.locator('[data-modern-object-field-label]')).toHaveCount(7)
+  await expect(
+    card.locator('[data-modern-object-field-value]').last(),
+  ).toBeVisible()
+})
+
+test('keeps every card field visible in compact Forge and Alloy cards', async ({
+  page,
+  request,
+}) => {
+  await seedKnife(request, {
+    name: 'Compact Fields',
+    brand: 'Kizer',
+    specs: {
+      modelNumber: '1133A3',
+      lockingMechanism: 'Fix',
+      bladeMaterial: '14C28N',
+      bladeLength: '3.25 in',
+      designer: 'Kizer',
+      country: 'China',
+      price: '$79',
+    },
+  })
+  const cardFields = [
+    'specs.lockingMechanism',
+    'specs.bladeMaterial',
+    'specs.bladeLength',
+    'specs.designer',
+    'specs.country',
+    'specs.price',
+  ]
+
+  await request.post('/api/settings', {
+    data: {
+      themeStyle: 'forge',
+      collectionDisplay: {
+        ...DEFAULT_COLLECTION_DISPLAY,
+        view: 'grid',
+        density: 'compact',
+      },
+      cardFields,
+    },
+  })
+  await page.goto('/collection')
+  const forgeCard = page.locator('[data-forge-card]').first()
+  await expect(forgeCard.locator('[data-forge-specs] dt')).toHaveText([
+    'Locking mechanism',
+    'Blade material',
+    'Blade length',
+    'Designer',
+    'Country',
+    'Price',
+  ])
+  await expect(forgeCard.locator('[data-forge-specs] dd').last()).toBeVisible()
+
+  await request.post('/api/settings', {
+    data: {
+      themeStyle: 'alloy',
+      collectionDisplay: {
+        ...DEFAULT_COLLECTION_DISPLAY,
+        view: 'grid',
+        density: 'compact',
+      },
+      cardFields,
+    },
+  })
+  await page.goto('/collection')
+  await expect(page.locator('[data-alloy-card-meta]').first()).toHaveText(
+    'Fix · 14C28N · 3.25 in · Kizer · China · $79',
+  )
 })
 
 test('loads more collection and brand results automatically on scroll', async ({
