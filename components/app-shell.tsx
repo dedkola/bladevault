@@ -30,15 +30,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
   if (!isModernThemeFamily(themeStyle)) {
     return (
-      <>
-        <SidebarShell />
-        <div data-classic-shell>
+      <div data-classic-shell>
+        <div data-classic-body>
+          <SidebarShell />
           <main tabIndex={-1} className="flex min-w-0 flex-1 flex-col">
             {children}
           </main>
-          <WorkspaceFooter />
         </div>
-      </>
+        <WorkspaceFooter />
+      </div>
     )
   }
   const crumb = pathname.startsWith('/compare')

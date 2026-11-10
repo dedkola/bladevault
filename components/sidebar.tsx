@@ -13,12 +13,7 @@ import {
   Library,
   GalleryVertical,
   PlusCircle,
-  Settings,
-  Sun,
-  Moon,
   ChevronRight,
-  Cloud,
-  CloudOff,
   Download,
   Loader2,
   Menu,
@@ -34,18 +29,12 @@ import { getPinnedDetailLine } from '@/lib/card-fields'
 import { useKnives } from '@/components/providers/knives-provider'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { readJsonResponse } from '@/lib/api-response'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import {
-  SETTINGS_UPDATED_EVENT,
-  THEME_STYLE_NAMES,
-  type AppSettings,
-  isModernThemeFamily,
-} from '@/lib/settings-shared'
+import { THEME_STYLE_NAMES, isModernThemeFamily } from '@/lib/settings-shared'
 import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
 import {
   Dialog,
@@ -77,7 +66,6 @@ export function Sidebar() {
     pinnedCardFields,
     customFieldDefinitions,
     dimensionUnit,
-    isAutoBackupActive,
     themeStyle,
   } = useKnives()
   const { update, downloadUpdate } = useDesktopUpdates()
@@ -86,9 +74,6 @@ export function Sidebar() {
   const [smartCollectionsOpen, setSmartCollectionsOpen] = useState(true)
   const [mobileNavSession, setMobileNavSession] = useState<string | null>(null)
   const isMobileNavOpen = mobileNavSession === routeKey
-  const isSettingsActive = pathname === '/settings'
-  const isCloudBackupSettingsActive =
-    isSettingsActive && searchParams.get('tab') === 'cloud-backup'
   const hasUpdate = update.status === 'available'
   const isUpdateBusy =
     update.status === 'checking' || update.status === 'downloading'
@@ -122,47 +107,12 @@ export function Sidebar() {
     [knives],
   )
 
-  const toggleTheme = async () => {
-    const root = document.documentElement
-    const nextIsDark = !root.classList.contains('dark')
-
-    root.classList.toggle('dark', nextIsDark)
-
-    try {
-      const response = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          theme: nextIsDark ? 'dark' : 'light',
-        } satisfies Pick<AppSettings, 'theme'>),
-      })
-
-      const data = await readJsonResponse<{ error?: string }>(response)
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to save theme preference')
-      }
-
-      window.dispatchEvent(
-        new CustomEvent<Partial<AppSettings>>(SETTINGS_UPDATED_EVENT, {
-          detail: { theme: nextIsDark ? 'dark' : 'light' },
-        }),
-      )
-    } catch (error) {
-      root.classList.toggle('dark', !nextIsDark)
-      console.error('Failed to save theme preference', error)
-    }
-  }
-
   const closeMobileNav = () => {
     setMobileNavSession(null)
   }
 
   const renderSidebarContent = (isMobile: boolean) => {
     const handleNavigate = isMobile ? closeMobileNav : undefined
-    const handleOpenCloudBackup = () => {
-      window.dispatchEvent(new Event('bladevault:open-cloud-backup-settings'))
-      handleNavigate?.()
-    }
 
     return (
       <aside
@@ -582,70 +532,6 @@ export function Sidebar() {
             </>
           )}
         </nav>
-
-        {!isModernThemeFamily(themeStyle) && (
-          <div className="flex flex-col gap-2 border-t bg-muted/30 p-3">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1"
-                onClick={toggleTheme}
-                aria-label="Toggle color theme"
-              >
-                <Sun className="h-3.5 w-3.5 dark:hidden" />
-                <Moon className="hidden h-3.5 w-3.5 dark:block" />
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                aria-label="Settings"
-                className={cn(
-                  'flex-1',
-                  isSettingsActive &&
-                    'border-[var(--bladevault-nav-active-bg)] bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)] hover:bg-[var(--bladevault-nav-active-bg)] hover:text-[var(--bladevault-nav-active-fg)]',
-                )}
-                render={<Link href="/settings" onClick={handleNavigate} />}
-                nativeButton={false}
-              >
-                <Settings className="h-3.5 w-3.5" />
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                aria-label="Cloud backup"
-                title={
-                  isAutoBackupActive
-                    ? 'Cloud auto backup is active. Open Cloud backup settings.'
-                    : 'Cloud auto backup is inactive. Open Cloud backup settings.'
-                }
-                className={cn(
-                  'flex-1',
-                  isCloudBackupSettingsActive &&
-                    'border-[var(--bladevault-nav-active-bg)] bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)] hover:bg-[var(--bladevault-nav-active-bg)] hover:text-[var(--bladevault-nav-active-fg)]',
-                )}
-                render={
-                  <Link
-                    href="/settings?tab=cloud-backup"
-                    onClick={handleOpenCloudBackup}
-                  />
-                }
-                nativeButton={false}
-              >
-                {isAutoBackupActive ? (
-                  <Cloud
-                    className="h-3.5 w-3.5"
-                    style={{ stroke: 'url(#sidebar-cloud-gradient)' }}
-                  />
-                ) : (
-                  <CloudOff className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                )}
-              </Button>
-            </div>
-          </div>
-        )}
       </aside>
     )
   }
@@ -656,22 +542,6 @@ export function Sidebar() {
       onOpenChange={(open) => setMobileNavSession(open ? routeKey : null)}
       triggerId={isMobileNavOpen ? 'mobile-navigation-trigger' : null}
     >
-      <svg width="0" height="0" className="absolute print:hidden">
-        <defs>
-          <linearGradient
-            id="sidebar-cloud-gradient"
-            x1="0%"
-            y1="0%"
-            x2="100%"
-            y2="100%"
-          >
-            <stop offset="0%" stopColor="#e2c86e" />
-            <stop offset="55%" stopColor="#c89c3d" />
-            <stop offset="100%" stopColor="#9e6e1b" />
-          </linearGradient>
-        </defs>
-      </svg>
-
       <div
         data-mobile-navigation-bar
         className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 print:hidden md:hidden"
