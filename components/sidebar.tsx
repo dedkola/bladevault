@@ -522,7 +522,7 @@ export function Sidebar() {
                           {detailLine && (
                             <span
                               data-sidebar-pinned-details
-                              className="mt-0.5 line-clamp-2 text-[10px] leading-4 opacity-80 [overflow-wrap:anywhere]"
+                              className="text-[10px] leading-4 opacity-80 [overflow-wrap:anywhere]"
                             >
                               {detailLine}
                             </span>
