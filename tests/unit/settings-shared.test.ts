@@ -10,6 +10,7 @@ import {
   isDarkThemeActive,
   hasFixedColorMode,
   getModernThemeVariant,
+  getNextThemeStyle,
   getThemeFamily,
   isModernThemeFamily,
   readThemeStyleFromElement,
@@ -86,6 +87,20 @@ describe('theme families', () => {
     applyThemeStyleToElement(element, 'alloy')
     expect(element.dataset).toEqual({ themeStyle: 'alloy' })
     expect(readThemeStyleFromElement(element)).toBe('alloy')
+  })
+
+  it('cycles the quick switcher through Modern-family styles', () => {
+    expect(getNextThemeStyle('lumen')).toBe('espresso')
+    expect(getNextThemeStyle('espresso')).toBe('phosphor')
+    expect(getNextThemeStyle('phosphor')).toBe('modern')
+    expect(getNextThemeStyle('modern')).toBe('forge')
+    expect(getNextThemeStyle('forge')).toBe('titanium')
+    expect(getNextThemeStyle('field')).toBe('lumen')
+  })
+
+  it('starts the quick switcher at Modern from a different shell', () => {
+    expect(getNextThemeStyle('classic')).toBe('modern')
+    expect(getNextThemeStyle('alloy')).toBe('modern')
   })
 })
 

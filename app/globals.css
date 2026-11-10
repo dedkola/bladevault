@@ -2525,7 +2525,34 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
     min-width: 0;
     z-index: 40;
   }
+  /* The quick theme switcher adds one action button; move search left so the
+     header keeps the same gap. Fixed-mode styles already hide the mode toggle. */
+  [data-workspace-header]:has([data-theme-cycle]) [data-workspace-search] {
+    right: 262px;
+  }
+  html:is(
+      [data-theme-variant='lumen'],
+      [data-theme-variant='espresso'],
+      [data-theme-variant='phosphor']
+    )
+    [data-workspace-header]:has([data-theme-cycle])
+    [data-workspace-search] {
+    right: 223px;
+  }
   [data-workspace-header]:has(#studio-header-actions) [data-workspace-search] {
+    right: 262px;
+  }
+  [data-workspace-header]:has([data-theme-cycle]):has(#studio-header-actions)
+    [data-workspace-search] {
+    right: 301px;
+  }
+  html:is(
+      [data-theme-variant='lumen'],
+      [data-theme-variant='espresso'],
+      [data-theme-variant='phosphor']
+    )
+    [data-workspace-header]:has([data-theme-cycle]):has(#studio-header-actions)
+    [data-workspace-search] {
     right: 262px;
   }
   [data-global-knife-search][data-embedded] > div:first-child > button span {

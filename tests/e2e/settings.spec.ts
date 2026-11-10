@@ -61,6 +61,54 @@ test('persists and applies the selected theme style', async ({ page }) => {
   await expect(current).toBeChecked()
 })
 
+test('cycles theme styles from the Modern header', async ({
+  page,
+  request,
+}) => {
+  await request.post('/api/settings', { data: { themeStyle: 'lumen' } })
+  await page.goto('/collection')
+
+  const html = page.locator('html')
+  const themeButton = page.getByRole('button', { name: /^Switch theme\./ })
+  await expect(html).toHaveAttribute('data-theme-variant', 'lumen')
+  await expect(themeButton).toHaveAttribute(
+    'title',
+    'Switch theme · Lumen → Espresso',
+  )
+
+  await themeButton.click()
+  await expect(html).toHaveAttribute('data-theme-variant', 'espresso')
+  await expect(themeButton).toHaveAttribute(
+    'title',
+    'Switch theme · Espresso → Phosphor',
+  )
+
+  await themeButton.click()
+  await expect(html).toHaveAttribute('data-theme-variant', 'phosphor')
+  await expect(html).toHaveClass(/dark/)
+
+  await themeButton.click()
+  await expect(html).toHaveAttribute('data-theme-style', 'modern')
+  await expect(html).not.toHaveAttribute('data-theme-variant', /.+/)
+
+  await expect
+    .poll(async () => {
+      const response = await request.get('/api/settings')
+      const data = (await response.json()) as {
+        settings?: { themeStyle?: string }
+      }
+      return data.settings?.themeStyle
+    })
+    .toBe('modern')
+
+  await page.reload()
+  await expect(html).toHaveAttribute('data-theme-style', 'modern')
+  await expect(themeButton).toHaveAttribute(
+    'title',
+    'Switch theme · Modern → Forge',
+  )
+})
+
 test('persists and applies the selected time format', async ({
   page,
   request,

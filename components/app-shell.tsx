@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { SidebarShell } from '@/components/sidebar-shell'
 import { AlloyShell } from '@/components/alloy-shell'
+import { ThemeCycleButton } from '@/components/theme-cycle-button'
 import {
   GlobalKnifeSearch,
   OPEN_GLOBAL_SEARCH_EVENT,
@@ -135,6 +136,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <CloudOff />
             )}
           </Link>
+          <ThemeCycleButton />
           <Link href="/settings" aria-label="Workspace settings">
             <Settings />
           </Link>
