@@ -139,7 +139,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/settings" aria-label="Workspace settings">
             <Settings />
           </Link>
-          <ThemeCycleButton />
           {/* Light-only and dark-only styles have no other mode to switch to. */}
           {!hasFixedColorMode(themeStyle) && (
             <button
@@ -182,6 +181,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Search />
             Search
           </button>
+          <ThemeCycleButton />
         </div>
       </footer>
     </div>

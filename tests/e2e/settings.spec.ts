@@ -61,7 +61,7 @@ test('persists and applies the selected theme style', async ({ page }) => {
   await expect(current).toBeChecked()
 })
 
-test('cycles theme styles from the Modern header', async ({
+test('cycles theme styles from the Modern footer', async ({
   page,
   request,
 }) => {
@@ -71,16 +71,13 @@ test('cycles theme styles from the Modern header', async ({
   const html = page.locator('html')
   const themeButton = page.getByRole('button', { name: /^Switch theme\./ })
   await expect(
-    page.locator('[data-workspace-actions] > :first-child'),
-  ).toHaveAttribute('aria-label', 'Cloud backup')
-  await expect(
     page.locator(
-      '[data-workspace-actions] > a[aria-label="Workspace settings"] + [data-theme-cycle]',
+      '[data-workspace-footer] button:has(kbd) + [data-theme-cycle]',
     ),
   ).toBeVisible()
   await expect(
-    page.locator('[data-workspace-actions] > :last-child'),
-  ).toHaveAttribute('data-workspace-add')
+    page.locator('[data-workspace-actions] [data-theme-cycle]'),
+  ).toHaveCount(0)
   await expect(html).toHaveAttribute('data-theme-variant', 'lumen')
   await expect(themeButton).toHaveAttribute(
     'title',
