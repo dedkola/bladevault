@@ -117,6 +117,73 @@ test('cycles theme styles from the Modern footer', async ({
   )
 })
 
+test('shows the compact workspace footer in the Classic layout', async ({
+  page,
+  request,
+}) => {
+  for (let index = 0; index < 24; index += 1) {
+    await seedKnife(request, { name: `Footer scroll ${index}` })
+  }
+  await page.setViewportSize({ width: 1100, height: 600 })
+  await page.goto('/collection')
+
+  const html = page.locator('html')
+  const footer = page.locator('[data-workspace-footer]')
+  await expect(html).toHaveAttribute('data-theme-style', 'classic')
+  await expect(footer).toBeVisible()
+  await expect(footer).toContainText('24 knives')
+
+  // Classic scrolls the window, so the footer sticks to the viewport edge
+  // instead of sitting at the end of a long collection.
+  const readGeometry = () =>
+    page.evaluate(() => ({
+      scrollY: Math.round(window.scrollY),
+      footerBottom: Math.round(
+        document
+          .querySelector('[data-workspace-footer]')!
+          .getBoundingClientRect().bottom,
+      ),
+      viewportHeight: window.innerHeight,
+      documentScrollable:
+        document.documentElement.scrollHeight > window.innerHeight,
+    }))
+
+  const atTop = await readGeometry()
+  expect(atTop.documentScrollable).toBe(true)
+  expect(atTop.footerBottom).toBe(atTop.viewportHeight)
+
+  await page.evaluate(() =>
+    window.scrollTo(0, document.documentElement.scrollHeight),
+  )
+  const atBottom = await readGeometry()
+  expect(atBottom.scrollY).toBeGreaterThan(0)
+  expect(atBottom.footerBottom).toBe(atBottom.viewportHeight)
+
+  const themeButton = footer.locator('[data-theme-cycle]')
+  await expect(themeButton).toHaveAttribute(
+    'title',
+    'Switch theme · Classic → Modern',
+  )
+  await themeButton.click()
+  await expect(html).toHaveAttribute('data-theme-style', 'modern')
+})
+
+test('opens the global search from the Classic footer', async ({ page }) => {
+  await page.goto('/collection')
+
+  const island = page.locator('[data-global-knife-search]')
+  await expect(island).toHaveCount(0)
+
+  await page.locator('[data-workspace-footer] button:has(kbd)').click()
+  await expect(island).toBeVisible()
+  await expect(
+    island.getByRole('combobox', { name: 'Find a knife by model name' }),
+  ).toBeFocused()
+
+  await page.keyboard.press('Escape')
+  await expect(island).toHaveCount(0)
+})
+
 test('persists and applies the selected time format', async ({
   page,
   request,

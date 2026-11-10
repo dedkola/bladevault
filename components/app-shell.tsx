@@ -5,22 +5,11 @@ import Link from 'next/link'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import Image from '@/components/vault-image'
 import { usePathname } from 'next/navigation'
-import {
-  Cloud,
-  CloudOff,
-  Moon,
-  Plus,
-  Search,
-  Settings,
-  Sun,
-} from 'lucide-react'
+import { Cloud, CloudOff, Moon, Plus, Settings, Sun } from 'lucide-react'
 import { SidebarShell } from '@/components/sidebar-shell'
 import { AlloyShell } from '@/components/alloy-shell'
-import { ThemeCycleButton } from '@/components/theme-cycle-button'
-import {
-  GlobalKnifeSearch,
-  OPEN_GLOBAL_SEARCH_EVENT,
-} from '@/components/global-knife-search'
+import { GlobalKnifeSearch } from '@/components/global-knife-search'
+import { WorkspaceFooter } from '@/components/workspace-footer'
 import { useKnives } from '@/components/providers/knives-provider'
 import { BrandMark } from '@/components/brand-mark'
 import { readJsonResponse } from '@/lib/api-response'
@@ -35,8 +24,7 @@ import {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [headerActions, setHeaderActions] = useState<HTMLElement | null>(null)
-  const { themeStyle, knives, isLoading, isAutoBackupActive, showFeedback } =
-    useKnives()
+  const { themeStyle, isAutoBackupActive, showFeedback } = useKnives()
   if (themeStyle === 'alloy') {
     return <AlloyShell>{children}</AlloyShell>
   }
@@ -44,9 +32,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return (
       <>
         <SidebarShell />
-        <main tabIndex={-1} className="flex min-w-0 flex-1 flex-col">
-          {children}
-        </main>
+        <div data-classic-shell>
+          <main tabIndex={-1} className="flex min-w-0 flex-1 flex-col">
+            {children}
+          </main>
+          <WorkspaceFooter />
+        </div>
       </>
     )
   }
@@ -164,26 +155,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </WorkspaceHeaderActionsContext.Provider>
         </main>
       </div>
-      <footer data-workspace-footer>
-        <div>
-          <span>
-            {isLoading
-              ? 'Loading collection…'
-              : `${knives.length} ${knives.length === 1 ? 'knife' : 'knives'}`}
-          </span>
-          <button
-            type="button"
-            onClick={() =>
-              window.dispatchEvent(new Event(OPEN_GLOBAL_SEARCH_EVENT))
-            }
-          >
-            <kbd>⌘K</kbd>
-            <Search />
-            Search
-          </button>
-          <ThemeCycleButton />
-        </div>
-      </footer>
+      <WorkspaceFooter />
     </div>
   )
 }
