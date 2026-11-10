@@ -9,7 +9,7 @@ import { useKnives } from '@/components/providers/knives-provider'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import { useCollectionItemNavigation } from '@/hooks/use-collection-item-navigation'
 import { getImageUrl, getKnifeImageCount, type Knife } from '@/lib/data'
-import { formatDimension } from '@/lib/measurements'
+import { getVisibleCardFields } from '@/lib/card-fields'
 import type { DimensionUnit } from '@/lib/settings-shared'
 
 function formatAddedDate(value: string): string {
@@ -39,7 +39,13 @@ const ForgeCollectionCard = memo(function ForgeCollectionCard({
   onOpenDetail: (knife: Knife) => void
 }) {
   const navigation = useCollectionItemNavigation(onOpen, onOpenDetail)
-  const { updateKnife, pinnedItemsFirst, showFeedback } = useKnives()
+  const {
+    updateKnife,
+    pinnedItemsFirst,
+    showFeedback,
+    cardFields,
+    customFieldDefinitions,
+  } = useKnives()
   const {
     choose,
     membershipCount,
@@ -54,18 +60,12 @@ const ForgeCollectionCard = memo(function ForgeCollectionCard({
   const modelNumber = knife.specs.modelNumber?.trim()
   const imageCount = getKnifeImageCount(knife)
   const label = `${knife.brand} ${knife.name}`
-  const specs = [
-    { label: 'Steel', value: knife.specs.bladeMaterial?.trim() },
-    {
-      label: 'Blade',
-      // Inch marks keep the value short enough for the narrow spec cell.
-      value: formatDimension(knife.specs.bladeLength, dimensionUnit).replace(
-        /^([\d.]+) in$/,
-        '$1″',
-      ),
-    },
-    { label: 'Lock', value: knife.specs.lockingMechanism?.trim() },
-  ]
+  const fields = getVisibleCardFields(
+    knife,
+    cardFields,
+    customFieldDefinitions,
+    dimensionUnit,
+  )
   const added = formatAddedDate(knife.addedAt)
 
   const handlePin = useCallback(
@@ -157,14 +157,16 @@ const ForgeCollectionCard = memo(function ForgeCollectionCard({
           {modelNumber && <span title={modelNumber}>{modelNumber}</span>}
         </p>
         <h2 title={knife.name}>{knife.name}</h2>
-        <dl data-forge-specs>
-          {specs.map((spec) => (
-            <div key={spec.label}>
-              <dt>{spec.label}</dt>
-              <dd title={spec.value || undefined}>{spec.value || '—'}</dd>
-            </div>
-          ))}
-        </dl>
+        {fields.length > 0 && (
+          <dl data-forge-specs>
+            {fields.map((field) => (
+              <div key={field.key}>
+                <dt>{field.label}</dt>
+                <dd title={field.value}>{field.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
       </div>
 
       <div data-forge-card-foot>

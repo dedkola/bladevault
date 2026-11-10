@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AlloyCollectionCard } from '@/components/alloy-collection-card'
 import { createKnife } from '@/tests/fixtures/knife'
+import type { CardField } from '@/lib/settings-shared'
 
 const state = vi.hoisted(() => ({
   updateKnife: vi.fn(),
@@ -13,6 +14,12 @@ const state = vi.hoisted(() => ({
   choose: vi.fn(),
   membershipCount: vi.fn(),
   dimensionUnit: 'in' as 'in' | 'mm' | 'both',
+  cardFields: [
+    'specs.bladeMaterial',
+    'specs.bladeLength',
+    'specs.weight',
+  ] as CardField[],
+  customFieldDefinitions: [],
 }))
 
 vi.mock('@/components/providers/knives-provider', () => ({
@@ -29,6 +36,12 @@ vi.mock('@/components/providers/comparisons-provider', () => ({
 
 beforeEach(() => {
   state.dimensionUnit = 'in'
+  state.cardFields = [
+    'specs.bladeMaterial',
+    'specs.bladeLength',
+    'specs.weight',
+  ]
+  state.customFieldDefinitions = []
   state.updateKnife.mockReset().mockResolvedValue(undefined)
   state.showFeedback.mockReset()
   state.choose.mockReset().mockResolvedValue(undefined)
@@ -80,6 +93,20 @@ describe('Alloy collection cards', () => {
     expect(
       screen.getByText('CPM-S30V · 88.9 mm / 3.5 in · 142.8 g / 5.04 oz'),
     ).toBeVisible()
+  })
+
+  it('uses the selected card fields in the caption', () => {
+    state.cardFields = ['specs.price', 'specs.country']
+    render(
+      <AlloyCollectionCard
+        knife={createKnife()}
+        onOpen={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    )
+    const metadata = screen.getByText('$180 · USA')
+    expect(metadata).toBeVisible()
+    expect(metadata).toHaveAttribute('title', 'Price: $180 · Country: USA')
   })
 
   it('reports a failed pin without converting it into a successful update', async () => {

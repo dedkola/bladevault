@@ -1624,7 +1624,7 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
 [data-modern-object-caption] > span:first-child {
   min-width: 0;
 }
-[data-modern-object-caption] > span:last-child {
+[data-modern-object-blade-length] {
   white-space: nowrap;
 }
 [data-modern-object-caption] b {
@@ -1637,6 +1637,54 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
 [data-modern-object-caption] span span {
   display: block;
   margin-top: 1px;
+}
+
+[data-modern-object-fields] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin-top: 9px;
+  padding: 9px 3px 3px;
+  border-top: 1px solid var(--border);
+  text-align: left;
+}
+
+[data-modern-object-field] {
+  min-width: 0;
+}
+
+[data-modern-object-field]:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+[data-modern-object-field-label] {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: var(--modern-font-caption);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+[data-modern-object-field-value] {
+  display: block;
+  margin-top: 1px;
+  color: var(--foreground);
+  font-size: var(--modern-font-body);
+  font-weight: 550;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+html:is([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-modern-collection-gallery][data-density='compact']
+  [data-modern-object-fields] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+html:is([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-modern-collection-gallery][data-density='compact']
+  [data-modern-object-field]:nth-child(n + 3) {
+  display: none;
 }
 
 html:is([data-theme-style='modern'], [data-theme-style='alloy'])
@@ -1879,6 +1927,11 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   html:is([data-theme-style='modern'], [data-theme-style='alloy'])
     [data-modern-collection-gallery] {
     grid-template-columns: minmax(0, 1fr);
+  }
+  html:is([data-theme-style='modern'], [data-theme-style='alloy'])
+    [data-modern-collection-gallery][data-density='compact']
+    [data-modern-object-fields] {
+    display: none;
   }
   [data-modern-collection-tools] {
     width: 100%;
@@ -2368,8 +2421,7 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
 [data-workspace-body] [data-sidebar-pinned-item] {
   padding-block: 4px;
 }
-[data-workspace-body] [data-sidebar-pinned-item] > svg,
-[data-workspace-body] [data-sidebar-pinned-details] {
+[data-workspace-body] [data-sidebar-pinned-item] > svg {
   display: none;
 }
 [data-workspace-body] [data-sidebar-pinned-item] > span > span > span {
