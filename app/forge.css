@@ -546,7 +546,7 @@ html[data-theme-variant] [data-forge-grid] {
   padding-top: 4px;
 }
 
-/* Compact: smaller cards, more per row; name and maker only. */
+/* Compact: smaller cards, more per row; selected fields stay visible. */
 html[data-theme-variant] [data-forge-grid][data-density='compact'] {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr));
   gap: 12px;
@@ -568,8 +568,39 @@ html[data-theme-variant]
 
 html[data-theme-variant]
   [data-forge-grid][data-density='compact']
-  :is([data-forge-specs], [data-forge-card-foot] > span) {
+  [data-forge-card-foot]
+  > span {
   display: none;
+}
+
+html[data-theme-variant]
+  [data-forge-grid][data-density='compact']
+  [data-forge-specs] {
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 8px;
+}
+
+html[data-theme-variant]
+  [data-forge-grid][data-density='compact']
+  [data-forge-specs]
+  > div {
+  padding: 6px 8px;
+  border-right: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+html[data-theme-variant]
+  [data-forge-grid][data-density='compact']
+  [data-forge-specs]
+  > div:nth-last-child(2):nth-child(odd) {
+  border-bottom: 1px solid var(--border);
+}
+
+html[data-theme-variant]
+  [data-forge-grid][data-density='compact']
+  [data-forge-specs]
+  > div:last-child {
+  border-bottom: 0;
 }
 
 html[data-theme-variant]

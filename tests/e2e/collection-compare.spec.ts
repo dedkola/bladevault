@@ -130,6 +130,72 @@ test('applies card fields to Modern gallery cards and pinned sidebar details', a
   ).toBeVisible()
 })
 
+test('keeps every card field visible in compact Forge and Alloy cards', async ({
+  page,
+  request,
+}) => {
+  await seedKnife(request, {
+    name: 'Compact Fields',
+    brand: 'Kizer',
+    specs: {
+      modelNumber: '1133A3',
+      lockingMechanism: 'Fix',
+      bladeMaterial: '14C28N',
+      bladeLength: '3.25 in',
+      designer: 'Kizer',
+      country: 'China',
+      price: '$79',
+    },
+  })
+  const cardFields = [
+    'specs.lockingMechanism',
+    'specs.bladeMaterial',
+    'specs.bladeLength',
+    'specs.designer',
+    'specs.country',
+    'specs.price',
+  ]
+
+  await request.post('/api/settings', {
+    data: {
+      themeStyle: 'forge',
+      collectionDisplay: {
+        ...DEFAULT_COLLECTION_DISPLAY,
+        view: 'grid',
+        density: 'compact',
+      },
+      cardFields,
+    },
+  })
+  await page.goto('/collection')
+  const forgeCard = page.locator('[data-forge-card]').first()
+  await expect(forgeCard.locator('[data-forge-specs] dt')).toHaveText([
+    'Locking mechanism',
+    'Blade material',
+    'Blade length',
+    'Designer',
+    'Country',
+    'Price',
+  ])
+  await expect(forgeCard.locator('[data-forge-specs] dd').last()).toBeVisible()
+
+  await request.post('/api/settings', {
+    data: {
+      themeStyle: 'alloy',
+      collectionDisplay: {
+        ...DEFAULT_COLLECTION_DISPLAY,
+        view: 'grid',
+        density: 'compact',
+      },
+      cardFields,
+    },
+  })
+  await page.goto('/collection')
+  await expect(page.locator('[data-alloy-card-meta]').first()).toHaveText(
+    'Fix · 14C28N · 3.25 in · Kizer · China · $79',
+  )
+})
+
 test('loads more collection and brand results automatically on scroll', async ({
   page,
   request,
