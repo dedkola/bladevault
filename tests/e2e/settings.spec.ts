@@ -119,30 +119,45 @@ test('cycles theme styles from the Modern footer', async ({
 
 test('shows the compact workspace footer in the Classic layout', async ({
   page,
+  request,
 }) => {
+  for (let index = 0; index < 24; index += 1) {
+    await seedKnife(request, { name: `Footer scroll ${index}` })
+  }
+  await page.setViewportSize({ width: 1100, height: 600 })
   await page.goto('/collection')
 
   const html = page.locator('html')
   const footer = page.locator('[data-workspace-footer]')
   await expect(html).toHaveAttribute('data-theme-style', 'classic')
   await expect(footer).toBeVisible()
-  await expect(footer).toContainText('0 knives')
+  await expect(footer).toContainText('24 knives')
 
-  // The footer stays pinned to the viewport while the page content scrolls.
-  const geometry = await page.evaluate(() => {
-    const shell = document.querySelector('[data-classic-shell]')!
-    const main = shell.querySelector('main')!
-    const footerEl = document.querySelector('[data-workspace-footer]')!
-    return {
-      shellHeight: Math.round(shell.getBoundingClientRect().height),
-      footerBottom: Math.round(footerEl.getBoundingClientRect().bottom),
+  // Classic scrolls the window, so the footer sticks to the viewport edge
+  // instead of sitting at the end of a long collection.
+  const readGeometry = () =>
+    page.evaluate(() => ({
+      scrollY: Math.round(window.scrollY),
+      footerBottom: Math.round(
+        document
+          .querySelector('[data-workspace-footer]')!
+          .getBoundingClientRect().bottom,
+      ),
       viewportHeight: window.innerHeight,
-      mainOverflowY: getComputedStyle(main).overflowY,
-    }
-  })
-  expect(geometry.mainOverflowY).toBe('auto')
-  expect(geometry.shellHeight).toBe(geometry.viewportHeight)
-  expect(geometry.footerBottom).toBe(geometry.viewportHeight)
+      documentScrollable:
+        document.documentElement.scrollHeight > window.innerHeight,
+    }))
+
+  const atTop = await readGeometry()
+  expect(atTop.documentScrollable).toBe(true)
+  expect(atTop.footerBottom).toBe(atTop.viewportHeight)
+
+  await page.evaluate(() =>
+    window.scrollTo(0, document.documentElement.scrollHeight),
+  )
+  const atBottom = await readGeometry()
+  expect(atBottom.scrollY).toBeGreaterThan(0)
+  expect(atBottom.footerBottom).toBe(atBottom.viewportHeight)
 
   const themeButton = footer.locator('[data-theme-cycle]')
   await expect(themeButton).toHaveAttribute(
