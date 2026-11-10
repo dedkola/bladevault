@@ -117,6 +117,42 @@ test('cycles theme styles from the Modern footer', async ({
   )
 })
 
+test('shows the compact workspace footer in the Classic layout', async ({
+  page,
+}) => {
+  await page.goto('/collection')
+
+  const html = page.locator('html')
+  const footer = page.locator('[data-workspace-footer]')
+  await expect(html).toHaveAttribute('data-theme-style', 'classic')
+  await expect(footer).toBeVisible()
+  await expect(footer).toContainText('0 knives')
+
+  const themeButton = footer.locator('[data-theme-cycle]')
+  await expect(themeButton).toHaveAttribute(
+    'title',
+    'Switch theme · Classic → Modern',
+  )
+  await themeButton.click()
+  await expect(html).toHaveAttribute('data-theme-style', 'modern')
+})
+
+test('opens the global search from the Classic footer', async ({ page }) => {
+  await page.goto('/collection')
+
+  const island = page.locator('[data-global-knife-search]')
+  await expect(island).toHaveCount(0)
+
+  await page.locator('[data-workspace-footer] button:has(kbd)').click()
+  await expect(island).toBeVisible()
+  await expect(
+    island.getByRole('combobox', { name: 'Find a knife by model name' }),
+  ).toBeFocused()
+
+  await page.keyboard.press('Escape')
+  await expect(island).toHaveCount(0)
+})
+
 test('persists and applies the selected time format', async ({
   page,
   request,

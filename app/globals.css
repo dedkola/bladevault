@@ -2432,6 +2432,16 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   color: inherit;
   font-weight: 400;
 }
+[data-classic-shell] {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+[data-classic-shell] [data-workspace-footer] {
+  min-height: 34px;
+}
 [data-workspace-footer] {
   display: flex;
   align-items: center;
@@ -2441,7 +2451,7 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   border-top: 1px solid var(--border);
   background: var(--card);
   color: var(--muted-foreground);
-  font-size: var(--modern-font-secondary);
+  font-size: var(--modern-font-secondary, 0.75rem);
 }
 [data-workspace-footer] > div {
   display: flex;
@@ -2483,7 +2493,7 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--muted);
-  font-size: var(--modern-font-caption);
+  font-size: var(--modern-font-caption, 0.6875rem);
 }
 [data-workspace-header] :is(a, button):focus-visible,
 [data-workspace-footer] button:focus-visible {

@@ -54,9 +54,9 @@ export type ThemeFamily = 'classic' | 'modern' | 'alloy'
 export type TimeFormat = (typeof TIME_FORMATS)[number]
 
 /**
- * Styles the header's quick switcher cycles through. They share the Modern
- * shell, so the button stays visible while cycling. Classic and Alloy use
- * different shells with their own controls.
+ * Styles the footer's quick switcher cycles through. They share the Modern
+ * shell, so the button stays visible while cycling. Classic renders the same
+ * footer and hands off to Modern; Alloy has its own controls.
  */
 export const QUICK_SWITCH_THEME_STYLES: readonly ThemeStyle[] = [
   'modern',

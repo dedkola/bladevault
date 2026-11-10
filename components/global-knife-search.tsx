@@ -59,9 +59,14 @@ export function GlobalKnifeSearch({
     return () => window.removeEventListener('scroll', handleScroll)
   }, [embedded])
   const modern = isModernThemeFamily(themeStyle) || themeStyle === 'alloy'
+  // Classic's collection and compare pages carry their own filters, so the
+  // floating island only appears there when the workspace footer asks for it.
+  const pageOwnsSearch =
+    !modern && (pathname === '/collection' || pathname === '/compare')
+  const [footerSearchPath, setFooterSearchPath] = useState<string | null>(null)
   const showGlobalSearch = modern
     ? embedded
-    : pathname !== '/collection' && pathname !== '/compare'
+    : !pageOwnsSearch || footerSearchPath === pathname
   const parsedQuery = useMemo(() => parseGlobalKnifeSearchQuery(query), [query])
 
   const matchingKnives = useMemo(() => {
@@ -75,6 +80,7 @@ export function GlobalKnifeSearch({
     setOpen(false)
     setQuery('')
     setActiveIndex(0)
+    setFooterSearchPath(null)
 
     if (restoreFocus) {
       requestAnimationFrame(() => triggerRef.current?.focus())
@@ -144,6 +150,18 @@ export function GlobalKnifeSearch({
       window.removeEventListener(OPEN_GLOBAL_SEARCH_EVENT, openSearch)
     }
   }, [showGlobalSearch, pathname])
+
+  useEffect(() => {
+    if (!pageOwnsSearch) return
+
+    const openSearch = () => {
+      setFooterSearchPath(pathname)
+      setOpen(true)
+    }
+    window.addEventListener(OPEN_GLOBAL_SEARCH_EVENT, openSearch)
+    return () =>
+      window.removeEventListener(OPEN_GLOBAL_SEARCH_EVENT, openSearch)
+  }, [pageOwnsSearch, pathname])
 
   const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Escape') {
