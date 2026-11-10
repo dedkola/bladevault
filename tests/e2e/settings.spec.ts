@@ -70,6 +70,12 @@ test('cycles theme styles from the Modern header', async ({
 
   const html = page.locator('html')
   const themeButton = page.getByRole('button', { name: /^Switch theme\./ })
+  await expect(
+    page.locator('[data-workspace-actions] > :first-child'),
+  ).toHaveAttribute('data-theme-cycle')
+  await expect(
+    page.locator('[data-workspace-actions] > :last-child'),
+  ).toHaveAttribute('data-workspace-add')
   await expect(html).toHaveAttribute('data-theme-variant', 'lumen')
   await expect(themeButton).toHaveAttribute(
     'title',

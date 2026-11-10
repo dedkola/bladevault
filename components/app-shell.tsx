@@ -113,6 +113,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <GlobalKnifeSearch embedded />
         </div>
         <div data-workspace-actions>
+          <ThemeCycleButton />
           {pathname === '/studio' && (
             <span id="studio-header-actions" ref={setHeaderActions} />
           )}
@@ -136,7 +137,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <CloudOff />
             )}
           </Link>
-          <ThemeCycleButton />
           <Link href="/settings" aria-label="Workspace settings">
             <Settings />
           </Link>
