@@ -53,6 +53,16 @@ export type ModernThemeVariant = (typeof MODERN_THEME_VARIANTS)[number]
 export type ThemeFamily = 'classic' | 'modern' | 'alloy'
 export type TimeFormat = (typeof TIME_FORMATS)[number]
 
+/**
+ * Styles the header's quick switcher cycles through. They share the Modern
+ * shell, so the button stays visible while cycling. Classic and Alloy use
+ * different shells with their own controls.
+ */
+export const QUICK_SWITCH_THEME_STYLES: readonly ThemeStyle[] = [
+  'modern',
+  ...MODERN_THEME_VARIANTS,
+]
+
 export const CARD_FIELDS = [
   'bladeStyle',
   'handleMaterial',
@@ -282,6 +292,14 @@ export function getModernThemeVariant(
   return MODERN_THEME_VARIANTS.includes(themeStyle as ModernThemeVariant)
     ? (themeStyle as ModernThemeVariant)
     : undefined
+}
+
+/** Next style in the header's quick-switch cycle. */
+export function getNextThemeStyle(themeStyle: ThemeStyle): ThemeStyle {
+  const index = QUICK_SWITCH_THEME_STYLES.indexOf(themeStyle)
+  return QUICK_SWITCH_THEME_STYLES[
+    (index + 1) % QUICK_SWITCH_THEME_STYLES.length
+  ]
 }
 
 /** Layout family for a style: Forge, Titanium and Field use Modern's layout. */

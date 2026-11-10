@@ -2456,6 +2456,28 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
 [data-workspace-footer] button svg {
   display: none;
 }
+[data-workspace-footer] [data-theme-cycle] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  transition:
+    background-color 150ms,
+    color 150ms;
+}
+[data-workspace-footer] [data-theme-cycle]:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+[data-workspace-footer] [data-theme-cycle] svg {
+  display: block;
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.6;
+}
 [data-workspace-footer] kbd {
   padding: 1px 4px;
   border: 1px solid var(--border);
