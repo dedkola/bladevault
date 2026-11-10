@@ -597,3 +597,60 @@ html:not([data-theme-style='modern'], [data-theme-style='alloy'])
   overflow: hidden;
   border-radius: 16px;
 }
+
+/* Workspace footer: Classic carries the sidebar shortcuts on the left and
+ * borrows the sidebar surface, so the full-width bar reads as one strip
+ * instead of a card-colored band under the main column. */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-workspace-footer] {
+  background: var(--sidebar);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-workspace-footer]
+  [data-workspace-footer-actions] {
+  margin-right: auto;
+  gap: 6px;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-workspace-footer]
+  [data-footer-action] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    color 150ms;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-workspace-footer]
+  [data-footer-action]:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-workspace-footer]
+  [data-footer-action][data-active] {
+  border-color: var(--bladevault-nav-active-bg);
+  background: var(--bladevault-nav-active-bg);
+  color: var(--bladevault-nav-active-fg);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-workspace-footer]
+  [data-footer-action]
+  svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.6;
+}

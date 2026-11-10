@@ -78,6 +78,8 @@ test('cycles theme styles from the Modern footer', async ({
   await expect(
     page.locator('[data-workspace-actions] [data-theme-cycle]'),
   ).toHaveCount(0)
+  // The palette glyph carries the affordance, so it must not be hidden.
+  await expect(themeButton.locator('svg')).toBeVisible()
   await expect(html).toHaveAttribute('data-theme-variant', 'lumen')
   await expect(themeButton).toHaveAttribute(
     'title',
@@ -132,6 +134,16 @@ test('shows the compact workspace footer in the Classic layout', async ({
   await expect(html).toHaveAttribute('data-theme-style', 'classic')
   await expect(footer).toBeVisible()
   await expect(footer).toContainText('24 knives')
+  await expect(
+    footer.locator('[data-workspace-footer-actions] [data-footer-action]'),
+  ).toHaveCount(3)
+  await expect(
+    footer
+      .locator(
+        '[data-workspace-footer-actions] [data-footer-action]:not([aria-label="Toggle color theme"]) svg',
+      )
+      .first(),
+  ).toBeVisible()
 
   // Classic scrolls the window, so the footer sticks to the viewport edge
   // instead of sitting at the end of a long collection.
@@ -160,6 +172,7 @@ test('shows the compact workspace footer in the Classic layout', async ({
   expect(atBottom.footerBottom).toBe(atBottom.viewportHeight)
 
   const themeButton = footer.locator('[data-theme-cycle]')
+  await expect(themeButton.locator('svg')).toBeVisible()
   await expect(themeButton).toHaveAttribute(
     'title',
     'Switch theme · Classic → Modern',

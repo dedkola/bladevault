@@ -2441,6 +2441,25 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   flex-direction: column;
   min-width: 0;
 }
+/* The sidebar and main content share a row so the footer can run the full
+ * width of the window, like the Modern family's shell. */
+[data-classic-body] {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+@media (min-width: 768px) {
+  [data-classic-body] {
+    flex-direction: row;
+  }
+  /* Leave the sticky footer's band clear so it never covers sidebar items. */
+  [data-classic-body] [data-sidebar] {
+    height: calc(100dvh - 34px);
+    max-height: calc(100dvh - 34px);
+  }
+}
 [data-classic-shell] [data-workspace-footer] {
   position: sticky;
   bottom: 0;
@@ -2469,7 +2488,9 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   align-items: center;
   gap: 4px;
 }
-[data-workspace-footer] button svg {
+/* Hide the search button's icon, but keep :where so the palette and Classic
+ * action icons can still override this without a specificity fight. */
+[data-workspace-footer] button:where(:not([data-footer-action])) svg {
   display: none;
 }
 [data-workspace-footer] [data-theme-cycle] {
