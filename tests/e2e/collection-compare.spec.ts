@@ -119,6 +119,15 @@ test('applies card fields to Modern gallery cards and pinned sidebar details', a
   await expect(page.locator('[data-sidebar-pinned-details]')).toContainText(
     '1133A3 · Fix · 14C28N · 3.25 in · Kizer · China · $79 · Limited run',
   )
+
+  await page.getByRole('button', { name: 'Switch to compact view' }).click()
+  await expect(
+    page.locator('[data-modern-collection-gallery]'),
+  ).toHaveAttribute('data-density', 'compact')
+  await expect(card.locator('[data-modern-object-field-label]')).toHaveCount(7)
+  await expect(
+    card.locator('[data-modern-object-field-value]').last(),
+  ).toBeVisible()
 })
 
 test('loads more collection and brand results automatically on scroll', async ({

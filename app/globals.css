@@ -1679,12 +1679,21 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   [data-modern-collection-gallery][data-density='compact']
   [data-modern-object-fields] {
   grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  margin-top: 7px;
+  padding-top: 7px;
 }
 
 html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   [data-modern-collection-gallery][data-density='compact']
-  [data-modern-object-field]:nth-child(n + 3) {
-  display: none;
+  [data-modern-object-field-label] {
+  font-size: 10.5px;
+}
+
+html:is([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-modern-collection-gallery][data-density='compact']
+  [data-modern-object-field-value] {
+  font-size: 12px;
 }
 
 html:is([data-theme-style='modern'], [data-theme-style='alloy'])
@@ -1927,11 +1936,6 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   html:is([data-theme-style='modern'], [data-theme-style='alloy'])
     [data-modern-collection-gallery] {
     grid-template-columns: minmax(0, 1fr);
-  }
-  html:is([data-theme-style='modern'], [data-theme-style='alloy'])
-    [data-modern-collection-gallery][data-density='compact']
-    [data-modern-object-fields] {
-    display: none;
   }
   [data-modern-collection-tools] {
     width: 100%;
