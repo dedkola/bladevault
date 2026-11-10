@@ -128,6 +128,22 @@ test('shows the compact workspace footer in the Classic layout', async ({
   await expect(footer).toBeVisible()
   await expect(footer).toContainText('0 knives')
 
+  // The footer stays pinned to the viewport while the page content scrolls.
+  const geometry = await page.evaluate(() => {
+    const shell = document.querySelector('[data-classic-shell]')!
+    const main = shell.querySelector('main')!
+    const footerEl = document.querySelector('[data-workspace-footer]')!
+    return {
+      shellHeight: Math.round(shell.getBoundingClientRect().height),
+      footerBottom: Math.round(footerEl.getBoundingClientRect().bottom),
+      viewportHeight: window.innerHeight,
+      mainOverflowY: getComputedStyle(main).overflowY,
+    }
+  })
+  expect(geometry.mainOverflowY).toBe('auto')
+  expect(geometry.shellHeight).toBe(geometry.viewportHeight)
+  expect(geometry.footerBottom).toBe(geometry.viewportHeight)
+
   const themeButton = footer.locator('[data-theme-cycle]')
   await expect(themeButton).toHaveAttribute(
     'title',

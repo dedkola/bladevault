@@ -2432,14 +2432,28 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   color: inherit;
   font-weight: 400;
 }
+/* Classic keeps the window as its scroll container, so the shell is capped to
+ * the viewport and the page content scrolls inside it to keep the footer
+ * pinned below the content instead of at the end of a long page. */
+body:has([data-classic-shell]) {
+  height: 100dvh;
+  overflow: hidden;
+}
 [data-classic-shell] {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
+}
+[data-classic-shell] > main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 [data-classic-shell] [data-workspace-footer] {
+  flex: 0 0 auto;
   min-height: 34px;
 }
 [data-workspace-footer] {
@@ -2678,6 +2692,17 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
     overflow: visible;
   }
   [data-workspace-body] > main {
+    overflow: visible;
+  }
+  body:has([data-classic-shell]) {
+    height: auto;
+    overflow: visible;
+  }
+  [data-classic-shell] {
+    display: block;
+    overflow: visible;
+  }
+  [data-classic-shell] > main {
     overflow: visible;
   }
 }
