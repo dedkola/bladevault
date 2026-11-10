@@ -2,7 +2,7 @@
 
 # The Playwright 1.64.1 image ships Node 26.x, matching .nvmrc. Fail the build
 # if the image moves to a different Node major so the mismatch is deliberate.
-FROM mcr.microsoft.com/playwright:v1.64.1-noble AS base
+FROM mcr.microsoft.com/playwright:v1.65.0-noble AS base
 
 RUN node --version && npm --version && \
   node -e "const major = process.versions.node.split('.')[0]; if (major !== '26') process.exit(1)"
