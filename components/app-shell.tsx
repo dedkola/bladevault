@@ -113,7 +113,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <GlobalKnifeSearch embedded />
         </div>
         <div data-workspace-actions>
-          <ThemeCycleButton />
           {pathname === '/studio' && (
             <span id="studio-header-actions" ref={setHeaderActions} />
           )}
@@ -140,6 +139,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/settings" aria-label="Workspace settings">
             <Settings />
           </Link>
+          <ThemeCycleButton />
           {/* Light-only and dark-only styles have no other mode to switch to. */}
           {!hasFixedColorMode(themeStyle) && (
             <button

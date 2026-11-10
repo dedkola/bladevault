@@ -72,7 +72,12 @@ test('cycles theme styles from the Modern header', async ({
   const themeButton = page.getByRole('button', { name: /^Switch theme\./ })
   await expect(
     page.locator('[data-workspace-actions] > :first-child'),
-  ).toHaveAttribute('data-theme-cycle')
+  ).toHaveAttribute('aria-label', 'Cloud backup')
+  await expect(
+    page.locator(
+      '[data-workspace-actions] > a[aria-label="Workspace settings"] + [data-theme-cycle]',
+    ),
+  ).toBeVisible()
   await expect(
     page.locator('[data-workspace-actions] > :last-child'),
   ).toHaveAttribute('data-workspace-add')
