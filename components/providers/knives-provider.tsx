@@ -86,6 +86,7 @@ type KnivesContextValue = {
   timeFormat: TimeFormat
   dimensionUnit: DimensionUnit
   cardFields: CardField[]
+  pinnedCardFields: CardField[]
   customFieldDefinitions: CustomField[]
   showFeedback: (message: string, tone?: FeedbackTone) => void
   scheduleVaultBackup: () => void
@@ -154,6 +155,9 @@ export function KnivesProvider({
   const [cardFields, setCardFields] = useState<CardField[]>(
     DEFAULT_SETTINGS.cardFields,
   )
+  const [pinnedCardFields, setPinnedCardFields] = useState<CardField[]>(
+    DEFAULT_SETTINGS.pinnedCardFields,
+  )
   const [customFieldDefinitions, setCustomFieldDefinitions] = useState<
     CustomField[]
   >(DEFAULT_SETTINGS.customFields)
@@ -182,6 +186,7 @@ export function KnivesProvider({
             timeFormat?: TimeFormat
             dimensionUnit?: DimensionUnit
             cardFields?: CardField[]
+            pinnedCardFields?: CardField[]
             customFields?: CustomField[]
           }
         }>(response)
@@ -207,6 +212,12 @@ export function KnivesProvider({
           setTimeFormat(normalizeTimeFormat(data.settings?.timeFormat))
           setDimensionUnit(normalizeDimensionUnit(data.settings?.dimensionUnit))
           setCardFields(normalizeCardFields(data.settings?.cardFields))
+          setPinnedCardFields(
+            normalizeCardFields(
+              data.settings?.pinnedCardFields,
+              DEFAULT_SETTINGS.pinnedCardFields,
+            ),
+          )
           setCustomFieldDefinitions(
             Array.isArray(data.settings?.customFields)
               ? data.settings.customFields
@@ -220,6 +231,7 @@ export function KnivesProvider({
           setTimeFormat(DEFAULT_SETTINGS.timeFormat)
           setDimensionUnit(DEFAULT_SETTINGS.dimensionUnit)
           setCardFields(DEFAULT_SETTINGS.cardFields)
+          setPinnedCardFields(DEFAULT_SETTINGS.pinnedCardFields)
           setCustomFieldDefinitions(DEFAULT_SETTINGS.customFields)
         }
       }
@@ -235,6 +247,7 @@ export function KnivesProvider({
           timeFormat?: TimeFormat
           dimensionUnit?: DimensionUnit
           cardFields?: CardField[]
+          pinnedCardFields?: CardField[]
           customFields?: CustomField[]
         }>
       ).detail
@@ -274,6 +287,16 @@ export function KnivesProvider({
 
       if (Array.isArray(detail?.cardFields)) {
         setCardFields(normalizeCardFields(detail.cardFields))
+        didUpdate = true
+      }
+
+      if (Array.isArray(detail?.pinnedCardFields)) {
+        setPinnedCardFields(
+          normalizeCardFields(
+            detail.pinnedCardFields,
+            DEFAULT_SETTINGS.pinnedCardFields,
+          ),
+        )
         didUpdate = true
       }
 
@@ -865,6 +888,7 @@ export function KnivesProvider({
       timeFormat,
       dimensionUnit,
       cardFields,
+      pinnedCardFields,
       customFieldDefinitions,
       showFeedback,
       scheduleVaultBackup,
@@ -895,6 +919,7 @@ export function KnivesProvider({
       timeFormat,
       dimensionUnit,
       cardFields,
+      pinnedCardFields,
       customFieldDefinitions,
       showFeedback,
       scheduleVaultBackup,

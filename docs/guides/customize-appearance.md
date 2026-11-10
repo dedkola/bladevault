@@ -14,9 +14,19 @@ Choose the details you want to see while browsing and adjust BladeVault's theme,
 
 Changes save automatically. Brand and model stay visible. The model number has a dedicated place on the card, so selecting it does not create a second copy in the detail rows. Empty optional values are omitted on real cards.
 
-The same field selection also controls the details shown for knives in the **Pinned** sidebar. You do not need to configure the sidebar separately.
-
 For example, choose **Blade material**, **Handle material**, and **Weight** to see those specifications at a glance. Add a [custom field](custom-fields.md) first if you want to display a detail such as storage location.
+
+## Choose the details for pinned items
+
+Pinned knives in the sidebar keep their own field selection, so the sidebar can stay compact even when your cards show more detail.
+
+1. Open **Settings → Appearance** and find **Pinned item fields**, below **Card fields**.
+2. Check the fields you want under pinned knives. **Blade material** (steel) and **Blade length** are selected by default; any structured or custom field can be swapped in.
+3. Use the pinned preview to review your selection. It uses example values, just like the card preview.
+
+Changes save automatically. Brand and name stay visible. Every value under the item comes from your selection, so the line shows exactly the fields you checked, in the same order. Model number is available as an option if you want it. Empty optional values are omitted for real knives.
+
+When two variants of the same model would otherwise show an identical line, BladeVault appends a readable value that tells them apart, such as the model number, handle material, blade finish, or hardness. Items stay distinguishable without exposing record IDs.
 
 ## Switch between Gallery and Compact views
 

@@ -12,9 +12,9 @@ Each knife record can hold specifications, pricing, provenance, notes, links, an
 
 ## Cards and the pinned sidebar
 
-[Choose which details appear on cards and pinned sidebar items](customize-appearance.md). The same field selection applies to both. You can also change the theme, time format, and whether pinned knives appear first.
+[Choose which details appear on cards](customize-appearance.md), and pick a separate set of fields for pinned sidebar items under **Settings → Appearance → Pinned item fields**. Pinned items show blade material and blade length by default. You can also change the theme, time format, and whether pinned knives appear first.
 
-![The pinned sidebar, with the same field selection used on the cards](../images/collection-pinned-sidebar.png)
+![The pinned sidebar, showing its own field selection](../images/collection-pinned-sidebar.png)
 
 ## Finding things
 

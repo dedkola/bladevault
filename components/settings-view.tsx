@@ -18,11 +18,13 @@ import {
   Database,
   Download,
   FolderOpen,
+  ImageIcon,
   Info,
   Loader2,
   Lock,
   LogOut,
   Palette,
+  Pin,
   Plug,
   Printer,
   RefreshCw,
@@ -367,6 +369,28 @@ function applyThemePreference(
   applyThemeModeToElement(document.documentElement, theme)
 }
 
+function getCardFieldExampleValues(
+  dimensionUnit: DimensionUnit,
+): Record<string, string> {
+  return {
+    bladeStyle: 'Drop point',
+    handleMaterial: 'Micarta',
+    'specs.modelNumber': 'BV-01',
+    'specs.designer': 'In-house design',
+    'specs.country': 'USA',
+    'specs.price': '$145',
+    'specs.bladeMaterial': '154CM',
+    'specs.bladeCoating': 'Satin',
+    'specs.lockingMechanism': 'Crossbar lock',
+    'specs.hardness': '60 HRC',
+    'specs.overallLength': formatDimension('190 mm', dimensionUnit),
+    'specs.bladeLength': formatDimension('3.25 in', dimensionUnit),
+    'specs.bladeThickness': formatDimension('3 mm', dimensionUnit),
+    'specs.handleLength': formatDimension('110 mm', dimensionUnit),
+    'specs.weight': formatWeight('95 g', dimensionUnit),
+  }
+}
+
 function CardFieldsPreview({
   fields,
   customFields,
@@ -376,22 +400,7 @@ function CardFieldsPreview({
   customFields: CustomField[]
   dimensionUnit: DimensionUnit
 }) {
-  const exampleValues: Record<string, string> = {
-    bladeStyle: 'Drop point',
-    handleMaterial: 'Micarta',
-    'specs.designer': 'In-house design',
-    'specs.country': 'USA',
-    'specs.price': '$145',
-    'specs.bladeMaterial': '154CM',
-    'specs.bladeCoating': 'Satin',
-    'specs.lockingMechanism': 'Crossbar lock',
-    'specs.hardness': '60 HRC',
-    'specs.overallLength': formatDimension('190 mm', dimensionUnit),
-    'specs.bladeLength': formatDimension('80 mm', dimensionUnit),
-    'specs.bladeThickness': formatDimension('3 mm', dimensionUnit),
-    'specs.handleLength': formatDimension('110 mm', dimensionUnit),
-    'specs.weight': formatWeight('95 g', dimensionUnit),
-  }
+  const exampleValues = getCardFieldExampleValues(dimensionUnit)
   const previewFields = fields
     .filter((field) => field !== 'specs.modelNumber')
     .map((field) => ({
@@ -436,6 +445,126 @@ function CardFieldsPreview({
       <div className="mt-2 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
         <Lock className="size-3" />
         Brand and model are always shown
+      </div>
+    </div>
+  )
+}
+
+function PinnedItemFieldsPreview({
+  fields,
+  dimensionUnit,
+}: {
+  fields: CardField[]
+  dimensionUnit: DimensionUnit
+}) {
+  const exampleValues = getCardFieldExampleValues(dimensionUnit)
+  const detailLine = fields
+    .map((field) => exampleValues[field] ?? 'Example value')
+    .filter(Boolean)
+    .join(' · ')
+
+  return (
+    <div
+      className="mx-auto w-full max-w-[17rem]"
+      role="group"
+      aria-label="Pinned item preview"
+    >
+      <div className="rounded-lg border border-border/70 bg-[var(--bladevault-surface-soft)] p-2">
+        <div className="flex items-center gap-1.5 text-xs">
+          <span
+            className="flex size-6 shrink-0 items-center justify-center rounded border border-border/60 bg-background"
+            aria-hidden="true"
+          >
+            <ImageIcon className="size-3 text-muted-foreground/60" />
+          </span>
+          <Pin
+            className="size-3 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate">
+              <span className="text-muted-foreground">Vosteed</span>
+              <span className="mx-1 text-muted-foreground/50">·</span>
+              <span className="font-medium text-foreground">Porcupine</span>
+            </span>
+            <span className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-muted-foreground [overflow-wrap:anywhere]">
+              {detailLine}
+            </span>
+          </span>
+        </div>
+      </div>
+      <div className="mt-2 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
+        <Lock className="size-3" />
+        Brand and name are always shown
+      </div>
+    </div>
+  )
+}
+
+function CardFieldOptions({
+  fields,
+  customFields,
+  lockedRows,
+  disabled,
+  onToggle,
+  ariaLabelSuffix = 'cards',
+}: {
+  fields: CardField[]
+  customFields: CustomField[]
+  lockedRows: readonly { label: string; note: string }[]
+  disabled: boolean
+  onToggle: (field: CardField, checked: boolean) => void
+  ariaLabelSuffix?: string
+}) {
+  return (
+    <div
+      className="settings-card-fields-options max-h-[24rem] overflow-y-auto rounded-lg border border-border/70 bg-background"
+      aria-busy={disabled}
+    >
+      {lockedRows.map((row) => (
+        <div
+          key={row.label}
+          className="flex items-center justify-between gap-3 border-b border-border/60 px-3 py-2.5"
+        >
+          <div>
+            <div className="text-sm font-medium text-foreground">
+              {row.label}
+            </div>
+            <div className="text-xs text-muted-foreground">{row.note}</div>
+          </div>
+          <Lock className="size-3.5 text-muted-foreground" />
+        </div>
+      ))}
+      <div className="settings-card-field-groups">
+        {getCardFieldGroups(customFields).map((group) => {
+          if (group.fields.length === 0) return null
+
+          return (
+            <div key={group.label}>
+              <div className="sticky top-0 z-10 border-b border-border/60 bg-[var(--bladevault-surface-soft)] px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                {group.label}
+              </div>
+              {group.fields.map((field) => (
+                <label
+                  key={field.key}
+                  className="flex cursor-pointer items-center justify-between gap-3 border-b border-border/60 px-3 py-3 last:border-b-0"
+                >
+                  <span className="min-w-0 text-sm font-medium text-foreground [overflow-wrap:anywhere]">
+                    {field.label}
+                  </span>
+                  <Checkbox
+                    checked={fields.includes(field.key)}
+                    disabled={disabled}
+                    onCheckedChange={(checked) =>
+                      onToggle(field.key, checked === true)
+                    }
+                    aria-label={`Show ${field.label} on ${ariaLabelSuffix}`}
+                  />
+                </label>
+              ))}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -532,6 +661,8 @@ export default function SettingsView() {
   const [newFieldName, setNewFieldName] = useState('')
   const [newFieldType, setNewFieldType] = useState<CustomFieldType>('text')
   const [isSavingCardFields, setIsSavingCardFields] = useState(false)
+  const [isSavingPinnedCardFields, setIsSavingPinnedCardFields] =
+    useState(false)
   const [mcpStatus, setMcpStatus] = useState<McpRuntimeStatus | null>(null)
   const [copiedMcpConfig, setCopiedMcpConfig] = useState(false)
   const [copiedMcpToken, setCopiedMcpToken] = useState(false)
@@ -1343,6 +1474,28 @@ export default function SettingsView() {
     }
   }
 
+  const handlePinnedCardFieldToggle = async (
+    field: CardField,
+    checked: boolean,
+  ) => {
+    if (!settings) return
+
+    const nextFields = checked
+      ? [...settings.pinnedCardFields.filter((item) => item !== field), field]
+      : settings.pinnedCardFields.filter((item) => item !== field)
+
+    try {
+      setIsSavingPinnedCardFields(true)
+      await saveSettings({ pinnedCardFields: nextFields })
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : 'Failed to save settings',
+      )
+    } finally {
+      setIsSavingPinnedCardFields(false)
+    }
+  }
+
   const handleCopyMcpConfig = async () => {
     if (!mcpClientConfig) return
 
@@ -1477,16 +1630,21 @@ export default function SettingsView() {
     }
 
     const customFieldIds = new Set(nextCustomFields.map((field) => field.id))
+    const isManagedCustomField = (field: CardField) =>
+      field.startsWith('custom:') &&
+      customFieldIds.has(field.slice('custom:'.length))
     const nextCardFields = settings.cardFields.filter(
-      (field) =>
-        !field.startsWith('custom:') ||
-        customFieldIds.has(field.slice('custom:'.length)),
+      (field) => !field.startsWith('custom:') || isManagedCustomField(field),
+    )
+    const nextPinnedCardFields = settings.pinnedCardFields.filter(
+      (field) => !field.startsWith('custom:') || isManagedCustomField(field),
     )
 
     try {
       await saveSettings({
         customFields: nextCustomFields,
         cardFields: nextCardFields,
+        pinnedCardFields: nextPinnedCardFields,
       })
       setLoadError(null)
       return true
@@ -2144,7 +2302,7 @@ export default function SettingsView() {
                   </SettingsSection>
                   <SettingsSection
                     title="Card fields"
-                    description="Choose any structured or custom details to show on knife cards and pinned sidebar items."
+                    description="Choose any structured or custom details to show on knife cards."
                     className="settings-card-fields"
                   >
                     <div className="settings-card-fields-layout grid items-start gap-4 py-4">
@@ -2153,67 +2311,41 @@ export default function SettingsView() {
                         customFields={settings.customFields}
                         dimensionUnit={settings.dimensionUnit}
                       />
-                      <div
-                        className="settings-card-fields-options max-h-[24rem] overflow-y-auto rounded-lg border border-border/70 bg-background"
-                        aria-busy={isSavingCardFields}
-                      >
-                        <div className="flex items-center justify-between gap-3 border-b border-border/60 px-3 py-2.5">
-                          <div>
-                            <div className="text-sm font-medium text-foreground">
-                              Brand
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              Always shown
-                            </div>
-                          </div>
-                          <Lock className="size-3.5 text-muted-foreground" />
-                        </div>
-                        <div className="flex items-center justify-between gap-3 border-b border-border/60 px-3 py-2.5">
-                          <div>
-                            <div className="text-sm font-medium text-foreground">
-                              Model
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              Always shown
-                            </div>
-                          </div>
-                          <Lock className="size-3.5 text-muted-foreground" />
-                        </div>
-                        <div className="settings-card-field-groups">
-                          {getCardFieldGroups(settings.customFields).map(
-                            (group) => (
-                              <div key={group.label}>
-                                <div className="sticky top-0 z-10 border-b border-border/60 bg-[var(--bladevault-surface-soft)] px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                                  {group.label}
-                                </div>
-                                {group.fields.map((field) => (
-                                  <label
-                                    key={field.key}
-                                    className="flex cursor-pointer items-center justify-between gap-3 border-b border-border/60 px-3 py-3 last:border-b-0"
-                                  >
-                                    <span className="min-w-0 text-sm font-medium text-foreground [overflow-wrap:anywhere]">
-                                      {field.label}
-                                    </span>
-                                    <Checkbox
-                                      checked={settings.cardFields.includes(
-                                        field.key,
-                                      )}
-                                      disabled={isSavingCardFields}
-                                      onCheckedChange={(checked) =>
-                                        handleCardFieldToggle(
-                                          field.key,
-                                          checked === true,
-                                        )
-                                      }
-                                      aria-label={`Show ${field.label} on cards`}
-                                    />
-                                  </label>
-                                ))}
-                              </div>
-                            ),
-                          )}
-                        </div>
-                      </div>
+                      <CardFieldOptions
+                        fields={settings.cardFields}
+                        customFields={settings.customFields}
+                        lockedRows={[
+                          { label: 'Brand and model', note: 'Always shown' },
+                        ]}
+                        disabled={isSavingCardFields}
+                        onToggle={(field, checked) =>
+                          void handleCardFieldToggle(field, checked)
+                        }
+                      />
+                    </div>
+                  </SettingsSection>
+                  <SettingsSection
+                    title="Pinned item fields"
+                    description="Choose any structured or custom details to show under pinned knives in the sidebar. Steel and blade length are selected by default."
+                    className="settings-pinned-card-fields"
+                  >
+                    <div className="settings-card-fields-layout grid items-start gap-4 py-4">
+                      <PinnedItemFieldsPreview
+                        fields={settings.pinnedCardFields}
+                        dimensionUnit={settings.dimensionUnit}
+                      />
+                      <CardFieldOptions
+                        fields={settings.pinnedCardFields}
+                        customFields={settings.customFields}
+                        lockedRows={[
+                          { label: 'Brand and name', note: 'Always shown' },
+                        ]}
+                        disabled={isSavingPinnedCardFields}
+                        onToggle={(field, checked) =>
+                          void handlePinnedCardFieldToggle(field, checked)
+                        }
+                        ariaLabelSuffix="pinned items"
+                      />
                     </div>
                   </SettingsSection>
                 </div>

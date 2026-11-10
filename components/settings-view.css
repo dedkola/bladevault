@@ -95,6 +95,13 @@
   }
 }
 
+/* Card fields and pinned item fields each need the full panel width; the
+   appearance grid is two columns, so span both to avoid a squeezed third
+   panel beside the first. */
+.settings-pinned-card-fields {
+  grid-column: 1 / -1;
+}
+
 .settings-preferences .settings-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

@@ -1,4 +1,7 @@
-import { DEFAULT_COLLECTION_DISPLAY } from '@/lib/settings-shared'
+import {
+  DEFAULT_COLLECTION_DISPLAY,
+  DEFAULT_PINNED_CARD_FIELDS,
+} from '@/lib/settings-shared'
 import type { APIRequestContext } from '@playwright/test'
 
 export async function resetVault(request: APIRequestContext) {
@@ -26,6 +29,7 @@ export async function resetVault(request: APIRequestContext) {
       startPage: 'insights',
       pinnedItemsFirst: true,
       cardFields: ['bladeStyle', 'handleMaterial'],
+      pinnedCardFields: [...DEFAULT_PINNED_CARD_FIELDS],
       cloudBackupLastSyncedAt: '',
       cloudAutoBackupEnabled: false,
       mcpEnabled: true,
