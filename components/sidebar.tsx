@@ -30,7 +30,7 @@ import { CompareIcon } from '@/components/icons/compare-icon'
 import { cn } from '@/lib/utils'
 import { getImageUrl } from '@/lib/data'
 import { getKnifeFamilyKey, groupKnifeFamilies } from '@/lib/knife-families'
-import { getVisibleCardFields } from '@/lib/card-fields'
+import { getPinnedDetailLine } from '@/lib/card-fields'
 import { useKnives } from '@/components/providers/knives-provider'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -74,7 +74,7 @@ export function Sidebar() {
   const routeKey = searchParamsKey ? `${pathname}?${searchParamsKey}` : pathname
   const {
     knives,
-    cardFields,
+    pinnedCardFields,
     customFieldDefinitions,
     dimensionUnit,
     isAutoBackupActive,
@@ -437,28 +437,13 @@ export function Sidebar() {
                     const isKnifeActive = pathname === knifeHref
                     const siblings =
                       familiesByKey.get(getKnifeFamilyKey(knife)) ?? []
-                    const getDetails = (item: typeof knife) =>
-                      [
-                        item.specs.modelNumber?.trim(),
-                        ...getVisibleCardFields(
-                          item,
-                          cardFields,
-                          customFieldDefinitions,
-                          dimensionUnit,
-                        ).map((field) => field.value),
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')
-                    const details = getDetails(knife)
-                    const ambiguous = siblings.some(
-                      (sibling) =>
-                        sibling.id !== knife.id &&
-                        getDetails(sibling) === details,
+                    const detailLine = getPinnedDetailLine(
+                      knife,
+                      pinnedCardFields,
+                      customFieldDefinitions,
+                      siblings,
+                      dimensionUnit,
                     )
-                    const detailLine =
-                      ambiguous || (!details && siblings.length > 1)
-                        ? [details, knife.id].filter(Boolean).join(' · ')
-                        : details
 
                     return (
                       <Link

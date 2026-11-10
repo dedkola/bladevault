@@ -372,6 +372,7 @@ test('audit: confirms custom-field removal, preserves stored values, and surface
     data: {
       customFields: [{ id: 'inventory', name: 'Inventory', type: 'text' }],
       cardFields: ['custom:inventory'],
+      pinnedCardFields: ['custom:inventory'],
     },
   })
   const { knife } = await seedKnife(request, {
@@ -413,6 +414,7 @@ test('audit: confirms custom-field removal, preserves stored values, and surface
   const settings = (await (await request.get('/api/settings')).json()).settings
   expect(settings.customFields).toEqual([])
   expect(settings.cardFields).not.toContain('custom:inventory')
+  expect(settings.pinnedCardFields).not.toContain('custom:inventory')
   const stored = (await (await request.get(`/api/knives/${knife.id}`)).json())
     .knife
   expect(stored.customFields.inventory).toBe('SAFE-42')

@@ -6,7 +6,7 @@ test.beforeEach(async ({ request }) => {
   await resetVault(request)
 })
 
-test('keeps pinned sidebar details in sync with collection card settings', async ({
+test('keeps pinned sidebar details in sync with pinned item field settings', async ({
   page,
   request,
 }) => {
@@ -29,16 +29,14 @@ test('keeps pinned sidebar details in sync with collection card settings', async
         'specs.bladeMaterial',
         'specs.bladeCoating',
       ],
+      pinnedCardFields: ['specs.lockingMechanism', 'specs.bladeCoating'],
       customFields: [{ id: 'edition', name: 'Edition', type: 'text' }],
     },
   })
 
   await page.goto('/collection')
   const pinnedLink = page.locator(`nav a[href="/collection/${knife.id}"]`)
-  await expect(pinnedLink).toHaveAttribute(
-    'title',
-    '1133A3 · Fix · 14C28N · Satin',
-  )
+  await expect(pinnedLink).toHaveAttribute('title', 'Fix · Satin')
   await expect(page.locator('[data-knife-card] dl dt')).toHaveText([
     'Locking mechanism',
     'Blade material',
@@ -46,7 +44,14 @@ test('keeps pinned sidebar details in sync with collection card settings', async
   ])
 
   await request.post('/api/settings', {
-    data: { cardFields: ['custom:edition', 'specs.bladeMaterial'] },
+    data: {
+      cardFields: ['specs.bladeMaterial'],
+      pinnedCardFields: [
+        'specs.modelNumber',
+        'custom:edition',
+        'specs.bladeMaterial',
+      ],
+    },
   })
   await page.reload()
   await expect(pinnedLink).toHaveAttribute(
@@ -54,9 +59,51 @@ test('keeps pinned sidebar details in sync with collection card settings', async
     '1133A3 · Limited run · 14C28N',
   )
   await expect(page.locator('[data-knife-card] dl dt')).toHaveText([
-    'Edition',
     'Blade material',
   ])
+})
+
+test('defaults pinned sidebar details to steel and blade length', async ({
+  page,
+  request,
+}) => {
+  const { knife } = await seedKnife(request, {
+    name: 'Abrams',
+    brand: 'Kizer',
+    pinned: true,
+    specs: {
+      modelNumber: '1133A3',
+      lockingMechanism: 'Fix',
+      bladeMaterial: '14C28N',
+      bladeLength: '3.25 in',
+    },
+  })
+
+  await page.goto('/collection')
+  const pinnedLink = page.locator(`nav a[href="/collection/${knife.id}"]`)
+  await expect(pinnedLink).toHaveAttribute('title', '14C28N · 3.25 in')
+})
+
+test('adds a readable value instead of a record id when pinned variants match', async ({
+  page,
+  request,
+}) => {
+  const specs = { bladeMaterial: '14C28N', bladeLength: '2.99 in' }
+  const { knife } = await seedKnife(request, {
+    name: 'Porcupine',
+    brand: 'Vosteed',
+    pinned: true,
+    specs: { ...specs, modelNumber: 'A2605' },
+  })
+  await seedKnife(request, {
+    name: 'Porcupine',
+    brand: 'Vosteed',
+    specs: { ...specs, modelNumber: 'A2620' },
+  })
+
+  await page.goto('/collection')
+  const pinnedLink = page.locator(`nav a[href="/collection/${knife.id}"]`)
+  await expect(pinnedLink).toHaveAttribute('title', '14C28N · 2.99 in · A2605')
 })
 
 test('applies card fields to Modern gallery cards and pinned sidebar details', async ({
@@ -91,6 +138,15 @@ test('applies card fields to Modern gallery cards and pinned sidebar details', a
         'specs.price',
         'custom:edition',
       ],
+      pinnedCardFields: [
+        'specs.lockingMechanism',
+        'specs.bladeMaterial',
+        'specs.bladeLength',
+        'specs.designer',
+        'specs.country',
+        'specs.price',
+        'custom:edition',
+      ],
       customFields: [{ id: 'edition', name: 'Edition', type: 'text' }],
     },
   })
@@ -117,7 +173,7 @@ test('applies card fields to Modern gallery cards and pinned sidebar details', a
   ])
   await expect(page.locator('[data-sidebar-pinned-details]')).toBeVisible()
   await expect(page.locator('[data-sidebar-pinned-details]')).toContainText(
-    '1133A3 · Fix · 14C28N · 3.25 in · Kizer · China · $79 · Limited run',
+    'Fix · 14C28N · 3.25 in · Kizer · China · $79 · Limited run',
   )
 
   await page.getByRole('button', { name: 'Switch to compact view' }).click()

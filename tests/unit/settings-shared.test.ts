@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_CARD_FIELDS,
   DEFAULT_COLLECTION_DISPLAY,
+  DEFAULT_PINNED_CARD_FIELDS,
+  DEFAULT_SETTINGS,
   normalizeCollectionDisplay,
   normalizeCardFields,
   normalizeThemeStyle,
@@ -40,6 +42,19 @@ describe('normalizeCardFields', () => {
     expect(normalizeCardFields(['custom:', 'bladeStyle'])).toEqual([
       'bladeStyle',
     ])
+  })
+
+  it('falls back to the pinned defaults for pinned item fields', () => {
+    expect(normalizeCardFields(null, DEFAULT_PINNED_CARD_FIELDS)).toEqual([
+      'specs.bladeMaterial',
+      'specs.bladeLength',
+    ])
+    expect(DEFAULT_SETTINGS.pinnedCardFields).toEqual(
+      DEFAULT_PINNED_CARD_FIELDS,
+    )
+    expect(DEFAULT_SETTINGS.pinnedCardFields).not.toBe(
+      DEFAULT_PINNED_CARD_FIELDS,
+    )
   })
 })
 

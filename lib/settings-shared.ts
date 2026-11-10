@@ -89,6 +89,11 @@ export const DEFAULT_CARD_FIELDS = [
   'handleMaterial',
 ] as const satisfies readonly CardField[]
 
+export const DEFAULT_PINNED_CARD_FIELDS = [
+  'specs.bladeMaterial',
+  'specs.bladeLength',
+] as const satisfies readonly CardField[]
+
 export const CUSTOM_FIELD_TYPES = ['text', 'number', 'date'] as const
 
 export type CustomFieldType = (typeof CUSTOM_FIELD_TYPES)[number]
@@ -243,6 +248,7 @@ export type AppSettings = {
   startPage: StartPage
   pinnedItemsFirst: boolean
   cardFields: CardField[]
+  pinnedCardFields: CardField[]
   cloudBackupLastSyncedAt: string
   cloudAutoBackupEnabled: boolean
   mcpEnabled: boolean
@@ -259,6 +265,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   startPage: 'insights',
   pinnedItemsFirst: true,
   cardFields: [...DEFAULT_CARD_FIELDS],
+  pinnedCardFields: [...DEFAULT_PINNED_CARD_FIELDS],
   cloudBackupLastSyncedAt: '',
   cloudAutoBackupEnabled: false,
   mcpEnabled: true,

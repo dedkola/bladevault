@@ -157,8 +157,11 @@ async function layoutMetrics(page: Page) {
   })
 }
 
-async function cardFieldsLayout(page: Page) {
-  return page.locator('.settings-card-fields').evaluate((panel) => {
+async function cardFieldsLayout(
+  page: Page,
+  selector = '.settings-card-fields',
+) {
+  return page.locator(selector).evaluate((panel) => {
     const layout = panel.querySelector(
       '.settings-card-fields-layout',
     ) as HTMLElement
@@ -257,21 +260,30 @@ for (const viewport of VIEWPORTS) {
         }
 
         if (tab === 'Appearance') {
-          const fields = await cardFieldsLayout(page)
-          if (fields.sideBySide) {
-            expect(fields.previewRight).toBeLessThanOrEqual(
-              fields.optionsLeft + 1,
-            )
-            expect(
-              Math.abs(fields.previewTop - fields.optionsTop),
-            ).toBeLessThanOrEqual(1)
-          } else {
-            expect(fields.optionsTop).toBeGreaterThanOrEqual(
-              fields.previewBottom - 1,
-            )
-            expect(
-              Math.abs(fields.optionsWidth - fields.layoutWidth),
-            ).toBeLessThanOrEqual(1)
+          for (const selector of [
+            '.settings-card-fields',
+            '.settings-pinned-card-fields',
+          ]) {
+            const fields = await cardFieldsLayout(page, selector)
+            if (fields.sideBySide) {
+              expect(
+                fields.previewRight,
+                `${selector} preview sits beside the options`,
+              ).toBeLessThanOrEqual(fields.optionsLeft + 1)
+              expect(
+                Math.abs(fields.previewTop - fields.optionsTop),
+                `${selector} preview aligns with the options`,
+              ).toBeLessThanOrEqual(1)
+            } else {
+              expect(
+                fields.optionsTop,
+                `${selector} options stack under the preview`,
+              ).toBeGreaterThanOrEqual(fields.previewBottom - 1)
+              expect(
+                Math.abs(fields.optionsWidth - fields.layoutWidth),
+                `${selector} options fill the card`,
+              ).toBeLessThanOrEqual(1)
+            }
           }
         }
       }
@@ -296,10 +308,13 @@ test.describe('column behaviour', () => {
     await openTab(page, 'Appearance')
     expect(await gridColumns(page)).toBe(2)
     const { gridWidth, panelWidths } = await layoutMetrics(page)
-    expect(panelWidths).toHaveLength(2)
+    // Appearance + Card fields tile; Pinned item fields spans both tracks.
+    expect(panelWidths).toHaveLength(3)
     expect(panelWidths[0]).toBeLessThanOrEqual(352)
     expect(panelWidths[1]).toBeGreaterThan(panelWidths[0])
     expect(panelWidths[0] + panelWidths[1]).toBeGreaterThan(gridWidth - 24)
+    expect(panelWidths[2]).toBeGreaterThan(panelWidths[1])
+    expect(panelWidths[2]).toBeGreaterThanOrEqual(gridWidth - 24)
   })
 
   test('keeps Cloud backup in two compact columns without empty restore feedback', async ({

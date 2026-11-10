@@ -1,5 +1,6 @@
 import {
   DEFAULT_SETTINGS,
+  normalizeCardFields,
   normalizeStartPage,
   normalizeDimensionUnit,
   type AppSettings,
@@ -94,6 +95,10 @@ function getState(): State {
         settings: {
           ...parsed.settings,
           dimensionUnit: normalizeDimensionUnit(parsed.settings.dimensionUnit),
+          pinnedCardFields: normalizeCardFields(
+            parsed.settings.pinnedCardFields,
+            DEFAULT_SETTINGS.pinnedCardFields,
+          ),
         },
       }
   } catch {

@@ -4,6 +4,7 @@ import {
   APP_THEMES,
   normalizeCollectionDisplay,
   DEFAULT_CARD_FIELDS,
+  DEFAULT_PINNED_CARD_FIELDS,
   CUSTOM_FIELD_TYPES,
   DEFAULT_SETTINGS,
   normalizeCardFields,
@@ -39,6 +40,7 @@ const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
   startPage: 'start_page',
   pinnedItemsFirst: 'pinned_items_first',
   cardFields: 'card_fields',
+  pinnedCardFields: 'pinned_card_fields',
   cloudBackupLastSyncedAt: 'cloud_backup_last_synced_at',
   cloudAutoBackupEnabled: 'cloud_auto_backup_enabled',
   mcpEnabled: 'mcp_enabled',
@@ -53,6 +55,16 @@ function parseCardFields(value: string | undefined): CardField[] {
     return normalizeCardFields(JSON.parse(value))
   } catch {
     return [...DEFAULT_CARD_FIELDS]
+  }
+}
+
+function parsePinnedCardFields(value: string | undefined): CardField[] {
+  if (!value) return [...DEFAULT_PINNED_CARD_FIELDS]
+
+  try {
+    return normalizeCardFields(JSON.parse(value), DEFAULT_PINNED_CARD_FIELDS)
+  } catch {
+    return [...DEFAULT_PINNED_CARD_FIELDS]
   }
 }
 
@@ -143,6 +155,9 @@ export function getSettings(): AppSettings {
       DEFAULT_SETTINGS.pinnedItemsFirst,
     ),
     cardFields: parseCardFields(map.get(SETTINGS_KEYS.cardFields)),
+    pinnedCardFields: parsePinnedCardFields(
+      map.get(SETTINGS_KEYS.pinnedCardFields),
+    ),
     cloudBackupLastSyncedAt:
       map.get(SETTINGS_KEYS.cloudBackupLastSyncedAt) ||
       DEFAULT_SETTINGS.cloudBackupLastSyncedAt,
@@ -176,6 +191,13 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
         settings.cardFields === undefined
           ? current.cardFields
           : normalizeCardFields(settings.cardFields, current.cardFields),
+      pinnedCardFields:
+        settings.pinnedCardFields === undefined
+          ? current.pinnedCardFields
+          : normalizeCardFields(
+              settings.pinnedCardFields,
+              current.pinnedCardFields,
+            ),
       themeStyle: normalizeThemeStyle(settings.themeStyle, current.themeStyle),
       timeFormat: normalizeTimeFormat(settings.timeFormat, current.timeFormat),
       dimensionUnit: normalizeDimensionUnit(
@@ -198,6 +220,7 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
       ['startPage', next.startPage],
       ['pinnedItemsFirst', next.pinnedItemsFirst ? '1' : '0'],
       ['cardFields', JSON.stringify(next.cardFields)],
+      ['pinnedCardFields', JSON.stringify(next.pinnedCardFields)],
       ['cloudBackupLastSyncedAt', next.cloudBackupLastSyncedAt],
       ['cloudAutoBackupEnabled', next.cloudAutoBackupEnabled ? '1' : '0'],
       ['mcpEnabled', next.mcpEnabled ? '1' : '0'],

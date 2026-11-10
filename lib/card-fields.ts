@@ -147,14 +147,71 @@ export function getCardFieldDisplayValue(
   return formattedValue
 }
 
+const PINNED_DISAMBIGUATOR_FIELDS: readonly CardField[] = [
+  'specs.modelNumber',
+  'handleMaterial',
+  'specs.bladeCoating',
+  'specs.hardness',
+]
+
+function normalizeDisambiguatorValue(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+/**
+ * Detail line for a pinned sidebar item. When family variants would render the
+ * same line, a readable field is appended; the slug is only a last resort.
+ */
+export function getPinnedDetailLine(
+  knife: Knife,
+  fields: readonly CardField[],
+  customFields: CustomField[],
+  siblings: readonly Knife[],
+  dimensionUnit?: DimensionUnit,
+): string {
+  const getDetails = (item: Knife) =>
+    getVisibleCardFields(item, fields, customFields, dimensionUnit, {
+      includeModelNumber: true,
+    })
+      .map((field) => field.value)
+      .join(' · ')
+  const getValue = (item: Knife, field: CardField) =>
+    getCardFieldDisplayValue(item, field, customFields, dimensionUnit)
+
+  const details = getDetails(knife)
+  const colliding = siblings.filter(
+    (sibling) => sibling.id !== knife.id && getDetails(sibling) === details,
+  )
+  if (colliding.length === 0) return details
+
+  for (const field of PINNED_DISAMBIGUATOR_FIELDS) {
+    if (fields.includes(field)) continue
+    const value = getValue(knife, field)
+    if (!value) continue
+    const normalized = normalizeDisambiguatorValue(value)
+    const distinguishes = colliding.every(
+      (sibling) =>
+        normalizeDisambiguatorValue(getValue(sibling, field)) !== normalized,
+    )
+    if (distinguishes) {
+      return [details, value].filter(Boolean).join(' · ')
+    }
+  }
+
+  return [details, knife.id].filter(Boolean).join(' · ')
+}
+
 export function getVisibleCardFields(
   knife: Knife,
   fields: readonly CardField[],
   customFields: CustomField[],
   dimensionUnit?: DimensionUnit,
+  options: { includeModelNumber?: boolean } = {},
 ): { key: CardField; label: string; value: string }[] {
   return fields
-    .filter((field) => field !== 'specs.modelNumber')
+    .filter(
+      (field) => options.includeModelNumber || field !== 'specs.modelNumber',
+    )
     .map((field) => ({
       key: field,
       label: getCardFieldLabel(field, customFields),
