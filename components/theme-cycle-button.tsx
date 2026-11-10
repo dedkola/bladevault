@@ -23,8 +23,9 @@ function applyThemeStyle(themeStyle: ThemeStyle) {
 }
 
 /**
- * Cycles through the Modern-family styles. Clicks update the shell right away
- * and queue saves so a later click always wins over an earlier response.
+ * Cycles through the Modern-family styles plus the default Classic style.
+ * Clicks update the shell right away and queue saves so a later click always
+ * wins over an earlier response.
  */
 export function ThemeCycleButton() {
   const { themeStyle, showFeedback } = useKnives()

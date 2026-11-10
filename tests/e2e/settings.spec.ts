@@ -96,8 +96,12 @@ test('cycles theme styles from the Modern footer', async ({
   await expect(html).toHaveClass(/dark/)
 
   await themeButton.click()
-  await expect(html).toHaveAttribute('data-theme-style', 'modern')
+  await expect(html).toHaveAttribute('data-theme-style', 'classic')
   await expect(html).not.toHaveAttribute('data-theme-variant', /.+/)
+  await expect(themeButton).toHaveAttribute(
+    'title',
+    'Switch theme · Classic → Modern',
+  )
 
   await expect
     .poll(async () => {
@@ -107,13 +111,13 @@ test('cycles theme styles from the Modern footer', async ({
       }
       return data.settings?.themeStyle
     })
-    .toBe('modern')
+    .toBe('classic')
 
   await page.reload()
-  await expect(html).toHaveAttribute('data-theme-style', 'modern')
+  await expect(html).toHaveAttribute('data-theme-style', 'classic')
   await expect(themeButton).toHaveAttribute(
     'title',
-    'Switch theme · Modern → Forge',
+    'Switch theme · Classic → Modern',
   )
 })
 

@@ -104,17 +104,17 @@ describe('theme families', () => {
     expect(readThemeStyleFromElement(element)).toBe('alloy')
   })
 
-  it('cycles the quick switcher through Modern-family styles', () => {
+  it('cycles the quick switcher through Modern-family and default styles', () => {
     expect(getNextThemeStyle('lumen')).toBe('espresso')
     expect(getNextThemeStyle('espresso')).toBe('phosphor')
-    expect(getNextThemeStyle('phosphor')).toBe('modern')
+    expect(getNextThemeStyle('phosphor')).toBe('classic')
+    expect(getNextThemeStyle('classic')).toBe('modern')
     expect(getNextThemeStyle('modern')).toBe('forge')
     expect(getNextThemeStyle('forge')).toBe('titanium')
     expect(getNextThemeStyle('field')).toBe('lumen')
   })
 
-  it('starts the quick switcher at Modern from a different shell', () => {
-    expect(getNextThemeStyle('classic')).toBe('modern')
+  it('starts the quick switcher at Modern from the Alloy shell', () => {
     expect(getNextThemeStyle('alloy')).toBe('modern')
   })
 })
