@@ -12,6 +12,7 @@ import {
   type AuditLogEvent,
   type MaintenanceEvent,
   type KnifeActivityEvent,
+  type KnifeNote,
   isMaintenanceType,
 } from '@/lib/data'
 import {
@@ -39,6 +40,7 @@ type State = {
   events: AuditLogEvent[]
   activity: KnifeActivityEvent[]
   maintenance: Record<string, MaintenanceEvent[]>
+  notes: Record<string, KnifeNote[]>
 }
 
 function emptyState(): State {
@@ -64,6 +66,7 @@ function emptyState(): State {
     events: [],
     activity: [],
     maintenance: {},
+    notes: {},
   }
 }
 
@@ -91,6 +94,8 @@ function getState(): State {
     )
       state = {
         ...parsed,
+        // Sessions saved before notes existed have no notes map.
+        notes: parsed.notes ?? {},
         knives: parsed.knives.map(normalizeKnife),
         settings: {
           ...parsed.settings,
@@ -358,6 +363,7 @@ function handle(request: Request, body: Record<string, unknown>) {
         l.ids = l.ids.filter((id) => id !== knife.id)
       })
       delete db.maintenance[knife.id]
+      delete db.notes[knife.id]
       record('deleted', knife)
       save()
       return json({ success: true })
@@ -500,6 +506,44 @@ function handle(request: Request, body: Record<string, unknown>) {
       save()
       return json({ collection })
     }
+  }
+  const notes = path.match(/^\/api\/knives\/([^/]+)\/notes(?:\/([^/]+))?$/)
+  if (notes) {
+    const knifeId = decodeURIComponent(notes[1]),
+      id = notes[2] ? Number(notes[2]) : undefined
+    if (!readSessionKnife(knifeId))
+      return json({ error: 'Knife not found' }, 404)
+    const list = (db.notes[knifeId] ??= [])
+    if (method === 'GET') return json({ notes: list })
+    const existing =
+      id === undefined ? undefined : list.find((n) => n.id === id)
+    if (id !== undefined && !existing)
+      return json({ error: 'Note not found' }, 404)
+    if (method === 'DELETE') {
+      db.notes[knifeId] = list.filter((n) => n.id !== id)
+      save()
+      return json({ success: true })
+    }
+    const text =
+      typeof body.body === 'string' ? body.body.trim() : existing?.body
+    if (!text) return json({ error: 'Note text is required' }, 400)
+    const now = new Date().toISOString()
+    const note: KnifeNote = {
+      id: id ?? Date.now(),
+      knifeId,
+      body: text,
+      notedAt:
+        typeof body.notedAt === 'string' && body.notedAt
+          ? body.notedAt
+          : (existing?.notedAt ?? now),
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    }
+    db.notes[knifeId] = [note, ...list.filter((n) => n.id !== note.id)].sort(
+      (a, b) => b.notedAt.localeCompare(a.notedAt) || b.id - a.id,
+    )
+    save()
+    return json({ note }, existing ? 200 : 201)
   }
   const maintenance = path.match(
     /^\/api\/knives\/([^/]+)\/maintenance(?:\/([^/]+))?$/,

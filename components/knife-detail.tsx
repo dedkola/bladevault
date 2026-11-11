@@ -34,6 +34,7 @@ import { ImageCountBadge } from '@/components/image-count-badge'
 import { Gallery } from '@/components/gallery'
 import { KnifeVariantSwitcher } from '@/components/knife-variant-switcher'
 import { MaintenanceSection } from '@/components/maintenance/maintenance-section'
+import { KnifeUserNotes } from '@/components/knife-user-notes'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -124,8 +125,17 @@ function KnifeNotes({ paragraphs }: { paragraphs: string[] }) {
   )
 }
 
-// Notes sit under the gallery; long descriptions are clamped until expanded.
-function NotesCard({ paragraphs }: { paragraphs: string[] }) {
+// Notes sit under the gallery: the scraped description (clamped until expanded),
+// then the collector's own dated notes.
+function NotesCard({
+  knifeId,
+  paragraphs,
+  fromWebsite,
+}: {
+  knifeId: string
+  paragraphs: string[]
+  fromWebsite: boolean
+}) {
   const [expanded, setExpanded] = useState(false)
   const notesId = useId()
   const isLong = paragraphs.join('').length > NOTES_CLAMP_LENGTH
@@ -134,6 +144,9 @@ function NotesCard({ paragraphs }: { paragraphs: string[] }) {
     <Card size="sm" className="gap-0 border border-border/65 py-0 ring-0">
       <CardContent className="px-0">
         <DetailSection title="Notes" icon={FileText}>
+          <h4 className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground xl:text-xs">
+            {fromWebsite ? 'From website' : 'Description'}
+          </h4>
           <div
             id={notesId}
             data-notes-body
@@ -159,6 +172,9 @@ function NotesCard({ paragraphs }: { paragraphs: string[] }) {
               />
             </Button>
           )}
+          <div className="mt-5 border-t border-border/60 pt-4">
+            <KnifeUserNotes knifeId={knifeId} />
+          </div>
         </DetailSection>
       </CardContent>
     </Card>
@@ -578,7 +594,12 @@ export default function KnifeDetail({
             />
           </div>
           <div className="order-3 lg:order-none">
-            <NotesCard key={knife.id} paragraphs={descriptionParagraphs} />
+            <NotesCard
+              key={knife.id}
+              knifeId={knife.id}
+              paragraphs={descriptionParagraphs}
+              fromWebsite={Boolean(safeSourceUrl)}
+            />
           </div>
         </div>
 

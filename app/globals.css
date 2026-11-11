@@ -1131,6 +1131,10 @@ html:is(
   background: rgb(246 130 31 / 12%);
 }
 
+[data-modern-logs] [data-log-icon][data-kind='note'] > span {
+  background: rgb(14 116 189 / 12%);
+}
+
 [data-modern-logs] [data-log-icon][data-kind='deleted'] > span {
   background: color-mix(in srgb, var(--destructive) 10%, transparent);
 }

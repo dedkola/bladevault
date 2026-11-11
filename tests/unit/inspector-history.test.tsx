@@ -5,7 +5,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { InspectorTabs } from '@/components/inspector-tabs'
-import type { MaintenanceEvent } from '@/lib/data'
+import type { KnifeNote, MaintenanceEvent } from '@/lib/data'
 import { createKnife } from '@/tests/fixtures/knife'
 
 function jsonResponse(body: unknown) {
@@ -48,10 +48,25 @@ const events: MaintenanceEvent[] = [
   },
 ]
 
+const notes: KnifeNote[] = [
+  {
+    id: 1,
+    knifeId: 'benchmade-bugout',
+    body: 'Pocket clip loosened after a month of carry.',
+    notedAt: '2026-11-05T12:00:00.000Z',
+    createdAt: '2026-11-05T12:00:00.000Z',
+    updatedAt: '2026-11-05T12:00:00.000Z',
+  },
+]
+
 beforeEach(() => {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => jsonResponse({ events })),
+    vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith('/notes')
+        ? jsonResponse({ notes })
+        : jsonResponse({ events }),
+    ),
   )
 })
 
@@ -61,7 +76,7 @@ afterEach(() => {
 })
 
 describe('Inspector history tab', () => {
-  it('orders record milestones and maintenance entries newest first', async () => {
+  it('orders record milestones, maintenance entries and notes newest first', async () => {
     const user = userEvent.setup()
     render(
       <InspectorTabs
@@ -73,15 +88,16 @@ describe('Inspector history tab', () => {
     )
 
     await user.click(screen.getByRole('tab', { name: 'History' }))
-    await waitFor(() => expect(historyLabels()).toHaveLength(5))
-
-    expect(historyLabels()).toEqual([
-      'Lubrication',
-      'Sharpening',
-      'Stropping',
-      'Record updated',
-      'Catalogued',
-    ])
+    await waitFor(() =>
+      expect(historyLabels()).toEqual([
+        'Lubrication',
+        'Note',
+        'Sharpening',
+        'Stropping',
+        'Record updated',
+        'Catalogued',
+      ]),
+    )
   })
 
   it('keeps maintenance entries out of History when a Maintenance tab exists', async () => {
@@ -97,8 +113,10 @@ describe('Inspector history tab', () => {
     )
 
     await user.click(screen.getByRole('tab', { name: 'History' }))
-
-    expect(historyLabels()).toEqual(['Record updated', 'Catalogued'])
-    expect(fetch).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(historyLabels()).toEqual(['Note', 'Record updated', 'Catalogued']),
+    )
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toMatch(/\/notes$/)
   })
 })

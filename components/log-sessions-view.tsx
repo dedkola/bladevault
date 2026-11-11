@@ -19,6 +19,7 @@ import {
   Trash2,
   Search,
   ShieldCheck,
+  StickyNote,
   Wrench,
 } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -43,7 +44,7 @@ import { getHourCycle } from '@/lib/time-format'
 import { cn } from '@/lib/utils'
 
 type EventType = AuditLogEvent['type']
-type LogFilter = 'all' | EventType | 'maintenance'
+type LogFilter = 'all' | EventType | 'maintenance' | 'notes'
 
 type ViewEvent = AuditLogEvent & {
   title: string
@@ -93,10 +94,20 @@ function isMaintenanceEvent(event: AuditLogEvent): boolean {
   )
 }
 
+function isNoteEvent(event: AuditLogEvent): boolean {
+  return event.source === 'Notes'
+}
+
 function eventMeta(event: AuditLogEvent): {
   label: string
   className: string
 } {
+  if (isNoteEvent(event)) {
+    return {
+      label: 'Note',
+      className: 'text-sky-700 dark:text-sky-300',
+    }
+  }
   if (isMaintenanceEvent(event)) {
     return {
       label: 'Maintenance',
@@ -107,6 +118,11 @@ function eventMeta(event: AuditLogEvent): {
 }
 
 function eventTitle(event: AuditLogEvent): string {
+  if (isNoteEvent(event)) {
+    if (event.type === 'deleted') return 'Note deleted'
+    if (event.summary === 'A note was updated.') return 'Note updated'
+    return 'Note added'
+  }
   if (isMaintenanceEvent(event)) {
     if (event.type === 'deleted') return 'Maintenance deleted'
     if (event.summary.endsWith('entry was updated.')) {
@@ -234,6 +250,7 @@ function getCalendarStartMonth(date: Date, numberOfMonths: number): Date {
 }
 
 function EventIcon({ event }: { event: ViewEvent }) {
+  if (isNoteEvent(event)) return <StickyNote className="size-4" />
   if (isMaintenanceEvent(event)) return <Wrench className="size-4" />
 
   const { type } = event
@@ -390,7 +407,9 @@ export function LogSessionsView() {
         filter === 'all' ||
         (filter === 'maintenance'
           ? isMaintenanceEvent(event)
-          : event.type === filter)
+          : filter === 'notes'
+            ? isNoteEvent(event)
+            : event.type === filter && !isNoteEvent(event))
       const matchesQuery =
         !normalizedQuery ||
         [
@@ -471,6 +490,7 @@ export function LogSessionsView() {
     for (const event of events) {
       activeDays.add(event.dateKey)
       if (isMaintenanceEvent(event)) maintenance += 1
+      else if (isNoteEvent(event)) continue
       else if (event.type === 'created') additions += 1
       else if (event.type === 'updated') edits += 1
     }
@@ -826,6 +846,7 @@ export function LogSessionsView() {
                     'created',
                     'updated',
                     'maintenance',
+                    'notes',
                     'deleted',
                   ] as const
                 ).map((value) => (
@@ -1002,9 +1023,11 @@ export function LogSessionsView() {
                             <TableCell
                               data-log-icon
                               data-kind={
-                                isMaintenanceEvent(event)
-                                  ? 'maintenance'
-                                  : event.type
+                                isNoteEvent(event)
+                                  ? 'note'
+                                  : isMaintenanceEvent(event)
+                                    ? 'maintenance'
+                                    : event.type
                               }
                             >
                               <span className="flex items-center gap-1.5 text-[10px] sm:text-[11px]">

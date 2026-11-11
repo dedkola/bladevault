@@ -10,7 +10,11 @@ import { afterEach, describe, expect, it } from 'vitest'
 import * as activityRoute from '@/app/api/activity/route'
 import * as localBackupRoute from '@/app/api/local-backup/archive/route'
 import * as logsRoute from '@/app/api/logs/route'
-import { closeLocalDb, getLocalDb } from '@/lib/local-db'
+import {
+  closeLocalDb,
+  getLocalDb,
+  LOCAL_DB_SCHEMA_VERSION,
+} from '@/lib/local-db'
 import { validateLocalDatabase } from '@/lib/local-data-restore'
 import { getSettings, saveSettings } from '@/lib/settings'
 import { LocalStorage } from '@/lib/storage/local'
@@ -191,7 +195,7 @@ describe('local backup archive route', () => {
       formatVersion: 1,
       knifeCount: 1,
       imageCount: 1,
-      schemaVersion: 6,
+      schemaVersion: LOCAL_DB_SCHEMA_VERSION,
     })
 
     const inspected = await localBackupRoute.POST(

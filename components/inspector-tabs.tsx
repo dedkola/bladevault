@@ -7,6 +7,7 @@ import type { DimensionUnit } from '@/lib/settings-shared'
 import {
   maintenanceTypeName,
   type Knife,
+  type KnifeNote,
   type MaintenanceEvent,
 } from '@/lib/data'
 
@@ -48,6 +49,49 @@ function useMaintenanceEvents(knifeId: string, enabled: boolean) {
     events: current?.events ?? [],
     status: current?.status ?? ('loading' as const),
   }
+}
+
+type NotesState = {
+  knifeId: string
+  status: 'ready' | 'error'
+  notes: KnifeNote[]
+}
+
+/** Loads a knife's own dated notes for the History tab, keyed by knife id. */
+function useKnifeNotes(knifeId: string, enabled: boolean) {
+  const [state, setState] = useState<NotesState | null>(null)
+  useEffect(() => {
+    if (!enabled) return
+    const controller = new AbortController()
+    fetch(`/api/knives/${encodeURIComponent(knifeId)}/notes`, {
+      signal: controller.signal,
+      cache: 'no-store',
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Notes unavailable')
+        const data = (await response.json()) as { notes?: KnifeNote[] }
+        setState({ knifeId, status: 'ready', notes: data.notes ?? [] })
+      })
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setState({ knifeId, status: 'error', notes: [] })
+      })
+    return () => controller.abort()
+  }, [enabled, knifeId])
+  const current = state?.knifeId === knifeId ? state : null
+  return {
+    notes: current?.notes ?? [],
+    status: current?.status ?? ('loading' as const),
+  }
+}
+
+const NOTE_PREVIEW_LENGTH = 140
+
+function previewNote(body: string): string {
+  const flat = body.replace(/\s+/g, ' ').trim()
+  return flat.length > NOTE_PREVIEW_LENGTH
+    ? `${flat.slice(0, NOTE_PREVIEW_LENGTH - 1).trimEnd()}…`
+    : flat
 }
 
 function MaintenanceList({
@@ -101,12 +145,13 @@ function startOfDay(isoString: string): number {
 }
 
 /**
- * Merges record milestones and maintenance entries into one list ordered
+ * Merges record milestones, maintenance entries and the collector's notes into one list ordered
  * newest first, so the History tab reads like a reverse-chronological log.
  */
 function buildHistoryRows(
   knife: Knife,
   events: MaintenanceEvent[],
+  notes: KnifeNote[] = [],
 ): HistoryRow[] {
   const rows: HistoryRow[] = [
     {
@@ -137,6 +182,16 @@ function buildHistoryRows(
       href: historyEntryHref(knife.id, event.createdAt),
     })
   }
+  for (const note of notes) {
+    rows.push({
+      key: `note-${note.id}`,
+      label: 'Note',
+      detail: `${new Date(note.notedAt).toLocaleDateString()} · ${previewNote(
+        note.body,
+      )}`,
+      day: startOfDay(note.notedAt),
+    })
+  }
   return rows.sort((a, b) => b.day - a.day)
 }
 
@@ -144,12 +199,20 @@ function HistoryList({
   knife,
   events,
   status,
+  notes,
+  notesStatus,
 }: {
   knife: Knife
   events: MaintenanceEvent[]
   status: 'loading' | 'ready' | 'error'
+  notes: KnifeNote[]
+  notesStatus: 'loading' | 'ready' | 'error'
 }) {
-  const rows = buildHistoryRows(knife, status === 'ready' ? events : [])
+  const rows = buildHistoryRows(
+    knife,
+    status === 'ready' ? events : [],
+    notesStatus === 'ready' ? notes : [],
+  )
   return (
     <ul data-inspector-history>
       {rows.map((row) => (
@@ -167,6 +230,10 @@ function HistoryList({
         <li role="status">
           Maintenance history is unavailable. Open the knife to retry.
         </li>
+      )}
+      {notesStatus === 'loading' && <li role="status">Loading notes…</li>}
+      {notesStatus === 'error' && (
+        <li role="status">Notes are unavailable. Open the knife to retry.</li>
       )}
     </ul>
   )
@@ -196,6 +263,7 @@ export function InspectorTabs({
     knife.id,
     tab === 'maintenance' || (tab === 'history' && !maintenanceTab),
   )
+  const knifeNotes = useKnifeNotes(knife.id, tab === 'history')
   const specs =
     tab === 'overview'
       ? variant === 'alloy'
@@ -336,6 +404,8 @@ export function InspectorTabs({
             knife={knife}
             events={maintenanceTab ? [] : maintenance.events}
             status={maintenanceTab ? 'ready' : maintenance.status}
+            notes={knifeNotes.notes}
+            notesStatus={knifeNotes.status}
           />
         )}
         {(tab === 'overview' || tab === 'specifications') && (

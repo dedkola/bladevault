@@ -28,6 +28,9 @@ import {
   AuditLogEventChange,
   Knife,
   KnifeActivityEvent,
+  KnifeNote,
+  KnifeNoteInput,
+  KnifeNoteUpdate,
   KnifeUpdates,
   MaintenanceEvent,
   MaintenanceEventInput,
@@ -1129,6 +1132,7 @@ export class LocalStorage implements Storage {
           .prepare('DELETE FROM knife_activity WHERE knife_id = ?')
           .run(id)
         database.prepare('DELETE FROM compare_list WHERE knife_id = ?').run(id)
+        database.prepare('DELETE FROM knife_notes WHERE knife_id = ?').run(id)
         database
           .prepare(
             `UPDATE comparison_lists SET revision = revision + 1, updated_at = ?
@@ -1458,6 +1462,180 @@ export class LocalStorage implements Storage {
         })
       })
       deleteEvent()
+    })
+  }
+
+  private rowToKnifeNote(row: Record<string, unknown>): KnifeNote {
+    return {
+      id: Number(row.id),
+      knifeId: String(row.knife_id),
+      body: String(row.body ?? ''),
+      notedAt: String(row.noted_at),
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at),
+    }
+  }
+
+  private getKnifeNoteById(id: number): KnifeNote | undefined {
+    const row = getDb()
+      .prepare('SELECT * FROM knife_notes WHERE id = ?')
+      .get(id) as Record<string, unknown> | undefined
+    return row ? this.rowToKnifeNote(row) : undefined
+  }
+
+  async getKnifeNotes(knifeId: string): Promise<KnifeNote[]> {
+    const rows = getDb()
+      .prepare(
+        `SELECT * FROM knife_notes
+         WHERE knife_id = ?
+         ORDER BY noted_at DESC, id DESC`,
+      )
+      .all(knifeId) as Array<Record<string, unknown>>
+    return rows.map((row) => this.rowToKnifeNote(row))
+  }
+
+  async addKnifeNote(
+    knifeId: string,
+    input: KnifeNoteInput,
+  ): Promise<KnifeNote> {
+    return withVaultWrite(async () => {
+      const knife = await this.getKnifeById(knifeId)
+      if (!knife) {
+        throw new Error(`Knife with id "${knifeId}" not found`)
+      }
+
+      const body = input.body.trim()
+      if (!body) throw new Error('Note text is required')
+      const now = new Date().toISOString()
+      const notedAt = input.notedAt?.trim() || now
+
+      const database = getDb()
+      const insertNote = database.transaction(() => {
+        const result = database
+          .prepare(
+            `INSERT INTO knife_notes (knife_id, body, noted_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?)`,
+          )
+          .run(knifeId, body, notedAt, now, now)
+
+        recordAuditEvent(database, {
+          operationId: generateOperationId(),
+          type: 'updated',
+          knifeId,
+          subject: formatKnifeSubject(knife),
+          actor: 'You',
+          source: 'Notes',
+          summary: 'A note was added.',
+          changes: [
+            { field: 'Note', before: '', after: body },
+            {
+              field: 'Note date',
+              before: 'Not set',
+              after: notedAt.slice(0, 10),
+            },
+          ],
+          occurredAt: now,
+        })
+        return Number(result.lastInsertRowid)
+      })
+
+      const note = this.getKnifeNoteById(insertNote())
+      if (!note) throw new Error('Failed to retrieve created note')
+      return note
+    })
+  }
+
+  async updateKnifeNote(
+    noteId: number,
+    input: KnifeNoteUpdate,
+  ): Promise<KnifeNote> {
+    return withVaultWrite(async () => {
+      const existing = this.getKnifeNoteById(noteId)
+      if (!existing) throw new Error(`Note with id "${noteId}" not found`)
+
+      const knife = await this.getKnifeById(existing.knifeId)
+      if (!knife) {
+        throw new Error(`Knife with id "${existing.knifeId}" not found`)
+      }
+
+      const body = input.body !== undefined ? input.body.trim() : existing.body
+      if (!body) throw new Error('Note text is required')
+      const notedAt = input.notedAt?.trim() || existing.notedAt
+
+      const changes: AuditLogEventChange[] = []
+      if (body !== existing.body) {
+        changes.push({ field: 'Note', before: existing.body, after: body })
+      }
+      if (notedAt.slice(0, 10) !== existing.notedAt.slice(0, 10)) {
+        changes.push({
+          field: 'Note date',
+          before: existing.notedAt.slice(0, 10),
+          after: notedAt.slice(0, 10),
+        })
+      }
+      if (changes.length === 0 && notedAt === existing.notedAt) return existing
+
+      const now = new Date().toISOString()
+      const database = getDb()
+      database.transaction(() => {
+        database
+          .prepare(
+            'UPDATE knife_notes SET body = ?, noted_at = ?, updated_at = ? WHERE id = ?',
+          )
+          .run(body, notedAt, now, noteId)
+        if (changes.length > 0) {
+          recordAuditEvent(database, {
+            operationId: generateOperationId(),
+            type: 'updated',
+            knifeId: existing.knifeId,
+            subject: formatKnifeSubject(knife),
+            actor: 'You',
+            source: 'Notes',
+            summary: 'A note was updated.',
+            changes,
+            occurredAt: now,
+          })
+        }
+      })()
+
+      const updated = this.getKnifeNoteById(noteId)
+      if (!updated) throw new Error('Failed to retrieve updated note')
+      return updated
+    })
+  }
+
+  async deleteKnifeNote(noteId: number): Promise<void> {
+    return withVaultWrite(async () => {
+      const existing = this.getKnifeNoteById(noteId)
+      if (!existing) throw new Error(`Note with id "${noteId}" not found`)
+
+      const knife = await this.getKnifeById(existing.knifeId)
+      if (!knife) {
+        throw new Error(`Knife with id "${existing.knifeId}" not found`)
+      }
+
+      const database = getDb()
+      database.transaction(() => {
+        database.prepare('DELETE FROM knife_notes WHERE id = ?').run(noteId)
+        recordAuditEvent(database, {
+          operationId: generateOperationId(),
+          type: 'deleted',
+          knifeId: existing.knifeId,
+          subject: formatKnifeSubject(knife),
+          actor: 'You',
+          source: 'Notes',
+          summary: 'A note was deleted.',
+          changes: [
+            { field: 'Note', before: existing.body, after: 'Deleted' },
+            {
+              field: 'Note date',
+              before: existing.notedAt.slice(0, 10),
+              after: 'Deleted',
+            },
+          ],
+          occurredAt: new Date().toISOString(),
+        })
+      })()
     })
   }
 
