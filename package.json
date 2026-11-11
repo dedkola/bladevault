@@ -6,6 +6,7 @@
     "node": "^24.18.1 || ^26.0.0"
   },
   "description": "A sharp, local-first knife collection manager.",
+  "license": "MIT",
   "homepage": "https://github.com/dedkola/bladevault",
   "repository": {
     "type": "git",
@@ -33,6 +34,7 @@
     "dist:desktop:dir": "npm run build:desktop && npm run rebuild:desktop-native && npm run sync:desktop-runtime && electron-builder --config electron-builder.config.cjs --dir --publish never",
     "dist:desktop:mac:unsigned": "npm run build:desktop && npm run rebuild:desktop-native && npm run sync:desktop-runtime && BLADEVAULT_MAC_SIGN=0 BLADEVAULT_MAC_NOTARIZE=0 electron-builder --config electron-builder.config.cjs --mac dmg --publish never",
     "dist:desktop:mac:signed": "npm run build:desktop && npm run rebuild:desktop-native && npm run sync:desktop-runtime && BLADEVAULT_MAC_SIGN=1 BLADEVAULT_MAC_NOTARIZE=1 electron-builder --config electron-builder.config.cjs --mac dmg --publish never",
+    "dist:desktop:linux": "npm run build:desktop && npm run rebuild:desktop-native && npm run sync:desktop-runtime && electron-builder --config electron-builder.config.cjs --linux --publish never",
     "verify:desktop:mac": "node scripts/verify-macos-release.cjs",
     "verify:desktop:windows-updater": "electron scripts/verify-windows-updater.cjs",
     "test": "vitest run",

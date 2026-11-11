@@ -6,7 +6,7 @@ BladeVault runs on your own computer or server. You do not need an account or AP
 
 | Option                                         | What you need                              | Time              |
 | ---------------------------------------------- | ------------------------------------------ | ----------------- |
-| [Desktop app](installation/desktop.md)         | macOS 13 Ventura+ or Windows               | Download and open |
+| [Desktop app](installation/desktop.md)         | macOS 13 Ventura+, Windows, or Ubuntu      | Download and open |
 | [Docker or Podman](installation/docker.md)     | A container runtime                        | About a minute    |
 | [Kubernetes with Helm](installation/helm.md)   | k3s or another cluster with a LoadBalancer | A few minutes     |
 | [Run from source](installation/from-source.md) | Node.js 26 and a checkout                  | A few minutes     |

@@ -50,6 +50,7 @@ jobs:
         os:
           - macos-latest
           - windows-2022
+          - ubuntu-22.04
 
     steps:
       - name: Checkout
@@ -70,8 +71,33 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The runner image already ships most Chromium shared libraries; install
+      # only what is missing. Hosted runners occasionally fail to resolve the
+      # Ubuntu mirror, so retry and treat a partial install as a warning: the
+      # smoke step below is the real verification.
+      # The ubuntu-22.04 runner image already provides Xvfb and the Chromium
+      # shared libraries Electron needs, so skip apt entirely (hosted runners
+      # intermittently fail to resolve the Ubuntu mirror) and fail fast with a
+      # readable list if an image update ever drops one of them.
+      - name: Check Linux runtime libraries
+        if: runner.os == 'Linux'
+        run: |
+          command -v xvfb-run >/dev/null || { echo '::error::xvfb-run is not available'; exit 1; }
+          if ldd node_modules/electron/dist/electron | grep 'not found'; then
+            echo '::error::Electron is missing the shared libraries listed above'
+            exit 1
+          fi
+
       - name: Run desktop smoke test
+        if: runner.os != 'Linux'
         run: npm run desktop:smoke
+        env:
+          electron_config_cache: ${{ runner.tool_cache }}/electron
+
+      # GitHub's Linux runners run headless, so Electron needs a virtual display.
+      - name: Run desktop smoke test (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum npm run desktop:smoke
         env:
           electron_config_cache: ${{ runner.tool_cache }}/electron
 
@@ -100,5 +126,23 @@ jobs:
         with:
           name: windows-installer
           path: ${{ steps.installer.outputs.path }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Package Linux AppImage and deb
+        if: runner.os == 'Linux'
+        run: npx electron-builder --config electron-builder.config.cjs --linux --publish never
+        env:
+          electron_config_cache: ${{ runner.tool_cache }}/electron
+
+      - name: Upload Linux packages
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-packages
+          path: |
+            dist/desktop/BladeVault.AppImage
+            dist/desktop/BladeVault.deb
+            dist/desktop/latest-linux.yml
           if-no-files-found: error
           retention-days: 7

@@ -122,6 +122,25 @@ const config = {
     oneClick: false,
     allowToChangeInstallationDirectory: true,
   },
+  linux: {
+    target: [
+      {
+        target: 'AppImage',
+        arch: ['x64'],
+      },
+      {
+        target: 'deb',
+        arch: ['x64'],
+      },
+    ],
+    category: 'Utility',
+    // Kept separate from build/icon.png so macOS and Windows icon discovery
+    // keeps resolving to their own formats.
+    icon: 'build/linux-icon.png',
+    artifactName: 'BladeVault.${ext}',
+    maintainer: 'BladeVault <dedkola@users.noreply.github.com>',
+    synopsis: 'A sharp, local-first knife collection manager',
+  },
 }
 
 module.exports = config
