@@ -1,7 +1,5 @@
 'use client'
 
-import { isModernThemeFamily } from '@/lib/settings-shared'
-import Link from 'next/link'
 import {
   Fragment,
   useEffect,
@@ -13,12 +11,9 @@ import {
 import { Popover } from '@base-ui/react/popover'
 import { DayPicker, SelectionState, UI, type DateRange } from 'react-day-picker'
 import {
-  Calendar,
-  Check,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
-  GitCompareArrows,
   Pencil,
   Plus,
   Trash2,
@@ -254,31 +249,19 @@ function getCalendarStartMonth(date: Date, numberOfMonths: number): Date {
   return month
 }
 
-function EventIcon({
-  event,
-  modern = false,
-}: {
-  event: ViewEvent
-  modern?: boolean
-}) {
+function EventIcon({ event }: { event: ViewEvent }) {
   if (isNoteEvent(event)) return <StickyNote className="size-4" />
   if (isMaintenanceEvent(event)) return <Wrench className="size-4" />
 
   const { type } = event
   const Icon =
     type === 'created'
-      ? modern
-        ? Plus
-        : Check
+      ? Plus
       : type === 'deleted'
-        ? modern
-          ? Trash2
-          : CircleAlert
+        ? Trash2
         : type === 'system'
           ? ShieldCheck
-          : modern
-            ? Pencil
-            : GitCompareArrows
+          : Pencil
   return <Icon className="size-4" />
 }
 
@@ -289,7 +272,6 @@ export function LogSessionsView() {
     themeStyle,
     isLoading: knivesLoading,
   } = useKnives()
-  const isModern = isModernThemeFamily(themeStyle) || themeStyle === 'alloy'
   const [rawEvents, setRawEvents] = useState<AuditLogEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -301,27 +283,9 @@ export function LogSessionsView() {
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date())
   const [calendarMonths, setCalendarMonths] = useState(1)
   const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [showSummary, setShowSummary] = useState(false)
-  const [showSource, setShowSource] = useState(false)
   const [loadAttempt, setLoadAttempt] = useState(0)
   const entryButtons = useRef(new Map<number, HTMLButtonElement>())
   const pendingRowPosition = useRef<{ id: number; top: number } | null>(null)
-
-  useEffect(() => {
-    const summary = window.matchMedia('(min-width: 1024px)')
-    const source = window.matchMedia('(min-width: 1280px)')
-    const update = () => {
-      setShowSummary(summary.matches)
-      setShowSource(source.matches)
-    }
-    update()
-    summary.addEventListener('change', update)
-    source.addEventListener('change', update)
-    return () => {
-      summary.removeEventListener('change', update)
-      source.removeEventListener('change', update)
-    }
-  }, [])
 
   useLayoutEffect(() => {
     const pending = pendingRowPosition.current
@@ -471,9 +435,7 @@ export function LogSessionsView() {
   const selectedEvent = selectedId
     ? filteredEvents.find((event) => event.id === selectedId)
     : undefined
-  const displaySummary = showSummary && !isModern
-  const displaySource = showSource && !isModern
-  const columnCount = 4 + Number(displaySummary) + Number(displaySource)
+  const columnCount = 4
   const summary = useMemo(() => {
     let additions = 0
     let edits = 0
@@ -583,30 +545,24 @@ export function LogSessionsView() {
       ) : (
         <PageHeader
           title="Logs"
-          description={
-            isModern
-              ? 'Changes, maintenance, and system activity from your vault.'
-              : undefined
-          }
+          description="Changes, maintenance, and system activity from your vault."
           actions={
-            isModern ? (
-              <Button
-                data-logs-export
-                variant="outline"
-                size="sm"
-                disabled={
-                  isLoading || Boolean(error) || filteredEvents.length === 0
-                }
-                onClick={exportLogs}
-              >
-                Export log
-              </Button>
-            ) : undefined
+            <Button
+              data-logs-export
+              variant="outline"
+              size="sm"
+              disabled={
+                isLoading || Boolean(error) || filteredEvents.length === 0
+              }
+              onClick={exportLogs}
+            >
+              Export log
+            </Button>
           }
         />
       )}
       <div
-        data-modern-logs={isModern || undefined}
+        data-modern-logs
         data-alloy-logs={themeStyle === 'alloy' || undefined}
         className="grid w-full min-w-0 items-start gap-5"
         onKeyDown={(event) => {
@@ -620,16 +576,14 @@ export function LogSessionsView() {
           }
         }}
       >
-        {isModern && (
-          <dl data-logs-summary aria-label="Recorded activity totals">
-            {summary.map(([label, count]) => (
-              <div key={label}>
-                <dt>{label}</dt>
-                <dd>{isLoading || error ? '—' : count.toLocaleString()}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
+        <dl data-logs-summary aria-label="Recorded activity totals">
+          {summary.map(([label, count]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{isLoading || error ? '—' : count.toLocaleString()}</dd>
+            </div>
+          ))}
+        </dl>
         <Card
           data-logs-card
           size="sm"
@@ -646,11 +600,7 @@ export function LogSessionsView() {
                 <Input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder={
-                    isModern
-                      ? 'Search knives, fields, sources…'
-                      : 'Search knives, fields, or sources…'
-                  }
+                  placeholder="Search knives, fields, sources…"
                   className="border-0 bg-transparent pl-6 text-xs shadow-none"
                   disabled={isLoading}
                 />
@@ -677,11 +627,10 @@ export function LogSessionsView() {
                     'w-24 justify-start px-2 text-[11px] tabular-nums sm:w-44 [&>span]:truncate',
                   )}
                 >
-                  {!isModern && <Calendar className="size-3.5" />}
                   <span>
-                    {isModern && !selectedRange
-                      ? 'All dates'
-                      : formatDateRangeLabel(selectedRange)}
+                    {selectedRange
+                      ? formatDateRangeLabel(selectedRange)
+                      : 'All dates'}
                   </span>
                 </Popover.Trigger>
                 <Popover.Portal>
@@ -845,23 +794,15 @@ export function LogSessionsView() {
                 className="flex flex-wrap gap-x-2 sm:gap-x-5"
                 aria-label="Filter log event type"
               >
-                {(isModern
-                  ? ([
-                      'all',
-                      'created',
-                      'updated',
-                      'maintenance',
-                      'notes',
-                      'deleted',
-                    ] as const)
-                  : ([
-                      'all',
-                      'created',
-                      'updated',
-                      'deleted',
-                      'maintenance',
-                      'notes',
-                    ] as const)
+                {(
+                  [
+                    'all',
+                    'created',
+                    'updated',
+                    'maintenance',
+                    'notes',
+                    'deleted',
+                  ] as const
                 ).map((value) => (
                   <button
                     key={value}
@@ -879,13 +820,7 @@ export function LogSessionsView() {
                   </button>
                 ))}
               </div>
-              <p
-                aria-live="polite"
-                className={cn(
-                  'hidden py-2 text-[10px] tabular-nums text-muted-foreground sm:block',
-                  isModern && 'sr-only',
-                )}
-              >
+              <p aria-live="polite" className="sr-only">
                 {!isLoading && !error
                   ? `${filteredEvents.length} ${filteredEvents.length === 1 ? 'entry' : 'entries'}`
                   : ''}
@@ -948,16 +883,6 @@ export function LogSessionsView() {
                     <TableHead scope="col" className="w-[104px] sm:w-28">
                       Event
                     </TableHead>
-                    {displaySummary && (
-                      <TableHead scope="col" className="w-[27%]">
-                        Changes
-                      </TableHead>
-                    )}
-                    {displaySource && (
-                      <TableHead scope="col" className="w-28">
-                        Source
-                      </TableHead>
-                    )}
                     <TableHead scope="col" className="w-8 sm:w-10">
                       <span className="sr-only">Details</span>
                     </TableHead>
@@ -975,34 +900,20 @@ export function LogSessionsView() {
                         className="h-auto whitespace-normal px-3 pb-2 pt-4 text-[10px] sm:px-5"
                       >
                         <span className="font-semibold">
-                          {isModern
-                            ? new Date(
+                          {new Date(
+                            group.events[0].occurredAt,
+                          ).toLocaleDateString(undefined, {
+                            weekday: 'long',
+                            month: 'long',
+                            day: 'numeric',
+                            year:
+                              new Date(
                                 group.events[0].occurredAt,
-                              ).toLocaleDateString(undefined, {
-                                weekday: 'long',
-                                month: 'long',
-                                day: 'numeric',
-                                year:
-                                  new Date(
-                                    group.events[0].occurredAt,
-                                  ).getFullYear() === new Date().getFullYear()
-                                    ? undefined
-                                    : 'numeric',
-                              })
-                            : group.dateLabel}
+                              ).getFullYear() === new Date().getFullYear()
+                                ? undefined
+                                : 'numeric',
+                          })}
                         </span>
-                        {!isModern && (
-                          <span className="ml-2 font-normal text-muted-foreground">
-                            ·{' '}
-                            {new Date(
-                              group.events[0].occurredAt,
-                            ).toLocaleDateString(undefined, {
-                              day: 'numeric',
-                              month: 'short',
-                              year: 'numeric',
-                            })}
-                          </span>
-                        )}
                       </TableHead>
                     </TableRow>
                     {group.events.map((event) => {
@@ -1053,27 +964,15 @@ export function LogSessionsView() {
                               data-log-subject
                               className="[overflow-wrap:anywhere]"
                             >
-                              {knifeHref && !isModern ? (
-                                <Link
-                                  href={knifeHref}
-                                  aria-label={`View ${event.subject}`}
-                                  className="rounded-sm text-xs font-medium leading-relaxed underline-offset-4 hover:text-[var(--bladevault-title)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring dark:hover:text-[var(--bladevault-gold)]"
-                                >
-                                  {event.subject}
-                                </Link>
-                              ) : (
-                                <span className="text-xs font-medium leading-relaxed text-muted-foreground">
-                                  {event.subject}
-                                </span>
-                              )}
-                              {isModern && (
-                                <div data-log-subtitle>
-                                  <span data-log-kind-label>{meta.label}</span>
-                                  <span>{event.source}</span>
-                                  <span aria-hidden="true">·</span>
-                                  <span data-log-summary>{event.summary}</span>
-                                </div>
-                              )}
+                              <span className="text-xs font-medium leading-relaxed text-muted-foreground">
+                                {event.subject}
+                              </span>
+                              <div data-log-subtitle>
+                                <span data-log-kind-label>{meta.label}</span>
+                                <span>{event.source}</span>
+                                <span aria-hidden="true">·</span>
+                                <span data-log-summary>{event.summary}</span>
+                              </div>
                             </TableCell>
                             <TableCell
                               data-log-icon
@@ -1093,29 +992,11 @@ export function LogSessionsView() {
                                     meta.className,
                                   )}
                                 >
-                                  <EventIcon event={event} modern={isModern} />
+                                  <EventIcon event={event} />
                                 </span>
-                                {isModern ? (
-                                  <span className="sr-only">{meta.label}</span>
-                                ) : (
-                                  meta.label
-                                )}
+                                <span className="sr-only">{meta.label}</span>
                               </span>
                             </TableCell>
-                            {displaySummary && (
-                              <TableCell className="text-[11px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
-                                <span className="line-clamp-2">
-                                  {event.changes
-                                    .map((change) => change.field)
-                                    .join(', ') || event.summary}
-                                </span>
-                              </TableCell>
-                            )}
-                            {displaySource && (
-                              <TableCell className="text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
-                                {event.source}
-                              </TableCell>
-                            )}
                             <TableCell
                               data-log-expand
                               className="px-0 pr-1 sm:pr-2"
@@ -1157,7 +1038,7 @@ export function LogSessionsView() {
                                   aria-label={`Event details for ${event.subject}`}
                                 >
                                   <LogEventDetails
-                                    compact={isModern}
+                                    compact
                                     event={event}
                                     title={event.title}
                                     time={event.time}
