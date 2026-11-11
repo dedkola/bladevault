@@ -18,6 +18,7 @@ import {
   FileText,
   ListPlus,
   ChevronDown,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react'
 import { CompareIcon } from '@/components/icons/compare-icon'
@@ -25,7 +26,7 @@ import { useKnives } from '@/components/providers/knives-provider'
 import { Knife, KnifeUpdates } from '@/lib/data'
 import { formatDimension, formatWeight } from '@/lib/measurements'
 import { knifeToFormData, KnifeScrapeEditor } from '@/components/knife-form'
-import { CustomField, isModernThemeFamily } from '@/lib/settings-shared'
+import { CustomField } from '@/lib/settings-shared'
 import { readJsonResponse } from '@/lib/api-response'
 import { getSafeExternalUrl } from '@/lib/external-url'
 import { PageHeader } from '@/components/page-header'
@@ -35,6 +36,7 @@ import { KnifeVariantSwitcher } from '@/components/knife-variant-switcher'
 import { MaintenanceSection } from '@/components/maintenance/maintenance-section'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { SoldBadge } from '@/components/sold-badge'
 import {
@@ -122,8 +124,8 @@ function KnifeNotes({ paragraphs }: { paragraphs: string[] }) {
   )
 }
 
-// Classic shows notes beside the gallery and clamps long descriptions.
-function ClassicNotesCard({ paragraphs }: { paragraphs: string[] }) {
+// Notes sit under the gallery; long descriptions are clamped until expanded.
+function NotesCard({ paragraphs }: { paragraphs: string[] }) {
   const [expanded, setExpanded] = useState(false)
   const notesId = useId()
   const isLong = paragraphs.join('').length > NOTES_CLAMP_LENGTH
@@ -136,6 +138,7 @@ function ClassicNotesCard({ paragraphs }: { paragraphs: string[] }) {
             id={notesId}
             data-notes-body
             data-clamped={isLong && !expanded ? '' : undefined}
+            className="data-clamped:max-h-56 data-clamped:overflow-hidden data-clamped:[mask-image:linear-gradient(to_bottom,#000_65%,transparent)]"
           >
             <KnifeNotes paragraphs={paragraphs} />
           </div>
@@ -177,9 +180,7 @@ export default function KnifeDetail({
     refreshVault,
     scheduleVaultBackup,
     dimensionUnit,
-    themeStyle,
   } = useKnives()
-  const isClassic = !isModernThemeFamily(themeStyle) && themeStyle !== 'alloy'
   const [detailKnife, setDetailKnife] = useState(initialKnife)
   const collectionKnife = knives.find((k) => k.id === initialKnife.id)
   const knife = collectionKnife
@@ -576,90 +577,99 @@ export default function KnifeDetail({
               screenshot={knife.webpageScreenshot}
             />
           </div>
-          {isClassic && (
-            <div className="order-3 lg:order-none">
-              <ClassicNotesCard
-                key={knife.id}
-                paragraphs={descriptionParagraphs}
-              />
-            </div>
-          )}
           <div className="order-3 lg:order-none">
-            <MaintenanceSection knifeId={knife.id} />
+            <NotesCard key={knife.id} paragraphs={descriptionParagraphs} />
           </div>
         </div>
 
-        <div className="order-2 flex flex-col gap-6 lg:order-none">
-          <Card size="sm" className="gap-0 border border-border/65 py-0 ring-0">
-            <CardContent className="px-0">
-              {safeSourceUrl ? (
-                <div className="flex items-center justify-between gap-3 px-5 py-4">
-                  <div className="min-w-0">
-                    <h3 className="mb-1 text-[10px] xl:text-xs text-muted-foreground">
-                      Source
-                    </h3>
-                    <Link
-                      href={safeSourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={safeSourceUrl}
-                      className="inline-flex max-w-full items-center gap-2 rounded-sm text-xs xl:text-sm font-medium text-foreground hover:text-[var(--bladevault-title)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring dark:hover:text-[var(--bladevault-gold)]"
-                    >
-                      <span className="min-w-0 [overflow-wrap:anywhere]">
-                        {new URL(safeSourceUrl).hostname}
-                      </span>
-                      <ExternalLink
-                        aria-hidden="true"
-                        className="size-3.5 shrink-0 text-[var(--bladevault-title)] dark:text-[var(--bladevault-gold)]"
-                      />
-                      <span className="sr-only">(opens in a new tab)</span>
-                    </Link>
+        <Tabs
+          defaultValue="details"
+          className="order-2 min-w-0 gap-4 lg:order-none"
+        >
+          <TabsList className="w-full">
+            <TabsTrigger value="details">
+              <IdCard aria-hidden="true" />
+              Details
+            </TabsTrigger>
+            <TabsTrigger value="maintenance">
+              <Wrench aria-hidden="true" />
+              Maintenance
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="maintenance" keepMounted>
+            <MaintenanceSection knifeId={knife.id} />
+          </TabsContent>
+
+          <TabsContent value="details" keepMounted>
+            <Card
+              size="sm"
+              className="gap-0 border border-border/65 py-0 ring-0"
+            >
+              <CardContent className="px-0">
+                {safeSourceUrl ? (
+                  <div className="flex items-center justify-between gap-3 px-5 py-4">
+                    <div className="min-w-0">
+                      <h3 className="mb-1 text-[10px] xl:text-xs text-muted-foreground">
+                        Source
+                      </h3>
+                      <Link
+                        href={safeSourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={safeSourceUrl}
+                        className="inline-flex max-w-full items-center gap-2 rounded-sm text-xs xl:text-sm font-medium text-foreground hover:text-[var(--bladevault-title)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring dark:hover:text-[var(--bladevault-gold)]"
+                      >
+                        <span className="min-w-0 [overflow-wrap:anywhere]">
+                          {new URL(safeSourceUrl).hostname}
+                        </span>
+                        <ExternalLink
+                          aria-hidden="true"
+                          className="size-3.5 shrink-0 text-[var(--bladevault-title)] dark:text-[var(--bladevault-gold)]"
+                        />
+                        <span className="sr-only">(opens in a new tab)</span>
+                      </Link>
+                    </div>
                   </div>
-                </div>
-              ) : null}
+                ) : null}
 
-              <DetailSection title="Identity" icon={IdCard}>
-                <dl className="grid grid-cols-2 gap-x-5 gap-y-3.5">
-                  {identityRows.map(({ label, value }) => (
-                    <DetailRow key={label} label={label} value={value} />
-                  ))}
-                </dl>
-              </DetailSection>
-
-              <DetailSection title="Dimensions" icon={Ruler}>
-                <dl className="grid grid-cols-2 gap-x-5 gap-y-3.5">
-                  {dimensionRows.map(({ label, value }) => (
-                    <DetailRow key={label} label={label} value={value} />
-                  ))}
-                </dl>
-              </DetailSection>
-
-              <DetailSection title="Construction" icon={Layers}>
-                <dl className="grid grid-cols-2 gap-x-5 gap-y-3.5">
-                  {constructionRows.map(({ label, value }) => (
-                    <DetailRow key={label} label={label} value={value} />
-                  ))}
-                </dl>
-              </DetailSection>
-
-              {!isClassic && (
-                <DetailSection title="Notes" icon={FileText}>
-                  <KnifeNotes paragraphs={descriptionParagraphs} />
-                </DetailSection>
-              )}
-
-              {customFieldRows.length > 0 && (
-                <DetailSection title="Custom Fields" icon={ListPlus}>
+                <DetailSection title="Identity" icon={IdCard}>
                   <dl className="grid grid-cols-2 gap-x-5 gap-y-3.5">
-                    {customFieldRows.map(({ label, value }) => (
+                    {identityRows.map(({ label, value }) => (
                       <DetailRow key={label} label={label} value={value} />
                     ))}
                   </dl>
                 </DetailSection>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+
+                <DetailSection title="Dimensions" icon={Ruler}>
+                  <dl className="grid grid-cols-2 gap-x-5 gap-y-3.5">
+                    {dimensionRows.map(({ label, value }) => (
+                      <DetailRow key={label} label={label} value={value} />
+                    ))}
+                  </dl>
+                </DetailSection>
+
+                <DetailSection title="Construction" icon={Layers}>
+                  <dl className="grid grid-cols-2 gap-x-5 gap-y-3.5">
+                    {constructionRows.map(({ label, value }) => (
+                      <DetailRow key={label} label={label} value={value} />
+                    ))}
+                  </dl>
+                </DetailSection>
+
+                {customFieldRows.length > 0 && (
+                  <DetailSection title="Custom Fields" icon={ListPlus}>
+                    <dl className="grid grid-cols-2 gap-x-5 gap-y-3.5">
+                      {customFieldRows.map(({ label, value }) => (
+                        <DetailRow key={label} label={label} value={value} />
+                      ))}
+                    </dl>
+                  </DetailSection>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   )

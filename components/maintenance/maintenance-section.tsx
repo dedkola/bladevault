@@ -223,7 +223,7 @@ export function MaintenanceSection({ knifeId }: { knifeId: string }) {
         {statusMessage}
       </p>
       <div className="border-b border-[var(--bladevault-line)] bg-[color:var(--bladevault-surface-soft)]/70 px-4 py-3 dark:border-[#d3c097]/30">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex flex-col gap-2.5">
           <div>
             <div className="text-sm font-medium">Maintenance</div>
             <div className="text-xs text-muted-foreground mt-0.5">
