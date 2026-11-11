@@ -19,8 +19,12 @@ test('logs maintenance events from the knife detail page', async ({
   await expect(
     page.getByRole('heading', { name: 'Benchmade Bugout' }),
   ).toBeVisible()
+  await page.getByRole('tab', { name: 'Maintenance' }).click()
   await expect(
-    page.getByRole('main').getByText('Maintenance', { exact: true }),
+    page
+      .getByRole('main')
+      .getByRole('tabpanel')
+      .getByText('Maintenance', { exact: true }),
   ).toBeVisible()
   await expect(
     page.getByText('No maintenance recorded yet', { exact: true }),
@@ -120,6 +124,7 @@ test('logs maintenance events from the knife detail page', async ({
 test('edits and deletes maintenance events', async ({ page, request }) => {
   const { knife } = await seedKnife(request)
   await page.goto(`/collection/${knife.id}`)
+  await page.getByRole('tab', { name: 'Maintenance' }).click()
 
   await page.getByRole('button', { name: 'Cleaned' }).click()
   await expect(
@@ -199,6 +204,7 @@ test('keeps the maintenance controls in place after a quick add', async ({
   }
 
   await page.goto(`/collection/${knife.id}`)
+  await page.getByRole('tab', { name: 'Maintenance' }).click()
   const quickAdd = page.getByRole('button', { name: 'Cleaned' })
   await quickAdd.scrollIntoViewIfNeeded()
   const scrollTopBefore = await page.evaluate(() => window.scrollY)

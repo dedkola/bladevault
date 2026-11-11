@@ -353,14 +353,6 @@ html:not([data-theme-style='modern'], [data-theme-style='alloy'])
   }
 }
 
-/* Knife page: long notes are clamped until "Show more". */
-html:not([data-theme-style='modern'], [data-theme-style='alloy'])
-  [data-notes-body][data-clamped] {
-  max-height: 14rem;
-  overflow: hidden;
-  mask-image: linear-gradient(to bottom, #000 65%, transparent);
-}
-
 /* Knife page: thumbnails stay on one row and scroll sideways. */
 @media (min-width: 1024px) {
   html:not([data-theme-style='modern'], [data-theme-style='alloy'])
