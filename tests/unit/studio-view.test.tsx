@@ -44,6 +44,17 @@ vi.mock('@/components/providers/comparisons-provider', () => ({
   }),
 }))
 
+vi.mock('@/components/providers/smart-collections-provider', () => ({
+  useSmartCollections: () => ({
+    collections: [
+      { id: 'second-only', name: 'Second only', query: 'q=Second' },
+    ],
+    error: '',
+    save: vi.fn(),
+    remove: vi.fn(),
+  }),
+}))
+
 beforeEach(() => {
   vi.stubGlobal(
     'fetch',
@@ -65,6 +76,22 @@ afterEach(() => {
 })
 
 describe('Studio themes', () => {
+  it('lists Smart Collections in the filter and shows only their knives', async () => {
+    const user = userEvent.setup()
+    const { container } = render(<StudioView />)
+    const filters = screen.getByRole('group', { name: 'Filter collection' })
+    await user.click(
+      within(filters).getByRole('button', { name: 'Second only' }),
+    )
+    expect(
+      within(filters).getByRole('button', { name: 'Second only' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+    expect(container.querySelectorAll('[data-studio-tile]')).toHaveLength(1)
+    expect(
+      container.querySelector('[data-studio-tile="second"]'),
+    ).toBeInTheDocument()
+  })
+
   it('hides Alloy’s decorative heading while keeping controls and full-gallery Quick Look', async () => {
     state.themeStyle = 'alloy'
     const user = userEvent.setup()
