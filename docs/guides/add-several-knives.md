@@ -6,7 +6,7 @@ Use **Batch scrape** to import several product URLs in one run. Each link is scr
 
 ## 1. Paste the links
 
-Click **Add knife** at the top of the sidebar, then click **Batch scrape** next to the URL field. Paste one link per line in the order you want to import them.
+Click **Add knife** at the top of the sidebar, then click **Batch scrape** in the list under the link field. Paste one link per line in the order you want to import them.
 
 ![The Batch scrape dialog with three product links pasted, showing "3 links ready"](../images/add-several-knives-links.png)
 

@@ -49,7 +49,7 @@ Catalog your knives, showcase them in Studio, compare them side by side, and kee
 
 ## Import from a product URL
 
-Open **Add → Scrape URL**, paste the retailer's URL, and choose **Scrape**. BladeVault imports the product details and automatically clears recognizable newsletter and cookie overlays before creating the page preview and screenshot.
+Open **Add knife**, paste the retailer's URL, and choose **Scrape**. BladeVault imports the product details and automatically clears recognizable newsletter and cookie overlays before creating the page preview and screenshot.
 
 - **Hide popups** removes remaining dialogs from the preview. **Restore original** returns to the imported preview. Neither changes your form edits.
 - **Interact with page** opens the retailer's page in a real browser so you can close stubborn popups or complete site verification. Return to BladeVault and click **Continue** to refresh the import; manually edited fields and image selections are preserved.

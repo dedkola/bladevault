@@ -291,7 +291,9 @@ describe('Add knife scrape controls', () => {
       /invalid server response/i,
     )
     expect(screen.getByRole('button', { name: 'Scrape' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Save Item' })).toBeDisabled()
+    expect(
+      screen.queryByRole('button', { name: 'Save Item' }),
+    ).not.toBeInTheDocument()
     expect(screen.queryByTitle('Scraped page preview')).not.toBeInTheDocument()
   })
 

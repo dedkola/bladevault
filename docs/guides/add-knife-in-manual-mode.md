@@ -1,14 +1,14 @@
 # Add a knife manually
 
-Use the **Manual** tab when a knife has no product page to import, such as a secondhand purchase, a gift, a custom build, or an older model. Enter the details you know without a URL. The example below is a limited-edition Vosteed Bellamy with M390 steel and a carbon fiber handle.
+Use **Enter manually** when a knife has no product page to import, such as a secondhand purchase, a gift, a custom build, or an older model. Enter the details you know without a URL. The example below is a limited-edition Vosteed Bellamy with M390 steel and a carbon fiber handle.
 
-## 1. Switch to the Manual tab
+## 1. Choose Enter manually
 
-Click **Add knife** at the top of the sidebar, then click the **Manual** tab:
+Click **Add knife** at the top of the sidebar, then click **Enter manually** in the list under the link field:
 
 ![The Scrape URL and Manual tabs, with Manual selected](../images/add-knife-tabs.png)
 
-The URL field is replaced by the full form:
+The full form opens below the link field:
 
 ![The Add knife page with the Manual tab open](../images/add-knife-manually-form.png)
 
