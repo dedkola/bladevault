@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { formatDimension, formatWeight } from '@/lib/measurements'
+import { markdownToPlainText } from '@/lib/note-markdown'
 import type { DimensionUnit } from '@/lib/settings-shared'
 import {
   maintenanceTypeName,
@@ -88,7 +89,7 @@ function useKnifeNotes(knifeId: string, enabled: boolean) {
 const NOTE_PREVIEW_LENGTH = 140
 
 function previewNote(body: string): string {
-  const flat = body.replace(/\s+/g, ' ').trim()
+  const flat = markdownToPlainText(body)
   return flat.length > NOTE_PREVIEW_LENGTH
     ? `${flat.slice(0, NOTE_PREVIEW_LENGTH - 1).trimEnd()}…`
     : flat

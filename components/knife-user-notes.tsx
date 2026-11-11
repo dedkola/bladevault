@@ -1,10 +1,41 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
-import { AlertCircle, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react'
+import {
+  AlertCircle,
+  Bold,
+  Code2,
+  Eye,
+  Heading2,
+  Italic,
+  Link2,
+  List,
+  ListOrdered,
+  Loader2,
+  Minus,
+  Pencil,
+  PencilLine,
+  Plus,
+  Quote,
+  Strikethrough,
+  Table2,
+  Trash2,
+  type LucideIcon,
+} from 'lucide-react'
 import { KNIFE_NOTE_MAX_LENGTH, type KnifeNote } from '@/lib/data'
+import {
+  applyNoteMarkdownCommand,
+  type NoteMarkdownCommand,
+} from '@/lib/note-markdown'
 import { readJsonResponse } from '@/lib/api-response'
 import { useKnives } from '@/components/providers/knives-provider'
+import { NoteMarkdown } from '@/components/note-markdown'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -61,6 +92,96 @@ function groupNotesByDay(notes: KnifeNote[]) {
   return groups
 }
 
+const NOTE_TOOLBAR_ITEMS: Array<{
+  command: NoteMarkdownCommand
+  label: string
+  hint: string
+  Icon: LucideIcon
+}> = [
+  { command: 'bold', label: 'Bold', hint: 'Bold (Ctrl/Cmd+B)', Icon: Bold },
+  {
+    command: 'italic',
+    label: 'Italic',
+    hint: 'Italic (Ctrl/Cmd+I)',
+    Icon: Italic,
+  },
+  {
+    command: 'strikethrough',
+    label: 'Strikethrough',
+    hint: 'Strikethrough',
+    Icon: Strikethrough,
+  },
+  {
+    command: 'heading',
+    label: 'Heading',
+    hint: 'Heading',
+    Icon: Heading2,
+  },
+  { command: 'quote', label: 'Quote', hint: 'Quote block', Icon: Quote },
+  {
+    command: 'bulletList',
+    label: 'Bullet list',
+    hint: 'Bullet list',
+    Icon: List,
+  },
+  {
+    command: 'numberedList',
+    label: 'Numbered list',
+    hint: 'Numbered list',
+    Icon: ListOrdered,
+  },
+  {
+    command: 'inlineCode',
+    label: 'Inline code',
+    hint: 'Inline code',
+    Icon: Code2,
+  },
+  {
+    command: 'codeBlock',
+    label: 'Code block',
+    hint: 'Code block',
+    Icon: PencilLine,
+  },
+  { command: 'link', label: 'Link', hint: 'Link (Ctrl/Cmd+K)', Icon: Link2 },
+  { command: 'table', label: 'Table', hint: 'Table', Icon: Table2 },
+  { command: 'divider', label: 'Divider', hint: 'Divider', Icon: Minus },
+]
+
+const NOTE_SHORTCUTS: Record<string, NoteMarkdownCommand> = {
+  b: 'bold',
+  i: 'italic',
+  k: 'link',
+}
+
+function NoteToolbar({
+  onCommand,
+}: {
+  onCommand: (command: NoteMarkdownCommand) => void
+}) {
+  return (
+    <div
+      role="toolbar"
+      aria-label="Note formatting"
+      className="flex flex-wrap items-center gap-0.5 rounded-md border border-border/65 bg-[color:var(--bladevault-surface-soft)]/40 p-0.5"
+    >
+      {NOTE_TOOLBAR_ITEMS.map(({ command, label, hint, Icon }) => (
+        <Button
+          key={command}
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={label}
+          title={hint}
+          onClick={() => onCommand(command)}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <Icon aria-hidden="true" className="size-3.5" />
+        </Button>
+      ))}
+    </div>
+  )
+}
+
 function NoteComposer({
   note,
   onSave,
@@ -77,7 +198,9 @@ function NoteComposer({
   )
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [mode, setMode] = useState<'write' | 'preview'>('write')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const pendingSelectionRef = useRef<[number, number] | null>(null)
 
   // Focus on open, with the caret after any existing text so edits append.
   useEffect(() => {
@@ -87,6 +210,59 @@ function NoteComposer({
     const end = textarea.value.length
     textarea.setSelectionRange(end, end)
   }, [])
+
+  // Toolbar commands rewrite the value, so restore their requested selection.
+  useEffect(() => {
+    const target = pendingSelectionRef.current
+    const textarea = textareaRef.current
+    if (!target || !textarea) return
+    pendingSelectionRef.current = null
+    textarea.focus()
+    textarea.setSelectionRange(target[0], target[1])
+  }, [body])
+
+  useEffect(() => {
+    if (mode !== 'write') return
+    const textarea = textareaRef.current
+    if (!textarea || document.activeElement === textarea) return
+    textarea.focus()
+    const end = textarea.value.length
+    textarea.setSelectionRange(end, end)
+  }, [mode])
+
+  const applyCommand = (command: NoteMarkdownCommand) => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const result = applyNoteMarkdownCommand(
+      body,
+      textarea.selectionStart ?? body.length,
+      textarea.selectionEnd ?? body.length,
+      command,
+    )
+    if (result.value.length > KNIFE_NOTE_MAX_LENGTH) {
+      setError(`Notes are limited to ${KNIFE_NOTE_MAX_LENGTH} characters.`)
+      return
+    }
+    pendingSelectionRef.current = [result.selectionStart, result.selectionEnd]
+    setError(null)
+    setBody(result.value)
+  }
+
+  const handleEditorKeyDown = (
+    event: ReactKeyboardEvent<HTMLTextAreaElement>,
+  ) => {
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault()
+      event.currentTarget.form?.requestSubmit()
+      return
+    }
+    if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey)
+      return
+    const command = NOTE_SHORTCUTS[event.key.toLowerCase()]
+    if (!command) return
+    event.preventDefault()
+    applyCommand(command)
+  }
 
   const submit = async () => {
     if (!body.trim()) {
@@ -121,41 +297,100 @@ function NoteComposer({
         }
       }}
     >
-      <div className="flex items-center gap-2">
-        <label
-          htmlFor={`${formId}-date`}
-          className="text-[11px] text-muted-foreground"
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <label
+            htmlFor={`${formId}-date`}
+            className="text-[11px] text-muted-foreground"
+          >
+            Date
+          </label>
+          <Input
+            id={`${formId}-date`}
+            type="date"
+            value={day}
+            onChange={(event) => setDay(event.target.value)}
+            className="h-8 w-40"
+          />
+        </div>
+        <div
+          role="tablist"
+          aria-label="Note editor view"
+          className="flex items-center gap-0.5 rounded-md border border-border/65 p-0.5"
         >
-          Date
-        </label>
-        <Input
-          id={`${formId}-date`}
-          type="date"
-          value={day}
-          onChange={(event) => setDay(event.target.value)}
-          className="h-8 w-40"
-        />
+          <Button
+            type="button"
+            role="tab"
+            id={`${formId}-write-tab`}
+            aria-selected={mode === 'write'}
+            aria-controls={`${formId}-write-panel`}
+            variant={mode === 'write' ? 'secondary' : 'ghost'}
+            size="xs"
+            onClick={() => setMode('write')}
+            className="gap-1.5"
+          >
+            <Pencil aria-hidden="true" className="size-3" />
+            Write
+          </Button>
+          <Button
+            type="button"
+            role="tab"
+            id={`${formId}-preview-tab`}
+            aria-selected={mode === 'preview'}
+            aria-controls={`${formId}-preview-panel`}
+            variant={mode === 'preview' ? 'secondary' : 'ghost'}
+            size="xs"
+            onClick={() => setMode('preview')}
+            className="gap-1.5"
+          >
+            <Eye aria-hidden="true" className="size-3" />
+            Preview
+          </Button>
+        </div>
       </div>
+
       <label htmlFor={`${formId}-body`} className="sr-only">
         Note
       </label>
-      <Textarea
-        id={`${formId}-body`}
-        ref={textareaRef}
-        value={body}
-        maxLength={KNIFE_NOTE_MAX_LENGTH}
-        onChange={(event) => setBody(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-            event.preventDefault()
-            event.currentTarget.form?.requestSubmit()
-          }
-        }}
-        placeholder="Carry impressions, edge retention, where it came from…"
-        rows={3}
-        className="min-h-20 text-xs xl:text-sm"
-        aria-invalid={error ? true : undefined}
-      />
+
+      {mode === 'write' ? (
+        <div
+          role="tabpanel"
+          id={`${formId}-write-panel`}
+          aria-labelledby={`${formId}-write-tab`}
+          className="space-y-2"
+        >
+          <NoteToolbar onCommand={applyCommand} />
+          <Textarea
+            id={`${formId}-body`}
+            ref={textareaRef}
+            value={body}
+            maxLength={KNIFE_NOTE_MAX_LENGTH}
+            onChange={(event) => setBody(event.target.value)}
+            onKeyDown={handleEditorKeyDown}
+            placeholder="Carry impressions, edge retention, where it came from…"
+            rows={4}
+            className="min-h-20 text-xs xl:text-sm"
+            aria-invalid={error ? true : undefined}
+          />
+        </div>
+      ) : (
+        <div
+          role="tabpanel"
+          id={`${formId}-preview-panel`}
+          aria-labelledby={`${formId}-preview-tab`}
+          className="min-h-20 rounded-lg border border-border/65 bg-background/40 p-2"
+        >
+          {body.trim() ? (
+            <NoteMarkdown body={body} />
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Nothing to preview yet.
+            </p>
+          )}
+        </div>
+      )}
+
       {error && (
         <p role="alert" className="text-xs text-destructive">
           {error}
@@ -356,9 +591,7 @@ export function KnifeUserNotes({ knifeId }: { knifeId: string }) {
                         data-user-note
                         className="group flex items-start justify-between gap-2"
                       >
-                        <p className="min-w-0 whitespace-pre-line text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere] xl:text-sm">
-                          {note.body}
-                        </p>
+                        <NoteMarkdown body={note.body} className="flex-1" />
                         <div className="flex shrink-0 items-center gap-1">
                           <Button
                             type="button"

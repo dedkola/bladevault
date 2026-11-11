@@ -41,6 +41,10 @@ Each knife record can hold specifications, pricing, provenance, notes, links, an
 
 ![Knife detail page with specifications, notes, and image gallery](../images/detail.png)
 
+## Notes
+
+Add a dated note from **My notes** on a record, then format it with the toolbar: bold, italic, strikethrough, a heading, quote block, bulleted or numbered list, inline code, code block, link, table, and divider. **Preview** shows how the note will read, and `Ctrl`/`Cmd`+`B`, `I`, and `K` apply bold, italic, and link to the selection. Notes are stored as Markdown, so plain notes keep their original line breaks and older notes render unchanged. Notes stay within the vault and are limited to 10,000 characters each.
+
 ## Maintenance history
 
 [Log maintenance and sharpening](log-maintenance.md) with dates, notes, and sharpening details. [Review collection activity in History](review-collection-activity.md) to see maintenance events and record changes.
