@@ -25,6 +25,7 @@ import Image from '@/components/vault-image'
 import { useKnives } from '@/components/providers/knives-provider'
 import { PageHeader } from '@/components/page-header'
 import { useComparisons } from '@/components/providers/comparisons-provider'
+import { useSmartCollections } from '@/components/providers/smart-collections-provider'
 import { Button, buttonVariants } from '@/components/ui/button'
 import {
   Dialog,
@@ -41,7 +42,8 @@ import { matchesCollection } from '@/lib/smart-collections'
 import { cn } from '@/lib/utils'
 import styles from './studio.module.css'
 
-type StudioFilter = 'all' | 'folding' | 'fixed' | 'pinned'
+// Smart Collections are selected as `smart:<id>`.
+type StudioFilter = 'all' | 'folding' | 'fixed' | 'pinned' | `smart:${string}`
 type StudioSort = 'random' | 'name' | 'maker'
 
 function StudioImage({
@@ -90,6 +92,7 @@ export function StudioView() {
     busy: comparisonsBusy,
     error: comparisonsError,
   } = useComparisons()
+  const { collections } = useSmartCollections()
   // The provider renders an empty loading state on the server. Randomness is
   // only visible after it loads, and lasts for this visit rather than each render.
   const [seed] = useState(() => Math.floor(Math.random() * 0x100000000))
@@ -113,15 +116,23 @@ export function StudioView() {
   const returnFocus = useRef<HTMLElement | null>(null)
   const focusButton = useRef<HTMLButtonElement | null>(null)
   const layout = useMemo(() => createStudioLayout(knives, seed), [knives, seed])
+  const smartCollection = filter.startsWith('smart:')
+    ? collections.find((item) => `smart:${item.id}` === filter)
+    : undefined
+  // Fall back to All when the selected Smart Collection is deleted.
+  const activeFilter: StudioFilter =
+    filter.startsWith('smart:') && !smartCollection ? 'all' : filter
   const visible = useMemo(() => {
     const search = query.trim().toLocaleLowerCase()
     const typeFilter =
-      filter === 'fixed' || filter === 'folding'
-        ? new URLSearchParams({ knifeType: filter })
-        : null
+      activeFilter === 'fixed' || activeFilter === 'folding'
+        ? new URLSearchParams({ knifeType: activeFilter })
+        : smartCollection
+          ? new URLSearchParams(smartCollection.query)
+          : null
     const entries = layout.filter(({ knife }) => {
       if (typeFilter && !matchesCollection(knife, typeFilter)) return false
-      if (filter === 'pinned' && !knife.pinned) return false
+      if (activeFilter === 'pinned' && !knife.pinned) return false
       return (
         !search ||
         [
@@ -146,7 +157,7 @@ export function StudioView() {
           a.knife.name.localeCompare(b.knife.name),
       )
     return entries
-  }, [layout, filter, query, sort])
+  }, [layout, activeFilter, smartCollection, query, sort])
   const families = useMemo(
     () => groupKnifeFamilies(layout.map(({ knife }) => knife)),
     [layout],
@@ -341,7 +352,7 @@ export function StudioView() {
             </article>
           ))}
       {!isLoading &&
-        filter === 'all' &&
+        activeFilter === 'all' &&
         !query.trim() &&
         sort === 'random' &&
         size === 'regular' &&
@@ -442,18 +453,29 @@ export function StudioView() {
         <div className={styles.toolbar} aria-label="Studio controls">
           <div className={styles.toolbarLeft}>
             <div
-              className={styles.segmented}
+              className={cn(styles.segmented, styles.filters)}
               role="group"
               aria-label="Filter collection"
             >
-              {(['all', 'folding', 'fixed', 'pinned'] as const).map((value) => (
+              {[
+                ...(['all', 'folding', 'fixed', 'pinned'] as const).map(
+                  (value) => ({
+                    value: value as StudioFilter,
+                    label: value[0].toUpperCase() + value.slice(1),
+                  }),
+                ),
+                ...collections.map((collection) => ({
+                  value: `smart:${collection.id}` as StudioFilter,
+                  label: collection.name,
+                })),
+              ].map(({ value, label }) => (
                 <button
                   key={value}
                   type="button"
-                  aria-pressed={filter === value}
+                  aria-pressed={activeFilter === value}
                   onClick={() => setFilter(value)}
                 >
-                  {value[0].toUpperCase() + value.slice(1)}
+                  {label}
                 </button>
               ))}
             </div>

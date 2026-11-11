@@ -91,6 +91,33 @@
   color: var(--foreground);
 }
 
+/* Smart Collections can make the filter row long: it scrolls sideways,
+   and the search moves to its own line instead of being squeezed. */
+.toolbarLeft:has(.filters) {
+  flex-wrap: wrap;
+}
+
+.toolbarLeft:has(.filters) .search {
+  min-width: 160px;
+}
+
+.filters {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.filters::-webkit-scrollbar {
+  display: none;
+}
+
+.filters button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .segmented svg {
   width: 15px;
   height: 15px;
@@ -1014,7 +1041,7 @@
     width: 100%;
   }
   .toolbarLeft .segmented button {
-    flex: 1;
+    flex: 1 0 auto;
   }
   .search {
     width: 100%;
