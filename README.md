@@ -68,7 +68,7 @@ Select a knife to open a **quick look** with its complete photo gallery, key spe
 
 | Option           | Best for                             | Start here                                                                           |
 | ---------------- | ------------------------------------ | ------------------------------------------------------------------------------------ |
-| Desktop app      | A native macOS, Windows, or Linux experience | [Download the latest release](https://github.com/dedkola/bladevault/releases/latest) |
+| Desktop app      | A native macOS, Windows, or Linux experience | [Download the latest release](https://github.com/dedkola/bladevault/releases/latest) · [Linux install](#linux) |
 | Docker or Podman | A self-hosted local instance         | [Run a container](#run-in-a-container)                                               |
 | Kubernetes       | k3s or another Kubernetes cluster    | [Install with Helm](#install-with-helm)                                              |
 | Source           | Development and customization        | [Run from source](#run-from-source)                                                  |
@@ -271,20 +271,34 @@ Check for updates in **Settings → About**. Download an available update, then 
 
 ### Linux
 
-Download an x86-64 build from the [latest release](https://github.com/dedkola/bladevault/releases/latest). The AppImage runs without installing:
+Two x86-64 builds are available. Both need glibc 2.35 or newer (Ubuntu 22.04 or equivalent) and share the `~/BladeVault/data` folder, so updates never touch your vault. The [desktop install guide](https://bladevault.pro/docs/installation/desktop#linux) covers troubleshooting.
+
+#### AppImage
+
+Runs on any distribution without root. Download [BladeVault.AppImage](https://github.com/dedkola/bladevault/releases/latest/download/BladeVault.AppImage), keep it in a permanent folder, and run it:
 
 ```bash
-chmod +x BladeVault.AppImage
-./BladeVault.AppImage
+mkdir -p ~/Applications
+mv ~/Downloads/BladeVault.AppImage ~/Applications/
+chmod +x ~/Applications/BladeVault.AppImage
+~/Applications/BladeVault.AppImage
 ```
 
-Or install the Debian package, which adds BladeVault to your applications menu:
+On Ubuntu, install FUSE 2 first if the AppImage reports `libfuse.so.2`: `sudo apt install libfuse2` on 22.04, or `sudo apt install libfuse2t64` on 24.04 and newer. On Ubuntu 23.10 and newer, a sandbox helper error means you should start it with `--no-sandbox`.
+
+**Update:** in **Settings → About**, select **Check for updates**, **Download update**, then **Restart to update**. The AppImage replaces itself in place.
+
+#### Debian package
+
+Adds BladeVault to your applications menu on Debian, Ubuntu, and derivatives. Download [BladeVault.deb](https://github.com/dedkola/bladevault/releases/latest/download/BladeVault.deb) and install it:
 
 ```bash
-sudo apt install ./BladeVault.deb
+sudo apt install ~/Downloads/BladeVault.deb
 ```
 
-Ubuntu 22.04 and newer need `sudo apt install libfuse2` before the AppImage will start. Ubuntu 23.10 and newer also restrict unprivileged user namespaces, so the AppImage may need `--no-sandbox` on first run. The Debian package installs an AppArmor profile and does not. The AppImage updates itself from **Settings → About**; a Debian install opens the downloaded `.deb` instead.
+**Update:** in **Settings → About**, select **Check for updates**, then **Download update**. BladeVault downloads and verifies the new `.deb` and opens it in your package installer. Install it and reopen BladeVault. From a terminal, quit BladeVault and run `sudo apt install ~/Downloads/BladeVault.deb` with the newer file.
+
+Remove it with `sudo apt remove bladevault`; your data stays in `~/BladeVault/data`.
 
 ## Run from source
 

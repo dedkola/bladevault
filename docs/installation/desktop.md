@@ -27,32 +27,74 @@ Check for updates in **Settings → About**. Download an available update, then 
 
 ## Linux
 
-BladeVault ships an x86-64 AppImage and Debian package built on Ubuntu 22.04, so they need a distribution with glibc 2.35 or newer.
+BladeVault ships two x86-64 builds for Linux, both built on Ubuntu 22.04, so they need a distribution with glibc 2.35 or newer. Pick one:
 
-Download [BladeVault.AppImage](https://github.com/dedkola/bladevault/releases/latest/download/BladeVault.AppImage) and run it without installing:
+| Build                             | Best for                                           | Updates                                 |
+| --------------------------------- | -------------------------------------------------- | --------------------------------------- |
+| [AppImage](#appimage)             | Any distribution, no root needed                   | In the app, from **Settings → About**   |
+| [Debian package](#debian-package) | Debian, Ubuntu, and derivatives; adds a menu entry | Install the new `.deb` over the old one |
+
+Both use the same data folder, `~/BladeVault/data`, so you can switch between them, and updating never touches your vault.
+
+### AppImage
+
+**Install**
+
+Download [BladeVault.AppImage](https://github.com/dedkola/bladevault/releases/latest/download/BladeVault.AppImage), move it somewhere permanent, make it executable, and run it:
 
 ```bash
-chmod +x BladeVault.AppImage
-./BladeVault.AppImage
+mkdir -p ~/Applications
+mv ~/Downloads/BladeVault.AppImage ~/Applications/
+chmod +x ~/Applications/BladeVault.AppImage
+~/Applications/BladeVault.AppImage
 ```
 
-AppImages need FUSE 2, which Ubuntu 22.04 and newer do not install by default. If the AppImage reports `dlopen(): error loading libfuse.so.2`, install it with `sudo apt install libfuse2`. Without FUSE you can also unpack and run it with `./BladeVault.AppImage --appimage-extract-and-run`.
+Keep the file in that folder: updates replace it in place.
 
-Or install the Debian package instead, which adds BladeVault to your applications menu:
+AppImages need FUSE 2, which Ubuntu 22.04 and newer do not install by default. If the AppImage reports `dlopen(): error loading libfuse.so.2`, install it:
 
 ```bash
-sudo apt install ./BladeVault.deb
+sudo apt install libfuse2      # Ubuntu 22.04
+sudo apt install libfuse2t64   # Ubuntu 24.04 and newer
 ```
+
+Without FUSE you can also unpack and run it with `./BladeVault.AppImage --appimage-extract-and-run`.
 
 If your distribution restricts unprivileged user namespaces (Ubuntu 23.10 and newer by default), the AppImage may report a sandbox helper error. Start it with the bundled Chromium sandbox disabled:
 
 ```bash
-./BladeVault.AppImage --no-sandbox
+~/Applications/BladeVault.AppImage --no-sandbox
 ```
 
-The Debian package installs an AppArmor profile that allows the sandbox, so it does not need that flag.
+**Update**
 
-Updates differ by package. The AppImage updates itself: check in **Settings → About**, download, then select **Restart to update**. A Debian install instead opens the downloaded `BladeVault.deb` in your package installer (or reveals it in your file manager); install it and reopen BladeVault.
+The AppImage updates itself. Open **Settings → About**, select **Check for updates**, then **Download update**, and finally **Restart to update**. BladeVault replaces the AppImage file and reopens on the new version.
+
+To update by hand instead, download the latest `BladeVault.AppImage`, overwrite the old file, and run `chmod +x` on it again.
+
+### Debian package
+
+**Install**
+
+Download [BladeVault.deb](https://github.com/dedkola/bladevault/releases/latest/download/BladeVault.deb) and install it with `apt`, which also pulls in any missing dependencies:
+
+```bash
+sudo apt install ~/Downloads/BladeVault.deb
+```
+
+Open **BladeVault** from your applications menu. The package installs an AppArmor profile that allows the Chromium sandbox, so it does not need `--no-sandbox`.
+
+**Update**
+
+A Debian install cannot replace itself. Open **Settings → About**, select **Check for updates**, then **Download update**: BladeVault downloads the new `BladeVault.deb`, checks its SHA-256, and opens it in your package installer, or shows it in your file manager if no installer is set up. Install it, then reopen BladeVault.
+
+You can also update from a terminal: download the latest `BladeVault.deb`, quit BladeVault, and install it over the old version:
+
+```bash
+sudo apt install ~/Downloads/BladeVault.deb
+```
+
+To remove the app, run `sudo apt remove bladevault`. Your vault in `~/BladeVault/data` stays in place.
 
 ## Where the desktop app keeps your data
 
