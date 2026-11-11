@@ -10,13 +10,13 @@ Click **Add knife** at the top of the sidebar:
 
 ![The Add knife button at the top of the sidebar](../images/add-knife-button.png)
 
-The form opens on the **Scrape URL** tab. To enter a knife without a product page, use **Manual**. See [Add a knife manually](add-knife-in-manual-mode.md).
+The page opens with a single product link field. To enter a knife without a product page, choose **Enter manually** below it. See [Add a knife manually](add-knife-in-manual-mode.md).
 
 ![The Add knife form, open on the Scrape URL tab](../images/add-knife-form.png)
 
 ## 2. Paste the product URL and click **Scrape**
 
-Paste the retailer's product URL into **Product URL** and click **Scrape**, or press Enter. BladeVault opens the page in a browser and reads its title, brand, images, and specifications.
+Paste the retailer's product URL into the link field and click **Scrape**, or press Enter. BladeVault opens the page in a browser and reads its title, brand, images, and specifications.
 
 ![The form after pasting a product URL, with Scrape and Batch scrape on the right](../images/add-knife-url.png)
 
@@ -60,13 +60,13 @@ The knife also appears as a card in Collection.
 
 ## Add a knife manually
 
-Use **Manual** for a gift, a custom build, or an older knife without a product page. You can enter specifications, price, notes, a source link, and local photos. See [Add a knife manually](add-knife-in-manual-mode.md).
+Use **Enter manually** for a gift, a custom build, or an older knife without a product page. You can enter specifications, price, notes, a source link, and local photos. See [Add a knife manually](add-knife-in-manual-mode.md).
 
 ## When a retailer blocks the import
 
 Some sites block automated access or display popups over the product details. BladeVault removes recognizable newsletter and cookie overlays before capturing the page. Use **Hide popups** in the preview to hide remaining dialogs, or **Restore original** to return to the imported preview. These actions preserve your form edits.
 
-If the page needs a click or a verification step, choose **Interact with page** beside the URL. Complete the step in the browser window, then click **Continue** to refresh the import in the same form. Your manually edited fields and image selections are preserved. The browser window opens on the computer running BladeVault. A browser inside a remote container is not streamed to your screen.
+If the page needs a click or a verification step, choose **Interact with page** under the link field. Complete the step in the browser window, then click **Continue** to refresh the import in the same form. Your manually edited fields and image selections are preserved. The browser window opens on the computer running BladeVault. A browser inside a remote container is not streamed to your screen.
 
 In the desktop app, if the verification keeps repeating in that window, choose **Open in BladeVault browser** instead. It opens the page in a browser window inside BladeVault. Complete the check, wait for the product page to load, then click **Continue** in the window's toolbar. BladeVault imports the page and downloads its images through the same window, so protected images still load. Passed checks and sign-ins are remembered for that window, separately from BladeVault itself. This option replaces the form's fields and image selections with the imported values.
 

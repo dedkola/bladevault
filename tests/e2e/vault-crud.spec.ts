@@ -9,7 +9,7 @@ test('adds, reloads, edits, and deletes a knife through the UI', async ({
   page,
 }) => {
   await page.goto('/add')
-  await page.getByRole('tab', { name: 'Manual' }).click()
+  await page.getByRole('button', { name: 'Enter manually' }).click()
   await page.getByPlaceholder('e.g. Chris Reeve Knives').fill('Test Maker')
   await page.getByPlaceholder('e.g. Sebenza 31').fill('Test Knife')
   await page.getByPlaceholder('e.g. AEB-L').fill('Magnacut')

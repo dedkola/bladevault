@@ -50,7 +50,7 @@ test('adds a manual photo whose base64 save request exceeds 10 MiB', async ({
 }) => {
   const photo = await photoWithMetadata(8 * MIB)
   await page.goto('/add')
-  await page.getByRole('tab', { name: 'Manual' }).click()
+  await page.getByRole('button', { name: 'Enter manually' }).click()
   await page.getByPlaceholder('e.g. Sebenza 31').fill('Large Upload')
   await page.locator('input[type="file"]').setInputFiles({
     name: 'large-original.png',

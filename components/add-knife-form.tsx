@@ -16,6 +16,8 @@ import {
   Link2,
   AlertCircle,
   Check,
+  ChevronRight,
+  ClipboardPaste,
   ExternalLink,
   Eye,
   FileUp,
@@ -23,6 +25,7 @@ import {
   EyeOff,
   Layers,
   Monitor,
+  PenLine,
   X,
   RefreshCw,
 } from 'lucide-react'
@@ -50,14 +53,10 @@ import { ScrapedProduct } from '@/lib/scrape'
 import { CustomField } from '@/lib/settings-shared'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
 import { useUnsavedChanges } from '@/hooks/use-unsaved-changes'
 import { cleanScrapePreview } from '@/lib/scrape-popup-cleanup'
-
-const TABS = ['Scrape URL', 'Manual'] as const
-type Tab = (typeof TABS)[number]
 
 function hasKnifeFormContent(form: KnifeFormData): boolean {
   return Object.values(form).some((value) => {
@@ -71,6 +70,7 @@ const subscribeToNothing = () => () => {}
 const getHasDesktopBrowser = () =>
   Boolean(window.bladevaultDesktop?.scrapeBrowser)
 const getServerHasDesktopBrowser = () => false
+const getCanPaste = () => Boolean(navigator.clipboard?.readText)
 
 export function AddKnifeForm() {
   const router = useRouter()
@@ -79,7 +79,8 @@ export function AddKnifeForm() {
   const savedPageInputRef = useRef<HTMLInputElement>(null)
   const editedFieldsRef = useRef(new Set<keyof KnifeFormData>())
   const { addKnife } = useKnives()
-  const [activeTab, setActiveTab] = useState<Tab>('Scrape URL')
+  const urlInputRef = useRef<HTMLInputElement>(null)
+  const [isManual, setIsManual] = useState(false)
   const [form, setForm] = useState<KnifeFormData>(EMPTY_KNIFE_FORM)
   const [imageUrlInput, setImageUrlInput] = useState('')
   const [url, setUrl] = useState('')
@@ -106,6 +107,11 @@ export function AddKnifeForm() {
   const hasDesktopBrowser = useSyncExternalStore(
     subscribeToNothing,
     getHasDesktopBrowser,
+    getServerHasDesktopBrowser,
+  )
+  const canPaste = useSyncExternalStore(
+    subscribeToNothing,
+    getCanPaste,
     getServerHasDesktopBrowser,
   )
   const [interactiveIsChallenge, setInteractiveIsChallenge] = useState<
@@ -731,242 +737,327 @@ export function AddKnifeForm() {
     )
   }
 
+  const isBusy = isScraping || interactiveStatus !== null
+  // Keep the form on screen once it holds anything, so a failed re-scrape
+  // never hides details that are already filled in.
+  const showForm = hasScraped || isManual || hasKnifeFormContent(form)
+
+  const pasteUrl = async () => {
+    try {
+      const text = (await navigator.clipboard.readText()).trim()
+      if (text) setUrl(text)
+    } catch {
+      // Clipboard access was refused; the field is still there to paste into.
+    }
+    urlInputRef.current?.focus()
+  }
+
+  const interactActions = (
+    <>
+      <Button
+        variant={scrapeError ? 'outline' : 'link'}
+        size="sm"
+        className={scrapeError ? undefined : 'h-auto px-0'}
+        onClick={startInteractiveScrape}
+        disabled={isBusy || !url.trim()}
+      >
+        {interactiveStatus === 'starting' ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Monitor className="h-3.5 w-3.5" />
+        )}
+        Interact with page
+      </Button>
+      {hasDesktopBrowser && (
+        <Button
+          variant={scrapeError ? 'outline' : 'link'}
+          size="sm"
+          className={scrapeError ? undefined : 'h-auto px-0'}
+          onClick={openDesktopBrowser}
+          disabled={isBusy || !url.trim()}
+          title="Open the page in a browser window inside BladeVault. Use it when a site's security check keeps repeating."
+        >
+          <Globe className="h-3.5 w-3.5" />
+          Open in BladeVault browser
+        </Button>
+      )}
+    </>
+  )
+
+  const otherWays = [
+    {
+      id: 'batch',
+      icon: Layers,
+      title: 'Batch scrape',
+      description: 'Paste a list of product links and add them in one run',
+    },
+    {
+      id: 'saved-page',
+      icon: FileUp,
+      title: 'Import saved page',
+      description:
+        'Use a product page you saved from your browser (File → Save Page As)',
+    },
+    {
+      id: 'manual',
+      icon: PenLine,
+      title: 'Enter manually',
+      description: 'Type the details yourself, no link needed',
+    },
+  ] as const
+
+  const chooseOtherWay = (id: (typeof otherWays)[number]['id']) => {
+    if (id === 'batch') setIsBatchOpen(true)
+    else if (id === 'saved-page') savedPageInputRef.current?.click()
+    else {
+      setIsManual(true)
+      setScrapeError(null)
+      setSaveError(null)
+    }
+  }
+
   const scrapeInput = (
-    <Card size="sm">
-      <CardContent className="space-y-3">
-        <div className="space-y-1.5">
-          <label
-            htmlFor={`${formId}-product-url`}
-            className="text-[10px] xl:text-xs font-medium uppercase tracking-wider text-muted-foreground"
-          >
-            Product URL
-          </label>
-          <div className="flex flex-wrap gap-2">
-            <div className="relative min-w-0 basis-full md:basis-auto md:flex-1">
-              <Link2 className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id={`${formId}-product-url`}
-                type="url"
-                value={url}
-                disabled={isScraping || interactiveStatus !== null}
-                onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleScrape()}
-                placeholder="https://retailer.com/..."
-                className="pl-9"
-              />
-            </div>
-            <Button
-              onClick={handleScrape}
-              disabled={isScraping || interactiveStatus !== null || !url.trim()}
-              size="sm"
-            >
-              {isScraping && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              {isScraping ? 'Scraping' : 'Scrape'}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={startInteractiveScrape}
-              disabled={isScraping || interactiveStatus !== null || !url.trim()}
-            >
-              {interactiveStatus === 'starting' ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Monitor className="h-3.5 w-3.5" />
-              )}
-              Interact with page
-            </Button>
-            {hasDesktopBrowser && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={openDesktopBrowser}
-                disabled={
-                  isScraping || interactiveStatus !== null || !url.trim()
-                }
-                title="Open the page in a browser window inside BladeVault. Use it when a site's security check keeps repeating."
-              >
-                <Globe className="h-3.5 w-3.5" />
-                Open in BladeVault browser
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsBatchOpen(true)}
-              disabled={isScraping || interactiveStatus !== null}
-            >
-              <Layers className="h-3.5 w-3.5" />
-              Batch scrape
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => savedPageInputRef.current?.click()}
-              disabled={isScraping || interactiveStatus !== null}
-              title="Import a product page you saved from your browser (File → Save Page As)"
-            >
-              <FileUp className="h-3.5 w-3.5" />
-              Import saved page
-            </Button>
-            <input
-              ref={savedPageInputRef}
-              type="file"
-              accept={SAVED_PAGE_ACCEPT}
-              className="hidden"
-              aria-label="Saved product page file"
-              tabIndex={-1}
-              onChange={(event) => {
-                const file = event.target.files?.[0]
-                event.target.value = ''
-                if (file) void importSavedPage(file)
-              }}
-            />
-          </div>
-        </div>
-
-        {scrapeWarnings.length > 0 && (
-          <div
-            role="status"
-            className="space-y-1 text-sm text-amber-700 dark:text-amber-400"
-          >
-            {scrapeWarnings.map((warning) => (
-              <p key={warning}>{warning}</p>
-            ))}
-          </div>
-        )}
-        {screenshotWarning && (
-          <p
-            role="status"
-            className="text-sm xl:text-base text-amber-700 dark:text-amber-400"
-          >
-            Webpage screenshot unavailable: {screenshotWarning}
+    <div
+      className={cn(
+        'w-full space-y-3',
+        !showForm && 'mx-auto max-w-2xl pt-2 md:pt-[5vh]',
+      )}
+    >
+      {!showForm && (
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold tracking-tight">
+            Paste a product link
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            BladeVault fills in the title, brand, images, and specs when
+            available. You can edit everything before saving.
           </p>
+        </div>
+      )}
+      <label htmlFor={`${formId}-product-url`} className="sr-only">
+        Product URL
+      </label>
+      <div
+        className={cn(
+          'flex items-center gap-2 rounded-xl border border-input bg-card py-1.5 pr-1.5 pl-3.5 transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50',
+          !showForm && 'shadow-sm',
         )}
-        {scrapeError && (
-          <div className="space-y-2">
-            <div
-              role="alert"
-              className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs xl:text-sm text-destructive"
-            >
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-              <span>{scrapeError}</span>
-            </div>
-          </div>
+      >
+        <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <input
+          ref={urlInputRef}
+          id={`${formId}-product-url`}
+          type="url"
+          value={url}
+          disabled={isBusy}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleScrape()}
+          placeholder="https://retailer.com/..."
+          className="h-9 min-w-0 flex-1 border-0 bg-transparent text-base outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+        />
+        {canPaste && !url && !isBusy && (
+          <Button
+            variant="ghost"
+            onClick={pasteUrl}
+            aria-label="Paste link"
+            className="text-muted-foreground"
+          >
+            <ClipboardPaste className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Paste</span>
+          </Button>
         )}
+        <Button
+          size="lg"
+          className="px-4"
+          onClick={handleScrape}
+          disabled={isBusy || !url.trim()}
+        >
+          {isScraping && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          {isScraping ? 'Scraping' : 'Scrape'}
+        </Button>
+      </div>
+      <input
+        ref={savedPageInputRef}
+        type="file"
+        accept={SAVED_PAGE_ACCEPT}
+        className="hidden"
+        aria-label="Saved product page file"
+        tabIndex={-1}
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          event.target.value = ''
+          if (file) void importSavedPage(file)
+        }}
+      />
+      {!scrapeError && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs xl:text-sm text-muted-foreground">
+          <span>Popup, sign-in, or security check in the way?</span>
+          {interactActions}
+        </div>
+      )}
 
-        {(interactiveStatus === 'waiting' ||
-          interactiveStatus === 'scraping') && (
-          <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 space-y-2">
-            <div className="flex items-start gap-2 text-xs xl:text-sm">
-              <Monitor className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
-              <div className="space-y-1">
-                <p>
-                  A browser window has opened on the computer running
-                  BladeVault. Close popups or complete verification, then click{' '}
-                  <strong>Continue</strong> to import the page. Your manual
-                  field edits will be kept.
-                </p>
-                {interactiveIsChallenge === true && (
-                  <p className="text-amber-600 dark:text-amber-400">
-                    Challenge page still detected.
-                  </p>
-                )}
-                {interactiveIsChallenge === false && (
-                  <p className="text-emerald-600 dark:text-emerald-400">
-                    Product page detected.
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                className="flex-1"
-                onClick={captureInteractiveScrape}
-                disabled={interactiveStatus === 'scraping'}
-              >
-                {interactiveStatus === 'scraping' ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-3.5 w-3.5" />
-                )}
-                Continue
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={cancelInteractiveScrape}
-              >
-                <X className="h-3.5 w-3.5" />
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {interactiveStatus === 'browser' && (
-          <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 space-y-2">
-            <div className="flex items-start gap-2 text-xs xl:text-sm">
-              <Globe className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
-              <p>
-                The BladeVault browser is open. Complete any security check,
-                wait for the product page to load, then click{' '}
-                <strong>Continue</strong> in its toolbar or here. Sign-ins and
-                passed checks are remembered for next time.
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                className="flex-1"
-                onClick={() =>
-                  void window.bladevaultDesktop?.scrapeBrowser
-                    ?.capture()
-                    .catch(() => {})
-                }
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                Continue
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  void window.bladevaultDesktop?.scrapeBrowser
-                    ?.cancel()
-                    .catch(() => {})
-                }
-              >
-                <X className="h-3.5 w-3.5" />
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {interactiveError && (
+      {scrapeWarnings.length > 0 && (
+        <div
+          role="status"
+          className="space-y-1 text-sm text-amber-700 dark:text-amber-400"
+        >
+          {scrapeWarnings.map((warning) => (
+            <p key={warning}>{warning}</p>
+          ))}
+        </div>
+      )}
+      {screenshotWarning && (
+        <p
+          role="status"
+          className="text-sm xl:text-base text-amber-700 dark:text-amber-400"
+        >
+          Webpage screenshot unavailable: {screenshotWarning}
+        </p>
+      )}
+      {scrapeError && (
+        <div className="space-y-2">
           <div
             role="alert"
             className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs xl:text-sm text-destructive"
           >
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>{interactiveError}</span>
+            <span>{scrapeError}</span>
           </div>
-        )}
+          <div className="flex flex-wrap gap-2">{interactActions}</div>
+        </div>
+      )}
 
-        {!hasScraped &&
-          !scrapeError &&
-          !isScraping &&
-          interactiveStatus === null && (
-            <p className="text-xs xl:text-sm text-muted-foreground">
-              Paste a knife product page URL and hit Scrape. The app will pull
-              the title, brand, images, and specs when available. You can edit
-              everything before saving.
+      {(interactiveStatus === 'waiting' ||
+        interactiveStatus === 'scraping') && (
+        <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 space-y-2">
+          <div className="flex items-start gap-2 text-xs xl:text-sm">
+            <Monitor className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
+            <div className="space-y-1">
+              <p>
+                A browser window has opened on the computer running BladeVault.
+                Close popups or complete verification, then click{' '}
+                <strong>Continue</strong> to import the page. Your manual field
+                edits will be kept.
+              </p>
+              {interactiveIsChallenge === true && (
+                <p className="text-amber-600 dark:text-amber-400">
+                  Challenge page still detected.
+                </p>
+              )}
+              {interactiveIsChallenge === false && (
+                <p className="text-emerald-600 dark:text-emerald-400">
+                  Product page detected.
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              className="flex-1"
+              onClick={captureInteractiveScrape}
+              disabled={interactiveStatus === 'scraping'}
+            >
+              {interactiveStatus === 'scraping' ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              Continue
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={cancelInteractiveScrape}
+            >
+              <X className="h-3.5 w-3.5" />
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {interactiveStatus === 'browser' && (
+        <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 space-y-2">
+          <div className="flex items-start gap-2 text-xs xl:text-sm">
+            <Globe className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
+            <p>
+              The BladeVault browser is open. Complete any security check, wait
+              for the product page to load, then click <strong>Continue</strong>{' '}
+              in its toolbar or here. Sign-ins and passed checks are remembered
+              for next time.
             </p>
-          )}
-      </CardContent>
-    </Card>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              className="flex-1"
+              onClick={() =>
+                void window.bladevaultDesktop?.scrapeBrowser
+                  ?.capture()
+                  .catch(() => {})
+              }
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Continue
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                void window.bladevaultDesktop?.scrapeBrowser
+                  ?.cancel()
+                  .catch(() => {})
+              }
+            >
+              <X className="h-3.5 w-3.5" />
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {interactiveError && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs xl:text-sm text-destructive"
+        >
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>{interactiveError}</span>
+        </div>
+      )}
+
+      {!showForm && (
+        <ul className="mt-7 divide-y divide-border border-y border-border">
+          {otherWays.map(({ id, icon: Icon, title, description }) => (
+            <li key={id}>
+              <button
+                type="button"
+                aria-label={title}
+                aria-describedby={`${formId}-${id}-hint`}
+                onClick={() => chooseOtherWay(id)}
+                disabled={isBusy}
+                className="flex w-full items-center gap-3 rounded-md px-1 py-3 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+              >
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium">{title}</span>
+                  <span
+                    id={`${formId}-${id}-hint`}
+                    className="block text-xs xl:text-sm text-muted-foreground"
+                  >
+                    {description}
+                  </span>
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 
   return (
@@ -998,24 +1089,10 @@ export function AddKnifeForm() {
         }
       />
 
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => {
-          setActiveTab(value as Tab)
-          setScrapeError(null)
-          setSaveError(null)
-        }}
+      <div
         className={`flex flex-col gap-6 ${hasScraped ? 'flex-1 min-h-0' : ''}`}
       >
-        <TabsList>
-          {TABS.map((tab) => (
-            <TabsTrigger key={tab} value={tab}>
-              {tab}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        {activeTab === 'Scrape URL' && scrapeInput}
+        {scrapeInput}
 
         {hasScraped ? (
           <ResizablePreviewLayout
@@ -1110,7 +1187,7 @@ export function AddKnifeForm() {
             />
           </ResizablePreviewLayout>
         ) : (
-          activeTab === 'Manual' && (
+          showForm && (
             <KnifeFormFields
               wideLayout
               form={seededForm}
@@ -1128,7 +1205,7 @@ export function AddKnifeForm() {
             />
           )
         )}
-      </Tabs>
+      </div>
 
       {saveError && (
         <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs xl:text-sm text-destructive">
@@ -1137,25 +1214,30 @@ export function AddKnifeForm() {
         </div>
       )}
 
-      <div className="mt-6 flex items-center justify-end gap-2 xl:sticky xl:bottom-0 xl:z-10 xl:border-t xl:border-[var(--bladevault-line)] xl:bg-background/95 xl:py-3 xl:backdrop-blur-sm">
-        <Button variant="outline" size="sm" onClick={handleCancel}>
-          Cancel
-        </Button>
-        <Button
-          size="sm"
-          onClick={handleSave}
-          disabled={
-            !canSave || isSaving || isScraping || interactiveStatus !== null
-          }
-        >
-          {isSaving ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Check className="h-3.5 w-3.5" />
-          )}
-          {isSaving ? 'Saving' : 'Save Item'}
-        </Button>
-      </div>
+      {showForm && (
+        <div className="mt-6 flex items-center justify-end gap-2 xl:sticky xl:bottom-0 xl:z-10 xl:border-t xl:border-[var(--bladevault-line)] xl:bg-background/95 xl:py-3 xl:backdrop-blur-sm">
+          <p className="mr-auto hidden text-xs text-muted-foreground sm:block">
+            Nothing is saved until you press Save Item.
+          </p>
+          <Button variant="outline" size="sm" onClick={handleCancel}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={
+              !canSave || isSaving || isScraping || interactiveStatus !== null
+            }
+          >
+            {isSaving ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Check className="h-3.5 w-3.5" />
+            )}
+            {isSaving ? 'Saving' : 'Save Item'}
+          </Button>
+        </div>
+      )}
 
       <BatchScrapeDialog open={isBatchOpen} onOpenChange={setIsBatchOpen} />
     </div>
