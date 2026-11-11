@@ -100,5 +100,5 @@ BladeVault generates one permanent MCP access token and stores it with the persi
 
 ## Related
 
-- [Review collection activity in Logs](../guides/review-collection-activity.md) — inspect changes made through MCP and the app.
+- [Review collection activity in History](../guides/review-collection-activity.md) — inspect changes made through MCP and the app.
 - [Log maintenance and sharpening](../guides/log-maintenance.md) — manage dated maintenance events in the app.

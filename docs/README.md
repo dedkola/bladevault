@@ -28,7 +28,7 @@
 - **Browse** — save filters as Smart Collections that update with your records, or browse variants together in Model families. Global search understands model names and `/model A4301` for model numbers.
 - **Showcase** — open Studio for a photo-first wall of your collection with folding, fixed, and pinned filters, search, sorting, and focus mode. Select any knife for a quick look with its full photo gallery.
 - **Compare** — create named shortlists, add a knife to several lists, show only the differences, and print or export comparisons as PDF.
-- **Maintain** — log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes, and review the history in Logs.
+- **Maintain** — log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes, and review it in History.
 - **Understand** — explore makers, materials, dimensions, completeness, and activity through collection insights. The Modern theme adds monthly additions for the last 12 months and blade, overall-length, weight, and thickness distributions.
 - **Personalize** — choose the Classic, Modern, or Alloy theme, light or dark color mode, time format, pinned ordering, and the page BladeVault opens on: Insights, Studio, or Collection.
 - **Keep control** — the vault lives in a local SQLite database, ZIP backups are portable, and cloud backup is optional.
@@ -51,7 +51,7 @@
 | Record cleaning, sharpening, and other care   | [Log maintenance and sharpening](guides/log-maintenance.md)                 |
 | Understand collection patterns                | [Collection insights](guides/insights.md)                                   |
 | Review missing data, measurements, and labels | [Improve collection data quality](guides/improve-data-quality.md)           |
-| See what changed and when                     | [Review collection activity in Logs](guides/review-collection-activity.md)  |
+| See what changed and when                     | [Review collection activity in History](guides/review-collection-activity.md)  |
 | Preserve a copy of a source page              | [Capture source pages](guides/capture-sources.md)                           |
 | Save or restore a full-vault archive          | [Back up and restore your vault](guides/back-up-and-restore-your-vault.md)  |
 

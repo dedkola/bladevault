@@ -100,7 +100,7 @@ test('logs maintenance events from the knife detail page', async ({
       .first(),
   ).toBeVisible()
 
-  const search = page.getByRole('textbox', { name: 'Search logs' })
+  const search = page.getByRole('textbox', { name: 'Search history' })
   const searchWidthBefore = await search.evaluate(
     (element) => element.getBoundingClientRect().width,
   )

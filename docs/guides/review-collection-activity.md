@@ -1,10 +1,12 @@
-# Review collection activity in Logs
+# Review collection activity in History
 
 [![Watch the collection activity walkthrough on YouTube](https://img.youtube.com/vi/dTpAvL_w9n4/hqdefault.jpg)](https://youtu.be/dTpAvL_w9n4)
 
-**Logs** shows recorded changes to your vault, including knife additions, metadata edits, deletions, and maintenance activity. Use it to find when a record changed, inspect before-and-after values, and identify the source of an update.
+**History** shows recorded changes to your vault, including knife additions, metadata edits, deletions, and maintenance activity. Use it to find when a record changed, inspect before-and-after values, and identify the source of an update.
 
-Open **Logs** from the navigation. Entries are shown newest first, grouped by day, using your local time.
+Open **History** from the navigation. Entries are shown newest first, grouped by day, using your local time.
+
+You can also jump straight to an entry from a knife: select it in Collection, open the inspector's **History** tab, and click an event. History opens with that entry expanded.
 
 ## Find an event
 
@@ -63,7 +65,7 @@ Date ranges include their first and last days. The filter uses the date the acti
 
 A deleted knife may still have retained history, but its record can no longer be opened from that event. Some events have a summary without individual field changes.
 
-Logs is a record of activity. To correct a specification or maintenance entry, open the knife and edit it there; the log does not provide an undo action.
+History is a record of activity. To correct a specification or maintenance entry, open the knife and edit it there; it does not provide an undo action.
 
 ## When no entries match
 

@@ -44,7 +44,7 @@ See [Organize your collection](guides/collection.md) for an overview.
 ## 4. Compare, maintain, understand
 
 - **Compare** — build named shortlists, show only the differences, export to PDF. See [Compare knives](guides/compare.md).
-- **Maintain** — [log cleaning, lubrication, sharpening, stropping, and disassembly](guides/log-maintenance.md) with dated notes. Review changes and care history in [Logs](guides/review-collection-activity.md).
+- **Maintain** — [log cleaning, lubrication, sharpening, stropping, and disassembly](guides/log-maintenance.md) with dated notes. Review changes and care history in [History](guides/review-collection-activity.md).
 - **Insights** — explore makers, materials, dimensions, completeness, and activity. See [Collection insights](guides/insights.md).
 - **Improve records** — find missing fields, review measurements, and standardize labels. See [Improve collection data quality](guides/improve-data-quality.md).
 

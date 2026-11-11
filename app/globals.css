@@ -1840,6 +1840,24 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   padding: 7px 0;
   border-top: 1px solid var(--border);
 }
+[data-inspector-history] li:has(> [data-inspector-history-link]) {
+  padding: 0;
+}
+[data-inspector-history-link] {
+  display: block;
+  margin: 0 -8px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+[data-inspector-history-link]:hover {
+  background: var(--muted);
+}
+[data-inspector-history-link]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
 [data-inspector-history] b {
   display: block;
   font-weight: 550;

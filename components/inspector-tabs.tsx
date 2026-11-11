@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { formatDimension, formatWeight } from '@/lib/measurements'
 import type { DimensionUnit } from '@/lib/settings-shared'
@@ -80,6 +81,17 @@ type HistoryRow = {
   label: string
   detail: string
   day: number
+  href: string
+}
+
+/**
+ * Links to the History page entry recorded for this knife at `at`. The page
+ * matches the timestamp against its log, since record and maintenance writes
+ * stamp their log entry with the same time.
+ */
+function historyEntryHref(knifeId: string, at: string): string {
+  const params = new URLSearchParams({ knife: knifeId, at })
+  return `/logs?${params.toString()}`
 }
 
 function startOfDay(isoString: string): number {
@@ -102,6 +114,7 @@ function buildHistoryRows(
       label: 'Catalogued',
       detail: new Date(knife.addedAt).toLocaleDateString(),
       day: startOfDay(knife.addedAt),
+      href: historyEntryHref(knife.id, knife.addedAt),
     },
   ]
   if (knife.updatedAt !== knife.addedAt) {
@@ -110,6 +123,7 @@ function buildHistoryRows(
       label: 'Record updated',
       detail: new Date(knife.updatedAt).toLocaleDateString(),
       day: startOfDay(knife.updatedAt),
+      href: historyEntryHref(knife.id, knife.updatedAt),
     })
   }
   for (const event of events) {
@@ -120,6 +134,7 @@ function buildHistoryRows(
         event.notes ? ` · ${event.notes}` : ''
       }`,
       day: startOfDay(event.occurredAt),
+      href: historyEntryHref(knife.id, event.createdAt),
     })
   }
   return rows.sort((a, b) => b.day - a.day)
@@ -139,8 +154,10 @@ function HistoryList({
     <ul data-inspector-history>
       {rows.map((row) => (
         <li key={row.key}>
-          <b>{row.label}</b>
-          <span>{row.detail}</span>
+          <Link href={row.href} data-inspector-history-link>
+            <b>{row.label}</b>
+            <span>{row.detail}</span>
+          </Link>
         </li>
       ))}
       {status === 'loading' && (

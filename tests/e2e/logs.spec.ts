@@ -44,7 +44,7 @@ test('shows logs last in the primary sidebar navigation', async ({ page }) => {
     'Collection',
     'Studio',
     'Compare',
-    'Logs',
+    'History',
   ])
 })
 
@@ -65,13 +65,13 @@ test('records and displays create, update, and delete events', async ({
   await expect(page).toHaveURL(/\/collection$/)
 
   await page.goto('/')
-  await page.getByRole('link', { name: 'Logs', exact: true }).click()
+  await page.getByRole('link', { name: 'History', exact: true }).click()
   await expect(page).toHaveURL(/\/logs$/)
   await expect(
-    page.getByRole('heading', { name: 'Logs', exact: true }),
+    page.getByRole('heading', { name: 'History', exact: true }),
   ).toBeVisible()
   await expect(
-    page.getByRole('link', { name: 'Logs', exact: true }),
+    page.getByRole('link', { name: 'History', exact: true }),
   ).toHaveAttribute('aria-current', 'page')
   await expect(
     page.getByRole('link', { name: 'Insights', exact: true }),
@@ -158,12 +158,12 @@ test('records and displays create, update, and delete events', async ({
   await expect(logEntries(page, 'updated').first()).toBeVisible()
   await expect(logEntries(page, 'deleted').first()).toBeVisible()
 
-  const search = page.getByRole('textbox', { name: 'Search logs' })
+  const search = page.getByRole('textbox', { name: 'Search history' })
   const searchWidthBefore = await search.evaluate(
     (element) => element.getBoundingClientRect().width,
   )
   const dateRangeTrigger = page.getByRole('button', {
-    name: 'Filter logs by date range',
+    name: 'Filter history by date range',
   })
   await dateRangeTrigger.click()
 
@@ -272,7 +272,7 @@ test('inspects real log changes inline at all screen sizes', async ({
   await expect(expand).toBeFocused()
   await expand.click()
 
-  const search = page.getByRole('textbox', { name: 'Search logs' })
+  const search = page.getByRole('textbox', { name: 'Search history' })
   await search.fill('detailed maintenance and collection note')
   await expect(logEntries(page)).toHaveCount(1)
   await expect(inlineDetails).toBeVisible()
@@ -402,9 +402,7 @@ test('retries a failed log request and renders an empty vault', async ({
     route.fulfill({ json: { events: [] } }),
   )
   await page.reload()
-  await expect(
-    page.getByText('No log entries yet', { exact: true }),
-  ).toBeVisible()
+  await expect(page.getByText('No history yet', { exact: true })).toBeVisible()
   await expect(logEntries(page)).toHaveCount(0)
   await expect(
     page.getByRole('complementary', { name: /Event details for/ }),

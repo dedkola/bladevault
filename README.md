@@ -39,7 +39,7 @@ Catalog your knives, showcase them in Studio, compare them side by side, and kee
 - **Browse:** Save filters as Smart Collections that update with your records, or browse variants together in Model families. Global search supports model names and `/model A4301` for model numbers.
 - **Showcase:** Open **Studio** for a photo-first wall of your collection with folding, fixed, and pinned filters, search, sorting, and focus mode. Select any knife for a quick look with its full photo gallery.
 - **Compare:** Create named shortlists, add a knife to several lists, show only differences, and print or export comparisons as PDF.
-- **Maintain:** Log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes and sharpening details. Review maintenance history and collection changes in Logs.
+- **Maintain:** Log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes and sharpening details. Review maintenance history and collection changes in History.
 - **Understand:** Explore makers, materials, dimensions, completeness, and activity through collection insights. The Modern theme adds monthly additions for the last 12 months and blade, overall-length, weight, and thickness distributions. Open chart details to inspect matching knives or print the Overview as a report.
 - **Personalize:** Choose the **Classic**, **Modern**, or **Alloy** theme, light or dark color mode, time format, pinned ordering, and the page BladeVault opens on: **Insights**, **Studio**, or **Collection**.
 - **Connect:** Use MCP to search and analyze your collection from an AI client, with optional metadata updates and maintenance logging.

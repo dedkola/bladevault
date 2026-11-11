@@ -62,4 +62,4 @@ See [Compare knives](compare.md) for saved lists, differences, and export option
 - [Search, filter, and sort your collection](search-and-filter.md) — find the intended records before selecting them.
 - [Add and manage custom fields](custom-fields.md) — define extra fields that bulk editing can use.
 - [Update a saved knife](update-a-saved-knife.md) — edit a complete individual record.
-- [Review collection activity in Logs](review-collection-activity.md) — inspect recorded changes.
+- [Review collection activity in History](review-collection-activity.md) — inspect recorded changes.
