@@ -678,7 +678,9 @@ export default function SettingsView() {
         : update.status === 'downloaded'
           ? update.platform === 'darwin'
             ? 'DMG opened. Quit BladeVault and replace the app in Applications.'
-            : 'Update downloaded. Restart BladeVault to install.'
+            : update.platform === 'linux' && update.path
+              ? 'Installer opened. Finish the installation, then reopen BladeVault.'
+              : 'Update downloaded. Restart BladeVault to install.'
           : update.status === 'not-available'
             ? 'BladeVault is up to date.'
             : update.status === 'error'
@@ -695,7 +697,9 @@ export default function SettingsView() {
           : 'idle'
 
   const handleUpdateAction = async () => {
-    if (update.status === 'downloaded' && update.platform === 'win32') {
+    // Manual installers (macOS DMG, Linux deb) are handed off to the OS, so
+    // only updater-managed downloads (Windows, Linux AppImage) restart in place.
+    if (update.status === 'downloaded' && !update.path) {
       await installUpdate()
       return
     }
@@ -2676,16 +2680,12 @@ export default function SettingsView() {
                             <Loader2 className="animate-spin" />
                           ) : update.status === 'available' ? (
                             <Download />
-                          ) : update.status === 'downloaded' &&
-                            update.platform === 'win32' ? (
-                            <RefreshCw />
                           ) : (
                             <RefreshCw />
                           )}
                           {update.status === 'available'
                             ? 'Download update'
-                            : update.status === 'downloaded' &&
-                                update.platform === 'win32'
+                            : update.status === 'downloaded' && !update.path
                               ? 'Restart to update'
                               : 'Check for updates'}
                         </Button>

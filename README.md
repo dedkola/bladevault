@@ -68,7 +68,7 @@ Select a knife to open a **quick look** with its complete photo gallery, key spe
 
 | Option           | Best for                             | Start here                                                                           |
 | ---------------- | ------------------------------------ | ------------------------------------------------------------------------------------ |
-| Desktop app      | A native macOS or Windows experience | [Download the latest release](https://github.com/dedkola/bladevault/releases/latest) |
+| Desktop app      | A native macOS, Windows, or Linux experience | [Download the latest release](https://github.com/dedkola/bladevault/releases/latest) |
 | Docker or Podman | A self-hosted local instance         | [Run a container](#run-in-a-container)                                               |
 | Kubernetes       | k3s or another Kubernetes cluster    | [Install with Helm](#install-with-helm)                                              |
 | Source           | Development and customization        | [Run from source](#run-from-source)                                                  |
@@ -269,6 +269,23 @@ Windows SmartScreen may show a warning for an unsigned build. Choose **More info
 
 Check for updates in **Settings → About**. Download an available update, then select **Restart to update** to install it.
 
+### Linux
+
+Download an x86-64 build from the [latest release](https://github.com/dedkola/bladevault/releases/latest). The AppImage runs without installing:
+
+```bash
+chmod +x BladeVault.AppImage
+./BladeVault.AppImage
+```
+
+Or install the Debian package, which adds BladeVault to your applications menu:
+
+```bash
+sudo apt install ./BladeVault.deb
+```
+
+Ubuntu 22.04 and newer need `sudo apt install libfuse2` before the AppImage will start. Ubuntu 23.10 and newer also restrict unprivileged user namespaces, so the AppImage may need `--no-sandbox` on first run. The Debian package installs an AppArmor profile and does not. The AppImage updates itself from **Settings → About**; a Debian install opens the downloaded `.deb` instead.
+
 ## Run from source
 
 **Prerequisites:** Node.js 26 LTS. The repository pins Node.js 26.13.0 in [`.nvmrc`](.nvmrc) for local development and CI. Install Chromium as well if you want to use URL import and webpage capture.
@@ -362,7 +379,7 @@ JSON configuration:
 | ------------------------------------- | ----------------------------- |
 | Docker or Podman on the same computer | `http://localhost:5500/mcp`   |
 | Unraid or another LAN server          | `http://<SERVER_IP>:5500/mcp` |
-| macOS or Windows desktop app          | `http://127.0.0.1:5501/mcp`   |
+| Desktop app (macOS, Windows, Linux)    | `http://127.0.0.1:5501/mcp`   |
 | Source checkout                       | `http://localhost:3000/mcp`   |
 
 Replace the example URL when needed and replace the token placeholder with the

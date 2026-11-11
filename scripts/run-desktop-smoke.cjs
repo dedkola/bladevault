@@ -297,7 +297,14 @@ async function main() {
           '.',
           ...(process.platform === 'win32'
             ? ['--disable-gpu', '--disable-software-rasterizer']
-            : []),
+            : process.platform === 'linux'
+              ? // CI containers have no setuid chrome-sandbox helper.
+                [
+                  '--no-sandbox',
+                  '--disable-gpu',
+                  '--disable-software-rasterizer',
+                ]
+              : []),
         ],
         cwd: projectRoot,
         executablePath,

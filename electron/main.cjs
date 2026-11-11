@@ -31,7 +31,8 @@ const FORCE_PRODUCTION_SERVER = process.env.BLADEVAULT_FORCE_PROD_SERVER === '1'
 const SMOKE_TEST_MODE = process.env.BLADEVAULT_SMOKE_TEST === '1'
 const SKIP_UPDATE_CHECK = process.env.BLADEVAULT_SKIP_UPDATE_CHECK === '1'
 const UPDATE_DEBUG_ENABLED =
-  process.platform === 'win32' && process.env.BLADEVAULT_UPDATE_DEBUG !== '0'
+  (process.platform === 'win32' || usesLinuxAppImageUpdater()) &&
+  process.env.BLADEVAULT_UPDATE_DEBUG !== '0'
 const UPDATE_AUTO_TEST = process.env.BLADEVAULT_UPDATE_AUTOTEST === '1'
 const UPDATE_AUTO_TEST_INSTALL =
   process.env.BLADEVAULT_UPDATE_AUTOTEST_INSTALL === '1'
@@ -205,10 +206,16 @@ let isQuitting = false
 let isInstallingUpdate = false
 let updateStatus = { status: 'idle' }
 let updateDebugLogPath = null
-let windowsUpdaterConfigured = false
+let autoUpdaterConfigured = false
+
+// AppImage builds update in place through electron-updater. A .deb install has
+// no writable AppImage file, so it follows the manual download flow instead.
+function usesLinuxAppImageUpdater() {
+  return process.platform === 'linux' && Boolean(process.env.APPIMAGE)
+}
 
 function getUpdateDebugLogPath() {
-  if (!UPDATE_DEBUG_ENABLED || process.platform !== 'win32') {
+  if (!UPDATE_DEBUG_ENABLED) {
     return null
   }
 
@@ -443,17 +450,21 @@ function downloadFile(url, destination) {
   })
 }
 
-function getUpdateAssetName() {
+function getManualUpdateAssetName() {
   if (process.platform === 'darwin') return 'BladeVault.dmg'
+  if (process.platform === 'linux') return 'BladeVault.deb'
   return null
 }
 
-function configureWindowsUpdater() {
-  if (process.platform !== 'win32' || windowsUpdaterConfigured) {
+function configureAutoUpdater() {
+  if (
+    (process.platform !== 'win32' && !usesLinuxAppImageUpdater()) ||
+    autoUpdaterConfigured
+  ) {
     return
   }
 
-  windowsUpdaterConfigured = true
+  autoUpdaterConfigured = true
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.disableWebInstaller = true
@@ -470,12 +481,12 @@ function configureWindowsUpdater() {
   }
 
   autoUpdater.on('checking-for-update', () => {
-    appendUpdateDebug('windows_update_checking')
+    appendUpdateDebug('updater_checking')
     publishUpdateStatus({ status: 'checking' })
   })
 
   autoUpdater.on('update-available', (info) => {
-    appendUpdateDebug('windows_update_available', {
+    appendUpdateDebug('updater_available', {
       latestVersion: info.version,
     })
     publishUpdateStatus({
@@ -486,7 +497,7 @@ function configureWindowsUpdater() {
   })
 
   autoUpdater.on('update-not-available', (info) => {
-    appendUpdateDebug('windows_update_not_available', {
+    appendUpdateDebug('updater_not_available', {
       latestVersion: info.version,
       currentVersion: app.getVersion(),
     })
@@ -504,7 +515,7 @@ function configureWindowsUpdater() {
   })
 
   autoUpdater.on('update-downloaded', (info) => {
-    appendUpdateDebug('windows_update_downloaded', {
+    appendUpdateDebug('updater_downloaded', {
       latestVersion: info.version,
       downloadedFile: info.downloadedFile || null,
     })
@@ -516,7 +527,7 @@ function configureWindowsUpdater() {
 
   autoUpdater.on('error', (error) => {
     const message = error instanceof Error ? error.message : String(error)
-    appendUpdateDebug('windows_updater_failed', {
+    appendUpdateDebug('updater_failed', {
       message,
       stack: error instanceof Error ? error.stack : null,
     })
@@ -525,7 +536,7 @@ function configureWindowsUpdater() {
 }
 
 async function checkWindowsUpdate() {
-  configureWindowsUpdater()
+  configureAutoUpdater()
 
   if (!app.isPackaged) {
     appendUpdateDebug('windows_update_skipped_unpacked_app')
@@ -541,14 +552,37 @@ async function checkWindowsUpdate() {
 }
 
 async function downloadWindowsUpdate() {
-  configureWindowsUpdater()
+  configureAutoUpdater()
   publishUpdateStatus({ status: 'downloading', percent: 0 })
   await autoUpdater.downloadUpdate()
   return updateStatus
 }
 
-async function checkMacUpdate() {
-  appendUpdateDebug('check_mac_update_started', {
+async function checkLinuxUpdate() {
+  configureAutoUpdater()
+
+  if (!app.isPackaged) {
+    appendUpdateDebug('linux_update_skipped_unpacked_app')
+    publishUpdateStatus({
+      status: 'not-available',
+      currentVersion: app.getVersion(),
+    })
+    return updateStatus
+  }
+
+  await autoUpdater.checkForUpdates()
+  return updateStatus
+}
+
+async function downloadLinuxUpdate() {
+  configureAutoUpdater()
+  publishUpdateStatus({ status: 'downloading', percent: 0 })
+  await autoUpdater.downloadUpdate()
+  return updateStatus
+}
+
+async function checkManualUpdate() {
+  appendUpdateDebug('manual_update_started', {
     currentVersion: app.getVersion(),
   })
 
@@ -557,7 +591,7 @@ async function checkMacUpdate() {
   )
   const version = String(release.tag_name || '').replace(/^v/, '')
 
-  appendUpdateDebug('check_mac_update_release', {
+  appendUpdateDebug('manual_update_release', {
     latestVersion: version || null,
     releaseUrl: release.html_url || null,
   })
@@ -568,7 +602,7 @@ async function checkMacUpdate() {
   const shouldTreatAsAvailable = Boolean(version) && versionComparison > 0
 
   if (!shouldTreatAsAvailable) {
-    appendUpdateDebug('check_mac_update_not_available', {
+    appendUpdateDebug('manual_update_not_available', {
       latestVersion: version || null,
       currentVersion: app.getVersion(),
       versionComparison,
@@ -580,19 +614,19 @@ async function checkMacUpdate() {
     return updateStatus
   }
 
-  const assetName = getUpdateAssetName()
+  const assetName = getManualUpdateAssetName()
   const asset = Array.isArray(release.assets)
     ? release.assets.find((candidate) => candidate.name === assetName)
     : null
   if (!asset?.browser_download_url) {
-    appendUpdateDebug('check_mac_update_missing_asset', {
+    appendUpdateDebug('manual_update_missing_asset', {
       assetName,
       latestVersion: version,
     })
     throw new Error(`The latest release does not contain ${assetName}.`)
   }
 
-  appendUpdateDebug('check_mac_update_available', {
+  appendUpdateDebug('manual_update_available', {
     latestVersion: version,
     downloadUrl: asset.browser_download_url,
     versionComparison,
@@ -607,8 +641,8 @@ async function checkMacUpdate() {
   return updateStatus
 }
 
-async function downloadMacUpdate() {
-  appendUpdateDebug('download_mac_update_started', {
+async function downloadManualUpdate() {
+  appendUpdateDebug('manual_update_started', {
     currentVersion: app.getVersion(),
   })
 
@@ -616,12 +650,12 @@ async function downloadMacUpdate() {
     'https://api.github.com/repos/dedkola/bladevault/releases/latest',
   )
   const version = String(release.tag_name || '').replace(/^v/, '')
-  const assetName = getUpdateAssetName()
+  const assetName = getManualUpdateAssetName()
   const asset = Array.isArray(release.assets)
     ? release.assets.find((candidate) => candidate.name === assetName)
     : null
   if (!asset?.browser_download_url || !version) {
-    appendUpdateDebug('download_mac_update_missing_asset', {
+    appendUpdateDebug('manual_update_missing_asset', {
       assetName,
       latestVersion: version || null,
     })
@@ -630,7 +664,7 @@ async function downloadMacUpdate() {
 
   const destination = path.join(
     os.tmpdir(),
-    `BladeVault-${version}-${Date.now()}-${process.pid}.dmg`,
+    `BladeVault-${version}-${Date.now()}-${process.pid}${path.extname(assetName)}`,
   )
   const result = await downloadFile(asset.browser_download_url, destination)
   const expectedDigest = String(asset.digest || '')
@@ -647,7 +681,7 @@ async function downloadMacUpdate() {
     sha256: result.sha256,
   })
 
-  appendUpdateDebug('download_mac_update_completed', {
+  appendUpdateDebug('manual_update_completed', {
     latestVersion: version,
     destination,
     sha256: result.sha256,
@@ -655,7 +689,12 @@ async function downloadMacUpdate() {
 
   const openError = await shell.openPath(destination)
   if (openError) {
-    throw new Error(`Failed to open downloaded update: ${openError}`)
+    if (process.platform === 'linux') {
+      // A .deb may have no default handler; reveal it so it can be installed.
+      shell.showItemInFolder(destination)
+    } else {
+      throw new Error(`Failed to open downloaded update: ${openError}`)
+    }
   }
   return updateStatus
 }
@@ -676,8 +715,8 @@ async function installDownloadedUpdate() {
     throw new Error('No downloaded update is ready to install yet.')
   }
 
-  if (process.platform !== 'win32') {
-    appendUpdateDebug('install_aborted_not_win32', {
+  if (process.platform !== 'win32' && !usesLinuxAppImageUpdater()) {
+    appendUpdateDebug('install_aborted_unsupported_platform', {
       platform: process.platform,
     })
     return updateStatus
@@ -695,11 +734,13 @@ async function installDownloadedUpdate() {
   // A renderer beforeunload handler can delay app.quit(), allowing NSIS to
   // race the still-running app. The user already chose Install & Restart, so
   // destroy the windows before the updater performs its final app.quit().
-  const windows = BrowserWindow.getAllWindows()
-  for (const window of windows) {
-    window.destroy()
+  if (process.platform === 'win32') {
+    const windows = BrowserWindow.getAllWindows()
+    for (const window of windows) {
+      window.destroy()
+    }
+    appendUpdateDebug('install_windows_destroyed', { count: windows.length })
   }
-  appendUpdateDebug('install_windows_destroyed', { count: windows.length })
 
   appendUpdateDebug('calling_electron_updater_quit_and_install')
   autoUpdater.quitAndInstall(true, true)
@@ -715,7 +756,9 @@ async function checkForUpdates() {
   try {
     publishUpdateStatus({ status: 'checking' })
     if (process.platform === 'win32') return checkWindowsUpdate()
-    if (process.platform === 'darwin') return checkMacUpdate()
+    if (process.platform === 'darwin') return checkManualUpdate()
+    if (usesLinuxAppImageUpdater()) return checkLinuxUpdate()
+    if (process.platform === 'linux') return checkManualUpdate()
     publishUpdateStatus({
       status: 'not-available',
       currentVersion: app.getVersion(),
@@ -737,7 +780,9 @@ async function downloadUpdate() {
 
   try {
     if (process.platform === 'win32') return downloadWindowsUpdate()
-    if (process.platform === 'darwin') return downloadMacUpdate()
+    if (process.platform === 'darwin') return downloadManualUpdate()
+    if (usesLinuxAppImageUpdater()) return downloadLinuxUpdate()
+    if (process.platform === 'linux') return downloadManualUpdate()
     return updateStatus
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -768,7 +813,7 @@ async function runUpdateAutoTest() {
 
   if (
     UPDATE_AUTO_TEST_INSTALL &&
-    process.platform === 'win32' &&
+    (process.platform === 'win32' || usesLinuxAppImageUpdater()) &&
     updateStatus.status === 'downloaded'
   ) {
     appendUpdateDebug('autotest_before_install', {
@@ -835,6 +880,17 @@ function getNodeExecPath() {
 
 function getPreloadPath() {
   return path.join(__dirname, 'preload.cjs')
+}
+
+// The shell resolves the dock icon from the desktop entry, but taskbars and
+// alt-tab previews read the window icon, so packaged Linux builds ship one.
+function getWindowIconPath() {
+  if (process.platform !== 'linux') {
+    return undefined
+  }
+
+  const iconPath = path.join(process.resourcesPath, 'icon.png')
+  return fs.existsSync(iconPath) ? iconPath : undefined
 }
 
 function delay(ms) {
@@ -1370,6 +1426,7 @@ async function createMainWindow() {
     autoHideMenuBar: true,
     backgroundColor: '#121510',
     height: 960,
+    icon: getWindowIconPath(),
     minHeight: 760,
     minWidth: 760,
     show: false,
