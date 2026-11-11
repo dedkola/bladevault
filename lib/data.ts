@@ -231,6 +231,25 @@ export type MaintenanceEventUpdate = Partial<
   sharpeningDetails?: SharpeningDetails | null
 }
 
+/** A dated note the collector writes about a knife, kept apart from the scraped description. */
+export type KnifeNote = {
+  id: number
+  knifeId: string
+  body: string
+  notedAt: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type KnifeNoteInput = {
+  body: string
+  notedAt?: string
+}
+
+export type KnifeNoteUpdate = Partial<KnifeNoteInput>
+
+export const KNIFE_NOTE_MAX_LENGTH = 10_000
+
 export function isMaintenanceType(value: string): value is MaintenanceType {
   return (MAINTENANCE_TYPES as string[]).includes(value)
 }

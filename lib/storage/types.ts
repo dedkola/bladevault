@@ -2,6 +2,9 @@ import {
   AuditLogEvent,
   Knife,
   KnifeActivityEvent,
+  KnifeNote,
+  KnifeNoteInput,
+  KnifeNoteUpdate,
   KnifeUpdates,
   MaintenanceEvent,
   MaintenanceEventInput,
@@ -94,4 +97,8 @@ export interface Storage {
     eventId: number,
     options?: MaintenanceEventOptions,
   ): Promise<void>
+  getKnifeNotes(knifeId: string): Promise<KnifeNote[]>
+  addKnifeNote(knifeId: string, input: KnifeNoteInput): Promise<KnifeNote>
+  updateKnifeNote(noteId: number, input: KnifeNoteUpdate): Promise<KnifeNote>
+  deleteKnifeNote(noteId: number): Promise<void>
 }

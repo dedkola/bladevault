@@ -21,7 +21,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 6
+export const LOCAL_DB_SCHEMA_VERSION = 7
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -634,6 +634,22 @@ function migrateSchema(database: Database.Database) {
 
       CREATE INDEX maintenance_events_occurred_at_idx
       ON maintenance_events (occurred_at);
+    `)
+  }
+
+  if (!tables.some((t) => t.name === 'knife_notes')) {
+    database.exec(`
+      CREATE TABLE knife_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        knife_id TEXT NOT NULL,
+        body TEXT NOT NULL,
+        noted_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (knife_id) REFERENCES knives(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX knife_notes_knife_id_idx ON knife_notes (knife_id);
     `)
   }
 
