@@ -50,7 +50,7 @@ const links = [
   { href: '/collection', label: 'Collection', icon: Library },
   { href: '/studio', label: 'Studio', icon: GalleryVertical },
   { href: '/compare', label: 'Compare', icon: CompareIcon },
-  { href: '/logs', label: 'Logs', icon: History },
+  { href: '/logs', label: 'History', icon: History },
 ]
 
 export function Sidebar() {

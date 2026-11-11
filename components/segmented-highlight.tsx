@@ -8,7 +8,7 @@ export const SEGMENTED_SELECTOR = [
   '[data-modern-collection-tools] > [data-collection-view-toggle]',
   "[data-slot='tabs-list']",
   "[data-studio] [class*='segmented']",
-  "[data-logs-filter-row] [aria-label='Filter log event type']",
+  "[data-logs-filter-row] [aria-label='Filter history event type']",
   "[data-modern-insights] [class*='range']",
 ].join(', ')
 

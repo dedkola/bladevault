@@ -1011,7 +1011,7 @@ html:is(
   box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
 }
 
-[data-modern-logs] [aria-label='Filter log event type'] {
+[data-modern-logs] [aria-label='Filter history event type'] {
   grid-column: 2;
   grid-row: 1;
   flex-wrap: nowrap;
@@ -1020,7 +1020,7 @@ html:is(
   padding: 2px;
 }
 
-[data-modern-logs] [aria-label='Filter log event type'] button {
+[data-modern-logs] [aria-label='Filter history event type'] button {
   flex-shrink: 0;
   border: 0;
   border-radius: 7px;
@@ -1030,7 +1030,7 @@ html:is(
 }
 
 [data-modern-logs]
-  [aria-label='Filter log event type']
+  [aria-label='Filter history event type']
   button[aria-pressed='true'] {
   background: var(--bladevault-nav-active-bg);
   color: var(--bladevault-nav-active-fg);
@@ -1305,7 +1305,7 @@ html:is(
     grid-column: 1 / -1;
   }
 
-  [data-modern-logs] [aria-label='Filter log event type'] {
+  [data-modern-logs] [aria-label='Filter history event type'] {
     grid-column: 1;
     grid-row: 2;
   }
@@ -1405,7 +1405,7 @@ html[data-theme-style='classic'] [data-modern-logs] [data-logs-summary] dd {
 
 html[data-theme-style='classic']
   [data-modern-logs]
-  [aria-label='Filter log event type'] {
+  [aria-label='Filter history event type'] {
   align-items: center;
   justify-self: start;
   max-width: 100%;
@@ -1417,7 +1417,7 @@ html[data-theme-style='classic']
 
 html[data-theme-style='classic']
   [data-modern-logs]
-  [aria-label='Filter log event type']
+  [aria-label='Filter history event type']
   button {
   height: 24px;
   padding: 0 11px;
@@ -1954,6 +1954,24 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
 [data-inspector-history] li {
   padding: 7px 0;
   border-top: 1px solid var(--border);
+}
+[data-inspector-history] li:has(> [data-inspector-history-link]) {
+  padding: 0;
+}
+[data-inspector-history-link] {
+  display: block;
+  margin: 0 -8px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+[data-inspector-history-link]:hover {
+  background: var(--muted);
+}
+[data-inspector-history-link]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
 }
 [data-inspector-history] b {
   display: block;

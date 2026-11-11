@@ -88,4 +88,4 @@ This list points out records worth checking. BladeVault does not automatically s
 - [Collection insights](insights.md) — understand the summaries your records produce.
 - [Update a saved knife](update-a-saved-knife.md) — edit individual records.
 - [Create and manage Smart Collections](smart-collections.md) — update saved filters after a label change.
-- [Review collection activity in Logs](review-collection-activity.md) — inspect the saved changes.
+- [Review collection activity in History](review-collection-activity.md) — inspect the saved changes.

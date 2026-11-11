@@ -78,15 +78,15 @@ To remove an entry, select its trash button, **Delete maintenance entry**, and c
 
 ## Review care across the collection
 
-Open **Logs** and select **Maintenance** to see maintenance activity for all knives. Expand an event to inspect its details. Logs also records edits and deletions, so it is useful when you need to understand a change to the history.
+Open **History** and select **Maintenance** to see maintenance activity for all knives. Expand an event to inspect its details. History also records edits and deletions, so it is useful when you need to understand a change to the history.
 
-![The Logs page filtered to Maintenance activity](../images/log-maintenance-logs.png)
+![The History page filtered to Maintenance activity](../images/log-maintenance-logs.png)
 
-![An expanded maintenance event in Logs, with its changes](../images/log-maintenance-logs-event.png)
+![An expanded maintenance event in History, with its changes](../images/log-maintenance-logs-event.png)
 
 ## Related
 
-- [Review collection activity in Logs](review-collection-activity.md) — search and filter recorded events.
+- [Review collection activity in History](review-collection-activity.md) — search and filter recorded events.
 - [Update a saved knife](update-a-saved-knife.md) — edit the knife's specifications and other fields.
 - [MCP](../reference/mcp.md) — read maintenance history or allow a connected client to add an entry.
 - [Back up and restore your vault](back-up-and-restore-your-vault.md) — preserve maintenance history with your collection.

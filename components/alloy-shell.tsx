@@ -34,7 +34,7 @@ const links = [
   { href: '/studio', label: 'Studio' },
   { href: '/insights', label: 'Insights' },
   { href: '/compare', label: 'Compare' },
-  { href: '/logs', label: 'Activity' },
+  { href: '/logs', label: 'History' },
 ] as const
 
 export function AlloyShell({ children }: { children: React.ReactNode }) {

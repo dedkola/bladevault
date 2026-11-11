@@ -30,7 +30,7 @@
 - [Log maintenance and sharpening](guides/log-maintenance.md)
 - [Collection insights](guides/insights.md)
 - [Improve collection data quality](guides/improve-data-quality.md)
-- [Review collection activity in Logs](guides/review-collection-activity.md)
+- [Review collection activity in History](guides/review-collection-activity.md)
 - [Capture source pages](guides/capture-sources.md)
 - [Back up and restore your vault](guides/back-up-and-restore-your-vault.md)
 

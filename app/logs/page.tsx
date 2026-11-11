@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { LogSessionsView } from '@/components/log-sessions-view'
 
 export const metadata: Metadata = {
-  title: 'BladeVault | Logs',
+  title: 'BladeVault | History',
   description: 'Changes recorded in your vault.',
 }
 

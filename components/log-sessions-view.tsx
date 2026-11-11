@@ -248,6 +248,34 @@ function EventIcon({ event }: { event: ViewEvent }) {
   return <Icon className="size-4" />
 }
 
+/**
+ * A History link from the knife inspector names a knife and a timestamp.
+ * Record and maintenance writes stamp their log entry with that same time,
+ * so an exact match is expected; otherwise use the knife's nearest entry.
+ */
+function findLinkedEntryId(
+  events: AuditLogEvent[],
+  search: string,
+): number | null {
+  const params = new URLSearchParams(search)
+  const knifeId = params.get('knife')
+  const at = params.get('at')
+  if (!knifeId || !at) return null
+  const target = Date.parse(at)
+  let match: AuditLogEvent | undefined
+  let bestDistance = Infinity
+  for (const event of events) {
+    if (event.knifeId !== knifeId) continue
+    if (event.occurredAt === at) return event.id
+    const distance = Math.abs(Date.parse(event.occurredAt) - target)
+    if (distance < bestDistance) {
+      bestDistance = distance
+      match = event
+    }
+  }
+  return match?.id ?? null
+}
+
 export function LogSessionsView() {
   const {
     knives,
@@ -269,6 +297,7 @@ export function LogSessionsView() {
   const [loadAttempt, setLoadAttempt] = useState(0)
   const entryButtons = useRef(new Map<number, HTMLButtonElement>())
   const pendingRowPosition = useRef<{ id: number; top: number } | null>(null)
+  const pendingLinkedEntry = useRef<number | null>(null)
 
   useLayoutEffect(() => {
     const pending = pendingRowPosition.current
@@ -297,17 +326,23 @@ export function LogSessionsView() {
           error?: string
         }>(response)
         if (!response.ok) {
-          throw new Error(getApiErrorMessage(data, 'Failed to load log events'))
+          throw new Error(getApiErrorMessage(data, 'Failed to load history'))
         }
         if (!cancelled) {
-          setRawEvents(data.events ?? [])
+          const loaded = data.events ?? []
+          setRawEvents(loaded)
+          const linkedId = findLinkedEntryId(loaded, window.location.search)
+          if (linkedId !== null) {
+            pendingLinkedEntry.current = linkedId
+            setSelectedId(linkedId)
+          }
         }
       } catch (loadError) {
         if (!cancelled) {
           setError(
             loadError instanceof Error
               ? loadError.message
-              : 'Failed to load log events',
+              : 'Failed to load history',
           )
         }
       } finally {
@@ -384,6 +419,17 @@ export function LogSessionsView() {
       return matchesType && matchesQuery && matchesDate
     })
   }, [events, filter, query, selectedRange])
+
+  useEffect(() => {
+    const id = pendingLinkedEntry.current
+    if (id === null || selectedId !== id) return
+    pendingLinkedEntry.current = null
+    const button = entryButtons.current.get(id)
+    button
+      ?.closest<HTMLElement>('[data-log-entry]')
+      ?.scrollIntoView({ block: 'center' })
+    button?.focus({ preventScroll: true })
+  }, [selectedId])
 
   const currentKnifeIds = useMemo(
     () => new Set(knives.map((knife) => knife.id)),
@@ -480,7 +526,7 @@ export function LogSessionsView() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `bladevault-logs-${new Date().toISOString().slice(0, 10)}.json`
+    link.download = `bladevault-history-${new Date().toISOString().slice(0, 10)}.json`
     link.click()
     window.setTimeout(() => URL.revokeObjectURL(url), 0)
   }
@@ -521,10 +567,10 @@ export function LogSessionsView() {
   return (
     <>
       {themeStyle === 'alloy' ? (
-        <h1 className="sr-only">Logs</h1>
+        <h1 className="sr-only">History</h1>
       ) : (
         <PageHeader
-          title="Logs"
+          title="History"
           description="Changes, maintenance, and system activity from your vault."
           actions={
             <Button
@@ -536,7 +582,7 @@ export function LogSessionsView() {
               }
               onClick={exportLogs}
             >
-              Export log
+              Export history
             </Button>
           }
         />
@@ -575,7 +621,7 @@ export function LogSessionsView() {
               className="mb-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2"
             >
               <label className="relative min-w-0">
-                <span className="sr-only">Search logs</span>
+                <span className="sr-only">Search history</span>
                 <Search className="pointer-events-none absolute left-0 top-2.5 size-3.5 text-muted-foreground" />
                 <Input
                   value={query}
@@ -596,7 +642,7 @@ export function LogSessionsView() {
                   aria-label={
                     selectedRange?.from
                       ? `Change date range, ${formatDateRangeLabel(selectedRange)}`
-                      : 'Filter logs by date range'
+                      : 'Filter history by date range'
                   }
                   aria-expanded={calendarOpen}
                   className={cn(
@@ -772,7 +818,7 @@ export function LogSessionsView() {
             >
               <div
                 className="flex flex-wrap gap-x-2 sm:gap-x-5"
-                aria-label="Filter log event type"
+                aria-label="Filter history event type"
               >
                 {(
                   [
@@ -830,7 +876,7 @@ export function LogSessionsView() {
             <div
               data-logs-state
               role="status"
-              aria-label="Loading logs"
+              aria-label="Loading history"
               className="space-y-3 border-t border-border/60 p-5"
             >
               {[0, 1, 2, 3].map((item) => (
@@ -1055,7 +1101,7 @@ export function LogSessionsView() {
               className="border-t border-border/60 p-10 text-center"
             >
               <h2 className="text-sm font-medium">
-                {events.length ? 'No matching entries' : 'No log entries yet'}
+                {events.length ? 'No matching entries' : 'No history yet'}
               </h2>
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                 {events.length

@@ -44,7 +44,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const crumb = pathname.startsWith('/compare')
     ? ['Compare', 'Saved comparisons']
     : pathname.startsWith('/logs')
-      ? ['Activity', 'Logs']
+      ? ['Activity', 'History']
       : pathname === '/studio'
         ? ['Studio', 'Visual library']
         : pathname === '/collection'

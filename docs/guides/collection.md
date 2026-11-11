@@ -43,7 +43,7 @@ Each knife record can hold specifications, pricing, provenance, notes, links, an
 
 ## Maintenance history
 
-[Log maintenance and sharpening](log-maintenance.md) with dates, notes, and sharpening details. [Review collection activity in Logs](review-collection-activity.md) to see maintenance events and record changes.
+[Log maintenance and sharpening](log-maintenance.md) with dates, notes, and sharpening details. [Review collection activity in History](review-collection-activity.md) to see maintenance events and record changes.
 
 ![The Maintenance panel on a record, with the summary tiles and History](../images/collection-maintenance-history.png)
 

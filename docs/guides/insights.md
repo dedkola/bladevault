@@ -54,6 +54,6 @@ Use **Print Report** in **Settings → Backup & Restore** to open the Overview f
 ## Related
 
 - [Improve collection data quality](improve-data-quality.md) — missing fields, measurement review, and consistent labels.
-- [Review collection activity in Logs](review-collection-activity.md) — inspect individual events and before-and-after values.
+- [Review collection activity in History](review-collection-activity.md) — inspect individual events and before-and-after values.
 - [Organize your collection](collection.md) — filters, Smart Collections, and model families.
 - [MCP](../reference/mcp.md) — use `find_missing_fields` from a connected AI client.
