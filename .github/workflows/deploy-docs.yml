@@ -29,7 +29,7 @@ jobs:
           set -euo pipefail
 
           if [[ -z "$DEPLOY_HOOK_URL" ]]; then
-            echo '::error::Set the BLADEVAULT_WEB_DOCS_DEPLOY_HOOK repository secret to the bladevault-web main branch Vercel Deploy Hook URL. See .github/DOCS_DEPLOYMENT.md.'
+            echo '::error::Set the BLADEVAULT_WEB_DOCS_DEPLOY_HOOK repository secret to the bladevault-web Cloudflare Workers Builds deploy hook URL for main. See .github/DOCS_DEPLOYMENT.md.'
             exit 1
           fi
 
@@ -41,17 +41,26 @@ jobs:
             --request POST --output "$response_file" \
             "$DEPLOY_HOOK_URL"
 
-          if ! jq -e '.job.id | type == "string" and length > 0' "$response_file" >/dev/null; then
-            echo '::error::Vercel did not return a deployment job ID.'
+          if ! jq -e '.success == true and (.result.build_uuid | type == "string" and length > 0)' "$response_file" >/dev/null; then
+            echo '::error::Cloudflare did not return a build ID.'
+            jq -c '{success, errors}' "$response_file" || true
             exit 1
           fi
 
-          echo 'Vercel accepted the documentation rebuild request.'
+          build_uuid=$(jq -r '.result.build_uuid' "$response_file")
+          if jq -e '.result.already_exists == true' "$response_file" >/dev/null; then
+            build_note='An identical build was already queued, so Cloudflare reused it.'
+          else
+            build_note='Cloudflare queued a new build.'
+          fi
+
+          echo "Cloudflare accepted the documentation rebuild request (build $build_uuid)."
           {
             echo '### Documentation rebuild requested'
             echo
-            echo 'Vercel accepted a rebuild of bladevault-web from main.'
+            echo 'Cloudflare Workers Builds accepted a rebuild of bladevault-web from main.'
+            echo "$build_note Build ID: \`$build_uuid\`"
             echo 'The site build fetches the current BladeVault documentation from main.'
             echo
-            echo 'This confirms the request was accepted. Check the bladevault-web Vercel deployment for the build and publication result.'
+            echo 'This confirms the request was accepted. Check the bladevault-web Worker build in Cloudflare for the build and deploy result.'
           } >> "$GITHUB_STEP_SUMMARY"
