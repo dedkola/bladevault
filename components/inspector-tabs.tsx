@@ -190,6 +190,7 @@ function buildHistoryRows(
         note.body,
       )}`,
       day: startOfDay(note.notedAt),
+      href: historyEntryHref(knife.id, note.createdAt),
     })
   }
   return rows.sort((a, b) => b.day - a.day)
