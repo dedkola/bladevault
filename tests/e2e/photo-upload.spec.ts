@@ -52,7 +52,7 @@ test('adds a manual photo whose base64 save request exceeds 10 MiB', async ({
   await page.goto('/add')
   await page.getByRole('button', { name: 'Enter manually' }).click()
   await page.getByPlaceholder('e.g. Sebenza 31').fill('Large Upload')
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('input[type="file"][accept="image/*"]').setInputFiles({
     name: 'large-original.png',
     mimeType: 'image/png',
     buffer: photo,
@@ -95,7 +95,7 @@ test('edits with multiple manual photos above the combined limit and preserves t
   ])
   await page.goto(`/collection/${knife.id}`)
   await page.getByRole('button', { name: 'Edit', exact: true }).click()
-  await page.locator('input[type="file"]').setInputFiles(
+  await page.locator('input[type="file"][accept="image/*"]').setInputFiles(
     photos.map((buffer, index) => ({
       name: `manual-${index}.png`,
       mimeType: 'image/png',
