@@ -20,9 +20,9 @@ describe('Straight Line EDC product scraping', () => {
     expect(product.brand).toBe('StraightLine EDC')
     expect(product.handleMaterial).toBe('Canvas Micarta')
     expect(product.specs).toMatchObject({
-      overallLength: '191.00 mm',
-      bladeLength: '95.00 mm',
-      bladeThickness: '2.70 mm',
+      overallLength: '191.00 mm - 7.52 in',
+      bladeLength: '95.00 mm - 3.74 in',
+      bladeThickness: '2.70 mm - 0.11 in',
       bladeMaterial: '14C28N',
       bladeCoating: 'Stonewashed',
       hardness: 'HRC 58-60',

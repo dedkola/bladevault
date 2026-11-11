@@ -1267,7 +1267,11 @@ function measurementIsConflicting(
 function normalizeLength(value: string): string {
   // Preserve the original value (including dual imperial/metric units like
   // `8.18" / 207.7 mm`). Only trim trailing punctuation/whitespace.
-  const cleaned = cleanValue(value)
+  // `191.00 mm. - 7.52 in.` -> `191.00 mm - 7.52 in`
+  const cleaned = cleanValue(value).replace(
+    /\b(mm|cm|in)\.(?=\s*[-–/]\s)/gi,
+    '$1',
+  )
   // Reject non-numeric values (e.g. "No", "Sheepsfoot", blade steels).
   if (
     !cleaned ||
@@ -2451,11 +2455,15 @@ function isStraightLineEdcProductUrl(value: string): boolean {
  * specifications column. Its JSON-LD copy flattens paragraphs and list items.
  */
 function extractStraightLineEdcDescription($: cheerio.CheerioAPI): string {
+  // Ignore source line wrapping; each heading, paragraph, and list item
+  // (from <br> and block tags) becomes its own paragraph.
   return htmlToPlainText(
-    $('.product-spec').first().closest('.row').next('.row').html() ?? '',
+    (
+      $('.product-spec').first().closest('.row').next('.row').html() ?? ''
+    ).replace(/\s+/g, ' '),
   )
     .replace(/\u00A0/g, ' ')
-    .replace(/\n[ \t]*(?:\n[ \t]*)+/g, '\n\n')
+    .replace(/[ \t]*\n\s*/g, '\n\n')
     .trim()
 }
 
