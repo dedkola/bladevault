@@ -83,6 +83,28 @@ function resolveUrl(
   }
 }
 
+/**
+ * Relative asset URLs resolve against `<base href>` when the page declares one
+ * (Straight Line EDC serves `/en/` pages with a site-root base).
+ */
+function resolveDocumentBase($: cheerio.CheerioAPI, pageUrl: string): string {
+  return resolveUrl($('base[href]').first().attr('href'), pageUrl) ?? pageUrl
+}
+
+/**
+ * Parse a JSON-LD script, tolerating the invalid `\'` escape that some
+ * shop templates emit for apostrophes in descriptions.
+ */
+function parseJsonLd(raw: string): unknown {
+  try {
+    return JSON.parse(raw)
+  } catch (error) {
+    const repaired = raw.replace(/(?<!\\)((?:\\\\)*)\\'/g, "$1'")
+    if (repaired === raw) throw error
+    return JSON.parse(repaired)
+  }
+}
+
 // Detect Cloudflare and other bot/security challenge interstitials so we can
 // surface a helpful error instead of parsing the challenge page as a product.
 export function isSecurityChallengePage(html: string): boolean {
@@ -348,7 +370,7 @@ function extractJsonLdProduct(
   $('script[type="application/ld+json"]').each((_, el) => {
     try {
       const raw = $(el).html() ?? ''
-      const data = JSON.parse(raw)
+      const data = parseJsonLd(raw) as any
       const candidates = Array.isArray(data) ? data : [data]
       for (const item of candidates) {
         const graph = item['@graph']
@@ -656,7 +678,13 @@ function extractImages($: cheerio.CheerioAPI, baseUrl: string): string[] {
   $(imageSelectors.join(', ')).each((_, el) => {
     const $el = $(el)
     if (inProductCard(el)) return
+    // PhotoSwipe gallery links point at the full-size photo.
+    const photoSwipeHref = $el.closest('a[data-pswp-width][href]').attr('href')
     const imageSource =
+      (photoSwipeHref &&
+      /\.(?:jpe?g|png|webp|avif|gif)(?:[?#]|$)/i.test(photoSwipeHref)
+        ? photoSwipeHref
+        : undefined) ||
       $el.attr('data-img-original') ||
       $el.attr('data-large_image') ||
       $el.attr('data-zoom-image') ||
@@ -1020,6 +1048,7 @@ function extractBrandFromDomain(url: string): string {
       'poikiloblade.com': 'Poikilo Blade',
       'remetteknife.com': 'REMETTE',
       'zt.kaiusa.com': 'Zero Tolerance',
+      'straightlineedc.com': 'StraightLine EDC',
     }
     for (const [domain, brand] of Object.entries(domainBrands)) {
       if (hostname === domain || hostname.endsWith(`.${domain}`)) return brand
@@ -1238,7 +1267,11 @@ function measurementIsConflicting(
 function normalizeLength(value: string): string {
   // Preserve the original value (including dual imperial/metric units like
   // `8.18" / 207.7 mm`). Only trim trailing punctuation/whitespace.
-  const cleaned = cleanValue(value)
+  // `191.00 mm. - 7.52 in.` -> `191.00 mm - 7.52 in`
+  const cleaned = cleanValue(value).replace(
+    /\b(mm|cm|in)\.(?=\s*[-–/]\s)/gi,
+    '$1',
+  )
   // Reject non-numeric values (e.g. "No", "Sheepsfoot", blade steels).
   if (
     !cleaned ||
@@ -1387,6 +1420,16 @@ function extractStructuredLabeledValue(
   for (const label of $('h2, h3, h4, h5, h6, strong, b').toArray()) {
     const $label = $(label)
     if (matches($label.text())) {
+      // `<b>Label</b>: value<br>` keeps the value in the text after the label.
+      let inline = ''
+      for (let node = label.nextSibling; node?.type === 'text';) {
+        inline += node.data
+        node = node.nextSibling
+      }
+      const inlineValue = /^\s*[:：]/.test(inline)
+        ? cleanValue(inline.replace(/^\s*[:：]/, ''))
+        : ''
+      if (inlineValue && inlineValue.length <= 120) return inlineValue
       const value = cleanValue($label.next().text())
       if (value && value.length <= 120) return value
     }
@@ -1807,7 +1850,7 @@ function extractJsonLdProperties(
   $('script[type="application/ld+json"]').each((_, el) => {
     try {
       const raw = $(el).html() ?? ''
-      const data = JSON.parse(raw)
+      const data = parseJsonLd(raw) as any
       const candidates = Array.isArray(data) ? data : [data]
       for (const item of candidates) {
         const graph = item['@graph']
@@ -2147,7 +2190,7 @@ function extractSpecs(
   )
   runFallback(
     'hardness',
-    /\b(?:hardness|härte|durezza|dureté|dureza|hårdhet|hrc|rockwell)\s*[:\uFF1A]\s*([\d.-]+\s*(?:hrc|rockwell)?)/i,
+    /\b(?:hardness|härte|durezza|dureté|dureza|hårdhet|hrc|rockwell)\s*[:\uFF1A]\s*((?:hrc\s*)?[\d.-]+\s*(?:hrc|rockwell)?)/i,
     cleanValue,
   )
 
@@ -2394,6 +2437,36 @@ function isRemetteProductUrl(value: string): boolean {
   }
 }
 
+function isStraightLineEdcProductUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return (
+      (url.hostname === 'straightlineedc.com' ||
+        url.hostname === 'www.straightlineedc.com') &&
+      /-p\d+\.html$/.test(url.pathname)
+    )
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Straight Line EDC renders the full description in the row after the
+ * specifications column. Its JSON-LD copy flattens paragraphs and list items.
+ */
+function extractStraightLineEdcDescription($: cheerio.CheerioAPI): string {
+  // Ignore source line wrapping; each heading, paragraph, and list item
+  // (from <br> and block tags) becomes its own paragraph.
+  return htmlToPlainText(
+    (
+      $('.product-spec').first().closest('.row').next('.row').html() ?? ''
+    ).replace(/\s+/g, ' '),
+  )
+    .replace(/\u00A0/g, ' ')
+    .replace(/[ \t]*\n\s*/g, '\n\n')
+    .trim()
+}
+
 function isBuckProductUrl(value: string): boolean {
   try {
     const url = new URL(value)
@@ -2525,8 +2598,12 @@ export function scrapeProduct(
           '',
       )
     : ''
+  const straightLineEdcDescription = isStraightLineEdcProductUrl(baseUrl)
+    ? extractStraightLineEdcDescription($)
+    : ''
   const description =
     zeroToleranceDescription ||
+    straightLineEdcDescription ||
     htmlToPlainText(remetteDescription) ||
     ld.description ||
     extractDescription(productInfo, !isPoikiloProduct)
@@ -2576,7 +2653,7 @@ export function scrapeProduct(
             .filter(Boolean)
         : buckGallery.length
           ? buckGallery
-          : extractImages($, baseUrl)
+          : extractImages($, resolveDocumentBase($, baseUrl))
   const images = [
     ...new Set(
       // Remette's JSON-LD and meta images repeat resized gallery thumbnails;
