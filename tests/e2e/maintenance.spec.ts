@@ -56,6 +56,7 @@ test('logs maintenance events from the knife detail page', async ({
   ).toBeVisible()
 
   await page.reload()
+  await page.getByRole('tab', { name: 'Maintenance' }).click()
   await expect(
     timelineLocator(page).getByText('Cleaned', { exact: true }),
   ).toBeVisible()
@@ -149,6 +150,7 @@ test('edits and deletes maintenance events', async ({ page, request }) => {
   ).not.toBeVisible()
 
   await page.reload()
+  await page.getByRole('tab', { name: 'Maintenance' }).click()
   await expect(
     timelineLocator(page).getByText('Lubricated', { exact: true }),
   ).toBeVisible()
@@ -164,6 +166,7 @@ test('edits and deletes maintenance events', async ({ page, request }) => {
   ).toBeVisible()
 
   await page.reload()
+  await page.getByRole('tab', { name: 'Maintenance' }).click()
   await expect(
     page.getByText('No maintenance recorded yet', { exact: true }),
   ).toBeVisible()
