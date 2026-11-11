@@ -75,6 +75,86 @@ function MaintenanceList({
   ))
 }
 
+type HistoryRow = {
+  key: string
+  label: string
+  detail: string
+  day: number
+}
+
+function startOfDay(isoString: string): number {
+  const date = new Date(isoString)
+  date.setHours(0, 0, 0, 0)
+  return date.getTime()
+}
+
+/**
+ * Merges record milestones and maintenance entries into one list ordered
+ * newest first, so the History tab reads like a reverse-chronological log.
+ */
+function buildHistoryRows(
+  knife: Knife,
+  events: MaintenanceEvent[],
+): HistoryRow[] {
+  const rows: HistoryRow[] = [
+    {
+      key: 'catalogued',
+      label: 'Catalogued',
+      detail: new Date(knife.addedAt).toLocaleDateString(),
+      day: startOfDay(knife.addedAt),
+    },
+  ]
+  if (knife.updatedAt !== knife.addedAt) {
+    rows.push({
+      key: 'updated',
+      label: 'Record updated',
+      detail: new Date(knife.updatedAt).toLocaleDateString(),
+      day: startOfDay(knife.updatedAt),
+    })
+  }
+  for (const event of events) {
+    rows.push({
+      key: `maintenance-${event.id}`,
+      label: maintenanceTypeName(event.type),
+      detail: `${new Date(event.occurredAt).toLocaleDateString()}${
+        event.notes ? ` · ${event.notes}` : ''
+      }`,
+      day: startOfDay(event.occurredAt),
+    })
+  }
+  return rows.sort((a, b) => b.day - a.day)
+}
+
+function HistoryList({
+  knife,
+  events,
+  status,
+}: {
+  knife: Knife
+  events: MaintenanceEvent[]
+  status: 'loading' | 'ready' | 'error'
+}) {
+  const rows = buildHistoryRows(knife, status === 'ready' ? events : [])
+  return (
+    <ul data-inspector-history>
+      {rows.map((row) => (
+        <li key={row.key}>
+          <b>{row.label}</b>
+          <span>{row.detail}</span>
+        </li>
+      ))}
+      {status === 'loading' && (
+        <li role="status">Loading maintenance history…</li>
+      )}
+      {status === 'error' && (
+        <li role="status">
+          Maintenance history is unavailable. Open the knife to retry.
+        </li>
+      )}
+    </ul>
+  )
+}
+
 /**
  * The inspector's tab strip and panel: Overview, Specifications and History,
  * plus an optional Maintenance tab. Without that tab, History also lists the
@@ -235,24 +315,11 @@ export function InspectorTabs({
           </ul>
         )}
         {tab === 'history' && (
-          <ul data-inspector-history>
-            <li>
-              <b>Catalogued</b>
-              <span>{new Date(knife.addedAt).toLocaleDateString()}</span>
-            </li>
-            {knife.updatedAt !== knife.addedAt && (
-              <li>
-                <b>Record updated</b>
-                <span>{new Date(knife.updatedAt).toLocaleDateString()}</span>
-              </li>
-            )}
-            {!maintenanceTab && (
-              <MaintenanceList
-                events={maintenance.events}
-                status={maintenance.status}
-              />
-            )}
-          </ul>
+          <HistoryList
+            knife={knife}
+            events={maintenanceTab ? [] : maintenance.events}
+            status={maintenanceTab ? 'ready' : maintenance.status}
+          />
         )}
         {(tab === 'overview' || tab === 'specifications') && (
           <dl data-inspector-specs>
