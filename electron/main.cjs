@@ -882,6 +882,17 @@ function getPreloadPath() {
   return path.join(__dirname, 'preload.cjs')
 }
 
+// The shell resolves the dock icon from the desktop entry, but taskbars and
+// alt-tab previews read the window icon, so packaged Linux builds ship one.
+function getWindowIconPath() {
+  if (process.platform !== 'linux') {
+    return undefined
+  }
+
+  const iconPath = path.join(process.resourcesPath, 'icon.png')
+  return fs.existsSync(iconPath) ? iconPath : undefined
+}
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -1415,6 +1426,7 @@ async function createMainWindow() {
     autoHideMenuBar: true,
     backgroundColor: '#121510',
     height: 960,
+    icon: getWindowIconPath(),
     minHeight: 760,
     minWidth: 760,
     show: false,

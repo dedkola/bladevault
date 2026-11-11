@@ -72,6 +72,14 @@ const config = {
     output: 'dist/desktop',
     buildResources: 'build',
   },
+  // The deb and AppImage install icons into the system theme; this copy is the
+  // window icon Linux shells read from the process.
+  extraResources: [
+    {
+      from: path.join('build', 'icons', '256x256.png'),
+      to: 'icon.png',
+    },
+  ],
   files: ['package.json', 'electron/**/*', '.next/standalone/**/*'],
   publish: {
     provider: 'github',
@@ -134,10 +142,19 @@ const config = {
       },
     ],
     category: 'Utility',
-    // Kept separate from build/icon.png so macOS and Windows icon discovery
-    // keeps resolving to their own formats.
-    icon: 'build/linux-icon.png',
+    // A directory of sizes, so the deb installs into hicolor 16x16 through
+    // 512x512. A single 1024x1024 file is not listed in Ubuntu's hicolor theme
+    // index, which leaves the shell falling back to a generic icon.
+    icon: 'build/icons',
     artifactName: 'BladeVault.${ext}',
+    // Electron derives WM_CLASS from the packaged package.json name, which
+    // electron-builder rewrites to "bladevault" (productName is not included),
+    // so the shell needs that value to match the window to this entry.
+    desktop: {
+      entry: {
+        StartupWMClass: 'bladevault',
+      },
+    },
     maintainer: 'BladeVault <dedkola@users.noreply.github.com>',
     synopsis: 'A sharp, local-first knife collection manager',
   },
