@@ -251,11 +251,12 @@ test('inspects real log changes inline at all screen sizes', async ({
   await expect(inlineDetails).toBeVisible()
   await expect(panel).toHaveCount(0)
   await expect(
-    inlineDetails.getByText(longNotes, { exact: true }),
+    inlineDetails.locator('[data-after]', { hasText: longNotes.trim() }),
   ).toBeVisible()
   await expect(
-    inlineDetails.getByText('Lightweight folder', { exact: true }),
+    inlineDetails.locator('[data-before]', { hasText: 'Lightweight folder' }),
   ).toBeVisible()
+  await inlineDetails.getByText('Event information', { exact: true }).click()
   await expect(
     inlineDetails.getByRole('link', { name: 'Open knife details' }),
   ).toHaveAttribute('href', `/collection/${knife.id}`)
@@ -294,7 +295,7 @@ test('inspects real log changes inline at all screen sizes', async ({
     await expect(loopDetails).toBeVisible()
     await expect(panel).toHaveCount(0)
     await expect(
-      loopDetails.getByText(longNotes, { exact: true }),
+      loopDetails.locator('[data-after]', { hasText: longNotes.trim() }),
     ).toBeVisible()
     const geometry = await page.evaluate(() => {
       const main = document.querySelector('main')!
@@ -312,12 +313,14 @@ test('inspects real log changes inline at all screen sizes', async ({
     expect(geometry.mainScroll).toBeLessThanOrEqual(geometry.mainWidth)
     expect(geometry.tableScroll).toBeLessThanOrEqual(geometry.tableWidth)
   }
-  await page
-    .getByRole('region', { name: /Event details for/ })
+  await inlineDetails.getByText('Event information', { exact: true }).click()
+  await inlineDetails
     .getByRole('button', { name: 'Close event details' })
     .click()
   await expect(expand).toBeFocused()
-  await updated.getByRole('link', { name: /View Benchmade/ }).click()
+  await expand.click()
+  await inlineDetails.getByText('Event information', { exact: true }).click()
+  await inlineDetails.getByRole('link', { name: 'Open knife details' }).click()
   await expect(page).toHaveURL(new RegExp(`/collection/${knife.id}$`))
   await page.goto('/logs')
   await expect(updated).toBeVisible()
@@ -360,15 +363,16 @@ test('keeps the clicked event stationary while switching inline details', async 
   const detailBounds = await details.boundingBox()
   expect(Math.abs(after!.y - before!.y)).toBeLessThanOrEqual(1)
   expect(detailBounds!.y).toBeGreaterThanOrEqual(after!.y + after!.height - 1)
+  await details.getByText('Event information', { exact: true }).click()
+  await expect(
+    details.getByRole('link', { name: 'Open knife details' }),
+  ).toHaveAttribute('href', `/collection/${targetKnife.id}`)
 
   await targetEntry.getByRole('button', { name: /Collapse .* details/ }).click()
   const afterCollapse = await targetEntry.boundingBox()
   expect(Math.abs(afterCollapse!.y - after!.y)).toBeLessThanOrEqual(1)
   await expect(details).toHaveCount(0)
   await expect(targetEntry.getByRole('button')).toBeFocused()
-  await expect(
-    page.getByRole('link', { name: `View Benchmade · Scroll target` }),
-  ).toHaveAttribute('href', `/collection/${targetKnife.id}`)
 })
 
 test('retries a failed log request and renders an empty vault', async ({

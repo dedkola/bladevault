@@ -1549,13 +1549,13 @@ html[data-theme-variant] [data-modern-logs] [data-logs-card] {
 
 html[data-theme-variant]
   [data-logs-filter-row]
-  [aria-label='Filter log event type'] {
+  [aria-label='Filter history event type'] {
   gap: 6px;
 }
 
 html[data-theme-variant]
   [data-logs-filter-row]
-  [aria-label='Filter log event type']
+  [aria-label='Filter history event type']
   > button {
   height: 28px;
   padding: 0 12px;
@@ -1569,7 +1569,7 @@ html[data-theme-variant]
 
 html[data-theme-variant]
   [data-logs-filter-row]
-  [aria-label='Filter log event type']
+  [aria-label='Filter history event type']
   > button[aria-pressed='true'] {
   border-color: var(--foreground);
   background: var(--foreground);
@@ -1772,7 +1772,7 @@ html[data-theme-variant]
     [data-modern-collection-tools] > [data-collection-view-toggle],
     [data-slot='tabs-list'],
     [data-studio] [class*='segmented'],
-    [data-logs-filter-row] [aria-label='Filter log event type'],
+    [data-logs-filter-row] [aria-label='Filter history event type'],
     [data-modern-insights] [class*='range']
   ) {
   display: inline-flex;
@@ -1792,7 +1792,7 @@ html[data-theme-variant]
     [data-modern-collection-tools] > [data-collection-view-toggle],
     [data-slot='tabs-list'],
     [data-studio] [class*='segmented'],
-    [data-logs-filter-row] [aria-label='Filter log event type'],
+    [data-logs-filter-row] [aria-label='Filter history event type'],
     [data-modern-insights] [class*='range']
   )
   > :is(button, [data-slot='tabs-trigger']) {
@@ -1828,7 +1828,7 @@ html[data-theme-variant]
     [data-modern-collection-tools] > [data-collection-view-toggle],
     [data-slot='tabs-list'],
     [data-studio] [class*='segmented'],
-    [data-logs-filter-row] [aria-label='Filter log event type'],
+    [data-logs-filter-row] [aria-label='Filter history event type'],
     [data-modern-insights] [class*='range']
   )
   > :is(button, [data-slot='tabs-trigger']):hover {
@@ -1843,7 +1843,7 @@ html[data-theme-variant]
     [data-modern-collection-tools] > [data-collection-view-toggle],
     [data-slot='tabs-list'],
     [data-studio] [class*='segmented'],
-    [data-logs-filter-row] [aria-label='Filter log event type'],
+    [data-logs-filter-row] [aria-label='Filter history event type'],
     [data-modern-insights] [class*='range']
   )
   > :is(
@@ -2106,7 +2106,7 @@ html[data-theme-variant]
     [data-modern-collection-tools] > [data-collection-view-toggle],
     [data-slot='tabs-list'],
     [data-studio] [class*='segmented'],
-    [data-logs-filter-row] [aria-label='Filter log event type'],
+    [data-logs-filter-row] [aria-label='Filter history event type'],
     [data-modern-insights] [class*='range']
   ) {
   position: relative;

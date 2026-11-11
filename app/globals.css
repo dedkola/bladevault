@@ -873,19 +873,31 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
 }
 
 /* Modern Logs follows the prototype's compact, grouped activity feed. */
-html:is([data-theme-style='modern'], [data-theme-style='alloy'])
+html:is(
+    [data-theme-style='modern'],
+    [data-theme-style='alloy'],
+    [data-theme-style='classic']
+  )
   [data-logs-content] {
   padding: 24px clamp(18px, 2.7vw, 36px) 30px;
   background: var(--background);
   --border: rgb(0 0 0 / 7.5%);
 }
 
-html:is([data-theme-style='modern'], [data-theme-style='alloy']).dark
+html:is(
+    [data-theme-style='modern'],
+    [data-theme-style='alloy'],
+    [data-theme-style='classic']
+  ).dark
   [data-logs-content] {
   --border: rgb(255 255 255 / 8.5%);
 }
 
-html:is([data-theme-style='modern'], [data-theme-style='alloy'])
+html:is(
+    [data-theme-style='modern'],
+    [data-theme-style='alloy'],
+    [data-theme-style='classic']
+  )
   [data-logs-content]
   [data-page-header] {
   margin-bottom: 0;
@@ -893,13 +905,21 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   border-bottom: 1px solid var(--border);
 }
 
-html:is([data-theme-style='modern'], [data-theme-style='alloy'])
+html:is(
+    [data-theme-style='modern'],
+    [data-theme-style='alloy'],
+    [data-theme-style='classic']
+  )
   [data-logs-content]
   [data-page-description] {
   margin-top: 5px;
 }
 
-html:is([data-theme-style='modern'], [data-theme-style='alloy'])
+html:is(
+    [data-theme-style='modern'],
+    [data-theme-style='alloy'],
+    [data-theme-style='classic']
+  )
   [data-logs-export] {
   height: 30px;
   border-radius: 999px;
@@ -991,7 +1011,7 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
 }
 
-[data-modern-logs] [aria-label='Filter log event type'] {
+[data-modern-logs] [aria-label='Filter history event type'] {
   grid-column: 2;
   grid-row: 1;
   flex-wrap: nowrap;
@@ -1000,7 +1020,7 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   padding: 2px;
 }
 
-[data-modern-logs] [aria-label='Filter log event type'] button {
+[data-modern-logs] [aria-label='Filter history event type'] button {
   flex-shrink: 0;
   border: 0;
   border-radius: 7px;
@@ -1010,7 +1030,7 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
 }
 
 [data-modern-logs]
-  [aria-label='Filter log event type']
+  [aria-label='Filter history event type']
   button[aria-pressed='true'] {
   background: var(--bladevault-nav-active-bg);
   color: var(--bladevault-nav-active-fg);
@@ -1285,14 +1305,18 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
     grid-column: 1 / -1;
   }
 
-  [data-modern-logs] [aria-label='Filter log event type'] {
+  [data-modern-logs] [aria-label='Filter history event type'] {
     grid-column: 1;
     grid-row: 2;
   }
 }
 
 @media (max-width: 560px) {
-  html:is([data-theme-style='modern'], [data-theme-style='alloy'])
+  html:is(
+      [data-theme-style='modern'],
+      [data-theme-style='alloy'],
+      [data-theme-style='classic']
+    )
     [data-logs-content] {
     padding-inline: 14px;
   }
@@ -1335,6 +1359,97 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+}
+
+/* Classic Logs uses the same layout as the Modern styles, with Lumen's
+ * joined stats strip, pill filters and caps day headings in Classic colors. */
+html[data-theme-style='classic'] [data-logs-content] {
+  --modern-font-caption: 0.6875rem;
+  --modern-font-secondary: 0.75rem;
+  --modern-font-body: 0.8125rem;
+}
+
+html[data-theme-style='classic'] [data-modern-logs] [data-logs-summary] {
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--border);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+}
+
+html[data-theme-style='classic'] [data-modern-logs] [data-logs-summary] > div {
+  flex-direction: column;
+  padding: 14px 16px 15px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+html[data-theme-style='classic'] [data-modern-logs] [data-logs-summary] dt {
+  order: -1;
+  margin: 0 0 6px;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-theme-style='classic'] [data-modern-logs] [data-logs-summary] dd {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+html[data-theme-style='classic']
+  [data-modern-logs]
+  [aria-label='Filter history event type'] {
+  align-items: center;
+  justify-self: start;
+  max-width: 100%;
+  gap: 0;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+html[data-theme-style='classic']
+  [data-modern-logs]
+  [aria-label='Filter history event type']
+  button {
+  height: 24px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+html[data-theme-style='classic'] [data-modern-logs] [data-log-day] > th {
+  color: var(--bladevault-title);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+}
+
+html[data-theme-style='classic'] [data-modern-logs] [data-log-time] {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11.5px;
+}
+
+html[data-theme-style='classic']
+  [data-modern-logs]
+  [data-log-icon][data-kind='updated']
+  > span {
+  background: color-mix(in srgb, var(--bladevault-gold) 14%, transparent);
+  color: var(--bladevault-title);
+}
+
+html[data-theme-style='classic'] [data-modern-logs] [data-log-entry]:hover {
+  background: color-mix(in srgb, var(--bladevault-gold) 6%, transparent);
 }
 
 /* Reference Collection workspace: one command bar above the list and inspector. */
