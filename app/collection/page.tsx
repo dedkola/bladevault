@@ -46,6 +46,10 @@ import {
   ModernCollectionGallery,
 } from '@/components/modern-collection-table'
 import { EmptyState } from '@/components/empty-state'
+import {
+  CollectionChipFilter,
+  type ChipFilterField,
+} from '@/components/collection-chip-filter'
 import { FilterMultiSelect } from '@/components/filter-multi-select'
 import { SearchField } from '@/components/search-field'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -156,6 +160,8 @@ function CollectionContent() {
     isLoading,
   } = useKnives()
   const isAlloy = themeStyle === 'alloy'
+  // Lumen replaces the search field and filter grid with one chip bar.
+  const isLumen = themeStyle === 'lumen'
   const isWorkspaceCollection = isModernThemeFamily(themeStyle) || isAlloy
   // Forge, Titanium and Field share the Forge cards and summary.
   const isForge = Boolean(getModernThemeVariant(themeStyle))
@@ -457,6 +463,45 @@ function CollectionContent() {
 
     return result
   }, [knives, filterDefinitions, customFieldDefinitions])
+
+  const chipFilterFields = useMemo<ChipFilterField[]>(() => {
+    if (!isLumen) return []
+    return filterDefinitions.map((definition) => {
+      const counts = new Map<string, number>()
+      for (const knife of knives) {
+        const value = definition.getValue(knife)
+        const key = value && value.trim() ? value : NOT_SET_FILTER_VALUE
+        counts.set(key, (counts.get(key) ?? 0) + 1)
+      }
+      const type = isCustomFilterKey(definition.key)
+        ? (customFieldDefinitions.find(
+            (item) => item.id === customFilterKeyToFieldId(definition.key),
+          )?.type ?? 'text')
+        : 'text'
+      return {
+        key: definition.key,
+        label: definition.label,
+        custom: isCustomFilterKey(definition.key),
+        rangeUnit: rangeDefinitions.find(
+          (field) => field.key === definition.key,
+        )?.unit,
+        options: optionsByFilter[definition.key].map((value) => ({
+          value,
+          label:
+            value === NOT_SET_FILTER_VALUE
+              ? getFilterOptionLabel(value)
+              : formatCustomFilterValue(value, type),
+          count: counts.get(value) ?? 0,
+        })),
+      }
+    })
+  }, [
+    isLumen,
+    knives,
+    filterDefinitions,
+    optionsByFilter,
+    customFieldDefinitions,
+  ])
 
   const filteredKnives = useMemo(() => {
     const params = new URLSearchParams(searchParamsKey)
@@ -1115,6 +1160,36 @@ function CollectionContent() {
           </nav>
         )}
 
+        {isLumen && knives.length > 0 && (
+          <CollectionChipFilter
+            fields={chipFilterFields}
+            params={new URLSearchParams(searchParamsKey)}
+            apply={(update) => {
+              // Start from the live URL so quick consecutive picks and typed
+              // text never overwrite each other with a stale snapshot.
+              const next = new URLSearchParams(window.location.search)
+              next.delete('sort')
+              update(next)
+              const nextQuery = next.toString()
+              window.history.replaceState(
+                null,
+                '',
+                nextQuery ? `${pathname}?${nextQuery}` : pathname,
+              )
+              setVisibleCount(PAGE_SIZE)
+            }}
+            extraChips={extraFilters}
+            lengthUnit={dimensionUnit}
+            onClearAll={clearAllFilters}
+            summary={
+              filteredKnives.length !== knives.length
+                ? `${filteredKnives.length} of ${knives.length}`
+                : undefined
+            }
+            inputRef={searchInputRef}
+          />
+        )}
+
         {knives.length > 0 && (
           <div
             data-collection-filter-panel
@@ -1140,7 +1215,7 @@ function CollectionContent() {
                   <option value="pinned">Pinned</option>
                 </select>
               )}
-              {!isAlloy && (
+              {!isAlloy && !isLumen && (
                 <SearchField
                   value={query}
                   onChange={setQuery}
@@ -1161,6 +1236,7 @@ function CollectionContent() {
                 type="button"
                 variant="outline"
                 size="default"
+                hidden={isLumen}
                 onClick={() => setIsFiltersOpen((current) => !current)}
                 aria-expanded={isFiltersOpen}
                 aria-controls="collection-filters"
@@ -1277,7 +1353,7 @@ function CollectionContent() {
               id="collection-filters"
               className={cn(
                 'mt-3 gap-2 sm:grid-cols-2 lg:gap-2.5 xl:grid-cols-4',
-                isFiltersOpen ? 'grid' : 'hidden',
+                isFiltersOpen && !isLumen ? 'grid' : 'hidden',
               )}
             >
               {filterDefinitions.map((definition) => (
@@ -1311,7 +1387,7 @@ function CollectionContent() {
           className={cn(
             'mb-6 flex flex-col gap-4',
             isWorkspaceCollection && hasActiveFilters && 'mb-3',
-            !hasActiveFilters && 'hidden',
+            (!hasActiveFilters || isLumen) && 'hidden',
           )}
         >
           <div className="flex flex-wrap items-center gap-2">
