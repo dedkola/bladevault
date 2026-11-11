@@ -27,7 +27,7 @@ test('selects Alloy in Appearance and keeps its horizontal shell after reload', 
     'Studio',
     'Insights',
     'Compare',
-    'Activity',
+    'History',
   ]) {
     await expect(
       navigation.getByRole('link', { name, exact: true }),
