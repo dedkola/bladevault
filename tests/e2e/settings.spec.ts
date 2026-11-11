@@ -233,8 +233,13 @@ test('persists and applies the selected time format', async ({
     .first()
     .getByRole('button', { name: /details/ })
     .click()
+  const details = page.getByRole('region', { name: /Event details for/ })
+  await details.getByText('Event information', { exact: true }).click()
   await expect(
-    page.getByRole('region', { name: /Event details for/ }).locator('time'),
+    details
+      .locator('[data-compact-log-info] dl > div')
+      .filter({ has: page.locator('dt', { hasText: /^Time$/ }) })
+      .locator('dd'),
   ).toHaveText(/^\d{2}:\d{2}:\d{2}$/)
 })
 
