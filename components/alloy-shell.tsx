@@ -46,6 +46,8 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
   const { update, downloadUpdate } = useDesktopUpdates()
   const [headerActions, setHeaderActions] = useState<HTMLElement | null>(null)
   const [savingAppearance, setSavingAppearance] = useState(false)
+  // Studio and Collection render their own search fields.
+  const showHeaderSearch = pathname !== '/studio' && pathname !== '/collection'
   const pinnedCount = knives.filter((knife) => knife.pinned).length
   const brands = [
     ...new Set(knives.map((knife) => knife.brand).filter(Boolean)),
@@ -121,9 +123,11 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
         <div data-alloy-utilities>
-          <div data-alloy-global-search>
-            <GlobalKnifeSearch embedded />
-          </div>
+          {showHeaderSearch && (
+            <div data-alloy-global-search>
+              <GlobalKnifeSearch embedded />
+            </div>
+          )}
           {update.status === 'available' && (
             <button
               type="button"

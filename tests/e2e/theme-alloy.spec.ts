@@ -41,6 +41,25 @@ test('selects Alloy in Appearance and keeps its horizontal shell after reload', 
   expect(settings.themeStyle).toBe('alloy')
 })
 
+test('omits the header search where the page provides one', async ({
+  page,
+  request,
+}) => {
+  await seedKnife(request, { name: 'Alloy Header Knife' })
+  await request.post('/api/settings', { data: { themeStyle: 'alloy' } })
+
+  await page.goto('/collection')
+  await expect(page.locator('[data-alloy-collection]')).toBeVisible()
+  await expect(page.locator('[data-alloy-global-search]')).toHaveCount(0)
+
+  await page.goto('/studio')
+  await expect(page.locator('[data-studio-tile]')).toBeVisible()
+  await expect(page.locator('[data-alloy-global-search]')).toHaveCount(0)
+
+  await page.goto('/logs')
+  await expect(page.locator('[data-alloy-global-search]')).toHaveCount(1)
+})
+
 test('switches gallery and table while pinning and comparing the selected knife', async ({
   page,
   request,

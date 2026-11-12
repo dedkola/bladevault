@@ -117,6 +117,25 @@ test('uses the table-first collection view in the modern theme', async ({
   await expect(inspector).toHaveCount(0)
 })
 
+test('omits the workspace header search where the page provides one', async ({
+  page,
+  request,
+}) => {
+  await seedKnife(request, { name: 'Modern Header Knife' })
+  await request.post('/api/settings', { data: { themeStyle: 'modern' } })
+
+  await page.goto('/collection')
+  await expect(page.locator('[data-modern-collection-table]')).toBeVisible()
+  await expect(page.locator('[data-workspace-search]')).toHaveCount(0)
+
+  await page.goto('/studio')
+  await expect(page.locator('[data-studio-tile]').first()).toBeVisible()
+  await expect(page.locator('[data-workspace-search]')).toHaveCount(0)
+
+  await page.goto('/logs')
+  await expect(page.locator('[data-workspace-search]')).toHaveCount(1)
+})
+
 test('keeps modern compare inside the workspace shell with saved-list controls and global search', async ({
   page,
   request,
