@@ -1649,6 +1649,14 @@ html[data-theme-variant] .group\/button svg:not([class*='size-']) {
   height: 12px;
 }
 
+/* The notes add control carries the same icon weight as the header pill. */
+html[data-theme-variant]
+  .group\/button[data-notes-add]
+  svg:not([class*='size-']) {
+  width: 17px;
+  height: 17px;
+}
+
 /* Quiet (ghost) buttons have no line until hovered. */
 html[data-theme-variant]
   .group\/button:not(
@@ -2469,7 +2477,8 @@ html[data-theme-variant='lumen'] .page-title {
 }
 
 /* Buttons: white with a hairline; hover tints grey. */
-html[data-theme-variant='lumen'] .group\/button:not(.underline-offset-4) {
+html[data-theme-variant='lumen']
+  .group\/button:not(.underline-offset-4, [data-notes-add]) {
   background: var(--flat-btn);
   color: var(--foreground);
   font-size: 12.5px;
@@ -2522,26 +2531,6 @@ html[data-theme-variant='lumen']
   background: var(--primary-hover);
   color: var(--primary-foreground);
   filter: none;
-}
-
-/* Notes: the inline add control mirrors the main Add knife pill. */
-html[data-theme-variant='lumen'] .group\/button[data-notes-add] {
-  margin-right: 0;
-  border-color: transparent;
-  background: var(--primary);
-  color: var(--primary-foreground);
-  font-size: 11.5px;
-  font-weight: 500;
-}
-
-html[data-theme-variant='lumen']
-  .group\/button[data-notes-add]:not(:disabled):is(
-    :hover,
-    [aria-expanded='true']
-  ) {
-  border-color: transparent;
-  background: var(--primary-hover);
-  color: var(--primary-foreground);
 }
 
 html[data-theme-variant='lumen'] .group\/button[aria-pressed='true'] {
