@@ -140,8 +140,7 @@
   pointer-events: none;
 }
 
-.search input,
-.sort select {
+.search input {
   height: 34px;
   width: 100%;
   border: 1px solid var(--studio-line);
@@ -157,10 +156,6 @@
 
 .search input::placeholder {
   color: var(--muted-foreground);
-}
-
-.sort select {
-  padding: 0 26px 0 10px;
 }
 
 .count {
@@ -745,7 +740,8 @@
 }
 
 :global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
-  :is(.search input, .sort select) {
+  .search
+  input {
   height: 38px;
   border-color: var(--input);
   border-radius: var(--radius-lg);
