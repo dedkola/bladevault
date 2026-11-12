@@ -2540,6 +2540,26 @@ html[data-theme-variant='lumen']
   filter: none;
 }
 
+/* Notes: the inline add control mirrors the main Add knife pill. */
+html[data-theme-variant='lumen'] .group\/button[data-notes-add] {
+  margin-right: 0;
+  border-color: transparent;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+html[data-theme-variant='lumen']
+  .group\/button[data-notes-add]:not(:disabled):is(
+    :hover,
+    [aria-expanded='true']
+  ) {
+  border-color: transparent;
+  background: var(--primary-hover);
+  color: var(--primary-foreground);
+}
+
 html[data-theme-variant='lumen'] .group\/button[aria-pressed='true'] {
   background: var(--flat-hover);
   color: var(--foreground);
