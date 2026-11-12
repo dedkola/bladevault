@@ -1460,8 +1460,7 @@ html[data-theme-variant]
   color: var(--background);
 }
 
-html[data-theme-variant] [data-studio] [class*='search'] input,
-html[data-theme-variant] [data-studio] [class*='sort'] select {
+html[data-theme-variant] [data-studio] [class*='search'] input {
   height: 28px;
   border-radius: var(--forge-pill);
   font-size: 12px;
@@ -2335,21 +2334,6 @@ html[data-theme-variant]
   html[data-theme-variant] input[aria-label='Change local data folder'] {
     min-width: min(24rem, calc(100vw - 8rem));
   }
-}
-
-/* Studio sort: the same pill as the Collection sort, with the thin chevron
- * instead of the native arrow. */
-html[data-theme-variant] [data-studio] [class*='sort'] select {
-  appearance: none;
-  padding: 0 26px 0 12px;
-  border-color: var(--gl-line);
-  background-color: transparent;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2386868b' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 9px center;
-  color: var(--forge-ink-2);
-  font-weight: 500;
-  cursor: pointer;
 }
 
 /* Insights "View ... data" disclosure: a quiet mono label with a small
