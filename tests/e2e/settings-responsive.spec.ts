@@ -329,9 +329,10 @@ test.describe('column behaviour', () => {
       const { gridWidth, panelWidths } = await layoutMetrics(page)
       expect(gridWidth).toBeLessThanOrEqual(1280)
       expect(panelWidths).toHaveLength(2)
+      // Account, Status, Google Drive, Backup and Restore.
       await expect(
         page.locator('.settings-cloud .settings-section'),
-      ).toHaveCount(4)
+      ).toHaveCount(5)
       expect(
         Math.max(...panelWidths) - Math.min(...panelWidths),
       ).toBeLessThanOrEqual(1)
