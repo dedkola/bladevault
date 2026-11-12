@@ -619,11 +619,18 @@ async function checkManualUpdate() {
     ? release.assets.find((candidate) => candidate.name === assetName)
     : null
   if (!asset?.browser_download_url) {
+    // A release goes public before every platform build finishes uploading,
+    // and a failed build can leave it without this platform's installer.
+    // Until the file exists there is nothing to install, so stay up to date.
     appendUpdateDebug('manual_update_missing_asset', {
       assetName,
       latestVersion: version,
     })
-    throw new Error(`The latest release does not contain ${assetName}.`)
+    publishUpdateStatus({
+      status: 'not-available',
+      currentVersion: app.getVersion(),
+    })
+    return updateStatus
   }
 
   appendUpdateDebug('manual_update_available', {
@@ -755,10 +762,10 @@ async function checkForUpdates() {
 
   try {
     publishUpdateStatus({ status: 'checking' })
-    if (process.platform === 'win32') return checkWindowsUpdate()
-    if (process.platform === 'darwin') return checkManualUpdate()
-    if (usesLinuxAppImageUpdater()) return checkLinuxUpdate()
-    if (process.platform === 'linux') return checkManualUpdate()
+    if (process.platform === 'win32') return await checkWindowsUpdate()
+    if (process.platform === 'darwin') return await checkManualUpdate()
+    if (usesLinuxAppImageUpdater()) return await checkLinuxUpdate()
+    if (process.platform === 'linux') return await checkManualUpdate()
     publishUpdateStatus({
       status: 'not-available',
       currentVersion: app.getVersion(),
@@ -779,10 +786,10 @@ async function downloadUpdate() {
   })
 
   try {
-    if (process.platform === 'win32') return downloadWindowsUpdate()
-    if (process.platform === 'darwin') return downloadManualUpdate()
-    if (usesLinuxAppImageUpdater()) return downloadLinuxUpdate()
-    if (process.platform === 'linux') return downloadManualUpdate()
+    if (process.platform === 'win32') return await downloadWindowsUpdate()
+    if (process.platform === 'darwin') return await downloadManualUpdate()
+    if (usesLinuxAppImageUpdater()) return await downloadLinuxUpdate()
+    if (process.platform === 'linux') return await downloadManualUpdate()
     return updateStatus
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
