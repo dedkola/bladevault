@@ -16,6 +16,20 @@ BladeVault waits for active saves, keeps a safety copy, briefly pauses access to
 
 Safety copies and interrupted-restore recovery files are kept in private `._bladevault-*` folders inside the data directory and are excluded from app backup archives.
 
+## Google Drive
+
+You can also keep a backup in your own Google Drive. In **Settings → Cloud backup → Google Drive**, select **Connect Google Drive**, choose your Google account, and allow access. BladeVault can only see the files it creates in your Drive.
+
+- **Back up** saves one file, `bladevault-data.tar.gz`, in a `BladeVault` folder in your Drive. Each backup replaces that file.
+- **Restore** downloads that file and replaces the local data on this device, with the same safety steps as a cloud restore.
+- To restore on another computer or server, connect the same Google account there.
+- Google Drive backups run only when you start them. Automatic backup applies to the BladeVault cloud account.
+- **Disconnect** removes Google Drive access from this device. The backup file stays in your Drive.
+
+The backup file travels directly between your BladeVault server and Google Drive. The sign-in service at `auth.bladevault.pro` only completes the Google sign-in. The Google Drive sign-in is stored in the private `._bladevault-control` folder in the data directory and is never included in a backup.
+
+Google Drive backup is not available in the static web version.
+
 ## Endpoint overrides
 
 Deployments can override the service endpoints with `NEXT_PUBLIC_BLADEVAULT_AUTH_URL` and `NEXT_PUBLIC_BLADEVAULT_BACKUP_URL`. Leaving them unset uses the built-in defaults. You can use the local vault and ZIP backups without signing in.

@@ -316,7 +316,7 @@ test.describe('reading column', () => {
     }
   })
 
-  test('shows Cloud backup as three sections without empty restore feedback', async ({
+  test('shows Cloud backup sections without empty restore feedback', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1920, height: 1080 })
@@ -324,7 +324,8 @@ test.describe('reading column', () => {
     await openTab(page, 'Cloud backup')
 
     const sections = page.locator('.settings-grid .settings-section')
-    await expect(sections).toHaveCount(3)
+    // Account, Backup, Restore and Google Drive.
+    await expect(sections).toHaveCount(4)
 
     const restore = sections.filter({
       has: page.getByRole('button', { name: 'Restore', exact: true }),
