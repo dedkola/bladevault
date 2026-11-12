@@ -163,6 +163,7 @@ const themeStyleLabels: Record<ThemeStyle, { name: string; note: string }> = {
   espresso: { name: 'Espresso', note: 'Cream & dark roast' },
   phosphor: { name: 'Phosphor', note: 'Amber terminal' },
   atrium: { name: 'Atrium', note: 'Gallery & dock' },
+  shelf: { name: 'Shelf', note: 'Editorial & ⌘K' },
 }
 
 const startPageOptions = START_PAGES.map((startPage) => ({
