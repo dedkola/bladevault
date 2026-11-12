@@ -5,7 +5,8 @@ import {
   screenshotsLast,
 } from '@/lib/webpage-screenshot-shared'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { replaceScrapePreviewEmbeds } from '@/lib/scrape-popup-cleanup'
 import Image from '@/components/vault-image'
 import {
   Loader2,
@@ -1099,8 +1100,12 @@ export function KnifeScrapeEditor({
   const safeSourceUrl = getSafeExternalUrl(form.sourceUrl)
   const safePreviewBaseUrl =
     getSafeExternalUrl(scrapedFinalUrl) ?? safeSourceUrl
-  const previewHtml = scrapedHtml
-    ? `${safePreviewBaseUrl ? `<base href="${escapeHtmlAttribute(safePreviewBaseUrl)}">\n` : ''}${scrapedHtml}`
+  const previewDocument = useMemo(
+    () => (scrapedHtml ? replaceScrapePreviewEmbeds(scrapedHtml) : ''),
+    [scrapedHtml],
+  )
+  const previewHtml = previewDocument
+    ? `${safePreviewBaseUrl ? `<base href="${escapeHtmlAttribute(safePreviewBaseUrl)}">\n` : ''}${previewDocument}`
     : ''
   const isPreviewVisible = Boolean(previewHtml) && showPreview
   const togglePreview = (visible: boolean) => {

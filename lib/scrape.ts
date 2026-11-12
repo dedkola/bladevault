@@ -1054,6 +1054,7 @@ function extractBrandFromDomain(url: string): string {
       'poikiloblade.com': 'Poikilo Blade',
       'remetteknife.com': 'REMETTE',
       'zt.kaiusa.com': 'Zero Tolerance',
+      'kershaw.kaiusa.com': 'Kershaw',
       'straightlineedc.com': 'StraightLine EDC',
     }
     for (const [domain, brand] of Object.entries(domainBrands)) {
@@ -2594,17 +2595,20 @@ export function scrapeProduct(
   const remetteDetails = isRemetteProduct
     ? remetteDescription || $('.product-details').first().html() || ''
     : ''
-  let isZeroToleranceProduct = false
+  let isKaiUsaProduct = false
   try {
     const url = new URL(baseUrl)
-    isZeroToleranceProduct =
-      url.hostname === 'zt.kaiusa.com' && $('.product-details').length > 0
+    // KAI USA brand stores (Zero Tolerance, Kershaw) share one product layout
+    // whose recommendation carousels reuse the gallery's catalog images.
+    isKaiUsaProduct =
+      /(?:^|\.)kaiusa\.com$/.test(url.hostname) &&
+      $('.product-details').length > 0
   } catch {
     // Use the standard extraction for invalid URLs.
   }
   const productInfo = isPoikiloProduct
     ? cheerio.load($('.product-detail .product-info').first().html() ?? '')
-    : isZeroToleranceProduct
+    : isKaiUsaProduct
       ? cheerio.load($('.product-details').first().html() ?? '')
       : isRemetteProduct
         ? cheerio.load(remetteDetails || '<div></div>')
@@ -2617,8 +2621,8 @@ export function scrapeProduct(
     rawName,
     sourceUrl ?? baseUrl,
   )
-  const zeroToleranceAttributes = new Map<string, string>()
-  if (isZeroToleranceProduct) {
+  const kaiUsaAttributes = new Map<string, string>()
+  if (isKaiUsaProduct) {
     productInfo('.product-details__attributes li').each((_, el) => {
       const text = cleanText(productInfo(el).text())
       const separator = text.indexOf(':')
@@ -2629,13 +2633,10 @@ export function scrapeProduct(
         productInfo(el).remove()
         return
       }
-      zeroToleranceAttributes.set(
-        text.slice(0, separator).trim().toLowerCase(),
-        value,
-      )
+      kaiUsaAttributes.set(text.slice(0, separator).trim().toLowerCase(), value)
     })
   }
-  const zeroToleranceDescription = isZeroToleranceProduct
+  const kaiUsaDescription = isKaiUsaProduct
     ? htmlToPlainText(
         productInfo('.pdp-description').first().html() ||
           productInfo('#description').parent().next().html() ||
@@ -2646,7 +2647,7 @@ export function scrapeProduct(
     ? extractStraightLineEdcDescription($)
     : ''
   const description =
-    zeroToleranceDescription ||
+    kaiUsaDescription ||
     straightLineEdcDescription ||
     htmlToPlainText(remetteDescription) ||
     ld.description ||
@@ -2662,7 +2663,7 @@ export function scrapeProduct(
         })
         .get()
         .filter(Boolean)
-    : isZeroToleranceProduct
+    : isKaiUsaProduct
       ? productInfo('.product-details__gallery img')
           .map((_, el) => {
             const image = productInfo(el)
@@ -2726,7 +2727,7 @@ export function scrapeProduct(
     vosteed?.specs,
     ld.specs,
     warnings,
-    zeroToleranceAttributes,
+    kaiUsaAttributes,
   )
   if (isRemetteProduct && !specs.price) {
     specs.price = normalizePrice(
@@ -2772,7 +2773,7 @@ export function scrapeProduct(
     ''
 
   const bladeStyle =
-    zeroToleranceAttributes.get('blade style') ||
+    kaiUsaAttributes.get('blade style') ||
     (isRemetteProduct ? extractLabeledValue(pageText, ['blade type']) : '') ||
     cleanValue(ldBladeStyle) ||
     extractStructuredLabeledValue(productInfo, [
@@ -2791,7 +2792,7 @@ export function scrapeProduct(
     extractBladeStyle(productDescriptionText) ||
     extractBladeStyle(searchText)
   const handleMaterial =
-    zeroToleranceAttributes.get('handle material') ||
+    kaiUsaAttributes.get('handle material') ||
     cleanValue(ldHandleMaterial) ||
     extractStructuredLabeledValue(productInfo, ['handle material']) ||
     cleanValue(
