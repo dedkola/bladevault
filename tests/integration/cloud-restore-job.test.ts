@@ -1,8 +1,10 @@
 import Database from 'better-sqlite3'
-import fsSync from 'node:fs'
+import fsSync, { createWriteStream } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import * as tar from 'tar'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as archiveRoute from '@/app/api/cloud-backup/archive/route'
@@ -11,7 +13,6 @@ import * as vaultStatusRoute from '@/app/api/vault/status/route'
 import { createAppUnlockToken, setAppLockPassword } from '@/lib/app-lock'
 import { APP_LOCK_COOKIE } from '@/lib/app-lock-shared'
 import { getCloudRestoreJobState } from '@/lib/cloud-restore-job'
-import { getConfiguredCloudBackupUrl } from '@/lib/cloud-backup-server'
 import { getLocalDb } from '@/lib/local-db'
 import { getSettings, saveSettings } from '@/lib/settings'
 import { LocalStorage } from '@/lib/storage/local'
@@ -26,13 +27,20 @@ import {
 import { tryBeginVaultOperation } from '@/lib/vault-operation'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
+// Google Drive transport is covered by drive-backup.test.ts; these tests focus
+// on validating and installing the downloaded archive.
+const { downloadDriveBackup, isDriveConnected } = vi.hoisted(() => ({
+  downloadDriveBackup: vi.fn(),
+  isDriveConnected: vi.fn(),
+}))
+
+vi.mock('@/lib/drive-backup', () => ({ downloadDriveBackup, isDriveConnected }))
+
 let vault: TempVault
 let temporaryDirectories: string[]
 let releasePauses: Array<() => void>
 let archiveFixtureDirectories: string[]
 let pendingRequests: Promise<Response>[]
-const accessToken = 'test-restore-access-secret'
-const sessionToken = 'test-restore-session-secret'
 const input: CreateKnifeInput = {
   name: 'Restored Item',
   brand: 'Snapshot Brand',
@@ -60,14 +68,14 @@ function pause() {
   return { entered, release, reached, resumed }
 }
 
-function request(token = sessionToken, signal?: AbortSignal, cookie?: string) {
+function request(signal?: AbortSignal, cookie?: string) {
   return new Request('http://localhost/api/cloud-backup/restore-job', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...(cookie ? { cookie } : {}),
     },
-    body: JSON.stringify({ sessionToken: token }),
+    body: JSON.stringify({}),
     signal,
   })
 }
@@ -78,28 +86,24 @@ function statusRequest(cookie?: string) {
   })
 }
 
-function stubDownload(
-  download: (url: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
-) {
-  const fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-    if (new URL(String(url)).pathname === '/api/auth/token') {
-      expect(new Headers(init?.headers).get('authorization')).toBe(
-        `Bearer ${sessionToken}`,
+function stubDownload(download: () => Promise<Response>) {
+  downloadDriveBackup.mockImplementation(
+    async (archivePath: string, dataDir: string) => {
+      expect(dataDir).toBe(vault.dataDir)
+      const response = await download()
+      if (!response.ok || !response.body) {
+        await response.body?.cancel()
+        throw new Error(`Google Drive download failed (${response.status}).`)
+      }
+      await pipeline(
+        Readable.fromWeb(
+          response.body as import('node:stream/web').ReadableStream,
+        ),
+        createWriteStream(archivePath, { mode: 0o600 }),
       )
-      expect(init).toMatchObject({ redirect: 'error', cache: 'no-store' })
-      return Response.json({ token: accessToken })
-    }
-    expect(String(url)).toBe(
-      new URL('/backup/latest', getConfiguredCloudBackupUrl()).toString(),
-    )
-    expect(new Headers(init?.headers).get('authorization')).toBe(
-      `Bearer ${accessToken}`,
-    )
-    expect(init).toMatchObject({ redirect: 'error', cache: 'no-store' })
-    return download(url, init)
-  })
-  vi.stubGlobal('fetch', fetch)
-  return fetch
+    },
+  )
+  return downloadDriveBackup
 }
 
 async function exportedSnapshot(cookie?: string) {
@@ -157,6 +161,8 @@ beforeEach(async () => {
   releasePauses = []
   archiveFixtureDirectories = []
   pendingRequests = []
+  downloadDriveBackup.mockReset()
+  isDriveConnected.mockReset().mockResolvedValue(true)
   const mkdtemp = fs.mkdtemp.bind(fs)
   vi.spyOn(fs, 'mkdtemp').mockImplementation(async (prefix) => {
     const directory = await mkdtemp(prefix)
@@ -190,13 +196,12 @@ describe('server-owned cloud restore job', () => {
     const { archive } = await exportedSnapshot()
     const generation = getVaultGeneration()
     const blocked = pause()
-    const delayedRequest = request()
-    vi.spyOn(delayedRequest, 'json').mockImplementation(async () => {
+    isDriveConnected.mockImplementationOnce(async () => {
       blocked.entered()
       await blocked.resumed
-      return { sessionToken }
+      return true
     })
-    const delayed = restoreRoute.POST(delayedRequest)
+    const delayed = restoreRoute.POST(request())
     pendingRequests.push(delayed)
     await blocked.reached
     const fetch = stubDownload(
@@ -215,7 +220,7 @@ describe('server-owned cloud restore job', () => {
       id: job.id,
       status: 'success',
     })
-    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(fetch).toHaveBeenCalledTimes(1)
     expect(temporaryDirectories).toHaveLength(1)
   })
 
@@ -233,7 +238,7 @@ describe('server-owned cloud restore job', () => {
     expect(rejected.status).toBe(409)
     expect(await rejected.json()).toMatchObject({ code: 'VAULT_CHANGED' })
     expect(getCloudRestoreJobState().id).toBe(completed.id)
-    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(fetch).toHaveBeenCalledTimes(1)
     expect(temporaryDirectories).toHaveLength(1)
   })
 
@@ -317,9 +322,7 @@ describe('server-owned cloud restore job', () => {
       })
     })
     const controller = new AbortController()
-    const accepted = await restoreRoute.POST(
-      request(sessionToken, controller.signal),
-    )
+    const accepted = await restoreRoute.POST(request(controller.signal))
     expect(accepted.status).toBe(202)
     const started = await accepted.json()
     expect(started).toMatchObject({
@@ -327,16 +330,14 @@ describe('server-owned cloud restore job', () => {
       job: { status: 'running', phase: 'downloading', id: expect.any(String) },
     })
     controller.abort()
-    const duplicate = await restoreRoute.POST(
-      request('different-session-secret'),
-    )
+    const duplicate = await restoreRoute.POST(request())
     expect(duplicate.status).toBe(202)
     expect(await duplicate.json()).toMatchObject({
       started: false,
       job: { id: started.job.id },
     })
     await download.reached
-    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(fetch).toHaveBeenCalledTimes(1)
     const preparing = await vaultStatusRoute.GET(statusRequest())
     expect(preparing.headers.get('cache-control')).toBe('no-store')
     expect(await preparing.json()).toMatchObject({
@@ -408,18 +409,13 @@ describe('server-owned cloud restore job', () => {
     } finally {
       safetyDb.close()
     }
-    const persisted = await fs.readFile(
-      path.join(getVaultControlDir(), 'last-restore.json'),
-      'utf8',
+    const persisted = JSON.parse(
+      await fs.readFile(
+        path.join(getVaultControlDir(), 'last-restore.json'),
+        'utf8',
+      ),
     )
-    for (const secret of [
-      sessionToken,
-      accessToken,
-      'different-session-secret',
-    ]) {
-      expect(persisted).not.toContain(secret)
-      expect(JSON.stringify(finished)).not.toContain(secret)
-    }
+    expect(persisted).toMatchObject({ id: started.job.id, status: 'success' })
     expect(temporaryDirectories).toHaveLength(1)
   })
 
@@ -430,15 +426,13 @@ describe('server-owned cloud restore job', () => {
       const generation = getVaultGeneration()
       stubDownload(async () =>
         failure === 'remote rejection'
-          ? new Response(`Do not reveal ${accessToken}`, { status: 503 })
+          ? new Response('Unavailable', { status: 503 })
           : new Response('this is not a gzip tar archive'),
       )
       expect((await restoreRoute.POST(request())).status).toBe(202)
       const failed = await waitForFinished('error')
       expect(failed.phase).toBeNull()
       expect(failed.message).toEqual(expect.any(String))
-      expect(JSON.stringify(failed)).not.toContain(accessToken)
-      expect(JSON.stringify(failed)).not.toContain(sessionToken)
       expect(getVaultAccessState()).toMatchObject({
         generation,
         phase: 'idle',
@@ -468,8 +462,6 @@ describe('server-owned cloud restore job', () => {
 
   it('cannot start while another backup or restore operation owns the vault', async () => {
     await new LocalStorage().createKnife(input)
-    const fetch = vi.fn()
-    vi.stubGlobal('fetch', fetch)
     const release = tryBeginVaultOperation()
     expect(release).toEqual(expect.any(Function))
     try {
@@ -480,7 +472,7 @@ describe('server-owned cloud restore job', () => {
       })
       expect(getCloudRestoreJobState().status).toBe('idle')
       expect(getVaultAccessState().readOnly).toBe(false)
-      expect(fetch).not.toHaveBeenCalled()
+      expect(downloadDriveBackup).not.toHaveBeenCalled()
     } finally {
       release!()
     }
@@ -497,9 +489,7 @@ describe('server-owned cloud restore job', () => {
     expect((await restoreRoute.GET(statusRequest())).status).toBe(401)
     expect((await vaultStatusRoute.GET(statusRequest())).status).toBe(401)
     expect(fetch).not.toHaveBeenCalled()
-    const accepted = await restoreRoute.POST(
-      request(sessionToken, undefined, cookie),
-    )
+    const accepted = await restoreRoute.POST(request(undefined, cookie))
     expect(accepted.status).toBe(202)
     await waitForFinished('success')
     // Restoring lock settings rotates the session secret, invalidating old cookies.

@@ -9,10 +9,6 @@ import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
 import * as tar from 'tar'
 import { NextResponse } from 'next/server'
-import {
-  getConfiguredCloudBackupUrl,
-  isBackupUrlAllowed,
-} from '@/lib/cloud-backup-server'
 import { clearStorageCache } from '@/lib/storage'
 import { closeLocalDb, getLocalDataDirPath } from '@/lib/local-db'
 import {
@@ -165,38 +161,6 @@ async function restoreArchiveFromPath(
   }
 }
 
-async function downloadArchiveToPath(
-  downloadUrl: string,
-  accessToken: string,
-  outputPath: string,
-) {
-  const response = await fetch(downloadUrl, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-    cache: 'no-store',
-  })
-
-  if (!response.ok) {
-    let details = ''
-    try {
-      details = await response.text()
-    } catch {
-      // ignore
-    }
-    throw new Error(details || `Backup download failed (${response.status})`)
-  }
-
-  if (!response.body) {
-    throw new Error('Backup server returned an empty response body.')
-  }
-
-  await pipeline(
-    Readable.fromWeb(response.body as any),
-    createWriteStream(outputPath),
-  )
-}
-
 async function downloadCloudArchive(request = new Request('http://localhost')) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
@@ -272,69 +236,6 @@ async function restoreUploadedCloudArchive(
   }
 }
 
-async function restoreCloudArchive(request: Request, lease: VaultRestoreLease) {
-  const locked = requireAppUnlock(request)
-  if (locked) return locked
-
-  const tempRoot = await fs.mkdtemp(
-    path.join(os.tmpdir(), 'bladevault-backup-remote-restore-'),
-  )
-  const archivePath = path.join(tempRoot, 'bladevault-data.tar.gz')
-
-  try {
-    const body = (await request.json()) as {
-      backupUrl?: string
-      accessToken?: string
-    }
-
-    const backupUrl =
-      typeof body.backupUrl === 'string' ? body.backupUrl.trim() : ''
-    const accessToken =
-      typeof body.accessToken === 'string' ? body.accessToken.trim() : ''
-
-    if (!backupUrl) {
-      return NextResponse.json(
-        { error: 'backupUrl is required' },
-        { status: 400 },
-      )
-    }
-
-    if (!accessToken) {
-      return NextResponse.json(
-        { error: 'accessToken is required' },
-        { status: 400 },
-      )
-    }
-
-    let downloadUrl: string
-    try {
-      downloadUrl = new URL('/backup/latest', backupUrl).toString()
-    } catch {
-      return NextResponse.json({ error: 'Invalid backupUrl' }, { status: 400 })
-    }
-
-    if (!isBackupUrlAllowed(downloadUrl)) {
-      return NextResponse.json(
-        {
-          error: `backupUrl must point to the configured backup server (${getConfiguredCloudBackupUrl()})`,
-        },
-        { status: 400 },
-      )
-    }
-
-    await downloadArchiveToPath(downloadUrl, accessToken, archivePath)
-
-    const result = await restoreArchiveFromPath(archivePath, lease)
-    return NextResponse.json(result)
-  } catch (error) {
-    reportServerError(error, '/api/cloud-backup/archive')
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
-  } finally {
-    await fs.rm(tempRoot, { recursive: true, force: true })
-  }
-}
-
 export async function GET(request: Request) {
   const blocked = guardUnproxiedVaultRequest(request)
   if (blocked) return blocked
@@ -347,16 +248,6 @@ export async function PUT(request: Request) {
   return withVaultOperation(() =>
     withLocalRestoreLease(request, (lease) =>
       restoreUploadedCloudArchive(request, lease),
-    ),
-  )
-}
-
-export async function POST(request: Request) {
-  const blocked = guardUnproxiedVaultRequest(request)
-  if (blocked) return blocked
-  return withVaultOperation(() =>
-    withLocalRestoreLease(request, (lease) =>
-      restoreCloudArchive(request, lease),
     ),
   )
 }

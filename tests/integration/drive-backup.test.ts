@@ -9,10 +9,10 @@ import * as statusRoute from '@/app/api/drive-backup/status/route'
 import { getCloudBackupJobState } from '@/lib/cloud-backup-job'
 import { getCloudRestoreJobState } from '@/lib/cloud-restore-job'
 import type { DriveBackupStatus } from '@/lib/drive-backup-shared'
-import { getSettings } from '@/lib/settings'
 import { LocalStorage } from '@/lib/storage/local'
 import type { CreateKnifeInput } from '@/lib/storage/types'
 import { getVaultControlDir } from '@/lib/vault-access'
+import { tryBeginVaultOperation } from '@/lib/vault-operation'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 const refreshToken = 'test-drive-refresh-secret'
@@ -274,6 +274,27 @@ describe('Google Drive backup', () => {
     expect((await completeConnect(started.state)).status).toBe(400)
   })
 
+  it('reports the connection alone without contacting Google', async () => {
+    const readConnection = async () => {
+      const response = await statusRoute.GET(
+        new Request(
+          'http://localhost/api/drive-backup/status?scope=connection',
+        ),
+      )
+      return (await response.json()) as unknown
+    }
+    expect(await readConnection()).toEqual({ connected: false })
+
+    const { started } = await connect()
+    await completeConnect(started.state)
+    drive.authServiceCalls = []
+    const fetchCalls = vi.mocked(fetch).mock.calls.length
+
+    expect(await readConnection()).toEqual({ connected: true })
+    expect(drive.authServiceCalls).toEqual([])
+    expect(vi.mocked(fetch).mock.calls.length).toBe(fetchCalls)
+  })
+
   it('rejects a sign-in code that was not started by this server', async () => {
     const { started } = await connect()
     expect((await completeConnect('unknown-state')).status).toBe(400)
@@ -285,13 +306,11 @@ describe('Google Drive backup', () => {
 
   it('refuses Drive backup and restore until Google Drive is connected', async () => {
     const backup = await jobRoute.POST(
-      post('http://localhost/api/cloud-backup/job', { target: 'drive' }),
+      post('http://localhost/api/cloud-backup/job', {}),
     )
     expect(backup.status).toBe(400)
     const restore = await restoreRoute.POST(
-      post('http://localhost/api/cloud-backup/restore-job', {
-        target: 'drive',
-      }),
+      post('http://localhost/api/cloud-backup/restore-job', {}),
     )
     expect(restore.status).toBe(400)
     expect(drive.uploads).toBe(0)
@@ -304,21 +323,15 @@ describe('Google Drive backup', () => {
     await completeConnect(started.state)
 
     const first = await jobRoute.POST(
-      post('http://localhost/api/cloud-backup/job', { target: 'drive' }),
+      post('http://localhost/api/cloud-backup/job', {}),
     )
     expect(first.status).toBe(202)
-    expect((await first.json()).job).toMatchObject({
-      target: 'drive',
-      status: 'running',
-    })
+    expect((await first.json()).job).toMatchObject({ status: 'running' })
     await vi.waitFor(() =>
       expect(getCloudBackupJobState().status).toBe('success'),
     )
-    expect(getCloudBackupJobState().target).toBe('drive')
     expect(drive.folderId).toBe('folder-1')
     expect(drive.uploads).toBe(1)
-    // The BladeVault cloud sync time belongs to the other backup service.
-    expect(getSettings().cloudBackupLastSyncedAt).toBe('')
 
     const status = await readStatus()
     expect(status.file).toEqual({
@@ -328,9 +341,7 @@ describe('Google Drive backup', () => {
     // The archive never carries the Drive sign-in.
     expect(drive.file!.bytes.includes(Buffer.from(refreshToken))).toBe(false)
 
-    await jobRoute.POST(
-      post('http://localhost/api/cloud-backup/job', { target: 'drive' }),
-    )
+    await jobRoute.POST(post('http://localhost/api/cloud-backup/job', {}))
     await vi.waitFor(() => expect(drive.uploads).toBe(2))
     await vi.waitFor(() =>
       expect(getCloudBackupJobState().status).toBe('success'),
@@ -341,20 +352,23 @@ describe('Google Drive backup', () => {
     expect(await new LocalStorage().getAllKnives()).toHaveLength(0)
 
     const restore = await restoreRoute.POST(
-      post('http://localhost/api/cloud-backup/restore-job', {
-        target: 'drive',
-      }),
+      post('http://localhost/api/cloud-backup/restore-job', {}),
     )
     expect(restore.status).toBe(202)
     await vi.waitFor(() =>
       expect(getCloudRestoreJobState().status).toBe('success'),
     )
-    expect(getCloudRestoreJobState().target).toBe('drive')
     const restored = await new LocalStorage().getAllKnives()
     expect(restored.map((item) => item.name)).toEqual(['Drive Knife'])
 
     // This device stays connected after the vault is replaced.
     expect((await readStatus()).connected).toBe(true)
+    // Let the restore finish its cleanup before the vault is removed.
+    await vi.waitFor(() => {
+      const release = tryBeginVaultOperation()
+      expect(release).toEqual(expect.any(Function))
+      release!()
+    })
   })
 
   it('disconnects when Google no longer accepts the sign-in', async () => {
@@ -375,7 +389,7 @@ describe('Google Drive backup', () => {
     await completeConnect(again.started.state)
     drive.refreshStatus = 401
     const backup = await jobRoute.POST(
-      post('http://localhost/api/cloud-backup/job', { target: 'drive' }),
+      post('http://localhost/api/cloud-backup/job', {}),
     )
     expect(backup.status).toBe(202)
     await vi.waitFor(() =>

@@ -5,10 +5,20 @@ import {
   DRIVE_AUTH_CODE_MESSAGE,
   DRIVE_AUTH_ERROR_MESSAGE,
   DRIVE_BACKUP_UNAVAILABLE,
+  DRIVE_CONNECTION_EVENT,
   type DriveAuthCodeMessage,
   type DriveAuthErrorMessage,
   type DriveBackupStatus,
+  type DriveConnectionEventDetail,
 } from '@/lib/drive-backup-shared'
+
+function announceConnection(connected: boolean) {
+  window.dispatchEvent(
+    new CustomEvent<DriveConnectionEventDetail>(DRIVE_CONNECTION_EVENT, {
+      detail: { connected },
+    }),
+  )
+}
 
 async function readStatus(
   response: Response,
@@ -20,6 +30,7 @@ async function readStatus(
   if (!response.ok || typeof data.connected !== 'boolean') {
     throw new Error(getApiErrorMessage(data, fallback))
   }
+  announceConnection(data.connected)
   return {
     available: data.available !== false,
     connected: data.connected,
@@ -35,6 +46,24 @@ export async function getDriveBackupStatus(): Promise<DriveBackupStatus> {
   // Targets without a local server have no Google Drive backup.
   if (response.status === 404) return DRIVE_BACKUP_UNAVAILABLE
   return readStatus(response, 'Could not read Google Drive status.')
+}
+
+// Reads only whether this device holds a Drive sign-in, without contacting
+// Google, so it is cheap enough to check on every app load.
+export async function getDriveConnected(): Promise<boolean> {
+  const response = await fetch('/api/drive-backup/status?scope=connection', {
+    cache: 'no-store',
+  })
+  if (response.status === 404) return false
+  const data = await readJsonResponse<{ connected?: unknown; error?: string }>(
+    response,
+  )
+  if (!response.ok || typeof data.connected !== 'boolean') {
+    throw new Error(
+      getApiErrorMessage(data, 'Could not read Google Drive status.'),
+    )
+  }
+  return data.connected
 }
 
 export async function disconnectDriveBackup(): Promise<DriveBackupStatus> {
