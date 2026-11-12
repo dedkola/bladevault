@@ -6,6 +6,7 @@ import './alloy.css'
 import './classic.css'
 import './modern-variants.css'
 import './forge.css'
+import './lumen-shells.css'
 import { SmartCollectionsProvider } from '@/components/providers/smart-collections-provider'
 import { AppShell } from '@/components/app-shell'
 import { KnivesProvider } from '@/components/providers/knives-provider'
@@ -20,6 +21,7 @@ import { SegmentedHighlight } from '@/components/segmented-highlight'
 import {
   THEME_COLORS,
   getModernThemeVariant,
+  getThemePalette,
   isDarkThemeActive,
   getThemeFamily,
 } from '@/lib/settings-shared'
@@ -129,6 +131,7 @@ export default async function RootLayout({
       lang="en"
       data-theme-style={getThemeFamily(themeStyle)}
       data-theme-variant={getModernThemeVariant(themeStyle)}
+      data-theme-palette={getThemePalette(themeStyle)}
       data-theme-mode={theme}
       {...(errorReporting
         ? { [ERROR_REPORTING_ATTRIBUTE]: JSON.stringify(errorReporting) }

@@ -13,6 +13,7 @@ import {
   hasFixedColorMode,
   getModernThemeVariant,
   getNextThemeStyle,
+  getThemePalette,
   getThemeFamily,
   isModernThemeFamily,
   readThemeStyleFromElement,
@@ -143,6 +144,21 @@ describe('light-only styles', () => {
     applyThemeStyleToElement(element, 'espresso')
     expect(element.classList.contains('dark')).toBe(false)
     expect(isDarkThemeActive('dark', 'espresso')).toBe(false)
+  })
+})
+
+describe('Lumen palette', () => {
+  it('marks Lumen-palette styles on the root and clears the mark for others', () => {
+    const element = {
+      dataset: {} as DOMStringMap,
+      classList: { toggle: () => {}, contains: () => false },
+    } as unknown as HTMLElement
+    applyThemeStyleToElement(element, 'lumen')
+    expect(element.dataset.themePalette).toBe('lumen')
+    expect(getThemePalette('lumen')).toBe('lumen')
+    applyThemeStyleToElement(element, 'forge')
+    expect(element.dataset.themePalette).toBeUndefined()
+    expect(getThemePalette('alloy')).toBeUndefined()
   })
 })
 

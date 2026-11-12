@@ -38,6 +38,12 @@ export const THEME_STYLE_NAMES: Record<(typeof THEME_STYLES)[number], string> =
   }
 /** Styles that always render light and ignore the dark color mode. */
 export const LIGHT_ONLY_THEME_STYLES = ['lumen', 'espresso'] as const
+/**
+ * Styles that use Lumen's white, grey and orange palette. Lumen itself keeps
+ * the Modern layout; the others bring their own shell. The root carries
+ * `data-theme-palette="lumen"` so the Lumen colors apply to all of them.
+ */
+export const LUMEN_PALETTE_THEME_STYLES = ['lumen'] as const
 /** Styles that always render dark and ignore the light color mode. */
 export const DARK_ONLY_THEME_STYLES = ['phosphor'] as const
 export const START_PAGES = ['insights', 'studio', 'collection'] as const
@@ -338,6 +344,17 @@ export function isLightOnlyThemeStyle(themeStyle: ThemeStyle): boolean {
   return (LIGHT_ONLY_THEME_STYLES as readonly ThemeStyle[]).includes(themeStyle)
 }
 
+export function isLumenPaletteThemeStyle(themeStyle: ThemeStyle): boolean {
+  return (LUMEN_PALETTE_THEME_STYLES as readonly ThemeStyle[]).includes(
+    themeStyle,
+  )
+}
+
+/** Value for the root's `data-theme-palette`, or undefined for none. */
+export function getThemePalette(themeStyle: ThemeStyle): 'lumen' | undefined {
+  return isLumenPaletteThemeStyle(themeStyle) ? 'lumen' : undefined
+}
+
 export function isDarkOnlyThemeStyle(themeStyle: ThemeStyle): boolean {
   return (DARK_ONLY_THEME_STYLES as readonly ThemeStyle[]).includes(themeStyle)
 }
@@ -378,6 +395,9 @@ export function applyThemeStyleToElement(
   const variant = getModernThemeVariant(themeStyle)
   if (variant) element.dataset.themeVariant = variant
   else delete element.dataset.themeVariant
+  const palette = getThemePalette(themeStyle)
+  if (palette) element.dataset.themePalette = palette
+  else delete element.dataset.themePalette
   // Re-apply the saved mode: a light-only style drops the `dark` class and a
   // dark-only style adds it.
   const mode = element.dataset.themeMode

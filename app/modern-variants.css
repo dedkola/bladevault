@@ -467,7 +467,7 @@ html[data-theme-variant='field'].dark {
 /* Lumen: pure white, neutral greys and small orange accents (light only) */
 /* Neutral scale and accents follow Cloudflare's Kumo tokens.           */
 /* ------------------------------------------------------------------ */
-html[data-theme-variant='lumen'] {
+html[data-theme-palette='lumen'] {
   --vv-grad: linear-gradient(135deg, #fbad41, #f6821f 55%, #e3620c);
   --vv-btn: #f6821f;
   --vv-btn-fg: #ffffff;

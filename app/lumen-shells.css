@@ -1,0 +1,35 @@
+/* Shared pieces for the layouts that use the Lumen palette with their own
+ * shell (Atrium, Ledger, Shelf). Each layout keeps its own file for the rest. */
+
+[data-lumen-photo] {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+[data-lumen-photo] > [data-lumen-photo-empty] {
+  width: 28%;
+  max-width: 56px;
+  height: auto;
+  color: #c4c4c4;
+  stroke-width: 1.4;
+}
+
+[data-lumen-kbd] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  padding: 0 5px;
+  border: 1px solid #dddddd;
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #737373;
+  font:
+    500 10.5px/16px var(--font-sans),
+    system-ui,
+    sans-serif;
+}
