@@ -1,14 +1,12 @@
 'use client'
 
+import { formatActivityCounts } from '@/lib/activity-format'
 import { formatKnifeCount } from '@/lib/knife-count'
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import {
-  formatActivityCounts,
-  formatActivityDayLabel,
-} from '@/components/collection-insights'
 import { useKnives } from '@/components/providers/knives-provider'
+import { ForgeActivityMap } from '@/components/forge-activity-map'
 import { ForgeActivityDetail } from '@/components/insight-pages/forge-activity-detail'
 import {
   InsightMetrics,
@@ -54,9 +52,7 @@ export function ActivityDetail() {
     () => new Map(knives.map((knife) => [knife.id, knife])),
     [knives],
   )
-  const active = [...stats.activity].filter((day) => day.count).reverse(),
-    max = Math.max(1, ...stats.activity.map((day) => day.count)),
-    colors = ['var(--muted)', '#b7bd86', '#79824a', '#4f5821', '#2e3417']
+  const active = [...stats.activity].filter((day) => day.count).reverse()
   const events = useMemo(
     () =>
       recordedActivity
@@ -118,81 +114,9 @@ export function ActivityDetail() {
           {failedNotice}
           <InsightPanel
             title="Activity calendar"
-            description={`${stats.activeDays} active days · last 52 weeks`}
-            footer={
-              <>
-                <span>Last 52 weeks</span>
-                <span className="id-legend">
-                  Less{' '}
-                  {colors.map((color) => (
-                    <i key={color} style={{ background: color }} />
-                  ))}{' '}
-                  More
-                </span>
-              </>
-            }
+            description="Pick a day or month to see what changed."
           >
-            <div
-              className="id-heatmap-wrap"
-              role="region"
-              aria-label="Activity calendar; scroll to see all weeks"
-              tabIndex={0}
-            >
-              <div className="id-heatmap-inner">
-                <div className="id-months" aria-hidden="true">
-                  {Array.from({ length: 52 }, (_, index) => {
-                    const day = stats.activity[index * 7],
-                      previous = stats.activity[(index - 1) * 7]
-                    return (
-                      <span key={day.dateKey}>
-                        {!previous ||
-                        day.date.getMonth() !== previous.date.getMonth()
-                          ? day.date.toLocaleDateString(undefined, {
-                              month: 'short',
-                            })
-                          : ''}
-                      </span>
-                    )
-                  })}
-                </div>
-                <div className="id-heatmap">
-                  {stats.activity.map((day) => (
-                    <button
-                      key={day.dateKey}
-                      type="button"
-                      className="id-day"
-                      aria-label={formatActivityDayLabel(
-                        day.date,
-                        day.addedCount,
-                        day.editedCount,
-                        day.maintainedCount,
-                      )}
-                      title={formatActivityDayLabel(
-                        day.date,
-                        day.addedCount,
-                        day.editedCount,
-                        day.maintainedCount,
-                      )}
-                      style={{
-                        background:
-                          colors[
-                            day.count
-                              ? Math.max(1, Math.ceil((day.count / max) * 4))
-                              : 0
-                          ],
-                      }}
-                      onClick={() => {
-                        if (day.count)
-                          setSelection({
-                            title: `${date(day.date)} · activity`,
-                            knifeIds: day.knifeIds,
-                          })
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
+            <ForgeActivityMap stats={stats} knivesById={byId} />
           </InsightPanel>
         </>
       )}

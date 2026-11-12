@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { EChartsOption } from 'echarts'
 import { ImageIcon } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
+import { ForgeActivityMap } from '@/components/forge-activity-map'
 import {
   InsightsChart,
   type InsightsChartClick,
@@ -25,11 +26,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { readJsonResponse } from '@/lib/api-response'
 import { getImageUrl, type Knife, type KnifeActivityEvent } from '@/lib/data'
 import {
@@ -75,10 +71,6 @@ type Drilldown = {
   title: string
   description: string
   knifeIds: string[]
-  groups?: Array<{
-    label: 'Added' | 'Edited' | 'Maintained'
-    knifeIds: string[]
-  }>
   collectionHref?: string
   categories?: CategoryStat[]
   categoryKey?: CategoryKey
@@ -100,52 +92,6 @@ function formatMeasurementAxisTick(label: string): string {
   const formatted = formatMeasurementAxisLabel(label)
   const match = formatted.match(/^([\d.,]+)–[\d.,]+(.*)$/)
   return match ? `${match[1]}${match[2]}` : formatted
-}
-
-export function getOrdinalDay(day: number): string {
-  const lastTwoDigits = day % 100
-  if (lastTwoDigits >= 11 && lastTwoDigits <= 13) return `${day}th`
-  if (day % 10 === 1) return `${day}st`
-  if (day % 10 === 2) return `${day}nd`
-  if (day % 10 === 3) return `${day}rd`
-  return `${day}th`
-}
-
-export function formatActivityCounts(
-  addedCount: number,
-  editedCount: number,
-  maintainedCount = 0,
-): string {
-  const parts: string[] = []
-  if (addedCount > 0) {
-    parts.push(`${addedCount} ${addedCount === 1 ? 'knife' : 'knives'} added`)
-  }
-  if (editedCount > 0) {
-    parts.push(
-      `${editedCount} ${editedCount === 1 ? 'knife' : 'knives'} edited`,
-    )
-  }
-  if (maintainedCount > 0) {
-    parts.push(
-      `${maintainedCount} ${maintainedCount === 1 ? 'knife' : 'knives'} maintained`,
-    )
-  }
-  return parts.join(' · ')
-}
-
-export function formatActivityDayLabel(
-  date: Date,
-  addedCount: number,
-  editedCount: number,
-  maintainedCount = 0,
-): string {
-  const formattedDate = `${date.toLocaleDateString(undefined, {
-    month: 'long',
-  })} ${getOrdinalDay(date.getDate())}`
-  const counts = formatActivityCounts(addedCount, editedCount, maintainedCount)
-  if (!counts)
-    return `No knives added, edited, or maintained on ${formattedDate}.`
-  return `${counts} on ${formattedDate}.`
 }
 
 export function categoryHref(key: CategoryKey, category: CategoryStat) {
@@ -946,18 +892,6 @@ export function CollectionInsights() {
         .filter((knife): knife is Knife => Boolean(knife)) ?? [],
     [drilldown, knivesById],
   )
-  const selectedGroups = useMemo(
-    () =>
-      drilldown?.groups
-        ?.map((group) => ({
-          ...group,
-          knives: group.knifeIds
-            .map((id) => knivesById.get(id))
-            .filter((knife): knife is Knife => Boolean(knife)),
-        }))
-        .filter(({ knives }) => knives.length > 0),
-    [drilldown, knivesById],
-  )
   const libraryMonths = useMemo(
     () =>
       Array.from({ length: 6 }, (_, index) => {
@@ -1018,17 +952,6 @@ export function CollectionInsights() {
           100,
       )
     : 0
-  const activityWeeks = useMemo(
-    () =>
-      Array.from({ length: 52 }, (_, index) =>
-        stats.activity.slice(index * 7, index * 7 + 7),
-      ),
-    [stats.activity],
-  )
-  const maxActivityCount = Math.max(
-    1,
-    ...stats.activity.map(({ count }) => count),
-  )
 
   const openCategory = useCallback(
     (eyebrow: string, key: CategoryKey, category: CategoryStat) => {
@@ -1856,139 +1779,10 @@ export function CollectionInsights() {
               eyebrow="Activity"
               title="Collection activity"
               detailHref="/insights/activity"
-              description={`${stats.additionsInActivityRange} additions · ${stats.editsInActivityRange} edited · ${stats.maintainedKnivesInActivityRange} maintained across ${stats.activeDays} active days · darker squares mean more activity`}
+              description={`${stats.additionsInActivityRange} additions · ${stats.editsInActivityRange} edited · ${stats.maintainedKnivesInActivityRange} maintained across ${stats.activeDays} active days`}
               className="col-span-12 lg:col-span-8"
             >
-              <div className="overflow-x-auto pb-2">
-                <div className="min-w-[42rem]">
-                  <div className="ml-8 grid grid-cols-[repeat(52,minmax(0,1fr))] gap-[3px] text-[8px] xl:text-xs text-muted-foreground xl:ml-10">
-                    {activityWeeks.map((week, index) => {
-                      const month = week[0]?.date.getMonth()
-                      const previousMonth =
-                        activityWeeks[index - 1]?.[0]?.date.getMonth()
-                      return (
-                        <span key={week[0]?.dateKey}>
-                          {index === 0 || month !== previousMonth
-                            ? week[0]?.date.toLocaleDateString(undefined, {
-                                month: 'short',
-                              })
-                            : ''}
-                        </span>
-                      )
-                    })}
-                  </div>
-                  <div className="mt-2 grid grid-cols-[1.5rem_minmax(0,1fr)] gap-2 xl:grid-cols-[2rem_minmax(0,1fr)]">
-                    <div className="grid grid-rows-7 gap-[3px] text-[8px] xl:text-xs leading-[11px] text-muted-foreground xl:items-center">
-                      <span>Mon</span>
-                      <span />
-                      <span>Wed</span>
-                      <span />
-                      <span>Fri</span>
-                      <span />
-                      <span>Sun</span>
-                    </div>
-                    <div className="flex gap-[3px]">
-                      {activityWeeks.map((week) => (
-                        <div
-                          key={week[0]?.dateKey}
-                          className="grid flex-1 grid-rows-7 gap-[3px]"
-                        >
-                          {week.map((day) => {
-                            const level =
-                              day.count === 0
-                                ? 0
-                                : Math.max(
-                                    1,
-                                    Math.ceil(
-                                      (day.count / maxActivityCount) * 4,
-                                    ),
-                                  )
-                            const activityLabel = formatActivityDayLabel(
-                              day.date,
-                              day.addedCount,
-                              day.editedCount,
-                              day.maintainedCount,
-                            )
-                            return (
-                              <Tooltip key={day.dateKey}>
-                                <TooltipTrigger
-                                  type="button"
-                                  aria-label={activityLabel}
-                                  onClick={
-                                    day.count
-                                      ? () =>
-                                          setDrilldown({
-                                            eyebrow: 'Activity date',
-                                            title: day.date.toLocaleDateString(
-                                              undefined,
-                                              {
-                                                dateStyle: 'medium',
-                                              },
-                                            ),
-                                            description: formatActivityCounts(
-                                              day.addedCount,
-                                              day.editedCount,
-                                              day.maintainedCount,
-                                            ),
-                                            knifeIds: day.knifeIds,
-                                            groups: [
-                                              {
-                                                label: 'Added',
-                                                knifeIds: day.addedKnifeIds,
-                                              },
-                                              {
-                                                label: 'Edited',
-                                                knifeIds: day.editedKnifeIds,
-                                              },
-                                              {
-                                                label: 'Maintained',
-                                                knifeIds:
-                                                  day.maintainedKnifeIds,
-                                              },
-                                            ],
-                                          })
-                                      : undefined
-                                  }
-                                  className={cn(
-                                    'h-[11px] min-w-[10px] rounded-[2px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:aspect-square xl:h-auto',
-                                    day.count === 0 && 'bg-muted',
-                                    level === 1 &&
-                                      'bg-[var(--bv-chart-heat-1)]',
-                                    level === 2 &&
-                                      'bg-[var(--bv-chart-heat-2)]',
-                                    level === 3 &&
-                                      'bg-[var(--bv-chart-heat-3)]',
-                                    level === 4 &&
-                                      'bg-[var(--bv-chart-heat-4)]',
-                                  )}
-                                />
-                                <TooltipContent
-                                  sideOffset={8}
-                                  className="whitespace-normal border border-[var(--bladevault-line)] bg-[var(--card)] text-sm xl:text-base font-semibold text-foreground shadow-[0_8px_24px_rgba(46,52,23,0.14)] [&>[aria-hidden=true]]:bg-[var(--card)] [&>[aria-hidden=true]]:fill-[var(--card)]"
-                                >
-                                  {activityLabel}
-                                </TooltipContent>
-                              </Tooltip>
-                            )
-                          })}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-[9px] xl:text-xs text-muted-foreground">
-                <span>Last 52 weeks</span>
-                <span className="flex items-center gap-1">
-                  Less
-                  <i className="size-2.5 rounded-[2px] bg-muted" />
-                  <i className="size-2.5 rounded-[2px] bg-[var(--bv-chart-heat-1)]" />
-                  <i className="size-2.5 rounded-[2px] bg-[var(--bv-chart-heat-2)]" />
-                  <i className="size-2.5 rounded-[2px] bg-[var(--bv-chart-heat-3)]" />
-                  <i className="size-2.5 rounded-[2px] bg-[var(--bv-chart-heat-4)]" />
-                  More
-                </span>
-              </div>
+              <ForgeActivityMap stats={stats} knivesById={knivesById} />
             </InsightPanel>
 
             <InsightPanel
@@ -2050,39 +1844,6 @@ export function CollectionInsights() {
                   })
                 }}
               />
-            ) : selectedGroups ? (
-              selectedGroups.map((group, index) => (
-                <section
-                  key={group.label}
-                  className={cn(
-                    'grid gap-2',
-                    index > 0 && 'border-t border-border pt-4',
-                  )}
-                >
-                  <div className="flex items-center justify-between px-1">
-                    <h3 className="flex items-center gap-2 text-[10px] xl:text-xs font-semibold uppercase tracking-[0.14em] text-foreground">
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          'size-2 rounded-full',
-                          group.label === 'Added'
-                            ? 'bg-[var(--bv-chart-3)]'
-                            : 'bg-[var(--bv-chart-2)]',
-                        )}
-                      />
-                      {group.label}
-                    </h3>
-                    <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] xl:text-xs font-semibold text-muted-foreground">
-                      {group.knives.length}
-                    </span>
-                  </div>
-                  <div className="grid gap-2">
-                    {group.knives.map((knife) => (
-                      <DrilldownKnife key={knife.id} knife={knife} />
-                    ))}
-                  </div>
-                </section>
-              ))
             ) : (
               selectedKnives.map((knife) => (
                 <DrilldownKnife key={knife.id} knife={knife} />

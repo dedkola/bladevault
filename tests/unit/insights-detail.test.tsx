@@ -439,11 +439,14 @@ describe('ActivityDetail', () => {
     mockKnives.themeStyle = 'classic'
   })
 
-  it('renders the heatmap and active-day lists', () => {
+  it('renders the calendar map and active-day lists in the Classic style', () => {
     setKnives([createKnife({ id: 'a', addedAt: new Date().toISOString() })])
     render(<ActivityDetail />)
 
-    expect(screen.getByText('Last 52 weeks')).toBeInTheDocument()
+    expect(
+      screen.getByRole('group', { name: 'Activity type' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Last 52 weeks')).not.toBeInTheDocument()
     expect(
       screen.getByRole('region', { name: 'Active days' }),
     ).toHaveTextContent('1 knife added')

@@ -486,45 +486,6 @@
 .id-selected-measurement {
   border-color: var(--bladevault-gold);
 }
-.id-heatmap {
-  display: grid;
-  grid-auto-flow: column;
-  grid-template-rows: repeat(7, 1fr);
-  grid-template-columns: repeat(52, minmax(0, 1fr));
-  gap: 4px;
-}
-.id-day {
-  border-radius: 3px;
-  height: 18px;
-  cursor: pointer;
-}
-.id-heatmap-wrap {
-  overflow: auto;
-  padding-bottom: 5px;
-}
-.id-heatmap-inner {
-  min-width: 650px;
-}
-.id-months {
-  display: grid;
-  grid-template-columns: repeat(52, minmax(0, 1fr));
-  gap: 4px;
-  font-size: 10px;
-  color: var(--muted-foreground);
-  margin-bottom: 10px;
-}
-.id-legend {
-  display: flex;
-  gap: 5px;
-  align-items: center;
-  font-size: 10px;
-  color: var(--muted-foreground);
-}
-.id-legend i {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-}
 .id-knife-row {
   width: 100%;
   display: flex;
@@ -702,8 +663,6 @@
   .id-panel-head p,
   .id-panel-foot,
   .id-share,
-  .id-months,
-  .id-legend,
   .id-metric p,
   .id-table-caption,
   .id-rank,
@@ -740,13 +699,6 @@
   .id-activity-day strong,
   .id-growth-item strong {
     font-size: 14px;
-  }
-  .id-day {
-    height: auto;
-    aspect-ratio: 1;
-  }
-  .id-heatmap-inner {
-    max-width: 1448px;
   }
 }
 @media (min-width: 1800px) {
@@ -946,12 +898,6 @@
     display: block;
     margin-top: 12px;
     text-align: left;
-  }
-  .id-heatmap-wrap {
-    max-width: 100%;
-  }
-  .id-months {
-    font-size: 8px;
   }
   .id-directory-row {
     padding: 12px;
