@@ -642,3 +642,28 @@ button.settings-chip:hover {
   background: #15110b;
   box-shadow: 0 0 6px -1px rgb(255 176 0 / 45%);
 }
+
+/* Atrium preview: no rail, a dark title and photo tiles. */
+.theme-style-swatch.is-atrium {
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px #ebebeb;
+}
+
+.theme-style-swatch.is-atrium .theme-style-swatch-rail {
+  display: none;
+}
+
+.theme-style-swatch.is-atrium .theme-style-swatch-title {
+  background: #18181b;
+}
+
+.theme-style-swatch.is-atrium .theme-style-swatch-line {
+  background: #d4d4d4;
+}
+
+.theme-style-swatch.is-atrium .theme-style-swatch-card {
+  border: 0;
+  border-radius: 6px;
+  background: #f5f5f5;
+  box-shadow: inset 0 -3px 0 #f6821f;
+}

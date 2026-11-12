@@ -9,6 +9,7 @@ export const THEME_STYLES = [
   'lumen',
   'espresso',
   'phosphor',
+  'atrium',
 ] as const
 /**
  * Forge, Titanium, Field, Lumen, Amber and Phosphor reuse the Modern workspace layout and only change
@@ -22,6 +23,7 @@ export const MODERN_THEME_VARIANTS = [
   'lumen',
   'espresso',
   'phosphor',
+  'atrium',
 ] as const
 /** Display names for each style, shown in Settings and under the app logo. */
 export const THEME_STYLE_NAMES: Record<(typeof THEME_STYLES)[number], string> =
@@ -35,15 +37,16 @@ export const THEME_STYLE_NAMES: Record<(typeof THEME_STYLES)[number], string> =
     lumen: 'Lumen',
     espresso: 'Espresso',
     phosphor: 'Phosphor',
+    atrium: 'Atrium',
   }
 /** Styles that always render light and ignore the dark color mode. */
-export const LIGHT_ONLY_THEME_STYLES = ['lumen', 'espresso'] as const
+export const LIGHT_ONLY_THEME_STYLES = ['lumen', 'espresso', 'atrium'] as const
 /**
  * Styles that use Lumen's white, grey and orange palette. Lumen itself keeps
  * the Modern layout; the others bring their own shell. The root carries
  * `data-theme-palette="lumen"` so the Lumen colors apply to all of them.
  */
-export const LUMEN_PALETTE_THEME_STYLES = ['lumen'] as const
+export const LUMEN_PALETTE_THEME_STYLES = ['lumen', 'atrium'] as const
 /** Styles that always render dark and ignore the light color mode. */
 export const DARK_ONLY_THEME_STYLES = ['phosphor'] as const
 export const START_PAGES = ['insights', 'studio', 'collection'] as const
@@ -60,6 +63,13 @@ export type ThemeFamily = 'classic' | 'modern' | 'alloy'
 export type TimeFormat = (typeof TIME_FORMATS)[number]
 
 /**
+ * Modern variants that replace the Modern shell with their own layout. They
+ * keep `data-theme-style="modern"` so shared page styling still applies, but
+ * have no workspace footer, so they stay out of the quick-switch cycle.
+ */
+export const OWN_SHELL_THEME_STYLES = ['atrium'] as const
+
+/**
  * Styles the footer's quick switcher cycles through. Modern-family styles share
  * the Modern shell and Classic renders the same footer, so the button stays
  * visible while cycling through them. Alloy has its own controls, so it stays
@@ -67,7 +77,9 @@ export type TimeFormat = (typeof TIME_FORMATS)[number]
  */
 export const QUICK_SWITCH_THEME_STYLES: readonly ThemeStyle[] = [
   'modern',
-  ...MODERN_THEME_VARIANTS,
+  ...MODERN_THEME_VARIANTS.filter(
+    (style) => !(OWN_SHELL_THEME_STYLES as readonly string[]).includes(style),
+  ),
   'classic',
 ]
 
@@ -338,6 +350,7 @@ export const THEME_COLORS: Record<ThemeStyle, { light: string; dark: string }> =
     lumen: { light: '#ffffff', dark: '#ffffff' },
     espresso: { light: '#f8f2e7', dark: '#f8f2e7' },
     phosphor: { light: '#0d0b08', dark: '#0d0b08' },
+    atrium: { light: '#ffffff', dark: '#ffffff' },
   }
 
 export function isLightOnlyThemeStyle(themeStyle: ThemeStyle): boolean {

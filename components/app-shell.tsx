@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation'
 import { Cloud, CloudOff, Moon, Plus, Settings, Sun } from 'lucide-react'
 import { SidebarShell } from '@/components/sidebar-shell'
 import { AlloyShell } from '@/components/alloy-shell'
+import { AtriumShell } from '@/components/atrium/atrium-shell'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import { WorkspaceFooter } from '@/components/workspace-footer'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -27,6 +28,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { themeStyle, isAutoBackupActive, showFeedback } = useKnives()
   if (themeStyle === 'alloy') {
     return <AlloyShell>{children}</AlloyShell>
+  }
+  if (themeStyle === 'atrium') {
+    return <AtriumShell>{children}</AtriumShell>
   }
   if (!isModernThemeFamily(themeStyle)) {
     return (
