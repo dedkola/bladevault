@@ -316,7 +316,7 @@ test.describe('reading column', () => {
     }
   })
 
-  test('shows Cloud backup sections without empty restore feedback', async ({
+  test('shows the Google Drive section without empty feedback', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1920, height: 1080 })
@@ -324,13 +324,16 @@ test.describe('reading column', () => {
     await openTab(page, 'Cloud backup')
 
     const sections = page.locator('.settings-grid .settings-section')
-    // Account, Backup, Restore and Google Drive.
-    await expect(sections).toHaveCount(4)
+    // Google Drive is the only cloud backup; this test vault is not connected.
+    await expect(sections).toHaveCount(1)
+    await expect(
+      sections.getByRole('heading', { name: 'Google Drive' }),
+    ).toBeVisible()
+    await expect(
+      sections.getByRole('button', { name: 'Connect Google Drive' }),
+    ).toBeVisible()
 
-    const restore = sections.filter({
-      has: page.getByRole('button', { name: 'Restore', exact: true }),
-    })
-    const idleRestore = await restore.evaluate((panel) => {
+    const idleDrive = await sections.evaluate((panel) => {
       const body = panel.lastElementChild as HTMLElement
       const row = body.querySelector('.settings-row') as HTMLElement
       return {
@@ -340,7 +343,7 @@ test.describe('reading column', () => {
           row.getBoundingClientRect().bottom,
       }
     })
-    expect(idleRestore.rowIsLast).toBe(true)
-    expect(Math.abs(idleRestore.spaceAfterRow)).toBeLessThanOrEqual(1)
+    expect(idleDrive.rowIsLast).toBe(true)
+    expect(Math.abs(idleDrive.spaceAfterRow)).toBeLessThanOrEqual(1)
   })
 })
