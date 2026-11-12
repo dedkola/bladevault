@@ -2,6 +2,7 @@
 
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
 import { getCloudAuthState } from '@/lib/cloud-backup'
+import type { CloudBackupTarget } from '@/lib/cloud-backup-shared'
 import type { CloudRestoreJobState } from '@/lib/cloud-restore-shared'
 import { VAULT_GENERATION_HEADER } from '@/lib/vault-access-shared'
 import {
@@ -19,12 +20,17 @@ async function fetchRestoreApi(url: string, init?: RequestInit) {
   }
 }
 
-export async function startCloudRestore(): Promise<{
+export async function startCloudRestore(
+  target: CloudBackupTarget = 'bladevault',
+): Promise<{
   job: CloudRestoreJobState
   started: boolean
 }> {
-  const sessionToken = getCloudAuthState()?.sessionToken
-  if (!sessionToken) throw new Error('Sign in before restoring a cloud backup.')
+  // The local server holds the Google Drive sign-in.
+  const sessionToken =
+    target === 'drive' ? null : getCloudAuthState()?.sessionToken
+  if (target !== 'drive' && !sessionToken)
+    throw new Error('Sign in before restoring a cloud backup.')
   const generation = getVaultClientState().generation
 
   const response = await fetchRestoreApi('/api/cloud-backup/restore-job', {
@@ -33,7 +39,7 @@ export async function startCloudRestore(): Promise<{
       'Content-Type': 'application/json',
       ...(generation ? { [VAULT_GENERATION_HEADER]: generation } : {}),
     },
-    body: JSON.stringify({ sessionToken }),
+    body: JSON.stringify(target === 'drive' ? { target } : { sessionToken }),
   })
   const data = await readJsonResponse<{
     job?: CloudRestoreJobState

@@ -7,7 +7,10 @@ import {
   parseApiError,
 } from '@/lib/cloud-backup'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
-import type { CloudBackupJobState } from '@/lib/cloud-backup-shared'
+import type {
+  CloudBackupJobState,
+  CloudBackupTarget,
+} from '@/lib/cloud-backup-shared'
 
 export function canAttemptSilentCloudBackup() {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -33,22 +36,32 @@ export function formatCloudBackupError(error: unknown, baseUrl: string) {
   return message
 }
 
-export async function startCloudBackupArchive(): Promise<{
+export async function startCloudBackupArchive(
+  target: CloudBackupTarget = 'bladevault',
+): Promise<{
   job: CloudBackupJobState
   started: boolean
 }> {
-  const nextConfig = await loadCloudRuntimeConfig()
-  if (!nextConfig.backupUrl) {
-    throw new Error('NEXT_PUBLIC_BLADEVAULT_BACKUP_URL is not configured.')
-  }
+  let body: { sessionToken: string } | { target: 'drive' }
+  if (target === 'drive') {
+    // The local server holds the Google Drive sign-in.
+    body = { target }
+  } else {
+    const nextConfig = await loadCloudRuntimeConfig()
+    if (!nextConfig.backupUrl) {
+      throw new Error('NEXT_PUBLIC_BLADEVAULT_BACKUP_URL is not configured.')
+    }
 
-  const sessionToken = getCloudAuthState()?.sessionToken
-  if (!sessionToken) throw new Error('Sign in before starting a cloud backup.')
+    const sessionToken = getCloudAuthState()?.sessionToken
+    if (!sessionToken)
+      throw new Error('Sign in before starting a cloud backup.')
+    body = { sessionToken }
+  }
 
   const response = await fetch('/api/cloud-backup/job', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sessionToken }),
+    body: JSON.stringify(body),
   })
 
   if (!response.ok) {
