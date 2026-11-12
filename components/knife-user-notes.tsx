@@ -525,6 +525,7 @@ export function KnifeUserNotes({ knifeId }: { knifeId: string }) {
             type="button"
             variant="ghost"
             size="sm"
+            data-notes-add
             className="-mr-2 text-[var(--bladevault-title)] dark:text-[var(--bladevault-gold)]"
             onClick={() => {
               setEditingId(null)
