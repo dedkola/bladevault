@@ -53,9 +53,7 @@ test('scrolls the document and follows the saved color theme', async ({
       ),
     )
     .toBeGreaterThan(0)
-  await page
-    .getByRole('button', { name: 'Save Folder' })
-    .scrollIntoViewIfNeeded()
+  await page.locator('.settings-row').last().scrollIntoViewIfNeeded()
   const menu = await page
     .getByRole('button', { name: 'Open navigation' })
     .boundingBox()

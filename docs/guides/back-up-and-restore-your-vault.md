@@ -48,7 +48,7 @@ If the restored vault has [App lock](../reference/data.md#optional-app-lock) ena
    ![The Account section with Continue With Google](../images/back-up-and-restore-cloud-panel.png)
 
 3. Complete sign-in in the popup. If the browser blocks the popup, allow it and try again.
-4. Check that your account appears and **Cloud connection** shows **Connected**.
+4. Check that your account appears under **Account** and shows **Connected**.
 
    ![The Status section showing the cloud connection](../images/back-up-and-restore-cloud-status.png)
 

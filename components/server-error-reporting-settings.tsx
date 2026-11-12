@@ -1,8 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Checkbox } from '@/components/ui/checkbox'
-import { SettingsRow, SettingsSection } from '@/components/settings-panels'
+import {
+  SettingsRow,
+  SettingsSection,
+  SettingsSwitch,
+} from '@/components/settings-panels'
 import {
   startBrowserErrorReporting,
   stopBrowserErrorReporting,
@@ -103,10 +106,10 @@ export function ServerErrorReportingSettings() {
             </>
           }
         >
-          <Checkbox
+          <SettingsSwitch
             checked={status.consent === 'granted'}
             disabled={pending}
-            onCheckedChange={(checked) => void handleToggle(checked === true)}
+            onCheckedChange={(checked) => void handleToggle(checked)}
             aria-label="Send error reports"
           />
         </SettingsRow>

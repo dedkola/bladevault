@@ -108,7 +108,7 @@ export function AppLockSettings() {
 
   return (
     <div className="settings-grid">
-      <SettingsSection title="App lock">
+      <SettingsSection>
         <SettingsRow label="Password required">
           <span className="text-sm text-muted-foreground">
             {status ? (status.enabled ? 'Enabled' : 'Disabled') : 'Loading…'}

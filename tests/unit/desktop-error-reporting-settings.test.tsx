@@ -46,7 +46,7 @@ it('starts unchecked and asks for a restart after opting in', async () => {
   })
   render(<DesktopErrorReportingSettings />)
 
-  const toggle = await screen.findByRole('checkbox', {
+  const toggle = await screen.findByRole('switch', {
     name: 'Send error reports',
   })
   expect(toggle).not.toBeChecked()
@@ -75,7 +75,7 @@ it('explains when the build has no error reporting', async () => {
   expect(
     await screen.findByText('Not available in this build.'),
   ).toBeInTheDocument()
-  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  expect(screen.queryByRole('switch')).not.toBeInTheDocument()
 })
 
 it('shows crash reports only and lets usage data be turned on', async () => {
@@ -87,11 +87,11 @@ it('shows crash reports only and lets usage data be turned on', async () => {
   })
   render(<DesktopErrorReportingSettings />)
 
-  const usage = await screen.findByRole('checkbox', {
+  const usage = await screen.findByRole('switch', {
     name: 'Send anonymous usage data',
   })
   expect(
-    screen.getByRole('checkbox', { name: 'Send error reports' }),
+    screen.getByRole('switch', { name: 'Send error reports' }),
   ).toBeChecked()
   expect(usage).not.toBeChecked()
 
@@ -99,7 +99,7 @@ it('shows crash reports only and lets usage data be turned on', async () => {
 
   expect(bridge.set).toHaveBeenCalledWith(true, true)
   expect(
-    await screen.findByRole('checkbox', { name: 'Send anonymous usage data' }),
+    await screen.findByRole('switch', { name: 'Send anonymous usage data' }),
   ).toBeChecked()
 })
 
@@ -112,8 +112,8 @@ it('hides the usage data option while error reports are off', async () => {
   })
   render(<DesktopErrorReportingSettings />)
 
-  await screen.findByRole('checkbox', { name: 'Send error reports' })
+  await screen.findByRole('switch', { name: 'Send error reports' })
   expect(
-    screen.queryByRole('checkbox', { name: 'Send anonymous usage data' }),
+    screen.queryByRole('switch', { name: 'Send anonymous usage data' }),
   ).not.toBeInTheDocument()
 })

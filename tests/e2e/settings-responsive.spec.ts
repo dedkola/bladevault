@@ -4,13 +4,13 @@ import { resetVault } from './helpers'
 /**
  * Settings layout across every screen size we care about.
  *
- * These guard the specific defects the redesign fixed:
- *   1. the page used to cap itself twice (max-w-7xl + mx-auto max-w-3xl), so on a
- *      large display the form used ~30% of the viewport with dead gutters;
- *   2. buttons rendered at h-7 while inputs/selects rendered at h-8, so a button
- *      sitting next to a field was visibly shorter;
- *   3. panels could overflow their container or clip controls inside their borders;
- *   4. card-field options could split into cramped columns based on viewport width.
+ * Each tab is one reading column of flat sections. These guard that:
+ *   1. nothing overflows the viewport or its section at any width;
+ *   2. buttons, inputs and selects share one height;
+ *   3. the column stays capped on large displays, so a control sits close to
+ *      the setting it changes;
+ *   4. the card-field preview sits beside its options only when the column is
+ *      wide enough.
  */
 
 const VIEWPORTS = [
@@ -33,14 +33,6 @@ const TABS = [
   'Custom fields',
   'AI / MCP',
   'About',
-] as const
-
-/** Tabs that render more than one panel, and so should tile on a wide screen. */
-const MULTI_PANEL_TABS = [
-  'Cloud backup',
-  'Backup & Restore',
-  'Appearance',
-  'AI / MCP',
 ] as const
 
 test.beforeEach(async ({ request }) => {
@@ -291,109 +283,64 @@ for (const viewport of VIEWPORTS) {
   })
 }
 
-test.describe('column behaviour', () => {
-  test('tiles multi-panel tabs on a 4K display', async ({ page }) => {
-    await page.setViewportSize({ width: 2560, height: 1440 })
-    await page.goto('/settings')
-
-    for (const tab of MULTI_PANEL_TABS) {
-      await openTab(page, tab)
-      expect(
-        await gridColumns(page),
-        `${tab} should tile at 2560`,
-      ).toBeGreaterThanOrEqual(2)
-    }
-
-    // Compact preferences sit beside the wider preview and field list.
-    await openTab(page, 'Appearance')
-    expect(await gridColumns(page)).toBe(2)
-    const { gridWidth, panelWidths } = await layoutMetrics(page)
-    // Appearance + Card fields tile; Pinned item fields spans both tracks.
-    expect(panelWidths).toHaveLength(3)
-    expect(panelWidths[0]).toBeLessThanOrEqual(352)
-    expect(panelWidths[1]).toBeGreaterThan(panelWidths[0])
-    expect(panelWidths[0] + panelWidths[1]).toBeGreaterThan(gridWidth - 24)
-    expect(panelWidths[2]).toBeGreaterThan(panelWidths[1])
-    expect(panelWidths[2]).toBeGreaterThanOrEqual(gridWidth - 24)
-  })
-
-  test('keeps Cloud backup in two compact columns without empty restore feedback', async ({
-    page,
-  }) => {
-    for (const width of [1920, 2560]) {
+test.describe('reading column', () => {
+  test('keeps every tab in one column at every width', async ({ page }) => {
+    for (const width of [390, 1440, 2560]) {
       await page.setViewportSize({ width, height: 1080 })
       await page.goto('/settings')
-      await openTab(page, 'Cloud backup')
 
-      expect(await gridColumns(page)).toBe(2)
-      const { gridWidth, panelWidths } = await layoutMetrics(page)
-      expect(gridWidth).toBeLessThanOrEqual(1280)
-      expect(panelWidths).toHaveLength(2)
-      // Account, Status, Google Drive, Backup and Restore.
-      await expect(
-        page.locator('.settings-cloud .settings-section'),
-      ).toHaveCount(5)
-      expect(
-        Math.max(...panelWidths) - Math.min(...panelWidths),
-      ).toBeLessThanOrEqual(1)
-
-      const restore = page.locator('.settings-cloud .settings-section').filter({
-        has: page.getByRole('button', { name: 'Restore', exact: true }),
-      })
-      const idleRestore = await restore.evaluate((panel) => {
-        const body = panel.lastElementChild as HTMLElement
-        const row = body.querySelector('.settings-row') as HTMLElement
-        return {
-          rowIsLast: body.lastElementChild === row,
-          spaceAfterRow:
-            body.getBoundingClientRect().bottom -
-            row.getBoundingClientRect().bottom,
-        }
-      })
-      expect(idleRestore.rowIsLast).toBe(true)
-      expect(Math.abs(idleRestore.spaceAfterRow)).toBeLessThanOrEqual(1)
+      for (const tab of TABS) {
+        await openTab(page, tab)
+        expect(
+          await gridColumns(page),
+          `${tab} should be one column at ${width}`,
+        ).toBe(1)
+      }
     }
   })
 
-  test('collapses to a single column on a phone', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 })
+  test('caps the column on a large display', async ({ page }) => {
+    await page.setViewportSize({ width: 2560, height: 1440 })
     await page.goto('/settings')
 
     for (const tab of TABS) {
       await openTab(page, tab)
-      expect(
-        await gridColumns(page),
-        `${tab} should be one column at 390`,
-      ).toBe(1)
+      const { gridWidth, panelWidths } = await layoutMetrics(page)
+      expect(gridWidth, `${tab} column should stay readable`).toBe(720)
+      for (const panelWidth of panelWidths) {
+        expect(
+          Math.abs(panelWidth - gridWidth),
+          `${tab}: sections fill the column`,
+        ).toBeLessThanOrEqual(1)
+      }
     }
   })
 
-  test('does not stretch a single-panel tab across the whole display', async ({
+  test('shows Cloud backup sections without empty restore feedback', async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 2560, height: 1440 })
+    await page.setViewportSize({ width: 1920, height: 1080 })
     await page.goto('/settings')
+    await openTab(page, 'Cloud backup')
 
-    // Local storage / App lock / Custom fields / About each render one panel.
-    for (const tab of ['Local storage', 'App lock', 'Custom fields', 'About']) {
-      await openTab(page, tab)
-      const { panelWidths } = await layoutMetrics(page)
-      expect(panelWidths.length, `${tab} should render one panel`).toBe(1)
-      // capped rather than stretched into a 2000px card with an empty right half
-      expect(
-        panelWidths[0],
-        `${tab} panel should stay readable`,
-      ).toBeLessThanOrEqual(1152)
-    }
-  })
+    const sections = page.locator('.settings-grid .settings-section')
+    // Account, Backup, Restore and Google Drive.
+    await expect(sections).toHaveCount(4)
 
-  test('uses the width it is given on a large display', async ({ page }) => {
-    await page.setViewportSize({ width: 2560, height: 1440 })
-    await page.goto('/settings')
-    await openTab(page, 'Appearance')
-
-    const { gridWidth } = await layoutMetrics(page)
-    // the old layout capped the content column at 768px; make sure that is gone
-    expect(gridWidth).toBeGreaterThan(1200)
+    const restore = sections.filter({
+      has: page.getByRole('button', { name: 'Restore', exact: true }),
+    })
+    const idleRestore = await restore.evaluate((panel) => {
+      const body = panel.lastElementChild as HTMLElement
+      const row = body.querySelector('.settings-row') as HTMLElement
+      return {
+        rowIsLast: body.lastElementChild === row,
+        spaceAfterRow:
+          body.getBoundingClientRect().bottom -
+          row.getBoundingClientRect().bottom,
+      }
+    })
+    expect(idleRestore.rowIsLast).toBe(true)
+    expect(Math.abs(idleRestore.spaceAfterRow)).toBeLessThanOrEqual(1)
   })
 })
