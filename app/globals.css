@@ -2482,6 +2482,11 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   align-items: center;
   gap: 5px;
 }
+/* Without the search field, keep the actions pinned to the right edge. */
+[data-workspace-header]:not(:has([data-workspace-search]))
+  [data-workspace-actions] {
+  margin-left: auto;
+}
 [data-workspace-actions] > :is(a, button),
 #studio-header-actions > button {
   display: inline-flex;

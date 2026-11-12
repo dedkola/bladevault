@@ -41,6 +41,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
     )
   }
+  // Studio and Collection render their own search fields.
+  const showWorkspaceSearch =
+    pathname !== '/studio' && pathname !== '/collection'
   const crumb = pathname.startsWith('/compare')
     ? ['Compare', 'Saved comparisons']
     : pathname.startsWith('/logs')
@@ -100,9 +103,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span aria-hidden="true">/</span>
           <b>{crumb[1]}</b>
         </nav>
-        <div data-workspace-search>
-          <GlobalKnifeSearch embedded />
-        </div>
+        {showWorkspaceSearch && (
+          <div data-workspace-search>
+            <GlobalKnifeSearch embedded />
+          </div>
+        )}
         <div data-workspace-actions>
           {pathname === '/studio' && (
             <span id="studio-header-actions" ref={setHeaderActions} />
