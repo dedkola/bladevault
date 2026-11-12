@@ -3,17 +3,13 @@ import { constants, createReadStream, createWriteStream } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { PassThrough } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { createGzip } from 'node:zlib'
 import Database from 'better-sqlite3'
 import * as tar from 'tar'
-import { getConfiguredCloudBackupUrl } from '@/lib/cloud-backup-server'
-import { DEFAULT_CLOUD_AUTH_URL, normalizeCloudUrl } from '@/lib/cloud-backup'
 import {
   IDLE_CLOUD_BACKUP_JOB,
   type CloudBackupJobState,
-  type CloudBackupTarget,
 } from '@/lib/cloud-backup-shared'
 import { uploadDriveBackup } from '@/lib/drive-backup'
 import { getLocalDataDirPath, getLocalDb } from '@/lib/local-db'
@@ -31,13 +27,6 @@ function getJobs(): JobRegistry {
     [JOBS_SYMBOL]?: JobRegistry
   }
   return (runtime[JOBS_SYMBOL] ??= new Map())
-}
-
-function getSavedSyncTime(database: Database.Database): string | null {
-  const row = database
-    .prepare('SELECT value FROM settings WHERE key = ?')
-    .get('cloud_backup_last_synced_at') as { value?: string } | undefined
-  return row?.value || null
 }
 
 function shouldIgnoreEntry(name: string) {
@@ -229,82 +218,15 @@ async function validateSnapshotImages(
   }
 }
 
-async function refreshJobAccessToken(sessionToken: string): Promise<string> {
-  const authUrl = normalizeCloudUrl(
-    process.env.NEXT_PUBLIC_BLADEVAULT_AUTH_URL?.trim() ||
-      DEFAULT_CLOUD_AUTH_URL,
-  )
-  const response = await fetch(new URL('/api/auth/token', authUrl), {
-    headers: { Authorization: `Bearer ${sessionToken}` },
-    cache: 'no-store',
-    redirect: 'error',
-    signal: AbortSignal.timeout(60_000),
-  })
-  if (!response.ok) {
-    await response.body?.cancel()
-    throw new Error(`Cloud backup sign-in failed (${response.status}).`)
-  }
-  const result = (await response.json()) as { token?: unknown }
-  if (typeof result.token !== 'string' || !result.token.trim()) {
-    throw new Error('Auth server did not return a backup token.')
-  }
-  return result.token
-}
-
-async function uploadArchive(archivePath: string, accessToken: string) {
-  const { size } = await fs.stat(archivePath)
-  const signal = AbortSignal.timeout(24 * 60 * 60 * 1000)
-  const source = createReadStream(archivePath, { highWaterMark: 64 * 1024 })
-  const body = new PassThrough({ highWaterMark: 64 * 1024 })
-  const transfer = pipeline(source, body, { signal })
-  // Attach a handler immediately: the disk stream can fail before fetch settles.
-  void transfer.catch(() => {})
-
-  try {
-    const response = await fetch(
-      new URL('/backup/latest', getConfiguredCloudBackupUrl()),
-      {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/gzip',
-          'Content-Length': String(size),
-          'X-Backup-Filename': 'bladevault-data.tar.gz',
-        },
-        body: body as unknown as BodyInit,
-        duplex: 'half',
-        redirect: 'error',
-        signal,
-      } as RequestInit & { duplex: 'half' },
-    )
-    // Do not surface an external response body: it may contain account details
-    // or echoed credentials. The HTTP status is sufficient for retry feedback.
-    if (!response.ok) {
-      await response.body?.cancel()
-      throw new Error(`Backup upload failed (${response.status}).`)
-    }
-    await response.body?.cancel()
-    await transfer
-  } finally {
-    source.destroy()
-    body.destroy()
-    await transfer.catch(() => {})
-  }
-}
-
 async function runCloudBackupJob(
   job: CloudBackupJobState,
   dataDir: string,
   database: Database.Database,
-  sessionToken: string,
-  target: CloudBackupTarget,
 ) {
   let tempRoot: string | null = null
-  let accessToken: string | null = null
-  let result: Pick<CloudBackupJobState, 'status' | 'syncedAt' | 'message'> = {
+  let result: Pick<CloudBackupJobState, 'status' | 'message'> = {
     status: 'error',
-    syncedAt: job.syncedAt,
-    message: 'Cloud backup failed.',
+    message: 'Google Drive backup failed.',
   }
   try {
     tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'bladevault-cloud-job-'))
@@ -315,43 +237,12 @@ async function runCloudBackupJob(
         'Local data changed during backup. Back up this vault again.',
       )
     }
-    if (target === 'drive') {
-      // Google Drive reports its own backup time, so the BladeVault cloud
-      // sync time is left untouched.
-      job.phase = 'uploading'
-      await uploadDriveBackup(archivePath, dataDir)
-      result = { status: 'success', syncedAt: job.syncedAt, message: null }
-    } else {
-      // Preparing a large vault can take longer than an access token's lifetime.
-      // Refresh only now, immediately before the cloud accepts the upload.
-      accessToken = await refreshJobAccessToken(sessionToken)
-      if (!database.open || getLocalDataDirPath() !== dataDir) {
-        throw new Error(
-          'Local data changed during backup. Back up this vault again.',
-        )
-      }
-      job.phase = 'uploading'
-      await uploadArchive(archivePath, accessToken)
-
-      if (!database.open || getLocalDataDirPath() !== dataDir) {
-        throw new Error(
-          'Local data changed during backup. Back up this vault again.',
-        )
-      }
-      const syncedAt = new Date().toISOString()
-      database
-        .prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
-        .run('cloud_backup_last_synced_at', syncedAt)
-      result = { status: 'success', syncedAt, message: null }
-    }
+    job.phase = 'uploading'
+    await uploadDriveBackup(archivePath, dataDir)
+    result = { status: 'success', message: null }
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Cloud backup failed.'
-    result.message = message
-    for (const secret of [sessionToken, accessToken]) {
-      if (secret)
-        result.message = result.message.split(secret).join('[redacted]')
-    }
+    result.message =
+      error instanceof Error ? error.message : 'Google Drive backup failed.'
   } finally {
     if (tempRoot) {
       try {
@@ -359,7 +250,6 @@ async function runCloudBackupJob(
       } catch {
         result = {
           status: 'error',
-          syncedAt: job.syncedAt,
           message: 'Could not remove temporary backup files.',
         }
       }
@@ -371,15 +261,10 @@ async function runCloudBackupJob(
 
 export function getCloudBackupJobState(): CloudBackupJobState {
   const job = getJobs().get(getLocalDataDirPath())
-  return job
-    ? { ...job }
-    : { ...IDLE_CLOUD_BACKUP_JOB, syncedAt: getSavedSyncTime(getLocalDb()) }
+  return job ? { ...job } : { ...IDLE_CLOUD_BACKUP_JOB }
 }
 
-export function startCloudBackupJob(
-  sessionToken: string,
-  target: CloudBackupTarget = 'bladevault',
-): CloudBackupJobState {
+export function startCloudBackupJob(): CloudBackupJobState {
   const dataDir = getLocalDataDirPath()
   const jobs = getJobs()
   const current = jobs.get(dataDir)
@@ -396,23 +281,15 @@ export function startCloudBackupJob(
   }
   const job: CloudBackupJobState = {
     id: randomUUID(),
-    ...(target === 'drive' ? { target } : {}),
     status: 'running',
     phase: 'preparing',
-    syncedAt: getSavedSyncTime(database),
     message: null,
   }
   jobs.set(dataDir, job)
   // The local Node process owns this work. Neither the POST request's signal nor
   // the lifetime of the Settings page is used by the backup job.
   setImmediate(() => {
-    void runCloudBackupJob(
-      job,
-      dataDir,
-      database,
-      sessionToken,
-      target,
-    ).finally(release)
+    void runCloudBackupJob(job, dataDir, database).finally(release)
   })
   return { ...job }
 }

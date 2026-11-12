@@ -30,36 +30,17 @@ export async function POST(request: Request) {
   const generation =
     request.headers.get(VAULT_GENERATION_HEADER) ??
     getVaultAccessState().generation
-  let body: { sessionToken?: unknown; target?: unknown }
-  try {
-    body = await request.json()
-  } catch {
-    return Response.json({ error: 'Invalid JSON body.' }, { status: 400 })
-  }
-  const target = body?.target === 'drive' ? 'drive' : 'bladevault'
-  const sessionToken =
-    target === 'bladevault' && typeof body?.sessionToken === 'string'
-      ? body.sessionToken.trim()
-      : ''
-  if (target === 'drive') {
-    if (!(await isDriveConnected()))
-      return Response.json(
-        { error: 'Connect Google Drive before restoring a backup.' },
-        { status: 400 },
-      )
-  } else if (!sessionToken || sessionToken.length > 16_384)
+  // Restores come from the user's Google Drive, the only cloud source.
+  if (!(await isDriveConnected()))
     return Response.json(
-      { error: 'sessionToken is required.' },
+      { error: 'Connect Google Drive before restoring a backup.' },
       { status: 400 },
     )
   try {
-    return Response.json(
-      startCloudRestoreJob(sessionToken, generation, target),
-      {
-        status: 202,
-        headers: { 'Cache-Control': 'no-store' },
-      },
-    )
+    return Response.json(startCloudRestoreJob(generation), {
+      status: 202,
+      headers: { 'Cache-Control': 'no-store' },
+    })
   } catch (error) {
     const busy = vaultAccessErrorResponse(error)
     if (busy) return busy

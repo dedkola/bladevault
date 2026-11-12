@@ -87,7 +87,7 @@ Both actions use the specifications currently shown in the matrix, including the
 
 ## Backups and upgrades
 
-Saved comparisons are included in full-vault backups and [cloud backups](../reference/cloud-backup.md). Changing a comparison list does not trigger an automatic cloud backup by itself; make a manual backup after important list changes. When upgrading from a version before v1.2.0, the old comparison selection becomes **My comparison**.
+Saved comparisons are included in full-vault backups and [cloud backups](../reference/cloud-backup.md). Changing a comparison list does not trigger an automatic backup by itself; make a manual backup after important list changes. When upgrading from a version before v1.2.0, the old comparison selection becomes **My comparison**.
 
 ## Related
 

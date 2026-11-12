@@ -22,7 +22,7 @@ import {
   KnifeUpdates,
 } from '@/lib/data'
 import type { BulkEditFieldKey } from '@/lib/bulk-edit'
-import { CLOUD_AUTH_STATE_EVENT, getCloudAuthState } from '@/lib/cloud-backup'
+import { clearLegacyCloudAuthState } from '@/lib/cloud-backup'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
 import {
   type CollectionDisplay,
@@ -43,15 +43,18 @@ import {
   type DimensionUnit,
 } from '@/lib/settings-shared'
 import {
-  canAttemptSilentCloudBackup,
   getCloudBackupJob,
   startCloudBackupArchive,
 } from '@/lib/cloud-backup-client'
 import {
   IDLE_CLOUD_BACKUP_JOB,
   type CloudBackupJobState,
-  type CloudBackupTarget,
 } from '@/lib/cloud-backup-shared'
+import { getDriveConnected } from '@/lib/drive-backup-client'
+import {
+  DRIVE_CONNECTION_EVENT,
+  type DriveConnectionEventDetail,
+} from '@/lib/drive-backup-shared'
 import {
   getVaultClientState,
   INITIAL_VAULT_CLIENT_STATE,
@@ -79,8 +82,6 @@ type KnivesContextValue = {
   addManyToCompare: (ids: string[]) => Promise<void>
   removeFromCompare: (id: string) => Promise<void>
   clearCompare: () => Promise<void>
-  isCloudSyncEnabled: boolean
-  isAutoBackupEnabled: boolean
   isAutoBackupActive: boolean
   pinnedItemsFirst: boolean
   themeStyle: ThemeStyle
@@ -92,7 +93,7 @@ type KnivesContextValue = {
   showFeedback: (message: string, tone?: FeedbackTone) => void
   scheduleVaultBackup: () => void
   cloudBackupJob: CloudBackupJobState
-  startVaultBackup: (target?: CloudBackupTarget) => Promise<void>
+  startVaultBackup: () => Promise<void>
 }
 
 type FeedbackTone = 'success' | 'error'
@@ -132,12 +133,11 @@ export function KnivesProvider({
     message: string
     tone: FeedbackTone
   } | null>(null)
-  const [isCloudSyncEnabled, setIsCloudSyncEnabled] = useState(() =>
-    Boolean(getCloudAuthState()?.sessionToken),
+  const [isDriveConnected, setIsDriveConnected] = useState(false)
+  const [isDriveAutoBackupEnabled, setIsDriveAutoBackupEnabled] = useState(
+    DEFAULT_SETTINGS.driveAutoBackupEnabled,
   )
-  const [isAutoBackupEnabled, setIsAutoBackupEnabled] = useState(
-    DEFAULT_SETTINGS.cloudAutoBackupEnabled,
-  )
+  const isAutoBackupConfigured = isDriveConnected && isDriveAutoBackupEnabled
   const [pinnedItemsFirst, setPinnedItemsFirst] = useState(
     DEFAULT_SETTINGS.pinnedItemsFirst,
   )
@@ -169,6 +169,7 @@ export function KnivesProvider({
   const scheduledBackupIdleRef = useRef<number | null>(null)
   const autoBackupAllowedRef = useRef(false)
   const scheduleAutoBackupRef = useRef<() => void>(() => {})
+  const refreshDriveConnectionRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     let cancelled = false
@@ -182,7 +183,7 @@ export function KnivesProvider({
             collectionDisplay?: CollectionDisplay
             theme?: AppTheme
             themeStyle?: ThemeStyle
-            cloudAutoBackupEnabled?: boolean
+            driveAutoBackupEnabled?: boolean
             pinnedItemsFirst?: boolean
             timeFormat?: TimeFormat
             dimensionUnit?: DimensionUnit
@@ -208,7 +209,9 @@ export function KnivesProvider({
           )
           collectionDisplayRef.current = display
           setCollectionDisplay(display)
-          setIsAutoBackupEnabled(Boolean(data.settings?.cloudAutoBackupEnabled))
+          setIsDriveAutoBackupEnabled(
+            Boolean(data.settings?.driveAutoBackupEnabled),
+          )
           setPinnedItemsFirst(Boolean(data.settings?.pinnedItemsFirst))
           setTimeFormat(normalizeTimeFormat(data.settings?.timeFormat))
           setDimensionUnit(normalizeDimensionUnit(data.settings?.dimensionUnit))
@@ -227,7 +230,7 @@ export function KnivesProvider({
         }
       } catch {
         if (!cancelled) {
-          setIsAutoBackupEnabled(DEFAULT_SETTINGS.cloudAutoBackupEnabled)
+          setIsDriveAutoBackupEnabled(DEFAULT_SETTINGS.driveAutoBackupEnabled)
           setPinnedItemsFirst(DEFAULT_SETTINGS.pinnedItemsFirst)
           setTimeFormat(DEFAULT_SETTINGS.timeFormat)
           setDimensionUnit(DEFAULT_SETTINGS.dimensionUnit)
@@ -243,7 +246,7 @@ export function KnivesProvider({
         event as CustomEvent<{
           theme?: AppTheme
           themeStyle?: ThemeStyle
-          cloudAutoBackupEnabled?: boolean
+          driveAutoBackupEnabled?: boolean
           pinnedItemsFirst?: boolean
           timeFormat?: TimeFormat
           dimensionUnit?: DimensionUnit
@@ -266,8 +269,8 @@ export function KnivesProvider({
         didUpdate = true
       }
 
-      if (typeof detail?.cloudAutoBackupEnabled === 'boolean') {
-        setIsAutoBackupEnabled(detail.cloudAutoBackupEnabled)
+      if (typeof detail?.driveAutoBackupEnabled === 'boolean') {
+        setIsDriveAutoBackupEnabled(detail.driveAutoBackupEnabled)
         didUpdate = true
       }
 
@@ -325,17 +328,40 @@ export function KnivesProvider({
   }, [])
 
   useEffect(() => {
-    const syncCloudAuthState = () => {
-      setIsCloudSyncEnabled(Boolean(getCloudAuthState()?.sessionToken))
+    clearLegacyCloudAuthState()
+  }, [])
+
+  // The Google Drive sign-in lives on the local server. Settings announces
+  // connects and disconnects; a failed Drive backup re-reads the connection
+  // because Google may have revoked access.
+  useEffect(() => {
+    let cancelled = false
+    let requestVersion = 0
+    const refreshDriveConnection = () => {
+      const version = ++requestVersion
+      getDriveConnected()
+        .then((connected) => {
+          if (!cancelled && version === requestVersion)
+            setIsDriveConnected(connected)
+        })
+        .catch(() => {
+          // Keep the last known connection; the next check retries.
+        })
+    }
+    const onDriveConnection = (event: Event) => {
+      const detail = (event as CustomEvent<DriveConnectionEventDetail>).detail
+      if (typeof detail?.connected !== 'boolean') return
+      requestVersion += 1
+      setIsDriveConnected(detail.connected)
     }
 
-    syncCloudAuthState()
-    window.addEventListener(CLOUD_AUTH_STATE_EVENT, syncCloudAuthState)
-    window.addEventListener('storage', syncCloudAuthState)
-
+    refreshDriveConnectionRef.current = refreshDriveConnection
+    refreshDriveConnection()
+    window.addEventListener(DRIVE_CONNECTION_EVENT, onDriveConnection)
     return () => {
-      window.removeEventListener(CLOUD_AUTH_STATE_EVENT, syncCloudAuthState)
-      window.removeEventListener('storage', syncCloudAuthState)
+      cancelled = true
+      refreshDriveConnectionRef.current = () => {}
+      window.removeEventListener(DRIVE_CONNECTION_EVENT, onDriveConnection)
     }
   }, [])
 
@@ -373,10 +399,8 @@ export function KnivesProvider({
     startTransition(() => {
       setCloudBackupJob((current) =>
         current.id === job.id &&
-        current.target === job.target &&
         current.status === job.status &&
         current.phase === job.phase &&
-        current.syncedAt === job.syncedAt &&
         current.message === job.message
           ? current
           : job,
@@ -384,6 +408,9 @@ export function KnivesProvider({
     })
 
     if (previous.status === 'running' && job.status !== 'running') {
+      if (job.status === 'error') {
+        refreshDriveConnectionRef.current()
+      }
       if (
         pendingBackupRef.current &&
         autoBackupAllowedRef.current &&
@@ -395,51 +422,44 @@ export function KnivesProvider({
     }
   }, [])
 
-  const startVaultBackup = useCallback(
-    async (target: CloudBackupTarget = 'bladevault') => {
-      if (getVaultClientState().readOnly) return
-      if (backupInFlightRef.current || backupRequestRef.current) return
+  const startVaultBackup = useCallback(async () => {
+    if (getVaultClientState().readOnly) return
+    if (backupInFlightRef.current || backupRequestRef.current) return
 
-      clearScheduledBackup()
-      pendingBackupRef.current = false
-      backupRequestRef.current = true
-      backupRequestVersionRef.current += 1
+    clearScheduledBackup()
+    pendingBackupRef.current = false
+    backupRequestRef.current = true
+    backupRequestVersionRef.current += 1
+    applyBackupJob({
+      ...IDLE_CLOUD_BACKUP_JOB,
+      status: 'running',
+      phase: 'preparing',
+    })
+
+    try {
+      const { job, started } = await startCloudBackupArchive()
+      // Another window may already be archiving an older snapshot. Preserve a
+      // follow-up so the edits that prompted this request are also backed up.
+      if (!started && autoBackupAllowedRef.current) {
+        pendingBackupRef.current = true
+      }
+      applyBackupJob(job)
+    } catch (error) {
       applyBackupJob({
         ...IDLE_CLOUD_BACKUP_JOB,
-        ...(target === 'drive' ? { target } : {}),
-        status: 'running',
-        phase: 'preparing',
-        syncedAt: cloudBackupJobRef.current.syncedAt,
+        status: 'error',
+        message:
+          error instanceof Error ? error.message : 'Could not start backup.',
       })
-
-      try {
-        const { job, started } = await startCloudBackupArchive(target)
-        // Another window may already be archiving an older snapshot. Preserve a
-        // follow-up so the edits that prompted this request are also backed up.
-        if (!started && autoBackupAllowedRef.current) {
-          pendingBackupRef.current = true
-        }
-        applyBackupJob(job)
-      } catch (error) {
-        applyBackupJob({
-          ...IDLE_CLOUD_BACKUP_JOB,
-          ...(target === 'drive' ? { target } : {}),
-          status: 'error',
-          syncedAt: cloudBackupJobRef.current.syncedAt,
-          message:
-            error instanceof Error ? error.message : 'Could not start backup.',
-        })
-      } finally {
-        backupRequestRef.current = false
-      }
-    },
-    [applyBackupJob, clearScheduledBackup],
-  )
+    } finally {
+      backupRequestRef.current = false
+    }
+  }, [applyBackupJob, clearScheduledBackup])
 
   const runAutoBackup = useCallback(() => {
     if (getVaultClientState().readOnly) return
     if (!autoBackupAllowedRef.current) return
-    if (!canAttemptSilentCloudBackup()) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
       pendingBackupRef.current = true
       return
     }
@@ -478,17 +498,11 @@ export function KnivesProvider({
   }, [scheduleAutoBackup])
 
   useEffect(() => {
-    autoBackupAllowedRef.current =
-      isCloudSyncEnabled && isAutoBackupEnabled && !isVaultReadOnly
+    autoBackupAllowedRef.current = isAutoBackupConfigured && !isVaultReadOnly
     if (autoBackupAllowedRef.current) return
     clearScheduledBackup()
     pendingBackupRef.current = false
-  }, [
-    clearScheduledBackup,
-    isAutoBackupEnabled,
-    isCloudSyncEnabled,
-    isVaultReadOnly,
-  ])
+  }, [clearScheduledBackup, isAutoBackupConfigured, isVaultReadOnly])
 
   useEffect(() => clearScheduledBackup, [clearScheduledBackup])
 
@@ -503,7 +517,7 @@ export function KnivesProvider({
   }, [])
 
   useEffect(() => {
-    if (!isCloudSyncEnabled && cloudBackupJob.status !== 'running') return
+    if (!isDriveConnected && cloudBackupJob.status !== 'running') return
     let cancelled = false
     let timer: number | undefined
 
@@ -534,13 +548,13 @@ export function KnivesProvider({
       window.clearTimeout(timer)
       window.removeEventListener('focus', onFocus)
     }
-  }, [applyBackupJob, cloudBackupJob.status, isCloudSyncEnabled])
+  }, [applyBackupJob, cloudBackupJob.status, isDriveConnected])
 
   const scheduleVaultBackup = useCallback(() => {
-    if (isCloudSyncEnabled && isAutoBackupEnabled) {
+    if (isAutoBackupConfigured) {
       scheduleAutoBackup()
     }
-  }, [isAutoBackupEnabled, isCloudSyncEnabled, scheduleAutoBackup])
+  }, [isAutoBackupConfigured, scheduleAutoBackup])
 
   useEffect(() => {
     let cancelled = false
@@ -649,12 +663,12 @@ export function KnivesProvider({
       const data = await response.json()
       const knife = data.knife as Knife
       setKnives((prev) => [knife, ...prev])
-      if (isCloudSyncEnabled && isAutoBackupEnabled) {
+      if (isAutoBackupConfigured) {
         scheduleAutoBackup()
       }
       return knife
     },
-    [isAutoBackupEnabled, isCloudSyncEnabled, scheduleAutoBackup],
+    [isAutoBackupConfigured, scheduleAutoBackup],
   )
 
   const updateKnife = useCallback(
@@ -676,12 +690,12 @@ export function KnivesProvider({
       const hasBackupWorthyUpdate = Object.keys(updates).some(
         (field) => field !== 'pinned',
       )
-      if (hasBackupWorthyUpdate && isCloudSyncEnabled && isAutoBackupEnabled) {
+      if (hasBackupWorthyUpdate && isAutoBackupConfigured) {
         scheduleAutoBackup()
       }
       return knife
     },
-    [isAutoBackupEnabled, isCloudSyncEnabled, scheduleAutoBackup],
+    [isAutoBackupConfigured, scheduleAutoBackup],
   )
 
   const bulkUpdateKnives = useCallback(
@@ -710,12 +724,12 @@ export function KnivesProvider({
       setKnives((prev) =>
         prev.map((knife) => updatedById.get(knife.id) ?? knife),
       )
-      if (isCloudSyncEnabled && isAutoBackupEnabled) {
+      if (isAutoBackupConfigured) {
         scheduleAutoBackup()
       }
       return updatedKnives
     },
-    [isAutoBackupEnabled, isCloudSyncEnabled, scheduleAutoBackup],
+    [isAutoBackupConfigured, scheduleAutoBackup],
   )
 
   const bulkPinKnives = useCallback(
@@ -756,11 +770,11 @@ export function KnivesProvider({
       window.dispatchEvent(new Event(COMPARISONS_REFRESH_EVENT))
       setKnives((prev) => prev.filter((k) => k.id !== id))
       setCompareIds((prev) => prev.filter((cid) => cid !== id))
-      if (isCloudSyncEnabled && isAutoBackupEnabled) {
+      if (isAutoBackupConfigured) {
         scheduleAutoBackup()
       }
     },
-    [isAutoBackupEnabled, isCloudSyncEnabled, scheduleAutoBackup],
+    [isAutoBackupConfigured, scheduleAutoBackup],
   )
 
   // Legacy comparison calls remain local and intentionally never trigger backup.
@@ -886,10 +900,7 @@ export function KnivesProvider({
       addManyToCompare,
       removeFromCompare,
       clearCompare,
-      isCloudSyncEnabled,
-      isAutoBackupEnabled,
-      isAutoBackupActive:
-        isCloudSyncEnabled && isAutoBackupEnabled && !isVaultReadOnly,
+      isAutoBackupActive: isAutoBackupConfigured && !isVaultReadOnly,
       pinnedItemsFirst,
       themeStyle,
       timeFormat,
@@ -918,8 +929,7 @@ export function KnivesProvider({
       addManyToCompare,
       removeFromCompare,
       clearCompare,
-      isCloudSyncEnabled,
-      isAutoBackupEnabled,
+      isAutoBackupConfigured,
       isVaultReadOnly,
       pinnedItemsFirst,
       themeStyle,

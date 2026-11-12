@@ -3,12 +3,7 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DEFAULT_CLOUD_AUTH_URL, normalizeCloudUrl } from '@/lib/cloud-backup'
-import {
-  downloadCloudRestoreArchive,
-  prepareCloudRestoreArchive,
-} from '@/lib/cloud-restore-archive'
-import type { CloudBackupTarget } from '@/lib/cloud-backup-shared'
+import { prepareCloudRestoreArchive } from '@/lib/cloud-restore-archive'
 import {
   IDLE_CLOUD_RESTORE_JOB,
   type CloudRestoreJobState,
@@ -93,48 +88,19 @@ export function getCloudRestoreJobState(): CloudRestoreJobState {
   }
 }
 
-async function refreshRestoreToken(sessionToken: string): Promise<string> {
-  const authUrl = normalizeCloudUrl(
-    process.env.NEXT_PUBLIC_BLADEVAULT_AUTH_URL?.trim() ||
-      DEFAULT_CLOUD_AUTH_URL,
-  )
-  const response = await fetch(new URL('/api/auth/token', authUrl), {
-    headers: { Authorization: `Bearer ${sessionToken}` },
-    cache: 'no-store',
-    redirect: 'error',
-    signal: AbortSignal.timeout(60_000),
-  })
-  if (!response.ok) {
-    await response.body?.cancel()
-    throw new Error(`Cloud restore sign-in failed (${response.status}).`)
-  }
-  const data = (await response.json()) as { token?: unknown }
-  if (typeof data.token !== 'string' || !data.token.trim())
-    throw new Error('Auth server did not return a restore token.')
-  return data.token
-}
-
 async function runJob(
   job: CloudRestoreJobState,
   dataDir: string,
-  sessionToken: string,
   lease: VaultRestoreLease,
-  target: CloudBackupTarget,
 ) {
   let tempRoot: string | null = null
-  let accessToken: string | null = null
   try {
     await lease.waitForWriters()
     tempRoot = await fsp.mkdtemp(
       path.join(os.tmpdir(), 'bladevault-cloud-restore-'),
     )
     const archivePath = path.join(tempRoot, 'backup.tar.gz')
-    if (target === 'drive') {
-      await downloadDriveBackup(archivePath, dataDir)
-    } else {
-      accessToken = await refreshRestoreToken(sessionToken)
-      await downloadCloudRestoreArchive(accessToken, archivePath)
-    }
+    await downloadDriveBackup(archivePath, dataDir)
     job.phase = 'validating'
     saveJob(job, dataDir)
     const sourceDir = await prepareCloudRestoreArchive(
@@ -158,10 +124,8 @@ async function runJob(
       message: null,
     })
   } catch (error) {
-    let message =
-      error instanceof Error ? error.message : 'Cloud restore failed.'
-    for (const token of [sessionToken, accessToken])
-      if (token) message = message.split(token).join('[redacted]')
+    const message =
+      error instanceof Error ? error.message : 'Google Drive restore failed.'
     Object.assign(job, { status: 'error', phase: null, message })
   } finally {
     lease.release()
@@ -175,11 +139,7 @@ async function runJob(
   }
 }
 
-export function startCloudRestoreJob(
-  sessionToken: string,
-  expectedGeneration?: string,
-  target: CloudBackupTarget = 'bladevault',
-): {
+export function startCloudRestoreJob(expectedGeneration?: string): {
   job: CloudRestoreJobState
   started: boolean
 } {
@@ -201,7 +161,6 @@ export function startCloudRestoreJob(
   const job: CloudRestoreJobState = {
     ...IDLE_CLOUD_RESTORE_JOB,
     id: randomUUID(),
-    ...(target === 'drive' ? { target } : {}),
     status: 'running',
     phase: 'downloading',
   }
@@ -216,7 +175,7 @@ export function startCloudRestoreJob(
   // The Node process owns the job. The initiating request and Settings component
   // can disappear without stopping an accepted restore.
   setImmediate(() => {
-    void runJob(job, dataDir, sessionToken, lease, target)
+    void runJob(job, dataDir, lease)
       .finally(releaseOperation)
       .catch(() => {})
   })

@@ -1,13 +1,10 @@
 import Database from 'better-sqlite3'
-import { createReadStream, createWriteStream } from 'node:fs'
+import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import * as tar from 'tar'
-import { getConfiguredCloudBackupUrl } from '@/lib/cloud-backup-server'
 import { validateLocalDatabase } from '@/lib/local-data-restore'
-import { RestoreSizeLimitStream } from '@/lib/restore-size-limit-stream'
 
 const MAX_ARCHIVE_BYTES = 20 * 1024 * 1024 * 1024
 const MAX_EXTRACTED_BYTES = 50 * 1024 * 1024 * 1024
@@ -30,44 +27,6 @@ function safeEntry(entryPath: string, topDir: string) {
     !/^[a-z]:\//i.test(portablePath) &&
     segments[0] === topDir &&
     segments.every((segment) => segment && segment !== '.' && segment !== '..')
-  )
-}
-
-export async function downloadCloudRestoreArchive(
-  accessToken: string,
-  archivePath: string,
-  downloadUrl = new URL(
-    '/backup/latest',
-    getConfiguredCloudBackupUrl(),
-  ).toString(),
-) {
-  const signal = AbortSignal.timeout(12 * 60 * 60 * 1000)
-  const response = await fetch(downloadUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-    redirect: 'error',
-    cache: 'no-store',
-    signal,
-  })
-  if (!response.ok) {
-    await response.body?.cancel()
-    throw new Error(
-      response.status === 404
-        ? 'There is no cloud backup to restore.'
-        : `Backup download failed (${response.status}).`,
-    )
-  }
-  if (!response.body)
-    throw new Error('Backup server returned an empty response body.')
-  const length = Number(response.headers.get('Content-Length') ?? 0)
-  if (length > MAX_ARCHIVE_BYTES) {
-    await response.body.cancel()
-    throw new Error('Backup archive exceeds the supported restore size.')
-  }
-  await pipeline(
-    Readable.fromWeb(response.body as import('node:stream/web').ReadableStream),
-    new RestoreSizeLimitStream(MAX_ARCHIVE_BYTES),
-    createWriteStream(archivePath, { mode: 0o600 }),
-    { signal },
   )
 }
 

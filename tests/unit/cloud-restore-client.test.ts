@@ -16,11 +16,6 @@ import {
 } from '@/lib/vault-client-state'
 import { getImageUrl } from '@/lib/data'
 
-const { getCloudAuthState } = vi.hoisted(() => ({
-  getCloudAuthState: vi.fn(),
-}))
-vi.mock('@/lib/cloud-backup', () => ({ getCloudAuthState }))
-
 const idle: VaultClientState = {
   generation: 'vault-before',
   phase: 'idle',
@@ -35,7 +30,6 @@ const runningJob = {
 
 describe('cloud restore client', () => {
   beforeEach(() => {
-    getCloudAuthState.mockReset().mockReturnValue({ sessionToken: 'session' })
     vi.stubGlobal('fetch', vi.fn())
   })
   afterEach(() => {
@@ -58,20 +52,12 @@ describe('cloud restore client', () => {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionToken: 'session' }),
+          body: JSON.stringify({}),
           signal: expect.any(AbortSignal),
         },
       )
     },
   )
-
-  it('requires sign-in before starting a restore', async () => {
-    getCloudAuthState.mockReturnValue(null)
-    await expect(startCloudRestore()).rejects.toThrow(
-      'Sign in before restoring',
-    )
-    expect(fetch).not.toHaveBeenCalled()
-  })
 
   it('tags restore initiation with the generation shown in a stale browser tab', async () => {
     setVaultClientState({ ...idle, generation: 'previous-vault' })
@@ -199,12 +185,12 @@ describe('vault fetch guard', () => {
     expect(request.headers.has(VAULT_GENERATION_HEADER)).toBe(false)
   })
 
-  it('keeps remote authentication and restore controls available', async () => {
+  it('keeps external requests and restore controls available', async () => {
     state = { ...state, phase: 'preparing', readOnly: true }
     const guarded = guard()
     const init = { method: 'POST' }
     for (const url of [
-      'https://auth.example.com/api/auth/token',
+      'https://example.com/remote',
       '/api/app-lock',
       '/api/cloud-backup/restore-job',
     ]) {
@@ -212,7 +198,7 @@ describe('vault fetch guard', () => {
     }
     expect(originalFetch).toHaveBeenNthCalledWith(
       1,
-      'https://auth.example.com/api/auth/token',
+      'https://example.com/remote',
       init,
     )
     expect(onGenerationChange).not.toHaveBeenCalled()

@@ -143,9 +143,9 @@ describe('empty static browser app', () => {
   })
 
   it('disables server features and preserves normal asset fetches', async () => {
-    expect((await request('/api/runtime-config')).data).toEqual({
-      authUrl: '',
-      backupUrl: '',
+    expect((await request('/api/drive-backup/status')).data).toMatchObject({
+      available: false,
+      connected: false,
     })
     expect((await request('/api/settings/mcp')).data.mcp.enabled).toBe(false)
     expect(

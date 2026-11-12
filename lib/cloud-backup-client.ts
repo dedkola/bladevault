@@ -1,67 +1,19 @@
 'use client'
 
-import {
-  getCloudAuthState,
-  getCloudRuntimeConfig,
-  loadCloudRuntimeConfig,
-  parseApiError,
-} from '@/lib/cloud-backup'
+import { parseApiError } from '@/lib/cloud-backup'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
-import type {
-  CloudBackupJobState,
-  CloudBackupTarget,
-} from '@/lib/cloud-backup-shared'
+import type { CloudBackupJobState } from '@/lib/cloud-backup-shared'
 
-export function canAttemptSilentCloudBackup() {
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    return false
-  }
-
-  const authState = getCloudAuthState()
-  if (!authState?.sessionToken) {
-    return false
-  }
-
-  const config = getCloudRuntimeConfig()
-  return Boolean(config.authUrl && config.backupUrl)
-}
-
-export function formatCloudBackupError(error: unknown, baseUrl: string) {
-  const message = error instanceof Error ? error.message : 'Unknown error'
-
-  if (message === 'Load failed' || message.includes('Failed to fetch')) {
-    return `Could not reach Cloud Backup API at ${baseUrl}. Restart the frontend if you just updated it, and confirm the Backup API shown in settings is correct.`
-  }
-
-  return message
-}
-
-export async function startCloudBackupArchive(
-  target: CloudBackupTarget = 'bladevault',
-): Promise<{
+// The local server holds the Google Drive sign-in, so the request needs no
+// credentials from the browser.
+export async function startCloudBackupArchive(): Promise<{
   job: CloudBackupJobState
   started: boolean
 }> {
-  let body: { sessionToken: string } | { target: 'drive' }
-  if (target === 'drive') {
-    // The local server holds the Google Drive sign-in.
-    body = { target }
-  } else {
-    const nextConfig = await loadCloudRuntimeConfig()
-    if (!nextConfig.backupUrl) {
-      throw new Error('NEXT_PUBLIC_BLADEVAULT_BACKUP_URL is not configured.')
-    }
-
-    const sessionToken = getCloudAuthState()?.sessionToken
-    if (!sessionToken)
-      throw new Error('Sign in before starting a cloud backup.')
-    body = { sessionToken }
-  }
-
   const response = await fetch('/api/cloud-backup/job', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({}),
   })
 
   if (!response.ok) {
