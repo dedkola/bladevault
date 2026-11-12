@@ -108,32 +108,35 @@ Select a knife to open a **quick look** with its complete photo gallery, key spe
 ## Screenshots
 
 <div align="center">
-  <img src="assets/screenshots/collection.png" alt="BladeVault collection with Smart Collections, model-family browsing, and configurable knife cards" width="100%" />
-  <p><sub>Collection — organize knives, browse model families, and save filters</sub></p>
+  <img src="assets/screenshots/collection.png" alt="BladeVault collection in the Lumen style with knife cards, Smart Collections, pinned knives, and the knife inspector" width="100%" />
+  <p><sub>Collection in <b>Lumen</b> — knife cards, Smart Collections, pinned knives, and the inspector</sub></p>
 </div>
 
 <details>
-<summary>More screenshots: Studio, Modern theme, insights, knife details, comparisons, and URL import</summary>
+<summary>More screenshots: Studio, insights, knife details, comparisons, Add knife, and more styles</summary>
 
 <div align="center">
 
-  <img src="assets/screenshots/studio.png" alt="BladeVault Studio showing a photo-first wall of the collection with featured tiles and filters" width="100%" />
-  <p><sub>Studio — a photo-first visual index with quick look and focus mode</sub></p>
+  <img src="assets/screenshots/studio.png" alt="BladeVault Studio in the Phosphor style showing a photo-first wall with Smart Collection filters" width="100%" />
+  <p><sub>Studio in <b>Phosphor</b> — a photo-first wall filtered by type, pinned knives, or Smart Collection</sub></p>
 
-  <img src="assets/screenshots/modern-collection.png" alt="BladeVault Modern theme collection table with custom columns and a docked knife inspector" width="100%" />
-  <p><sub>Modern theme — compact table, custom columns, and a docked inspector</sub></p>
+  <img src="assets/screenshots/modern-collection.png" alt="BladeVault collection table in the Forge style with custom columns and the knife inspector" width="100%" />
+  <p><sub>Collection table in <b>Forge</b> — custom columns, metric and imperial units, and a docked inspector</sub></p>
 
-  <img src="assets/screenshots/insights.png" alt="BladeVault collection insights showing maker, material, dimension, and data completeness analytics" width="100%" />
-  <p><sub>Insights — patterns, dimensions, materials, and collection health</sub></p>
+  <img src="assets/screenshots/insights.png" alt="BladeVault Insights in the Titanium style with collection totals and the calendar activity map" width="100%" />
+  <p><sub>Insights in <b>Titanium</b> — collection totals and the calendar activity map</sub></p>
 
-  <img src="assets/screenshots/detail.png" alt="Knife detail page with specifications and image gallery" width="100%" />
-  <p><sub>Knife detail — specifications, notes, and image gallery</sub></p>
+  <img src="assets/screenshots/detail.png" alt="Knife detail page in the Espresso style with model variants, photo gallery, and specifications" width="100%" />
+  <p><sub>Knife detail in <b>Espresso</b> — model variants, photo gallery, details, and maintenance</sub></p>
 
-  <img src="assets/screenshots/compare.png" alt="Saved knife comparison list with specifications, differences-only viewing, and PDF export" width="100%" />
-  <p><sub>Compare — saved shortlists and specifications side by side</sub></p>
+  <img src="assets/screenshots/compare.png" alt="Saved knife comparison in the Field style with specifications side by side and PDF export" width="100%" />
+  <p><sub>Compare in <b>Field</b> — saved shortlists and specifications side by side</sub></p>
 
-  <img src="assets/screenshots/add.png" alt="Add knife page importing a Vosteed product URL with the scraped page preview and manual entry option" width="100%" />
-  <p><sub>Add knife — scrape a product URL or enter the details manually</sub></p>
+  <img src="assets/screenshots/add.png" alt="Add knife page in the Alloy style with a product link field, batch scrape, saved-page import, and manual entry" width="100%" />
+  <p><sub>Add knife in <b>Alloy</b> — paste a link, batch scrape, import a saved page, or enter details manually</sub></p>
+
+  <img src="assets/screenshots/classic.png" alt="BladeVault collection in the Classic style with knife cards and the sidebar" width="100%" />
+  <p><sub>Collection in <b>Classic</b> — the original layout</sub></p>
 
 </div>
 
