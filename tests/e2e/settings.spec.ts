@@ -9,14 +9,16 @@ test('persists the pinned-first setting across reloads', async ({ page }) => {
   await page.goto('/settings')
   await page.getByRole('button', { name: 'Appearance' }).click()
 
-  const checkbox = page.getByRole('checkbox').first()
+  const checkbox = page.getByRole('switch', {
+    name: 'Keep pinned knives first',
+  })
   await expect(checkbox).toBeChecked()
   await checkbox.click()
   await expect(checkbox).not.toBeChecked()
 
   await page.reload()
   await page.getByRole('button', { name: 'Appearance' }).click()
-  await expect(page.getByRole('checkbox').first()).not.toBeChecked()
+  await expect(checkbox).not.toBeChecked()
 })
 
 test('persists and applies the selected theme style', async ({ page }) => {
@@ -208,20 +210,18 @@ test('persists and applies the selected time format', async ({
   await page.goto('/settings')
   await page.getByRole('button', { name: 'Appearance' }).click()
 
-  const timeFormat = page.getByRole('combobox', { name: 'Time format' })
-  const timeFormatValue = timeFormat.locator('[data-slot="select-value"]')
-  await expect(timeFormatValue).toHaveText('12-hour')
-  await timeFormat.click()
-  await page.getByRole('option', { name: '24-hour' }).click()
-  await expect(timeFormatValue).toHaveText('24-hour')
+  const timeFormat = page.getByRole('radiogroup', { name: 'Time format' })
+  await expect(timeFormat.getByRole('radio', { name: '12-hour' })).toBeChecked()
+  await timeFormat.getByRole('radio', { name: '24-hour' }).click()
+  await expect(timeFormat.getByRole('radio', { name: '24-hour' })).toBeChecked()
 
   await page.reload()
   await page.getByRole('button', { name: 'Appearance' }).click()
   await expect(
     page
-      .getByRole('combobox', { name: 'Time format' })
-      .locator('[data-slot="select-value"]'),
-  ).toHaveText('24-hour')
+      .getByRole('radiogroup', { name: 'Time format' })
+      .getByRole('radio', { name: '24-hour' }),
+  ).toBeChecked()
 
   await seedKnife(request, { name: 'Time Format Test' })
   await page.goto('/logs')
@@ -278,7 +278,7 @@ test('controls MCP access and copies the LM Studio configuration', async ({
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.goto('/settings?tab=mcp')
 
-  await expect(page.getByText('MCP', { exact: true })).toBeVisible()
+  await expect(page.getByText('Access', { exact: true })).toBeVisible()
   await expect(page.getByText('Activity', { exact: true })).toBeVisible()
   await expect(
     page.getByText(
@@ -287,8 +287,8 @@ test('controls MCP access and copies the LM Studio configuration', async ({
   ).toHaveCount(0)
   await expect(page.getByText('Endpoint', { exact: true })).toHaveCount(0)
 
-  const access = page.getByRole('checkbox', { name: 'Enable MCP access' })
-  const writes = page.getByRole('checkbox', {
+  const access = page.getByRole('switch', { name: 'Enable MCP access' })
+  const writes = page.getByRole('switch', {
     name: 'Allow MCP to modify knives',
   })
   await expect(access).toBeChecked()
@@ -384,19 +384,14 @@ test('copies MCP configuration when the modern Clipboard API is unavailable', as
 test('saves the start page and keeps Insights accessible', async ({ page }) => {
   for (const startPage of ['collection', 'studio', 'insights']) {
     await page.goto('/settings?tab=appearance')
-    const select = page.getByRole('combobox', { name: 'Start page' })
-    await select.click()
-    await page.getByRole('option', { name: startPage, exact: true }).click()
-    await expect(select.locator('[data-slot="select-value"]')).toHaveText(
-      startPage,
-    )
+    const option = page
+      .getByRole('radiogroup', { name: 'Start page' })
+      .getByRole('radio', { name: new RegExp(`^${startPage}$`, 'i') })
+    await option.click()
+    await expect(option).toBeChecked()
 
     await page.reload()
-    await expect(
-      page
-        .getByRole('combobox', { name: 'Start page' })
-        .locator('[data-slot="select-value"]'),
-    ).toHaveText(startPage)
+    await expect(option).toBeChecked()
     await page.goto('/')
     await expect(page).toHaveURL(new RegExp(`/${startPage}$`))
     await page.getByRole('link', { name: 'Insights', exact: true }).click()

@@ -48,7 +48,7 @@ The filter offers values already saved in your collection. Number and date field
 
 ## Show a field on cards
 
-Open **Settings → Appearance**. Under **Card fields**, check the field in the **Custom fields** group. To show a custom field under pinned sidebar items, use **Pinned item fields** in the same tab. Empty values are omitted.
+Open **Settings → Appearance**. Under **Card fields**, select the field in the **Custom fields** group. To show a custom field under pinned sidebar items, use **Pinned item fields** in the same tab. Empty values are omitted.
 
 See [Customize cards and collection appearance](customize-appearance.md) for the preview and display options.
 

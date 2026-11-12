@@ -16,10 +16,10 @@ Set `BLADEVAULT_DATA_DIR` to choose a different directory for a source or contai
 
 The desktop app can move its local data folder from **Settings → Local storage** when the location is not managed by `BLADEVAULT_DATA_DIR`.
 
-1. Under **Change local data folder**, enter the full path or click **Choose** to select a folder.
-2. Leave **Move existing data** checked to move the current vault. Choose an empty folder outside the current data folder; it must not contain the current folder either.
+1. Next to **Data folder**, click **Change…**, then enter the full path or click **Choose** to select a folder.
+2. Leave **Move existing data** on to move the current vault. Choose an empty folder outside the current data folder; it must not contain the current folder either.
 3. Click **Save Folder**. BladeVault copies the data, switches to the new folder, removes the old files, and reloads the vault. If it cannot remove the old files, the status message explains this.
-4. Check **Current data folder** and open a saved knife to confirm that its record and images are available.
+4. Check **Data folder** and open a saved knife to confirm that its record and images are available.
 
 Uncheck **Move existing data** only when you want to switch to another folder without copying the current vault. BladeVault opens the vault already in that folder, or starts an empty one if the folder has no database. The original folder is left in place. **Launch folder** shows the path saved for future launches.
 

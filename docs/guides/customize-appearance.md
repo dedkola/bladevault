@@ -7,7 +7,7 @@ Choose the details you want to see while browsing and adjust BladeVault's theme,
 ## Choose the details on knife cards
 
 1. Open **Settings → Appearance** and find **Card fields**.
-2. Check the fields you want to display. The groups cover identity, construction, dimensions, and any custom fields you have defined.
+2. Select the fields you want to display. The groups cover identity, construction, dimensions, and any custom fields you have defined.
    ![The Card fields section with the groups of fields, and the sample card using example values](../images/customize-appearance-card-fields.png)
 3. Use the sample card to review your selection. It uses example values so you can see the layout even when your collection has empty fields.
 4. Return to **Collection** and check a knife that has values for the selected fields.
@@ -21,7 +21,7 @@ For example, choose **Blade material**, **Handle material**, and **Weight** to s
 Pinned knives in the sidebar keep their own field selection, so the sidebar can stay compact even when your cards show more detail.
 
 1. Open **Settings → Appearance** and find **Pinned item fields**, below **Card fields**.
-2. Check the fields you want under pinned knives. **Blade material** (steel) and **Blade length** are selected by default; any structured or custom field can be swapped in.
+2. Select the fields you want under pinned knives. **Blade material** (steel) and **Blade length** are selected by default; any structured or custom field can be swapped in.
 3. Use the pinned preview to review your selection. It uses example values, just like the card preview.
 
 Changes save automatically. Brand and name stay visible. Every value under the item comes from your selection, so the line shows exactly the fields you checked, in the same order. Model number is available as an option if you want it. Empty optional values are omitted for real knives.

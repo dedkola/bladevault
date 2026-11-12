@@ -3,8 +3,11 @@
 import { useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { SettingsRow, SettingsSection } from '@/components/settings-panels'
+import {
+  SettingsRow,
+  SettingsSection,
+  SettingsSwitch,
+} from '@/components/settings-panels'
 
 const DOCS_URL =
   'https://github.com/dedkola/bladevault/blob/main/docs/reference/error-reporting.md'
@@ -92,10 +95,10 @@ export function DesktopErrorReportingSettings() {
         }
       >
         {status.available ? (
-          <Checkbox
+          <SettingsSwitch
             checked={status.enabled}
             disabled={pending}
-            onCheckedChange={(checked) => void handleToggle(checked === true)}
+            onCheckedChange={(checked) => void handleToggle(checked)}
             aria-label="Send error reports"
           />
         ) : null}
@@ -105,12 +108,10 @@ export function DesktopErrorReportingSettings() {
           label="Send anonymous usage data"
           description="Counts which shop websites product imports work or fail on. Turn this off to send crash reports only."
         >
-          <Checkbox
+          <SettingsSwitch
             checked={status.usageMetrics}
             disabled={pending}
-            onCheckedChange={(checked) =>
-              void handleToggle(true, checked === true)
-            }
+            onCheckedChange={(checked) => void handleToggle(true, checked)}
             aria-label="Send anonymous usage data"
           />
         </SettingsRow>

@@ -11,7 +11,6 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   AlertCircle,
-  Check,
   CheckCircle2,
   Cloud,
   Copy,
@@ -28,7 +27,6 @@ import {
   Plug,
   Printer,
   RefreshCw,
-  ShieldCheck,
   SlidersHorizontal,
   Trash2,
   Upload,
@@ -83,10 +81,11 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { KnifeCardDetails } from '@/components/knife-card-details'
 import { formatDimension, formatWeight } from '@/lib/measurements'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   SettingsSection,
   SettingsRow,
+  SettingsSwitch,
+  SegmentedControl,
   MonoValue,
 } from '@/components/settings-panels'
 import {
@@ -170,19 +169,34 @@ const settingsPrimaryButtonClassName =
   'border-primary bg-primary text-primary-foreground hover:bg-[var(--primary-hover)] hover:text-primary-foreground'
 
 const themeStyleLabels: Record<ThemeStyle, { name: string; note: string }> = {
-  classic: { name: 'Classic', note: 'Default · warm gold' },
-  modern: { name: 'Modern', note: 'New · cool graphite' },
+  classic: { name: 'Classic', note: 'Warm gold' },
+  modern: { name: 'Modern', note: 'Cool graphite' },
   alloy: { name: 'Alloy', note: 'Black & gold' },
-  forge: { name: 'Forge', note: 'New · graphite & ember' },
-  titanium: { name: 'Titanium', note: 'New · anodized gradient' },
-  field: { name: 'Field', note: 'New · stone & acid lime' },
-  lumen: { name: 'Lumen', note: 'New · white & orange, light only' },
-  espresso: {
-    name: 'Espresso',
-    note: 'New · Cream and dark roast, light only',
-  },
-  phosphor: { name: 'Phosphor', note: 'New · amber terminal, dark only' },
+  forge: { name: 'Forge', note: 'Graphite & ember' },
+  titanium: { name: 'Titanium', note: 'Anodized gradient' },
+  field: { name: 'Field', note: 'Stone & acid lime' },
+  lumen: { name: 'Lumen', note: 'White & orange' },
+  espresso: { name: 'Espresso', note: 'Cream & dark roast' },
+  phosphor: { name: 'Phosphor', note: 'Amber terminal' },
 }
+
+const startPageOptions = START_PAGES.map((startPage) => ({
+  value: startPage,
+  label: startPage.charAt(0).toUpperCase() + startPage.slice(1),
+}))
+const colorModeOptions = APP_THEMES.map((theme) => ({
+  value: theme,
+  label: theme.charAt(0).toUpperCase() + theme.slice(1),
+}))
+const dimensionUnitOptions: { value: DimensionUnit; label: string }[] = [
+  { value: 'in', label: 'Imperial' },
+  { value: 'mm', label: 'Metric' },
+  { value: 'both', label: 'Both' },
+]
+const timeFormatOptions = TIME_FORMATS.map((timeFormat) => ({
+  value: timeFormat,
+  label: timeFormat === '12h' ? '12-hour' : '24-hour',
+}))
 
 const subscribeToBrowserOrigin = () => () => {}
 const getBrowserOrigin = () => window.location.origin
@@ -517,55 +531,54 @@ function CardFieldOptions({
   ariaLabelSuffix?: string
 }) {
   return (
-    <div
-      className="settings-card-fields-options max-h-[24rem] overflow-y-auto rounded-lg border border-border/70 bg-background"
-      aria-busy={disabled}
-    >
-      {lockedRows.map((row) => (
-        <div
-          key={row.label}
-          className="flex items-center justify-between gap-3 border-b border-border/60 px-3 py-2.5"
-        >
-          <div>
-            <div className="text-sm font-medium text-foreground">
+    <div className="settings-card-fields-options" aria-busy={disabled}>
+      <div className="settings-chip-group">
+        <div className="settings-chips">
+          {lockedRows.map((row) => (
+            <span
+              key={row.label}
+              className="settings-chip is-locked"
+              title={row.note}
+            >
+              <Lock className="size-3" aria-hidden="true" />
               {row.label}
-            </div>
-            <div className="text-xs text-muted-foreground">{row.note}</div>
-          </div>
-          <Lock className="size-3.5 text-muted-foreground" />
+            </span>
+          ))}
         </div>
-      ))}
-      <div className="settings-card-field-groups">
-        {getCardFieldGroups(customFields).map((group) => {
-          if (group.fields.length === 0) return null
-
-          return (
-            <div key={group.label}>
-              <div className="sticky top-0 z-10 border-b border-border/60 bg-[var(--bladevault-surface-soft)] px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                {group.label}
-              </div>
-              {group.fields.map((field) => (
-                <label
-                  key={field.key}
-                  className="flex cursor-pointer items-center justify-between gap-3 border-b border-border/60 px-3 py-3 last:border-b-0"
-                >
-                  <span className="min-w-0 text-sm font-medium text-foreground [overflow-wrap:anywhere]">
-                    {field.label}
-                  </span>
-                  <Checkbox
-                    checked={fields.includes(field.key)}
-                    disabled={disabled}
-                    onCheckedChange={(checked) =>
-                      onToggle(field.key, checked === true)
-                    }
-                    aria-label={`Show ${field.label} on ${ariaLabelSuffix}`}
-                  />
-                </label>
-              ))}
-            </div>
-          )
-        })}
       </div>
+      {getCardFieldGroups(customFields).map((group) => {
+        if (group.fields.length === 0) return null
+
+        return (
+          <div
+            key={group.label}
+            className="settings-chip-group"
+            role="group"
+            aria-label={group.label}
+          >
+            <div className="settings-chip-group-label">{group.label}</div>
+            <div className="settings-chips">
+              {group.fields.map((field) => {
+                const checked = fields.includes(field.key)
+                return (
+                  <button
+                    key={field.key}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={checked}
+                    aria-label={`Show ${field.label} on ${ariaLabelSuffix}`}
+                    disabled={disabled}
+                    className="settings-chip"
+                    onClick={() => onToggle(field.key, !checked)}
+                  >
+                    {field.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -653,6 +666,7 @@ export default function SettingsView() {
   const [localBackupMessage, setLocalBackupMessage] = useState('')
   const [localDataStatus, setLocalDataStatus] = useState<StatusTone>('idle')
   const [localDataMessage, setLocalDataMessage] = useState('')
+  const [isChangingDataFolder, setIsChangingDataFolder] = useState(false)
   const [loadAttemptKey, setLoadAttemptKey] = useState(0)
   const [fieldToDelete, setFieldToDelete] = useState<CustomField | null>(null)
   const [deletingField, setDeletingField] = useState(false)
@@ -727,6 +741,7 @@ export default function SettingsView() {
   const isLocalDataFolderDirty =
     normalizedPendingLocalDataPath !== '' &&
     normalizedPendingLocalDataPath !== localDataPath
+  const showDataFolderForm = isChangingDataFolder || localDataStatus !== 'idle'
   const browserOrigin = useSyncExternalStore(
     subscribeToBrowserOrigin,
     getBrowserOrigin,
@@ -1700,12 +1715,12 @@ export default function SettingsView() {
           </div>
         </div>
       ) : (
-        <div className="settings-surface flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border border-border bg-background xl:flex-row">
+        <div className="settings-surface flex h-full min-h-0 w-full flex-col xl:flex-row xl:gap-8">
           {/* Sidebar */}
-          <aside className="flex w-full shrink-0 border-b border-border bg-background xl:w-60 xl:flex-col xl:border-r xl:border-b-0 2xl:w-64">
+          <aside className="flex w-full shrink-0 border-b border-border xl:w-52 xl:flex-col xl:border-b-0">
             <nav
               data-settings-rail
-              className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto p-2 xl:min-h-0 xl:flex-col xl:overflow-x-hidden xl:overflow-y-auto"
+              className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto py-2 xl:min-h-0 xl:flex-col xl:overflow-x-hidden xl:overflow-y-auto xl:py-0"
             >
               {tabs.map((tab) => {
                 const isActive = tab.id === activeTab
@@ -1742,8 +1757,8 @@ export default function SettingsView() {
           </aside>
 
           {/* Main content */}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
-            <div className="settings-content min-h-0 flex-1 overflow-y-auto bg-background p-4 sm:p-5 2xl:p-6">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="settings-content min-h-0 flex-1 overflow-y-auto px-0.5 pt-5 pb-6 xl:pt-0">
               <div className="settings-head">
                 <h2>{activeTabMeta.label}</h2>
                 <p>{activeTabMeta.blurb}</p>
@@ -1751,56 +1766,104 @@ export default function SettingsView() {
               {activeTab === 'app-lock' && <AppLockSettings />}
               {activeTab === 'general' && (
                 <div className="settings-grid">
-                  <ScreenshotBackfill />
-                  <SettingsSection>
-                    <SettingsRow label="Current data folder">
-                      <MonoValue>{localDataPath || 'Unavailable'}</MonoValue>
+                  <SettingsSection title="Vault folder">
+                    <SettingsRow
+                      label="Data folder"
+                      description={
+                        <MonoValue>{localDataPath || 'Unavailable'}</MonoValue>
+                      }
+                    >
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={`${settingsSecondaryButtonClassName} rounded-lg`}
+                        aria-expanded={showDataFolderForm}
+                        onClick={() => {
+                          setIsChangingDataFolder(!showDataFolderForm)
+                          setPendingLocalDataPath(localDataPath)
+                          setLocalDataStatus('idle')
+                          setLocalDataMessage('')
+                        }}
+                        disabled={
+                          dataDirManagedByEnv || localDataStatus === 'loading'
+                        }
+                      >
+                        {showDataFolderForm ? 'Cancel' : 'Change…'}
+                      </Button>
                     </SettingsRow>
 
-                    <SettingsRow label="Change local data folder">
-                      <div className="flex w-full gap-2 sm:w-auto">
-                        <Input
-                          aria-label="Change local data folder"
-                          value={pendingLocalDataPath}
-                          onChange={(event) => {
-                            setPendingLocalDataPath(event.target.value)
-                            setLocalDataStatus('idle')
-                            setLocalDataMessage('')
-                          }}
-                          placeholder={
-                            defaultLocalDataPath || '/Users/you/BladeVault/data'
-                          }
-                          disabled={dataDirManagedByEnv}
-                          className="h-8 min-w-[10rem] rounded-lg border-border bg-background font-mono text-xs shadow-none dark:border-input"
-                        />
-                        {canChooseLocalDataFolder ? (
+                    {showDataFolderForm ? (
+                      <div className="settings-reveal">
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Input
+                            aria-label="Change local data folder"
+                            value={pendingLocalDataPath}
+                            onChange={(event) => {
+                              setPendingLocalDataPath(event.target.value)
+                              setLocalDataStatus('idle')
+                              setLocalDataMessage('')
+                            }}
+                            placeholder={
+                              defaultLocalDataPath ||
+                              '/Users/you/BladeVault/data'
+                            }
+                            disabled={dataDirManagedByEnv}
+                            className="h-8 min-w-0 flex-1 rounded-lg border-border bg-background font-mono text-xs shadow-none dark:border-input"
+                          />
+                          {canChooseLocalDataFolder ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={`${settingsSecondaryButtonClassName} rounded-lg`}
+                              onClick={handleChooseLocalDataFolder}
+                              disabled={dataDirManagedByEnv}
+                            >
+                              <FolderOpen className="h-3.5 w-3.5" />
+                              Choose
+                            </Button>
+                          ) : null}
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-foreground">
+                              Move existing data
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Copy your current vault into the new folder.
+                            </div>
+                          </div>
+                          <SettingsSwitch
+                            checked={moveExistingLocalData}
+                            onCheckedChange={setMoveExistingLocalData}
+                            disabled={dataDirManagedByEnv}
+                            aria-label="Move existing local data"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <StatusPill
+                            status={localDataStatus}
+                            message={localDataMessage}
+                          />
                           <Button
                             type="button"
-                            variant="outline"
-                            className={`${settingsSecondaryButtonClassName} rounded-lg`}
-                            onClick={handleChooseLocalDataFolder}
-                            disabled={dataDirManagedByEnv}
+                            className={`${settingsPrimaryButtonClassName} rounded-lg sm:ml-auto`}
+                            onClick={handleSaveLocalDataFolder}
+                            disabled={
+                              dataDirManagedByEnv ||
+                              backupStatus === 'loading' ||
+                              localDataStatus === 'loading' ||
+                              !normalizedPendingLocalDataPath ||
+                              !isLocalDataFolderDirty
+                            }
                           >
-                            <FolderOpen className="h-3.5 w-3.5" />
-                            Choose
+                            {localDataStatus === 'loading' ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : null}
+                            Save Folder
                           </Button>
-                        ) : null}
+                        </div>
                       </div>
-                    </SettingsRow>
-
-                    <SettingsRow
-                      label="Move existing data"
-                      description="Copy your current vault into the new folder."
-                    >
-                      <Checkbox
-                        checked={moveExistingLocalData}
-                        onCheckedChange={(checked) =>
-                          setMoveExistingLocalData(checked === true)
-                        }
-                        disabled={dataDirManagedByEnv}
-                        aria-label="Move existing local data"
-                      />
-                    </SettingsRow>
+                    ) : null}
 
                     {configuredLocalDataPath ? (
                       <SettingsRow
@@ -1815,9 +1878,7 @@ export default function SettingsView() {
                       <SettingsRow
                         label="Data directory source"
                         description="This folder is controlled by BLADEVAULT_DATA_DIR."
-                      >
-                        <MonoValue>{localDataPath || 'Unavailable'}</MonoValue>
-                      </SettingsRow>
+                      />
                     ) : null}
 
                     {dockerHostDataMountPath ? (
@@ -1835,198 +1896,149 @@ export default function SettingsView() {
                         description="Host folder is unavailable in this container."
                       />
                     ) : null}
-
-                    <div className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-                      <StatusPill
-                        status={localDataStatus}
-                        message={localDataMessage}
-                      />
-                      <Button
-                        type="button"
-                        className={`${settingsPrimaryButtonClassName} rounded-lg sm:self-auto`}
-                        onClick={handleSaveLocalDataFolder}
-                        disabled={
-                          dataDirManagedByEnv ||
-                          backupStatus === 'loading' ||
-                          !normalizedPendingLocalDataPath ||
-                          !isLocalDataFolderDirty
-                        }
-                      >
-                        {localDataStatus === 'loading' ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : null}
-                        Save Folder
-                      </Button>
-                    </div>
                   </SettingsSection>
+                  <ScreenshotBackfill />
                 </div>
               )}
 
               {activeTab === 'cloud-backup' && (
-                <div className="settings-grid settings-cloud">
-                  <div className="settings-stack">
-                    <SettingsSection title="Account">
-                      {cloudSession ? (
-                        <SettingsRow
-                          label={cloudSession.user.email}
-                          description="Cloud backup account"
-                        >
-                          <Button
-                            variant="outline"
-                            className={`${settingsSecondaryButtonClassName} rounded-lg`}
-                            onClick={handleLogout}
-                          >
-                            <LogOut className="h-3.5 w-3.5" />
-                            Sign Out
-                          </Button>
-                        </SettingsRow>
-                      ) : (
-                        <>
-                          {cloudConfigError ? (
-                            <div className="py-3">
-                              <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-3 text-sm text-destructive">
-                                {cloudConfigError}
-                              </div>
-                            </div>
-                          ) : null}
-
-                          <SettingsRow
-                            label="No account connected"
-                            description="Sign in to back up this vault to the cloud."
-                          >
-                            <Button
-                              className={`${settingsPrimaryButtonClassName} rounded-lg`}
-                              onClick={handleGoogleSignIn}
-                              disabled={Boolean(cloudConfigError)}
-                            >
-                              <FcGoogle className="h-4 w-4" />
-                              Continue With Google
-                            </Button>
-                          </SettingsRow>
-
-                          {authStatus !== 'idle' ? (
-                            <div className="py-3">
-                              <StatusPill
-                                status={authStatus}
-                                message={authMessage}
-                              />
-                            </div>
-                          ) : null}
-                        </>
-                      )}
-                    </SettingsSection>
-
-                    <SettingsSection title="Status">
-                      <SettingsRow
-                        label="Cloud connection"
-                        description={`Last backup: ${formatSyncTime(
-                          cloudBackupJob.syncedAt ||
-                            settings.cloudBackupLastSyncedAt,
-                          settings.timeFormat,
-                        )}`}
-                      >
-                        {cloudSession ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--bladevault-local)] dark:text-[var(--bladevault-gold)]">
-                            <ShieldCheck className="h-3.5 w-3.5" />
-                            Connected
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            Not connected
-                          </span>
-                        )}
-                      </SettingsRow>
-
-                      {backupStatus !== 'idle' ? (
-                        <div className="py-3">
-                          <StatusPill
-                            status={backupStatus}
-                            message={backupMessage}
-                            quiet
-                          />
+                <div className="settings-grid">
+                  <SettingsSection title="Account">
+                    {cloudConfigError && !cloudSession ? (
+                      <div className="py-3">
+                        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-3 text-sm text-destructive">
+                          {cloudConfigError}
                         </div>
-                      ) : null}
-                    </SettingsSection>
-                  </div>
-                  <div className="settings-stack">
-                    <SettingsSection title="Backup">
-                      <SettingsRow
-                        label="Back up now"
-                        description="Runs quietly while you continue using your vault."
-                      >
-                        <Button
-                          variant="outline"
-                          className={`${settingsSecondaryButtonClassName} rounded-lg`}
-                          onClick={() => void startVaultBackup()}
-                          disabled={
-                            !cloudSession ||
-                            isVaultReadOnly ||
-                            backupStatus === 'loading' ||
-                            restoreStatus === 'loading' ||
-                            localBackupStatus === 'loading'
-                          }
-                        >
-                          <Upload className="h-3.5 w-3.5" />
-                          Backup
-                        </Button>
-                      </SettingsRow>
+                      </div>
+                    ) : null}
 
-                      <SettingsRow
-                        label="Automatic backup"
-                        description="Back up quietly after edits settle, without notifications."
-                      >
-                        <Checkbox
-                          checked={settings.cloudAutoBackupEnabled}
-                          onCheckedChange={(checked) =>
-                            handleAutoBackupToggle(checked === true)
-                          }
-                          disabled={!cloudSession || isVaultReadOnly}
-                          aria-label="Enable automatic backup"
-                        />
-                      </SettingsRow>
-                    </SettingsSection>
-
-                    <SettingsSection
-                      title="Restore"
-                      description="Restore the latest cloud backup to this device. You can keep browsing while editing is paused. This replaces the local data."
+                    <SettingsRow
+                      label={
+                        cloudSession ? cloudSession.user.email : 'Not connected'
+                      }
+                      description={`${
+                        cloudSession
+                          ? 'Connected.'
+                          : 'Sign in to back up this vault to the cloud.'
+                      } Last backup: ${formatSyncTime(
+                        cloudBackupJob.syncedAt ||
+                          settings.cloudBackupLastSyncedAt,
+                        settings.timeFormat,
+                      )}`}
                     >
-                      {!cloudSession ? (
-                        <div className="py-3 text-sm text-muted-foreground">
-                          Sign in above before restoring from the cloud.
-                        </div>
-                      ) : null}
-                      <SettingsRow label="Restore from cloud">
+                      {cloudSession ? (
                         <Button
                           variant="outline"
                           className={`${settingsSecondaryButtonClassName} rounded-lg`}
-                          onClick={handleRestore}
-                          disabled={
-                            !cloudSession ||
-                            isVaultReadOnly ||
-                            restoreStatus === 'loading' ||
-                            backupStatus === 'loading'
-                          }
+                          onClick={handleLogout}
                         >
-                          {restoreStatus === 'loading' ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Download className="h-3.5 w-3.5" />
-                          )}
-                          Restore
+                          <LogOut className="h-3.5 w-3.5" />
+                          Sign Out
                         </Button>
-                      </SettingsRow>
+                      ) : (
+                        <Button
+                          className={`${settingsPrimaryButtonClassName} rounded-lg`}
+                          onClick={handleGoogleSignIn}
+                          disabled={Boolean(cloudConfigError)}
+                        >
+                          <FcGoogle className="h-4 w-4" />
+                          Continue With Google
+                        </Button>
+                      )}
+                    </SettingsRow>
 
-                      {restoreStatus !== 'idle' ? (
-                        <div className="py-3">
-                          <StatusPill
-                            status={restoreStatus}
-                            message={restoreMessage}
-                            quiet
-                          />
-                        </div>
-                      ) : null}
-                    </SettingsSection>
-                  </div>
+                    {!cloudSession && authStatus !== 'idle' ? (
+                      <div className="py-3">
+                        <StatusPill status={authStatus} message={authMessage} />
+                      </div>
+                    ) : null}
+                  </SettingsSection>
+
+                  <SettingsSection title="Backup">
+                    <SettingsRow
+                      label="Back up now"
+                      description="Runs quietly while you continue using your vault."
+                    >
+                      <Button
+                        variant="outline"
+                        className={`${settingsSecondaryButtonClassName} rounded-lg`}
+                        onClick={() => void startVaultBackup()}
+                        disabled={
+                          !cloudSession ||
+                          isVaultReadOnly ||
+                          backupStatus === 'loading' ||
+                          restoreStatus === 'loading' ||
+                          localBackupStatus === 'loading'
+                        }
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        Backup
+                      </Button>
+                    </SettingsRow>
+
+                    <SettingsRow
+                      inline
+                      label="Automatic backup"
+                      description="Back up quietly after edits settle, without notifications."
+                    >
+                      <SettingsSwitch
+                        checked={settings.cloudAutoBackupEnabled}
+                        onCheckedChange={handleAutoBackupToggle}
+                        disabled={!cloudSession || isVaultReadOnly}
+                        aria-label="Enable automatic backup"
+                      />
+                    </SettingsRow>
+
+                    {backupStatus !== 'idle' ? (
+                      <div className="py-3">
+                        <StatusPill
+                          status={backupStatus}
+                          message={backupMessage}
+                          quiet
+                        />
+                      </div>
+                    ) : null}
+                  </SettingsSection>
+
+                  <SettingsSection title="Restore">
+                    <SettingsRow
+                      label="Restore from cloud"
+                      description={
+                        cloudSession
+                          ? 'Replaces the local data on this device with the latest cloud backup. You can keep browsing while editing is paused.'
+                          : 'Sign in above before restoring from the cloud.'
+                      }
+                    >
+                      <Button
+                        variant="outline"
+                        className={`${settingsSecondaryButtonClassName} rounded-lg`}
+                        onClick={handleRestore}
+                        disabled={
+                          !cloudSession ||
+                          isVaultReadOnly ||
+                          restoreStatus === 'loading' ||
+                          backupStatus === 'loading'
+                        }
+                      >
+                        {restoreStatus === 'loading' ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5" />
+                        )}
+                        Restore
+                      </Button>
+                    </SettingsRow>
+
+                    {restoreStatus !== 'idle' ? (
+                      <div className="py-3">
+                        <StatusPill
+                          status={restoreStatus}
+                          message={restoreMessage}
+                          quiet
+                        />
+                      </div>
+                    ) : null}
+                  </SettingsSection>
                 </div>
               )}
 
@@ -2110,16 +2122,9 @@ export default function SettingsView() {
               )}
 
               {activeTab === 'appearance' && (
-                <div className="settings-grid settings-appearance">
-                  <SettingsSection
-                    title="Appearance"
-                    className="settings-preferences"
-                  >
-                    <SettingsRow
-                      label="Theme"
-                      description="Classic is the default warm BladeVault look. Modern offers cool graphite. Alloy pairs black and gold. Forge, Titanium, Field, Lumen, Espresso and Phosphor use the Modern layout with new colors and a new logo. Lumen and Espresso are always light; Phosphor is always dark."
-                      className="settings-theme-row"
-                    >
+                <div className="settings-grid">
+                  <SettingsSection title="Theme">
+                    <SettingsRow label="Style" className="settings-theme-row">
                       <div
                         className="theme-style-options"
                         role="radiogroup"
@@ -2166,141 +2171,71 @@ export default function SettingsView() {
                                   {labels.note}
                                 </span>
                               </span>
-                              {isActive ? (
-                                <Check
-                                  className="theme-style-check"
-                                  aria-hidden="true"
-                                />
-                              ) : null}
                             </button>
                           )
                         })}
                       </div>
                     </SettingsRow>
-                    <SettingsRow label="Color mode">
-                      <Select
+                    <SettingsRow
+                      label="Color mode"
+                      description={
+                        hasFixedColorMode(settings.themeStyle)
+                          ? `${themeStyleLabels[settings.themeStyle].name} has one color mode.`
+                          : undefined
+                      }
+                    >
+                      <SegmentedControl
+                        aria-label="Color mode"
                         value={settings.theme}
+                        options={colorModeOptions}
                         onValueChange={handleThemeChange}
                         disabled={hasFixedColorMode(settings.themeStyle)}
-                      >
-                        <SelectTrigger
-                          size="sm"
-                          aria-label="Color mode"
-                          className="h-8 w-32 rounded-lg border-border bg-[var(--bladevault-surface-soft)]"
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {APP_THEMES.map((theme) => (
-                            <SelectItem
-                              key={theme}
-                              value={theme}
-                              className="text-sm capitalize"
-                            >
-                              {theme}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      />
                     </SettingsRow>
+                  </SettingsSection>
+                  <SettingsSection title="Preferences">
                     <SettingsRow
                       label="Start page"
-                      description="Choose which page opens when you launch BladeVault."
+                      description="Opens when you launch BladeVault."
                     >
-                      <Select
+                      <SegmentedControl
+                        aria-label="Start page"
                         value={settings.startPage ?? DEFAULT_SETTINGS.startPage}
+                        options={startPageOptions}
                         onValueChange={handleStartPageChange}
-                      >
-                        <SelectTrigger
-                          size="sm"
-                          aria-label="Start page"
-                          className="h-8 w-32 rounded-lg border-border bg-[var(--bladevault-surface-soft)]"
-                        >
-                          <SelectValue className="capitalize" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {START_PAGES.map((startPage) => (
-                            <SelectItem
-                              key={startPage}
-                              value={startPage}
-                              className="capitalize"
-                            >
-                              {startPage}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      />
                     </SettingsRow>
                     <SettingsRow
                       label="Measurement units"
-                      description="Choose metric (mm and g), imperial (in and oz), or both for measurements, Add/Edit fields, and Insights charts."
+                      description="Metric (mm, g), imperial (in, oz), or both, for measurements, Add/Edit fields and Insights charts."
                     >
-                      <Select
+                      <SegmentedControl
+                        aria-label="Measurement units"
                         value={
                           settings.dimensionUnit ??
                           DEFAULT_SETTINGS.dimensionUnit
                         }
+                        options={dimensionUnitOptions}
                         onValueChange={handleDimensionUnitChange}
-                      >
-                        <SelectTrigger
-                          size="sm"
-                          aria-label="Measurement units"
-                          className="h-8 w-48 rounded-lg border-border bg-[var(--bladevault-surface-soft)]"
-                        >
-                          <SelectValue>
-                            {(value: DimensionUnit) =>
-                              value === 'mm'
-                                ? 'Metric (mm, g)'
-                                : value === 'both'
-                                  ? 'Both (metric + imperial)'
-                                  : 'Imperial (in, oz)'
-                            }
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="in">Imperial (in, oz)</SelectItem>
-                          <SelectItem value="mm">Metric (mm, g)</SelectItem>
-                          <SelectItem value="both">
-                            Both (metric + imperial)
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
+                      />
                     </SettingsRow>
                     <SettingsRow label="Time format">
-                      <Select
+                      <SegmentedControl
+                        aria-label="Time format"
                         value={settings.timeFormat}
+                        options={timeFormatOptions}
                         onValueChange={handleTimeFormatChange}
-                      >
-                        <SelectTrigger
-                          size="sm"
-                          aria-label="Time format"
-                          className="h-8 w-32 rounded-lg border-border bg-[var(--bladevault-surface-soft)]"
-                        >
-                          <SelectValue>
-                            {(value: TimeFormat) =>
-                              value === '12h' ? '12-hour' : '24-hour'
-                            }
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TIME_FORMATS.map((timeFormat) => (
-                            <SelectItem key={timeFormat} value={timeFormat}>
-                              {timeFormat === '12h' ? '12-hour' : '24-hour'}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      />
                     </SettingsRow>
                     <SettingsRow
+                      inline
                       label="Keep pinned knives first"
-                      description="Place pinned knives before other items in the Dashboard, Collection, and Compare views."
+                      description="In the Dashboard, Collection and Compare views."
                     >
-                      <Checkbox
+                      <SettingsSwitch
                         aria-label="Keep pinned knives first"
                         checked={settings.pinnedItemsFirst}
-                        onCheckedChange={(checked) =>
-                          handlePinnedItemsFirstToggle(checked === true)
-                        }
+                        onCheckedChange={handlePinnedItemsFirstToggle}
                       />
                     </SettingsRow>
                   </SettingsSection>
@@ -2357,10 +2292,7 @@ export default function SettingsView() {
 
               {activeTab === 'fields' && (
                 <div className="settings-grid">
-                  <SettingsSection
-                    title="Custom fields"
-                    description="Define extra fields that apply to every knife. They appear in the add/edit form and as collection filters."
-                  >
+                  <SettingsSection description="Define extra fields that apply to every knife. They appear in the add/edit form and as collection filters.">
                     {settings.customFields.length === 0 ? (
                       <div className="py-3 text-sm text-muted-foreground">
                         No custom fields yet. Add one below to use it across
@@ -2505,7 +2437,7 @@ export default function SettingsView() {
               {activeTab === 'mcp' && (
                 <div className="settings-grid">
                   {mcpUpdateStatus !== 'idle' ? (
-                    <div className="settings-full flex justify-end">
+                    <div className="flex justify-end">
                       <StatusPill
                         status={mcpUpdateStatus}
                         message={mcpUpdateMessage}
@@ -2513,8 +2445,9 @@ export default function SettingsView() {
                     </div>
                   ) : null}
 
-                  <SettingsSection title="MCP">
+                  <SettingsSection title="Access">
                     <SettingsRow
+                      inline
                       label="Enabled"
                       description={
                         mcpStatus?.controls.enabledManagedByEnvironment
@@ -2522,10 +2455,10 @@ export default function SettingsView() {
                           : undefined
                       }
                     >
-                      <Checkbox
+                      <SettingsSwitch
                         checked={mcpStatus?.enabled || false}
                         onCheckedChange={(checked) =>
-                          void handleMcpEnabledChange(checked === true)
+                          void handleMcpEnabledChange(checked)
                         }
                         disabled={
                           !mcpStatus ||
@@ -2536,6 +2469,7 @@ export default function SettingsView() {
                       />
                     </SettingsRow>
                     <SettingsRow
+                      inline
                       label="Write access"
                       description={
                         mcpStatus?.controls.writeEnabledManagedByEnvironment
@@ -2543,10 +2477,10 @@ export default function SettingsView() {
                           : 'Read-only when off. Writes are audited.'
                       }
                     >
-                      <Checkbox
+                      <SettingsSwitch
                         checked={mcpStatus?.writeEnabled || false}
                         onCheckedChange={(checked) =>
-                          void handleMcpWriteEnabledChange(checked === true)
+                          void handleMcpWriteEnabledChange(checked)
                         }
                         disabled={
                           !mcpStatus?.enabled ||
