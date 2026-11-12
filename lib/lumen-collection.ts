@@ -20,11 +20,14 @@ export function filterLumenKnives(
   const filters = new URLSearchParams(params)
   const pinnedOnly = filters.get('view') === 'pinned'
   const status = filters.get(LUMEN_STATUS_PARAM)
+  const query = filters.get('q') ?? ''
+  filters.delete('q')
   filters.delete('view')
   filters.delete(LUMEN_STATUS_PARAM)
   filters.delete('smart')
   return knives.filter(
     (knife) =>
+      matchesLumenSearch(knife, query) &&
       matchesCollection(knife, filters) &&
       (!pinnedOnly || knife.pinned) &&
       (status === 'sold'
@@ -33,6 +36,29 @@ export function filterLumenKnives(
           ? !knife.sold
           : true),
   )
+}
+
+/**
+ * Text search for the Lumen-based layouts. Every word must appear in the
+ * knife's name, brand, model number, blade style, steel, lock or handle, so
+ * "spyderco s30v" narrows to Spyderco knives in S30V.
+ */
+export function matchesLumenSearch(knife: Knife, query: string): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  if (!words.length) return true
+  const text = [
+    knife.name,
+    knife.brand,
+    knife.specs.modelNumber,
+    knife.bladeStyle,
+    knife.specs.bladeMaterial,
+    knife.specs.lockingMechanism,
+    knife.handleMaterial,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+  return words.every((word) => text.includes(word))
 }
 
 export function sortLumenKnives(

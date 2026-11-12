@@ -6,6 +6,7 @@ import {
   countFacet,
   filterLumenKnives,
   formatMoney,
+  matchesLumenSearch,
   parsePrice,
   sortLumenKnives,
   summarizeCollectionValue,
@@ -88,6 +89,21 @@ describe('filterLumenKnives', () => {
     expect(ids('status=sold')).toEqual(['b'])
     expect(ids('status=owned&brand=Spyderco')).toEqual(['a', 'c'])
     expect(ids('smart=abc')).toEqual(['a', 'b', 'c'])
+    expect(ids('q=bench')).toEqual(['b'])
+  })
+})
+
+describe('matchesLumenSearch', () => {
+  it('matches every word across name, brand, steel and lock', () => {
+    const item = knife({
+      id: 'a',
+      name: 'Para 3',
+      brand: 'Spyderco',
+      specs: { ...knife({ id: 'x' }).specs, bladeMaterial: 'CPM S45VN' },
+    })
+    expect(matchesLumenSearch(item, 'spyderco s45vn')).toBe(true)
+    expect(matchesLumenSearch(item, '  ')).toBe(true)
+    expect(matchesLumenSearch(item, 'spyderco magnacut')).toBe(false)
   })
 })
 
