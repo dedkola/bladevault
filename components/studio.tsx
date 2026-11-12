@@ -44,7 +44,6 @@ import styles from './studio.module.css'
 
 // Smart Collections are selected as `smart:<id>`.
 type StudioFilter = 'all' | 'folding' | 'fixed' | 'pinned' | `smart:${string}`
-type StudioSort = 'random' | 'name' | 'maker'
 
 function StudioImage({
   knife,
@@ -98,7 +97,6 @@ export function StudioView() {
   const [seed] = useState(() => Math.floor(Math.random() * 0x100000000))
   const [filter, setFilter] = useState<StudioFilter>('all')
   const [query, setQuery] = useState('')
-  const [sort, setSort] = useState<StudioSort>('random')
   const [size, setSize] = useState<'regular' | 'large'>('regular')
   const [focus, setFocus] = useState(false)
   const headerTarget = useContext(WorkspaceHeaderActionsContext)
@@ -148,16 +146,8 @@ export function StudioView() {
           .includes(search)
       )
     })
-    if (sort === 'name')
-      entries.sort((a, b) => a.knife.name.localeCompare(b.knife.name))
-    if (sort === 'maker')
-      entries.sort(
-        (a, b) =>
-          a.knife.brand.localeCompare(b.knife.brand) ||
-          a.knife.name.localeCompare(b.knife.name),
-      )
     return entries
-  }, [layout, activeFilter, smartCollection, query, sort])
+  }, [layout, activeFilter, smartCollection, query])
   const families = useMemo(
     () => groupKnifeFamilies(layout.map(({ knife }) => knife)),
     [layout],
@@ -354,7 +344,6 @@ export function StudioView() {
       {!isLoading &&
         activeFilter === 'all' &&
         !query.trim() &&
-        sort === 'random' &&
         size === 'regular' &&
         featuredFamilies.length >= 2 && (
           <Link
@@ -509,17 +498,6 @@ export function StudioView() {
                 <Expand />
               </Button>
             )}
-            <label className={styles.sort}>
-              <span className="sr-only">Sort knives</span>
-              <select
-                value={sort}
-                onChange={(event) => setSort(event.target.value as StudioSort)}
-              >
-                <option value="random">Featured</option>
-                <option value="name">Name</option>
-                <option value="maker">Maker</option>
-              </select>
-            </label>
             <div
               className={styles.segmented}
               role="group"
