@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   cleanupScrapePopups,
   cleanScrapePreview,
+  replaceScrapePreviewEmbeds,
 } from '@/lib/scrape-popup-cleanup'
 
 const product = `<main><h1>Native Chief Lightweight</h1>
@@ -124,5 +125,18 @@ describe('scrape popup cleanup', () => {
     expect(result.html).not.toContain('popup-overlay')
     expect(result.html).toContain('Technical specifications')
     expect(original).toContain('An unfamiliar promotion')
+  })
+
+  it('swaps embedded players for a placeholder in the script-blocked preview', () => {
+    const original = `<html><body>${product}
+      <iframe src="https://www.youtube.com/embed/njmdp0LBDM8?rel=0" title="Kershaw - Beskar - 1439" class="pdp-product-gallery__video-iframe"></iframe>
+      <iframe id="a2a_sm_ifr" aria-hidden="true" src="https://static.addtoany.com/menu/sm.25.html" style="height: 1px; width: 1px; display: none;"></iframe>
+      </body></html>`
+    const html = replaceScrapePreviewEmbeds(original)
+    expect(html).not.toContain('<iframe')
+    expect(html).toContain('Video not shown in preview')
+    expect(html).toContain('pdp-product-gallery__video-iframe')
+    expect(html).toContain('Technical specifications')
+    expect(replaceScrapePreviewEmbeds(product)).toBe(product)
   })
 })

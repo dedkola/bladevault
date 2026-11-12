@@ -181,3 +181,44 @@ export function cleanScrapePreview(html: string): {
     removed,
   }
 }
+
+/**
+ * The preview iframe blocks scripts, so embedded players (YouTube, Vimeo, …)
+ * render their own "Unable to execute JavaScript" error. Swap visible embeds
+ * for a neutral placeholder and drop hidden utility frames. Preview copy only.
+ */
+export function replaceScrapePreviewEmbeds(html: string): string {
+  if (!/<(iframe|embed|object)\b/i.test(html)) return html
+  const root = new DOMParser().parseFromString(html, 'text/html')
+  for (const frame of Array.from(
+    root.querySelectorAll<HTMLElement>('iframe, embed, object'),
+  )) {
+    const style = (frame.getAttribute('style') ?? '').replace(/\s+/g, '')
+    const width = Number(frame.getAttribute('width'))
+    const height = Number(frame.getAttribute('height'))
+    const hidden =
+      frame.hidden ||
+      frame.getAttribute('aria-hidden') === 'true' ||
+      /display:none|visibility:hidden/i.test(style) ||
+      (width > 0 && width <= 2) ||
+      (height > 0 && height <= 2)
+    if (hidden) {
+      frame.remove()
+      continue
+    }
+    const placeholder = root.createElement('div')
+    placeholder.setAttribute('data-bladevault-embed-placeholder', '')
+    placeholder.setAttribute('class', frame.getAttribute('class') ?? '')
+    placeholder.setAttribute(
+      'style',
+      'display:flex;align-items:center;justify-content:center;width:100%;height:100%;min-height:120px;aspect-ratio:16/9;background:#f3f4f6;color:#6b7280;font:14px/1.4 system-ui,sans-serif;text-align:center;padding:12px;box-sizing:border-box',
+    )
+    placeholder.textContent = /youtube|vimeo|wistia|video|player/i.test(
+      `${frame.getAttribute('src') ?? ''} ${frame.getAttribute('title') ?? ''}`,
+    )
+      ? 'Video not shown in preview. Open the page to play it.'
+      : 'Embedded content not shown in preview.'
+    frame.replaceWith(placeholder)
+  }
+  return `<!DOCTYPE html>\n${root.documentElement.outerHTML}`
+}

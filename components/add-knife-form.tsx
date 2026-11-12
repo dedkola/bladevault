@@ -56,7 +56,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { useUnsavedChanges } from '@/hooks/use-unsaved-changes'
-import { cleanScrapePreview } from '@/lib/scrape-popup-cleanup'
+import {
+  cleanScrapePreview,
+  replaceScrapePreviewEmbeds,
+} from '@/lib/scrape-popup-cleanup'
 
 function hasKnifeFormContent(form: KnifeFormData): boolean {
   return Object.values(form).some((value) => {
@@ -719,13 +722,13 @@ export function AddKnifeForm() {
   const safeSourceUrl = getSafeExternalUrl(form.sourceUrl)
   const safePreviewBaseUrl =
     getSafeExternalUrl(scrapedFinalUrl) ?? safeSourceUrl
-  const preview = useMemo(
-    () =>
-      hidePreviewPopups && scrapedHtml
-        ? cleanScrapePreview(scrapedHtml)
-        : { html: scrapedHtml, removed: 0 },
-    [hidePreviewPopups, scrapedHtml],
-  )
+  const preview = useMemo(() => {
+    if (!scrapedHtml) return { html: scrapedHtml, removed: 0 }
+    const cleaned = hidePreviewPopups
+      ? cleanScrapePreview(scrapedHtml)
+      : { html: scrapedHtml, removed: 0 }
+    return { ...cleaned, html: replaceScrapePreviewEmbeds(cleaned.html) }
+  }, [hidePreviewPopups, scrapedHtml])
   const previewHtml = preview.html
     ? `${safePreviewBaseUrl ? `<base href="${escapeHtmlAttribute(safePreviewBaseUrl)}">\n` : ''}${preview.html}`
     : ''
