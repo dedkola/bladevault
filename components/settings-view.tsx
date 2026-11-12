@@ -75,6 +75,12 @@ import {
   setCloudAuthState,
 } from '@/lib/cloud-backup'
 import { formatCloudBackupError } from '@/lib/cloud-backup-client'
+import {
+  connectDriveBackup,
+  disconnectDriveBackup,
+  getDriveBackupStatus,
+} from '@/lib/drive-backup-client'
+import type { DriveBackupStatus } from '@/lib/drive-backup-shared'
 import { ScreenshotBackfill } from '@/components/screenshot-backfill'
 import { AppLockSettings } from '@/components/app-lock-settings'
 import { DesktopErrorReportingSettings } from '@/components/desktop-error-reporting-settings'
@@ -263,6 +269,17 @@ function StatusPill({
       </span>
     </span>
   )
+}
+
+function formatBackupSize(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return ''
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const index = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1,
+  )
+  const value = bytes / 1024 ** index
+  return `${value >= 100 || index === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[index]}`
 }
 
 function formatSyncTime(
@@ -649,6 +666,38 @@ export default function SettingsView() {
         ? restoreJob.message ||
           'Cloud restore failed. Your vault was not replaced.'
         : 'Cloud backup restored successfully.'
+  // One backup or restore runs at a time. Each result is shown only beside the
+  // storage it belongs to.
+  const isDriveBackupJob = cloudBackupJob.target === 'drive'
+  const isDriveRestoreJob = restoreJob.target === 'drive'
+  const cloudBackupPillStatus: StatusTone = isDriveBackupJob
+    ? 'idle'
+    : backupStatus
+  const cloudRestorePillStatus: StatusTone = isDriveRestoreJob
+    ? 'idle'
+    : restoreStatus
+  const driveBackupPillStatus: StatusTone = isDriveBackupJob
+    ? backupStatus
+    : 'idle'
+  const driveRestorePillStatus: StatusTone = isDriveRestoreJob
+    ? restoreStatus
+    : 'idle'
+  const driveBackupMessage =
+    cloudBackupJob.status === 'running'
+      ? backupMessage
+      : cloudBackupJob.status === 'error'
+        ? cloudBackupJob.message || 'Google Drive backup failed. Try again.'
+        : 'Backup saved to Google Drive.'
+  const driveRestoreMessage =
+    restoreJob.status === 'running'
+      ? restoreMessage
+      : restoreJob.status === 'error'
+        ? restoreJob.message ||
+          'Google Drive restore failed. Your vault was not replaced.'
+        : 'Google Drive backup restored successfully.'
+  const [driveStatus, setDriveStatus] = useState<DriveBackupStatus | null>(null)
+  const [driveAuthStatus, setDriveAuthStatus] = useState<StatusTone>('idle')
+  const [driveAuthMessage, setDriveAuthMessage] = useState('')
   const [localBackupStatus, setLocalBackupStatus] = useState<StatusTone>('idle')
   const [localBackupMessage, setLocalBackupMessage] = useState('')
   const [localDataStatus, setLocalDataStatus] = useState<StatusTone>('idle')
@@ -1232,6 +1281,68 @@ export default function SettingsView() {
     } catch {
       // Leave the current session intact when remote sign-out fails.
     }
+  }
+
+  // Read Google Drive when the tab opens and after a Drive job finishes, so
+  // the stored backup's date and size stay current.
+  const driveJobSettled =
+    (isDriveBackupJob && cloudBackupJob.status !== 'running') ||
+    (isDriveRestoreJob && restoreJob.status !== 'running')
+  useEffect(() => {
+    if (activeTab !== 'cloud-backup') return
+    let cancelled = false
+    getDriveBackupStatus()
+      .then((status) => {
+        if (!cancelled) setDriveStatus(status)
+      })
+      .catch(() => {
+        // Keep the last known state; the next visit to this tab retries.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, driveJobSettled])
+
+  const handleDriveConnect = async () => {
+    setDriveAuthStatus('loading')
+    setDriveAuthMessage('Opening Google sign-in...')
+    try {
+      setDriveStatus(await connectDriveBackup())
+      setDriveAuthStatus('success')
+      setDriveAuthMessage('Google Drive is connected.')
+    } catch (error) {
+      setDriveAuthStatus('error')
+      setDriveAuthMessage(
+        error instanceof Error ? error.message : 'Google sign-in failed.',
+      )
+    }
+  }
+
+  const handleDriveDisconnect = async () => {
+    try {
+      setDriveStatus(await disconnectDriveBackup())
+      setDriveAuthStatus('idle')
+      setDriveAuthMessage('')
+    } catch (error) {
+      setDriveAuthStatus('error')
+      setDriveAuthMessage(
+        error instanceof Error
+          ? error.message
+          : 'Could not disconnect Google Drive.',
+      )
+    }
+  }
+
+  const handleDriveRestore = async () => {
+    if (
+      !window.confirm(
+        'Restore the backup from Google Drive and replace the local database on this device? You can keep browsing while editing is temporarily paused.',
+      )
+    ) {
+      return
+    }
+
+    await startRestore('drive')
   }
 
   const handleRestore = async () => {
@@ -1937,16 +2048,153 @@ export default function SettingsView() {
                         )}
                       </SettingsRow>
 
-                      {backupStatus !== 'idle' ? (
+                      {cloudBackupPillStatus !== 'idle' ? (
                         <div className="py-3">
                           <StatusPill
-                            status={backupStatus}
+                            status={cloudBackupPillStatus}
                             message={backupMessage}
                             quiet
                           />
                         </div>
                       ) : null}
                     </SettingsSection>
+
+                    {driveStatus?.available ? (
+                      <SettingsSection
+                        title="Google Drive"
+                        description="Keep one backup file in your own Google Drive. BladeVault can only see the files it creates there."
+                      >
+                        {driveStatus.connected ? (
+                          <>
+                            <SettingsRow
+                              label="Google Drive connected"
+                              description={
+                                driveStatus.file
+                                  ? `Backup in Drive: ${[
+                                      formatSyncTime(
+                                        driveStatus.file.modifiedTime,
+                                        settings.timeFormat,
+                                      ),
+                                      formatBackupSize(driveStatus.file.size),
+                                    ]
+                                      .filter(Boolean)
+                                      .join(' · ')}`
+                                  : driveStatus.message ||
+                                    'No backup in Drive yet.'
+                              }
+                            >
+                              <Button
+                                variant="outline"
+                                className={`${settingsSecondaryButtonClassName} rounded-lg`}
+                                onClick={handleDriveDisconnect}
+                                disabled={
+                                  backupStatus === 'loading' ||
+                                  restoreStatus === 'loading'
+                                }
+                              >
+                                <LogOut className="h-3.5 w-3.5" />
+                                Disconnect
+                              </Button>
+                            </SettingsRow>
+
+                            <SettingsRow
+                              label="Back up to Google Drive"
+                              description="Replaces the backup file in your Drive."
+                            >
+                              <Button
+                                variant="outline"
+                                className={`${settingsSecondaryButtonClassName} rounded-lg`}
+                                onClick={() => void startVaultBackup('drive')}
+                                disabled={
+                                  isVaultReadOnly ||
+                                  backupStatus === 'loading' ||
+                                  restoreStatus === 'loading' ||
+                                  localBackupStatus === 'loading'
+                                }
+                              >
+                                <Upload className="h-3.5 w-3.5" />
+                                Backup
+                              </Button>
+                            </SettingsRow>
+
+                            <SettingsRow
+                              label="Restore from Google Drive"
+                              description="Replaces the local data on this device."
+                            >
+                              <Button
+                                variant="outline"
+                                className={`${settingsSecondaryButtonClassName} rounded-lg`}
+                                onClick={handleDriveRestore}
+                                disabled={
+                                  !driveStatus.file ||
+                                  isVaultReadOnly ||
+                                  restoreStatus === 'loading' ||
+                                  backupStatus === 'loading'
+                                }
+                              >
+                                {driveRestorePillStatus === 'loading' ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Download className="h-3.5 w-3.5" />
+                                )}
+                                Restore
+                              </Button>
+                            </SettingsRow>
+                          </>
+                        ) : (
+                          <SettingsRow
+                            label="Not connected"
+                            description={
+                              driveStatus.message ||
+                              'Sign in with Google to store a backup in your Drive.'
+                            }
+                          >
+                            <Button
+                              className={`${settingsPrimaryButtonClassName} rounded-lg`}
+                              onClick={handleDriveConnect}
+                              disabled={driveAuthStatus === 'loading'}
+                            >
+                              <FcGoogle className="h-4 w-4" />
+                              Connect Google Drive
+                            </Button>
+                          </SettingsRow>
+                        )}
+
+                        {driveAuthStatus !== 'idle' &&
+                        !(
+                          driveAuthStatus === 'success' &&
+                          (driveBackupPillStatus !== 'idle' ||
+                            driveRestorePillStatus !== 'idle')
+                        ) ? (
+                          <div className="py-3">
+                            <StatusPill
+                              status={driveAuthStatus}
+                              message={driveAuthMessage}
+                            />
+                          </div>
+                        ) : null}
+
+                        {driveBackupPillStatus !== 'idle' ? (
+                          <div className="py-3">
+                            <StatusPill
+                              status={driveBackupPillStatus}
+                              message={driveBackupMessage}
+                              quiet
+                            />
+                          </div>
+                        ) : null}
+
+                        {driveRestorePillStatus !== 'idle' ? (
+                          <div className="py-3">
+                            <StatusPill
+                              status={driveRestorePillStatus}
+                              message={driveRestoreMessage}
+                              quiet
+                            />
+                          </div>
+                        ) : null}
+                      </SettingsSection>
+                    ) : null}
                   </div>
                   <div className="settings-stack">
                     <SettingsSection title="Backup">
@@ -2007,7 +2255,7 @@ export default function SettingsView() {
                             backupStatus === 'loading'
                           }
                         >
-                          {restoreStatus === 'loading' ? (
+                          {cloudRestorePillStatus === 'loading' ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
                             <Download className="h-3.5 w-3.5" />
@@ -2016,10 +2264,10 @@ export default function SettingsView() {
                         </Button>
                       </SettingsRow>
 
-                      {restoreStatus !== 'idle' ? (
+                      {cloudRestorePillStatus !== 'idle' ? (
                         <div className="py-3">
                           <StatusPill
-                            status={restoreStatus}
+                            status={cloudRestorePillStatus}
                             message={restoreMessage}
                             quiet
                           />

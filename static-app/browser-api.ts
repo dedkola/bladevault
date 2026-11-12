@@ -22,6 +22,7 @@ import {
 } from '@/lib/comparisons'
 import type { SmartCollection } from '@/lib/smart-collections'
 import { IDLE_CLOUD_BACKUP_JOB } from '@/lib/cloud-backup-shared'
+import { DRIVE_BACKUP_UNAVAILABLE } from '@/lib/drive-backup-shared'
 import { IDLE_CLOUD_RESTORE_JOB } from '@/lib/cloud-restore-shared'
 
 const SESSION_KEY = 'bladevault:static-session:v1'
@@ -199,6 +200,8 @@ function handle(request: Request, body: Record<string, unknown>) {
     return json({ job: IDLE_CLOUD_BACKUP_JOB })
   if (path === '/api/cloud-backup/restore-job' && method === 'GET')
     return json({ job: IDLE_CLOUD_RESTORE_JOB })
+  if (path === '/api/drive-backup/status' && method === 'GET')
+    return json(DRIVE_BACKUP_UNAVAILABLE)
   if (path === '/api/app-lock' && method === 'GET')
     return json({ enabled: false, unlocked: true })
   if (path === '/api/activity' && method === 'GET')

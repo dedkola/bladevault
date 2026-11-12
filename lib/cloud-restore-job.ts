@@ -8,10 +8,12 @@ import {
   downloadCloudRestoreArchive,
   prepareCloudRestoreArchive,
 } from '@/lib/cloud-restore-archive'
+import type { CloudBackupTarget } from '@/lib/cloud-backup-shared'
 import {
   IDLE_CLOUD_RESTORE_JOB,
   type CloudRestoreJobState,
 } from '@/lib/cloud-restore-shared'
+import { downloadDriveBackup } from '@/lib/drive-backup'
 import { replaceLocalDataFromDirectory } from '@/lib/local-data-restore'
 import { getLocalDataDirPath } from '@/lib/local-db'
 import {
@@ -117,6 +119,7 @@ async function runJob(
   dataDir: string,
   sessionToken: string,
   lease: VaultRestoreLease,
+  target: CloudBackupTarget,
 ) {
   let tempRoot: string | null = null
   let accessToken: string | null = null
@@ -126,8 +129,12 @@ async function runJob(
       path.join(os.tmpdir(), 'bladevault-cloud-restore-'),
     )
     const archivePath = path.join(tempRoot, 'backup.tar.gz')
-    accessToken = await refreshRestoreToken(sessionToken)
-    await downloadCloudRestoreArchive(accessToken, archivePath)
+    if (target === 'drive') {
+      await downloadDriveBackup(archivePath, dataDir)
+    } else {
+      accessToken = await refreshRestoreToken(sessionToken)
+      await downloadCloudRestoreArchive(accessToken, archivePath)
+    }
     job.phase = 'validating'
     saveJob(job, dataDir)
     const sourceDir = await prepareCloudRestoreArchive(
@@ -171,6 +178,7 @@ async function runJob(
 export function startCloudRestoreJob(
   sessionToken: string,
   expectedGeneration?: string,
+  target: CloudBackupTarget = 'bladevault',
 ): {
   job: CloudRestoreJobState
   started: boolean
@@ -193,6 +201,7 @@ export function startCloudRestoreJob(
   const job: CloudRestoreJobState = {
     ...IDLE_CLOUD_RESTORE_JOB,
     id: randomUUID(),
+    ...(target === 'drive' ? { target } : {}),
     status: 'running',
     phase: 'downloading',
   }
@@ -207,7 +216,7 @@ export function startCloudRestoreJob(
   // The Node process owns the job. The initiating request and Settings component
   // can disappear without stopping an accepted restore.
   setImmediate(() => {
-    void runJob(job, dataDir, sessionToken, lease)
+    void runJob(job, dataDir, sessionToken, lease, target)
       .finally(releaseOperation)
       .catch(() => {})
   })

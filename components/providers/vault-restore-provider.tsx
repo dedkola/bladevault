@@ -17,6 +17,7 @@ import {
   getVaultStatus,
   startCloudRestore,
 } from '@/lib/cloud-restore-client'
+import type { CloudBackupTarget } from '@/lib/cloud-backup-shared'
 import {
   IDLE_CLOUD_RESTORE_JOB,
   type CloudRestoreJobState,
@@ -33,7 +34,7 @@ import {
 type RestoreContextValue = {
   job: CloudRestoreJobState
   readOnly: boolean
-  startRestore: () => Promise<void>
+  startRestore: (target?: CloudBackupTarget) => Promise<void>
 }
 
 const RestoreContext = createContext<RestoreContextValue | null>(null)
@@ -166,50 +167,55 @@ export function VaultRestoreProvider({
     }
   }, [reloadRestoredVault])
 
-  const startRestore = useCallback(async () => {
-    if (startingRef.current || getVaultClientState().readOnly) return
-    startingRef.current = true
-    const previous = getVaultClientState()
-    setVaultClientState({ ...previous, phase: 'preparing', readOnly: true })
-    const preparing: CloudRestoreJobState = {
-      ...IDLE_CLOUD_RESTORE_JOB,
-      status: 'running',
-      phase: 'downloading',
-    }
-    setJob(preparing)
-    try {
-      const { job: nextJob } = await startCloudRestore()
-      setJob(nextJob)
-      if (nextJob.status !== 'running') {
-        const next = await getVaultStatus()
-        if (previous.generation && next.generation !== previous.generation) {
-          void reloadRestoredVault(next.generation)
-        } else {
-          setVaultClientState(next)
-        }
-      }
-    } catch (error) {
-      const failure: CloudRestoreJobState = {
+  const startRestore = useCallback(
+    async (target: CloudBackupTarget = 'bladevault') => {
+      if (startingRef.current || getVaultClientState().readOnly) return
+      startingRef.current = true
+      const previous = getVaultClientState()
+      setVaultClientState({ ...previous, phase: 'preparing', readOnly: true })
+      const preparing: CloudRestoreJobState = {
         ...IDLE_CLOUD_RESTORE_JOB,
-        status: 'error',
-        message:
-          error instanceof Error ? error.message : 'Could not start restore.',
+        ...(target === 'drive' ? { target } : {}),
+        status: 'running',
+        phase: 'downloading',
       }
-      setJob(failure)
+      setJob(preparing)
       try {
-        const next = await getVaultStatus()
-        if (previous.generation && next.generation !== previous.generation) {
-          void reloadRestoredVault(next.generation)
-        } else {
-          setVaultClientState(next)
+        const { job: nextJob } = await startCloudRestore(target)
+        setJob(nextJob)
+        if (nextJob.status !== 'running') {
+          const next = await getVaultStatus()
+          if (previous.generation && next.generation !== previous.generation) {
+            void reloadRestoredVault(next.generation)
+          } else {
+            setVaultClientState(next)
+          }
         }
-      } catch {
-        // Preserve read-only protection until the server can confirm its state.
+      } catch (error) {
+        const failure: CloudRestoreJobState = {
+          ...IDLE_CLOUD_RESTORE_JOB,
+          ...(target === 'drive' ? { target } : {}),
+          status: 'error',
+          message:
+            error instanceof Error ? error.message : 'Could not start restore.',
+        }
+        setJob(failure)
+        try {
+          const next = await getVaultStatus()
+          if (previous.generation && next.generation !== previous.generation) {
+            void reloadRestoredVault(next.generation)
+          } else {
+            setVaultClientState(next)
+          }
+        } catch {
+          // Preserve read-only protection until the server can confirm its state.
+        }
+      } finally {
+        startingRef.current = false
       }
-    } finally {
-      startingRef.current = false
-    }
-  }, [reloadRestoredVault])
+    },
+    [reloadRestoredVault],
+  )
 
   const context = useMemo(
     () => ({ job, readOnly: status.readOnly, startRestore }),

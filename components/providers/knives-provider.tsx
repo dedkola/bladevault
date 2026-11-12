@@ -50,6 +50,7 @@ import {
 import {
   IDLE_CLOUD_BACKUP_JOB,
   type CloudBackupJobState,
+  type CloudBackupTarget,
 } from '@/lib/cloud-backup-shared'
 import {
   getVaultClientState,
@@ -91,7 +92,7 @@ type KnivesContextValue = {
   showFeedback: (message: string, tone?: FeedbackTone) => void
   scheduleVaultBackup: () => void
   cloudBackupJob: CloudBackupJobState
-  startVaultBackup: () => Promise<void>
+  startVaultBackup: (target?: CloudBackupTarget) => Promise<void>
 }
 
 type FeedbackTone = 'success' | 'error'
@@ -372,6 +373,7 @@ export function KnivesProvider({
     startTransition(() => {
       setCloudBackupJob((current) =>
         current.id === job.id &&
+        current.target === job.target &&
         current.status === job.status &&
         current.phase === job.phase &&
         current.syncedAt === job.syncedAt &&
@@ -393,41 +395,46 @@ export function KnivesProvider({
     }
   }, [])
 
-  const startVaultBackup = useCallback(async () => {
-    if (getVaultClientState().readOnly) return
-    if (backupInFlightRef.current || backupRequestRef.current) return
+  const startVaultBackup = useCallback(
+    async (target: CloudBackupTarget = 'bladevault') => {
+      if (getVaultClientState().readOnly) return
+      if (backupInFlightRef.current || backupRequestRef.current) return
 
-    clearScheduledBackup()
-    pendingBackupRef.current = false
-    backupRequestRef.current = true
-    backupRequestVersionRef.current += 1
-    applyBackupJob({
-      ...IDLE_CLOUD_BACKUP_JOB,
-      status: 'running',
-      phase: 'preparing',
-      syncedAt: cloudBackupJobRef.current.syncedAt,
-    })
-
-    try {
-      const { job, started } = await startCloudBackupArchive()
-      // Another window may already be archiving an older snapshot. Preserve a
-      // follow-up so the edits that prompted this request are also backed up.
-      if (!started && autoBackupAllowedRef.current) {
-        pendingBackupRef.current = true
-      }
-      applyBackupJob(job)
-    } catch (error) {
+      clearScheduledBackup()
+      pendingBackupRef.current = false
+      backupRequestRef.current = true
+      backupRequestVersionRef.current += 1
       applyBackupJob({
         ...IDLE_CLOUD_BACKUP_JOB,
-        status: 'error',
+        ...(target === 'drive' ? { target } : {}),
+        status: 'running',
+        phase: 'preparing',
         syncedAt: cloudBackupJobRef.current.syncedAt,
-        message:
-          error instanceof Error ? error.message : 'Could not start backup.',
       })
-    } finally {
-      backupRequestRef.current = false
-    }
-  }, [applyBackupJob, clearScheduledBackup])
+
+      try {
+        const { job, started } = await startCloudBackupArchive(target)
+        // Another window may already be archiving an older snapshot. Preserve a
+        // follow-up so the edits that prompted this request are also backed up.
+        if (!started && autoBackupAllowedRef.current) {
+          pendingBackupRef.current = true
+        }
+        applyBackupJob(job)
+      } catch (error) {
+        applyBackupJob({
+          ...IDLE_CLOUD_BACKUP_JOB,
+          ...(target === 'drive' ? { target } : {}),
+          status: 'error',
+          syncedAt: cloudBackupJobRef.current.syncedAt,
+          message:
+            error instanceof Error ? error.message : 'Could not start backup.',
+        })
+      } finally {
+        backupRequestRef.current = false
+      }
+    },
+    [applyBackupJob, clearScheduledBackup],
+  )
 
   const runAutoBackup = useCallback(() => {
     if (getVaultClientState().readOnly) return

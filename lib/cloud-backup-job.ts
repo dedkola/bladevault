@@ -13,7 +13,9 @@ import { DEFAULT_CLOUD_AUTH_URL, normalizeCloudUrl } from '@/lib/cloud-backup'
 import {
   IDLE_CLOUD_BACKUP_JOB,
   type CloudBackupJobState,
+  type CloudBackupTarget,
 } from '@/lib/cloud-backup-shared'
+import { uploadDriveBackup } from '@/lib/drive-backup'
 import { getLocalDataDirPath, getLocalDb } from '@/lib/local-db'
 import { resolveLocalImagePath } from '@/lib/local-image-path'
 import {
@@ -295,6 +297,7 @@ async function runCloudBackupJob(
   dataDir: string,
   database: Database.Database,
   sessionToken: string,
+  target: CloudBackupTarget,
 ) {
   let tempRoot: string | null = null
   let accessToken: string | null = null
@@ -312,33 +315,43 @@ async function runCloudBackupJob(
         'Local data changed during backup. Back up this vault again.',
       )
     }
-    // Preparing a large vault can take longer than an access token's lifetime.
-    // Refresh only now, immediately before the cloud accepts the upload.
-    accessToken = await refreshJobAccessToken(sessionToken)
-    if (!database.open || getLocalDataDirPath() !== dataDir) {
-      throw new Error(
-        'Local data changed during backup. Back up this vault again.',
-      )
-    }
-    job.phase = 'uploading'
-    await uploadArchive(archivePath, accessToken)
+    if (target === 'drive') {
+      // Google Drive reports its own backup time, so the BladeVault cloud
+      // sync time is left untouched.
+      job.phase = 'uploading'
+      await uploadDriveBackup(archivePath, dataDir)
+      result = { status: 'success', syncedAt: job.syncedAt, message: null }
+    } else {
+      // Preparing a large vault can take longer than an access token's lifetime.
+      // Refresh only now, immediately before the cloud accepts the upload.
+      accessToken = await refreshJobAccessToken(sessionToken)
+      if (!database.open || getLocalDataDirPath() !== dataDir) {
+        throw new Error(
+          'Local data changed during backup. Back up this vault again.',
+        )
+      }
+      job.phase = 'uploading'
+      await uploadArchive(archivePath, accessToken)
 
-    if (!database.open || getLocalDataDirPath() !== dataDir) {
-      throw new Error(
-        'Local data changed during backup. Back up this vault again.',
-      )
+      if (!database.open || getLocalDataDirPath() !== dataDir) {
+        throw new Error(
+          'Local data changed during backup. Back up this vault again.',
+        )
+      }
+      const syncedAt = new Date().toISOString()
+      database
+        .prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
+        .run('cloud_backup_last_synced_at', syncedAt)
+      result = { status: 'success', syncedAt, message: null }
     }
-    const syncedAt = new Date().toISOString()
-    database
-      .prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
-      .run('cloud_backup_last_synced_at', syncedAt)
-    result = { status: 'success', syncedAt, message: null }
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'Cloud backup failed.'
-    result.message = message.split(sessionToken).join('[redacted]')
-    if (accessToken)
-      result.message = result.message.split(accessToken).join('[redacted]')
+    result.message = message
+    for (const secret of [sessionToken, accessToken]) {
+      if (secret)
+        result.message = result.message.split(secret).join('[redacted]')
+    }
   } finally {
     if (tempRoot) {
       try {
@@ -363,7 +376,10 @@ export function getCloudBackupJobState(): CloudBackupJobState {
     : { ...IDLE_CLOUD_BACKUP_JOB, syncedAt: getSavedSyncTime(getLocalDb()) }
 }
 
-export function startCloudBackupJob(sessionToken: string): CloudBackupJobState {
+export function startCloudBackupJob(
+  sessionToken: string,
+  target: CloudBackupTarget = 'bladevault',
+): CloudBackupJobState {
   const dataDir = getLocalDataDirPath()
   const jobs = getJobs()
   const current = jobs.get(dataDir)
@@ -380,6 +396,7 @@ export function startCloudBackupJob(sessionToken: string): CloudBackupJobState {
   }
   const job: CloudBackupJobState = {
     id: randomUUID(),
+    ...(target === 'drive' ? { target } : {}),
     status: 'running',
     phase: 'preparing',
     syncedAt: getSavedSyncTime(database),
@@ -389,9 +406,13 @@ export function startCloudBackupJob(sessionToken: string): CloudBackupJobState {
   // The local Node process owns this work. Neither the POST request's signal nor
   // the lifetime of the Settings page is used by the backup job.
   setImmediate(() => {
-    void runCloudBackupJob(job, dataDir, database, sessionToken).finally(
-      release,
-    )
+    void runCloudBackupJob(
+      job,
+      dataDir,
+      database,
+      sessionToken,
+      target,
+    ).finally(release)
   })
   return { ...job }
 }
