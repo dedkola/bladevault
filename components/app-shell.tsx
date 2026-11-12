@@ -9,6 +9,7 @@ import { Cloud, CloudOff, Moon, Plus, Settings, Sun } from 'lucide-react'
 import { SidebarShell } from '@/components/sidebar-shell'
 import { AlloyShell } from '@/components/alloy-shell'
 import { AtriumShell } from '@/components/atrium/atrium-shell'
+import { LedgerShell } from '@/components/ledger/ledger-shell'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import { WorkspaceFooter } from '@/components/workspace-footer'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -31,6 +32,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
   if (themeStyle === 'atrium') {
     return <AtriumShell>{children}</AtriumShell>
+  }
+  if (themeStyle === 'ledger') {
+    return <LedgerShell>{children}</LedgerShell>
   }
   if (!isModernThemeFamily(themeStyle)) {
     return (

@@ -2,6 +2,7 @@
 
 import { ForgeCollectionGrid } from '@/components/forge-collection'
 import { AtriumCollection } from '@/components/atrium/atrium-collection'
+import { LedgerCollection } from '@/components/ledger/ledger-collection'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 
 import {
@@ -1804,5 +1805,6 @@ export default function CollectionPage() {
 function ThemedCollection() {
   const { themeStyle } = useKnives()
   if (themeStyle === 'atrium') return <AtriumCollection />
+  if (themeStyle === 'ledger') return <LedgerCollection />
   return <CollectionContent />
 }
