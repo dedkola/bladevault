@@ -2209,6 +2209,10 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   border-radius: 3px;
 }
 [data-modern-compare] [data-comparison-matrix] {
+  /* Keep knife columns at a steady size instead of stretching them when a
+     comparison holds only a couple of knives. */
+  --comparison-column-width: 250px;
+  width: fit-content;
   max-width: 100%;
   padding: 0;
   gap: 0;
@@ -2228,8 +2232,7 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   background: var(--card);
 }
 [data-modern-compare] [data-comparison-matrix] [data-slot='table'] {
-  width: 100%;
-  min-width: max(880px, calc(var(--comparison-count) * 170px + 300px));
+  width: auto;
   border-collapse: collapse;
 }
 [data-modern-compare] [data-comparison-matrix] :is(th, td) {
@@ -2248,6 +2251,12 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   font-size: var(--modern-font-caption);
   text-transform: none;
   letter-spacing: 0;
+}
+[data-modern-compare]
+  [data-comparison-matrix]
+  thead
+  th:not(:first-child):not([data-compare-add]) {
+  width: var(--comparison-column-width);
 }
 [data-modern-compare] [data-comparison-matrix] :is(th, td):first-child {
   width: 150px;
@@ -2269,7 +2278,10 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   font-weight: 400;
   line-height: 1.5;
   color: var(--muted-foreground);
-  white-space: nowrap;
+  /* Let long values wrap so one wide value cannot stretch its column and make
+     that knife card bigger than the others. */
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 [data-modern-compare] [data-compare-object] {
   margin: 0;
