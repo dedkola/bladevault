@@ -85,7 +85,7 @@ function Stack({ totals, max }: { totals: Totals; max: number }) {
 }
 
 /**
- * Activity detail page for every style except Classic: the calendar map plus
+ * Activity detail page for the Modern family: the calendar map plus
  * rhythm breakdowns by month, weekday and hour, and the knives that see the
  * most attention.
  */

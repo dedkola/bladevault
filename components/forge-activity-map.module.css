@@ -1,5 +1,6 @@
-/* Activity heatmap for every style except Classic. Forge-family variants
- * set the --forge-* tokens (app/forge.css); Modern and Alloy use the fallbacks. */
+/* Activity heatmap shared by every theme style. Forge-family variants
+ * set the --forge-* tokens (app/forge.css); Modern, Alloy and Classic use the
+ * fallbacks. */
 .root {
   --act-gap: 4px;
   --act-radius: 4px;
