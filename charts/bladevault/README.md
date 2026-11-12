@@ -16,7 +16,7 @@ helm install bladevault bladevault/bladevault \
 The default installation:
 
 - pulls the public multi-platform image matching the chart's app version, such
-  as `ghcr.io/dedkola/bladevault:v0.2.46`;
+  as `ghcr.io/dedkola/bladevault:v2.4.2`;
 - creates a 5 GiB `ReadWriteOnce` PVC at `/app/data` using the default
   StorageClass;
 - uses one replica and the `Recreate` strategy for SQLite safety; and
@@ -62,7 +62,7 @@ helm upgrade bladevault bladevault/bladevault --namespace bladevault --wait
 ```
 
 The chart version, displayed app version, and default image tag match the
-BladeVault release. For example, chart `0.2.46` installs image `v0.2.46`.
+BladeVault release. For example, chart `2.4.2` installs image `v2.4.2`.
 
 To opt into the mutable `latest` image instead, set it explicitly. Recreate the
 pod after future image publications because the tag itself does not change:

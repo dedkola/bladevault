@@ -19,19 +19,21 @@
 | Back up the vault or restore a saved copy                | [Back up and restore your vault](guides/back-up-and-restore-your-vault.md) |
 | Connect an AI client to my collection                    | [MCP](reference/mcp.md)                                                    |
 | Find my data, back it up, or lock the app                | [Your data](reference/data.md)                                             |
+| Back up to Google Drive                                  | [Cloud backup](reference/cloud-backup.md)                                  |
 | Send error reports from a server to Sentry               | [Error reporting](reference/error-reporting.md)                            |
 
 ## What it does
 
-- **Catalog** — keep specifications, pricing, provenance, notes, links, and local photos for every knife. Import product details from supported retailer URLs, with an interactive browser fallback.
-- **Organize** — search, filter, pin, and bulk-edit records; add custom text, number, and date fields, and choose what appears on collection cards and in the pinned sidebar. In the Modern theme, choose, reorder, and resize table columns and switch between list and gallery views.
+- **Catalog** — keep specifications, pricing, provenance, links, and local photos for every knife. Paste a retailer link to import product details, with an interactive browser, the desktop BladeVault browser, or a saved page as fallbacks for bot-protected sites.
+- **Take notes** — add dated personal notes to any knife with Markdown formatting; they also appear in the knife's History.
+- **Organize** — search, filter, pin, and bulk-edit records; add custom text, number, and date fields, and choose what appears on collection cards and pinned items. Switch between card and table views; in Modern-layout styles, choose, reorder, and resize table columns.
 - **Browse** — save filters as Smart Collections that update with your records, or browse variants together in Model families. Global search understands model names and `/model A4301` for model numbers.
-- **Showcase** — open Studio for a photo-first wall of your collection with folding, fixed, and pinned filters, search, sorting, and focus mode. Select any knife for a quick look with its full photo gallery.
+- **Showcase** — open Studio for a photo-first wall of your collection, filtered by folding, fixed, pinned, or any Smart Collection, with search and focus mode. Select any knife for a quick look with its full photo gallery.
 - **Compare** — create named shortlists, add a knife to several lists, show only the differences, and print or export comparisons as PDF.
 - **Maintain** — log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes, and review it in History.
-- **Understand** — explore makers, materials, dimensions, completeness, and activity through collection insights. The Modern theme adds monthly additions for the last 12 months and blade, overall-length, weight, and thickness distributions.
-- **Personalize** — choose the Classic, Modern, or Alloy theme, light or dark color mode, time format, pinned ordering, and the page BladeVault opens on: Insights, Studio, or Collection.
-- **Keep control** — the vault lives in a local SQLite database, ZIP backups are portable, and cloud backup is optional.
+- **Understand** — explore makers, materials, dimensions, completeness, and activity through collection insights, including a calendar activity map. Modern-layout styles add monthly additions for the last 12 months and blade, overall-length, weight, and thickness distributions.
+- **Personalize** — choose one of nine styles (Classic, Modern, Alloy, Forge, Titanium, Field, Lumen, Espresso, or Phosphor), light or dark color mode, metric, imperial, or both measurement units, time format, pinned ordering, and the page BladeVault opens on: Insights, Studio, or Collection.
+- **Keep control** — the vault lives in a local SQLite database, ZIP backups are portable, and backup to your own Google Drive is optional.
 
 ## Feature guides
 
@@ -46,23 +48,23 @@
 | Update or pin a selection of records          | [Edit and pin several knives at once](guides/bulk-actions.md)               |
 | Store additional information                  | [Add and manage custom fields](guides/custom-fields.md)                     |
 | Group and inspect model variants              | [Browse model families and variants](guides/model-families.md)              |
-| Change card details, theme, or time format    | [Customize cards and collection appearance](guides/customize-appearance.md) |
+| Change card details, style, units, or time    | [Customize cards and collection appearance](guides/customize-appearance.md) |
 | Build and export a shortlist                  | [Compare knives](guides/compare.md)                                         |
 | Record cleaning, sharpening, and other care   | [Log maintenance and sharpening](guides/log-maintenance.md)                 |
 | Understand collection patterns                | [Collection insights](guides/insights.md)                                   |
 | Review missing data, measurements, and labels | [Improve collection data quality](guides/improve-data-quality.md)           |
-| See what changed and when                     | [Review collection activity in History](guides/review-collection-activity.md)  |
+| See what changed and when                     | [Review collection activity in History](guides/review-collection-activity.md) |
 | Preserve a copy of a source page              | [Capture source pages](guides/capture-sources.md)                           |
 | Save or restore a full-vault archive          | [Back up and restore your vault](guides/back-up-and-restore-your-vault.md)  |
 
 ## Choose a setup
 
-| Option           | Best for                             | Start here                                     |
-| ---------------- | ------------------------------------ | ---------------------------------------------- |
-| Desktop app      | A native macOS or Windows experience | [Desktop app](installation/desktop.md)         |
-| Docker or Podman | A self-hosted local instance         | [Docker and Podman](installation/docker.md)    |
-| Kubernetes       | k3s or another Kubernetes cluster    | [Kubernetes with Helm](installation/helm.md)   |
-| Source           | Development and customization        | [Run from source](installation/from-source.md) |
+| Option           | Best for                                     | Start here                                     |
+| ---------------- | -------------------------------------------- | ---------------------------------------------- |
+| Desktop app      | A native macOS, Windows, or Linux experience | [Desktop app](installation/desktop.md)         |
+| Docker or Podman | A self-hosted local instance                 | [Docker and Podman](installation/docker.md)    |
+| Kubernetes       | k3s or another Kubernetes cluster            | [Kubernetes with Helm](installation/helm.md)   |
+| Source           | Development and customization                | [Run from source](installation/from-source.md) |
 
 ## Requirements
 

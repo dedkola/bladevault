@@ -9,18 +9,29 @@
 Catalog your knives, showcase them in Studio, compare them side by side, and keep your collection data under your control.
 
   <p>
-    <img src="https://img.shields.io/badge/Next.js-000000?logo=nextdotjs&logoColor=white&style=flat-square" alt="Next.js" />
-    <img src="https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=black&style=flat-square" alt="React" />
+    <a href="https://github.com/dedkola/bladevault/releases/latest"><img src="https://img.shields.io/github/v/release/dedkola/bladevault?style=flat-square&label=release&color=C89B3C" alt="Latest release" /></a>
+    <a href="https://github.com/dedkola/bladevault/releases"><img src="https://img.shields.io/github/downloads/dedkola/bladevault/total?style=flat-square&color=C89B3C" alt="Total downloads" /></a>
+    <a href="https://github.com/dedkola/bladevault/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/dedkola/bladevault/test.yml?branch=main&style=flat-square&label=tests" alt="Test status" /></a>
+    <a href="LICENSE"><img src="https://img.shields.io/github/license/dedkola/bladevault?style=flat-square" alt="MIT License" /></a>
+    <img src="https://img.shields.io/badge/platforms-macOS_·_Windows_·_Linux-555555?style=flat-square" alt="Platforms: macOS, Windows, Linux" />
+  </p>
+
+  <p>
+    <img src="https://img.shields.io/badge/Next.js_16-000000?logo=nextdotjs&logoColor=white&style=flat-square" alt="Next.js 16" />
+    <img src="https://img.shields.io/badge/React_19-61DAFB?logo=react&logoColor=black&style=flat-square" alt="React 19" />
     <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white&style=flat-square" alt="TypeScript" />
     <img src="https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white&style=flat-square" alt="SQLite" />
     <img src="https://img.shields.io/badge/Electron-47848F?logo=electron&logoColor=white&style=flat-square" alt="Electron" />
     <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white&style=flat-square" alt="Docker" />
     <img src="https://img.shields.io/badge/Helm-0F1689?logo=helm&logoColor=white&style=flat-square" alt="Helm" />
     <img src="https://img.shields.io/badge/MCP-10_tools-C89B3C?style=flat-square" alt="Model Context Protocol: 10 tools" />
+    <img src="https://img.shields.io/badge/themes-9_styles-8A6D3B?style=flat-square" alt="9 theme styles" />
   </p>
 
   <p>
     <a href="https://github.com/dedkola/bladevault/releases/latest">Download latest release</a>
+    ·
+    <a href="https://bladevault.pro/docs">Documentation</a>
     ·
     <a href="https://youtu.be/yurbpv0JY80">Watch the demo</a>
   </p>
@@ -29,21 +40,39 @@ Catalog your knives, showcase them in Studio, compare them side by side, and kee
 
 ---
 
-[Install](#choose-a-setup) · [Studio](#studio) · [Screenshots](#screenshots) · [MCP](#model-context-protocol-mcp) · [Backups](#local-backup-and-restore) · [Development](#run-from-source)
+[Install](#choose-a-setup) · [Styles](#styles) · [Studio](#studio) · [Screenshots](#screenshots) · [MCP](#model-context-protocol-mcp) · [Backups](#local-backup-and-restore) · [Development](#run-from-source)
 
 ## What it does
 
-- **Catalog:** Keep specifications, pricing, provenance, notes, links, and local photos for every knife. Import product details from supported retailer URLs, with [popup cleanup and interactive browsing](#import-from-a-product-url).
+- **Catalog:** Keep specifications, pricing, provenance, links, and local photos for every knife. Paste a retailer link to [import product details](#import-from-a-product-url), import several links at once, or enter a knife manually.
+- **Get past bot checks:** When a retailer blocks automated imports, open the page in a real browser to finish verification, use the desktop app's built-in **BladeVault browser**, or import a product page you saved from your own browser.
 - **Capture source pages:** Save a full-page screenshot with URL imports, view or download it later, retry failed captures, and backfill screenshots for older records. Captures are included in local and cloud backups.
-- **Organize:** Search, filter, pin, and bulk-edit records. Add custom text, number, and date fields, and choose which details appear on collection cards and in the pinned sidebar. In the Modern theme, choose, reorder, and resize table columns and switch between list and gallery views.
+- **Take notes:** Add dated personal notes to any knife with Markdown formatting, including lists, links, and tables. Notes appear under the photos, grouped by date, and in the knife's History.
+- **Organize:** Search, filter, pin, and bulk-edit records. Add custom text, number, and date fields, and choose which details appear on collection cards and pinned items. Switch between card and table views; in Modern-layout styles, choose, reorder, and resize table columns.
 - **Browse:** Save filters as Smart Collections that update with your records, or browse variants together in Model families. Global search supports model names and `/model A4301` for model numbers.
-- **Showcase:** Open **Studio** for a photo-first wall of your collection with folding, fixed, and pinned filters, search, sorting, and focus mode. Select any knife for a quick look with its full photo gallery.
+- **Showcase:** Open **Studio** for a photo-first wall of your collection, filtered by folding, fixed, pinned, or any Smart Collection, with search and focus mode. Select any knife for a quick look with its full photo gallery.
 - **Compare:** Create named shortlists, add a knife to several lists, show only differences, and print or export comparisons as PDF.
-- **Maintain:** Log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes and sharpening details. Review maintenance history and collection changes in History.
-- **Understand:** Explore makers, materials, dimensions, completeness, and activity through collection insights. The Modern theme adds monthly additions for the last 12 months and blade, overall-length, weight, and thickness distributions. Open chart details to inspect matching knives or print the Overview as a report.
-- **Personalize:** Choose the **Classic**, **Modern**, or **Alloy** theme, light or dark color mode, time format, pinned ordering, and the page BladeVault opens on: **Insights**, **Studio**, or **Collection**.
+- **Maintain:** Log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes and sharpening details. Each knife's History tab links maintenance, notes, and record changes to their log entries.
+- **Understand:** Explore makers, materials, dimensions, completeness, and activity through collection insights, including a calendar activity map. Modern-layout styles add monthly additions for the last 12 months and blade, overall-length, weight, and thickness distributions. Open chart details to inspect matching knives or print the Overview as a report.
+- **Personalize:** Pick one of [nine styles](#styles), light or dark color mode, metric, imperial, or both measurement units, time format, pinned ordering, and the page BladeVault opens on: **Insights**, **Studio**, or **Collection**.
 - **Connect:** Use MCP to search and analyze your collection from an AI client, with optional metadata updates and maintenance logging.
-- **Keep control:** Store your vault locally in SQLite, create portable ZIP backups, and optionally back up to your own Google Drive.
+- **Keep control:** Store your vault locally in SQLite, create portable ZIP backups, and optionally back up to your own Google Drive. Crash and error reporting is opt-in.
+
+## Styles
+
+BladeVault ships nine styles. Switch them in **Settings → Appearance**, or cycle through them with the quick theme switcher in the footer.
+
+| Style        | Layout  | Color mode    | Character                                     |
+| ------------ | ------- | ------------- | --------------------------------------------- |
+| **Classic**  | Classic | Light or dark | The original layout with cards and a table    |
+| **Modern**   | Modern  | Light or dark | Compact workspace with a docked inspector     |
+| **Alloy**    | Alloy   | Light or dark | A black and gold shell with its own controls  |
+| **Forge**    | Modern  | Light or dark | Graphite and ember                            |
+| **Titanium** | Modern  | Light or dark | Anodized violet, teal, and bronze             |
+| **Field**    | Modern  | Light or dark | Tactical stone and acid lime                  |
+| **Lumen**    | Modern  | Light only    | Pure white and greys with orange accents      |
+| **Espresso** | Modern  | Light only    | Cream paper and a dark roast sidebar          |
+| **Phosphor** | Modern  | Dark only     | An amber phosphor terminal                    |
 
 [Download the latest release](https://github.com/dedkola/bladevault/releases/latest) or browse the [full release history](https://github.com/dedkola/bladevault/releases).
 
@@ -53,6 +82,9 @@ Open **Add knife**, paste the retailer's URL, and choose **Scrape**. BladeVault 
 
 - **Hide popups** removes remaining dialogs from the preview. **Restore original** returns to the imported preview. Neither changes your form edits.
 - **Interact with page** opens the retailer's page in a real browser so you can close stubborn popups or complete site verification. Return to BladeVault and click **Continue** to refresh the import; manually edited fields and image selections are preserved.
+- **Open in BladeVault browser** (desktop app) opens the page in a sandboxed BladeVault window for retailers with Cloudflare-style checks. Complete the check, wait for the product page, then click **Continue**.
+- **Import saved page** reads a product page you saved from your own browser, for retailers that block every automated visit.
+- **Enter manually** opens the empty form when there is no product page.
 
 The interactive browser opens on the computer running BladeVault. In Docker, Podman, or Kubernetes, it runs inside the container and is not streamed to your screen.
 
@@ -60,48 +92,51 @@ See the [URL import guide](docs/guides/add-knife-to-collection.md) for more deta
 
 ## Studio
 
-Open **Studio** from the sidebar for a photo-first index of your vault. BladeVault arranges the collection into a randomized featured wall; use the toolbar to filter folding, fixed, or pinned knives, search by name or specification, sort by name or maker, and switch between regular and large tiles.
+Open **Studio** from the sidebar for a photo-first index of your vault. BladeVault arranges the collection into a randomized featured wall; use the toolbar to filter folding, fixed, or pinned knives or any Smart Collection, search by name or specification, and switch between regular and large tiles.
 
 Select a knife to open a **quick look** with its complete photo gallery, key specifications, and actions to view, edit, pin, or compare it. Use the arrow buttons or the left and right arrow keys to move through photos. **Focus mode** hides the rest of the interface for distraction-free browsing.
 
 ## Choose a setup
 
-| Option           | Best for                             | Start here                                                                           |
-| ---------------- | ------------------------------------ | ------------------------------------------------------------------------------------ |
+| Option           | Best for                                     | Start here                                                                                                     |
+| ---------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | Desktop app      | A native macOS, Windows, or Linux experience | [Download the latest release](https://github.com/dedkola/bladevault/releases/latest) · [Linux install](#linux) |
-| Docker or Podman | A self-hosted local instance         | [Run a container](#run-in-a-container)                                               |
-| Kubernetes       | k3s or another Kubernetes cluster    | [Install with Helm](#install-with-helm)                                              |
-| Source           | Development and customization        | [Run from source](#run-from-source)                                                  |
+| Docker or Podman | A self-hosted local instance                 | [Run a container](#run-in-a-container)                                                                         |
+| Kubernetes       | k3s or another Kubernetes cluster            | [Install with Helm](#install-with-helm)                                                                        |
+| Source           | Development and customization                | [Run from source](#run-from-source)                                                                            |
 
 ## Screenshots
 
 <div align="center">
-  <img src="assets/screenshots/collection.png" alt="BladeVault collection with Smart Collections, model-family browsing, and configurable knife cards" width="100%" />
-  <p><sub>Collection — organize knives, browse model families, and save filters</sub></p>
+  <img src="assets/screenshots/collection.png" alt="BladeVault collection in the Lumen style with knife cards, Smart Collections, pinned knives, and the knife inspector" width="100%" />
+  <p><sub>Collection in <b>Lumen</b> — knife cards, Smart Collections, pinned knives, and the inspector</sub></p>
 </div>
 
 <details>
-<summary>More screenshots: Studio, Modern theme, insights, knife details, comparisons, and URL import</summary>
+<summary>More screenshots: Studio, insights, knife details, comparisons, Add knife, and more styles</summary>
 
 <div align="center">
 
-  <img src="assets/screenshots/studio.png" alt="BladeVault Studio showing a photo-first wall of the collection with featured tiles and filters" width="100%" />
-  <p><sub>Studio — a photo-first visual index with quick look and focus mode</sub></p>
+  <img src="assets/screenshots/studio.png" alt="BladeVault Studio in the Phosphor style showing a photo-first wall with Smart Collection filters" width="100%" />
+  <p><sub>Studio in <b>Phosphor</b> — a photo-first wall filtered by type, pinned knives, or Smart Collection</sub></p>
 
-  <img src="assets/screenshots/modern-collection.png" alt="BladeVault Modern theme collection table with custom columns and a docked knife inspector" width="100%" />
-  <p><sub>Modern theme — compact table, custom columns, and a docked inspector</sub></p>
+  <img src="assets/screenshots/modern-collection.png" alt="BladeVault collection table in the Forge style with custom columns and the knife inspector" width="100%" />
+  <p><sub>Collection table in <b>Forge</b> — custom columns, metric and imperial units, and a docked inspector</sub></p>
 
-  <img src="assets/screenshots/insights.png" alt="BladeVault collection insights showing maker, material, dimension, and data completeness analytics" width="100%" />
-  <p><sub>Insights — patterns, dimensions, materials, and collection health</sub></p>
+  <img src="assets/screenshots/insights.png" alt="BladeVault Insights in the Titanium style with collection totals and the calendar activity map" width="100%" />
+  <p><sub>Insights in <b>Titanium</b> — collection totals and the calendar activity map</sub></p>
 
-  <img src="assets/screenshots/detail.png" alt="Knife detail page with specifications and image gallery" width="100%" />
-  <p><sub>Knife detail — specifications, notes, and image gallery</sub></p>
+  <img src="assets/screenshots/detail.png" alt="Knife detail page in the Espresso style with model variants, photo gallery, and specifications" width="100%" />
+  <p><sub>Knife detail in <b>Espresso</b> — model variants, photo gallery, details, and maintenance</sub></p>
 
-  <img src="assets/screenshots/compare.png" alt="Saved knife comparison list with specifications, differences-only viewing, and PDF export" width="100%" />
-  <p><sub>Compare — saved shortlists and specifications side by side</sub></p>
+  <img src="assets/screenshots/compare.png" alt="Saved knife comparison in the Field style with specifications side by side and PDF export" width="100%" />
+  <p><sub>Compare in <b>Field</b> — saved shortlists and specifications side by side</sub></p>
 
-  <img src="assets/screenshots/add.png" alt="Add knife page importing a Vosteed product URL with the scraped page preview and manual entry option" width="100%" />
-  <p><sub>Add knife — scrape a product URL or enter the details manually</sub></p>
+  <img src="assets/screenshots/add.png" alt="Add knife page in the Alloy style with a product link field, batch scrape, saved-page import, and manual entry" width="100%" />
+  <p><sub>Add knife in <b>Alloy</b> — paste a link, batch scrape, import a saved page, or enter details manually</sub></p>
+
+  <img src="assets/screenshots/classic.png" alt="BladeVault collection in the Classic style with knife cards and the sidebar" width="100%" />
+  <p><sub>Collection in <b>Classic</b> — the original layout</sub></p>
 
 </div>
 
@@ -393,7 +428,7 @@ JSON configuration:
 | ------------------------------------- | ----------------------------- |
 | Docker or Podman on the same computer | `http://localhost:5500/mcp`   |
 | Unraid or another LAN server          | `http://<SERVER_IP>:5500/mcp` |
-| Desktop app (macOS, Windows, Linux)    | `http://127.0.0.1:5501/mcp`   |
+| Desktop app (macOS, Windows, Linux)   | `http://127.0.0.1:5501/mcp`   |
 | Source checkout                       | `http://localhost:3000/mcp`   |
 
 Replace the example URL when needed and replace the token placeholder with the
@@ -501,7 +536,7 @@ You can also change that setting's value directly to choose a replacement passwo
 
 ### Local backup and restore
 
-Open **Settings → Backup & Restore → Download ZIP** to save a portable full-vault backup without a cloud account. The archive includes the database, collection settings, Smart Collections, saved comparisons, history, and local images.
+Open **Settings → Backup & Restore** and select **Download full backup** to save a portable full-vault backup without a cloud account. The archive includes the database, collection settings, Smart Collections, saved comparisons, history, and local images.
 
 Use **Restore from local ZIP** in the same panel to validate an archive and review its contents before replacing the current vault. BladeVault creates a safety copy of the current data before restoring. The panel also offers **Print Report** to open the Overview for printing or saving as a PDF.
 
@@ -513,11 +548,11 @@ For a manual filesystem backup, stop BladeVault and copy the whole data folder s
 
 Cloud backup is opt-in and leaves local storage as the source of truth. Connect your own Google Drive from **Settings → Cloud backup** to upload or restore a complete archive, including images. BladeVault keeps one `bladevault-data.tar.gz` file in a `BladeVault` folder and can only see the files it creates. The backup travels directly between your BladeVault server and Google Drive; `https://auth.bladevault.pro` only completes the Google sign-in.
 
-Manual and automatic backups run quietly on the local server. You can switch pages or reload the browser while an upload continues; check its status in Cloud backup settings. Keep the desktop app or self-hosted server running until it finishes. Automatic backups wait at least 30 seconds after edits settle and use a browser idle slot to start. During an open app session, changes made during a backup are grouped into a later backup. Completion does not show a popup.
+Manual and automatic backups run quietly on the local server. You can switch pages or reload the browser while an upload continues; check its status in **Cloud backup** settings. Keep the desktop app or self-hosted server running until it finishes. Automatic backups wait at least 30 seconds after edits settle and use a browser idle slot to start. During an open app session, changes made during a backup are grouped into a later backup. Completion does not show a popup.
 
 Restore also runs on the local server and continues when you switch pages or reload. You can browse the existing collection while the backup downloads and is validated; editing and automatic backups pause until it finishes. BladeVault waits for active saves, keeps a safety copy, briefly pauses access to install the restored vault, and refreshes open views and images afterward. Local MCP processes participate in the same access protection. Restoring a password-protected vault requires unlocking again with the backed-up password. Safety copies and interrupted-restore recovery files are kept in private `._bladevault-*` folders inside the data directory and are excluded from app backup archives.
 
-The earlier BladeVault cloud account backup has been retired. Deployments can point Google sign-in at their own service with `NEXT_PUBLIC_BLADEVAULT_AUTH_URL`. You can use the local vault and ZIP backups without connecting Google Drive.
+The earlier BladeVault cloud account backup has been retired. Deployments can point Google sign-in at their own service with `NEXT_PUBLIC_BLADEVAULT_AUTH_URL`. You can use the local vault and ZIP backups without connecting Google Drive. See the [cloud backup reference](docs/reference/cloud-backup.md) for details.
 
 ## License
 
