@@ -523,15 +523,15 @@ export function KnifeUserNotes({ knifeId }: { knifeId: string }) {
         {!isAdding && (
           <Button
             type="button"
+            variant="outline"
             size="sm"
-            data-notes-add
             onClick={() => {
               setEditingId(null)
               setIsAdding(true)
             }}
             disabled={isLoading}
           >
-            <Plus aria-hidden="true" />
+            <Plus aria-hidden="true" className="h-3.5 w-3.5" />
             Add note
           </Button>
         )}

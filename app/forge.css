@@ -1650,14 +1650,6 @@ html[data-theme-variant] .group\/button svg:not([class*='size-']) {
   height: 12px;
 }
 
-/* The notes add control carries the same icon weight as the header pill. */
-html[data-theme-variant]
-  .group\/button[data-notes-add]
-  svg:not([class*='size-']) {
-  width: 17px;
-  height: 17px;
-}
-
 /* Quiet (ghost) buttons have no line until hovered. */
 html[data-theme-variant]
   .group\/button:not(
@@ -2493,8 +2485,7 @@ html[data-theme-variant='lumen'] .page-title {
 }
 
 /* Buttons: white with a hairline; hover tints grey. */
-html[data-theme-variant='lumen']
-  .group\/button:not(.underline-offset-4, [data-notes-add]) {
+html[data-theme-variant='lumen'] .group\/button:not(.underline-offset-4) {
   background: var(--flat-btn);
   color: var(--foreground);
   font-size: 12.5px;

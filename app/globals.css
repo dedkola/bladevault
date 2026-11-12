@@ -2526,28 +2526,6 @@ html[data-theme-style='modern']
   > [data-workspace-add]:hover {
   background: var(--primary-hover);
 }
-/* The notes section's add control is the item page's main action, so it
- * mirrors the Add knife pill. Modern finishes override the geometry with
- * their own pill sizing. */
-html[data-theme-style='modern'] [data-notes-add] {
-  height: 34px;
-  min-height: 34px;
-  gap: 6px;
-  padding-inline: 15px;
-  border-radius: 999px;
-  background: var(--primary);
-  color: var(--primary-foreground);
-  font-size: var(--modern-font-body);
-  font-weight: 550;
-}
-html[data-theme-style='modern'] [data-notes-add]:not(:disabled):hover {
-  background: var(--primary-hover);
-}
-html[data-theme-style='modern'] [data-notes-add] svg {
-  width: 17px;
-  height: 17px;
-  stroke-width: 1.6;
-}
 [data-workspace-body] {
   display: grid;
   grid-template-columns: 226px minmax(0, 1fr);
