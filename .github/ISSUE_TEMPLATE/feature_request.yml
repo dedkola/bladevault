@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest an improvement or new capability.
+labels: ['enhancement']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe what you are trying to do and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How you imagine it working. Sketches or screenshots are welcome.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or workarounds
+      description: Anything you have tried or considered instead.
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Where would you use it?
+      multiple: true
+      options:
+        - Desktop app
+        - Self-hosted (Docker / Podman / Helm)
+        - Static web app
+        - MCP server / CLI

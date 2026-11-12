@@ -1,0 +1,75 @@
+name: Bug report
+description: Something in BladeVault does not work as expected.
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please do not include personal collection data, tokens, or passwords.
+        For security issues, use [private vulnerability reporting](https://github.com/dedkola/bladevault/security/advisories/new) instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to …
+        2. Click …
+        3. See …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: BladeVault version
+      description: Shown in Settings, or the release / image tag you installed.
+      placeholder: e.g. 2.4.4
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: How do you run BladeVault?
+      options:
+        - Desktop app (macOS)
+        - Desktop app (Windows)
+        - Desktop app (Linux)
+        - Docker / Podman / Compose
+        - Helm / Kubernetes
+        - From source (npm run dev / build)
+        - Static web app
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Collection / knife details
+        - Add or edit / product import (scraping)
+        - Compare
+        - Insights
+        - Settings / themes
+        - Backup, restore, or cloud backup
+        - App lock
+        - MCP server / CLI
+        - Updates / installer
+        - Other
+  - type: input
+    id: url
+    attributes:
+      label: Product page URL (import issues only)
+      description: The retailer page that did not import correctly.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Relevant output from the Logs page, the browser console, or the container. Remove anything private.
+      render: text
