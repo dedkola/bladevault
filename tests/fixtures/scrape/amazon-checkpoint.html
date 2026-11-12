@@ -1,22 +1,52 @@
-<!doctype html><html><head><title>Amazon.com</title></head><body><div class="a-box a-color-offset-background">
-        <div class="a-box-inner a-padding-extra-large">
-            <form method="POST" action="/checkpoint/validate" id="checkpointForm">
-                <input type="hidden" name="token" value="fixture-token">
-                <div class="a-row a-spacing-large">
-                    <label for="continueCheck" class="a-size-medium a-text-bold" style="display:flex;align-items:center;cursor:pointer">
-                        <input type="checkbox" id="continueCheck" name="continueCheck" value="true" style="width:22px;height:22px;margin:0 12px 0 0;flex:0 0 auto;cursor:pointer">
-                        <span>I am human</span>
-                    </label>
-                </div>
+<!doctype html>
+<html>
+  <head>
+    <title>Amazon.com</title>
+  </head>
+  <body>
+    <div class="a-box a-color-offset-background">
+      <div class="a-box-inner a-padding-extra-large">
+        <form method="POST" action="/checkpoint/validate" id="checkpointForm">
+          <input type="hidden" name="token" value="fixture-token" />
+          <div class="a-row a-spacing-large">
+            <label
+              for="continueCheck"
+              class="a-size-medium a-text-bold"
+              style="display: flex; align-items: center; cursor: pointer"
+            >
+              <input
+                type="checkbox"
+                id="continueCheck"
+                name="continueCheck"
+                value="true"
+                style="
+                  width: 22px;
+                  height: 22px;
+                  margin: 0 12px 0 0;
+                  flex: 0 0 auto;
+                  cursor: pointer;
+                "
+              />
+              <span>I am human</span>
+            </label>
+          </div>
 
-                <div class="a-row">
-                    <span class="a-button a-button-primary a-span12" id="continueButton" aria-disabled="true" style="opacity:0.5;pointer-events:none">
-                        <span class="a-button-inner">
-                            <button type="submit" class="a-button-text" disabled="">Continue</button>
-                        </span>
-                    </span>
-                </div>
-                
-            </form>
-        </div>
-    </div></body></html>
+          <div class="a-row">
+            <span
+              class="a-button a-button-primary a-span12"
+              id="continueButton"
+              aria-disabled="true"
+              style="opacity: 0.5; pointer-events: none"
+            >
+              <span class="a-button-inner">
+                <button type="submit" class="a-button-text" disabled="">
+                  Continue
+                </button>
+              </span>
+            </span>
+          </div>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>
