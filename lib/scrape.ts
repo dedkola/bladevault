@@ -7,6 +7,7 @@ import {
 import { fetchExternalUrl } from '@/lib/url-validation'
 import { extractVosteedSpecs, isVosteedProductUrl } from './scrape-vosteed'
 import { extractSogProduct } from './scrape-sog'
+import { extractAmazonProduct } from './scrape-amazon'
 import {
   embedPoikiloGalleryImages,
   isPoikiloProductUrl,
@@ -109,7 +110,7 @@ function parseJsonLd(raw: string): unknown {
 // surface a helpful error instead of parsing the challenge page as a product.
 export function isSecurityChallengePage(html: string): boolean {
   if (!html) return false
-  const normalized = html.toLowerCase()
+  const normalized = html.toLowerCase().replace(/[\u2018\u2019]/g, "'")
   // Imperva can return HTTP 200 with only its challenge iframe. Its monitoring
   // script also appears on real product pages, so that script alone is not a
   // challenge marker.
@@ -124,9 +125,14 @@ export function isSecurityChallengePage(html: string): boolean {
     [
       'verify you are human',
       'confirm you are human',
+      "verify you're human",
+      "confirm you're human",
       'please complete the captcha',
       'press and hold to confirm',
       'id="px-captcha"',
+      // Amazon's checkpoint ("unusual browser activity") and captcha pages.
+      'action="/checkpoint/validate"',
+      '/errors/validatecaptcha',
     ].some((marker) => normalized.includes(marker))
   )
     return true
@@ -2523,6 +2529,44 @@ export function scrapeProduct(
         undefined,
         warnings,
         sog.attributes,
+      ),
+      sourceUrl: sourceUrl ?? baseUrl,
+    }
+    return {
+      product,
+      confidence: buildConfidence(product),
+      ...(warnings.length ? { warnings } : {}),
+    }
+  }
+  const amazon = extractAmazonProduct($, baseUrl)
+  if (amazon) {
+    // Amazon pages are dominated by recommendations, sponsored products, and
+    // reviews, so read only the product's own title, bullets, and tables.
+    const warnings: string[] = []
+    const context = `${amazon.title}\n${amazon.description}`
+    const product: ScrapedProduct = {
+      name:
+        amazon.modelName ||
+        cleanProductName(amazon.title, sourceUrl ?? baseUrl),
+      brand: extractBrand(amazon.title, $, undefined, sourceUrl ?? baseUrl),
+      description: amazon.description,
+      images: amazon.images,
+      bladeStyle:
+        extractBladeStyle(amazon.title) ||
+        extractBladeStyle(amazon.bladeStyle) ||
+        cleanValue(amazon.bladeStyle) ||
+        extractBladeStyle(amazon.description),
+      handleMaterial:
+        extractHandleMaterial(amazon.handleTitle) ||
+        extractHandleMaterial(amazon.handleMaterial) ||
+        cleanValue(amazon.handleMaterial) ||
+        extractHandleMaterial(context),
+      specs: extractSpecs(
+        cheerio.load('<div></div>'),
+        undefined,
+        undefined,
+        warnings,
+        amazon.attributes,
       ),
       sourceUrl: sourceUrl ?? baseUrl,
     }
