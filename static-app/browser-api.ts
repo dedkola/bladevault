@@ -194,8 +194,6 @@ function handle(request: Request, body: Record<string, unknown>) {
     path = new URL(request.url).pathname,
     method = request.method
   if (path === '/api/vault/status') return json(STATIC_VAULT_STATUS)
-  if (path === '/api/runtime-config')
-    return json({ authUrl: '', backupUrl: '' })
   if (path === '/api/cloud-backup/job' && method === 'GET')
     return json({ job: IDLE_CLOUD_BACKUP_JOB })
   if (path === '/api/cloud-backup/restore-job' && method === 'GET')
@@ -250,7 +248,7 @@ function handle(request: Request, body: Record<string, unknown>) {
           body.dimensionUnit,
           db.settings.dimensionUnit,
         ),
-        cloudAutoBackupEnabled: false,
+        driveAutoBackupEnabled: false,
         mcpEnabled: false,
         mcpWriteEnabled: false,
       }

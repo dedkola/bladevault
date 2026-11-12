@@ -1,9 +1,5 @@
-import type { CloudBackupTarget } from '@/lib/cloud-backup-shared'
-
 export type CloudRestoreJobState = {
   id: string | null
-  // Absent for the BladeVault cloud service.
-  target?: CloudBackupTarget
   status: 'idle' | 'running' | 'success' | 'error'
   phase: 'downloading' | 'validating' | 'applying' | null
   message: string | null

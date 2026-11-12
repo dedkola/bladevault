@@ -11,6 +11,7 @@ import {
   IDLE_CLOUD_BACKUP_JOB,
   type CloudBackupJobState,
 } from '@/lib/cloud-backup-shared'
+import { DRIVE_CONNECTION_EVENT } from '@/lib/drive-backup-shared'
 import { SETTINGS_UPDATED_EVENT } from '@/lib/settings-shared'
 import { createKnife } from '@/tests/fixtures/knife'
 import {
@@ -18,29 +19,19 @@ import {
   setVaultClientState,
 } from '@/lib/vault-client-state'
 
-const { getCloudBackupJob, startCloudBackupArchive } = vi.hoisted(() => ({
-  getCloudBackupJob: vi.fn(),
-  startCloudBackupArchive: vi.fn(),
-}))
+const { getCloudBackupJob, getDriveConnected, startCloudBackupArchive } =
+  vi.hoisted(() => ({
+    getCloudBackupJob: vi.fn(),
+    getDriveConnected: vi.fn(),
+    startCloudBackupArchive: vi.fn(),
+  }))
+
+vi.mock('@/lib/drive-backup-client', () => ({ getDriveConnected }))
 
 vi.mock('@/lib/cloud-backup-client', () => ({
-  canAttemptSilentCloudBackup: () => true,
   getCloudBackupJob,
   startCloudBackupArchive,
 }))
-
-vi.mock('@/lib/cloud-backup', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/cloud-backup')>()
-  return {
-    ...actual,
-    getCloudAuthState: () => ({
-      accessToken: 'access',
-      sessionToken: 'session',
-      expiresAt: '2099-01-01T00:00:00.000Z',
-      user: { id: '1', email: 'user@example.com', name: 'User' },
-    }),
-  }
-})
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -108,7 +99,7 @@ async function disableAutomaticBackup() {
   await act(async () => {
     window.dispatchEvent(
       new CustomEvent(SETTINGS_UPDATED_EVENT, {
-        detail: { cloudAutoBackupEnabled: false },
+        detail: { driveAutoBackupEnabled: false },
       }),
     )
   })
@@ -122,6 +113,7 @@ describe('KnivesProvider background backup', () => {
     setVaultClientState(INITIAL_VAULT_CLIENT_STATE)
     serverJob = { ...IDLE_CLOUD_BACKUP_JOB }
     getCloudBackupJob.mockReset().mockImplementation(async () => serverJob)
+    getDriveConnected.mockReset().mockResolvedValue(true)
     startCloudBackupArchive.mockReset().mockImplementation(async () => {
       serverJob = {
         ...IDLE_CLOUD_BACKUP_JOB,
@@ -140,7 +132,7 @@ describe('KnivesProvider background backup', () => {
         if (url === '/api/settings') {
           return jsonResponse({
             settings: {
-              cloudAutoBackupEnabled: true,
+              driveAutoBackupEnabled: true,
               pinnedItemsFirst: true,
               timeFormat: '12h',
               dimensionUnit: 'mm',
@@ -185,9 +177,17 @@ describe('KnivesProvider background backup', () => {
       ...serverJob,
       status: 'success',
       phase: null,
-      syncedAt: '2026-10-08T11:00:00.000Z',
     }
   }
+
+  it('clears the retired BladeVault cloud account session', async () => {
+    window.localStorage.setItem(
+      'bladevault.cloudAuthState',
+      JSON.stringify({ sessionToken: 'old-session' }),
+    )
+    await renderProvider()
+    expect(window.localStorage.getItem('bladevault.cloudAuthState')).toBeNull()
+  })
 
   it('loads dimension units and updates consumers when the preference changes', async () => {
     await renderProvider()
@@ -435,5 +435,62 @@ describe('KnivesProvider background backup', () => {
     await advanceTime(60_000)
 
     expect(startCloudBackupArchive).not.toHaveBeenCalled()
+  })
+
+  describe('Google Drive connection', () => {
+    async function setDriveConnection(connected: boolean) {
+      await act(async () => {
+        window.dispatchEvent(
+          new CustomEvent(DRIVE_CONNECTION_EVENT, { detail: { connected } }),
+        )
+      })
+    }
+
+    it('does not back up until Google Drive is connected', async () => {
+      getDriveConnected.mockResolvedValue(false)
+      await renderProvider()
+
+      await clickButton('Edit')
+      await advanceTime(60_000)
+      expect(startCloudBackupArchive).not.toHaveBeenCalled()
+
+      await setDriveConnection(true)
+      await clickButton('Edit')
+      await advanceTime(30_000)
+      expect(startCloudBackupArchive).toHaveBeenCalledOnce()
+    })
+
+    it('cancels a scheduled backup when Google Drive disconnects', async () => {
+      await renderProvider()
+
+      await clickButton('Edit')
+      await setDriveConnection(false)
+      await advanceTime(60_000)
+
+      expect(startCloudBackupArchive).not.toHaveBeenCalled()
+    })
+
+    it('re-reads the connection after a backup fails', async () => {
+      await renderProvider()
+      await clickButton('Edit')
+      await advanceTime(30_000)
+      expect(getDriveConnected).toHaveBeenCalledOnce()
+
+      serverJob = {
+        ...serverJob,
+        status: 'error',
+        phase: null,
+        message: 'Google Drive access is no longer valid.',
+      }
+      getDriveConnected.mockResolvedValue(false)
+      await advanceTime(5_000)
+
+      expect(screen.getByTestId('backup-status')).toHaveTextContent('error')
+      expect(getDriveConnected).toHaveBeenCalledTimes(2)
+
+      await clickButton('Edit')
+      await advanceTime(60_000)
+      expect(startCloudBackupArchive).toHaveBeenCalledOnce()
+    })
   })
 })

@@ -19,7 +19,7 @@
 | Back up the vault or restore a saved copy                | [Back up and restore your vault](guides/back-up-and-restore-your-vault.md) |
 | Connect an AI client to my collection                    | [MCP](reference/mcp.md)                                                    |
 | Find my data, back it up, or lock the app                | [Your data](reference/data.md)                                             |
-| Back up to BladeVault cloud or Google Drive              | [Cloud backup](reference/cloud-backup.md)                                  |
+| Back up to Google Drive                                  | [Cloud backup](reference/cloud-backup.md)                                  |
 | Send error reports from a server to Sentry               | [Error reporting](reference/error-reporting.md)                            |
 
 ## What it does
@@ -33,7 +33,7 @@
 - **Maintain** — log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes, and review it in History.
 - **Understand** — explore makers, materials, dimensions, completeness, and activity through collection insights, including a calendar activity map. Modern-layout styles add monthly additions for the last 12 months and blade, overall-length, weight, and thickness distributions.
 - **Personalize** — choose one of nine styles (Classic, Modern, Alloy, Forge, Titanium, Field, Lumen, Espresso, or Phosphor), light or dark color mode, metric, imperial, or both measurement units, time format, pinned ordering, and the page BladeVault opens on: Insights, Studio, or Collection.
-- **Keep control** — the vault lives in a local SQLite database, ZIP backups are portable, and backup to BladeVault cloud or your own Google Drive is optional.
+- **Keep control** — the vault lives in a local SQLite database, ZIP backups are portable, and backup to your own Google Drive is optional.
 
 ## Feature guides
 

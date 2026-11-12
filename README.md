@@ -56,7 +56,7 @@ Catalog your knives, showcase them in Studio, compare them side by side, and kee
 - **Understand:** Explore makers, materials, dimensions, completeness, and activity through collection insights, including a calendar activity map. Modern-layout styles add monthly additions for the last 12 months and blade, overall-length, weight, and thickness distributions. Open chart details to inspect matching knives or print the Overview as a report.
 - **Personalize:** Pick one of [nine styles](#styles), light or dark color mode, metric, imperial, or both measurement units, time format, pinned ordering, and the page BladeVault opens on: **Insights**, **Studio**, or **Collection**.
 - **Connect:** Use MCP to search and analyze your collection from an AI client, with optional metadata updates and maintenance logging.
-- **Keep control:** Store your vault locally in SQLite, create portable ZIP backups, and optionally back up to BladeVault cloud or your own Google Drive. Crash and error reporting is opt-in.
+- **Keep control:** Store your vault locally in SQLite, create portable ZIP backups, and optionally back up to your own Google Drive. Crash and error reporting is opt-in.
 
 ## Styles
 
@@ -540,27 +540,19 @@ Open **Settings → Backup & Restore** and select **Download full backup** to sa
 
 Use **Restore from local ZIP** in the same panel to validate an archive and review its contents before replacing the current vault. BladeVault creates a safety copy of the current data before restoring. The panel also offers **Print Report** to open the Overview for printing or saving as a PDF.
 
-Saved comparisons are included in full-vault backups, but changing a comparison list does not trigger an automatic cloud backup. When upgrading from before v1.2.0, the old comparison selection becomes **My comparison**.
+Saved comparisons are included in full-vault backups, but changing a comparison list does not trigger an automatic backup. When upgrading from before v1.2.0, the old comparison selection becomes **My comparison**.
 
 For a manual filesystem backup, stop BladeVault and copy the whole data folder so the database and images stay together.
 
 ## Optional cloud backup
 
-Cloud backup is opt-in and leaves local storage as the source of truth. BladeVault uses `https://auth.bladevault.pro` and `https://backup.bladevault.pro` by default. Sign in from **Settings → Cloud backup** to upload or restore a complete archive, including images.
+Cloud backup is opt-in and leaves local storage as the source of truth. Connect your own Google Drive from **Settings → Cloud backup** to upload or restore a complete archive, including images. BladeVault keeps one `bladevault-data.tar.gz` file in a `BladeVault` folder and can only see the files it creates. The backup travels directly between your BladeVault server and Google Drive; `https://auth.bladevault.pro` only completes the Google sign-in.
 
-Manual and automatic backups run quietly on the local server. You can switch pages or reload the browser while an upload continues; check its status and last successful backup in **Cloud backup** settings. Keep the desktop app or self-hosted server running until it finishes. Automatic backups wait at least 30 seconds after edits settle and use a browser idle slot to start. During an open app session, changes made during a backup are grouped into a later backup. Backup uploads and restore downloads have no application-imposed speed cap. Completion does not show a popup.
+Manual and automatic backups run quietly on the local server. You can switch pages or reload the browser while an upload continues; check its status in **Cloud backup** settings. Keep the desktop app or self-hosted server running until it finishes. Automatic backups wait at least 30 seconds after edits settle and use a browser idle slot to start. During an open app session, changes made during a backup are grouped into a later backup. Completion does not show a popup.
 
-Cloud restore also runs on the local server and continues when you switch pages or reload. You can browse the existing collection while the backup downloads and is validated; editing and automatic backups pause until it finishes. BladeVault waits for active saves, keeps a safety copy, briefly pauses access to install the restored vault, and refreshes open views and images afterward. Local MCP processes participate in the same access protection. Restoring a password-protected vault requires unlocking again with the backed-up password. Safety copies and interrupted-restore recovery files are kept in private `._bladevault-*` folders inside the data directory and are excluded from app backup archives.
+Restore also runs on the local server and continues when you switch pages or reload. You can browse the existing collection while the backup downloads and is validated; editing and automatic backups pause until it finishes. BladeVault waits for active saves, keeps a safety copy, briefly pauses access to install the restored vault, and refreshes open views and images afterward. Local MCP processes participate in the same access protection. Restoring a password-protected vault requires unlocking again with the backed-up password. Safety copies and interrupted-restore recovery files are kept in private `._bladevault-*` folders inside the data directory and are excluded from app backup archives.
 
-### Google Drive
-
-You can also keep a backup in your own Google Drive. In **Settings → Cloud backup → Google Drive**, select **Connect Google Drive** and allow access; BladeVault can only see the files it creates. **Back up** saves one `bladevault-data.tar.gz` file in a `BladeVault` folder, replacing the previous one. **Restore** replaces the local vault with the same safety steps as a cloud restore. Connect the same Google account on another computer to restore there.
-
-The archive travels directly between your BladeVault server and Google Drive; `auth.bladevault.pro` only completes the Google sign-in. Google Drive backups run only when you start them, and **Disconnect** leaves the backup file in your Drive. See the [cloud backup reference](docs/reference/cloud-backup.md) for details.
-
-### Endpoint overrides
-
-Deployments can override the service endpoints with `NEXT_PUBLIC_BLADEVAULT_AUTH_URL` and `NEXT_PUBLIC_BLADEVAULT_BACKUP_URL`. Leaving them unset uses the built-in defaults. You can use the local vault and ZIP backups without signing in.
+The earlier BladeVault cloud account backup has been retired. Deployments can point Google sign-in at their own service with `NEXT_PUBLIC_BLADEVAULT_AUTH_URL`. You can use the local vault and ZIP backups without connecting Google Drive. See the [cloud backup reference](docs/reference/cloud-backup.md) for details.
 
 ## License
 

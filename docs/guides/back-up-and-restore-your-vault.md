@@ -2,7 +2,7 @@
 
 [![Watch the backup and restore walkthrough on YouTube](https://img.youtube.com/vi/kApN2egnnRo/hqdefault.jpg)](https://youtu.be/kApN2egnnRo)
 
-A full-vault backup keeps your knife records, settings, Smart Collections, saved comparisons, maintenance and change history, and local images together. Use a local ZIP without an account, or sign in for an optional cloud copy.
+A full-vault backup keeps your knife records, settings, Smart Collections, saved comparisons, maintenance and change history, and local images together. Use a local ZIP without an account, or connect Google Drive for an optional cloud copy.
 
 Restoring a backup replaces the current vault. It does not merge two collections. Download a ZIP of the current vault first if you want to keep a separate copy before restoring another one.
 
@@ -37,58 +37,46 @@ BladeVault validates the archive before asking you to confirm, then checks and e
 
 If the restored vault has [App lock](../reference/data.md#optional-app-lock) enabled, unlock it with the password stored in that backup.
 
-## Connect cloud backup
+## Connect Google Drive
 
 1. Open **Settings → Cloud backup**.
+2. Under **Google Drive**, click **Connect Google Drive**.
+3. Choose your Google account in the popup and allow access. If the browser blocks the popup, allow it and try again.
+4. Check that **Google Drive connected** appears.
 
-   ![The Cloud backup settings tab](../images/back-up-and-restore-cloud-tab.png)
+BladeVault can only see the files it creates in your Drive. Your working vault remains stored locally.
 
-2. Click **Continue With Google**.
+## Back up to Google Drive
 
-   ![The Account section with Continue With Google](../images/back-up-and-restore-cloud-panel.png)
-
-3. Complete sign-in in the popup. If the browser blocks the popup, allow it and try again.
-4. Check that your account appears under **Account** and shows **Connected**.
-
-   ![The Status section showing the cloud connection](../images/back-up-and-restore-cloud-status.png)
-
-Signing in makes cloud backup available. Your working vault remains stored locally.
-
-## Create a cloud backup
-
-1. In **Settings → Cloud backup**, find **Back up now** and click **Backup**.
-
-   ![The Backup section with Back up now and Automatic backup](../images/back-up-and-restore-cloud-backup-panel.png)
-
+1. In **Settings → Cloud backup → Google Drive**, find **Back up to Google Drive** and click **Backup**.
 2. Keep the desktop app or self-hosted server running while the backup is prepared and uploaded. You can switch pages or reload the browser during the upload.
-3. Return to the panel to check the status and updated **Last backup** time. Successful backups finish quietly, without a popup.
+3. Return to the panel to check the status and the date of the backup in Drive. Successful backups finish quietly, without a popup.
 
-To back up after edits, enable **Automatic backup** in the same panel. During an open app session, BladeVault waits at least 30 seconds after edits settle before starting a backup. Changes made during a backup can be included in a later one.
+Each backup replaces the single `bladevault-data.tar.gz` file in the `BladeVault` folder of your Drive.
 
-Saved comparisons are included in full-vault backups, but changing a comparison list alone does not trigger an automatic cloud backup. Use **Backup** when you want to include those changes immediately.
+To back up after edits, turn on **Automatic backup to Google Drive** in the same panel. During an open app session, BladeVault waits at least 30 seconds after edits settle before starting a backup. Changes made during a backup can be included in a later one.
 
-## Restore the latest cloud backup
+Saved comparisons are included in full-vault backups, but changing a comparison list alone does not trigger an automatic backup. Use **Backup** when you want to include those changes immediately.
 
-1. Open **Settings → Cloud backup** and sign in to the account containing the backup.
-2. Under **Restore from cloud**, click **Restore**.
+## Restore from Google Drive
 
-   ![The Restore section with Restore from cloud](../images/back-up-and-restore-cloud-restore-panel.png)
-
-3. Confirm that you want to replace the local vault with the latest cloud backup.
+1. Open **Settings → Cloud backup** and connect the Google account that holds the backup.
+2. Under **Restore from Google Drive**, click **Restore**.
+3. Confirm that you want to replace the local vault with the backup from Google Drive.
 4. Keep the desktop app or server running and check the restore status. You can browse the current collection during the download and validation, while editing and automatic backups are paused.
 5. Wait for restoration to finish. BladeVault keeps a safety copy, installs the restored vault, and refreshes open views and images.
 6. Check the expected collection and open a saved knife. If App lock is enabled in the backup, unlock with its password.
 
-Cloud restore continues if you switch pages or reload the browser. Access pauses briefly while BladeVault applies the restored data. See [Cloud backup](../reference/cloud-backup.md) for background operation and recovery details.
+The restore continues if you switch pages or reload the browser. Access pauses briefly while BladeVault applies the restored data. See [Cloud backup](../reference/cloud-backup.md) for background operation and recovery details.
 
 ## Move a vault to another device
 
-Download a local ZIP on the original device, transfer it to the destination, and restore it there. The destination vault is replaced by the backup. You can also restore the latest cloud backup after signing in on the destination.
+Download a local ZIP on the original device, transfer it to the destination, and restore it there. The destination vault is replaced by the backup. You can also connect the same Google account on the destination and restore from Google Drive.
 
 To change the data folder on the same desktop installation instead, see [Change the desktop data folder](../reference/data.md#change-the-desktop-data-folder). For filesystem copies and container storage, see [Your data](../reference/data.md).
 
 ## Related
 
 - [Your data](../reference/data.md) — default folders, local storage controls, App lock, and filesystem backups.
-- [Cloud backup](../reference/cloud-backup.md) — background jobs, safety copies, and service configuration.
+- [Cloud backup](../reference/cloud-backup.md) — Google Drive, background jobs, and safety copies.
 - [Docker and Podman](../installation/docker.md) — keep container data in a persistent host folder.

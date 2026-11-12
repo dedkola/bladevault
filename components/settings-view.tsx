@@ -59,21 +59,6 @@ import {
 import { getHourCycle } from '@/lib/time-format'
 import { getCardFieldGroups, getCardFieldLabel } from '@/lib/card-fields'
 import {
-  clearCloudAuthState,
-  CloudAuthErrorMessage,
-  CloudAuthState,
-  CloudAuthSuccessMessage,
-  CloudRuntimeConfig,
-  CloudBackupSession,
-  createCloudAuthHeaders,
-  getCloudAuthState,
-  getCloudRuntimeConfig,
-  loadCloudRuntimeConfig,
-  parseApiError,
-  setCloudAuthState,
-} from '@/lib/cloud-backup'
-import { formatCloudBackupError } from '@/lib/cloud-backup-client'
-import {
   connectDriveBackup,
   disconnectDriveBackup,
   getDriveBackupStatus,
@@ -646,29 +631,22 @@ export default function SettingsView() {
   const [dataDirManagedByEnv, setDataDirManagedByEnv] = useState(false)
   const [dockerHostDataMountPath, setDockerHostDataMountPath] = useState('')
   const [isContainerized, setIsContainerized] = useState(false)
-  const [cloudSession, setCloudSession] = useState<CloudBackupSession | null>(
-    null,
-  )
-  const [cloudConfig, setCloudConfig] = useState<CloudRuntimeConfig>(() =>
-    getCloudRuntimeConfig(),
-  )
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  const [authStatus, setAuthStatus] = useState<StatusTone>('idle')
-  const [authMessage, setAuthMessage] = useState('')
   const backupStatus: StatusTone =
     cloudBackupJob.status === 'running' ? 'loading' : cloudBackupJob.status
-  const backupMessage =
+  const restoreStatus: StatusTone =
+    restoreJob.status === 'running' ? 'loading' : restoreJob.status
+  const driveBackupPillStatus = backupStatus
+  const driveRestorePillStatus = restoreStatus
+  const driveBackupMessage =
     cloudBackupJob.status === 'running'
       ? 'Backing up in the background. You can leave this page.'
       : cloudBackupJob.status === 'error'
-        ? cloudBackupJob.message ||
-          'Cloud backup failed. Try again when connected.'
-        : 'Cloud backup is up to date.'
-  const restoreStatus: StatusTone =
-    restoreJob.status === 'running' ? 'loading' : restoreJob.status
-  const restoreMessage =
+        ? cloudBackupJob.message || 'Google Drive backup failed. Try again.'
+        : 'Backup saved to Google Drive.'
+  const driveRestoreMessage =
     restoreJob.status === 'running'
       ? restoreJob.phase === 'applying'
         ? 'Applying restored vault…'
@@ -677,37 +655,8 @@ export default function SettingsView() {
           : 'Downloading in the background. You can leave this page; editing is paused.'
       : restoreJob.status === 'error'
         ? restoreJob.message ||
-          'Cloud restore failed. Your vault was not replaced.'
-        : 'Cloud backup restored successfully.'
-  // One backup or restore runs at a time. Each result is shown only beside the
-  // storage it belongs to.
-  const isDriveBackupJob = cloudBackupJob.target === 'drive'
-  const isDriveRestoreJob = restoreJob.target === 'drive'
-  const cloudBackupPillStatus: StatusTone = isDriveBackupJob
-    ? 'idle'
-    : backupStatus
-  const cloudRestorePillStatus: StatusTone = isDriveRestoreJob
-    ? 'idle'
-    : restoreStatus
-  const driveBackupPillStatus: StatusTone = isDriveBackupJob
-    ? backupStatus
-    : 'idle'
-  const driveRestorePillStatus: StatusTone = isDriveRestoreJob
-    ? restoreStatus
-    : 'idle'
-  const driveBackupMessage =
-    cloudBackupJob.status === 'running'
-      ? backupMessage
-      : cloudBackupJob.status === 'error'
-        ? cloudBackupJob.message || 'Google Drive backup failed. Try again.'
-        : 'Backup saved to Google Drive.'
-  const driveRestoreMessage =
-    restoreJob.status === 'running'
-      ? restoreMessage
-      : restoreJob.status === 'error'
-        ? restoreJob.message ||
           'Google Drive restore failed. Your vault was not replaced.'
-        : 'Google Drive backup restored successfully.'
+        : 'Backup restored successfully.'
   const [driveStatus, setDriveStatus] = useState<DriveBackupStatus | null>(null)
   const [driveAuthStatus, setDriveAuthStatus] = useState<StatusTone>('idle')
   const [driveAuthMessage, setDriveAuthMessage] = useState('')
@@ -775,14 +724,6 @@ export default function SettingsView() {
     await checkForUpdates()
   }
 
-  const authUrl = cloudConfig.authUrl
-  const backupUrl = cloudConfig.backupUrl
-  const cloudConfigError = [
-    !authUrl ? 'NEXT_PUBLIC_BLADEVAULT_AUTH_URL is not configured.' : null,
-    !backupUrl ? 'NEXT_PUBLIC_BLADEVAULT_BACKUP_URL is not configured.' : null,
-  ]
-    .filter(Boolean)
-    .join(' ')
   const canChooseLocalDataFolder =
     typeof window !== 'undefined' &&
     Boolean(window.bladevaultDesktop?.selectDirectory)
@@ -887,67 +828,6 @@ export default function SettingsView() {
 
   const activeTabMeta = tabs.find((tab) => tab.id === activeTab) ?? tabs[0]
 
-  const refreshCloudConfig = useCallback(async (force = false) => {
-    const nextConfig = await loadCloudRuntimeConfig(force)
-    setCloudConfig(nextConfig)
-    return nextConfig
-  }, [])
-
-  const refreshCloudSession = useCallback(
-    async (cancellation?: { cancelled: boolean }) => {
-      const state = getCloudAuthState()
-      if (!state?.sessionToken) {
-        if (!cancellation?.cancelled) {
-          setCloudSession(null)
-        }
-        return
-      }
-
-      try {
-        const nextConfig = await refreshCloudConfig()
-        if (!nextConfig.authUrl) {
-          throw new Error('NEXT_PUBLIC_BLADEVAULT_AUTH_URL is not configured.')
-        }
-
-        const controller = new AbortController()
-        const timeout = window.setTimeout(() => controller.abort(), 8000)
-        const response = await fetch(`${nextConfig.authUrl}/api/me`, {
-          headers: createCloudAuthHeaders(),
-          signal: controller.signal,
-        }).finally(() => {
-          window.clearTimeout(timeout)
-        })
-
-        if (!response.ok) {
-          throw new Error(await parseApiError(response))
-        }
-
-        const data = await readJsonResponse<CloudBackupSession | null>(response)
-        if (cancellation?.cancelled) return
-
-        if (data?.user && data?.session) {
-          const existingState = getCloudAuthState()
-          if (existingState) {
-            setCloudAuthState({
-              ...existingState,
-              sessionToken: data.session.token,
-              expiresAt: data.session.expiresAt,
-              user: data.user,
-            })
-          }
-          setCloudSession(data)
-        } else {
-          setCloudSession(null)
-        }
-      } catch {
-        if (!cancellation?.cancelled) {
-          setCloudSession(null)
-        }
-      }
-    },
-    [refreshCloudConfig],
-  )
-
   useEffect(() => {
     const cancellation = { cancelled: false }
 
@@ -958,9 +838,8 @@ export default function SettingsView() {
       setLocalDataMessage('')
 
       try {
-        const [response, nextCloudConfig, mcpResponse] = await Promise.all([
+        const [response, mcpResponse] = await Promise.all([
           fetch('/api/settings', { cache: 'no-store' }),
-          refreshCloudConfig(true),
           fetch('/api/settings/mcp', { cache: 'no-store' }),
         ])
         const data = await readJsonResponse<{
@@ -992,14 +871,12 @@ export default function SettingsView() {
         setDataDirManagedByEnv(Boolean(data.dataDirManagedByEnv))
         setDockerHostDataMountPath(data.dockerHostDataMountPath || '')
         setIsContainerized(Boolean(data.isContainerized))
-        setCloudConfig(nextCloudConfig)
         if (mcpResponse.ok) {
           const mcpData = await readJsonResponse<{ mcp?: McpRuntimeStatus }>(
             mcpResponse,
           )
           setMcpStatus(mcpData.mcp || null)
         }
-        void refreshCloudSession(cancellation)
       } catch (error) {
         if (!cancellation.cancelled) {
           setLoadError(
@@ -1017,7 +894,7 @@ export default function SettingsView() {
     return () => {
       cancellation.cancelled = true
     }
-  }, [loadAttemptKey, refreshCloudConfig, refreshCloudSession])
+  }, [loadAttemptKey])
 
   useEffect(() => {
     const syncExternalSettings = (event: Event) => {
@@ -1171,138 +1048,10 @@ export default function SettingsView() {
     }
   }
 
-  const handleGoogleSignIn = async () => {
-    if (!settings) return
-
-    setAuthStatus('loading')
-    setAuthMessage('Opening Google sign-in...')
-
-    try {
-      const nextConfig = await refreshCloudConfig()
-      const nextAuthOrigin = nextConfig.authUrl
-        ? new URL(nextConfig.authUrl).origin
-        : ''
-      if (!nextConfig.authUrl || !nextAuthOrigin) {
-        throw new Error('NEXT_PUBLIC_BLADEVAULT_AUTH_URL is not configured.')
-      }
-
-      const clientOrigin =
-        typeof window !== 'undefined' ? window.location.origin : '/'
-      const startUrl = new URL('/auth/popup/start', nextConfig.authUrl)
-      startUrl.searchParams.set('client_origin', clientOrigin)
-
-      const popup = window.open(
-        startUrl.toString(),
-        'bladevault-google-auth',
-        'width=500,height=640,menubar=no,toolbar=no',
-      )
-
-      if (!popup) {
-        throw new Error('Popup was blocked. Allow popups and try again.')
-      }
-
-      const result = await new Promise<CloudAuthSuccessMessage>(
-        (resolve, reject) => {
-          let settled = false
-
-          const cleanup = () => {
-            if (settled) return
-            settled = true
-            window.removeEventListener('message', onMessage)
-            window.clearInterval(closedPoll)
-            window.clearTimeout(timeout)
-          }
-
-          const onMessage = (event: MessageEvent) => {
-            if (event.origin !== nextAuthOrigin) return
-            const data = event.data as
-              CloudAuthSuccessMessage | CloudAuthErrorMessage
-            if (!data || typeof data !== 'object' || !('type' in data)) return
-
-            if (data.type === 'bladevault-auth-error') {
-              cleanup()
-              reject(new Error(data.error.message || 'Google sign-in failed.'))
-              return
-            }
-            if (data.type !== 'bladevault-auth-success') return
-
-            cleanup()
-            resolve(data)
-          }
-
-          const closedPoll = window.setInterval(() => {
-            if (popup.closed) {
-              cleanup()
-              reject(new Error('Google sign-in was closed before completion.'))
-            }
-          }, 500)
-
-          const timeout = window.setTimeout(
-            () => {
-              cleanup()
-              try {
-                popup.close()
-              } catch {
-                // ignore
-              }
-              reject(new Error('Google sign-in timed out. Please try again.'))
-            },
-            5 * 60 * 1000,
-          )
-
-          window.addEventListener('message', onMessage)
-        },
-      )
-
-      const nextAuthState: CloudAuthState = {
-        accessToken: result.accessToken,
-        sessionToken: result.sessionToken,
-        expiresAt: result.expiresAt,
-        user: result.user,
-      }
-      setCloudAuthState(nextAuthState)
-      await refreshCloudSession()
-      setAuthStatus('success')
-      setAuthMessage('Signed in. Cloud backup is ready.')
-    } catch (error) {
-      setAuthStatus('error')
-      setAuthMessage(
-        formatCloudBackupError(error, getCloudRuntimeConfig().authUrl),
-      )
-    }
-  }
-
-  const handleLogout = async () => {
-    if (!settings) return
-
-    try {
-      const nextConfig = await refreshCloudConfig()
-      if (!nextConfig.authUrl) {
-        throw new Error('NEXT_PUBLIC_BLADEVAULT_AUTH_URL is not configured.')
-      }
-
-      const response = await fetch(`${nextConfig.authUrl}/api/auth/sign-out`, {
-        method: 'POST',
-        headers: createCloudAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({}),
-      })
-
-      if (!response.ok) {
-        throw new Error(await parseApiError(response))
-      }
-
-      setCloudSession(null)
-      clearCloudAuthState()
-    } catch {
-      // Leave the current session intact when remote sign-out fails.
-    }
-  }
-
   // Read Google Drive when the tab opens and after a Drive job finishes, so
   // the stored backup's date and size stay current.
   const driveJobSettled =
-    (isDriveBackupJob && cloudBackupJob.status !== 'running') ||
-    (isDriveRestoreJob && restoreJob.status !== 'running')
+    cloudBackupJob.status !== 'running' && restoreJob.status !== 'running'
   useEffect(() => {
     if (activeTab !== 'cloud-backup') return
     let cancelled = false
@@ -1352,19 +1101,6 @@ export default function SettingsView() {
     if (
       !window.confirm(
         'Restore the backup from Google Drive and replace the local database on this device? You can keep browsing while editing is temporarily paused.',
-      )
-    ) {
-      return
-    }
-
-    await startRestore('drive')
-  }
-
-  const handleRestore = async () => {
-    if (!settings) return
-    if (
-      !window.confirm(
-        'Restore the latest cloud backup and replace the local database on this device? You can keep browsing while editing is temporarily paused.',
       )
     ) {
       return
@@ -1495,11 +1231,11 @@ export default function SettingsView() {
     }
   }
 
-  const handleAutoBackupToggle = async (checked: boolean) => {
+  const handleDriveAutoBackupToggle = async (checked: boolean) => {
     if (!settings) return
 
     try {
-      await saveSettings({ cloudAutoBackupEnabled: checked })
+      await saveSettings({ driveAutoBackupEnabled: checked })
     } catch (error) {
       setLoadError(
         error instanceof Error ? error.message : 'Failed to save settings',
@@ -2014,142 +1750,26 @@ export default function SettingsView() {
 
               {activeTab === 'cloud-backup' && (
                 <div className="settings-grid">
-                  <SettingsSection title="Account">
-                    {cloudConfigError && !cloudSession ? (
+                  {!driveStatus ? (
+                    <SettingsSection title="Google Drive">
                       <div className="py-3">
-                        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-3 text-sm text-destructive">
-                          {cloudConfigError}
-                        </div>
+                        <StatusPill
+                          status="loading"
+                          message="Checking Google Drive…"
+                          quiet
+                        />
                       </div>
-                    ) : null}
+                    </SettingsSection>
+                  ) : null}
 
-                    <SettingsRow
-                      label={
-                        cloudSession ? cloudSession.user.email : 'Not connected'
-                      }
-                      description={`${
-                        cloudSession
-                          ? 'Connected.'
-                          : 'Sign in to back up this vault to the cloud.'
-                      } Last backup: ${formatSyncTime(
-                        cloudBackupJob.syncedAt ||
-                          settings.cloudBackupLastSyncedAt,
-                        settings.timeFormat,
-                      )}`}
-                    >
-                      {cloudSession ? (
-                        <Button
-                          variant="outline"
-                          className={`${settingsSecondaryButtonClassName} rounded-lg`}
-                          onClick={handleLogout}
-                        >
-                          <LogOut className="h-3.5 w-3.5" />
-                          Sign Out
-                        </Button>
-                      ) : (
-                        <Button
-                          className={`${settingsPrimaryButtonClassName} rounded-lg`}
-                          onClick={handleGoogleSignIn}
-                          disabled={Boolean(cloudConfigError)}
-                        >
-                          <FcGoogle className="h-4 w-4" />
-                          Continue With Google
-                        </Button>
-                      )}
-                    </SettingsRow>
-
-                    {!cloudSession && authStatus !== 'idle' ? (
-                      <div className="py-3">
-                        <StatusPill status={authStatus} message={authMessage} />
-                      </div>
-                    ) : null}
-                  </SettingsSection>
-
-                  <SettingsSection title="Backup">
-                    <SettingsRow
-                      label="Back up now"
-                      description="Runs quietly while you continue using your vault."
-                    >
-                      <Button
-                        variant="outline"
-                        className={`${settingsSecondaryButtonClassName} rounded-lg`}
-                        onClick={() => void startVaultBackup()}
-                        disabled={
-                          !cloudSession ||
-                          isVaultReadOnly ||
-                          backupStatus === 'loading' ||
-                          restoreStatus === 'loading' ||
-                          localBackupStatus === 'loading'
-                        }
-                      >
-                        <Upload className="h-3.5 w-3.5" />
-                        Backup
-                      </Button>
-                    </SettingsRow>
-
-                    <SettingsRow
-                      inline
-                      label="Automatic backup"
-                      description="Back up quietly after edits settle, without notifications."
-                    >
-                      <SettingsSwitch
-                        checked={settings.cloudAutoBackupEnabled}
-                        onCheckedChange={handleAutoBackupToggle}
-                        disabled={!cloudSession || isVaultReadOnly}
-                        aria-label="Enable automatic backup"
+                  {driveStatus && !driveStatus.available ? (
+                    <SettingsSection title="Google Drive">
+                      <SettingsRow
+                        label="Not available here"
+                        description="Google Drive backup needs the desktop app or a self-hosted server. Use Backup & Restore for a portable ZIP."
                       />
-                    </SettingsRow>
-
-                    {cloudBackupPillStatus !== 'idle' ? (
-                      <div className="py-3">
-                        <StatusPill
-                          status={cloudBackupPillStatus}
-                          message={backupMessage}
-                          quiet
-                        />
-                      </div>
-                    ) : null}
-                  </SettingsSection>
-
-                  <SettingsSection title="Restore">
-                    <SettingsRow
-                      label="Restore from cloud"
-                      description={
-                        cloudSession
-                          ? 'Replaces the local data on this device with the latest cloud backup. You can keep browsing while editing is paused.'
-                          : 'Sign in above before restoring from the cloud.'
-                      }
-                    >
-                      <Button
-                        variant="outline"
-                        className={`${settingsSecondaryButtonClassName} rounded-lg`}
-                        onClick={handleRestore}
-                        disabled={
-                          !cloudSession ||
-                          isVaultReadOnly ||
-                          restoreStatus === 'loading' ||
-                          backupStatus === 'loading'
-                        }
-                      >
-                        {cloudRestorePillStatus === 'loading' ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Download className="h-3.5 w-3.5" />
-                        )}
-                        Restore
-                      </Button>
-                    </SettingsRow>
-
-                    {cloudRestorePillStatus !== 'idle' ? (
-                      <div className="py-3">
-                        <StatusPill
-                          status={cloudRestorePillStatus}
-                          message={restoreMessage}
-                          quiet
-                        />
-                      </div>
-                    ) : null}
-                  </SettingsSection>
+                    </SettingsSection>
+                  ) : null}
 
                   {driveStatus?.available ? (
                     <SettingsSection
@@ -2196,7 +1816,7 @@ export default function SettingsView() {
                             <Button
                               variant="outline"
                               className={`${settingsSecondaryButtonClassName} rounded-lg`}
-                              onClick={() => void startVaultBackup('drive')}
+                              onClick={() => void startVaultBackup()}
                               disabled={
                                 isVaultReadOnly ||
                                 backupStatus === 'loading' ||
@@ -2207,6 +1827,19 @@ export default function SettingsView() {
                               <Upload className="h-3.5 w-3.5" />
                               Backup
                             </Button>
+                          </SettingsRow>
+
+                          <SettingsRow
+                            inline
+                            label="Automatic backup to Google Drive"
+                            description="Back up to Drive quietly after edits settle, without notifications."
+                          >
+                            <SettingsSwitch
+                              checked={settings.driveAutoBackupEnabled}
+                              onCheckedChange={handleDriveAutoBackupToggle}
+                              disabled={isVaultReadOnly}
+                              aria-label="Enable automatic backup to Google Drive"
+                            />
                           </SettingsRow>
 
                           <SettingsRow

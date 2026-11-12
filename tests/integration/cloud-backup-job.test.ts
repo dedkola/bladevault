@@ -8,7 +8,6 @@ import {
   startCloudBackupJob,
 } from '@/lib/cloud-backup-job'
 import { IDLE_CLOUD_BACKUP_JOB } from '@/lib/cloud-backup-shared'
-import { getConfiguredCloudBackupUrl } from '@/lib/cloud-backup-server'
 import { setAppLockPassword } from '@/lib/app-lock'
 import { getLocalDb } from '@/lib/local-db'
 import { getSettings, saveSettings } from '@/lib/settings'
@@ -16,10 +15,17 @@ import { LocalStorage } from '@/lib/storage/local'
 import type { CreateKnifeInput } from '@/lib/storage/types'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
+// Google Drive transport is covered by drive-backup.test.ts; these tests focus
+// on the snapshot archive the job builds and hands to the upload.
+const { isDriveConnected, uploadDriveBackup } = vi.hoisted(() => ({
+  isDriveConnected: vi.fn(),
+  uploadDriveBackup: vi.fn(),
+}))
+
+vi.mock('@/lib/drive-backup', () => ({ isDriveConnected, uploadDriveBackup }))
+
 let vault: TempVault
 let temporaryDirectories: string[]
-const accessToken = 'test-cloud-backup-secret'
-const sessionToken = 'test-cloud-session-secret'
 const input: CreateKnifeInput = {
   name: 'Background Knife',
   brand: 'Maker',
@@ -39,48 +45,29 @@ const input: CreateKnifeInput = {
   sold: false,
 }
 
-function request(token: string = sessionToken, signal?: AbortSignal) {
+function request(signal?: AbortSignal) {
   return new Request('http://localhost/api/cloud-backup/job', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sessionToken: token }),
+    body: JSON.stringify({}),
     signal,
   })
 }
 
-function stubCloudUpload(
-  upload: (url: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
-  beforeToken?: () => Promise<void>,
+function stubDriveUpload(
+  upload: (archive: Buffer) => Promise<void>,
+  beforeUpload?: () => Promise<void>,
 ) {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      if (new URL(String(url)).pathname === '/api/auth/token') {
-        expect(new Headers(init?.headers).get('authorization')).toBe(
-          `Bearer ${sessionToken}`,
-        )
-        expect(init).toMatchObject({ redirect: 'error', cache: 'no-store' })
-        expect(getCloudBackupJobState().phase).toBe('preparing')
-        // A full archive must already exist before requesting a fresh access token.
-        await expect(
-          fs.stat(
-            path.join(temporaryDirectories.at(-1)!, 'bladevault-data.tar.gz'),
-          ),
-        ).resolves.toMatchObject({ size: expect.any(Number) })
-        await beforeToken?.()
-        return Response.json({ token: accessToken })
-      }
-      return upload(url, init)
-    }),
+  uploadDriveBackup.mockImplementation(
+    async (archivePath: string, dataDir: string) => {
+      expect(dataDir).toBe(vault.dataDir)
+      expect(getCloudBackupJobState().phase).toBe('uploading')
+      // The full archive exists before the upload starts.
+      expect(path.dirname(archivePath)).toBe(temporaryDirectories.at(-1))
+      await beforeUpload?.()
+      await upload(await fs.readFile(archivePath))
+    },
   )
-}
-
-async function collectUpload(init: RequestInit | undefined) {
-  const chunks: Buffer[] = []
-  for await (const chunk of init?.body as unknown as AsyncIterable<Buffer>) {
-    chunks.push(Buffer.from(chunk))
-  }
-  return Buffer.concat(chunks)
 }
 
 async function waitForJob(status: 'success' | 'error') {
@@ -100,6 +87,8 @@ async function expectTemporaryFilesRemoved() {
 beforeEach(async () => {
   vault = await createTempVault('bladevault-background-source-')
   temporaryDirectories = []
+  isDriveConnected.mockReset().mockResolvedValue(true)
+  uploadDriveBackup.mockReset()
   const mkdtemp = fs.mkdtemp.bind(fs)
   vi.spyOn(fs, 'mkdtemp').mockImplementation(async (prefix) => {
     const directory = await mkdtemp(prefix)
@@ -149,38 +138,29 @@ describe('server-owned cloud backup job', () => {
     const uploadGate = new Promise<void>((resolve) => {
       completeUpload = resolve
     })
-    const upload = vi.fn(
-      async (_url: RequestInfo | URL, init?: RequestInit) => {
-        uploaded = await collectUpload(init)
-        await uploadGate
-        return new Response(null, { status: 200 })
-      },
-    )
-    stubCloudUpload(upload)
+    stubDriveUpload(async (archive) => {
+      uploaded = archive
+      await uploadGate
+    })
 
     const controller = new AbortController()
-    const startedResponse = await jobRoute.POST(
-      request(sessionToken, controller.signal),
-    )
+    const startedResponse = await jobRoute.POST(request(controller.signal))
     const started = (await startedResponse.json()).job
     expect(startedResponse.status).toBe(202)
     expect(started).toMatchObject({ status: 'running', phase: 'preparing' })
     expect(started.id).toEqual(expect.any(String))
-    expect(JSON.stringify(started)).not.toContain(accessToken)
-    expect(JSON.stringify(started)).not.toContain(sessionToken)
     controller.abort()
 
-    const duplicate = await jobRoute.POST(request('another-secret'))
+    const duplicate = await jobRoute.POST(request())
     const duplicateData = await duplicate.json()
     expect(duplicateData.job.id).toBe(started.id)
     expect(duplicateData.started).toBe(false)
     await vi.waitFor(() => {
       expect(uploaded).not.toBeNull()
     })
-    expect(upload).toHaveBeenCalledTimes(1)
+    expect(uploadDriveBackup).toHaveBeenCalledTimes(1)
     expect(database.open).toBe(true)
     expect(editedDuringSnapshot).toBe(true)
-    expect(getSettings().cloudBackupLastSyncedAt).toBe('')
     await storage.updateKnife(knife.id, { brand: 'Edited during upload' })
     expect((await storage.getKnifeById(knife.id))?.brand).toBe(
       'Edited during upload',
@@ -197,24 +177,7 @@ describe('server-owned cloud backup job', () => {
     })
 
     completeUpload()
-    const finished = await waitForJob('success')
-    expect(finished.syncedAt).toEqual(expect.any(String))
-    expect(getSettings().cloudBackupLastSyncedAt).toBe(finished.syncedAt)
-    const [target, init] = upload.mock.calls[0]
-    expect(String(target)).toBe(
-      new URL('/backup/latest', getConfiguredCloudBackupUrl()).toString(),
-    )
-    expect(init).toMatchObject({
-      method: 'PUT',
-      duplex: 'half',
-      redirect: 'error',
-    })
-    expect(new Headers(init?.headers).get('content-length')).toBe(
-      String(uploaded!.length),
-    )
-    expect(new Headers(init?.headers).get('authorization')).toBe(
-      `Bearer ${accessToken}`,
-    )
+    await waitForJob('success')
     await expectTemporaryFilesRemoved()
 
     const restored = await archiveRoute.PUT(
@@ -236,50 +199,25 @@ describe('server-owned cloud backup job', () => {
     ).resolves.toMatchObject({ contentType: 'image/png' })
   })
 
-  it('cleans up a rejected upload, preserves the timestamp, and can retry', async () => {
-    saveSettings({ cloudBackupLastSyncedAt: '2026-01-01T00:00:00.000Z' })
-    const upload = vi.fn(
-      async (_url: RequestInfo | URL, init?: RequestInit) => {
-        await collectUpload(init)
-        return new Response(`Do not reveal ${accessToken}`, { status: 503 })
-      },
-    )
-    stubCloudUpload(upload)
-    const first = startCloudBackupJob(sessionToken)
+  it('cleans up a rejected upload and can retry', async () => {
+    const upload = vi.fn(async (): Promise<void> => {
+      throw new Error('Google Drive upload failed (503).')
+    })
+    stubDriveUpload(upload)
+    const first = startCloudBackupJob()
     const failed = await waitForJob('error')
     expect(failed).toMatchObject({
       id: first.id,
       phase: null,
-      syncedAt: '2026-01-01T00:00:00.000Z',
-      message: 'Backup upload failed (503).',
+      message: 'Google Drive upload failed (503).',
     })
-    expect(JSON.stringify(failed)).not.toContain(accessToken)
-    expect(getSettings().cloudBackupLastSyncedAt).toBe(
-      '2026-01-01T00:00:00.000Z',
-    )
     await expectTemporaryFilesRemoved()
 
-    upload.mockImplementationOnce(async (_url, init) => {
-      await collectUpload(init)
-      return new Response(null, { status: 200 })
-    })
-    const retry = startCloudBackupJob(sessionToken)
+    upload.mockImplementationOnce(async () => {})
+    const retry = startCloudBackupJob()
     expect(retry.id).not.toBe(first.id)
     await waitForJob('success')
     expect(upload).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not leak credentials from transport errors and cleans up unread streams', async () => {
-    getLocalDb()
-    stubCloudUpload(
-      vi.fn(async () => {
-        throw new Error(`Failed using ${accessToken} and ${sessionToken}`)
-      }),
-    )
-    startCloudBackupJob(sessionToken)
-    const failed = await waitForJob('error')
-    expect(failed.message).toBe('Failed using [redacted] and [redacted]')
-    await expectTemporaryFilesRemoved()
   })
 
   it.each(['delete', 'replace'] as const)(
@@ -292,10 +230,9 @@ describe('server-owned cloud backup job', () => {
       )
       let mutated = false
       let uploaded: Buffer | null = null
-      stubCloudUpload(
-        async (_url, init) => {
-          uploaded = await collectUpload(init)
-          return new Response(null, { status: 200 })
+      stubDriveUpload(
+        async (archive) => {
+          uploaded = archive
         },
         async () => {
           mutated = true
@@ -309,7 +246,7 @@ describe('server-owned cloud backup job', () => {
         },
       )
 
-      startCloudBackupJob(sessionToken)
+      startCloudBackupJob()
       await waitForJob('success')
       expect(mutated).toBe(true)
       await expect(
@@ -346,11 +283,10 @@ describe('server-owned cloud backup job', () => {
       },
     )
     let uploaded: Buffer | null = null
-    stubCloudUpload(async (_url, init) => {
-      uploaded = await collectUpload(init)
-      return new Response(null, { status: 200 })
+    stubDriveUpload(async (archive) => {
+      uploaded = archive
     })
-    startCloudBackupJob(sessionToken)
+    startCloudBackupJob()
     await waitForJob('success')
     expect(attempts).toBe(2)
     const restored = await archiveRoute.PUT(
@@ -388,12 +324,11 @@ describe('server-owned cloud backup job', () => {
       },
     )
     let uploaded: Buffer | null = null
-    stubCloudUpload(async (_url, init) => {
-      uploaded = await collectUpload(init)
-      return new Response(null, { status: 200 })
+    stubDriveUpload(async (archive) => {
+      uploaded = archive
     })
 
-    startCloudBackupJob(sessionToken)
+    startCloudBackupJob()
     await waitForJob('success')
     const restored = await archiveRoute.PUT(
       new Request('http://localhost/api/cloud-backup/archive', {
@@ -439,11 +374,10 @@ describe('server-owned cloud backup job', () => {
       },
     )
     let uploaded: Buffer | null = null
-    stubCloudUpload(async (_url, init) => {
-      uploaded = await collectUpload(init)
-      return new Response(null, { status: 200 })
+    stubDriveUpload(async (archive) => {
+      uploaded = archive
     })
-    startCloudBackupJob(sessionToken)
+    startCloudBackupJob()
     await waitForJob('success')
     expect(backup).toHaveBeenCalledTimes(2)
     const restored = await archiveRoute.PUT(
@@ -473,11 +407,10 @@ describe('server-owned cloud backup job', () => {
         Object.assign(new Error('Cloning unsupported'), { code: 'EOPNOTSUPP' }),
       )
     let uploaded: Buffer | null = null
-    stubCloudUpload(async (_url, init) => {
-      uploaded = await collectUpload(init)
-      return new Response(null, { status: 200 })
+    stubDriveUpload(async (archive) => {
+      uploaded = archive
     })
-    startCloudBackupJob(sessionToken)
+    startCloudBackupJob()
     await waitForJob('success')
     expect(clone).toHaveBeenCalled()
     const restored = await archiveRoute.PUT(
@@ -497,16 +430,13 @@ describe('server-owned cloud backup job', () => {
     const storage = new LocalStorage()
     const knife = await storage.createKnife(input)
     await fs.unlink(path.join(vault.dataDir, 'images', knife.images[0]))
-    const upload = vi.fn()
-    vi.stubGlobal('fetch', upload)
-    startCloudBackupJob(sessionToken)
+    startCloudBackupJob()
     await waitForJob('error')
-    expect(upload).not.toHaveBeenCalled()
-    expect(getSettings().cloudBackupLastSyncedAt).toBe('')
+    expect(uploadDriveBackup).not.toHaveBeenCalled()
     await expectTemporaryFilesRemoved()
   })
 
-  it('prevents a restore from replacing the vault while a backup is refreshing credentials', async () => {
+  it('prevents a restore from replacing the vault while a backup is uploading', async () => {
     const storage = new LocalStorage()
     const knife = await storage.createKnife(input)
     const originalArchive = await (
@@ -520,17 +450,12 @@ describe('server-owned cloud backup job', () => {
       releaseToken = resolve
     })
     let refreshing = false
-    const upload = vi.fn(
-      async (_url: RequestInfo | URL, init?: RequestInit) => {
-        await collectUpload(init)
-        return new Response(null, { status: 200 })
-      },
-    )
-    stubCloudUpload(upload, async () => {
+    const upload = vi.fn(async () => {})
+    stubDriveUpload(upload, async () => {
       refreshing = true
       await tokenGate
     })
-    startCloudBackupJob(sessionToken)
+    startCloudBackupJob()
     await vi.waitFor(() => {
       expect(refreshing).toBe(true)
     })
@@ -569,6 +494,7 @@ describe('server-owned cloud backup job', () => {
     ).toBe(401)
     expect((await jobRoute.POST(request())).status).toBe(401)
     setAppLockPassword('')
-    expect((await jobRoute.POST(request(''))).status).toBe(400)
+    isDriveConnected.mockResolvedValue(false)
+    expect((await jobRoute.POST(request())).status).toBe(400)
   })
 })

@@ -2,12 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as archiveRoute from '@/app/api/cloud-backup/archive/route'
 import * as jobRoute from '@/app/api/cloud-backup/job/route'
 import * as localBackupRoute from '@/app/api/local-backup/archive/route'
-import { getConfiguredCloudBackupUrl } from '@/lib/cloud-backup-server'
 import {
   tryBeginVaultOperation,
   withVaultOperation,
 } from '@/lib/vault-operation'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
+
+vi.mock('@/lib/drive-backup', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/drive-backup')>()),
+  isDriveConnected: async () => true,
+}))
 
 const busyMessage =
   'Another backup or restore is running. Try again when it finishes.'
@@ -127,20 +131,16 @@ describe('backup and restore route contention', () => {
     vi.stubGlobal('fetch', vi.fn())
   })
 
-  it('rejects cloud restore before contacting the backup server', async () => {
-    const response = await archiveRoute.POST(
-      new Request('http://localhost/api/cloud-backup/archive', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          backupUrl: getConfiguredCloudBackupUrl(),
-          accessToken: 'restore-token',
-        }),
-      }),
-    )
+  it('rejects an uploaded archive restore before reading the archive', async () => {
+    const request = new Request('http://localhost/api/cloud-backup/archive', {
+      method: 'PUT',
+      body: 'archive-content',
+    })
+    const readArchive = vi.spyOn(request, 'arrayBuffer')
+    const response = await archiveRoute.PUT(request)
 
     await expectBusy(response)
-    expect(fetch).not.toHaveBeenCalled()
+    expect(readArchive).not.toHaveBeenCalled()
   })
 
   it('rejects local ZIP restore before reading the archive', async () => {
@@ -161,7 +161,7 @@ describe('backup and restore route contention', () => {
       new Request('http://localhost/api/cloud-backup/job', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionToken: 'session-token' }),
+        body: JSON.stringify({}),
       }),
     )
 

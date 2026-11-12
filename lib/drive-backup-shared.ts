@@ -2,6 +2,10 @@ export const DRIVE_BACKUP_FILE_NAME = 'bladevault-data.tar.gz'
 export const DRIVE_BACKUP_FOLDER_NAME = 'BladeVault'
 export const DRIVE_AUTH_CODE_MESSAGE = 'bladevault-drive-auth-code'
 export const DRIVE_AUTH_ERROR_MESSAGE = 'bladevault-drive-auth-error'
+// Announces a Google Drive connect or disconnect to the rest of the app.
+export const DRIVE_CONNECTION_EVENT = 'bladevault-drive-connection-change'
+
+export type DriveConnectionEventDetail = { connected: boolean }
 
 export type DriveAuthCodeMessage = {
   type: typeof DRIVE_AUTH_CODE_MESSAGE

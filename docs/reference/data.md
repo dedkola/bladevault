@@ -45,13 +45,13 @@ Open **Settings → Backup & Restore → Download ZIP** to save a portable full-
 
 Use **Restore from local ZIP** in the same panel to validate an archive and review its contents before replacing the current vault. BladeVault creates a safety copy of the current data before restoring. The panel also offers **Print Report** to open the Overview for printing or saving as a PDF.
 
-Saved comparisons are included in full-vault backups, but changing a comparison list does not trigger an automatic cloud backup. When upgrading from before v1.2.0, the old comparison selection becomes **My comparison**.
+Saved comparisons are included in full-vault backups, but changing a comparison list does not trigger an automatic backup. When upgrading from before v1.2.0, the old comparison selection becomes **My comparison**.
 
 For a manual filesystem backup, stop BladeVault and copy the whole data folder so the database and images stay together.
 
 ## Related
 
 - [Cloud backup](cloud-backup.md) — the optional off-machine copy.
-- [Back up and restore your vault](../guides/back-up-and-restore-your-vault.md) — step-by-step ZIP and cloud backup workflows.
+- [Back up and restore your vault](../guides/back-up-and-restore-your-vault.md) — step-by-step ZIP and Google Drive backup workflows.
 - [Docker and Podman](../installation/docker.md) — mounting `/app/data` to a host folder.
 - [Kubernetes with Helm](../installation/helm.md) — the PVC that holds `/app/data`.

@@ -41,8 +41,7 @@ const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
   pinnedItemsFirst: 'pinned_items_first',
   cardFields: 'card_fields',
   pinnedCardFields: 'pinned_card_fields',
-  cloudBackupLastSyncedAt: 'cloud_backup_last_synced_at',
-  cloudAutoBackupEnabled: 'cloud_auto_backup_enabled',
+  driveAutoBackupEnabled: 'drive_auto_backup_enabled',
   mcpEnabled: 'mcp_enabled',
   mcpWriteEnabled: 'mcp_write_enabled',
   customFields: 'custom_fields',
@@ -158,12 +157,9 @@ export function getSettings(): AppSettings {
     pinnedCardFields: parsePinnedCardFields(
       map.get(SETTINGS_KEYS.pinnedCardFields),
     ),
-    cloudBackupLastSyncedAt:
-      map.get(SETTINGS_KEYS.cloudBackupLastSyncedAt) ||
-      DEFAULT_SETTINGS.cloudBackupLastSyncedAt,
-    cloudAutoBackupEnabled: parseBool(
-      map.get(SETTINGS_KEYS.cloudAutoBackupEnabled),
-      DEFAULT_SETTINGS.cloudAutoBackupEnabled,
+    driveAutoBackupEnabled: parseBool(
+      map.get(SETTINGS_KEYS.driveAutoBackupEnabled),
+      DEFAULT_SETTINGS.driveAutoBackupEnabled,
     ),
     mcpEnabled: parseBool(
       map.get(SETTINGS_KEYS.mcpEnabled),
@@ -221,8 +217,7 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
       ['pinnedItemsFirst', next.pinnedItemsFirst ? '1' : '0'],
       ['cardFields', JSON.stringify(next.cardFields)],
       ['pinnedCardFields', JSON.stringify(next.pinnedCardFields)],
-      ['cloudBackupLastSyncedAt', next.cloudBackupLastSyncedAt],
-      ['cloudAutoBackupEnabled', next.cloudAutoBackupEnabled ? '1' : '0'],
+      ['driveAutoBackupEnabled', next.driveAutoBackupEnabled ? '1' : '0'],
       ['mcpEnabled', next.mcpEnabled ? '1' : '0'],
       ['mcpWriteEnabled', next.mcpWriteEnabled ? '1' : '0'],
       ['customFields', JSON.stringify(next.customFields)],

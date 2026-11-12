@@ -24,27 +24,10 @@ export async function POST(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
 
-  let body: { sessionToken?: unknown; target?: unknown }
-  try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
-  }
-  const target = body?.target === 'drive' ? 'drive' : 'bladevault'
-  const sessionToken =
-    target === 'bladevault' && typeof body?.sessionToken === 'string'
-      ? body.sessionToken.trim()
-      : ''
-  if (target === 'drive') {
-    if (!(await isDriveConnected())) {
-      return NextResponse.json(
-        { error: 'Connect Google Drive before starting a backup.' },
-        { status: 400 },
-      )
-    }
-  } else if (!sessionToken || sessionToken.length > 16_384) {
+  // Backups go to the user's Google Drive, the only cloud destination.
+  if (!(await isDriveConnected())) {
     return NextResponse.json(
-      { error: 'sessionToken is required.' },
+      { error: 'Connect Google Drive before starting a backup.' },
       { status: 400 },
     )
   }
@@ -52,7 +35,7 @@ export async function POST(request: Request) {
   try {
     const started = getCloudBackupJobState().status !== 'running'
     return NextResponse.json(
-      { job: startCloudBackupJob(sessionToken, target), started },
+      { job: startCloudBackupJob(), started },
       { status: 202, headers: { 'Cache-Control': 'no-store' } },
     )
   } catch (error) {

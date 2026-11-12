@@ -251,8 +251,7 @@ export type AppSettings = {
   pinnedItemsFirst: boolean
   cardFields: CardField[]
   pinnedCardFields: CardField[]
-  cloudBackupLastSyncedAt: string
-  cloudAutoBackupEnabled: boolean
+  driveAutoBackupEnabled: boolean
   mcpEnabled: boolean
   mcpWriteEnabled: boolean
   customFields: CustomField[]
@@ -268,8 +267,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   pinnedItemsFirst: true,
   cardFields: [...DEFAULT_CARD_FIELDS],
   pinnedCardFields: [...DEFAULT_PINNED_CARD_FIELDS],
-  cloudBackupLastSyncedAt: '',
-  cloudAutoBackupEnabled: false,
+  driveAutoBackupEnabled: false,
   mcpEnabled: true,
   mcpWriteEnabled: false,
   customFields: [],
