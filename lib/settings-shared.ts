@@ -68,8 +68,8 @@ export type TimeFormat = (typeof TIME_FORMATS)[number]
 /**
  * Styles the theme quick switcher cycles through: Modern, its variants
  * (Atrium and Ledger included, which show the switcher in their top bar
- * instead of a footer) and Classic. Alloy has its own controls, so it stays out of the
- * rotation.
+ * instead of a footer) and Classic. Alloy has its own controls, so it stays
+ * out of the rotation.
  */
 export const QUICK_SWITCH_THEME_STYLES: readonly ThemeStyle[] = [
   'modern',
@@ -345,7 +345,7 @@ export const THEME_COLORS: Record<ThemeStyle, { light: string; dark: string }> =
     espresso: { light: '#f8f2e7', dark: '#f8f2e7' },
     phosphor: { light: '#0d0b08', dark: '#0d0b08' },
     atrium: { light: '#ffffff', dark: '#ffffff' },
-    ledger: { light: '#ffffff', dark: '#ffffff' },
+    ledger: { light: '#123d2c', dark: '#0a120e' },
   }
 
 export function isLightOnlyThemeStyle(themeStyle: ThemeStyle): boolean {
