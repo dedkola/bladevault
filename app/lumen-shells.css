@@ -1,0 +1,93 @@
+/* Shared pieces for the layouts that use the Lumen palette with their own
+ * shell (Atrium, Ledger, Shelf). Each layout keeps its own file for the rest. */
+
+[data-lumen-photo] {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+[data-lumen-photo] > [data-lumen-photo-empty] {
+  width: 28%;
+  max-width: 56px;
+  height: auto;
+  color: #c4c4c4;
+  stroke-width: 1.4;
+}
+
+[data-lumen-kbd] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  padding: 0 5px;
+  border: 1px solid #dddddd;
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #737373;
+  font:
+    500 10.5px/16px var(--font-sans),
+    system-ui,
+    sans-serif;
+}
+
+[data-lumen-menu] {
+  min-width: 200px;
+  max-height: min(360px, var(--available-height));
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid #ebebeb;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #18181b;
+  box-shadow: 0 16px 40px -18px rgb(0 0 0 / 28%);
+  font-size: 13px;
+  outline: none;
+}
+
+[data-lumen-menu-item] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: default;
+  outline: none;
+}
+
+[data-lumen-menu-item][data-highlighted] {
+  background: #f5f5f5;
+}
+
+[data-lumen-menu-item] > small {
+  margin-left: auto;
+  padding-left: 12px;
+  color: #a3a3a3;
+}
+
+[data-lumen-menu-check] {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: #f6821f;
+  visibility: hidden;
+}
+
+[data-lumen-menu-item][data-selected] [data-lumen-menu-check] {
+  visibility: visible;
+}
+
+[data-lumen-menu-empty] {
+  margin: 0;
+  padding: 8px 10px;
+  color: #737373;
+}
+
+[data-lumen-menu-chevron] {
+  width: 14px;
+  height: 14px;
+  opacity: 0.6;
+}
