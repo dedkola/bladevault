@@ -8,8 +8,6 @@ import type { CollectionDisplay } from '@/lib/settings-shared'
  * such as `/collection?brand=…` or `?view=pinned` keep working in every style.
  */
 
-export type LumenStatusFilter = 'owned' | 'sold'
-
 /** URL keys the Lumen layouts write in addition to the shared filters. */
 export const LUMEN_STATUS_PARAM = 'status'
 
