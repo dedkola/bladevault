@@ -1,5 +1,4 @@
 export const VAULT_GENERATION_HEADER = 'X-BladeVault-Vault-Generation'
-export const VAULT_ACCESS_EVENT = 'bladevault-vault-access-change'
 
 export type VaultAccessPhase = 'idle' | 'preparing' | 'switching'
 

@@ -76,12 +76,6 @@ type Drilldown = {
   categoryKey?: CategoryKey
 }
 
-export function formatMetric(value: number | undefined, unit: string): string {
-  if (value === undefined) return '—'
-  const fractionDigits = unit === 'mm' ? 1 : 2
-  return `${value.toLocaleString(undefined, { maximumFractionDigits: fractionDigits })} ${unit}`
-}
-
 function formatMeasurementAxisLabel(label: string): string {
   return label.replace(/\.0(?=–|″|\s)/g, '')
 }
@@ -174,51 +168,6 @@ export function missingHref(key: BuiltInFilterKey) {
   const params = new URLSearchParams()
   params.set(key, NOT_SET_FILTER_VALUE)
   return `/collection?${params.toString()}`
-}
-
-export function getLibraryOption(
-  total: number,
-  palette: InsightsChartPalette,
-): EChartsOption {
-  return {
-    animation: false,
-    series: [
-      {
-        type: 'gauge',
-        silent: true,
-        startAngle: 90,
-        endAngle: -270,
-        center: ['50%', '50%'],
-        radius: '88%',
-        pointer: { show: false },
-        progress: {
-          show: true,
-          roundCap: true,
-          width: 10,
-          itemStyle: { color: palette.gold },
-        },
-        axisLine: {
-          lineStyle: { width: 10, color: [[1, palette.ringTrack]] },
-        },
-        axisTick: { show: false },
-        splitLine: { show: false },
-        axisLabel: { show: false },
-        title: {
-          offsetCenter: [0, '27%'],
-          color: palette.muted,
-          fontSize: palette.labelFontSize ?? 9,
-        },
-        detail: {
-          offsetCenter: [0, '-10%'],
-          color: palette.foreground,
-          fontSize: 27,
-          fontWeight: 600,
-          formatter: String(total),
-        },
-        data: [{ value: 100, name: 'knives' }],
-      },
-    ],
-  }
 }
 
 export function getMakerOption(
