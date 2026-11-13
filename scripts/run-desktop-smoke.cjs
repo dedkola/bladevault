@@ -564,35 +564,71 @@ async function main() {
       'App lock restart: unlock screen',
     )
     logStage('App lock restart: unlock screen is ready.')
-    assert.equal(
-      (
-        await window
-          .context()
-          .request.get(new URL('/api/knives', window.url()).toString())
-      ).status(),
-      401,
+    const lockedStatus = await withStageTimeout(
+      window
+        .context()
+        .request.get(new URL('/api/knives', window.url()).toString(), {
+          timeout: windowLifecycleTimeoutMs,
+        })
+        .then((response) => response.status()),
+      windowLifecycleTimeoutMs + 5000,
+      'App lock restart: locked API request',
     )
-    await window.getByLabel('Password', { exact: true }).fill('wrong')
-    await window.getByRole('button', { name: 'Unlock', exact: true }).click()
-    await window
-      .getByRole('alert')
-      .filter({ hasText: 'Incorrect password.' })
-      .waitFor()
-    await window.getByLabel('Password', { exact: true }).fill('desktop-test')
-    await window.getByRole('button', { name: 'Unlock', exact: true }).click()
-    await window.getByRole('heading', { name: 'Collection Insights' }).waitFor()
+    assert.equal(lockedStatus, 401)
+    logStage('App lock restart: API is locked; trying a wrong password.')
+    const passwordInput = window.getByLabel('Password', { exact: true })
+    const unlockButton = window.getByRole('button', {
+      name: 'Unlock',
+      exact: true,
+    })
+    await withStageTimeout(
+      (async () => {
+        await passwordInput.fill('wrong')
+        await unlockButton.click()
+        await window
+          .getByRole('alert')
+          .filter({ hasText: 'Incorrect password.' })
+          .waitFor()
+      })(),
+      windowLifecycleTimeoutMs + 5000,
+      'App lock restart: wrong password rejection',
+    )
+    logStage('App lock restart: wrong password rejected; unlocking.')
+    await withStageTimeout(
+      (async () => {
+        await passwordInput.fill('desktop-test')
+        await unlockButton.click()
+        await window
+          .getByRole('heading', { name: 'Collection Insights' })
+          .waitFor()
+      })(),
+      windowLifecycleTimeoutMs + 5000,
+      'App lock restart: unlock',
+    )
+    logStage('App lock restart: unlocked.')
 
     assert.deepEqual(pageErrors, [])
 
     console.log(
       'Desktop smoke passed: API, comparisons, SQLite, restore, reload, App lock restart/unlock, authenticated backup, and preload boundary.',
     )
+  } catch (error) {
+    // Print the failure before cleanup: if cleanup stalls, the parent kills
+    // this worker and the original error would otherwise never be shown.
+    console.error(error instanceof Error ? error.stack : error)
+    throw error
   } finally {
     if (electronApp) {
       const electronProcess = electronApp.process()
-      await electronApp
-        .evaluate(({ app }) => app.emit('before-quit'))
-        .catch(() => {})
+      await withStageTimeout(
+        electronApp.evaluate(({ app }) => app.emit('before-quit')),
+        electronShutdownTimeoutMs,
+        'Final cleanup: before-quit',
+      ).catch((error) => {
+        logStage(
+          `Final cleanup: before-quit did not settle (${error instanceof Error ? error.message : error}).`,
+        )
+      })
       if (!isProcessExited(electronProcess)) {
         const exited = waitForProcessExit(electronProcess)
         logStage('Final cleanup: force-terminating the Electron process tree.')
