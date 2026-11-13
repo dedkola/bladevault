@@ -99,6 +99,17 @@ test('cycles theme styles from the Modern footer', async ({
   await expect(html).toHaveAttribute('data-theme-variant', 'phosphor')
   await expect(html).toHaveClass(/dark/)
 
+  // Atrium has no footer, so its switch button lives in the top bar.
+  await themeButton.click()
+  await expect(html).toHaveAttribute('data-theme-variant', 'atrium')
+  await expect(
+    page.locator('[data-atrium-top] [data-theme-cycle]'),
+  ).toBeVisible()
+  await expect(themeButton).toHaveAttribute(
+    'title',
+    'Switch theme · Atrium → Classic',
+  )
+
   await themeButton.click()
   await expect(html).toHaveAttribute('data-theme-style', 'classic')
   await expect(html).not.toHaveAttribute('data-theme-variant', /.+/)
