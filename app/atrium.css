@@ -558,8 +558,6 @@ html[data-theme-variant='atrium']
 }
 
 [data-atrium-tile-art] img {
-  padding: 26px 26px 64px;
-  filter: drop-shadow(0 8px 10px rgb(0 0 0 / 12%));
   mix-blend-mode: multiply;
 }
 
@@ -862,8 +860,6 @@ html[data-theme-variant='atrium']
 }
 
 [data-atrium-sheet-stage] img {
-  padding: 32px;
-  filter: drop-shadow(0 12px 14px rgb(0 0 0 / 14%));
   mix-blend-mode: multiply;
 }
 
@@ -1055,8 +1051,7 @@ html[data-theme-variant='atrium']
     grid-template-columns: minmax(0, 1fr);
   }
 
-  [data-atrium-tile-art],
-  [data-atrium-tile-art] img {
+  [data-atrium-tile-art] {
     padding: 14px;
   }
 

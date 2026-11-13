@@ -28,9 +28,7 @@ import type { CollectionDisplay } from '@/lib/settings-shared'
 import {
   countAddedThisMonth,
   countFacet,
-  formatMoney,
   formatShortDate,
-  summarizeCollectionValue,
 } from '@/lib/lumen-collection'
 
 const PAGE_SIZE = 60
@@ -57,8 +55,6 @@ export function AtriumCollection() {
   const [openId, setOpenId] = useState<string | null>(null)
   const returnFocus = useRef<HTMLElement | null>(null)
 
-  const owned = useMemo(() => knives.filter((knife) => !knife.sold), [knives])
-  const value = useMemo(() => summarizeCollectionValue(owned), [owned])
   const brandCount = useMemo(
     () => countFacet(knives, (knife) => knife.brand).length,
     [knives],
@@ -115,18 +111,6 @@ export function AtriumCollection() {
           <small>{isLoading ? '' : filtered.length}</small>
         </p>
         <dl data-atrium-stats>
-          <div>
-            <dt>Est. value</dt>
-            <dd
-              title={
-                value
-                  ? `${value.pricedCount} of ${owned.length} owned knives have a price in ${value.currency}`
-                  : 'Add prices to see the estimated value'
-              }
-            >
-              {value ? formatMoney(value.total, value.currency) : '—'}
-            </dd>
-          </div>
           <div>
             <dt>Brands</dt>
             <dd>{brandCount}</dd>
@@ -608,14 +592,6 @@ function AtriumSheet({
                     {actions.isInCompare(knife.id)
                       ? 'In comparison'
                       : 'Add to compare'}
-                  </button>
-                  <button
-                    type="button"
-                    data-atrium-button
-                    disabled={actions.busy === `sold:${knife.id}`}
-                    onClick={() => void actions.toggleSold(knife)}
-                  >
-                    {knife.sold ? 'Mark owned' : 'Mark sold'}
                   </button>
                   {knife.sourceUrl && (
                     <a
