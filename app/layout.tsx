@@ -8,12 +8,18 @@ import './modern-variants.css'
 import './forge.css'
 import './lumen-shells.css'
 import './atrium.css'
+import './ledger.css'
 import { SmartCollectionsProvider } from '@/components/providers/smart-collections-provider'
 import { AppShell } from '@/components/app-shell'
 import { KnivesProvider } from '@/components/providers/knives-provider'
 import { DEFAULT_SETTINGS, getSettings } from '@/lib/settings'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { Geist, Geist_Mono, Space_Grotesk } from 'next/font/google'
+import {
+  Geist,
+  Geist_Mono,
+  IBM_Plex_Mono,
+  Space_Grotesk,
+} from 'next/font/google'
 import localFont from 'next/font/local'
 import { cn } from '@/lib/utils'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
@@ -48,6 +54,13 @@ const fieldDisplay = Space_Grotesk({
   subsets: ['latin'],
   variable: '--font-field-display',
   weight: ['500', '600', '700'],
+  display: 'swap',
+  preload: false,
+})
+const ledgerMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  variable: '--font-ledger-mono',
+  weight: ['400', '500', '600'],
   display: 'swap',
   preload: false,
 })
@@ -142,6 +155,7 @@ export default async function RootLayout({
         geistMono.variable,
         alloyDisplay.variable,
         fieldDisplay.variable,
+        ledgerMono.variable,
         'h-full',
         isDarkThemeActive(theme, themeStyle) && 'dark',
       )}

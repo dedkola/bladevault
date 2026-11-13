@@ -107,7 +107,18 @@ test('cycles theme styles from the Modern footer', async ({
   ).toBeVisible()
   await expect(themeButton).toHaveAttribute(
     'title',
-    'Switch theme · Atrium → Classic',
+    'Switch theme · Atrium → Ledger',
+  )
+
+  // Ledger has no footer either; its switch button sits in its header.
+  await themeButton.click()
+  await expect(html).toHaveAttribute('data-theme-variant', 'ledger')
+  await expect(
+    page.locator('[data-ledger-head] [data-theme-cycle]'),
+  ).toBeVisible()
+  await expect(themeButton).toHaveAttribute(
+    'title',
+    'Switch theme · Ledger → Classic',
   )
 
   await themeButton.click()

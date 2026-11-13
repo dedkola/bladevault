@@ -10,6 +10,7 @@ export const THEME_STYLES = [
   'espresso',
   'phosphor',
   'atrium',
+  'ledger',
 ] as const
 /**
  * Forge, Titanium, Field, Lumen, Amber and Phosphor reuse the Modern workspace layout and only change
@@ -24,6 +25,7 @@ export const MODERN_THEME_VARIANTS = [
   'espresso',
   'phosphor',
   'atrium',
+  'ledger',
 ] as const
 /** Display names for each style, shown in Settings and under the app logo. */
 export const THEME_STYLE_NAMES: Record<(typeof THEME_STYLES)[number], string> =
@@ -38,6 +40,7 @@ export const THEME_STYLE_NAMES: Record<(typeof THEME_STYLES)[number], string> =
     espresso: 'Espresso',
     phosphor: 'Phosphor',
     atrium: 'Atrium',
+    ledger: 'Ledger',
   }
 /** Styles that always render light and ignore the dark color mode. */
 export const LIGHT_ONLY_THEME_STYLES = ['lumen', 'espresso', 'atrium'] as const
@@ -64,9 +67,9 @@ export type TimeFormat = (typeof TIME_FORMATS)[number]
 
 /**
  * Styles the theme quick switcher cycles through: Modern, its variants
- * (Atrium included, which shows the switcher in its top bar instead of a
- * footer) and Classic. Alloy has its own controls, so it stays out of the
- * rotation.
+ * (Atrium and Ledger included, which show the switcher in their top bar
+ * instead of a footer) and Classic. Alloy has its own controls, so it stays
+ * out of the rotation.
  */
 export const QUICK_SWITCH_THEME_STYLES: readonly ThemeStyle[] = [
   'modern',
@@ -342,6 +345,7 @@ export const THEME_COLORS: Record<ThemeStyle, { light: string; dark: string }> =
     espresso: { light: '#f8f2e7', dark: '#f8f2e7' },
     phosphor: { light: '#0d0b08', dark: '#0d0b08' },
     atrium: { light: '#ffffff', dark: '#ffffff' },
+    ledger: { light: '#123d2c', dark: '#0a120e' },
   }
 
 export function isLightOnlyThemeStyle(themeStyle: ThemeStyle): boolean {

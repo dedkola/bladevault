@@ -105,6 +105,23 @@ describe('matchesLumenSearch', () => {
     expect(matchesLumenSearch(item, '  ')).toBe(true)
     expect(matchesLumenSearch(item, 'spyderco magnacut')).toBe(false)
   })
+
+  it('limits field:value words to that field', () => {
+    const item = knife({
+      id: 'a',
+      name: 'Bugout',
+      brand: 'Benchmade',
+      specs: {
+        ...knife({ id: 'x' }).specs,
+        bladeMaterial: 'CPM S30V',
+        lockingMechanism: 'AXIS',
+      },
+    })
+    expect(matchesLumenSearch(item, 'steel:s30v lock:axis')).toBe(true)
+    expect(matchesLumenSearch(item, 'brand:bugout')).toBe(false)
+    expect(matchesLumenSearch(item, 'steel:')).toBe(true)
+    expect(matchesLumenSearch(item, 'note:axis')).toBe(false)
+  })
 })
 
 describe('sortLumenKnives', () => {

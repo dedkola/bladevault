@@ -667,3 +667,35 @@ button.settings-chip:hover {
   background: #f5f5f5;
   box-shadow: inset 0 -3px 0 #f6821f;
 }
+
+/* Ledger preview: a green cloth band over green-bar paper with a red rule. */
+.theme-style-swatch.is-ledger {
+  background:
+    linear-gradient(#123d2c, #123d2c) 0 0 / 100% 22% no-repeat,
+    linear-gradient(#c9a24a, #c9a24a) 0 22% / 100% 1px no-repeat,
+    repeating-linear-gradient(180deg, #f7f8f2 0 6px, #eef4e6 6px 12px);
+  box-shadow: inset 0 0 0 1px #dbe3d3;
+}
+
+.theme-style-swatch.is-ledger .theme-style-swatch-rail {
+  display: none;
+}
+
+.theme-style-swatch.is-ledger .theme-style-swatch-body {
+  padding-top: 28%;
+}
+
+.theme-style-swatch.is-ledger .theme-style-swatch-title {
+  background: #16241d;
+}
+
+.theme-style-swatch.is-ledger .theme-style-swatch-line {
+  background: #c3cfb9;
+}
+
+.theme-style-swatch.is-ledger .theme-style-swatch-card {
+  border: 0;
+  border-left: 2px solid #b4362c;
+  border-radius: 2px;
+  background: #fdfdf9;
+}
