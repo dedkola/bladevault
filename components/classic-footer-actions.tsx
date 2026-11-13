@@ -17,7 +17,7 @@ export function ClassicFooterActions() {
   const { isAutoBackupActive, showFeedback } = useKnives()
   const isSettingsActive = pathname === '/settings'
   const isCloudBackupSettingsActive =
-    isSettingsActive && searchParams.get('tab') === 'cloud-backup'
+    isSettingsActive && searchParams.get('tab') === 'backup'
 
   const toggleTheme = async () => {
     const root = document.documentElement
@@ -74,7 +74,7 @@ export function ClassicFooterActions() {
       </Link>
 
       <Link
-        href="/settings?tab=cloud-backup"
+        href="/settings?tab=backup"
         data-footer-action
         aria-label="Cloud backup"
         data-active={isCloudBackupSettingsActive ? '' : undefined}

@@ -47,7 +47,7 @@ The completeness score measures populated core fields, not factual accuracy. A b
 
 ## Print a report
 
-Use **Print Report** in **Settings → Backup & Restore** to open the Overview for printing or saving as a PDF.
+Use **Print Report** in **Settings → About** to open the Overview for printing or saving as a PDF.
 
 ![The Print section in Settings, with Print Report beside the collection report description](../images/insights-print-section.png)
 

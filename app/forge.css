@@ -2307,26 +2307,6 @@ html[data-theme-variant] [data-settings-rail] > button:focus-visible {
   outline-offset: 2px;
 }
 
-/* The Beta badge: an outlined mono tag in light and dark alike. */
-html[data-theme-variant] [data-settings-rail] > button > span:not(.flex-1) {
-  height: 16px;
-  border: 1px solid var(--gl-line);
-  background: transparent;
-  color: var(--muted-foreground);
-  font-family: var(--forge-mono);
-  font-size: 9px;
-  font-weight: 500;
-  letter-spacing: 0.12em;
-}
-
-html[data-theme-variant]
-  [data-settings-rail]
-  > button[class*='nav-active-bg']
-  > span:not(.flex-1) {
-  border-color: var(--gl-sel);
-  color: var(--gl-text);
-}
-
 /* The folder field is wide enough to show most of the path, like the
  * current-folder value above it. A fixed width: its row sizes to content,
  * so a percentage would resolve to nothing. */
