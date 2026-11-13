@@ -27,7 +27,12 @@ function applyThemeStyle(themeStyle: ThemeStyle) {
  * Clicks update the shell right away and queue saves so a later click always
  * wins over an earlier response.
  */
-export function ThemeCycleButton() {
+export function ThemeCycleButton(
+  props: Omit<
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
+    'type' | 'onClick' | 'aria-label' | 'title' | 'children'
+  >,
+) {
   const { themeStyle, showFeedback } = useKnives()
   const pendingThemeRef = useRef<ThemeStyle | null>(null)
   const savingThemeRef = useRef(false)
@@ -81,6 +86,7 @@ export function ThemeCycleButton() {
 
   return (
     <button
+      {...props}
       type="button"
       data-theme-cycle
       onClick={cycleTheme}
