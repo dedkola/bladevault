@@ -110,7 +110,21 @@ test('cycles theme styles from the Modern footer', async ({
   ).toHaveCount(0)
   await expect(themeButton).toHaveAttribute(
     'title',
-    'Switch theme · Atrium → Classic',
+    'Switch theme · Atrium → Ledger',
+  )
+
+  // Ledger also keeps the switch button in the shared footer, not its header.
+  await themeButton.click()
+  await expect(html).toHaveAttribute('data-theme-variant', 'ledger')
+  await expect(
+    page.locator('[data-workspace-footer] [data-theme-cycle]'),
+  ).toBeVisible()
+  await expect(
+    page.locator('[data-ledger-head] [data-theme-cycle]'),
+  ).toHaveCount(0)
+  await expect(themeButton).toHaveAttribute(
+    'title',
+    'Switch theme · Ledger → Classic',
   )
 
   await themeButton.click()

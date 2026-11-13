@@ -7,6 +7,8 @@ import { Plus, Settings } from 'lucide-react'
 import { BrandMark } from '@/components/brand-mark'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
+import { ThemeCycleButton } from '@/components/theme-cycle-button'
+import { ThemeModeButton } from '@/components/theme-mode-button'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useComparisons } from '@/components/providers/comparisons-provider'
@@ -30,8 +32,9 @@ export function isEditableTarget(target: EventTarget | null) {
 }
 
 /**
- * Ledger: a dense, keyboard-friendly layout. Navigation is a row of tabs in
- * the header; pages fill the space below without a sidebar.
+ * Ledger: a dense, keyboard-friendly layout styled like a bound account book.
+ * A cloth-green header carries the navigation as index tabs; pages fill the
+ * ruled paper below without a sidebar.
  */
 export function LedgerShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -70,7 +73,10 @@ export function LedgerShell({ children }: { children: React.ReactNode }) {
           <span data-ledger-logo>
             <BrandMark />
           </span>
-          <b>BladeVault</b>
+          <span data-ledger-wordmark>
+            <b>BladeVault</b>
+            <small>Ledger</small>
+          </span>
         </Link>
         <nav aria-label="Main navigation" data-ledger-tabs>
           {tabs.map(({ href, label }) => {
@@ -122,6 +128,8 @@ export function LedgerShell({ children }: { children: React.ReactNode }) {
                 ? 'Local vault · backed up'
                 : 'Local vault · saved'}
           </Link>
+          <ThemeModeButton data-ledger-button="icon" />
+          <ThemeCycleButton data-ledger-button="icon" />
           <Link
             href="/settings"
             data-ledger-button="ghost"

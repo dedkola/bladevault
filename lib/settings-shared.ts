@@ -344,7 +344,7 @@ export const THEME_COLORS: Record<ThemeStyle, { light: string; dark: string }> =
     espresso: { light: '#f8f2e7', dark: '#f8f2e7' },
     phosphor: { light: '#0d0b08', dark: '#0d0b08' },
     atrium: { light: '#ffffff', dark: '#ffffff' },
-    ledger: { light: '#ffffff', dark: '#ffffff' },
+    ledger: { light: '#123d2c', dark: '#0a120e' },
   }
 
 export function isLightOnlyThemeStyle(themeStyle: ThemeStyle): boolean {

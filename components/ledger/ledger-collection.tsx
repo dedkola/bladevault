@@ -275,9 +275,14 @@ export function LedgerCollection() {
         <footer data-ledger-listfoot>
           <span>
             {ordered.length} of {knives.length} knives
-            {filteredValue
-              ? ` · ${formatMoney(filteredValue.total, filteredValue.currency)}`
-              : ''}
+            {filteredValue && (
+              <>
+                {' · '}
+                <b>
+                  {formatMoney(filteredValue.total, filteredValue.currency)}
+                </b>
+              </>
+            )}
           </span>
           <button
             type="button"
@@ -301,21 +306,27 @@ export function LedgerCollection() {
             <p data-ledger-empty>Select a knife to see its details.</p>
           )
         )}
+        <footer data-ledger-hints aria-hidden="true">
+          <span>
+            <kbd>J</kbd> <kbd>K</kbd> move
+          </span>
+          <span>
+            <kbd>/</kbd> filter
+          </span>
+          <span>
+            <kbd>E</kbd> edit
+          </span>
+          <span>
+            <kbd>P</kbd> pin
+          </span>
+          <span>
+            <kbd>C</kbd> compare
+          </span>
+          <span>
+            <kbd>N</kbd> new
+          </span>
+        </footer>
       </section>
-      <div data-ledger-hints aria-hidden="true">
-        <span>
-          <kbd>J</kbd> <kbd>K</kbd> move
-        </span>
-        <span>
-          <kbd>E</kbd> edit
-        </span>
-        <span>
-          <kbd>P</kbd> pin
-        </span>
-        <span>
-          <kbd>C</kbd> compare
-        </span>
-      </div>
     </div>
   )
 }
@@ -487,6 +498,16 @@ function LedgerDocument({
     ([, value], index) => index < 8 || value?.trim(),
   )
   const pinBusy = actions.busy === `pin:${knife.id}`
+  // Entries are numbered in the order they were added, like a ledger book.
+  const entryNumber = useMemo(() => {
+    const order = [...knives].sort((a, b) =>
+      a.addedAt === b.addedAt
+        ? a.id.localeCompare(b.id)
+        : a.addedAt.localeCompare(b.addedAt),
+    )
+    const index = order.findIndex((item) => item.id === knife.id)
+    return index < 0 ? null : String(index + 1).padStart(3, '0')
+  }, [knives, knife.id])
 
   return (
     <>
@@ -542,6 +563,14 @@ function LedgerDocument({
         </div>
       </div>
       <article data-ledger-doc>
+        {entryNumber && (
+          <p data-ledger-folio>
+            <span>Entry № {entryNumber}</span>
+            {knife.specs.modelNumber && (
+              <span>Model {knife.specs.modelNumber}</span>
+            )}
+          </p>
+        )}
         <h2 data-ledger-title>{knife.name}</h2>
         <div data-ledger-sub>
           {knife.brand && <span>{knife.brand}</span>}
@@ -550,7 +579,7 @@ function LedgerDocument({
             <span data-pill>{knife.specs.lockingMechanism}</span>
           )}
           {knife.pinned && <span data-pill="accent">Pinned</span>}
-          {knife.sold && <span data-pill>Sold</span>}
+          {knife.sold && <span data-pill="sold">Sold</span>}
           <span>· added {formatShortDate(knife.addedAt)}</span>
           <Link
             href={`/collection/${encodeURIComponent(knife.id)}`}
