@@ -14,8 +14,10 @@ import {
   Grid2X2,
   ImageIcon,
   LayoutDashboard,
+  Pause,
   Pencil,
   Pin,
+  Play,
   Plus,
   Search,
   X,
@@ -75,6 +77,153 @@ function StudioImage({
   )
 }
 
+// Showcase mode: one visible tile flips to another knife on each beat.
+const SHOWCASE_INTERVAL = 4000
+// Matches the flap animation in studio.module.css (fall + land).
+const FLIP_DURATION = 1000
+
+type ShowcaseSwap = { slot: string; partner: string; knifeId: string }
+type ShowcaseTile = {
+  slot: string
+  knife: string
+  onScreen: boolean
+  busy: boolean
+}
+
+function readShowcaseTiles(): ShowcaseTile[] {
+  return Array.from(
+    document.querySelectorAll<HTMLElement>(
+      '[data-studio-gallery] [data-studio-slot]',
+    ),
+    (node) => {
+      const rect = node.getBoundingClientRect()
+      return {
+        slot: node.dataset.studioSlot ?? '',
+        knife: node.dataset.studioTile ?? '',
+        onScreen:
+          rect.height > 0 &&
+          rect.top >= -rect.height / 3 &&
+          rect.bottom <= window.innerHeight + rect.height / 3,
+        // Never flip a tile under the pointer or holding keyboard focus.
+        busy: node.matches(':hover') || node.contains(document.activeElement),
+      }
+    },
+  )
+}
+
+function pickRandom<T>(items: T[]) {
+  return items.length
+    ? items[Math.floor(Math.random() * items.length)]
+    : undefined
+}
+
+/** Choose a visible tile and the tile whose knife it will receive. */
+function planShowcaseSwap(
+  tiles: ShowcaseTile[],
+  recent: string[],
+): ShowcaseSwap | null {
+  const target = pickRandom(
+    tiles.filter(
+      (tile) => tile.onScreen && !tile.busy && !recent.includes(tile.slot),
+    ),
+  )
+  if (!target) return null
+  // Prefer a knife from outside the viewport, so a new knife comes into view.
+  const offScreen = tiles.filter((tile) => !tile.onScreen && !tile.busy)
+  const partner = pickRandom(
+    offScreen.length
+      ? offScreen
+      : tiles.filter((tile) => tile !== target && !tile.busy),
+  )
+  return partner
+    ? { slot: target.slot, partner: partner.slot, knifeId: partner.knife }
+    : null
+}
+
+function StudioTileFace({ knife, eager }: { knife: Knife; eager?: boolean }) {
+  return (
+    <>
+      <div className={styles.stage}>
+        <StudioImage
+          key={knife.images[0] ?? knife.id}
+          knife={knife}
+          eager={eager}
+        />
+      </div>
+      {knife.sold && <span className={styles.sold}>Sold</span>}
+      <div className={styles.caption} aria-hidden="true">
+        <div>
+          <b>{knife.name}</b>
+          <span>
+            {[knife.brand, knife.specs.bladeMaterial]
+              .filter(Boolean)
+              .join(' · ') || 'Specifications not recorded'}
+          </span>
+        </div>
+        <span className={styles.openArrow}>
+          <ArrowUpRight />
+        </span>
+      </div>
+    </>
+  )
+}
+
+/** Tile content that turns over like a split-flap board when its knife changes. */
+function StudioTileContent({
+  knife,
+  eager,
+  incoming,
+}: {
+  knife: Knife
+  eager?: boolean
+  incoming?: Knife
+}) {
+  const [shown, setShown] = useState(knife)
+  const [outgoing, setOutgoing] = useState<Knife | null>(null)
+  if (shown !== knife) {
+    if (shown.id !== knife.id) setOutgoing(shown)
+    setShown(knife)
+  }
+  useEffect(() => {
+    if (!outgoing) return
+    const timer = window.setTimeout(() => setOutgoing(null), FLIP_DURATION)
+    return () => window.clearTimeout(timer)
+  }, [outgoing])
+
+  return (
+    <>
+      <div className={cn(styles.face, outgoing && styles.faceIncoming)}>
+        <StudioTileFace knife={knife} eager={eager || Boolean(outgoing)} />
+      </div>
+      {outgoing && (
+        <div className={styles.flip} aria-hidden="true">
+          <div className={cn(styles.flipHalf, styles.flipStatic)}>
+            <div className={styles.flipFace}>
+              <StudioTileFace knife={outgoing} eager />
+            </div>
+          </div>
+          <div className={cn(styles.flipHalf, styles.flipTop)}>
+            <div className={styles.flipFace}>
+              <StudioTileFace knife={outgoing} eager />
+            </div>
+          </div>
+          <div className={cn(styles.flipHalf, styles.flipBottom)}>
+            <div className={styles.flipFace}>
+              <StudioTileFace knife={knife} eager />
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Load the next knife's photo a beat early so the flip never shows a blank. */}
+      {incoming && (
+        <div className={styles.preload} aria-hidden="true">
+          <StudioImage knife={incoming} eager />
+        </div>
+      )}
+    </>
+  )
+}
+
 export function StudioView() {
   const {
     knives,
@@ -99,6 +248,12 @@ export function StudioView() {
   const [query, setQuery] = useState('')
   const [size, setSize] = useState<'regular' | 'large'>('regular')
   const [focus, setFocus] = useState(false)
+  const [showcase, setShowcase] = useState(false)
+  // Slot (layout knife id) -> displayed knife id. Swaps keep it a permutation.
+  const [assignment, setAssignment] = useState<Record<string, string>>({})
+  const [pendingSwap, setPendingSwap] = useState<ShowcaseSwap | null>(null)
+  const pendingSwapRef = useRef<ShowcaseSwap | null>(null)
+  const recentSlots = useRef<string[]>([])
   const headerTarget = useContext(WorkspaceHeaderActionsContext)
   const [quickLook, setQuickLook] = useState<{
     knifeId: string
@@ -148,6 +303,24 @@ export function StudioView() {
     })
     return entries
   }, [layout, activeFilter, smartCollection, query])
+  const displayed = useMemo(() => {
+    const byId = new Map(visible.map(({ knife }) => [knife.id, knife]))
+    const values = Object.values(assignment)
+    // Ignore a stale arrangement (a knife left the filter or was deleted).
+    const valid =
+      new Set(values).size === values.length &&
+      Object.entries(assignment).every(
+        ([slot, id]) => byId.has(slot) && byId.has(id),
+      )
+    return visible.map((entry) => ({
+      ...entry,
+      slot: entry.knife.id,
+      knife: (valid && byId.get(assignment[entry.knife.id])) || entry.knife,
+    }))
+  }, [visible, assignment])
+  const incomingKnife = pendingSwap
+    ? visible.find(({ knife }) => knife.id === pendingSwap.knifeId)?.knife
+    : undefined
   const families = useMemo(
     () => groupKnifeFamilies(layout.map(({ knife }) => knife)),
     [layout],
@@ -169,6 +342,57 @@ export function StudioView() {
   const photosLoading = Boolean(quickLook && !selectedPhotos)
   const quickLookCount = selectedPhotos?.images?.length ?? 0
   const quickLookId = quickLook?.knifeId
+  const showcaseDisabled = isLoading || visible.length < 2
+
+  useEffect(() => {
+    // Quick Look pauses the showcase; it resumes when the dialog closes.
+    if (!showcase || isLoading || quickLookId) return
+    const tick = () => {
+      if (document.hidden) return
+      let tiles = readShowcaseTiles()
+      const swap = pendingSwapRef.current
+      const target = swap && tiles.find((tile) => tile.slot === swap.slot)
+      const partner = swap && tiles.find((tile) => tile.slot === swap.partner)
+      if (target && partner && !target.busy && partner.knife === swap.knifeId) {
+        tiles = tiles.map((tile) => ({
+          ...tile,
+          knife:
+            tile === target
+              ? partner.knife
+              : tile === partner
+                ? target.knife
+                : tile.knife,
+        }))
+        setAssignment(
+          Object.fromEntries(tiles.map((tile) => [tile.slot, tile.knife])),
+        )
+        recentSlots.current = [target.slot, ...recentSlots.current].slice(0, 3)
+      }
+      const next = planShowcaseSwap(tiles, recentSlots.current)
+      pendingSwapRef.current = next
+      setPendingSwap(next)
+    }
+    const first = window.setTimeout(tick, 600)
+    const timer = window.setInterval(tick, SHOWCASE_INTERVAL)
+    return () => {
+      window.clearTimeout(first)
+      window.clearInterval(timer)
+    }
+  }, [showcase, isLoading, quickLookId])
+
+  function resetShowcase() {
+    pendingSwapRef.current = null
+    setPendingSwap(null)
+    setAssignment({})
+  }
+
+  function toggleShowcase() {
+    if (showcase) {
+      pendingSwapRef.current = null
+      setPendingSwap(null)
+    }
+    setShowcase(!showcase)
+  }
 
   useEffect(() => {
     if (!quickLookId) return
@@ -282,20 +506,21 @@ export function StudioView() {
               }
             />
           ))
-        : visible.map(({ knife, size: tileSize }, index) => (
+        : displayed.map(({ knife, slot, size: tileSize }, index) => (
             <article
-              key={knife.id}
+              key={slot}
               className={styles.tile}
               data-studio-tile={knife.id}
+              data-studio-slot={slot}
               data-size={tileSize}
             >
-              <div className={styles.stage}>
-                <StudioImage
-                  key={knife.images[0] ?? knife.id}
-                  knife={knife}
-                  eager={index < 4}
-                />
-              </div>
+              <StudioTileContent
+                knife={knife}
+                eager={index < 4}
+                incoming={
+                  pendingSwap?.slot === slot ? incomingKnife : undefined
+                }
+              />
               <button
                 type="button"
                 className={styles.openTile}
@@ -324,20 +549,6 @@ export function StudioView() {
                 >
                   <CompareIcon aria-hidden="true" />
                 </button>
-              </div>
-              {knife.sold && <span className={styles.sold}>Sold</span>}
-              <div className={styles.caption} aria-hidden="true">
-                <div>
-                  <b>{knife.name}</b>
-                  <span>
-                    {[knife.brand, knife.specs.bladeMaterial]
-                      .filter(Boolean)
-                      .join(' · ') || 'Specifications not recorded'}
-                  </span>
-                </div>
-                <span className={styles.openArrow}>
-                  <ArrowUpRight />
-                </span>
               </div>
             </article>
           ))}
@@ -376,8 +587,20 @@ export function StudioView() {
     </div>
   )
 
+  const showcaseLabel = showcase ? 'Pause showcase' : 'Play showcase'
+  const showcaseIcon = showcase ? <Pause /> : <Play />
   const headerActions = (
     <>
+      <Button
+        variant="outline"
+        size="icon"
+        aria-label={showcaseLabel}
+        title={showcaseLabel}
+        onClick={toggleShowcase}
+        disabled={showcaseDisabled}
+      >
+        {showcaseIcon}
+      </Button>
       <Button
         ref={focusButton}
         variant="outline"
@@ -412,16 +635,31 @@ export function StudioView() {
       {isModernThemeFamily(themeStyle) &&
         headerTarget &&
         createPortal(
-          <button
-            ref={focusButton}
-            type="button"
-            aria-label="Focus mode"
-            title="Focus mode"
-            onClick={() => setFocus(true)}
-            disabled={isLoading || !visible.length}
-          >
-            <Expand aria-hidden="true" />
-          </button>,
+          <>
+            <button
+              type="button"
+              aria-label={showcaseLabel}
+              title={showcaseLabel}
+              onClick={toggleShowcase}
+              disabled={showcaseDisabled}
+            >
+              {showcase ? (
+                <Pause aria-hidden="true" />
+              ) : (
+                <Play aria-hidden="true" />
+              )}
+            </button>
+            <button
+              ref={focusButton}
+              type="button"
+              aria-label="Focus mode"
+              title="Focus mode"
+              onClick={() => setFocus(true)}
+              disabled={isLoading || !visible.length}
+            >
+              <Expand aria-hidden="true" />
+            </button>
+          </>,
           headerTarget,
         )}
       <div
@@ -462,7 +700,10 @@ export function StudioView() {
                   key={value}
                   type="button"
                   aria-pressed={activeFilter === value}
-                  onClick={() => setFilter(value)}
+                  onClick={() => {
+                    if (value !== activeFilter) resetShowcase()
+                    setFilter(value)
+                  }}
                 >
                   {label}
                 </button>
@@ -475,7 +716,10 @@ export function StudioView() {
                 type="search"
                 placeholder="Search knives"
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  resetShowcase()
+                  setQuery(event.target.value)
+                }}
               />
             </label>
           </div>
@@ -485,6 +729,18 @@ export function StudioView() {
                 ? 'Loading…'
                 : `${visible.length} ${visible.length === 1 ? 'knife' : 'knives'}`}
             </span>
+            {themeStyle === 'alloy' && (
+              <Button
+                variant="outline"
+                size="icon-sm"
+                aria-label={showcaseLabel}
+                title={showcaseLabel}
+                onClick={toggleShowcase}
+                disabled={showcaseDisabled}
+              >
+                {showcaseIcon}
+              </Button>
+            )}
             {themeStyle === 'alloy' && (
               <Button
                 ref={focusButton}
@@ -542,6 +798,7 @@ export function StudioView() {
               <Button
                 variant="outline"
                 onClick={() => {
+                  resetShowcase()
                   setFilter('all')
                   setQuery('')
                 }}
@@ -574,14 +831,22 @@ export function StudioView() {
           <DialogDescription className="sr-only">
             Browse your collection without distractions. Press Escape to exit.
           </DialogDescription>
-          <Button
-            className={styles.exitFocus}
-            variant="outline"
-            onClick={() => setFocus(false)}
-          >
-            <X />
-            Exit focus
-          </Button>
+          <div className={styles.focusActions}>
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label={showcaseLabel}
+              title={showcaseLabel}
+              onClick={toggleShowcase}
+              disabled={showcaseDisabled}
+            >
+              {showcaseIcon}
+            </Button>
+            <Button variant="outline" onClick={() => setFocus(false)}>
+              <X />
+              Exit focus
+            </Button>
+          </div>
           {gallery}
         </DialogContent>
       </Dialog>

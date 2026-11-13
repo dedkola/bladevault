@@ -28,7 +28,7 @@
 - **Take notes** — add dated personal notes to any knife with Markdown formatting; they also appear in the knife's History.
 - **Organize** — search, filter, pin, and bulk-edit records; add custom text, number, and date fields, and choose what appears on collection cards and pinned items. Switch between card and table views; in Modern-layout styles, choose, reorder, and resize table columns.
 - **Browse** — save filters as Smart Collections that update with your records, or browse variants together in Model families. Global search understands model names and `/model A4301` for model numbers.
-- **Showcase** — open Studio for a photo-first wall of your collection, filtered by folding, fixed, pinned, or any Smart Collection, with search and focus mode. Select any knife for a quick look with its full photo gallery.
+- **Showcase** — open Studio for a photo-first wall of your collection, filtered by folding, fixed, pinned, or any Smart Collection, with search, focus mode, and a self-playing split-flap showcase. Select any knife for a quick look with its full photo gallery.
 - **Compare** — create named shortlists, add a knife to several lists, show only the differences, and print or export comparisons as PDF.
 - **Maintain** — log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes, and review it in History.
 - **Understand** — explore makers, materials, dimensions, completeness, and activity through collection insights, including a calendar activity map. Modern-layout styles add monthly additions for the last 12 months and blade, overall-length, weight, and thickness distributions.

@@ -3,7 +3,14 @@
 import '@testing-library/jest-dom/vitest'
 import { useState } from 'react'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { StudioView } from '@/components/studio'
@@ -283,6 +290,9 @@ describe('Studio themes', () => {
       'studio-header-actions',
     )
     expect(focusButton.textContent).toBe('')
+    expect(focusButton.previousElementSibling).toBe(
+      screen.getByRole('button', { name: 'Play showcase' }),
+    )
     expect(
       screen.queryByRole('link', { name: /Add knife/ }),
     ).not.toBeInTheDocument()
@@ -295,5 +305,49 @@ describe('Studio themes', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(focusButton).toHaveFocus()
     expect(container.querySelectorAll('[data-studio-tile]')).toHaveLength(2)
+  })
+
+  it('plays a showcase that swaps visible tiles and pauses on demand', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      top: 0,
+      bottom: 100,
+      height: 100,
+    } as DOMRect)
+    try {
+      const { container } = render(<StudioView />)
+      const order = () =>
+        Array.from(
+          container.querySelectorAll<HTMLElement>('[data-studio-tile]'),
+          (tile) => tile.dataset.studioTile,
+        )
+      const before = order()
+      fireEvent.click(screen.getByRole('button', { name: 'Play showcase' }))
+      expect(
+        screen.getByRole('button', { name: 'Pause showcase' }),
+      ).toBeEnabled()
+      await act(() => vi.advanceTimersByTimeAsync(4000))
+      expect(order()).toEqual([...before].reverse())
+      // Slots keep their layout position and size; only the knife changes.
+      expect(
+        Array.from(
+          container.querySelectorAll<HTMLElement>('[data-studio-slot]'),
+          (tile) => tile.dataset.studioSlot,
+        ),
+      ).toEqual(before)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Pause showcase' }))
+      const paused = order()
+      await act(() => vi.advanceTimersByTimeAsync(12000))
+      expect(order()).toEqual(paused)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
+      expect(
+        screen.getByRole('button', { name: 'Play showcase' }),
+      ).toBeDisabled()
+    } finally {
+      vi.useRealTimers()
+      vi.restoreAllMocks()
+    }
   })
 })

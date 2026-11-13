@@ -50,7 +50,7 @@ Catalog your knives, showcase them in Studio, compare them side by side, and kee
 - **Take notes:** Add dated personal notes to any knife with Markdown formatting, including lists, links, and tables. Notes appear under the photos, grouped by date, and in the knife's History.
 - **Organize:** Search, filter, pin, and bulk-edit records. Add custom text, number, and date fields, and choose which details appear on collection cards and pinned items. Switch between card and table views; in Modern-layout styles, choose, reorder, and resize table columns.
 - **Browse:** Save filters as Smart Collections that update with your records, or browse variants together in Model families. Global search supports model names and `/model A4301` for model numbers.
-- **Showcase:** Open **Studio** for a photo-first wall of your collection, filtered by folding, fixed, pinned, or any Smart Collection, with search and focus mode. Select any knife for a quick look with its full photo gallery.
+- **Showcase:** Open **Studio** for a photo-first wall of your collection, filtered by folding, fixed, pinned, or any Smart Collection, with search, focus mode, and a self-playing split-flap showcase. Select any knife for a quick look with its full photo gallery.
 - **Compare:** Create named shortlists, add a knife to several lists, show only differences, and print or export comparisons as PDF.
 - **Maintain:** Log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes and sharpening details. Each knife's History tab links maintenance, notes, and record changes to their log entries.
 - **Understand:** Explore makers, materials, dimensions, completeness, and activity through collection insights, including a calendar activity map. Modern-layout styles add monthly additions for the last 12 months and blade, overall-length, weight, and thickness distributions. Open chart details to inspect matching knives or print the Overview as a report.
@@ -94,7 +94,7 @@ See the [URL import guide](docs/guides/add-knife-to-collection.md) for more deta
 
 Open **Studio** from the sidebar for a photo-first index of your vault. BladeVault arranges the collection into a randomized featured wall; use the toolbar to filter folding, fixed, or pinned knives or any Smart Collection, search by name or specification, and switch between regular and large tiles.
 
-Select a knife to open a **quick look** with its complete photo gallery, key specifications, and actions to view, edit, pin, or compare it. Use the arrow buttons or the left and right arrow keys to move through photos. **Focus mode** hides the rest of the interface for distraction-free browsing.
+Select a knife to open a **quick look** with its complete photo gallery, key specifications, and actions to view, edit, pin, or compare it. Use the arrow buttons or the left and right arrow keys to move through photos. **Focus mode** hides the rest of the interface for distraction-free browsing. Press the **Play** button next to it to start a showcase: every few seconds, a visible tile turns over like an airport split-flap board to reveal another knife from the current view. Tiles you point at or focus stay put, and the showcase pauses while a quick look is open.
 
 ## Choose a setup
 
