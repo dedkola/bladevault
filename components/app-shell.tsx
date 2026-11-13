@@ -117,7 +117,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span id="studio-header-actions" ref={setHeaderActions} />
           )}
           <Link
-            href="/settings?tab=cloud-backup"
+            href="/settings?tab=backup"
             aria-label="Cloud backup"
             title={
               isAutoBackupActive

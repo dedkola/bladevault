@@ -27,7 +27,6 @@ const VIEWPORTS = [
 const TABS = [
   'Local storage',
   'App lock',
-  'Cloud backup',
   'Backup & Restore',
   'Appearance',
   'Custom fields',
@@ -40,9 +39,7 @@ test.beforeEach(async ({ request }) => {
 })
 
 async function openTab(page: Page, tab: string) {
-  // Scoped to the settings rail and matched on the label prefix: the Cloud
-  // Backup tab carries a "Beta" badge, so its accessible name is
-  // "Cloud backup Beta" on some viewports and an exact match would miss it.
+  // Scoped to the settings rail and matched on the label prefix.
   const label = new RegExp(`^${tab.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
   await page
     .locator('[data-settings-rail]')
@@ -321,19 +318,23 @@ test.describe('reading column', () => {
   }) => {
     await page.setViewportSize({ width: 1920, height: 1080 })
     await page.goto('/settings')
-    await openTab(page, 'Cloud backup')
+    await openTab(page, 'Backup & Restore')
 
     const sections = page.locator('.settings-grid .settings-section')
-    // Google Drive is the only cloud backup; this test vault is not connected.
-    await expect(sections).toHaveCount(1)
+    // Google Drive comes first, then local ZIP backup; this test vault is not
+    // connected to Drive.
+    await expect(sections).toHaveCount(2)
     await expect(
-      sections.getByRole('heading', { name: 'Google Drive' }),
+      sections.first().getByRole('heading', { name: 'Google Drive' }),
+    ).toBeVisible()
+    await expect(
+      sections.nth(1).getByRole('heading', { name: 'Local backup' }),
     ).toBeVisible()
     await expect(
       sections.getByRole('button', { name: 'Connect Google Drive' }),
     ).toBeVisible()
 
-    const idleDrive = await sections.evaluate((panel) => {
+    const idleDrive = await sections.first().evaluate((panel) => {
       const body = panel.lastElementChild as HTMLElement
       const row = body.querySelector('.settings-row') as HTMLElement
       return {

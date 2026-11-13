@@ -112,14 +112,7 @@ type LocalBackupManifest = {
   imageCount: number
 }
 type SettingsTab =
-  | 'app-lock'
-  | 'general'
-  | 'cloud-backup'
-  | 'restore-database'
-  | 'appearance'
-  | 'fields'
-  | 'mcp'
-  | 'about'
+  'app-lock' | 'general' | 'backup' | 'appearance' | 'fields' | 'mcp' | 'about'
 
 type McpRuntimeStatus = {
   enabled: boolean
@@ -590,17 +583,22 @@ export default function SettingsView() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const tabParam = searchParams.get('tab')
+  // Cloud backup and local Backup & Restore used to be separate tabs; keep
+  // their old URLs working by sending both to the combined tab.
+  const normalizedTabParam =
+    tabParam === 'cloud-backup' || tabParam === 'restore-database'
+      ? 'backup'
+      : tabParam
   const activeTab: SettingsTab = [
     'general',
     'app-lock',
-    'cloud-backup',
-    'restore-database',
+    'backup',
     'appearance',
     'fields',
     'mcp',
     'about',
-  ].includes(tabParam || '')
-    ? (tabParam as SettingsTab)
+  ].includes(normalizedTabParam || '')
+    ? (normalizedTabParam as SettingsTab)
     : 'general'
   const setActiveTab = useCallback(
     (tab: SettingsTab) => {
@@ -759,7 +757,7 @@ export default function SettingsView() {
     : ''
 
   useEffect(() => {
-    const openCloudBackup = () => setActiveTab('cloud-backup')
+    const openCloudBackup = () => setActiveTab('backup')
 
     window.addEventListener(
       'bladevault:open-cloud-backup-settings',
@@ -787,17 +785,10 @@ export default function SettingsView() {
         blurb: 'Require a password before the vault opens on this device.',
       },
       {
-        id: 'cloud-backup' as const,
-        label: 'Cloud backup',
-        icon: Cloud,
-        blurb:
-          'Optional off-device backup. Not required for a local-only vault.',
-      },
-      {
-        id: 'restore-database' as const,
+        id: 'backup' as const,
         label: 'Backup & Restore',
-        icon: Download,
-        blurb: 'Portable ZIPs you own — no account needed.',
+        icon: Cloud,
+        blurb: 'Back up to your Google Drive or save a portable ZIP you own.',
       },
       {
         id: 'appearance' as const,
@@ -1054,7 +1045,7 @@ export default function SettingsView() {
   const driveJobSettled =
     cloudBackupJob.status !== 'running' && restoreJob.status !== 'running'
   useEffect(() => {
-    if (activeTab !== 'cloud-backup') return
+    if (activeTab !== 'backup') return
     let cancelled = false
     getDriveBackupStatus()
       .then((status) => {
@@ -1586,18 +1577,6 @@ export default function SettingsView() {
                   >
                     <tab.icon className="h-4 w-4 shrink-0" />
                     <span className="flex-1">{tab.label}</span>
-                    {tab.id === 'cloud-backup' ? (
-                      <span
-                        className={cn(
-                          'flex h-4 shrink-0 items-center rounded-full border px-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]',
-                          isActive
-                            ? 'border-[var(--bladevault-gold)] bg-[var(--bladevault-gold)] text-[var(--bladevault-olive)]'
-                            : 'border-border bg-[var(--bladevault-surface-soft)] text-[var(--bladevault-olive)] dark:border-[var(--bladevault-gold)] dark:bg-[var(--bladevault-gold)] dark:text-[var(--bladevault-olive)]',
-                        )}
-                      >
-                        Beta
-                      </span>
-                    ) : null}
                   </button>
                 )
               })}
@@ -1749,7 +1728,7 @@ export default function SettingsView() {
                 </div>
               )}
 
-              {activeTab === 'cloud-backup' && (
+              {activeTab === 'backup' && (
                 <div className="settings-grid">
                   {!driveStatus ? (
                     <SettingsSection title="Google Drive">
@@ -1767,7 +1746,7 @@ export default function SettingsView() {
                     <SettingsSection title="Google Drive">
                       <SettingsRow
                         label="Not available here"
-                        description="Google Drive backup needs the desktop app or a self-hosted server. Use Backup & Restore for a portable ZIP."
+                        description="Google Drive backup needs the desktop app or a self-hosted server. Use Local backup below for a portable ZIP."
                       />
                     </SettingsSection>
                   ) : null}
@@ -1921,14 +1900,10 @@ export default function SettingsView() {
                       ) : null}
                     </SettingsSection>
                   ) : null}
-                </div>
-              )}
 
-              {activeTab === 'restore-database' && (
-                <div className="settings-grid">
                   <SettingsSection
                     title="Local backup"
-                    description="No cloud account is required."
+                    description="Portable ZIPs you own. No cloud account is required."
                   >
                     <SettingsRow label="Download full backup">
                       <Button
@@ -1982,23 +1957,6 @@ export default function SettingsView() {
                         />
                       </div>
                     ) : null}
-                  </SettingsSection>
-
-                  <SettingsSection title="Print">
-                    <SettingsRow
-                      label="Collection report"
-                      description="Use your system print dialog to print it or save it as a PDF."
-                    >
-                      <Button
-                        variant="outline"
-                        className={`${settingsSecondaryButtonClassName} rounded-lg`}
-                        onClick={handlePrintCollectionReport}
-                        disabled={knives.length === 0}
-                      >
-                        <Printer className="h-3.5 w-3.5" />
-                        Print Report
-                      </Button>
-                    </SettingsRow>
                   </SettingsSection>
                 </div>
               )}
@@ -2541,6 +2499,22 @@ export default function SettingsView() {
                       </a>
                     </SettingsRow>
                     <SettingsRow label="License" description="MIT" />
+                  </SettingsSection>
+                  <SettingsSection title="Print">
+                    <SettingsRow
+                      label="Collection report"
+                      description="Use your system print dialog to print it or save it as a PDF."
+                    >
+                      <Button
+                        variant="outline"
+                        className={`${settingsSecondaryButtonClassName} rounded-lg`}
+                        onClick={handlePrintCollectionReport}
+                        disabled={knives.length === 0}
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                        Print Report
+                      </Button>
+                    </SettingsRow>
                   </SettingsSection>
                   {isDesktop ? (
                     <DesktopErrorReportingSettings />

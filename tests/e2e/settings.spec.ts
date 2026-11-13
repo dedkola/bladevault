@@ -243,10 +243,7 @@ test('persists and applies the selected time format', async ({
   ).toHaveText(/^\d{2}:\d{2}:\d{2}$/)
 })
 
-test('prints the collection report from Backup & Restore', async ({
-  page,
-  request,
-}) => {
+test('prints the collection report from About', async ({ page, request }) => {
   await seedKnife(request, { name: 'Printable Knife' })
   await page.addInitScript(() => {
     window.print = () => {
@@ -258,7 +255,7 @@ test('prints the collection report from Backup & Restore', async ({
   await expect(page.getByRole('button', { name: 'Export' })).toHaveCount(0)
 
   await page.goto('/settings')
-  await page.getByRole('button', { name: 'Backup & Restore' }).click()
+  await page.getByRole('button', { name: 'About', exact: true }).click()
   await page.getByRole('button', { name: 'Print Report' }).click()
 
   await expect(page).toHaveURL('/insights')
@@ -405,7 +402,9 @@ test('audit: keeps every settings tab in the URL through reload and history', as
   const tabs = [
     ['general', 'Local storage'],
     ['app-lock', 'App lock'],
-    ['cloud-backup', 'Cloud backup'],
+    ['backup', 'Backup & Restore'],
+    // Old tab ids from before cloud and local backup were combined.
+    ['cloud-backup', 'Backup & Restore'],
     ['restore-database', 'Backup & Restore'],
     ['appearance', 'Appearance'],
     ['fields', 'Custom fields'],
@@ -427,7 +426,7 @@ test('audit: keeps every settings tab in the URL through reload and history', as
   await page
     .getByRole('button', { name: 'Backup & Restore', exact: true })
     .click()
-  await expect(page).toHaveURL(/tab=restore-database/)
+  await expect(page).toHaveURL(/tab=backup/)
   await page.reload()
   await expect(
     page

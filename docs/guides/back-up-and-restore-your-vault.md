@@ -12,7 +12,7 @@ Restoring a backup replaces the current vault. It does not merge two collections
 
    ![The Backup & Restore settings tab](../images/back-up-and-restore-settings.png)
 
-2. Under **Local backup**, click **Download ZIP**.
+2. Under **Local backup** (below the Google Drive section), click **Download ZIP**.
 
    ![The Local backup section with the Download ZIP button](../images/back-up-and-restore-local-backup.png)
 
@@ -39,7 +39,7 @@ If the restored vault has [App lock](../reference/data.md#optional-app-lock) ena
 
 ## Connect Google Drive
 
-1. Open **Settings → Cloud backup**.
+1. Open **Settings → Backup & Restore**.
 2. Under **Google Drive**, click **Connect Google Drive**.
 3. Choose your Google account in the popup and allow access. If the browser blocks the popup, allow it and try again.
 4. Check that **Google Drive connected** appears.
@@ -48,7 +48,7 @@ BladeVault can only see the files it creates in your Drive. Your working vault r
 
 ## Back up to Google Drive
 
-1. In **Settings → Cloud backup → Google Drive**, find **Back up to Google Drive** and click **Backup**.
+1. In **Settings → Backup & Restore → Google Drive**, find **Back up to Google Drive** and click **Backup**.
 2. Keep the desktop app or self-hosted server running while the backup is prepared and uploaded. You can switch pages or reload the browser during the upload.
 3. Return to the panel to check the status and the date of the backup in Drive. Successful backups finish quietly, without a popup.
 
@@ -60,7 +60,7 @@ Saved comparisons are included in full-vault backups, but changing a comparison 
 
 ## Restore from Google Drive
 
-1. Open **Settings → Cloud backup** and connect the Google account that holds the backup.
+1. Open **Settings → Backup & Restore** and connect the Google account that holds the backup.
 2. Under **Restore from Google Drive**, click **Restore**.
 3. Confirm that you want to replace the local vault with the backup from Google Drive.
 4. Keep the desktop app or server running and check the restore status. You can browse the current collection during the download and validation, while editing and automatic backups are paused.

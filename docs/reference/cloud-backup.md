@@ -1,10 +1,10 @@
 # Cloud backup
 
-Cloud backup is optional and keeps local storage as the source of truth. BladeVault backs up to your own Google Drive: connect it from **Settings → Cloud backup** to upload or restore a complete archive, including images.
+Cloud backup is optional and keeps local storage as the source of truth. BladeVault backs up to your own Google Drive: connect it from **Settings → Backup & Restore** to upload or restore a complete archive, including images.
 
 ## Connect Google Drive
 
-In **Settings → Cloud backup → Google Drive**, select **Connect Google Drive**, choose your Google account, and allow access. BladeVault can only see the files it creates in your Drive.
+In **Settings → Backup & Restore → Google Drive**, select **Connect Google Drive**, choose your Google account, and allow access. BladeVault can only see the files it creates in your Drive.
 
 - **Back up** saves one file, `bladevault-data.tar.gz`, in a `BladeVault` folder in your Drive. Each backup replaces that file.
 - **Automatic backup to Google Drive** backs up after edits settle.
@@ -18,7 +18,7 @@ Google Drive backup is not available in the static web version.
 
 ## How backups run
 
-Manual and automatic backups run quietly on the local server. You can switch pages or reload the browser while an upload continues; check its status and the date of the backup in Drive in **Cloud backup** settings. Keep the desktop app or self-hosted server running until it finishes.
+Manual and automatic backups run quietly on the local server. You can switch pages or reload the browser while an upload continues; check its status and the date of the backup in Drive in **Settings → Backup & Restore**. Keep the desktop app or self-hosted server running until it finishes.
 
 Automatic backups wait at least 30 seconds after edits settle and use a browser idle slot to start. During an open app session, changes made during a backup are grouped into a later backup. Each backup uploads the whole archive. Backup uploads and restore downloads have no application-imposed speed cap. Completion does not show a popup.
 

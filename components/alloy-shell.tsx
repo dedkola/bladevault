@@ -154,7 +154,7 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
             </span>
           )}
           <Link
-            href="/settings?tab=cloud-backup"
+            href="/settings?tab=backup"
             aria-label="Cloud backup"
             title={
               isAutoBackupActive
