@@ -63,23 +63,14 @@ export type ThemeFamily = 'classic' | 'modern' | 'alloy'
 export type TimeFormat = (typeof TIME_FORMATS)[number]
 
 /**
- * Modern variants that replace the Modern shell with their own layout. They
- * keep `data-theme-style="modern"` so shared page styling still applies, but
- * have no workspace footer, so they stay out of the quick-switch cycle.
- */
-export const OWN_SHELL_THEME_STYLES = ['atrium'] as const
-
-/**
- * Styles the footer's quick switcher cycles through. Modern-family styles share
- * the Modern shell and Classic renders the same footer, so the button stays
- * visible while cycling through them. Alloy has its own controls, so it stays
- * out of the rotation.
+ * Styles the theme quick switcher cycles through: Modern, its variants
+ * (Atrium included, which shows the switcher in its top bar instead of a
+ * footer) and Classic. Alloy has its own controls, so it stays out of the
+ * rotation.
  */
 export const QUICK_SWITCH_THEME_STYLES: readonly ThemeStyle[] = [
   'modern',
-  ...MODERN_THEME_VARIANTS.filter(
-    (style) => !(OWN_SHELL_THEME_STYLES as readonly string[]).includes(style),
-  ),
+  ...MODERN_THEME_VARIANTS,
   'classic',
 ]
 

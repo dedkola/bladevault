@@ -108,7 +108,8 @@ describe('theme families', () => {
   it('cycles the quick switcher through Modern-family and default styles', () => {
     expect(getNextThemeStyle('lumen')).toBe('espresso')
     expect(getNextThemeStyle('espresso')).toBe('phosphor')
-    expect(getNextThemeStyle('phosphor')).toBe('classic')
+    expect(getNextThemeStyle('phosphor')).toBe('atrium')
+    expect(getNextThemeStyle('atrium')).toBe('classic')
     expect(getNextThemeStyle('classic')).toBe('modern')
     expect(getNextThemeStyle('modern')).toBe('forge')
     expect(getNextThemeStyle('forge')).toBe('titanium')

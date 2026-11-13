@@ -440,6 +440,13 @@ function AtriumSheet({
   const photoIndex = photo && photo.id === knife?.id ? photo.index : 0
   const images = knife?.images ?? []
   const image = images[photoIndex] ?? images[0]
+  const stepPhoto = (delta: number) => {
+    if (!knife || images.length < 2) return
+    setPhoto({
+      id: knife.id,
+      index: (photoIndex + delta + images.length) % images.length,
+    })
+  }
 
   return (
     <Dialog.Root
@@ -462,6 +469,10 @@ function AtriumSheet({
             if (event.key === 'k' || event.key === 'ArrowUp') {
               event.preventDefault()
               onStep(-1)
+            }
+            if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+              event.preventDefault()
+              stepPhoto(event.key === 'ArrowRight' ? 1 : -1)
             }
           }}
         >
@@ -517,13 +528,7 @@ function AtriumSheet({
                         type="button"
                         data-atrium-stage-nav="prev"
                         aria-label="Previous photo"
-                        onClick={() =>
-                          setPhoto({
-                            id: knife.id,
-                            index:
-                              (photoIndex - 1 + images.length) % images.length,
-                          })
-                        }
+                        onClick={() => stepPhoto(-1)}
                       >
                         <ChevronLeft />
                       </button>
@@ -531,12 +536,7 @@ function AtriumSheet({
                         type="button"
                         data-atrium-stage-nav="next"
                         aria-label="Next photo"
-                        onClick={() =>
-                          setPhoto({
-                            id: knife.id,
-                            index: (photoIndex + 1) % images.length,
-                          })
-                        }
+                        onClick={() => stepPhoto(1)}
                       >
                         <ChevronRight />
                       </button>
@@ -633,7 +633,11 @@ function AtriumSheet({
                   />
                 </dl>
                 <div data-atrium-sheet-tabs>
-                  <InspectorTabs knife={knife} dimensionUnit={dimensionUnit} />
+                  <InspectorTabs
+                    knife={knife}
+                    variant="atrium"
+                    dimensionUnit={dimensionUnit}
+                  />
                 </div>
               </div>
             </>

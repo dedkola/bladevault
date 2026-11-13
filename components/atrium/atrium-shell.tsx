@@ -17,6 +17,7 @@ import {
 import { BrandMark } from '@/components/brand-mark'
 import { CompareIcon } from '@/components/icons/compare-icon'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
+import { ThemeCycleButton } from '@/components/theme-cycle-button'
 import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -136,6 +137,7 @@ export function AtriumShell({ children }: { children: React.ReactNode }) {
               <CloudOff />
             )}
           </Link>
+          <ThemeCycleButton data-atrium-icon-button="" />
           <Link
             href="/settings"
             data-atrium-icon-button
