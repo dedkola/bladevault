@@ -253,7 +253,11 @@ export function InspectorTabs({
   maintenanceTab = false,
 }: {
   knife: Knife
-  variant?: 'modern' | 'alloy'
+  /**
+   * `atrium` drops overview rows and chips the Atrium sheet already shows in
+   * its title, subtitle and spec grid.
+   */
+  variant?: 'modern' | 'alloy' | 'atrium'
   dimensionUnit?: DimensionUnit
   maintenanceTab?: boolean
 }) {
@@ -282,17 +286,22 @@ export function InspectorTabs({
             ['Blade steel', knife.specs.bladeMaterial],
             ['Handle', knife.handleMaterial],
           ]
-        : [
-            ['Maker', knife.brand],
-            ['Designer', knife.specs.designer],
-            ['Lock', knife.specs.lockingMechanism],
-            [
-              'Weight',
-              formatWeight(knife.specs.weight, dimensionUnit) || 'Not recorded',
-            ],
-            ['Handle', knife.handleMaterial],
-            ['Family', knife.name],
-          ]
+        : variant === 'atrium'
+          ? knife.specs.designer
+            ? [['Designer', knife.specs.designer]]
+            : []
+          : [
+              ['Maker', knife.brand],
+              ['Designer', knife.specs.designer],
+              ['Lock', knife.specs.lockingMechanism],
+              [
+                'Weight',
+                formatWeight(knife.specs.weight, dimensionUnit) ||
+                  'Not recorded',
+              ],
+              ['Handle', knife.handleMaterial],
+              ['Family', knife.name],
+            ]
       : [
           ['Blade material', knife.specs.bladeMaterial],
           ['Hardness', knife.specs.hardness],
@@ -373,20 +382,22 @@ export function InspectorTabs({
               )}
               {knife.description || 'No notes recorded.'}
             </p>
-            <div data-inspector-chips>
-              {[
-                knife.specs.bladeMaterial,
-                knife.specs.bladeLength
-                  ? formatDimension(knife.specs.bladeLength, dimensionUnit) ||
-                    'Not recorded'
-                  : '',
-                knife.bladeStyle,
-              ]
-                .filter(Boolean)
-                .map((value, index) => (
-                  <span key={`${value}-${index}`}>{value}</span>
-                ))}
-            </div>
+            {variant !== 'atrium' && (
+              <div data-inspector-chips>
+                {[
+                  knife.specs.bladeMaterial,
+                  knife.specs.bladeLength
+                    ? formatDimension(knife.specs.bladeLength, dimensionUnit) ||
+                      'Not recorded'
+                    : '',
+                  knife.bladeStyle,
+                ]
+                  .filter(Boolean)
+                  .map((value, index) => (
+                    <span key={`${value}-${index}`}>{value}</span>
+                  ))}
+              </div>
+            )}
           </>
         )}
         {tab === 'maintenance' && (
@@ -410,16 +421,17 @@ export function InspectorTabs({
             notesStatus={knifeNotes.status}
           />
         )}
-        {(tab === 'overview' || tab === 'specifications') && (
-          <dl data-inspector-specs>
-            {specs.map(([label, value]) => (
-              <div key={label}>
-                <dt>{label}</dt>
-                <dd>{value || 'Not recorded'}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
+        {(tab === 'overview' || tab === 'specifications') &&
+          specs.length > 0 && (
+            <dl data-inspector-specs>
+              {specs.map(([label, value]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value || 'Not recorded'}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
       </div>
     </>
   )

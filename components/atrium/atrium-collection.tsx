@@ -633,7 +633,11 @@ function AtriumSheet({
                   />
                 </dl>
                 <div data-atrium-sheet-tabs>
-                  <InspectorTabs knife={knife} dimensionUnit={dimensionUnit} />
+                  <InspectorTabs
+                    knife={knife}
+                    variant="atrium"
+                    dimensionUnit={dimensionUnit}
+                  />
                 </div>
               </div>
             </>
