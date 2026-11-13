@@ -1,27 +1,248 @@
 /* ------------------------------------------------------------------ */
-/* Shelf: Lumen's palette as an editorial catalogue. A masthead with    */
-/* text navigation and a ⌘K command palette, a featured knife, numbers  */
-/* and horizontal shelves, and a full-screen focus view for a knife.    */
+/* Shelf: a collector's catalogue. Gallery ivory and ink with oxblood   */
+/* accents and a serif display face; at night the walls go charcoal and */
+/* the photos sit in lit vitrines. A masthead with text navigation and  */
+/* a ⌘K command palette, a featured knife, numbers and horizontal       */
+/* shelves, and a full-screen focus view for a knife. Light and dark.   */
 /* ------------------------------------------------------------------ */
 
 html[data-theme-variant='shelf'] {
-  --shelf-line: #ebebeb;
-  --shelf-soft: #fafafa;
-  --shelf-hover: #f5f5f5;
-  --shelf-muted: #737373;
-  --shelf-faint: #a3a3a3;
-  --shelf-ink: #18181b;
-  --shelf-accent: #f6821f;
-  --shelf-accent-hover: #e3730f;
-  --shelf-accent-soft: rgb(246 130 31 / 10%);
-  --shelf-accent-ink: #c2570c;
+  /* Shelf's own tokens. */
+  --shelf-page: #f5f3ef;
+  --shelf-surface: #fbfaf8;
+  --shelf-plate: #ffffff;
+  --shelf-plate-2: #efece6;
+  --shelf-line: #e3ded6;
+  --shelf-line-strong: #cbc3b8;
+  --shelf-soft: #efebe5;
+  --shelf-hover: #ebe6df;
+  --shelf-ink: #1b1715;
+  --shelf-ink-2: #3f3733;
+  --shelf-muted: #766c65;
+  --shelf-faint: #a69c94;
+  --shelf-accent: #8c1d2e;
+  --shelf-accent-hover: #741626;
+  --shelf-accent-soft: rgb(140 29 46 / 8%);
+  --shelf-accent-line: rgb(140 29 46 / 30%);
+  --shelf-accent-ink: #7d1a29;
+  --shelf-on-accent: #fbf6f1;
+  --shelf-gilt: #a5803a;
+  --shelf-serif:
+    var(--font-shelf-display), 'Iowan Old Style', 'Palatino Linotype', Georgia,
+    serif;
+  --shelf-shadow: 0 1px 2px rgb(27 23 21 / 5%);
+  --shelf-pop: 0 40px 80px -32px rgb(27 23 21 / 38%);
+  --shelf-scrim: rgb(245 243 239 / 70%);
+
+  /* Shared app tokens, so every page belongs to the same catalogue. */
+  --vv-grad: linear-gradient(135deg, #b0384a, #8c1d2e 55%, #5e1220);
+  --vv-btn: #8c1d2e;
+  --vv-btn-fg: #fbf6f1;
+  --vv-soft: rgb(140 29 46 / 8%);
+  --vv-glow: none;
+  --vv-well-hi: #ffffff;
+  --vv-well: #f4f2ee;
+  --vv-well-edge: #e6e1d9;
+  --brand-blade-from: #fbf6f1;
+  --brand-blade-mid: #ead9c9;
+  --brand-blade-to: #d8b9a4;
+
+  --modern-canvas: #f5f3ef;
+  --bladevault-olive: #1b1715;
+  --bladevault-gold: #8c1d2e;
+  --bladevault-line: #e3ded6;
+  --bladevault-title: #1b1715;
+  --bladevault-local: #3c7a4e;
+  --bladevault-nav-active-bg: #ebe6df;
+  --bladevault-nav-active-fg: #1b1715;
+  --bladevault-action-active-bg: #ebe6df;
+  --bladevault-action-active-fg: #1b1715;
+  --bladevault-surface-soft: #efebe5;
+  --bladevault-surface-hover: #ebe6df;
+  --background: #f5f3ef;
+  --foreground: #1b1715;
+  --card: #fbfaf8;
+  --card-foreground: #1b1715;
+  --popover: #fbfaf8;
+  --popover-foreground: #1b1715;
+  --primary: #8c1d2e;
+  --primary-hover: #741626;
+  --primary-foreground: #fbf6f1;
+  --secondary: #fbfaf8;
+  --secondary-foreground: #1b1715;
+  --muted: #efebe5;
+  --muted-foreground: #766c65;
+  --accent: #ebe6df;
+  --accent-foreground: #1b1715;
+  --destructive: #b42318;
+  --border: #e3ded6;
+  --input: #d6cfc5;
+  --ring: #8c1d2e;
+  --chart-1: #8c1d2e;
+  --chart-2: #1b1715;
+  --chart-3: #a69c94;
+  --chart-4: #a5803a;
+  --chart-5: #d6cfc5;
+  --bv-chart-1: #8c1d2e;
+  --bv-chart-2: #3f3733;
+  --bv-chart-3: #a69c94;
+  --bv-chart-4: #a5803a;
+  --bv-chart-5: #c98b95;
+  --bv-chart-6: #e3ded6;
+  --bv-chart-track: #ebe6df;
+  --bv-chart-wash: rgb(140 29 46 / 9%);
+  --bv-chart-heat-1: #f1dfe1;
+  --bv-chart-heat-2: #d9a2ab;
+  --bv-chart-heat-3: #b45a69;
+  --bv-chart-heat-4: #8c1d2e;
+  --sidebar: #fbfaf8;
+  --sidebar-foreground: #1b1715;
+  --sidebar-primary: #8c1d2e;
+  --sidebar-primary-foreground: #fbf6f1;
+  --sidebar-accent: #ebe6df;
+  --sidebar-accent-foreground: #1b1715;
+  --sidebar-border: #e3ded6;
+  --sidebar-ring: #8c1d2e;
+
+  /* Forge design language: soft gallery corners, no glows. */
+  --forge-radius: 14px;
+  --forge-pill: 999px;
+  --forge-accent: #8c1d2e;
+  --forge-ink-2: #3f3733;
+  --forge-line-strong: rgb(27 23 21 / 14%);
+  --forge-shadow: 0 1px 2px rgb(27 23 21 / 5%);
+  --forge-ring: rgb(140 29 46 / 35%);
+  --forge-glow: transparent;
+  --forge-shadow-lift:
+    0 1px 2px rgb(27 23 21 / 5%), 0 24px 40px -26px rgb(27 23 21 / 40%);
+  --forge-chip-bg: rgb(251 250 248 / 90%);
+  --forge-chip-line: #e3ded6;
+  --forge-chip-fg: #3f3733;
+  --forge-canvas: #f5f3ef;
+  --forge-chrome: #f5f3ef;
+  --gl-halo: none;
+  --gl-hold: none;
+  --gl-selected: none;
+  --sb-selected: none;
+  --sb-hover: none;
+  --gl-line: #d6cfc5;
+  --gl-lit: #a69c94;
+  --gl-sel: #8c1d2e;
+  --gl-text: #7d1a29;
+}
+
+html[data-theme-variant='shelf'].dark {
+  --shelf-page: #141211;
+  --shelf-surface: #1b1817;
+  --shelf-plate: #f6f3ee;
+  --shelf-plate-2: #e2ddd5;
+  --shelf-line: #2d2826;
+  --shelf-line-strong: #423b37;
+  --shelf-soft: #1f1b1a;
+  --shelf-hover: #262120;
+  --shelf-ink: #f0ebe4;
+  --shelf-ink-2: #d2c9c0;
+  --shelf-muted: #a3978e;
+  --shelf-faint: #6f645d;
+  --shelf-accent: #e07c8a;
+  --shelf-accent-hover: #ea95a1;
+  --shelf-accent-soft: rgb(224 124 138 / 12%);
+  --shelf-accent-line: rgb(224 124 138 / 36%);
+  --shelf-accent-ink: #efa3ae;
+  --shelf-on-accent: #1f0b0f;
+  --shelf-gilt: #cfa65a;
+  --shelf-shadow: none;
+  --shelf-pop: 0 40px 90px -30px rgb(0 0 0 / 80%);
+  --shelf-scrim: rgb(10 9 8 / 70%);
+
+  --vv-grad: linear-gradient(135deg, #f0a1ac, #e07c8a 55%, #b8566a);
+  --vv-btn: #e07c8a;
+  --vv-btn-fg: #1f0b0f;
+  --vv-soft: rgb(224 124 138 / 12%);
+  --vv-well-hi: #f6f3ee;
+  --vv-well: #e6e1d9;
+  --vv-well-edge: #cfc8be;
+
+  --modern-canvas: #141211;
+  --bladevault-olive: #f0ebe4;
+  --bladevault-gold: #e07c8a;
+  --bladevault-line: #2d2826;
+  --bladevault-title: #f0ebe4;
+  --bladevault-local: #7cc596;
+  --bladevault-nav-active-bg: #262120;
+  --bladevault-nav-active-fg: #f0ebe4;
+  --bladevault-action-active-bg: #262120;
+  --bladevault-action-active-fg: #f0ebe4;
+  --bladevault-surface-soft: #1f1b1a;
+  --bladevault-surface-hover: #262120;
+  --background: #141211;
+  --foreground: #f0ebe4;
+  --card: #1b1817;
+  --card-foreground: #f0ebe4;
+  --popover: #1d1a19;
+  --popover-foreground: #f0ebe4;
+  --primary: #e07c8a;
+  --primary-hover: #ea95a1;
+  --primary-foreground: #1f0b0f;
+  --secondary: #1b1817;
+  --secondary-foreground: #f0ebe4;
+  --muted: #1f1b1a;
+  --muted-foreground: #a3978e;
+  --accent: #262120;
+  --accent-foreground: #f0ebe4;
+  --destructive: #f07167;
+  --border: #2d2826;
+  --input: #423b37;
+  --ring: #e07c8a;
+  --chart-1: #e07c8a;
+  --chart-2: #f0ebe4;
+  --chart-3: #8b8079;
+  --chart-4: #cfa65a;
+  --chart-5: #423b37;
+  --bv-chart-1: #e07c8a;
+  --bv-chart-2: #d2c9c0;
+  --bv-chart-3: #8b8079;
+  --bv-chart-4: #cfa65a;
+  --bv-chart-5: #8f4655;
+  --bv-chart-6: #423b37;
+  --bv-chart-track: #262120;
+  --bv-chart-wash: rgb(224 124 138 / 12%);
+  --bv-chart-heat-1: #3a2226;
+  --bv-chart-heat-2: #6e3440;
+  --bv-chart-heat-3: #a9586a;
+  --bv-chart-heat-4: #e07c8a;
+  --sidebar: #1b1817;
+  --sidebar-foreground: #f0ebe4;
+  --sidebar-primary: #e07c8a;
+  --sidebar-primary-foreground: #1f0b0f;
+  --sidebar-accent: #262120;
+  --sidebar-accent-foreground: #f0ebe4;
+  --sidebar-border: #2d2826;
+  --sidebar-ring: #e07c8a;
+
+  --forge-accent: #e07c8a;
+  --forge-ink-2: #d2c9c0;
+  --forge-line-strong: rgb(255 255 255 / 12%);
+  --forge-shadow: none;
+  --forge-ring: rgb(224 124 138 / 40%);
+  --forge-shadow-lift: 0 24px 44px -24px rgb(0 0 0 / 80%);
+  --forge-chip-bg: rgb(27 24 23 / 88%);
+  --forge-chip-line: #423b37;
+  --forge-chip-fg: #d2c9c0;
+  --forge-canvas: #141211;
+  --forge-chrome: #141211;
+  --gl-line: #423b37;
+  --gl-lit: #8b8079;
+  --gl-sel: #e07c8a;
+  --gl-text: #efa3ae;
 }
 
 /* Shell ------------------------------------------------------------- */
 
 html[data-theme-variant='shelf'] [data-lumen-shell='shelf'] {
   grid-template-rows: minmax(0, 1fr);
-  background: #ffffff;
+  background: var(--shelf-page);
+  color: var(--shelf-ink);
 }
 
 html[data-theme-variant='shelf']
@@ -35,7 +256,7 @@ html[data-theme-variant='shelf']
   [data-lumen-shell='shelf']
   > [data-workspace-body]
   > main {
-  background: #ffffff;
+  background: var(--shelf-page);
 }
 
 [data-shelf-skip] {
@@ -46,7 +267,7 @@ html[data-theme-variant='shelf']
   padding: 6px 12px;
   border-radius: 10px;
   background: var(--shelf-ink);
-  color: #ffffff;
+  color: var(--shelf-page);
   transform: translateY(-200%);
 }
 
@@ -61,7 +282,10 @@ html[data-theme-variant='shelf']
   width: 100%;
   max-width: 1320px;
   margin: 0 auto;
-  padding: 22px 40px;
+  padding: 22px 40px 18px;
+  /* The masthead rule: an ink line inset to the page margins. */
+  background: linear-gradient(var(--shelf-ink), var(--shelf-ink)) 40px 100% /
+    calc(100% - 80px) 1px no-repeat;
   color: var(--shelf-ink);
 }
 
@@ -69,17 +293,27 @@ html[data-theme-variant='shelf']
   display: flex;
   flex: none;
   align-items: center;
-  gap: 8px;
-  font-size: 17px;
-  font-weight: 700;
+  gap: 9px;
+  font-family: var(--shelf-serif);
+  font-size: 22px;
+  font-weight: 600;
   letter-spacing: -0.02em;
+  line-height: 1;
 }
 
+[data-shelf-logo] em {
+  color: var(--shelf-accent);
+  font-style: italic;
+  font-weight: 500;
+}
+
+/* A small oxblood lozenge, like a catalogue's house mark. */
 [data-shelf-logo] i {
-  width: 10px;
-  height: 10px;
-  border-radius: 99px;
+  width: 9px;
+  height: 9px;
+  border-radius: 1px;
   background: var(--shelf-accent);
+  transform: rotate(45deg);
 }
 
 [data-shelf-nav] {
@@ -88,11 +322,14 @@ html[data-theme-variant='shelf']
 }
 
 [data-shelf-nav] a {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  padding: 4px 0;
   color: var(--shelf-muted);
   white-space: nowrap;
+  transition: color 140ms;
 }
 
 [data-shelf-nav] a:hover,
@@ -104,12 +341,23 @@ html[data-theme-variant='shelf']
   font-weight: 550;
 }
 
+/* The current section is underlined in oxblood. */
+[data-shelf-nav] a[aria-current='page']::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -2px;
+  left: 0;
+  height: 2px;
+  background: var(--shelf-accent);
+}
+
 [data-shelf-nav] small {
   min-width: 16px;
   padding: 0 5px;
   border-radius: 99px;
-  background: var(--shelf-accent-soft);
-  color: var(--shelf-accent-ink);
+  background: var(--shelf-accent);
+  color: var(--shelf-on-accent);
   font-size: 11px;
   font-weight: 600;
   line-height: 16px;
@@ -136,16 +384,17 @@ html[data-theme-variant='shelf']
   padding: 0 8px 0 14px;
   overflow: hidden;
   border: 1px solid var(--shelf-line);
-  border-radius: 10px;
-  background: #ffffff;
-  color: var(--shelf-faint);
+  border-radius: 99px;
+  background: var(--shelf-surface);
+  color: var(--shelf-muted);
   font: inherit;
   white-space: nowrap;
   cursor: pointer;
 }
 
 [data-shelf-cmd]:hover {
-  border-color: #d4d4d4;
+  border-color: var(--shelf-line-strong);
+  color: var(--shelf-ink);
 }
 
 [data-shelf-cmd] svg {
@@ -162,10 +411,10 @@ html[data-theme-variant='shelf']
 :is([data-shelf-cmd], [data-shelf-pal-foot]) kbd {
   margin-left: auto;
   padding: 0 6px;
-  border: 1px solid #dddddd;
+  border: 1px solid var(--shelf-line);
   border-bottom-width: 2px;
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--shelf-page);
   color: var(--shelf-muted);
   font:
     500 11px/16px var(--font-sans),
@@ -179,8 +428,10 @@ html[data-theme-variant='shelf']
   width: 38px;
   height: 38px;
   border: 1px solid var(--shelf-line);
-  border-radius: 10px;
+  border-radius: 99px;
+  background: transparent;
   color: var(--shelf-ink);
+  cursor: pointer;
 }
 
 [data-shelf-icon-button]:hover,
@@ -198,15 +449,17 @@ html[data-theme-variant='shelf']
   align-items: center;
   height: 38px;
   padding: 0 16px;
-  border-radius: 10px;
+  border-radius: 99px;
   background: var(--shelf-ink);
-  color: #ffffff;
+  color: var(--shelf-page);
   font-weight: 550;
   white-space: nowrap;
+  transition: background-color 160ms;
 }
 
 [data-shelf-add]:hover {
-  background: #000000;
+  background: var(--shelf-accent);
+  color: var(--shelf-on-accent);
 }
 
 [data-shelf-button] {
@@ -216,9 +469,9 @@ html[data-theme-variant='shelf']
   gap: 6px;
   height: 40px;
   padding: 0 16px;
-  border: 1px solid var(--shelf-line);
-  border-radius: 10px;
-  background: #ffffff;
+  border: 1px solid var(--shelf-line-strong);
+  border-radius: 99px;
+  background: transparent;
   color: var(--shelf-ink);
   font: inherit;
   font-weight: 500;
@@ -243,17 +496,18 @@ html[data-theme-variant='shelf']
 [data-shelf-button='accent'] {
   border-color: var(--shelf-accent);
   background: var(--shelf-accent);
-  color: #ffffff;
+  color: var(--shelf-on-accent);
   font-weight: 550;
 }
 
 [data-shelf-button='accent']:hover:not(:disabled) {
+  border-color: var(--shelf-accent-hover);
   background: var(--shelf-accent-hover);
 }
 
 [data-shelf-button][aria-pressed='true'] {
-  border-color: #fbd3b0;
-  background: #fff6ee;
+  border-color: var(--shelf-accent-line);
+  background: var(--shelf-accent-soft);
   color: var(--shelf-accent-ink);
 }
 
@@ -305,13 +559,15 @@ html[data-theme-variant='shelf']
   display: block;
   aspect-ratio: 16 / 10;
   overflow: hidden;
-  border-radius: 24px;
+  border-radius: 4px;
   background: radial-gradient(
-    ellipse at 50% 60%,
-    #fff3e8 0%,
-    var(--shelf-soft) 55%,
-    var(--shelf-soft) 100%
+    ellipse 70% 60% at 50% 42%,
+    var(--shelf-plate) 0%,
+    var(--shelf-plate-2) 100%
   );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--shelf-ink) 6%, transparent),
+    var(--shelf-shadow);
 }
 
 [data-shelf-hero][data-loading] [data-shelf-hero-art] {
@@ -328,7 +584,6 @@ html[data-theme-variant='shelf']
 
 [data-shelf-hero-art] img {
   padding: 8%;
-  filter: drop-shadow(0 22px 20px rgb(0 0 0 / 16%));
   mix-blend-mode: multiply;
   transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -359,9 +614,12 @@ html[data-theme-variant='shelf']
   padding: 0;
   border: 0;
   border-radius: 99px;
-  background: #d4d4d4;
+  /* Dots sit on the lit photo plate, which stays light in both modes. */
+  background: rgb(27 23 21 / 22%);
   cursor: pointer;
-  transition: width 0.2s;
+  transition:
+    width 0.2s,
+    background-color 0.2s;
 }
 
 [data-shelf-dots] button[aria-pressed='true'] {
@@ -456,7 +714,7 @@ html[data-theme-variant='shelf']
 [data-shelf-spark] i {
   flex: 1;
   border-radius: 2px;
-  background: #ececec;
+  background: var(--shelf-line);
 }
 
 [data-shelf-spark] i[data-current] {
@@ -506,11 +764,20 @@ html[data-theme-variant='shelf']
   width: 30px;
   height: 30px;
   padding: 0;
-  border: 1px solid var(--shelf-line);
+  border: 1px solid var(--shelf-line-strong);
   border-radius: 99px;
-  background: #ffffff;
+  background: transparent;
   color: var(--shelf-ink);
   cursor: pointer;
+}
+
+[data-shelf-arrows] button:hover:not(:disabled) {
+  border-color: var(--shelf-ink);
+}
+
+[data-shelf-arrows] button:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 [data-shelf-arrows] svg {
@@ -546,8 +813,14 @@ html[data-theme-variant='shelf']
   place-items: center;
   aspect-ratio: 1;
   overflow: hidden;
-  border-radius: 16px;
-  background: var(--shelf-soft);
+  border-radius: 3px;
+  background: radial-gradient(
+    ellipse 75% 65% at 50% 42%,
+    var(--shelf-plate) 0%,
+    var(--shelf-plate-2) 100%
+  );
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--shelf-ink) 6%, transparent);
   color: var(--shelf-muted);
   font-size: 22px;
   font-weight: 600;
@@ -555,7 +828,9 @@ html[data-theme-variant='shelf']
 }
 
 [data-shelf-card]:hover [data-shelf-card-photo] {
-  background: #f3f3f3;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--shelf-ink) 10%, transparent),
+    0 18px 30px -22px rgb(27 23 21 / 45%);
 }
 
 [data-shelf-card]:focus-visible {
@@ -569,7 +844,6 @@ html[data-theme-variant='shelf']
 
 [data-shelf-card-photo] img {
   padding: 12%;
-  filter: drop-shadow(0 8px 8px rgb(0 0 0 / 12%));
   mix-blend-mode: multiply;
   transition: transform 0.3s;
 }
@@ -584,18 +858,20 @@ html[data-theme-variant='shelf']
   left: 10px;
   z-index: 1;
   padding: 1px 8px;
-  border: 1px solid var(--shelf-line);
-  border-radius: 99px;
-  background: #ffffff;
-  color: var(--shelf-ink);
-  font-size: 11px;
-  font-weight: 500;
+  border: 1px solid rgb(27 23 21 / 10%);
+  border-radius: 2px;
+  background: rgb(255 255 255 / 88%);
+  color: #3f3733;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 [data-shelf-badge='sold'] {
-  border-color: var(--shelf-ink);
-  background: var(--shelf-ink);
-  color: #ffffff;
+  border-color: #8c1d2e;
+  background: #8c1d2e;
+  color: #fbf6f1;
 }
 
 [data-shelf-card-title] {
@@ -637,12 +913,16 @@ html[data-theme-variant='shelf']
 
 [data-shelf-tags] > :is(a, button) {
   padding: 6px 14px;
-  border: 1px solid var(--shelf-line);
+  border: 1px solid var(--shelf-line-strong);
   border-radius: 99px;
-  background: #ffffff;
+  background: transparent;
   color: var(--shelf-ink);
   font: inherit;
   cursor: pointer;
+  transition:
+    border-color 140ms,
+    color 140ms,
+    background-color 140ms;
 }
 
 [data-shelf-tags] > :is(a, button):hover {
@@ -653,7 +933,12 @@ html[data-theme-variant='shelf']
 [data-shelf-tags] > button[aria-pressed='true'] {
   border-color: var(--shelf-ink);
   background: var(--shelf-ink);
-  color: #ffffff;
+  color: var(--shelf-page);
+}
+
+[data-shelf-tags] > button[aria-pressed='true'] small {
+  color: inherit;
+  opacity: 0.6;
 }
 
 [data-shelf-tags] small {
@@ -673,8 +958,9 @@ html[data-theme-variant='shelf']
   gap: 14px;
   margin-top: 20px;
   padding: 56px 48px;
-  border-radius: 24px;
-  background: var(--shelf-soft);
+  border: 1px solid var(--shelf-line);
+  border-radius: 4px;
+  background: var(--shelf-surface);
 }
 
 [data-shelf-empty] h2 {
@@ -709,7 +995,7 @@ html[data-theme-variant='shelf']
 }
 
 [data-shelf-all-head] h1 small {
-  color: #c9c9c9;
+  color: var(--shelf-faint);
   font-size: inherit;
   font-weight: 500;
 }
@@ -721,8 +1007,9 @@ html[data-theme-variant='shelf']
   width: min(360px, 100%);
   height: 40px;
   padding: 0 14px;
-  border: 1px solid var(--shelf-line);
-  border-radius: 10px;
+  border: 1px solid var(--shelf-line-strong);
+  border-radius: 99px;
+  background: var(--shelf-surface);
   color: var(--shelf-faint);
 }
 
@@ -764,8 +1051,8 @@ html[data-theme-variant='shelf'] [data-shelf-pal-scrim] {
   position: fixed;
   inset: 0;
   z-index: 70;
-  background: rgb(255 255 255 / 60%);
-  backdrop-filter: blur(6px);
+  background: var(--shelf-scrim);
+  backdrop-filter: blur(8px);
 }
 
 html[data-theme-variant='shelf'] [data-shelf-pal] {
@@ -776,10 +1063,10 @@ html[data-theme-variant='shelf'] [data-shelf-pal] {
   width: min(640px, calc(100vw - 32px));
   overflow: hidden;
   border: 1px solid var(--shelf-line);
-  border-radius: 16px;
-  background: #ffffff;
+  border-radius: 8px;
+  background: var(--shelf-surface);
   color: var(--shelf-ink);
-  box-shadow: 0 40px 80px -30px rgb(0 0 0 / 35%);
+  box-shadow: var(--shelf-pop);
   outline: none;
   transform: translateX(-50%);
 }
@@ -790,9 +1077,10 @@ html[data-theme-variant='shelf'] [data-shelf-pal] {
   padding: 0 20px;
   border: 0;
   border-bottom: 1px solid var(--shelf-line);
+  background: transparent;
   color: var(--shelf-ink);
-  font: inherit;
-  font-size: 17px;
+  font-family: var(--shelf-serif);
+  font-size: 20px;
   outline: none;
 }
 
@@ -833,9 +1121,9 @@ html[data-theme-variant='shelf'] [data-shelf-pal] {
   width: 38px;
   height: 28px;
   overflow: hidden;
-  border-radius: 6px;
-  background: var(--shelf-soft);
-  color: var(--shelf-muted);
+  border-radius: 3px;
+  background: var(--shelf-plate);
+  color: #766c65;
 }
 
 [data-shelf-pal-icon] > svg {
@@ -882,7 +1170,7 @@ html[data-theme-variant='shelf'] [data-shelf-focus] {
   z-index: 60;
   display: grid;
   grid-template-columns: 1.4fr 1fr;
-  background: #ffffff;
+  background: var(--shelf-page);
   color: var(--shelf-ink);
   outline: none;
   transition: opacity 0.2s;
@@ -898,7 +1186,11 @@ html[data-theme-variant='shelf']
   display: grid;
   place-items: center;
   min-height: 0;
-  background: var(--shelf-soft);
+  background: radial-gradient(
+    ellipse 70% 60% at 50% 45%,
+    var(--shelf-plate) 0%,
+    var(--shelf-plate-2) 100%
+  );
 }
 
 [data-shelf-focus-art] > [data-lumen-photo] {
@@ -908,7 +1200,6 @@ html[data-theme-variant='shelf']
 
 [data-shelf-focus-art] img {
   padding: 8vw;
-  filter: drop-shadow(0 26px 24px rgb(0 0 0 / 18%));
   mix-blend-mode: multiply;
 }
 
@@ -986,6 +1277,376 @@ html[data-theme-variant='shelf']
   text-align: center;
 }
 
+/* Editorial type ---------------------------------------------------- */
+/* Fraunces carries the display lines: the featured name, headline     */
+/* numbers, shelf titles, page titles and the focus view. Labels are   */
+/* small letterspaced caps; body text stays Geist.                     */
+
+:is(
+  [data-shelf-hero-text] h2,
+  [data-shelf-band] b,
+  [data-shelf-section-head] h2,
+  [data-shelf-all-head] h1,
+  [data-shelf-empty] h2,
+  [data-shelf-focus-title],
+  [data-shelf-strip] dd
+) {
+  font-family: var(--shelf-serif);
+  font-optical-sizing: auto;
+}
+
+[data-shelf-hero-text] h2 {
+  font-size: 68px;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  line-height: 0.98;
+  text-wrap: balance;
+}
+
+[data-shelf-band] b {
+  font-size: 36px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+[data-shelf-section-head] h2 {
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+[data-shelf-section-head] {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--shelf-line);
+}
+
+[data-shelf-count] {
+  font-family: var(--shelf-serif);
+  font-size: 18px;
+  font-style: italic;
+}
+
+[data-shelf-all-head] h1,
+[data-shelf-empty] h2 {
+  font-weight: 500;
+  letter-spacing: -0.035em;
+}
+
+[data-shelf-all-head] h1 small {
+  font-style: italic;
+  font-weight: 400;
+}
+
+[data-shelf-focus-title] {
+  font-size: 52px;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+[data-shelf-strip] dd {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+:is(
+  [data-shelf-strip] dt,
+  [data-shelf-band] span,
+  [data-shelf-focus-specs] dt,
+  [data-shelf-pal-section]
+) {
+  color: var(--shelf-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+[data-shelf-eyebrow] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--shelf-accent-ink);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+}
+
+[data-shelf-eyebrow]::before {
+  content: '';
+  width: 22px;
+  height: 1px;
+  background: currentColor;
+}
+
+[data-shelf-by] {
+  font-family: var(--shelf-serif);
+  font-style: italic;
+}
+
+[data-shelf-card-title] {
+  font-family: var(--shelf-serif);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+[data-shelf-card-sub] b {
+  font-variant-numeric: tabular-nums;
+}
+
+[data-shelf-hero] {
+  border-bottom-color: var(--shelf-line);
+}
+
+[data-shelf-band] {
+  border-bottom: 1px solid var(--shelf-ink);
+}
+
+[data-shelf-band] > div + div {
+  padding-left: 16px;
+  border-left: 1px solid var(--shelf-line);
+}
+
+[data-shelf-spark] i[data-current] {
+  background: var(--shelf-accent);
+}
+
+[data-shelf-pal-item][aria-selected='true'] {
+  background: var(--shelf-accent-soft);
+  box-shadow: inset 2px 0 0 var(--shelf-accent);
+}
+
+[data-shelf-pal-item] {
+  border-radius: 4px;
+}
+
+[data-shelf-pal-foot] {
+  background: var(--shelf-page);
+}
+
+[data-shelf-focus-specs] div {
+  border-top-color: var(--shelf-line);
+}
+
+[data-shelf-focus-specs] dd {
+  font-variant-numeric: tabular-nums;
+}
+
+[data-shelf-focus-nav] {
+  font-family: var(--shelf-serif);
+  font-style: italic;
+}
+
+/* ================================================================== */
+/* Every page                                                           */
+/* Insights, Studio, Compare, History, Settings, Add and the knife page */
+/* keep their Modern layouts, finished as pages of the same catalogue:  */
+/* serif page titles, pill controls, ivory cards on gallery walls and   */
+/* oxblood for the main action and focus. No glows.                     */
+/* ================================================================== */
+
+html[data-theme-variant='shelf'] body {
+  font-feature-settings: 'cv11';
+}
+
+/* Pages below the masthead share its margins. */
+html[data-theme-variant='shelf']
+  [data-lumen-shell='shelf']
+  main
+  > :not([data-shelf-mast], [data-shelf-wrap]) {
+  width: 100%;
+  max-width: 1320px;
+  margin-inline: auto;
+  padding-inline: 40px;
+}
+
+@media (max-width: 860px) {
+  html[data-theme-variant='shelf']
+    [data-lumen-shell='shelf']
+    main
+    > :not([data-shelf-mast], [data-shelf-wrap]) {
+    padding-inline: 16px;
+  }
+}
+
+html[data-theme-variant='shelf'] [data-page-header] .page-title {
+  color: var(--shelf-ink);
+  font-family: var(--shelf-serif);
+  font-size: clamp(30px, 3vw, 42px);
+  font-optical-sizing: auto;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+html[data-theme-variant='shelf'] [data-page-description] {
+  color: var(--shelf-muted);
+  font-family: var(--shelf-serif);
+  font-style: italic;
+}
+
+html[data-theme-variant='shelf'] [data-page-header] {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--shelf-line);
+}
+
+/* Buttons: hairline pills on the wall; hover warms the fill. */
+html[data-theme-variant='shelf'] .group\/button:not(.underline-offset-4) {
+  box-shadow: none;
+  color: var(--shelf-ink);
+  font-size: 12.5px;
+  transition:
+    color 140ms,
+    border-color 140ms,
+    background-color 140ms;
+}
+
+html[data-theme-variant='shelf']
+  .group\/button:not(
+    .underline-offset-4,
+    .bg-primary,
+    .border-border,
+    .bg-secondary,
+    [class*='bg-destructive']
+  ) {
+  background: transparent;
+}
+
+html[data-theme-variant='shelf']
+  .group\/button:not(
+    .underline-offset-4,
+    .bg-primary,
+    [class*='bg-destructive'],
+    :disabled,
+    [aria-disabled='true']
+  ):is(:hover, [aria-expanded='true']) {
+  background: var(--shelf-hover);
+  color: var(--shelf-ink);
+}
+
+html[data-theme-variant='shelf'] .group\/button[aria-pressed='true'] {
+  border-color: var(--shelf-ink);
+  background: var(--shelf-ink);
+  color: var(--shelf-page);
+}
+
+/* Main action: solid oxblood. */
+html[data-theme-variant='shelf'] :is([data-slot='button'], a).bg-primary {
+  border-color: transparent;
+  background: var(--shelf-accent);
+  box-shadow: none;
+  color: var(--shelf-on-accent);
+  font-weight: 550;
+}
+
+html[data-theme-variant='shelf']
+  :is([data-slot='button'], a).bg-primary:not(:disabled):hover {
+  border-color: transparent;
+  background: var(--shelf-accent-hover);
+  color: var(--shelf-on-accent);
+  filter: none;
+}
+
+html[data-theme-variant='shelf'] .group\/button:not(:disabled):active {
+  transform: none;
+}
+
+html[data-theme-variant='shelf'] .group\/button:focus-visible,
+html[data-theme-variant='shelf'] input[data-slot='input']:focus-visible,
+html[data-theme-variant='shelf'] textarea:focus-visible {
+  border-color: var(--shelf-accent);
+  box-shadow: 0 0 0 3px var(--shelf-accent-soft);
+}
+
+html[data-theme-variant='shelf'] :is(input, textarea)::placeholder {
+  color: var(--shelf-faint);
+}
+
+/* Cards: ivory sheets that lift softly instead of glowing. */
+html[data-theme-variant='shelf'] [data-forge-card]:is(:hover, [data-active]) {
+  border-color: var(--shelf-line-strong);
+  box-shadow: var(--forge-shadow-lift);
+}
+
+/* Section labels across pages: letterspaced caps in oxblood. */
+html[data-theme-variant='shelf'] [data-detail-section] > h3 {
+  color: var(--shelf-accent-ink);
+}
+
+/* History: dates as italic serif headings, entries on hairlines. */
+html[data-theme-variant='shelf'] [data-logs-date] {
+  color: var(--shelf-ink);
+  font-family: var(--shelf-serif);
+  font-size: 15px;
+  font-style: italic;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+html[data-theme-variant='shelf'] [data-log-entry]:hover {
+  background: var(--shelf-hover);
+}
+
+html[data-theme-variant='shelf'] [data-logs-summary] dd {
+  font-family: var(--shelf-serif);
+  font-weight: 500;
+}
+
+/* Insights headline numbers in the display serif. */
+html[data-theme-variant='shelf'] [data-modern-insights] :is(dd, strong) {
+  font-family: var(--shelf-serif);
+  font-optical-sizing: auto;
+}
+
+/* Settings rail: the open section is marked with an oxblood rule. */
+html[data-theme-variant='shelf'][data-theme-variant][data-theme-variant]
+  [data-settings-rail]
+  > button:not([class*='nav-active-bg']):hover {
+  background: var(--shelf-hover);
+}
+
+html[data-theme-variant='shelf'][data-theme-variant][data-theme-variant]
+  [data-settings-rail]
+  > button[class*='nav-active-bg'] {
+  background: var(--shelf-surface);
+  box-shadow:
+    inset 2px 0 0 var(--shelf-accent),
+    0 0 0 1px var(--shelf-line);
+  color: var(--shelf-ink);
+}
+
+/* Shared Lumen-layout pieces (menus, key caps, empty photos). */
+html[data-theme-variant='shelf'] [data-lumen-menu] {
+  border-color: var(--shelf-line);
+  border-radius: 8px;
+  background: var(--shelf-surface);
+  box-shadow: var(--shelf-pop);
+  color: var(--shelf-ink);
+}
+
+html[data-theme-variant='shelf'] [data-lumen-menu-item][data-highlighted] {
+  background: var(--shelf-hover);
+}
+
+html[data-theme-variant='shelf'] [data-lumen-menu-check] {
+  color: var(--shelf-accent);
+}
+
+html[data-theme-variant='shelf']
+  :is([data-lumen-menu-item] > small, [data-lumen-menu-empty]) {
+  color: var(--shelf-muted);
+}
+
+html[data-theme-variant='shelf'] [data-lumen-kbd] {
+  border-color: var(--shelf-line);
+  background: var(--shelf-page);
+  color: var(--shelf-muted);
+}
+
+html[data-theme-variant='shelf'] [data-lumen-photo] > [data-lumen-photo-empty] {
+  color: #b9b0a7;
+}
+
 /* Narrow screens ---------------------------------------------------- */
 
 @media (max-width: 1100px) {
@@ -1002,7 +1663,17 @@ html[data-theme-variant='shelf']
   [data-shelf-mast] {
     flex-wrap: wrap;
     gap: 12px;
-    padding: 14px 16px;
+    padding: 14px 16px 0;
+    background-position: 16px 100%;
+    background-size: calc(100% - 32px) 1px;
+  }
+
+  [data-shelf-nav] a {
+    padding: 4px 0 10px;
+  }
+
+  [data-shelf-nav] a[aria-current='page']::after {
+    bottom: 0;
   }
 
   [data-shelf-nav] {

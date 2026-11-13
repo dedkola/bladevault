@@ -7,6 +7,8 @@ import { Dialog } from '@base-ui/react/dialog'
 import { ArrowRight, Search, Settings } from 'lucide-react'
 import { OPEN_GLOBAL_SEARCH_EVENT } from '@/components/global-knife-search'
 import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
+import { ThemeCycleButton } from '@/components/theme-cycle-button'
+import { ThemeModeButton } from '@/components/theme-mode-button'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useComparisons } from '@/components/providers/comparisons-provider'
@@ -35,7 +37,7 @@ function shelfFocusHref(id: string) {
 }
 
 /**
- * Shelf: an editorial layout. A masthead with text navigation, a command
+ * Shelf: a collector's catalogue. A masthead with text navigation, a command
  * palette (⌘K) for search and actions, and full-width pages below.
  */
 export function ShelfShell({ children }: { children: React.ReactNode }) {
@@ -104,7 +106,9 @@ export function ShelfShell({ children }: { children: React.ReactNode }) {
               aria-label="BladeVault home"
             >
               <i aria-hidden="true" />
-              BladeVault
+              <span>
+                Blade<em>Vault</em>
+              </span>
             </Link>
             <nav aria-label="Main navigation" data-shelf-nav>
               {navLinks.map(({ href, label }) => {
@@ -144,6 +148,8 @@ export function ShelfShell({ children }: { children: React.ReactNode }) {
                 <span>Search or jump to…</span>
                 <kbd aria-hidden="true">⌘K</kbd>
               </button>
+              <ThemeModeButton data-shelf-icon-button="" />
+              <ThemeCycleButton data-shelf-icon-button="" />
               <Link
                 href="/settings"
                 data-shelf-icon-button
