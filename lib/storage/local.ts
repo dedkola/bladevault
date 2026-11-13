@@ -145,6 +145,15 @@ export function generateId(name: string): string {
   )
 }
 
+/** Note photos must already be in the knife's gallery; duplicates are dropped. */
+function requireGalleryImages(images: string[], gallery: string[]): string[] {
+  const unique = Array.from(new Set(images))
+  const missing = unique.find((image) => !gallery.includes(image))
+  if (missing !== undefined)
+    throw new Error('Note photos must belong to the knife gallery')
+  return unique
+}
+
 export function getNextImageIndex(images: string[]): number {
   let maxIndex = -1
   for (const image of images) {
@@ -1465,25 +1474,48 @@ export class LocalStorage implements Storage {
     })
   }
 
-  private rowToKnifeNote(row: Record<string, unknown>): KnifeNote {
+  private rowToKnifeNote(
+    row: Record<string, unknown>,
+    galleryImages?: string[],
+  ): KnifeNote {
+    let images: string[] = []
+    try {
+      const parsed = JSON.parse(String(row.images ?? '[]')) as unknown
+      if (Array.isArray(parsed))
+        images = parsed.filter(
+          (image): image is string => typeof image === 'string',
+        )
+    } catch {
+      // Treat unreadable photo lists as empty rather than failing the note.
+    }
+    // A photo removed from the gallery drops out of its note as well.
+    if (galleryImages) {
+      const gallery = new Set(galleryImages)
+      images = images.filter((image) => gallery.has(image))
+    }
     return {
       id: Number(row.id),
       knifeId: String(row.knife_id),
       body: String(row.body ?? ''),
+      images,
       notedAt: String(row.noted_at),
       createdAt: String(row.created_at),
       updatedAt: String(row.updated_at),
     }
   }
 
-  private getKnifeNoteById(id: number): KnifeNote | undefined {
+  private getKnifeNoteById(
+    id: number,
+    galleryImages?: string[],
+  ): KnifeNote | undefined {
     const row = getDb()
       .prepare('SELECT * FROM knife_notes WHERE id = ?')
       .get(id) as Record<string, unknown> | undefined
-    return row ? this.rowToKnifeNote(row) : undefined
+    return row ? this.rowToKnifeNote(row, galleryImages) : undefined
   }
 
   async getKnifeNotes(knifeId: string): Promise<KnifeNote[]> {
+    const knife = await this.getKnifeById(knifeId)
     const rows = getDb()
       .prepare(
         `SELECT * FROM knife_notes
@@ -1491,7 +1523,7 @@ export class LocalStorage implements Storage {
          ORDER BY noted_at DESC, id DESC`,
       )
       .all(knifeId) as Array<Record<string, unknown>>
-    return rows.map((row) => this.rowToKnifeNote(row))
+    return rows.map((row) => this.rowToKnifeNote(row, knife?.images ?? []))
   }
 
   async addKnifeNote(
@@ -1505,7 +1537,9 @@ export class LocalStorage implements Storage {
       }
 
       const body = input.body.trim()
-      if (!body) throw new Error('Note text is required')
+      const images = requireGalleryImages(input.images ?? [], knife.images)
+      if (!body && images.length === 0)
+        throw new Error('Note text or a photo is required')
       const now = new Date().toISOString()
       const notedAt = input.notedAt?.trim() || now
 
@@ -1513,10 +1547,10 @@ export class LocalStorage implements Storage {
       const insertNote = database.transaction(() => {
         const result = database
           .prepare(
-            `INSERT INTO knife_notes (knife_id, body, noted_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?)`,
+            `INSERT INTO knife_notes (knife_id, body, images, noted_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?)`,
           )
-          .run(knifeId, body, notedAt, now, now)
+          .run(knifeId, body, JSON.stringify(images), notedAt, now, now)
 
         recordAuditEvent(database, {
           operationId: generateOperationId(),
@@ -1527,19 +1561,28 @@ export class LocalStorage implements Storage {
           source: 'Notes',
           summary: 'A note was added.',
           changes: [
-            { field: 'Note', before: '', after: body },
+            ...(body ? [{ field: 'Note', before: '', after: body }] : []),
             {
               field: 'Note date',
               before: 'Not set',
               after: notedAt.slice(0, 10),
             },
+            ...(images.length > 0
+              ? [
+                  {
+                    field: 'Note photos',
+                    before: '0',
+                    after: String(images.length),
+                  },
+                ]
+              : []),
           ],
           occurredAt: now,
         })
         return Number(result.lastInsertRowid)
       })
 
-      const note = this.getKnifeNoteById(insertNote())
+      const note = this.getKnifeNoteById(insertNote(), knife.images)
       if (!note) throw new Error('Failed to retrieve created note')
       return note
     })
@@ -1559,12 +1602,30 @@ export class LocalStorage implements Storage {
       }
 
       const body = input.body !== undefined ? input.body.trim() : existing.body
-      if (!body) throw new Error('Note text is required')
+      const currentImages = existing.images.filter((image) =>
+        knife.images.includes(image),
+      )
+      const images =
+        input.images !== undefined
+          ? requireGalleryImages(input.images, knife.images)
+          : currentImages
+      if (!body && images.length === 0)
+        throw new Error('Note text or a photo is required')
       const notedAt = input.notedAt?.trim() || existing.notedAt
 
       const changes: AuditLogEventChange[] = []
       if (body !== existing.body) {
         changes.push({ field: 'Note', before: existing.body, after: body })
+      }
+      const imagesChanged =
+        images.length !== existing.images.length ||
+        images.some((image, index) => image !== existing.images[index])
+      if (imagesChanged) {
+        changes.push({
+          field: 'Note photos',
+          before: String(currentImages.length),
+          after: String(images.length),
+        })
       }
       if (notedAt.slice(0, 10) !== existing.notedAt.slice(0, 10)) {
         changes.push({
@@ -1573,16 +1634,17 @@ export class LocalStorage implements Storage {
           after: notedAt.slice(0, 10),
         })
       }
-      if (changes.length === 0 && notedAt === existing.notedAt) return existing
+      if (changes.length === 0 && notedAt === existing.notedAt)
+        return { ...existing, images: currentImages }
 
       const now = new Date().toISOString()
       const database = getDb()
       database.transaction(() => {
         database
           .prepare(
-            'UPDATE knife_notes SET body = ?, noted_at = ?, updated_at = ? WHERE id = ?',
+            'UPDATE knife_notes SET body = ?, images = ?, noted_at = ?, updated_at = ? WHERE id = ?',
           )
-          .run(body, notedAt, now, noteId)
+          .run(body, JSON.stringify(images), notedAt, now, noteId)
         if (changes.length > 0) {
           recordAuditEvent(database, {
             operationId: generateOperationId(),
@@ -1598,7 +1660,7 @@ export class LocalStorage implements Storage {
         }
       })()
 
-      const updated = this.getKnifeNoteById(noteId)
+      const updated = this.getKnifeNoteById(noteId, knife.images)
       if (!updated) throw new Error('Failed to retrieve updated note')
       return updated
     })

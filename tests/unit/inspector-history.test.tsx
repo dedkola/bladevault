@@ -53,6 +53,7 @@ const notes: KnifeNote[] = [
     id: 1,
     knifeId: 'benchmade-bugout',
     body: 'Pocket clip loosened after a month of carry.',
+    images: [],
     notedAt: '2026-11-05T12:00:00.000Z',
     createdAt: '2026-11-05T12:00:00.000Z',
     updatedAt: '2026-11-05T12:00:00.000Z',

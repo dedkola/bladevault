@@ -643,6 +643,7 @@ function migrateSchema(database: Database.Database) {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         knife_id TEXT NOT NULL,
         body TEXT NOT NULL,
+        images TEXT NOT NULL DEFAULT '[]',
         noted_at TEXT NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
@@ -651,6 +652,15 @@ function migrateSchema(database: Database.Database) {
 
       CREATE INDEX knife_notes_knife_id_idx ON knife_notes (knife_id);
     `)
+  } else {
+    const noteColumns = database
+      .prepare("SELECT name FROM pragma_table_info('knife_notes')")
+      .all() as Array<{ name: string }>
+    if (!noteColumns.some((column) => column.name === 'images')) {
+      database.exec(
+        `ALTER TABLE knife_notes ADD COLUMN images TEXT NOT NULL DEFAULT '[]'`,
+      )
+    }
   }
 
   normalizeKnifeRows(database)

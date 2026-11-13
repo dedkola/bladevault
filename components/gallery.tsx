@@ -26,17 +26,40 @@ export function Gallery({
   screenshot,
   editable = false,
   onReorder,
+  focusRequest,
 }: {
   images: string[]
   screenshot?: WebpageScreenshot
   editable?: boolean
   onReorder?: (newImages: string[]) => void
+  /** Shows this photo; a new `key` repeats the request for the same photo. */
+  focusRequest?: { src: string; key: number }
 }) {
   const [originalSize, setOriginalSize] = useState(false)
   const [activeIdx, setActiveIdx] = useState(0)
   const [isFullScreen, setIsFullScreen] = useState(false)
   const fullscreenThumbnailRefs = useRef<(HTMLButtonElement | null)[]>([])
   const thumbnailStripRef = useRef<HTMLDivElement>(null)
+  const galleryRef = useRef<HTMLDivElement>(null)
+
+  // Select a requested photo while rendering, then scroll to it after commit.
+  const [handledFocus, setHandledFocus] = useState(focusRequest)
+  if (focusRequest !== handledFocus) {
+    setHandledFocus(focusRequest)
+    const index = focusRequest ? images.indexOf(focusRequest.src) : -1
+    if (index >= 0) setActiveIdx(index)
+  }
+
+  useEffect(() => {
+    if (!focusRequest) return
+    const reduceMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches
+    galleryRef.current?.scrollIntoView({
+      behavior: reduceMotion ? 'auto' : 'smooth',
+      block: 'nearest',
+    })
+  }, [focusRequest])
 
   // Keep the active thumbnail visible when the strip scrolls sideways.
   useEffect(() => {
@@ -107,7 +130,7 @@ export function Gallery({
 
   return (
     <>
-      <div className="space-y-4" data-knife-gallery>
+      <div ref={galleryRef} className="space-y-4" data-knife-gallery>
         <Card className="group/gallery overflow-hidden p-0">
           <div
             data-gallery-stage

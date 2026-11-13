@@ -304,4 +304,43 @@ describe('local database migrations', () => {
       database.prepare('SELECT sold FROM knives WHERE id = ?').get('legacy'),
     ).toEqual({ sold: 0 })
   })
+
+  it('adds the images column to notes saved before note photos existed', async () => {
+    vault = await createTempVault()
+    const legacy = new Database(path.join(vault.dataDir, 'bladevault.sqlite'))
+    legacy.exec(`
+      CREATE TABLE knives (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        brand TEXT NOT NULL,
+        steel TEXT NOT NULL DEFAULT '',
+        blade_style TEXT NOT NULL,
+        handle_material TEXT NOT NULL,
+        images TEXT NOT NULL,
+        specs TEXT NOT NULL,
+        description TEXT NOT NULL,
+        added_at TEXT NOT NULL
+      );
+      INSERT INTO knives VALUES (
+        'legacy', 'Legacy Knife', 'Maker', '', 'Drop Point', 'G10',
+        '[]', '{}', '', '2025-01-01T00:00:00.000Z'
+      );
+      CREATE TABLE knife_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        knife_id TEXT NOT NULL,
+        body TEXT NOT NULL,
+        noted_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      INSERT INTO knife_notes (knife_id, body, noted_at, created_at, updated_at)
+      VALUES ('legacy', 'Kept', '2025-02-01', '2025-02-01', '2025-02-01');
+    `)
+    legacy.close()
+
+    const database = getLocalDb()
+    expect(
+      database.prepare('SELECT body, images FROM knife_notes').get(),
+    ).toEqual({ body: 'Kept', images: '[]' })
+  })
 })

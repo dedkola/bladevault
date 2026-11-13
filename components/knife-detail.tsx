@@ -131,10 +131,16 @@ function NotesCard({
   knifeId,
   paragraphs,
   fromWebsite,
+  galleryImages,
+  onKnifeUpdated,
+  onShowPhoto,
 }: {
   knifeId: string
   paragraphs: string[]
   fromWebsite: boolean
+  galleryImages: string[]
+  onKnifeUpdated: (knife: Knife) => void
+  onShowPhoto: (src: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const notesId = useId()
@@ -173,7 +179,12 @@ function NotesCard({
             </Button>
           )}
           <div className="mt-5 border-t border-border/60 pt-4">
-            <KnifeUserNotes knifeId={knifeId} />
+            <KnifeUserNotes
+              knifeId={knifeId}
+              galleryImages={galleryImages}
+              onKnifeUpdated={onKnifeUpdated}
+              onShowPhoto={onShowPhoto}
+            />
           </div>
         </DetailSection>
       </CardContent>
@@ -196,8 +207,13 @@ export default function KnifeDetail({
     refreshVault,
     scheduleVaultBackup,
     dimensionUnit,
+    syncKnife,
   } = useKnives()
   const [detailKnife, setDetailKnife] = useState(initialKnife)
+  const [galleryFocus, setGalleryFocus] = useState<{
+    src: string
+    key: number
+  }>()
   const collectionKnife = knives.find((k) => k.id === initialKnife.id)
   const knife = collectionKnife
     ? {
@@ -591,6 +607,7 @@ export default function KnifeDetail({
             <Gallery
               images={knife.images}
               screenshot={knife.webpageScreenshot}
+              focusRequest={galleryFocus}
             />
           </div>
           <div className="order-3 lg:order-none">
@@ -599,6 +616,17 @@ export default function KnifeDetail({
               knifeId={knife.id}
               paragraphs={descriptionParagraphs}
               fromWebsite={Boolean(safeSourceUrl)}
+              galleryImages={knife.images}
+              onKnifeUpdated={(updated) => {
+                setDetailKnife(updated)
+                syncKnife(updated)
+              }}
+              onShowPhoto={(src) =>
+                setGalleryFocus((current) => ({
+                  src,
+                  key: (current?.key ?? 0) + 1,
+                }))
+              }
             />
           </div>
         </div>

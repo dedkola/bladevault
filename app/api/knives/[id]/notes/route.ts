@@ -38,8 +38,8 @@ export async function POST(
     try {
       const { id } = await params
       const input = parseKnifeNoteInput(await request.json())
-      const note = await addKnifeNote(id, input)
-      return NextResponse.json({ note }, { status: 201 })
+      const result = await addKnifeNote(id, input)
+      return NextResponse.json(result, { status: 201 })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error'
       const status = message.includes('not found') ? 404 : 400
