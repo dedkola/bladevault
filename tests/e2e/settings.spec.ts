@@ -107,7 +107,18 @@ test('cycles theme styles from the Modern footer', async ({
   ).toBeVisible()
   await expect(themeButton).toHaveAttribute(
     'title',
-    'Switch theme · Atrium → Classic',
+    'Switch theme · Atrium → Shelf',
+  )
+
+  // Shelf has no footer either; its switch button sits in its header.
+  await themeButton.click()
+  await expect(html).toHaveAttribute('data-theme-variant', 'shelf')
+  await expect(
+    page.locator('[data-shelf-mast] [data-theme-cycle]'),
+  ).toBeVisible()
+  await expect(themeButton).toHaveAttribute(
+    'title',
+    'Switch theme · Shelf → Classic',
   )
 
   await themeButton.click()
