@@ -32,8 +32,8 @@ export async function PATCH(
     try {
       const { id, noteId } = await params
       const input = parseKnifeNoteUpdate(await request.json())
-      const note = await updateKnifeNote(id, parseNoteId(noteId), input)
-      return NextResponse.json({ note })
+      const result = await updateKnifeNote(id, parseNoteId(noteId), input)
+      return NextResponse.json(result)
     } catch (error) {
       return errorResponse(error)
     }

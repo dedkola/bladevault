@@ -13,6 +13,7 @@ import {
   Code2,
   Eye,
   Heading2,
+  ImagePlus,
   Italic,
   Link2,
   List,
@@ -26,9 +27,16 @@ import {
   Strikethrough,
   Table2,
   Trash2,
+  X,
   type LucideIcon,
 } from 'lucide-react'
-import { KNIFE_NOTE_MAX_LENGTH, type KnifeNote } from '@/lib/data'
+import {
+  getImageUrl,
+  KNIFE_NOTE_MAX_IMAGES,
+  KNIFE_NOTE_MAX_LENGTH,
+  type Knife,
+  type KnifeNote,
+} from '@/lib/data'
 import {
   applyNoteMarkdownCommand,
   type NoteMarkdownCommand,
@@ -39,6 +47,64 @@ import { NoteMarkdown } from '@/components/note-markdown'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import VaultImage from '@/components/vault-image'
+import { readImageFiles } from '@/components/knife-form'
+
+type NoteSaveInput = { body: string; notedAt: string; images: string[] }
+
+function NotePhotoThumb({
+  src,
+  index,
+  onOpen,
+  onRemove,
+}: {
+  src: string
+  index: number
+  onOpen?: () => void
+  onRemove?: () => void
+}) {
+  const label = `Note photo ${index + 1}`
+  const image = (
+    <VaultImage
+      src={getImageUrl(src)}
+      alt={label}
+      fill
+      sizes="80px"
+      unoptimized={src.startsWith('data:')}
+      className="object-cover"
+      referrerPolicy="no-referrer"
+    />
+  )
+  return (
+    <li
+      data-note-photo
+      className="relative size-16 overflow-hidden rounded-md border border-border/65 bg-white sm:size-20"
+    >
+      {onOpen ? (
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={`Show ${label.toLowerCase()} in the gallery`}
+          className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--bladevault-gold)]"
+        >
+          {image}
+        </button>
+      ) : (
+        image
+      )}
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove ${label.toLowerCase()}`}
+          className="absolute right-0.5 top-0.5 flex size-5 items-center justify-center rounded-full bg-black/65 text-white hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)]"
+        >
+          <X aria-hidden="true" className="size-3" />
+        </button>
+      )}
+    </li>
+  )
+}
 
 function toDateInputValue(isoString: string): string {
   const date = new Date(isoString)
@@ -188,11 +254,14 @@ function NoteComposer({
   onCancel,
 }: {
   note?: KnifeNote
-  onSave: (input: { body: string; notedAt: string }) => Promise<void>
+  onSave: (input: NoteSaveInput) => Promise<void>
   onCancel: () => void
 }) {
   const formId = useId()
   const [body, setBody] = useState(note?.body ?? '')
+  const [images, setImages] = useState<string[]>(note?.images ?? [])
+  const [isDraggingPhotos, setIsDraggingPhotos] = useState(false)
+  const photoInputRef = useRef<HTMLInputElement>(null)
   const [day, setDay] = useState(
     toDateInputValue(note?.notedAt ?? new Date().toISOString()),
   )
@@ -264,9 +333,28 @@ function NoteComposer({
     applyCommand(command)
   }
 
+  const addPhotos = async (files: File[]) => {
+    if (files.length === 0) return
+    const dataUrls = await readImageFiles(files)
+    if (dataUrls.length === 0) {
+      setError('Choose an image file.')
+      return
+    }
+    const room = KNIFE_NOTE_MAX_IMAGES - images.length
+    if (room <= 0 || dataUrls.length > room) {
+      setError(`A note can have at most ${KNIFE_NOTE_MAX_IMAGES} photos.`)
+    } else {
+      setError(null)
+    }
+    if (room <= 0) return
+    setImages((current) =>
+      Array.from(new Set([...current, ...dataUrls.slice(0, room)])),
+    )
+  }
+
   const submit = async () => {
-    if (!body.trim()) {
-      setError('Write something first.')
+    if (!body.trim() && images.length === 0) {
+      setError('Write something or add a photo first.')
       return
     }
     setIsSaving(true)
@@ -275,6 +363,7 @@ function NoteComposer({
       await onSave({
         body: body.trim(),
         notedAt: fromDateInputValue(day, note?.notedAt),
+        images,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save note')
@@ -289,7 +378,27 @@ function NoteComposer({
         event.preventDefault()
         void submit()
       }}
-      className="space-y-2.5 rounded-lg border border-border/65 bg-[color:var(--bladevault-surface-soft)]/50 p-3"
+      data-dragging={isDraggingPhotos || undefined}
+      className="space-y-2.5 rounded-lg border border-border/65 bg-[color:var(--bladevault-surface-soft)]/50 p-3 data-dragging:border-[var(--bladevault-gold)]"
+      onDragOver={(event) => {
+        if (!Array.from(event.dataTransfer.types).includes('Files')) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
+        setIsDraggingPhotos(true)
+      }}
+      onDragLeave={(event) => {
+        if (
+          !event.relatedTarget ||
+          !event.currentTarget.contains(event.relatedTarget as Node)
+        )
+          setIsDraggingPhotos(false)
+      }}
+      onDrop={(event) => {
+        if (event.dataTransfer.files.length === 0) return
+        event.preventDefault()
+        setIsDraggingPhotos(false)
+        void addPhotos(Array.from(event.dataTransfer.files))
+      }}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.preventDefault()
@@ -391,12 +500,50 @@ function NoteComposer({
         </div>
       )}
 
+      {images.length > 0 && (
+        <ul className="flex flex-wrap gap-2" aria-label="Note photos">
+          {images.map((src, index) => (
+            <NotePhotoThumb
+              key={src}
+              src={src}
+              index={index}
+              onRemove={() =>
+                setImages((current) => current.filter((item) => item !== src))
+              }
+            />
+          ))}
+        </ul>
+      )}
+
       {error && (
         <p role="alert" className="text-xs text-destructive">
           {error}
         </p>
       )}
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(event) => {
+            void addPhotos(Array.from(event.target.files ?? []))
+            event.target.value = ''
+          }}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => photoInputRef.current?.click()}
+          disabled={isSaving || images.length >= KNIFE_NOTE_MAX_IMAGES}
+          title="Photos are also added to this item's gallery"
+          className="mr-auto"
+        >
+          <ImagePlus aria-hidden="true" className="size-3.5" />
+          Add photo
+        </Button>
         <Button
           type="button"
           variant="ghost"
@@ -419,7 +566,19 @@ function NoteComposer({
  * The collector's own dated notes, listed under the scraped description and
  * grouped by day, newest first.
  */
-export function KnifeUserNotes({ knifeId }: { knifeId: string }) {
+export function KnifeUserNotes({
+  knifeId,
+  galleryImages,
+  onKnifeUpdated,
+  onShowPhoto,
+}: {
+  knifeId: string
+  /** The knife's current gallery; note photos removed from it are hidden. */
+  galleryImages?: string[]
+  /** Called with the saved knife when uploaded note photos joined its gallery. */
+  onKnifeUpdated?: (knife: Knife) => void
+  onShowPhoto?: (src: string) => void
+}) {
   const { scheduleVaultBackup } = useKnives()
   const [notes, setNotes] = useState<KnifeNote[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -457,10 +616,7 @@ export function KnifeUserNotes({ knifeId }: { knifeId: string }) {
     }
   }, [notesUrl])
 
-  const saveNote = async (
-    input: { body: string; notedAt: string },
-    existing?: KnifeNote,
-  ) => {
+  const saveNote = async (input: NoteSaveInput, existing?: KnifeNote) => {
     const response = await fetch(
       existing ? `${notesUrl}/${existing.id}` : notesUrl,
       {
@@ -469,13 +625,16 @@ export function KnifeUserNotes({ knifeId }: { knifeId: string }) {
         body: JSON.stringify(input),
       },
     )
-    const data = await readJsonResponse<{ error?: string; note?: KnifeNote }>(
-      response,
-    )
+    const data = await readJsonResponse<{
+      error?: string
+      note?: KnifeNote
+      knife?: Knife
+    }>(response)
     if (!response.ok || !data.note) {
       throw new Error(data.error || 'Failed to save note')
     }
     const saved = data.note
+    if (data.knife) onKnifeUpdated?.(data.knife)
     setNotes((current) =>
       sortNotes([...current.filter((item) => item.id !== saved.id), saved]),
     )
@@ -508,6 +667,10 @@ export function KnifeUserNotes({ knifeId }: { knifeId: string }) {
   }
 
   const groups = groupNotesByDay(notes)
+  const visibleImages = (note: KnifeNote) =>
+    galleryImages
+      ? (note.images ?? []).filter((src) => galleryImages.includes(src))
+      : (note.images ?? [])
 
   return (
     // `relative` keeps the sr-only status inside this block; otherwise it is
@@ -579,7 +742,7 @@ export function KnifeUserNotes({ knifeId }: { knifeId: string }) {
                     editingId === note.id ? (
                       <li key={note.id}>
                         <NoteComposer
-                          note={note}
+                          note={{ ...note, images: visibleImages(note) }}
                           onSave={(input) => saveNote(input, note)}
                           onCancel={() => setEditingId(null)}
                         />
@@ -590,7 +753,28 @@ export function KnifeUserNotes({ knifeId }: { knifeId: string }) {
                         data-user-note
                         className="group flex items-start justify-between gap-2"
                       >
-                        <NoteMarkdown body={note.body} className="flex-1" />
+                        <div className="min-w-0 flex-1 space-y-2">
+                          {note.body && <NoteMarkdown body={note.body} />}
+                          {visibleImages(note).length > 0 && (
+                            <ul
+                              className="flex flex-wrap gap-2"
+                              aria-label="Note photos"
+                            >
+                              {visibleImages(note).map((src, index) => (
+                                <NotePhotoThumb
+                                  key={src}
+                                  src={src}
+                                  index={index}
+                                  onOpen={
+                                    onShowPhoto
+                                      ? () => onShowPhoto(src)
+                                      : undefined
+                                  }
+                                />
+                              ))}
+                            </ul>
+                          )}
+                        </div>
                         <div className="flex shrink-0 items-center gap-1">
                           <Button
                             type="button"

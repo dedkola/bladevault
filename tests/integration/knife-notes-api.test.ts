@@ -26,7 +26,13 @@ function noteParams(id: string, noteId: string | number) {
 }
 
 type NotePayload = {
-  note: { id: number; body: string; notedAt: string; knifeId: string }
+  note: {
+    id: number
+    body: string
+    notedAt: string
+    knifeId: string
+    images?: string[]
+  }
 }
 
 async function createKnife(name: string) {
@@ -175,6 +181,81 @@ describe('knife notes API routes', () => {
 
     const missingKnife = await listNotes('missing-knife')
     expect(missingKnife.status).toBe(404)
+  })
+
+  it('adds uploaded note photos to the knife gallery', async () => {
+    vault = await createTempVault()
+    const knifeId = await createKnife('Bugout')
+    const other = await createKnife('Mini Bugout')
+    // 1x1 transparent PNG.
+    const png =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+
+    const photoOnly = await notesRoute.POST(
+      jsonRequest(`http://localhost/api/knives/${knifeId}/notes`, 'POST', {
+        body: '',
+        images: [png],
+      }),
+      params(knifeId),
+    )
+    expect(photoOnly.status).toBe(201)
+    const created = (await photoOnly.json()) as {
+      note: { id: number; images: string[] }
+      knife: { images: string[]; updatedAt: string }
+    }
+    expect(created.note.images).toHaveLength(1)
+    const photo = created.note.images[0]
+    expect(photo).toMatch(new RegExp(`^${knifeId}/image-\\d+\\.png$`))
+    expect(created.knife.images).toEqual([photo])
+
+    const detail = (await (
+      await knifeRoute.GET(
+        new Request(`http://localhost/api/knives/${knifeId}`),
+        params(knifeId),
+      )
+    ).json()) as { knife: { images: string[]; updatedAt: string } }
+    expect(detail.knife.images).toEqual([photo])
+
+    // Re-saving with the stored path keeps the gallery as is.
+    const resave = await noteRoute.PATCH(
+      jsonRequest(
+        `http://localhost/api/knives/${knifeId}/notes/${created.note.id}`,
+        'PATCH',
+        { body: 'Fresh out of the box.', images: [photo] },
+      ),
+      noteParams(knifeId, created.note.id),
+    )
+    expect(resave.status).toBe(200)
+    const resaved = (await resave.json()) as {
+      note: { body: string; images: string[] }
+      knife?: unknown
+    }
+    expect(resaved.note).toMatchObject({
+      body: 'Fresh out of the box.',
+      images: [photo],
+    })
+    expect(resaved.knife).toBeUndefined()
+
+    // Photos from another knife's gallery are refused.
+    const foreign = await notesRoute.POST(
+      jsonRequest(`http://localhost/api/knives/${other}/notes`, 'POST', {
+        body: 'Borrowed photo',
+        images: [photo],
+      }),
+      params(other),
+    )
+    expect(foreign.status).toBe(400)
+
+    // Removing the photo from the gallery drops it from the note too.
+    const cleared = await knifeRoute.PATCH(
+      jsonRequest(`http://localhost/api/knives/${knifeId}`, 'PATCH', {
+        images: [],
+      }),
+      params(knifeId),
+    )
+    expect(cleared.status).toBe(200)
+    const [note] = (await listNotes(knifeId)).notes
+    expect(note.images).toEqual([])
   })
 
   it('removes a knife’s notes when the knife is deleted', async () => {

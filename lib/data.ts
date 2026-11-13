@@ -236,6 +236,8 @@ export type KnifeNote = {
   id: number
   knifeId: string
   body: string
+  /** Photo paths attached to the note; each one is also in the knife's gallery. */
+  images: string[]
   notedAt: string
   createdAt: string
   updatedAt: string
@@ -244,11 +246,17 @@ export type KnifeNote = {
 export type KnifeNoteInput = {
   body: string
   notedAt?: string
+  /**
+   * Photos for the note: existing gallery paths of the same knife, or
+   * `data:image` URLs, which are saved and appended to the knife's gallery.
+   */
+  images?: string[]
 }
 
 export type KnifeNoteUpdate = Partial<KnifeNoteInput>
 
 export const KNIFE_NOTE_MAX_LENGTH = 10_000
+export const KNIFE_NOTE_MAX_IMAGES = 12
 
 export function isMaintenanceType(value: string): value is MaintenanceType {
   return (MAINTENANCE_TYPES as string[]).includes(value)

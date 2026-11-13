@@ -12,6 +12,7 @@ import {
   type AuditLogEvent,
   type MaintenanceEvent,
   type KnifeActivityEvent,
+  KNIFE_NOTE_MAX_IMAGES,
   type KnifeNote,
   isMaintenanceType,
 } from '@/lib/data'
@@ -515,7 +516,12 @@ function handle(request: Request, body: Record<string, unknown>) {
     if (!readSessionKnife(knifeId))
       return json({ error: 'Knife not found' }, 404)
     const list = (db.notes[knifeId] ??= [])
-    if (method === 'GET') return json({ notes: list })
+    const knife = readSessionKnife(knifeId)!
+    const inGallery = (note: KnifeNote) => ({
+      ...note,
+      images: (note.images ?? []).filter((src) => knife.images.includes(src)),
+    })
+    if (method === 'GET') return json({ notes: list.map(inGallery) })
     const existing =
       id === undefined ? undefined : list.find((n) => n.id === id)
     if (id !== undefined && !existing)
@@ -526,13 +532,33 @@ function handle(request: Request, body: Record<string, unknown>) {
       return json({ success: true })
     }
     const text =
-      typeof body.body === 'string' ? body.body.trim() : existing?.body
-    if (!text) return json({ error: 'Note text is required' }, 400)
+      typeof body.body === 'string' ? body.body.trim() : (existing?.body ?? '')
+    const images = Array.isArray(body.images)
+      ? Array.from(
+          new Set(
+            body.images.filter(
+              (src): src is string =>
+                typeof src === 'string' &&
+                (src.startsWith('data:image') || knife.images.includes(src)),
+            ),
+          ),
+        ).slice(0, KNIFE_NOTE_MAX_IMAGES)
+      : existing
+        ? inGallery(existing).images
+        : []
+    if (!text && images.length === 0)
+      return json({ error: 'Note text or a photo is required' }, 400)
+    // Uploaded photos join the knife's gallery; the session keeps them inline.
+    const uploads = images.filter((src) => !knife.images.includes(src))
+    const updatedKnife = uploads.length
+      ? updateKnife(knife, { images: [...knife.images, ...uploads] })
+      : undefined
     const now = new Date().toISOString()
     const note: KnifeNote = {
       id: id ?? Date.now(),
       knifeId,
       body: text,
+      images,
       notedAt:
         typeof body.notedAt === 'string' && body.notedAt
           ? body.notedAt
@@ -544,7 +570,10 @@ function handle(request: Request, body: Record<string, unknown>) {
       (a, b) => b.notedAt.localeCompare(a.notedAt) || b.id - a.id,
     )
     save()
-    return json({ note }, existing ? 200 : 201)
+    return json(
+      { note, ...(updatedKnife ? { knife: updatedKnife } : {}) },
+      existing ? 200 : 201,
+    )
   }
   const maintenance = path.match(
     /^\/api\/knives\/([^/]+)\/maintenance(?:\/([^/]+))?$/,

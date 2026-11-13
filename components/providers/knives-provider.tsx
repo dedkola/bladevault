@@ -68,6 +68,8 @@ type KnivesContextValue = {
   refreshVault: () => Promise<void>
   addKnife: (draft: KnifeDraft) => Promise<Knife>
   updateKnife: (id: string, updates: KnifeUpdates) => Promise<Knife>
+  /** Replaces a knife the server already saved (e.g. after a note added photos). */
+  syncKnife: (knife: Knife) => void
   bulkUpdateKnives: (
     ids: string[],
     field: BulkEditFieldKey,
@@ -698,6 +700,10 @@ export function KnivesProvider({
     [isAutoBackupConfigured, scheduleAutoBackup],
   )
 
+  const syncKnife = useCallback((knife: Knife) => {
+    setKnives((prev) => prev.map((k) => (k.id === knife.id ? knife : k)))
+  }, [])
+
   const bulkUpdateKnives = useCallback(
     async (
       ids: string[],
@@ -891,6 +897,7 @@ export function KnivesProvider({
       refreshVault,
       addKnife,
       updateKnife,
+      syncKnife,
       bulkUpdateKnives,
       bulkPinKnives,
       deleteKnife,
@@ -920,6 +927,7 @@ export function KnivesProvider({
       refreshVault,
       addKnife,
       updateKnife,
+      syncKnife,
       bulkUpdateKnives,
       bulkPinKnives,
       deleteKnife,

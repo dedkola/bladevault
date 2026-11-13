@@ -187,9 +187,10 @@ function buildHistoryRows(
     rows.push({
       key: `note-${note.id}`,
       label: 'Note',
-      detail: `${new Date(note.notedAt).toLocaleDateString()} · ${previewNote(
-        note.body,
-      )}`,
+      detail: `${new Date(note.notedAt).toLocaleDateString()} · ${
+        previewNote(note.body) ||
+        `${note.images?.length ?? 0} photo${note.images?.length === 1 ? '' : 's'}`
+      }`,
       day: startOfDay(note.notedAt),
       href: historyEntryHref(knife.id, note.createdAt),
     })
