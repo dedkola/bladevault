@@ -463,25 +463,15 @@ html[data-theme-style='alloy'] [data-alloy-global-search] [data-state='open'] {
   min-width: 0;
   margin-inline: auto;
 }
-[data-alloy-footer] {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 18px;
-  margin: 24px var(--alloy-gutter) 0;
-  border-top: 1px solid var(--border);
-  padding-block: 19px;
-  color: var(--muted-foreground);
-  font-size: 10px;
-}
-[data-alloy-footer] > span {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-[data-alloy-footer] svg {
-  width: 13px;
-  height: 13px;
+/* The shared compact footer stays pinned to the window edge, like Classic. */
+html[data-theme-style='alloy'] [data-alloy-shell] [data-workspace-footer] {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  flex: 0 0 auto;
+  min-height: 34px;
+  margin-top: 24px;
+  padding-inline: var(--alloy-gutter);
 }
 [data-alloy-header] :is(a, button):focus-visible,
 [data-alloy-library] :is(a, button):focus-visible,
@@ -1148,14 +1138,10 @@ html[data-theme-style='alloy'] [data-log-icon] > span {
   html[data-theme-style='alloy'] [data-logs-content] {
     padding-block: 25px;
   }
-  [data-alloy-footer] {
-    font-size: 9px;
-  }
 }
 @media print {
   [data-alloy-header],
-  [data-alloy-library],
-  [data-alloy-footer] {
+  [data-alloy-library] {
     display: none;
   }
   html[data-theme-style='alloy'] [data-alloy-shell] {
