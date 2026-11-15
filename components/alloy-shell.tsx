@@ -40,7 +40,7 @@ const links = [
 export function AlloyShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const params = useSearchParams()
-  const { knives, isLoading, isAutoBackupActive, showFeedback } = useKnives()
+  const { knives, isAutoBackupActive, showFeedback } = useKnives()
   const { active } = useComparisons()
   const { collections, error: collectionsError } = useSmartCollections()
   const { update, downloadUpdate } = useDesktopUpdates()
