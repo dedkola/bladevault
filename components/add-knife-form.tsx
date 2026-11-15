@@ -10,7 +10,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Loader2,
   Link2,
@@ -123,6 +123,24 @@ export function AddKnifeForm() {
   const [interactiveError, setInteractiveError] = useState<string | null>(null)
   const [customFields, setCustomFields] = useState<CustomField[]>([])
   const [isBatchOpen, setIsBatchOpen] = useState(false)
+  const searchParams = useSearchParams()
+  const startMode = searchParams.get('start')
+
+  const [handledStartMode, setHandledStartMode] = useState<string | null>(null)
+
+  // The sidebar's Add menu links here with ?start=batch or ?start=manual.
+  // Open that flow once, then drop the parameter so the menu works again.
+  if (startMode !== handledStartMode) {
+    setHandledStartMode(startMode)
+    if (startMode === 'batch') setIsBatchOpen(true)
+    else if (startMode === 'manual') setIsManual(true)
+  }
+
+  useEffect(() => {
+    if (startMode === 'batch' || startMode === 'manual') {
+      router.replace('/add', { scroll: false })
+    }
+  }, [startMode, router])
 
   useEffect(() => {
     let cancelled = false

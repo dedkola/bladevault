@@ -154,9 +154,147 @@ html:not([data-theme-style='modern'], [data-theme-style='alloy'])
   letter-spacing: -0.025em;
 }
 
+/* Add knife (Gilded split): an olive bar like the active nav item, with a
+ * gold hairline edge. The left part opens Add; the chevron opens a menu of
+ * other ways to add. */
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-add-split] {
+  --add-olive: var(--bladevault-nav-active-bg);
+  --add-olive-hover: #3a4120;
+  --add-olive-press: #252a12;
+  --add-ink: var(--bladevault-nav-active-fg);
+  --add-gold: #d6ad55;
+  --add-edge: rgb(200 156 61 / 70%);
+  --add-divider: rgb(214 173 85 / 35%);
+
+  height: 34px;
+  overflow: hidden;
+  border: 1px solid var(--add-edge);
+  border-radius: 9px;
+  background: var(--add-olive);
+  color: var(--add-ink);
+  box-shadow:
+    inset 0 1px 0 rgb(255 246 214 / 8%),
+    0 1px 2px rgb(46 52 23 / 18%);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+html.dark:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-add-split] {
+  --add-olive-hover: #363c1d;
+  --add-olive-press: #22260f;
+  --add-gold: #dcb465;
+  --add-edge: rgb(220 180 101 / 55%);
+  --add-divider: rgb(220 180 101 / 30%);
+
+  box-shadow: 0 1px 2px rgb(0 0 0 / 35%);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-add-split]:hover {
+  --add-edge: var(--add-gold);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-add-split]:has(:focus-visible) {
+  box-shadow:
+    0 0 0 2px var(--sidebar),
+    0 0 0 5px rgb(200 156 61 / 55%);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  :is([data-sidebar-add], [data-sidebar-add-menu]) {
+  height: 100%;
+  color: inherit;
+  background: transparent;
+  outline: none;
+  transition:
+    background-color 150ms ease,
+    transform 150ms ease;
+}
+
 html:not([data-theme-style='modern'], [data-theme-style='alloy'])
   [data-sidebar-add] {
-  height: 32px;
+  padding-inline: 12px 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-add]
+  svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--add-gold);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-add-menu] {
+  display: grid;
+  width: 34px;
+  flex-shrink: 0;
+  place-items: center;
+  border-left: 1px solid var(--add-divider);
+  color: var(--add-gold);
+  cursor: pointer;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-add-menu]
+  svg {
+  width: 15px;
+  height: 15px;
+  transition: transform 150ms ease;
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-add-menu][data-popup-open]
+  svg {
+  transform: rotate(180deg);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  :is([data-sidebar-add], [data-sidebar-add-menu]):hover,
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-add-menu][data-popup-open] {
+  background: var(--add-olive-hover);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  :is([data-sidebar-add], [data-sidebar-add-menu]):active {
+  background: var(--add-olive-press);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-add]:active {
+  transform: translateY(1px);
+}
+
+html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+  [data-sidebar-add-popup] {
+  border-radius: 10px;
+  box-shadow: var(--classic-shadow-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+    :is(
+      [data-sidebar-add-split],
+      [data-sidebar-add],
+      [data-sidebar-add-menu],
+      [data-sidebar-add-menu] svg
+    ) {
+    transition: none;
+  }
+
+  html:not([data-theme-style='modern'], [data-theme-style='alloy'])
+    [data-sidebar-add]:active {
+    transform: none;
+  }
 }
 
 html:not([data-theme-style='modern'], [data-theme-style='alloy'])
