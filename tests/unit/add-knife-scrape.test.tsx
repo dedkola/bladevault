@@ -17,7 +17,8 @@ import { EMPTY_KNIFE_FORM, KnifeScrapeEditor } from '@/components/knife-form'
 
 const { addKnife } = vi.hoisted(() => ({ addKnife: vi.fn() }))
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), back: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }))
 vi.mock('@/components/providers/knives-provider', () => ({
   useKnives: () => ({
