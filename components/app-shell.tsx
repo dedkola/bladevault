@@ -10,6 +10,7 @@ import { SidebarShell } from '@/components/sidebar-shell'
 import { AlloyShell } from '@/components/alloy-shell'
 import { AtriumShell } from '@/components/atrium/atrium-shell'
 import { ShelfShell } from '@/components/shelf/shelf-shell'
+import { LedgerShell } from '@/components/ledger/ledger-shell'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import { WorkspaceFooter } from '@/components/workspace-footer'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -35,6 +36,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
   if (themeStyle === 'shelf') {
     return <ShelfShell>{children}</ShelfShell>
+  }
+  if (themeStyle === 'ledger') {
+    return <LedgerShell>{children}</LedgerShell>
   }
   if (!isModernThemeFamily(themeStyle)) {
     return (

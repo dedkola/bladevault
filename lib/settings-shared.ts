@@ -11,6 +11,7 @@ export const THEME_STYLES = [
   'phosphor',
   'atrium',
   'shelf',
+  'ledger',
 ] as const
 /**
  * Forge, Titanium, Field, Lumen, Espresso, Phosphor and Atrium reuse the
@@ -26,6 +27,7 @@ export const MODERN_THEME_VARIANTS = [
   'phosphor',
   'atrium',
   'shelf',
+  'ledger',
 ] as const
 /** Display names for each style, shown in Settings and under the app logo. */
 export const THEME_STYLE_NAMES: Record<(typeof THEME_STYLES)[number], string> =
@@ -41,6 +43,7 @@ export const THEME_STYLE_NAMES: Record<(typeof THEME_STYLES)[number], string> =
     phosphor: 'Phosphor',
     atrium: 'Atrium',
     shelf: 'Shelf',
+    ledger: 'Ledger',
   }
 /** Styles that always render light and ignore the dark color mode. */
 export const LIGHT_ONLY_THEME_STYLES = ['lumen', 'espresso', 'atrium'] as const
@@ -345,6 +348,7 @@ export const THEME_COLORS: Record<ThemeStyle, { light: string; dark: string }> =
     phosphor: { light: '#0d0b08', dark: '#0d0b08' },
     atrium: { light: '#ffffff', dark: '#ffffff' },
     shelf: { light: '#f5f3ef', dark: '#141211' },
+    ledger: { light: '#123d2c', dark: '#0a120e' },
   }
 
 export function isLightOnlyThemeStyle(themeStyle: ThemeStyle): boolean {

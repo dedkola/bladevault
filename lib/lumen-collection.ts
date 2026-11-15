@@ -36,27 +36,39 @@ export function filterLumenKnives(
   )
 }
 
+const SEARCH_FIELDS: Record<string, (knife: Knife) => string | undefined> = {
+  brand: (knife) => knife.brand,
+  maker: (knife) => knife.brand,
+  model: (knife) => knife.specs.modelNumber,
+  style: (knife) => knife.bladeStyle,
+  steel: (knife) => knife.specs.bladeMaterial,
+  lock: (knife) => knife.specs.lockingMechanism,
+  handle: (knife) => knife.handleMaterial,
+}
+
 /**
  * Text search for the Lumen-based layouts. Every word must appear in the
  * knife's name, brand, model number, blade style, steel, lock or handle, so
- * "spyderco s30v" narrows to Spyderco knives in S30V.
+ * "spyderco s30v" narrows to Spyderco knives in S30V. A `field:value` word
+ * (steel, lock, brand, maker, style, handle, model) only checks that field.
  */
 export function matchesLumenSearch(knife: Knife, query: string): boolean {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean)
   if (!words.length) return true
-  const text = [
-    knife.name,
-    knife.brand,
-    knife.specs.modelNumber,
-    knife.bladeStyle,
-    knife.specs.bladeMaterial,
-    knife.specs.lockingMechanism,
-    knife.handleMaterial,
-  ]
+  const text = Object.values(SEARCH_FIELDS)
+    .concat((item) => item.name)
+    .map((getValue) => getValue(knife))
     .filter(Boolean)
     .join(' ')
     .toLowerCase()
-  return words.every((word) => text.includes(word))
+  return words.every((word) => {
+    const separator = word.indexOf(':')
+    const getField =
+      separator > 0 ? SEARCH_FIELDS[word.slice(0, separator)] : undefined
+    if (!getField) return text.includes(word)
+    const value = word.slice(separator + 1)
+    return (getField(knife) ?? '').toLowerCase().includes(value)
+  })
 }
 
 export function sortLumenKnives(

@@ -9,12 +9,19 @@ import './forge.css'
 import './lumen-shells.css'
 import './atrium.css'
 import './shelf.css'
+import './ledger.css'
 import { SmartCollectionsProvider } from '@/components/providers/smart-collections-provider'
 import { AppShell } from '@/components/app-shell'
 import { KnivesProvider } from '@/components/providers/knives-provider'
 import { DEFAULT_SETTINGS, getSettings } from '@/lib/settings'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { Fraunces, Geist, Geist_Mono, Space_Grotesk } from 'next/font/google'
+import {
+  Fraunces,
+  Geist,
+  Geist_Mono,
+  IBM_Plex_Mono,
+  Space_Grotesk,
+} from 'next/font/google'
 import localFont from 'next/font/local'
 import { cn } from '@/lib/utils'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
@@ -57,6 +64,13 @@ const shelfDisplay = Fraunces({
   variable: '--font-shelf-display',
   style: ['normal', 'italic'],
   axes: ['opsz'],
+  display: 'swap',
+  preload: false,
+})
+const ledgerMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  variable: '--font-ledger-mono',
+  weight: ['400', '500', '600'],
   display: 'swap',
   preload: false,
 })
@@ -152,6 +166,7 @@ export default async function RootLayout({
         alloyDisplay.variable,
         fieldDisplay.variable,
         shelfDisplay.variable,
+        ledgerMono.variable,
         'h-full',
         isDarkThemeActive(theme, themeStyle) && 'dark',
       )}

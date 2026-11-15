@@ -112,7 +112,8 @@ describe('theme families', () => {
     expect(getNextThemeStyle('espresso')).toBe('phosphor')
     expect(getNextThemeStyle('phosphor')).toBe('atrium')
     expect(getNextThemeStyle('atrium')).toBe('shelf')
-    expect(getNextThemeStyle('shelf')).toBe('classic')
+    expect(getNextThemeStyle('shelf')).toBe('ledger')
+    expect(getNextThemeStyle('ledger')).toBe('classic')
     expect(getNextThemeStyle('classic')).toBe('alloy')
     expect(getNextThemeStyle('alloy')).toBe('modern')
     expect(getNextThemeStyle('modern')).toBe('forge')
@@ -174,6 +175,14 @@ describe('Shelf', () => {
     expect(getThemePalette('shelf')).toBeUndefined()
     expect(isDarkThemeActive('dark', 'shelf')).toBe(true)
     expect(isDarkThemeActive('light', 'shelf')).toBe(false)
+  })
+})
+
+describe('Ledger', () => {
+  it('uses its own palette and follows the saved light or dark mode', () => {
+    expect(getThemePalette('ledger')).toBeUndefined()
+    expect(isDarkThemeActive('dark', 'ledger')).toBe(true)
+    expect(isDarkThemeActive('light', 'ledger')).toBe(false)
   })
 })
 
