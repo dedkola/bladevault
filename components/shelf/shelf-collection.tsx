@@ -630,6 +630,13 @@ function ShelfFocus({
   const knife = useKnifeDetail(summary)
   const [photo, setPhoto] = useState<{ id: string; index: number } | null>(null)
   const photoIndex = photo && photo.id === knife?.id ? photo.index : 0
+  const textRef = useRef<HTMLDivElement>(null)
+  const knifeId = knife?.id
+
+  // Stepping to another knife starts its details from the top.
+  useEffect(() => {
+    textRef.current?.scrollTo({ top: 0 })
+  }, [knifeId])
 
   return (
     <Dialog.Root
@@ -642,8 +649,17 @@ function ShelfFocus({
         <Dialog.Popup
           data-shelf-focus
           onKeyDown={(event) => {
-            if (event.key === 'ArrowLeft' && hasPrevious) onStep(-1)
-            if (event.key === 'ArrowRight' && hasNext) onStep(1)
+            // Tabs, fields and other widgets keep their own arrow keys.
+            if (event.defaultPrevented || isEditableTarget(event.target)) return
+            const delta =
+              event.key === 'ArrowLeft' && hasPrevious
+                ? -1
+                : event.key === 'ArrowRight' && hasNext
+                  ? 1
+                  : 0
+            if (!delta) return
+            event.preventDefault()
+            onStep(delta)
           }}
         >
           {knife && (
@@ -672,7 +688,7 @@ function ShelfFocus({
                   </div>
                 )}
               </div>
-              <div data-shelf-focus-text>
+              <div data-shelf-focus-text ref={textRef}>
                 <p data-shelf-eyebrow>{knife.brand}</p>
                 <Dialog.Title data-shelf-focus-title>{knife.name}</Dialog.Title>
                 <p data-shelf-by>
@@ -766,7 +782,13 @@ function ShelfFocus({
                   </Link>
                 </div>
                 <div data-shelf-focus-tabs>
-                  <InspectorTabs knife={knife} dimensionUnit={dimensionUnit} />
+                  {/* The focus view already shows the maker, steel, lock,
+                      sizes and price, so use the compact overview. */}
+                  <InspectorTabs
+                    knife={knife}
+                    variant="atrium"
+                    dimensionUnit={dimensionUnit}
+                  />
                 </div>
                 <div data-shelf-focus-nav>
                   <button
@@ -797,6 +819,14 @@ function ShelfFocus({
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>
+  )
+}
+
+function isEditableTarget(target: EventTarget) {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable ||
+      target.matches('input, textarea, select, [role="slider"]'))
   )
 }
 

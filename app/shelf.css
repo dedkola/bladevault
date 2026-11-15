@@ -240,9 +240,44 @@ html[data-theme-variant='shelf'].dark {
 /* Shell ------------------------------------------------------------- */
 
 html[data-theme-variant='shelf'] [data-lumen-shell='shelf'] {
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) 34px;
   background: var(--shelf-page);
   color: var(--shelf-ink);
+}
+
+/* The shared footer, set as the catalogue's colophon: a hairline, small
+ * muted type and the theme switcher on the right. */
+html[data-theme-variant='shelf']
+  [data-lumen-shell='shelf']
+  [data-workspace-footer] {
+  border-top-color: var(--shelf-line);
+  background: var(--shelf-page);
+  color: var(--shelf-muted);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+}
+
+html[data-theme-variant='shelf']
+  [data-lumen-shell='shelf']
+  [data-workspace-footer]
+  :is(button, [data-theme-cycle]):hover {
+  color: var(--shelf-ink);
+}
+
+html[data-theme-variant='shelf']
+  [data-lumen-shell='shelf']
+  [data-workspace-footer]
+  [data-theme-cycle]:hover {
+  background: var(--shelf-hover);
+}
+
+html[data-theme-variant='shelf']
+  [data-lumen-shell='shelf']
+  [data-workspace-footer]
+  kbd {
+  border-color: var(--shelf-line);
+  background: var(--shelf-surface);
+  color: var(--shelf-muted);
 }
 
 html[data-theme-variant='shelf']
@@ -422,8 +457,14 @@ html[data-theme-variant='shelf']
     sans-serif;
 }
 
-[data-shelf-icon-button] {
+/* Studio's showcase and focus buttons join the masthead as icon buttons. */
+[data-shelf-icon-button],
+html[data-theme-variant='shelf']
+  [data-shelf-mast-actions]
+  #studio-header-actions
+  > button {
   display: grid;
+  flex: none;
   place-items: center;
   width: 38px;
   height: 38px;
@@ -435,11 +476,20 @@ html[data-theme-variant='shelf']
 }
 
 [data-shelf-icon-button]:hover,
+html[data-theme-variant='shelf']
+  [data-shelf-mast-actions]
+  #studio-header-actions
+  > button:hover,
 [data-shelf-icon-button][aria-current='page'] {
   background: var(--shelf-hover);
 }
 
-[data-shelf-icon-button] svg {
+[data-shelf-icon-button] svg,
+html[data-theme-variant='shelf']
+  [data-shelf-mast-actions]
+  #studio-header-actions
+  > button
+  svg {
   width: 16px;
   height: 16px;
 }
@@ -455,6 +505,12 @@ html[data-theme-variant='shelf']
   font-weight: 550;
   white-space: nowrap;
   transition: background-color 160ms;
+}
+
+[data-shelf-add] svg {
+  display: none;
+  width: 17px;
+  height: 17px;
 }
 
 [data-shelf-add]:hover {
@@ -514,6 +570,10 @@ html[data-theme-variant='shelf']
 :is(
   [data-shelf-button],
   [data-shelf-icon-button],
+  html[data-theme-variant='shelf']
+    [data-shelf-mast-actions]
+    #studio-header-actions
+    > button,
   [data-shelf-add],
   [data-shelf-cmd],
   [data-shelf-nav] a,
@@ -660,14 +720,15 @@ html[data-theme-variant='shelf']
   font-size: 12px;
 }
 
+/* Values wrap rather than clip, so both units of a length stay readable. */
 [data-shelf-strip] dd {
   margin: 2px 0 0;
-  overflow: hidden;
   font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.02em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 [data-shelf-actions] {
@@ -1203,11 +1264,15 @@ html[data-theme-variant='shelf']
   mix-blend-mode: multiply;
 }
 
+/* Back sits on the lit plate, which stays light in dark mode, so it gets
+ * its own surface to stay readable. */
 [data-shelf-focus-back] {
   position: absolute;
   top: 20px;
   left: 20px;
   z-index: 1;
+  border-color: var(--shelf-line-strong);
+  background: var(--shelf-surface);
 }
 
 [data-shelf-focus-art] > [data-shelf-dots] {
@@ -1450,6 +1515,15 @@ html[data-theme-variant='shelf'] body {
   font-feature-settings: 'cv11';
 }
 
+/* After a page change Next scrolls the new page into view. The masthead
+ * scrolls with the page, so a tall scroll margin keeps it in view too. */
+html[data-theme-variant='shelf']
+  [data-lumen-shell='shelf']
+  main
+  > :not([data-shelf-mast]) {
+  scroll-margin-top: 100vh;
+}
+
 /* Pages below the masthead share its margins. */
 html[data-theme-variant='shelf']
   [data-lumen-shell='shelf']
@@ -1574,11 +1648,12 @@ html[data-theme-variant='shelf'] [data-detail-section] > h3 {
 }
 
 /* History: dates as italic serif headings, entries on hairlines. */
-html[data-theme-variant='shelf'] [data-logs-date] {
+html[data-theme-variant='shelf'] [data-modern-logs] [data-log-day] > th {
   color: var(--shelf-ink);
   font-family: var(--shelf-serif);
   font-size: 15px;
   font-style: italic;
+  font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
 }
@@ -1587,15 +1662,20 @@ html[data-theme-variant='shelf'] [data-log-entry]:hover {
   background: var(--shelf-hover);
 }
 
-html[data-theme-variant='shelf'] [data-logs-summary] dd {
-  font-family: var(--shelf-serif);
-  font-weight: 500;
-}
-
-/* Insights headline numbers in the display serif. */
-html[data-theme-variant='shelf'] [data-modern-insights] :is(dd, strong) {
+html[data-theme-variant='shelf'] [data-modern-logs] [data-logs-summary] dd {
   font-family: var(--shelf-serif);
   font-optical-sizing: auto;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+/* Insights headline numbers in the display serif, not Forge's mono. */
+html[data-theme-variant='shelf']
+  [data-modern-insights]
+  :is(dd, strong, [class*='metricValue'], [class*='chartValue']) {
+  font-family: var(--shelf-serif);
+  font-optical-sizing: auto;
+  letter-spacing: -0.02em;
 }
 
 /* Settings rail: the open section is marked with an oxblood rule. */
@@ -1767,12 +1847,42 @@ html[data-theme-variant='shelf'] [data-lumen-photo] > [data-lumen-photo-empty] {
   }
 }
 
+/* Phones: search and Add knife become round icon buttons, so light/dark
+ * and Settings keep their place in the masthead. */
 @media (max-width: 420px) {
-  [data-shelf-add] {
-    padding: 0 12px;
+  [data-shelf-mast] {
+    gap: 12px 10px;
   }
 
-  [data-shelf-icon-button] {
+  [data-shelf-mast-actions] {
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  [data-shelf-cmd],
+  [data-shelf-add] {
+    flex: none;
+    justify-content: center;
+    width: 38px;
+    padding: 0;
+  }
+
+  [data-shelf-cmd] span,
+  [data-shelf-add] span {
+    display: none;
+  }
+
+  [data-shelf-add] svg {
+    display: block;
+  }
+
+  /* Studio adds two buttons; the wordmark steps aside for them. */
+  [data-shelf-mast]:has(#studio-header-actions) [data-shelf-logo] {
+    min-width: 24px;
+    min-height: 38px;
+  }
+
+  [data-shelf-mast]:has(#studio-header-actions) [data-shelf-logo] span {
     display: none;
   }
 }

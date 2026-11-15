@@ -4,11 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Dialog } from '@base-ui/react/dialog'
-import { ArrowRight, Search, Settings } from 'lucide-react'
+import { ArrowRight, Plus, Search, Settings } from 'lucide-react'
 import { OPEN_GLOBAL_SEARCH_EVENT } from '@/components/global-knife-search'
 import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
-import { ThemeCycleButton } from '@/components/theme-cycle-button'
 import { ThemeModeButton } from '@/components/theme-mode-button'
+import { WorkspaceFooter } from '@/components/workspace-footer'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useComparisons } from '@/components/providers/comparisons-provider'
@@ -38,7 +38,8 @@ function shelfFocusHref(id: string) {
 
 /**
  * Shelf: a collector's catalogue. A masthead with text navigation, a command
- * palette (⌘K) for search and actions, and full-width pages below.
+ * palette (⌘K) for search and actions, full-width pages below and the shared
+ * workspace footer, which carries the theme switcher.
  */
 export function ShelfShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -149,7 +150,6 @@ export function ShelfShell({ children }: { children: React.ReactNode }) {
                 <kbd aria-hidden="true">⌘K</kbd>
               </button>
               <ThemeModeButton data-shelf-icon-button="" />
-              <ThemeCycleButton data-shelf-icon-button="" />
               <Link
                 href="/settings"
                 data-shelf-icon-button
@@ -158,8 +158,9 @@ export function ShelfShell({ children }: { children: React.ReactNode }) {
               >
                 <Settings aria-hidden="true" />
               </Link>
-              <Link href="/add" data-shelf-add>
-                Add knife
+              <Link href="/add" data-shelf-add aria-label="Add knife">
+                <Plus aria-hidden="true" />
+                <span>Add knife</span>
               </Link>
             </div>
           </header>
@@ -168,6 +169,7 @@ export function ShelfShell({ children }: { children: React.ReactNode }) {
           </WorkspaceHeaderActionsContext.Provider>
         </main>
       </div>
+      <WorkspaceFooter />
       <ShelfPalette
         open={isPaletteOpen}
         onOpenChange={setIsPaletteOpen}
