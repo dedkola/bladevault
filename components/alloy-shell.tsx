@@ -10,7 +10,6 @@ import {
   Cloud,
   CloudOff,
   Download,
-  HardDrive,
   Loader2,
   Moon,
   Pin,
@@ -23,6 +22,7 @@ import { useComparisons } from '@/components/providers/comparisons-provider'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useSmartCollections } from '@/components/providers/smart-collections-provider'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
+import { WorkspaceFooter } from '@/components/workspace-footer'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
 import { readJsonResponse } from '@/lib/api-response'
@@ -296,17 +296,7 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
           {children}
         </WorkspaceHeaderActionsContext.Provider>
       </main>
-      <footer data-alloy-footer>
-        <span>
-          <HardDrive />
-          {isLoading
-            ? 'Loading collection…'
-            : `${knives.length} ${knives.length === 1 ? 'knife' : 'knives'} in your vault`}
-        </span>
-        <span>
-          BladeVault <span aria-hidden="true">/</span> Alloy
-        </span>
-      </footer>
+      <WorkspaceFooter />
     </div>
   )
 }
