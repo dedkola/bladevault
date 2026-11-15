@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Dialog } from '@base-ui/react/dialog'
 import {
@@ -23,6 +23,8 @@ import { useKnifeDetail } from '@/components/lumen/use-knife-detail'
 import { useLocalPreference } from '@/components/lumen/use-local-preference'
 import { InspectorTabs } from '@/components/inspector-tabs'
 import type { Knife } from '@/lib/data'
+import { getSafeExternalUrl } from '@/lib/external-url'
+import { isEditableKeyTarget, usesArrowKeys } from '@/lib/keyboard-targets'
 import { formatDimension, formatWeight } from '@/lib/measurements'
 import type { CollectionDisplay } from '@/lib/settings-shared'
 import {
@@ -440,6 +442,28 @@ function AtriumSheet({
   const photoIndex = photo && photo.id === knife?.id ? photo.index : 0
   const images = knife?.images ?? []
   const image = images[photoIndex] ?? images[0]
+  const sourceUrl = getSafeExternalUrl(knife?.sourceUrl)
+  const thumbStripRef = useRef<HTMLDivElement>(null)
+
+  // Keep the selected thumbnail visible when arrow keys step past the strip.
+  useEffect(() => {
+    const strip = thumbStripRef.current
+    const thumb = strip?.children[photoIndex] as HTMLElement | undefined
+    if (!strip || !thumb) return
+    const left =
+      thumb.getBoundingClientRect().left -
+      strip.getBoundingClientRect().left +
+      strip.scrollLeft
+    if (left < strip.scrollLeft) {
+      strip.scrollLeft = left - 8
+    } else if (
+      left + thumb.offsetWidth >
+      strip.scrollLeft + strip.clientWidth
+    ) {
+      strip.scrollLeft = left + thumb.offsetWidth - strip.clientWidth + 8
+    }
+  }, [photoIndex, knife?.id])
+
   const stepPhoto = (delta: number) => {
     if (!knife || images.length < 2) return
     setPhoto({
@@ -461,7 +485,19 @@ function AtriumSheet({
           data-atrium-sheet
           finalFocus={returnFocus}
           onKeyDown={(event) => {
-            if (event.target instanceof HTMLInputElement) return
+            if (
+              event.defaultPrevented ||
+              event.altKey ||
+              event.ctrlKey ||
+              event.metaKey ||
+              isEditableKeyTarget(event.target)
+            ) {
+              return
+            }
+            // Tabs, menus and lists inside the sheet use the arrows themselves.
+            if (event.key.startsWith('Arrow') && usesArrowKeys(event.target)) {
+              return
+            }
             if (event.key === 'j' || event.key === 'ArrowDown') {
               event.preventDefault()
               onStep(1)
@@ -544,8 +580,13 @@ function AtriumSheet({
                   )}
                 </div>
                 {images.length > 1 && (
-                  <div data-atrium-thumbs role="group" aria-label="Photos">
-                    {images.slice(0, 8).map((path, index) => (
+                  <div
+                    ref={thumbStripRef}
+                    data-atrium-thumbs
+                    role="group"
+                    aria-label="Photos"
+                  >
+                    {images.map((path, index) => (
                       <button
                         key={`${path}-${index}`}
                         type="button"
@@ -593,9 +634,9 @@ function AtriumSheet({
                       ? 'In comparison'
                       : 'Add to compare'}
                   </button>
-                  {knife.sourceUrl && (
+                  {sourceUrl && (
                     <a
-                      href={knife.sourceUrl}
+                      href={sourceUrl}
                       target="_blank"
                       rel="noreferrer"
                       data-atrium-button

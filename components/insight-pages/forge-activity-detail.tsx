@@ -9,6 +9,8 @@ import {
 } from '@/components/insight-pages/detail-primitives'
 import type { ActivityDay, CollectionStats } from '@/lib/collection-stats'
 import { getImageUrl, type Knife, type KnifeActivityEvent } from '@/lib/data'
+import type { TimeFormat } from '@/lib/settings-shared'
+import { getHourCycle } from '@/lib/time-format'
 import styles from './forge-activity-detail.module.css'
 
 type Totals = { added: number; edited: number; maintained: number }
@@ -94,11 +96,13 @@ export function ForgeActivityDetail({
   events,
   knivesById,
   onSelect,
+  timeFormat,
 }: {
   stats: CollectionStats
   events?: KnifeActivityEvent[]
   knivesById: Map<string, Knife>
   onSelect: (selection: InsightSelection) => void
+  timeFormat: TimeFormat
 }) {
   const days = stats.activity
 
@@ -204,6 +208,7 @@ export function ForgeActivityDetail({
   const formatHour = (hour: number) =>
     new Date(2000, 0, 1, hour).toLocaleTimeString(undefined, {
       hour: 'numeric',
+      hourCycle: getHourCycle(timeFormat),
     })
 
   const facts = [

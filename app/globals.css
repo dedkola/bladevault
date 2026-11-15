@@ -2538,6 +2538,9 @@ html[data-theme-style='modern']
   overflow: hidden;
 }
 [data-workspace-body] > main {
+  /* Contains absolutely positioned content (such as sr-only text) so it
+     scrolls with the page instead of stretching the document past the shell. */
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -2927,4 +2930,12 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   span {
   padding: 3px 9px;
   font-size: 11px;
+}
+
+/* Keyboard shortcut hints mean nothing on a touch-only screen. */
+@media (hover: none) and (pointer: coarse) {
+  [data-workspace-footer] kbd,
+  [data-lumen-kbd] {
+    display: none !important;
+  }
 }

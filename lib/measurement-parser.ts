@@ -88,3 +88,17 @@ export function parseWeightToGrams(value: string): number | undefined {
   const ounces = parseWeightToOunces(value)
   return ounces === undefined ? undefined : ounces * GRAMS_PER_OUNCE
 }
+
+/** True when the text states the value in this unit rather than another one. */
+export function statesMeasurementUnit(
+  value: string,
+  unit: 'in' | 'mm' | 'g' | 'oz',
+): boolean {
+  const pattern = {
+    in: MEASUREMENT_PATTERNS.inches,
+    mm: MEASUREMENT_PATTERNS.millimeters,
+    g: MEASUREMENT_PATTERNS.grams,
+    oz: MEASUREMENT_PATTERNS.ounces,
+  }[unit]
+  return matchMeasurement(value, pattern) !== undefined
+}

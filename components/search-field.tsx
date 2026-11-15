@@ -55,7 +55,7 @@ export function SearchField({
             <X className="h-3.5 w-3.5" />
           </button>
         ) : shortcutHint ? (
-          <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-border/80 bg-muted/60 px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground sm:inline-flex">
+          <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-border/80 bg-muted/60 px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground sm:inline-flex pointer-coarse:hidden!">
             {shortcutHint}
           </kbd>
         ) : null}
