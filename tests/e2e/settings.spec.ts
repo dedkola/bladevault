@@ -110,7 +110,21 @@ test('cycles theme styles from the Modern footer', async ({
   ).toHaveCount(0)
   await expect(themeButton).toHaveAttribute(
     'title',
-    'Switch theme · Atrium → Classic',
+    'Switch theme · Atrium → Shelf',
+  )
+
+  // Shelf also keeps the switch button in the shared footer, not its masthead.
+  await themeButton.click()
+  await expect(html).toHaveAttribute('data-theme-variant', 'shelf')
+  await expect(
+    page.locator('[data-workspace-footer] [data-theme-cycle]'),
+  ).toBeVisible()
+  await expect(
+    page.locator('[data-shelf-mast] [data-theme-cycle]'),
+  ).toHaveCount(0)
+  await expect(themeButton).toHaveAttribute(
+    'title',
+    'Switch theme · Shelf → Classic',
   )
 
   await themeButton.click()

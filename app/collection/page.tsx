@@ -2,6 +2,7 @@
 
 import { ForgeCollectionGrid } from '@/components/forge-collection'
 import { AtriumCollection } from '@/components/atrium/atrium-collection'
+import { ShelfCollection } from '@/components/shelf/shelf-collection'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 
 import {
@@ -58,7 +59,6 @@ import { Knife, prioritizePinnedKnives } from '@/lib/data'
 import { getKnifeFamilyKey, groupKnifeFamilies } from '@/lib/knife-families'
 import {
   type CollectionDisplay,
-  type CustomFieldType,
   getModernThemeVariant,
   isModernThemeFamily,
 } from '@/lib/settings-shared'
@@ -82,6 +82,11 @@ import {
   getFilterOptionLabel,
   NOT_SET_FILTER_VALUE,
 } from '@/lib/collection-filters'
+import {
+  buildChipFilterFields,
+  formatCustomFilterValue,
+  sortFilterOptions,
+} from '@/lib/chip-filter-fields'
 
 const ALLOY_VIEW_KEY = 'bladevault-alloy-collection-view'
 const ALLOY_VIEW_EVENT = 'bladevault:alloy-collection-view'
@@ -118,31 +123,6 @@ function isCustomFilterKey(key: string): key is CustomFilterKey {
 
 function customFilterKeyToFieldId(key: string): string {
   return key.slice('custom:'.length)
-}
-
-function formatCustomFilterValue(value: string, type: CustomFieldType): string {
-  if (type !== 'date' || !value) return value
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: 'medium',
-    }).format(new Date(value))
-  } catch {
-    return value
-  }
-}
-
-function sortFilterOptions(options: string[], type: CustomFieldType): string[] {
-  if (type === 'number') {
-    return [...options].sort((left, right) => {
-      const leftNumber = Number.parseFloat(left)
-      const rightNumber = Number.parseFloat(right)
-      if (!Number.isNaN(leftNumber) && !Number.isNaN(rightNumber)) {
-        return leftNumber - rightNumber
-      }
-      return left.localeCompare(right)
-    })
-  }
-  return [...options].sort((left, right) => left.localeCompare(right))
 }
 
 function CollectionContent() {
@@ -465,44 +445,11 @@ function CollectionContent() {
     return result
   }, [knives, filterDefinitions, customFieldDefinitions])
 
-  const chipFilterFields = useMemo<ChipFilterField[]>(() => {
-    if (!isLumen) return []
-    return filterDefinitions.map((definition) => {
-      const counts = new Map<string, number>()
-      for (const knife of knives) {
-        const value = definition.getValue(knife)
-        const key = value && value.trim() ? value : NOT_SET_FILTER_VALUE
-        counts.set(key, (counts.get(key) ?? 0) + 1)
-      }
-      const type = isCustomFilterKey(definition.key)
-        ? (customFieldDefinitions.find(
-            (item) => item.id === customFilterKeyToFieldId(definition.key),
-          )?.type ?? 'text')
-        : 'text'
-      return {
-        key: definition.key,
-        label: definition.label,
-        custom: isCustomFilterKey(definition.key),
-        rangeUnit: rangeDefinitions.find(
-          (field) => field.key === definition.key,
-        )?.unit,
-        options: optionsByFilter[definition.key].map((value) => ({
-          value,
-          label:
-            value === NOT_SET_FILTER_VALUE
-              ? getFilterOptionLabel(value)
-              : formatCustomFilterValue(value, type),
-          count: counts.get(value) ?? 0,
-        })),
-      }
-    })
-  }, [
-    isLumen,
-    knives,
-    filterDefinitions,
-    optionsByFilter,
-    customFieldDefinitions,
-  ])
+  const chipFilterFields = useMemo<ChipFilterField[]>(
+    () =>
+      isLumen ? buildChipFilterFields(knives, customFieldDefinitions) : [],
+    [isLumen, knives, customFieldDefinitions],
+  )
 
   const filteredKnives = useMemo(() => {
     const params = new URLSearchParams(searchParamsKey)
@@ -1804,5 +1751,6 @@ export default function CollectionPage() {
 function ThemedCollection() {
   const { themeStyle } = useKnives()
   if (themeStyle === 'atrium') return <AtriumCollection />
+  if (themeStyle === 'shelf') return <ShelfCollection />
   return <CollectionContent />
 }
