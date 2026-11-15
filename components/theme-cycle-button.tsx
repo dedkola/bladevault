@@ -23,7 +23,7 @@ function applyThemeStyle(themeStyle: ThemeStyle) {
 }
 
 /**
- * Cycles through the Modern-family styles plus the default Classic style.
+ * Cycles through every style; each shell shows it in its footer.
  * Clicks update the shell right away and queue saves so a later click always
  * wins over an earlier response.
  */

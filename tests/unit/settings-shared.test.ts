@@ -18,6 +18,8 @@ import {
   isModernThemeFamily,
   readThemeStyleFromElement,
   normalizeDimensionUnit,
+  QUICK_SWITCH_THEME_STYLES,
+  THEME_STYLES,
 } from '@/lib/settings-shared'
 
 describe('normalizeCardFields', () => {
@@ -105,19 +107,22 @@ describe('theme families', () => {
     expect(readThemeStyleFromElement(element)).toBe('alloy')
   })
 
-  it('cycles the quick switcher through Modern-family and default styles', () => {
+  it('cycles the quick switcher through every style', () => {
     expect(getNextThemeStyle('lumen')).toBe('espresso')
     expect(getNextThemeStyle('espresso')).toBe('phosphor')
     expect(getNextThemeStyle('phosphor')).toBe('atrium')
     expect(getNextThemeStyle('atrium')).toBe('classic')
-    expect(getNextThemeStyle('classic')).toBe('modern')
+    expect(getNextThemeStyle('classic')).toBe('alloy')
+    expect(getNextThemeStyle('alloy')).toBe('modern')
     expect(getNextThemeStyle('modern')).toBe('forge')
     expect(getNextThemeStyle('forge')).toBe('titanium')
     expect(getNextThemeStyle('field')).toBe('lumen')
   })
 
-  it('starts the quick switcher at Modern from the Alloy shell', () => {
-    expect(getNextThemeStyle('alloy')).toBe('modern')
+  it('includes every style in the quick switcher', () => {
+    expect([...QUICK_SWITCH_THEME_STYLES].sort()).toEqual(
+      [...THEME_STYLES].sort(),
+    )
   })
 })
 

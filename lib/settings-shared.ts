@@ -63,15 +63,14 @@ export type ThemeFamily = 'classic' | 'modern' | 'alloy'
 export type TimeFormat = (typeof TIME_FORMATS)[number]
 
 /**
- * Styles the theme quick switcher cycles through: Modern, its variants
- * (Atrium included, which shows the switcher in its top bar instead of a
- * footer) and Classic. Alloy has its own controls, so it stays out of the
- * rotation.
+ * Styles the footer's theme quick switcher cycles through: every style, in
+ * the order Modern, its variants, Classic, Alloy.
  */
 export const QUICK_SWITCH_THEME_STYLES: readonly ThemeStyle[] = [
   'modern',
   ...MODERN_THEME_VARIANTS,
   'classic',
+  'alloy',
 ]
 
 export const CARD_FIELDS = [
@@ -310,7 +309,7 @@ export function getModernThemeVariant(
     : undefined
 }
 
-/** Next style in the header's quick-switch cycle. */
+/** Next style in the footer's quick-switch cycle. */
 export function getNextThemeStyle(themeStyle: ThemeStyle): ThemeStyle {
   const index = QUICK_SWITCH_THEME_STYLES.indexOf(themeStyle)
   return QUICK_SWITCH_THEME_STYLES[
