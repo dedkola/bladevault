@@ -255,8 +255,8 @@ export function InspectorTabs({
 }: {
   knife: Knife
   /**
-   * `atrium` drops overview rows and chips the Atrium sheet already shows in
-   * its title, subtitle and spec grid.
+   * `atrium` drops overview rows and chips that the Atrium sheet and the
+   * Shelf focus view already show in their title, subtitle and spec grid.
    */
   variant?: 'modern' | 'alloy' | 'atrium'
   dimensionUnit?: DimensionUnit
