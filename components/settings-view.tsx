@@ -2082,7 +2082,11 @@ export default function SettingsView() {
                   </SettingsSection>
                   <SettingsSection
                     title="Card fields"
-                    description="Choose any structured or custom details to show on knife cards."
+                    description={
+                      settings.themeStyle === 'ledger'
+                        ? 'Choose any structured or custom details to show on knife cards. In Ledger they are the list columns, in the order you pick them, as many as fit the window.'
+                        : 'Choose any structured or custom details to show on knife cards.'
+                    }
                     className="settings-card-fields"
                   >
                     <div className="settings-card-fields-layout grid items-start gap-4 py-4">

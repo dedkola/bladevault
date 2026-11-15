@@ -19,15 +19,28 @@ test('steps through the ledger and acts on the selected knife from the keyboard'
     brand: 'Zeta',
     specs: { bladeMaterial: 'S30V', lockingMechanism: 'AXIS' },
   })
-  await request.post('/api/settings', { data: { themeStyle: 'ledger' } })
+  // The list columns follow Settings > Card fields, in that order.
+  await request.post('/api/settings', {
+    data: {
+      themeStyle: 'ledger',
+      cardFields: ['specs.bladeMaterial', 'specs.price'],
+    },
+  })
 
   await page.goto('/collection')
   const title = page.locator('[data-ledger-title]')
   await expect(title).toHaveText('Ledger Alpha')
-  // The money column shows a compact price that fits.
-  await expect(
-    page.locator('[data-ledger-row] [data-ledger-num]').first(),
-  ).toHaveText('$69.99')
+  await expect(page.locator('[data-ledger-colhead] span')).toHaveText([
+    'Name',
+    'Steel',
+    'Price',
+  ])
+  // Prices are shortened to fit the column.
+  const firstRowCells = page
+    .locator('[data-ledger-row]')
+    .first()
+    .locator('[data-ledger-cell]')
+  await expect(firstRowCells).toHaveText(['MagnaCut', '$69.99'])
 
   // J and K move the selection and keep keyboard focus on the row.
   await page.keyboard.press('j')

@@ -1,8 +1,9 @@
 /* ------------------------------------------------------------------ */
-/* Ledger: a bound account book. Cloth-green covers, green-bar paper,  */
-/* a red-ink margin rule and mono figures. Header index tabs replace   */
-/* the sidebar; Collection is a grouped list beside a full document for */
-/* the selected knife, driven from the keyboard. Light and dark.       */
+/* Ledger: a bound account book. Cloth-green covers, green-bar paper   */
+/* and mono figures. Header index tabs replace the sidebar; Collection */
+/* is a grouped list, with the card fields from Settings as columns,   */
+/* beside a full document for the selected knife, driven from the      */
+/* keyboard. Light and dark.                                           */
 /* ------------------------------------------------------------------ */
 
 html[data-theme-variant='ledger'] {
@@ -31,7 +32,6 @@ html[data-theme-variant='ledger'] {
   --ledger-accent-ink: #17573a;
   --ledger-red: #b4362c;
   --ledger-red-soft: rgb(180 54 44 / 8%);
-  --ledger-rule: rgb(180 54 44 / 38%);
   --ledger-ok: #2f8f5b;
   --ledger-mono:
     var(--font-ledger-mono), var(--font-mono), ui-monospace, 'SF Mono', Menlo,
@@ -161,7 +161,6 @@ html[data-theme-variant='ledger'].dark {
   --ledger-accent-ink: #7fd7a8;
   --ledger-red: #e5786c;
   --ledger-red-soft: rgb(229 120 108 / 10%);
-  --ledger-rule: rgb(229 120 108 / 34%);
   --ledger-ok: #4fbf88;
   --ledger-shadow: none;
   --ledger-pop: 0 18px 44px -18px rgb(0 0 0 / 70%);
@@ -806,9 +805,14 @@ html[data-theme-variant='ledger']
 
 /* Collection split -------------------------------------------------- */
 
+/* The list grows with the number of field columns chosen in Settings
+ * (--ledger-list-width, set by the page), but leaves the document at
+ * least 42% of the width. */
 [data-ledger-split] {
   display: grid;
-  grid-template-columns: minmax(380px, 440px) minmax(0, 1fr);
+  grid-template-columns:
+    minmax(380px, min(var(--ledger-list-width, 440px), 58%))
+    minmax(0, 1fr);
   flex: 1;
   height: 100%;
   min-height: 0;
@@ -889,18 +893,15 @@ html[data-theme-variant='ledger']
   color: var(--ledger-accent-ink);
 }
 
+/* Field columns come from Settings > Card fields; the page sets
+ * --ledger-field-cols to one track per chosen field. */
 [data-ledger-colhead] {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 96px 64px;
-  gap: 8px;
-  padding: 7px 12px 6px 64px;
+  grid-template-columns: minmax(110px, 1fr) var(--ledger-field-cols,);
+  gap: 8px 14px;
+  padding: 7px 12px 6px 71px;
   border-bottom: 1px solid var(--ledger-line-strong);
-  background:
-    linear-gradient(var(--ledger-rule), var(--ledger-rule)) right 78px top 0 /
-      1px 100% no-repeat,
-    linear-gradient(var(--ledger-rule), var(--ledger-rule)) right 81px top 0 /
-      1px 100% no-repeat,
-    var(--ledger-surface);
+  background: var(--ledger-surface);
   color: var(--ledger-muted);
   font-family: var(--ledger-mono);
   font-size: 10.5px;
@@ -909,7 +910,13 @@ html[data-theme-variant='ledger']
   text-transform: uppercase;
 }
 
-[data-ledger-colhead] span:not(:first-child) {
+[data-ledger-colhead] span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-ledger-colhead] [data-numeric] {
   text-align: right;
 }
 
@@ -951,8 +958,8 @@ html[data-theme-variant='ledger']
 
 [data-ledger-row] {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 96px 64px;
-  gap: 8px;
+  grid-template-columns: 44px minmax(110px, 1fr) var(--ledger-field-cols,);
+  gap: 8px 14px;
   align-items: center;
   width: 100%;
   padding: 7px 12px 7px 10px;
@@ -960,15 +967,7 @@ html[data-theme-variant='ledger']
   border-bottom: 1px solid
     color-mix(in srgb, var(--ledger-line) 60%, transparent);
   border-left: 3px solid transparent;
-  /* The red-ink double rule that separates the money column. */
-  background-image:
-    linear-gradient(var(--ledger-rule), var(--ledger-rule)),
-    linear-gradient(var(--ledger-rule), var(--ledger-rule));
-  background-position:
-    right 78px top 0,
-    right 81px top 0;
-  background-repeat: no-repeat;
-  background-size: 1px 100%;
+  background: transparent;
   color: inherit;
   text-align: left;
   cursor: pointer;
@@ -1050,25 +1049,27 @@ html[data-theme-variant='ledger']
   text-decoration-color: var(--ledger-red);
 }
 
-[data-ledger-mono],
-[data-ledger-num] {
+/* Text fields read as ink; figures (price, sizes, weight, hardness) are
+ * right-aligned mono so they line up down the page. */
+[data-ledger-cell] {
   overflow: hidden;
-  text-align: right;
+  color: var(--ledger-ink-2);
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-[data-ledger-mono] {
-  color: var(--ledger-ink-2);
+[data-ledger-cell][data-numeric] {
+  color: var(--ledger-ink);
   font-family: var(--ledger-mono);
-  font-size: 11.5px;
-}
-
-[data-ledger-num] {
-  font-family: var(--ledger-mono);
-  font-size: 12.5px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   font-weight: 500;
+  text-align: right;
+}
+
+[data-ledger-cell][data-empty] {
+  color: var(--ledger-faint);
 }
 
 [data-ledger-listfoot] {
@@ -1851,21 +1852,5 @@ html[data-theme-variant='ledger'] [role='dialog'] {
 
   [data-ledger-cols] {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  [data-ledger-colhead] {
-    grid-template-columns: minmax(0, 1fr) 80px 56px;
-  }
-
-  [data-ledger-row] {
-    grid-template-columns: 44px minmax(0, 1fr) 80px 56px;
-  }
-
-  [data-ledger-colhead],
-  [data-ledger-row] {
-    background-position:
-      right 70px top 0,
-      right 73px top 0,
-      0 0;
   }
 }

@@ -20,7 +20,13 @@ import {
   parseWeightToOunces,
 } from '@/lib/measurement-parser'
 import { formatDimension, formatWeight } from '@/lib/measurements'
-import type { CollectionDisplay } from '@/lib/settings-shared'
+import type {
+  CardField,
+  CollectionDisplay,
+  CustomField,
+  DimensionUnit,
+} from '@/lib/settings-shared'
+import { getCardFieldDisplayValue, getCardFieldLabel } from '@/lib/card-fields'
 import {
   countFacet,
   formatMoney,
@@ -49,10 +55,108 @@ const SORT_LABELS: Record<CollectionDisplay['sort'], string> = {
 const NEXT_SORT: Record<CollectionDisplay['sort'], CollectionDisplay['sort']> =
   { newest: 'model', model: 'brand', brand: 'newest' }
 
-/** A price that fits the narrow money column: "$69.99" for "69.99 USD". */
-function formatRowPrice(value: string | undefined) {
-  const text = value?.trim()
-  if (!text) return '—'
+/** Shorter column heads for the card fields, so they fit narrow columns. */
+const SHORT_LABELS: Partial<Record<CardField, string>> = {
+  'specs.modelNumber': 'Model',
+  'specs.bladeMaterial': 'Steel',
+  'specs.bladeCoating': 'Finish',
+  bladeStyle: 'Style',
+  handleMaterial: 'Handle',
+  'specs.lockingMechanism': 'Lock',
+  'specs.overallLength': 'Overall',
+  'specs.bladeLength': 'Blade',
+  'specs.bladeThickness': 'Thick.',
+  'specs.handleLength': 'Handle len.',
+}
+/** Figures: right-aligned mono columns. */
+const NUMERIC_FIELDS = new Set<CardField>([
+  'specs.price',
+  'specs.hardness',
+  'specs.overallLength',
+  'specs.bladeLength',
+  'specs.bladeThickness',
+  'specs.handleLength',
+  'specs.weight',
+])
+const COLUMN_WIDTH = { numeric: 84, text: 112 }
+/** Width a column needs to stay readable, including its 14px gap. */
+const COLUMN_FIT = { numeric: 86, text: 106 }
+/** Row padding, border, thumbnail and gap, plus the narrowest name column. */
+const ROW_CHROME = 83 + 110
+
+type LedgerColumn = { key: CardField; label: string; numeric: boolean }
+
+/**
+ * The card fields chosen in Settings, as list columns. The list pane asks for
+ * room for all of them; as many as fit its measured width are shown, in the
+ * order chosen, so the name column never collapses.
+ */
+function useLedgerColumns(
+  cardFields: CardField[],
+  customFields: CustomField[],
+  paneWidth: number | null,
+) {
+  return useMemo(() => {
+    const columns: LedgerColumn[] = cardFields.map((key) => ({
+      key,
+      label: SHORT_LABELS[key] ?? getCardFieldLabel(key, customFields),
+      numeric: NUMERIC_FIELDS.has(key),
+    }))
+    const visible: LedgerColumn[] = []
+    let room = paneWidth === null ? Infinity : paneWidth - ROW_CHROME
+    for (const column of columns) {
+      room -= column.numeric ? COLUMN_FIT.numeric : COLUMN_FIT.text
+      if (room < 0) break
+      visible.push(column)
+    }
+    const fieldsWidth = columns.reduce(
+      (sum, column) =>
+        sum + 14 + (column.numeric ? COLUMN_WIDTH.numeric : COLUMN_WIDTH.text),
+      0,
+    )
+    const style = {
+      '--ledger-field-cols': visible
+        .map((column) =>
+          column.numeric
+            ? `minmax(52px, ${COLUMN_WIDTH.numeric}px)`
+            : `minmax(64px, ${COLUMN_WIDTH.text}px)`,
+        )
+        .join(' '),
+      // Thumbnail, a name column of about 190px, padding and the fields.
+      '--ledger-list-width': `${283 + fieldsWidth}px`,
+    } as React.CSSProperties
+    return { columns: visible, style }
+  }, [cardFields, customFields, paneWidth])
+}
+
+/** A field value that fits its column, with the full text for a tooltip. */
+function formatCell(
+  knife: Knife,
+  field: CardField,
+  customFields: CustomField[],
+  dimensionUnit: DimensionUnit,
+) {
+  const full = getCardFieldDisplayValue(
+    knife,
+    field,
+    customFields,
+    dimensionUnit,
+  ).trim()
+  if (!full) return { text: '—', title: undefined }
+  if (field === 'specs.price') {
+    const text = formatPrice(full)
+    return { text, title: text === full ? undefined : full }
+  }
+  // "76 mm / 3 in" doesn't fit a column, so show millimetres there.
+  if (dimensionUnit === 'both' && NUMERIC_FIELDS.has(field)) {
+    const text = getCardFieldDisplayValue(knife, field, customFields, 'mm')
+    return { text, title: full }
+  }
+  return { text: full, title: full }
+}
+
+/** A price that fits a narrow column: "$69.99" for "69.99 USD". */
+function formatPrice(text: string) {
   const price = parsePrice(text)
   if (!price?.currency) return text
   try {
@@ -90,7 +194,13 @@ function useAuditLog(version: string) {
 
 export function LedgerCollection() {
   const router = useRouter()
-  const { dimensionUnit } = useKnives()
+  const { dimensionUnit, cardFields, customFieldDefinitions } = useKnives()
+  const [paneWidth, setPaneWidth] = useState<number | null>(null)
+  const ledgerColumns = useLedgerColumns(
+    cardFields,
+    customFieldDefinitions,
+    paneWidth,
+  )
   const collection = useLumenCollection()
   const actions = useLumenKnifeActions()
   const { knives, filtered, isLoading, getValues, toggleSingle } = collection
@@ -103,6 +213,18 @@ export function LedgerCollection() {
   const [detailOpen, setDetailOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const paneRef = useRef<HTMLElement>(null)
+
+  // Fit the field columns to the list pane's width.
+  useEffect(() => {
+    const pane = paneRef.current
+    if (!pane) return
+    const observer = new ResizeObserver(([entry]) =>
+      setPaneWidth(Math.round(entry.contentRect.width)),
+    )
+    observer.observe(pane)
+    return () => observer.disconnect()
+  }, [])
   // The newest change anywhere in the vault; the log reloads when it moves.
   const logVersion = useMemo(
     () =>
@@ -256,9 +378,13 @@ export function LedgerCollection() {
   }, [])
 
   return (
-    <div data-ledger-split data-detail-open={detailOpen || undefined}>
+    <div
+      data-ledger-split
+      data-detail-open={detailOpen || undefined}
+      style={ledgerColumns.style}
+    >
       <h1 className="sr-only">Collection</h1>
-      <section data-ledger-listpane aria-label="Knives">
+      <section data-ledger-listpane aria-label="Knives" ref={paneRef}>
         <div data-ledger-toolbar>
           <input
             ref={searchRef}
@@ -304,10 +430,18 @@ export function LedgerCollection() {
             </button>
           )}
         </div>
+        {/* Columns follow Settings > Card fields. */}
         <div data-ledger-colhead aria-hidden="true">
           <span>Name</span>
-          <span>Steel</span>
-          <span>Price</span>
+          {ledgerColumns.columns.map((column) => (
+            <span
+              key={column.key}
+              title={column.label}
+              data-numeric={column.numeric || undefined}
+            >
+              {column.label}
+            </span>
+          ))}
         </div>
         <div data-ledger-rows ref={listRef}>
           {isLoading ? (
@@ -343,6 +477,8 @@ export function LedgerCollection() {
                       <LedgerRow
                         knife={knife}
                         groupBy={groupBy}
+                        columns={ledgerColumns.columns}
+                        customFields={customFieldDefinitions}
                         selected={knife.id === current?.id}
                         dimensionUnit={dimensionUnit}
                         onSelect={() => select(knife.id)}
@@ -420,21 +556,31 @@ export function LedgerCollection() {
 function LedgerRow({
   knife,
   groupBy,
+  columns,
+  customFields,
   selected,
   dimensionUnit,
   onSelect,
 }: {
   knife: Knife
   groupBy: GroupBy
+  columns: LedgerColumn[]
+  customFields: CustomField[]
   selected: boolean
-  dimensionUnit: ReturnType<typeof useKnives>['dimensionUnit']
+  dimensionUnit: DimensionUnit
   onSelect: () => void
 }) {
+  // The line under the name skips what the group or a column already shows.
+  const shown = new Set<CardField>(columns.map((column) => column.key))
+  if (groupBy === 'style') shown.add('bladeStyle')
+  if (groupBy === 'lock') shown.add('specs.lockingMechanism')
   const detail = [
-    groupBy === 'brand' ? knife.bladeStyle : knife.brand,
-    knife.specs.bladeLength &&
+    groupBy !== 'brand' && knife.brand,
+    !shown.has('bladeStyle') && knife.bladeStyle,
+    !shown.has('specs.bladeLength') &&
+      knife.specs.bladeLength &&
       formatDimension(knife.specs.bladeLength, dimensionUnit),
-    groupBy === 'lock' ? knife.bladeStyle : knife.specs.lockingMechanism,
+    !shown.has('specs.lockingMechanism') && knife.specs.lockingMechanism,
   ]
     .filter(Boolean)
     .join(' · ')
@@ -457,10 +603,20 @@ function LedgerRow({
         </b>
         {detail && <small>{detail}</small>}
       </span>
-      <span data-ledger-mono>{knife.specs.bladeMaterial || '—'}</span>
-      <span data-ledger-num title={knife.specs.price || undefined}>
-        {formatRowPrice(knife.specs.price)}
-      </span>
+      {columns.map((column) => {
+        const cell = formatCell(knife, column.key, customFields, dimensionUnit)
+        return (
+          <span
+            key={column.key}
+            data-ledger-cell
+            data-numeric={column.numeric || undefined}
+            data-empty={cell.text === '—' || undefined}
+            title={cell.title}
+          >
+            {cell.text}
+          </span>
+        )
+      })}
     </button>
   )
 }
