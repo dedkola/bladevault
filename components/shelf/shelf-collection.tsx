@@ -9,7 +9,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
-  Search,
 } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
 import { KnifePhoto } from '@/components/lumen/knife-photo'
@@ -19,13 +18,16 @@ import {
 } from '@/components/lumen/use-lumen-collection'
 import { useKnifeDetail } from '@/components/lumen/use-knife-detail'
 import { InspectorTabs } from '@/components/inspector-tabs'
+import { CollectionChipFilter } from '@/components/collection-chip-filter'
 import type { Knife } from '@/lib/data'
 import { formatDimension, formatWeight } from '@/lib/measurements'
+import { buildChipFilterFields } from '@/lib/chip-filter-fields'
 import {
   countAddedByMonth,
   countFacet,
   formatMoney,
   formatShortDate,
+  LUMEN_STATUS_PARAM,
   sortLumenKnives,
   summarizeCollectionValue,
 } from '@/lib/lumen-collection'
@@ -503,27 +505,93 @@ function ShelfAllKnives({
   collection: ReturnType<typeof useLumenCollection>
   focusHref: FocusHref
 }) {
-  const { knives, filtered, getValues, toggleSingle, replaceParams } =
-    collection
+  const { knives, filtered, getValues } = collection
+  const { customFieldDefinitions, dimensionUnit } = useKnives()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const inputRef = useRef<HTMLInputElement>(null)
   const [visible, setVisible] = useState(48)
+  const fields = useMemo(
+    () => buildChipFilterFields(knives, customFieldDefinitions),
+    [knives, customFieldDefinitions],
+  )
   const styles = useMemo(
     () => countFacet(knives, (knife) => knife.bladeStyle).slice(0, 8),
     [knives],
   )
-  const activeStyle = getValues('bladeStyle')[0] ?? null
-  const activeFilters = [
-    ['brand', 'Brand'],
-    ['bladeMaterial', 'Steel'],
-    ['lockingMechanism', 'Lock'],
-    ['view', 'View'],
+  const activeStyles = getValues('bladeStyle')
+  const knifeType = getValues('knifeType')[0]
+  const status = getValues(LUMEN_STATUS_PARAM)[0]
+  // Filters the chip bar has no field for, so they still show and clear.
+  const extraChips = [
+    ...(getValues('view')[0] === 'pinned'
+      ? [{ key: 'view', label: 'Pinned' }]
+      : []),
+    ...(status === 'sold' || status === 'owned'
+      ? [
+          {
+            key: LUMEN_STATUS_PARAM,
+            label: status === 'sold' ? 'Sold' : 'Owned',
+          },
+        ]
+      : []),
+    ...(knifeType === 'fixed' || knifeType === 'folding'
+      ? [
+          {
+            key: 'knifeType',
+            label: knifeType === 'fixed' ? 'Fixed blades' : 'Folding knives',
+          },
+        ]
+      : []),
+    ...(getValues('missingSpecs')[0] === '1'
+      ? [{ key: 'missingSpecs', label: 'Missing specifications' }]
+      : []),
   ]
-    .map(([key, label]) => ({ key, label, value: getValues(key)[0] }))
-    .filter((item) => item.value)
+
+  // Like Lumen's bar: start from the live URL so quick picks and typed text
+  // never overwrite each other, and skip a router round trip per keystroke.
+  const apply = (update: (params: URLSearchParams) => void) => {
+    const next = new URLSearchParams(window.location.search)
+    update(next)
+    next.delete('smart')
+    window.history.replaceState(null, '', `${pathname}?${next}`)
+    setVisible(48)
+  }
   const clear = () =>
-    replaceParams((params) => {
+    apply((params) => {
       for (const key of [...params.keys()])
-        if (key !== 'all') params.delete(key)
+        if (key !== 'all' && key !== 'focus') params.delete(key)
     })
+  const toggleStyle = (value: string) =>
+    apply((params) => {
+      const current = params.getAll('bladeStyle')
+      params.delete('bladeStyle')
+      const next = current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value]
+      next.forEach((item) => params.append('bladeStyle', item))
+    })
+
+  // "/" jumps to the search bar, as on the other collection layouts.
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (
+        event.key !== '/' ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.defaultPrevented ||
+        target?.closest('input, textarea, select, [contenteditable="true"]') ||
+        target?.closest('[role="dialog"]')
+      )
+        return
+      event.preventDefault()
+      inputRef.current?.focus()
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [])
 
   return (
     <div data-shelf-wrap>
@@ -534,48 +602,38 @@ function ShelfAllKnives({
             All knives <small>{filtered.length}</small>
           </h1>
         </div>
-        <label data-shelf-all-search>
-          <Search aria-hidden="true" />
-          <input
-            type="search"
-            value={collection.query}
-            onChange={(event) => collection.setQuery(event.target.value)}
-            placeholder="Filter by name, maker, steel…"
-            aria-label="Filter knives"
-          />
-        </label>
       </section>
-      <div data-shelf-tags role="group" aria-label="Blade style">
-        {styles.map((style) => (
-          <button
-            key={style.value}
-            type="button"
-            aria-pressed={activeStyle === style.value}
-            onClick={() => toggleSingle('bladeStyle', style.value)}
-          >
-            {style.value}
-            <small>{style.count}</small>
-          </button>
-        ))}
-        {activeFilters.map((filter) => (
-          <button
-            key={filter.key}
-            type="button"
-            aria-pressed="true"
-            onClick={() => toggleSingle(filter.key, null)}
-            aria-label={`Remove ${filter.label} filter ${filter.value}`}
-          >
-            {filter.label}:{' '}
-            {filter.value === 'pinned' ? 'Pinned' : filter.value}
-            <small aria-hidden="true">✕</small>
-          </button>
-        ))}
-        {(activeStyle || activeFilters.length > 0 || collection.query) && (
-          <button type="button" data-shelf-clear onClick={clear}>
-            Clear filters
-          </button>
-        )}
+      <div data-shelf-all-search>
+        <CollectionChipFilter
+          fields={fields}
+          params={new URLSearchParams(searchParams.toString())}
+          apply={apply}
+          extraChips={extraChips}
+          lengthUnit={dimensionUnit}
+          onClearAll={clear}
+          summary={
+            filtered.length !== knives.length
+              ? `${filtered.length} of ${knives.length}`
+              : undefined
+          }
+          inputRef={inputRef}
+        />
       </div>
+      {styles.length > 0 && (
+        <div data-shelf-tags role="group" aria-label="Blade style">
+          {styles.map((style) => (
+            <button
+              key={style.value}
+              type="button"
+              aria-pressed={activeStyles.includes(style.value)}
+              onClick={() => toggleStyle(style.value)}
+            >
+              {style.value}
+              <small>{style.count}</small>
+            </button>
+          ))}
+        </div>
+      )}
       {filtered.length === 0 ? (
         <section data-shelf-empty>
           <p>No knives match these filters.</p>

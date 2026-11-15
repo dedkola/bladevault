@@ -1007,11 +1007,6 @@ html[data-theme-variant='shelf']
   color: var(--shelf-faint);
 }
 
-[data-shelf-tags] > [data-shelf-clear] {
-  border-color: transparent;
-  color: var(--shelf-accent-ink);
-}
-
 [data-shelf-empty] {
   display: flex;
   flex-direction: column;
@@ -1061,37 +1056,88 @@ html[data-theme-variant='shelf']
   font-weight: 500;
 }
 
+/* The shared chip search bar (as on Lumen), finished as a Shelf field: a
+ * hairline ivory sheet, pill chips and an oxblood focus ring. */
 [data-shelf-all-search] {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: min(360px, 100%);
-  height: 40px;
-  padding: 0 14px;
-  border: 1px solid var(--shelf-line-strong);
-  border-radius: 99px;
-  background: var(--shelf-surface);
-  color: var(--shelf-faint);
+  margin-bottom: 14px;
 }
 
-[data-shelf-all-search]:focus-within {
+html[data-theme-variant='shelf']
+  [data-shelf-all-search]
+  [data-collection-chip-filter] {
+  min-height: 44px;
+  margin: 0;
+  padding: 5px 8px 5px 16px;
+  gap: 6px;
+  border-color: var(--shelf-line-strong);
+  border-radius: 22px;
+  background: var(--shelf-surface);
+  color: var(--shelf-ink);
+}
+
+html[data-theme-variant='shelf']
+  [data-shelf-all-search]
+  [data-collection-chip-filter]:focus-within {
   border-color: var(--shelf-accent);
   box-shadow: 0 0 0 3px var(--shelf-accent-soft);
 }
 
-[data-shelf-all-search] svg {
+html[data-theme-variant='shelf']
+  [data-shelf-all-search]
+  [data-collection-chip-filter]
+  > svg {
   width: 15px;
   height: 15px;
+  color: var(--shelf-faint);
 }
 
-[data-shelf-all-search] input {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  background: none;
-  color: var(--shelf-ink);
-  font: inherit;
-  outline: none;
+/* Picked filters read as small pills. */
+html[data-theme-variant='shelf']
+  [data-shelf-all-search]
+  [data-collection-chip-filter]
+  > span:has(> button) {
+  height: 28px;
+  border-color: var(--shelf-accent-line);
+  border-radius: 99px;
+  background: var(--shelf-accent-soft);
+  font-size: 12.5px;
+}
+
+html[data-theme-variant='shelf']
+  [data-shelf-all-search]
+  [data-collection-chip-filter]
+  > span:has(> button)
+  > button:first-child {
+  padding-left: 11px;
+  border-radius: 99px 0 0 99px;
+}
+
+html[data-theme-variant='shelf']
+  [data-shelf-all-search]
+  [data-collection-chip-filter]
+  > span:has(> button)
+  > button:last-child {
+  margin-right: 4px;
+  border-radius: 99px;
+}
+
+html[data-theme-variant='shelf']
+  [data-shelf-all-search]
+  [data-collection-chip-filter]
+  input {
+  height: 32px;
+  font-size: 14px;
+}
+
+html[data-theme-variant='shelf']
+  [data-shelf-all-search]
+  [data-collection-chip-filter]
+  > [role='listbox'] {
+  margin-top: 8px;
+  border-color: var(--shelf-line);
+  border-radius: 14px;
+  background: var(--shelf-surface);
+  box-shadow: var(--shelf-pop);
 }
 
 [data-shelf-grid] {
@@ -1818,6 +1864,19 @@ html[data-theme-variant='shelf'] [data-lumen-photo] > [data-lumen-photo-empty] {
 
   [data-shelf-all-head] h1 {
     font-size: 36px;
+  }
+
+  /* Blade-style quick picks scroll in one row under the search bar. */
+  [data-shelf-all-search] + [data-shelf-tags] {
+    flex-wrap: nowrap;
+    margin-inline: -16px;
+    padding-inline: 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  [data-shelf-all-search] + [data-shelf-tags] > * {
+    flex: none;
   }
 
   [data-shelf-grid] {

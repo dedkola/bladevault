@@ -44,6 +44,53 @@ test('opens a knife from the palette and steps through the focus view', async ({
   await expect(page).not.toHaveURL(/focus=/)
 })
 
+test('filters All knives with the field search bar', async ({
+  page,
+  request,
+}) => {
+  await seedKnife(request, { name: 'Shelf S30V Knife' })
+  await seedKnife(request, {
+    name: 'Shelf M390 Knife',
+    specs: {
+      weight: '3 oz',
+      overallLength: '8 in',
+      bladeLength: '3.5 in',
+      bladeMaterial: 'M390',
+      country: 'USA',
+    },
+  })
+  await request.post('/api/settings', { data: { themeStyle: 'shelf' } })
+
+  await page.goto('/collection?all=1')
+  const cards = page.locator('[data-shelf-grid] [data-shelf-card]')
+  await expect(cards).toHaveCount(2)
+
+  // "/" jumps to the bar; a field, then one of its values, becomes a chip.
+  await page.locator('body').press('/')
+  // The placeholder changes once a field is picked, so find the input by place.
+  const input = page.locator('[data-collection-chip-filter] input')
+  await expect(input).toHaveAttribute(
+    'placeholder',
+    'Search or filter by brand, steel, lock…',
+  )
+  await expect(input).toBeFocused()
+  await input.fill('blade mat')
+  await input.press('Enter')
+  await input.fill('M390')
+  await input.press('Enter')
+
+  await expect(page).toHaveURL(/bladeMaterial=M390/)
+  await expect(cards).toHaveCount(1)
+  await expect(cards).toContainText('Shelf M390 Knife')
+  await expect(page.locator('[data-collection-chip-filter]')).toContainText(
+    /Blade Material:\s*M390/,
+  )
+
+  await page.getByRole('button', { name: 'Clear search and filters' }).click()
+  await expect(cards).toHaveCount(2)
+  await expect(page).not.toHaveURL(/bladeMaterial/)
+})
+
 test('keeps light/dark, Settings and the theme switcher on a phone', async ({
   page,
   request,
