@@ -44,6 +44,15 @@ describe('dimension units', () => {
     expect(formatDimension('3.5”', 'mm')).toBe('88.9 mm')
   })
 
+  it('rounds converted values for display but keeps stated precision', () => {
+    expect(formatDimension('80.6 mm', 'both')).toBe('80.6 mm / 3.17 in')
+    expect(formatDimension('3 mm', 'in')).toBe('0.118 in')
+    expect(formatDimension('3.1732 in', 'in')).toBe('3.1732 in')
+    expect(formatDimension("3.52''/89.4mm", 'both')).toBe('89.4 mm / 3.52 in')
+    expect(formatWeight('5.2 oz', 'both')).toBe('147.4 g / 5.2 oz')
+    expect(formatWeight('147.418 g', 'mm')).toBe('147.418 g')
+  })
+
   it('preserves unknown legacy text without inventing conversions', () => {
     expect(formatDimension('unknown', 'mm')).toBe('unknown')
     expect(formatDimension('-3 mm', 'in')).toBe('-3 mm')
@@ -82,10 +91,10 @@ describe('weight units', () => {
   })
 
   it('converts single units, fractions, decimal commas, kilograms, and pounds', () => {
-    expect(formatWeight('1 oz', 'mm')).toBe('28.35 g')
+    expect(formatWeight('1 oz', 'mm')).toBe('28.3 g')
     expect(formatWeight('28.349523125 g', 'in')).toBe('1 oz')
-    expect(formatWeight('1/2 oz', 'mm')).toBe('14.175 g')
-    expect(formatWeight('71,8 g', 'both')).toBe('71.8 g / 2.5327 oz')
+    expect(formatWeight('1/2 oz', 'mm')).toBe('14.2 g')
+    expect(formatWeight('71,8 g', 'both')).toBe('71.8 g / 2.53 oz')
     expect(parseWeightToGrams('0.1 kg')).toBeCloseTo(100)
     expect(parseWeightToGrams('1 lb')).toBeCloseTo(453.59237)
     expect(parseWeightToOunces('1 lb')).toBe(16)

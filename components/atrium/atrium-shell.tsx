@@ -117,7 +117,7 @@ export function AtriumShell({ children }: { children: React.ReactNode }) {
             <span id="studio-header-actions" ref={setHeaderActions} />
           )}
           <Link
-            href="/settings?tab=cloud-backup"
+            href="/settings?tab=backup"
             data-atrium-icon-button
             aria-label="Cloud backup"
             title={

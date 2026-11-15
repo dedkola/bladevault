@@ -3,6 +3,7 @@ import {
   parseLengthToMillimeters,
   parseWeightToGrams,
   parseWeightToOunces,
+  statesMeasurementUnit,
 } from '@/lib/measurement-parser'
 import type { DimensionUnit } from '@/lib/settings-shared'
 
@@ -32,12 +33,47 @@ export function splitDimension(value: string | undefined): {
   }
 }
 
+/**
+ * Rounds a converted (not stated) value to a readable precision. Stated values
+ * keep the precision they were entered with.
+ */
+function displayValue(
+  formatted: string,
+  source: string,
+  unit: 'in' | 'mm' | 'g' | 'oz',
+): string {
+  if (statesMeasurementUnit(source, unit)) return formatted
+  // Round from the parsed value so the stored 3–4 decimals don't round twice.
+  const number =
+    {
+      in: parseLengthToInches,
+      mm: parseLengthToMillimeters,
+      g: parseWeightToGrams,
+      oz: parseWeightToOunces,
+    }[unit](source) ?? Number(formatted)
+  const decimals =
+    unit === 'in'
+      ? number < 1
+        ? 3
+        : 2
+      : unit === 'mm'
+        ? number < 10
+          ? 3
+          : 1
+        : unit === 'g'
+          ? 1
+          : 2
+  return Number(number.toFixed(decimals)).toString()
+}
+
 export function formatDimension(
   value: string | undefined,
   unit: DimensionUnit = 'in',
 ): string {
-  const { inches, millimeters } = splitDimension(value)
-  if (!inches || !millimeters) return value?.trim() ?? ''
+  const split = splitDimension(value)
+  if (!value || !split.inches || !split.millimeters) return value?.trim() ?? ''
+  const inches = displayValue(split.inches, value, 'in')
+  const millimeters = displayValue(split.millimeters, value, 'mm')
   if (unit === 'both') return `${millimeters} mm / ${inches} in`
   return unit === 'mm' ? `${millimeters} mm` : `${inches} in`
 }
@@ -65,8 +101,10 @@ export function formatWeight(
   value: string | undefined,
   unit: DimensionUnit = 'in',
 ): string {
-  const { grams, ounces } = splitWeight(value)
-  if (!grams || !ounces) return value?.trim() ?? ''
+  const split = splitWeight(value)
+  if (!value || !split.grams || !split.ounces) return value?.trim() ?? ''
+  const grams = displayValue(split.grams, value, 'g')
+  const ounces = displayValue(split.ounces, value, 'oz')
   if (unit === 'both') return `${grams} g / ${ounces} oz`
   return unit === 'mm' ? `${grams} g` : `${ounces} oz`
 }

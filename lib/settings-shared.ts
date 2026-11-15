@@ -12,8 +12,8 @@ export const THEME_STYLES = [
   'atrium',
 ] as const
 /**
- * Forge, Titanium, Field, Lumen, Amber and Phosphor reuse the Modern workspace layout and only change
- * its look. The DOM exposes them as `data-theme-style="modern"` plus a
+ * Forge, Titanium, Field, Lumen, Espresso, Phosphor and Atrium reuse the
+ * Modern workspace layout (Atrium with its own shell) and only change its look. The DOM exposes them as `data-theme-style="modern"` plus a
  * `data-theme-variant`, so every Modern layout rule keeps applying.
  */
 export const MODERN_THEME_VARIANTS = [

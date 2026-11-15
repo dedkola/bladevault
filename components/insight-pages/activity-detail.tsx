@@ -15,11 +15,12 @@ import {
   type InsightSelection,
 } from '@/components/insight-pages/detail-primitives'
 import { readJsonResponse } from '@/lib/api-response'
+import { getHourCycle } from '@/lib/time-format'
 import { createCollectionStats } from '@/lib/collection-stats'
 import { type KnifeActivityEvent } from '@/lib/data'
 
 export function ActivityDetail() {
-  const { knives, themeStyle } = useKnives(),
+  const { knives, themeStyle, timeFormat } = useKnives(),
     [recordedActivity, setRecordedActivity] = useState<KnifeActivityEvent[]>(),
     [failed, setFailed] = useState(false),
     [now] = useState(() => new Date()),
@@ -88,6 +89,7 @@ export function ActivityDetail() {
             events={events}
             knivesById={byId}
             onSelect={setSelection}
+            timeFormat={timeFormat}
           />
         </>
       ) : (
@@ -191,7 +193,9 @@ export function ActivityDetail() {
                     </Link>
                     <p>
                       <time dateTime={event.occurredAt}>
-                        {new Date(event.occurredAt).toLocaleString()}
+                        {new Date(event.occurredAt).toLocaleString(undefined, {
+                          hourCycle: getHourCycle(timeFormat),
+                        })}
                       </time>
                     </p>
                   </div>

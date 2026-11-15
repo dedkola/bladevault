@@ -611,7 +611,7 @@ export function CollectionChipFilter({
           <X className="size-3.5" aria-hidden="true" />
         </button>
       ) : (
-        <kbd className="pointer-events-none hidden shrink-0 rounded border border-border/80 bg-muted/60 px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground group-focus-within:hidden sm:inline-flex">
+        <kbd className="pointer-events-none hidden shrink-0 rounded border border-border/80 bg-muted/60 px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground group-focus-within:hidden sm:inline-flex pointer-coarse:hidden!">
           /
         </kbd>
       )}

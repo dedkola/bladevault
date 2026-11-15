@@ -24,7 +24,12 @@ import {
 import { CompareIcon } from '@/components/icons/compare-icon'
 import { useKnives } from '@/components/providers/knives-provider'
 import { Knife, KnifeUpdates } from '@/lib/data'
-import { formatDimension, formatWeight } from '@/lib/measurements'
+import {
+  formatDimension,
+  formatWeight,
+  splitDimension,
+  splitWeight,
+} from '@/lib/measurements'
 import { knifeToFormData, KnifeScrapeEditor } from '@/components/knife-form'
 import { CustomField } from '@/lib/settings-shared'
 import { readJsonResponse } from '@/lib/api-response'
@@ -73,7 +78,16 @@ function DetailSection({
   )
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function DetailRow({
+  label,
+  value,
+  needsUnit = false,
+}: {
+  label: string
+  value: string
+  /** The value has no readable unit, so it cannot be converted. */
+  needsUnit?: boolean
+}) {
   const isMissing = !value.trim() || value === 'N/A'
 
   return (
@@ -81,7 +95,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
       <dt className="mb-1 text-[10px] xl:text-xs leading-relaxed text-muted-foreground">
         {label}
       </dt>
-      <dd className="text-[13px] xl:text-sm leading-relaxed font-medium text-foreground tabular-nums [overflow-wrap:anywhere]">
+      <dd className="relative text-[13px] xl:text-sm leading-relaxed font-medium text-foreground tabular-nums [overflow-wrap:anywhere]">
         {isMissing ? (
           <>
             <span
@@ -91,6 +105,17 @@ function DetailRow({ label, value }: { label: string; value: string }) {
               —
             </span>
             <span className="sr-only">Not recorded</span>
+          </>
+        ) : needsUnit ? (
+          <>
+            {value}{' '}
+            <Link
+              href="/insights/completeness#measurement-review"
+              title="No unit recorded, so this value can't be converted. Fix it in Measurement review."
+              className="whitespace-nowrap text-[10px] font-normal text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground xl:text-xs"
+            >
+              no unit
+            </Link>
           </>
         ) : (
           value
@@ -478,27 +503,22 @@ export default function KnifeDetail({
     { label: 'Hardness', value: knife.specs.hardness || 'N/A' },
   ]
 
+  const lengthRow = (label: string, raw: string | undefined) => ({
+    label,
+    value: formatDimension(raw, dimensionUnit) || 'N/A',
+    needsUnit: Boolean(raw?.trim()) && !splitDimension(raw).inches,
+  })
   const dimensionRows = [
-    {
-      label: 'Overall Length',
-      value: formatDimension(knife.specs.overallLength, dimensionUnit) || 'N/A',
-    },
-    {
-      label: 'Blade Length',
-      value: formatDimension(knife.specs.bladeLength, dimensionUnit) || 'N/A',
-    },
-    {
-      label: 'Blade Thickness',
-      value:
-        formatDimension(knife.specs.bladeThickness, dimensionUnit) || 'N/A',
-    },
-    {
-      label: 'Handle Length',
-      value: formatDimension(knife.specs.handleLength, dimensionUnit) || 'N/A',
-    },
+    lengthRow('Overall Length', knife.specs.overallLength),
+    lengthRow('Blade Length', knife.specs.bladeLength),
+    lengthRow('Blade Thickness', knife.specs.bladeThickness),
+    lengthRow('Handle Length', knife.specs.handleLength),
     {
       label: 'Weight',
       value: formatWeight(knife.specs.weight, dimensionUnit) || 'N/A',
+      needsUnit:
+        Boolean(knife.specs.weight?.trim()) &&
+        !splitWeight(knife.specs.weight).grams,
     },
   ]
 
@@ -692,8 +712,13 @@ export default function KnifeDetail({
 
                 <DetailSection title="Dimensions" icon={Ruler}>
                   <dl className="grid grid-cols-2 gap-x-5 gap-y-3.5">
-                    {dimensionRows.map(({ label, value }) => (
-                      <DetailRow key={label} label={label} value={value} />
+                    {dimensionRows.map(({ label, value, needsUnit }) => (
+                      <DetailRow
+                        key={label}
+                        label={label}
+                        value={value}
+                        needsUnit={needsUnit}
+                      />
                     ))}
                   </dl>
                 </DetailSection>

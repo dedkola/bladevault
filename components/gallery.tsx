@@ -7,6 +7,7 @@ import {
   type WebpageScreenshot,
 } from '@/lib/webpage-screenshot-shared'
 import { getSafeExternalUrl } from '@/lib/external-url'
+import { usesArrowKeys } from '@/lib/keyboard-targets'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { getImageUrl } from '@/lib/data'
@@ -83,6 +84,24 @@ export function Gallery({
     if (images.length <= 1) return
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        usesArrowKeys(event.target)
+      ) {
+        return
+      }
+      // Outside the viewer, leave other dialogs (search, compare) their keys.
+      if (
+        !isFullScreen &&
+        event.target instanceof Element &&
+        event.target.closest('[role="dialog"], [role="alertdialog"]')
+      ) {
+        return
+      }
+
       if (event.key === 'ArrowLeft') {
         event.preventDefault()
         setActiveIdx((prev) => (prev - 1 + images.length) % images.length)
@@ -226,7 +245,7 @@ export function Gallery({
                 />
                 <Image
                   src={getImageUrl(img)}
-                  alt={`Thumbnail ${idx}`}
+                  alt={`Thumbnail ${idx + 1}`}
                   fill
                   sizes="80px"
                   className="object-cover"
