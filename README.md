@@ -25,7 +25,7 @@ Catalog your knives, showcase them in Studio, compare them side by side, and kee
     <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white&style=flat-square" alt="Docker" />
     <img src="https://img.shields.io/badge/Helm-0F1689?logo=helm&logoColor=white&style=flat-square" alt="Helm" />
     <img src="https://img.shields.io/badge/MCP-10_tools-C89B3C?style=flat-square" alt="Model Context Protocol: 10 tools" />
-    <img src="https://img.shields.io/badge/themes-9_styles-8A6D3B?style=flat-square" alt="9 theme styles" />
+    <img src="https://img.shields.io/badge/themes-12_styles-8A6D3B?style=flat-square" alt="12 theme styles" />
   </p>
 
   <p>
@@ -47,32 +47,35 @@ Catalog your knives, showcase them in Studio, compare them side by side, and kee
 - **Catalog:** Keep specifications, pricing, provenance, links, and local photos for every knife. Paste a retailer link to [import product details](#import-from-a-product-url), import several links at once, or enter a knife manually.
 - **Get past bot checks:** When a retailer blocks automated imports, open the page in a real browser to finish verification, use the desktop app's built-in **BladeVault browser**, or import a product page you saved from your own browser.
 - **Capture source pages:** Save a full-page screenshot with URL imports, view or download it later, retry failed captures, and backfill screenshots for older records. Captures are included in local and cloud backups.
-- **Take notes:** Add dated personal notes to any knife with Markdown formatting, including lists, links, and tables. Notes appear under the photos, grouped by date, and in the knife's History.
+- **Take notes:** Add dated personal notes to any knife with Markdown formatting, including lists, links, and tables, and attach up to 12 photos that also join the knife's gallery. Notes appear under the photos, grouped by date, and in the knife's History.
 - **Organize:** Search, filter, pin, and bulk-edit records. Add custom text, number, and date fields, and choose which details appear on collection cards and pinned items. Switch between card and table views; in Modern-layout styles, choose, reorder, and resize table columns.
 - **Browse:** Save filters as Smart Collections that update with your records, or browse variants together in Model families. Global search supports model names and `/model A4301` for model numbers.
 - **Showcase:** Open **Studio** for a photo-first wall of your collection, filtered by folding, fixed, pinned, or any Smart Collection, with search, focus mode, and a self-playing split-flap showcase. Select any knife for a quick look with its full photo gallery.
 - **Compare:** Create named shortlists, add a knife to several lists, show only differences, and print or export comparisons as PDF.
 - **Maintain:** Log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes and sharpening details. Each knife's History tab links maintenance, notes, and record changes to their log entries.
 - **Understand:** Explore makers, materials, dimensions, completeness, and activity through collection insights, including a calendar activity map. Modern-layout styles add monthly additions for the last 12 months and blade, overall-length, weight, and thickness distributions. Open chart details to inspect matching knives or print the Overview as a report.
-- **Personalize:** Pick one of [nine styles](#styles), light or dark color mode, metric, imperial, or both measurement units, time format, pinned ordering, and the page BladeVault opens on: **Insights**, **Studio**, or **Collection**.
+- **Personalize:** Pick one of [twelve styles](#styles), light or dark color mode, metric, imperial, or both measurement units, time format, pinned ordering, and the page BladeVault opens on: **Insights**, **Studio**, or **Collection**.
 - **Connect:** Use MCP to search and analyze your collection from an AI client, with optional metadata updates and maintenance logging.
 - **Keep control:** Store your vault locally in SQLite, create portable ZIP backups, and optionally back up to your own Google Drive. Crash and error reporting is opt-in.
 
 ## Styles
 
-BladeVault ships nine styles. Switch them in **Settings → Appearance**, or cycle through them with the quick theme switcher in the footer.
+BladeVault ships twelve styles. Switch them in **Settings → Appearance**, or cycle through all of them with the quick theme switcher in the footer.
 
-| Style        | Layout  | Color mode    | Character                                     |
-| ------------ | ------- | ------------- | --------------------------------------------- |
-| **Classic**  | Classic | Light or dark | The original layout with cards and a table    |
-| **Modern**   | Modern  | Light or dark | Compact workspace with a docked inspector     |
-| **Alloy**    | Alloy   | Light or dark | A black and gold shell with its own controls  |
-| **Forge**    | Modern  | Light or dark | Graphite and ember                            |
-| **Titanium** | Modern  | Light or dark | Anodized violet, teal, and bronze             |
-| **Field**    | Modern  | Light or dark | Tactical stone and acid lime                  |
-| **Lumen**    | Modern  | Light only    | Pure white and greys with orange accents      |
-| **Espresso** | Modern  | Light only    | Cream paper and a dark roast sidebar          |
-| **Phosphor** | Modern  | Dark only     | An amber phosphor terminal                    |
+| Style        | Layout  | Color mode    | Character                                                                                    |
+| ------------ | ------- | ------------- | -------------------------------------------------------------------------------------------- |
+| **Classic**  | Classic | Light or dark | The original layout with cards and a table                                                   |
+| **Modern**   | Modern  | Light or dark | Compact workspace with a docked inspector                                                    |
+| **Alloy**    | Alloy   | Light or dark | A black and gold shell with its own controls                                                 |
+| **Forge**    | Modern  | Light or dark | Graphite and ember                                                                           |
+| **Titanium** | Modern  | Light or dark | Anodized violet, teal, and bronze                                                            |
+| **Field**    | Modern  | Light or dark | Tactical stone and acid lime                                                                 |
+| **Lumen**    | Modern  | Light only    | Pure white and greys with orange accents                                                     |
+| **Espresso** | Modern  | Light only    | Cream paper and a dark roast sidebar                                                         |
+| **Phosphor** | Modern  | Dark only     | An amber phosphor terminal                                                                   |
+| **Atrium**   | Atrium  | Light only    | A photo gallery with a floating dock and a slide-over knife sheet                            |
+| **Shelf**    | Shelf   | Light or dark | A collector's catalogue with shelves, a full-screen focus view, and a ⌘K command palette     |
+| **Ledger**   | Ledger  | Light or dark | An account book: header tabs, a grouped list beside a knife document, and keyboard shortcuts |
 
 [Download the latest release](https://github.com/dedkola/bladevault/releases/latest) or browse the [full release history](https://github.com/dedkola/bladevault/releases).
 
