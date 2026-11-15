@@ -20,7 +20,7 @@ html[data-theme-variant='atrium'] {
 /* Shell ------------------------------------------------------------- */
 
 html[data-theme-variant='atrium'] [data-lumen-shell='atrium'] {
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) 34px;
   background: #ffffff;
 }
 
@@ -265,7 +265,8 @@ html[data-theme-variant='atrium']
 [data-atrium-dock] {
   position: fixed;
   left: 50%;
-  bottom: 22px;
+  /* Float above the 34px shared footer. */
+  bottom: 56px;
   z-index: 35;
   display: flex;
   gap: 4px;
@@ -721,7 +722,7 @@ html[data-theme-variant='atrium']
 [data-atrium-tray] {
   position: fixed;
   left: 50%;
-  bottom: 100px;
+  bottom: 134px;
   z-index: 34;
   display: flex;
   align-items: center;
@@ -1067,7 +1068,7 @@ html[data-theme-variant='atrium']
   }
 
   [data-atrium-dock] {
-    bottom: 12px;
+    bottom: 46px;
     max-width: calc(100vw - 16px);
   }
 
@@ -1082,7 +1083,7 @@ html[data-theme-variant='atrium']
   }
 
   [data-atrium-tray] {
-    bottom: 86px;
+    bottom: 120px;
   }
 
   html[data-theme-variant='atrium'] [data-atrium-sheet] {

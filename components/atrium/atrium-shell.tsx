@@ -17,7 +17,7 @@ import {
 import { BrandMark } from '@/components/brand-mark'
 import { CompareIcon } from '@/components/icons/compare-icon'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
-import { ThemeCycleButton } from '@/components/theme-cycle-button'
+import { WorkspaceFooter } from '@/components/workspace-footer'
 import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -77,8 +77,8 @@ function CollectionSearchField() {
 
 /**
  * Atrium: a gallery-first layout with no sidebar. A slim top bar carries the
- * brand, search and main actions; a floating dock at the bottom switches
- * between the workspace pages.
+ * brand, search and main actions; a floating dock above the shared footer
+ * switches between the workspace pages.
  */
 export function AtriumShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -137,7 +137,6 @@ export function AtriumShell({ children }: { children: React.ReactNode }) {
               <CloudOff />
             )}
           </Link>
-          <ThemeCycleButton data-atrium-icon-button="" />
           <Link
             href="/settings"
             data-atrium-icon-button
@@ -171,6 +170,7 @@ export function AtriumShell({ children }: { children: React.ReactNode }) {
           </WorkspaceHeaderActionsContext.Provider>
         </main>
       </div>
+      <WorkspaceFooter />
       <nav aria-label="Main navigation" data-atrium-dock>
         {dockLinks.map(({ href, label, icon: Icon }) => {
           const selected = pathname === href || pathname.startsWith(href + '/')

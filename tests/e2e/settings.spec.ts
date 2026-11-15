@@ -99,12 +99,15 @@ test('cycles theme styles from the Modern footer', async ({
   await expect(html).toHaveAttribute('data-theme-variant', 'phosphor')
   await expect(html).toHaveClass(/dark/)
 
-  // Atrium has no footer, so its switch button lives in the top bar.
+  // Atrium keeps the switch button in the shared footer, not its top bar.
   await themeButton.click()
   await expect(html).toHaveAttribute('data-theme-variant', 'atrium')
   await expect(
-    page.locator('[data-atrium-top] [data-theme-cycle]'),
+    page.locator('[data-workspace-footer] [data-theme-cycle]'),
   ).toBeVisible()
+  await expect(
+    page.locator('[data-atrium-top] [data-theme-cycle]'),
+  ).toHaveCount(0)
   await expect(themeButton).toHaveAttribute(
     'title',
     'Switch theme · Atrium → Classic',
@@ -115,7 +118,7 @@ test('cycles theme styles from the Modern footer', async ({
   await expect(html).not.toHaveAttribute('data-theme-variant', /.+/)
   await expect(themeButton).toHaveAttribute(
     'title',
-    'Switch theme · Classic → Modern',
+    'Switch theme · Classic → Alloy',
   )
 
   await expect
@@ -132,7 +135,7 @@ test('cycles theme styles from the Modern footer', async ({
   await expect(html).toHaveAttribute('data-theme-style', 'classic')
   await expect(themeButton).toHaveAttribute(
     'title',
-    'Switch theme · Classic → Modern',
+    'Switch theme · Classic → Alloy',
   )
 })
 
@@ -192,10 +195,10 @@ test('shows the compact workspace footer in the Classic layout', async ({
   await expect(themeButton.locator('svg')).toBeVisible()
   await expect(themeButton).toHaveAttribute(
     'title',
-    'Switch theme · Classic → Modern',
+    'Switch theme · Classic → Alloy',
   )
   await themeButton.click()
-  await expect(html).toHaveAttribute('data-theme-style', 'modern')
+  await expect(html).toHaveAttribute('data-theme-style', 'alloy')
 })
 
 test('opens the global search from the Classic footer', async ({ page }) => {
