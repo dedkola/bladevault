@@ -769,7 +769,7 @@
   height: 100dvh;
   transform: none;
   animation: none;
-  padding: 68px 16px 16px;
+  padding: 16px;
   overflow: auto;
   border-radius: 0;
   background: var(--background);
@@ -784,15 +784,44 @@
 
 .focusActions {
   position: fixed;
-  top: 16px;
-  right: 18px;
+  top: 12px;
+  left: 50%;
   z-index: 3;
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  transform: translateX(-50%);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--background) 72%, transparent);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--foreground) 12%, transparent);
+  backdrop-filter: blur(12px) saturate(1.4);
+  opacity: 0.85;
+  transition: opacity 150ms ease;
+}
+
+.focusActions:is(:hover, :focus-within) {
+  opacity: 1;
 }
 
 .focusActions > button {
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--foreground) 8%, transparent);
+  height: 26px;
+  min-width: 26px;
+  padding-inline: 8px;
+  gap: 4px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.focusActions > button:first-child {
+  width: 26px;
+  padding: 0;
+}
+
+.focusActions > button svg {
+  width: 14px;
+  height: 14px;
 }
 
 .root button,

@@ -833,8 +833,8 @@ export function StudioView() {
           </DialogDescription>
           <div className={styles.focusActions}>
             <Button
-              variant="outline"
-              size="icon"
+              variant="ghost"
+              size="icon-sm"
               aria-label={showcaseLabel}
               title={showcaseLabel}
               onClick={toggleShowcase}
@@ -842,7 +842,7 @@ export function StudioView() {
             >
               {showcaseIcon}
             </Button>
-            <Button variant="outline" onClick={() => setFocus(false)}>
+            <Button variant="ghost" size="sm" onClick={() => setFocus(false)}>
               <X />
               Exit focus
             </Button>
