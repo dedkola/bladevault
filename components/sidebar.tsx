@@ -2,18 +2,23 @@
 
 import { BrandMark } from '@/components/brand-mark'
 import Link from 'next/link'
+import { Menu as MenuPrimitive } from '@base-ui/react/menu'
 import { ComparisonNavigation } from '@/components/comparison-navigation'
 import { useSmartCollections } from '@/components/providers/smart-collections-provider'
 import { matchesCollection } from '@/lib/smart-collections'
 import Image from '@/components/vault-image'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   LayoutDashboard,
   Library,
   GalleryVertical,
   PlusCircle,
+  ChevronDown,
   ChevronRight,
+  Layers,
+  Link2,
+  PenLine,
   Download,
   Loader2,
   Menu,
@@ -53,7 +58,15 @@ const links = [
   { href: '/logs', label: 'History', icon: History },
 ]
 
+/** Ways to add a knife, offered by the Classic sidebar's split button. */
+const ADD_MENU_ITEMS = [
+  { href: '/add', label: 'From a product link', icon: Link2 },
+  { href: '/add?start=batch', label: 'Batch scrape links', icon: Layers },
+  { href: '/add?start=manual', label: 'Enter manually', icon: PenLine },
+]
+
 export function Sidebar() {
+  const addSplitRef = useRef<HTMLDivElement>(null)
   const { collections: smartCollections, error: smartError } =
     useSmartCollections()
   const pathname = usePathname()
@@ -190,16 +203,53 @@ export function Sidebar() {
 
         {!isModernThemeFamily(themeStyle) && (
           <div className="px-4 pb-2">
-            <Button
-              data-sidebar-add
-              size="sm"
-              className="w-full"
-              render={<Link href="/add" onClick={handleNavigate} />}
-              nativeButton={false}
+            <div
+              ref={addSplitRef}
+              data-sidebar-add-split
+              className="flex w-full"
             >
-              <PlusCircle className="h-3.5 w-3.5" />
-              Add knife
-            </Button>
+              <Link
+                href="/add"
+                data-sidebar-add
+                onClick={handleNavigate}
+                className="flex min-w-0 flex-1 items-center gap-2"
+              >
+                <PlusCircle aria-hidden="true" />
+                <span className="truncate">Add knife</span>
+              </Link>
+              <MenuPrimitive.Root>
+                <MenuPrimitive.Trigger
+                  data-sidebar-add-menu
+                  aria-label="More ways to add a knife"
+                >
+                  <ChevronDown aria-hidden="true" />
+                </MenuPrimitive.Trigger>
+                <MenuPrimitive.Portal>
+                  <MenuPrimitive.Positioner
+                    anchor={addSplitRef}
+                    align="start"
+                    sideOffset={6}
+                    className="isolate z-50"
+                  >
+                    <MenuPrimitive.Popup
+                      data-sidebar-add-popup
+                      className="w-(--anchor-width) min-w-52 rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none"
+                    >
+                      {ADD_MENU_ITEMS.map(({ href, icon: Icon, label }) => (
+                        <MenuPrimitive.Item
+                          key={href}
+                          className="flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground"
+                          render={<Link href={href} onClick={handleNavigate} />}
+                        >
+                          <Icon aria-hidden="true" />
+                          {label}
+                        </MenuPrimitive.Item>
+                      ))}
+                    </MenuPrimitive.Popup>
+                  </MenuPrimitive.Positioner>
+                </MenuPrimitive.Portal>
+              </MenuPrimitive.Root>
+            </div>
           </div>
         )}
 
