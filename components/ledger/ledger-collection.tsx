@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, ExternalLink, Star } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
 import { KnifePhoto } from '@/components/lumen/knife-photo'
+import { OPEN_GLOBAL_SEARCH_EVENT } from '@/components/global-knife-search'
 import { isEditableTarget } from '@/components/ledger/ledger-shell'
 import {
   useLumenCollection,
@@ -48,6 +49,45 @@ const SORT_LABELS: Record<CollectionDisplay['sort'], string> = {
 const NEXT_SORT: Record<CollectionDisplay['sort'], CollectionDisplay['sort']> =
   { newest: 'model', model: 'brand', brand: 'newest' }
 
+/** A price that fits the narrow money column: "$69.99" for "69.99 USD". */
+function formatRowPrice(value: string | undefined) {
+  const text = value?.trim()
+  if (!text) return '—'
+  const price = parsePrice(text)
+  if (!price?.currency) return text
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: price.currency,
+      maximumFractionDigits: Number.isInteger(price.amount) ? 0 : 2,
+    }).format(price.amount)
+  } catch {
+    return text
+  }
+}
+
+/**
+ * The vault's audit log, loaded once and again only when a knife changes,
+ * so stepping through the list doesn't refetch it for every entry.
+ */
+function useAuditLog(version: string) {
+  const [events, setEvents] = useState<AuditLogEvent[] | null>(null)
+  useEffect(() => {
+    const controller = new AbortController()
+    void fetch('/api/logs', { signal: controller.signal, cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('History unavailable')
+        const data = (await response.json()) as { events?: AuditLogEvent[] }
+        setEvents(data.events ?? [])
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setEvents([])
+      })
+    return () => controller.abort()
+  }, [version])
+  return events
+}
+
 export function LedgerCollection() {
   const router = useRouter()
   const { dimensionUnit } = useKnives()
@@ -63,6 +103,17 @@ export function LedgerCollection() {
   const [detailOpen, setDetailOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  // The newest change anywhere in the vault; the log reloads when it moves.
+  const logVersion = useMemo(
+    () =>
+      knives.reduce(
+        (latest, knife) =>
+          knife.updatedAt > latest ? knife.updatedAt : latest,
+        String(knives.length),
+      ),
+    [knives],
+  )
+  const auditLog = useAuditLog(logVersion)
 
   const groups = useMemo(() => {
     const map = new Map<string, Knife[]>()
@@ -118,9 +169,7 @@ export function LedgerCollection() {
     filtered.filter((knife) => !knife.sold),
   )
 
-  const select = (id: string, focus = false) => {
-    setChosenId(id)
-    setDetailOpen(true)
+  const focusRow = (id: string, focus: boolean) =>
     requestAnimationFrame(() => {
       const row = listRef.current?.querySelector<HTMLElement>(
         `[data-ledger-row="${CSS.escape(id)}"]`,
@@ -128,21 +177,54 @@ export function LedgerCollection() {
       row?.scrollIntoView({ block: 'nearest' })
       if (focus) row?.focus()
     })
+
+  const select = (id: string, focus = false) => {
+    setChosenId(id)
+    setDetailOpen(true)
+    focusRow(id, focus)
   }
+
+  const focusFilter = () => {
+    searchRef.current?.focus()
+    searchRef.current?.select()
+  }
+
+  // The footer's Search button and ⌘K filter the list on this page.
+  useEffect(() => {
+    const focus = () => {
+      searchRef.current?.focus()
+      searchRef.current?.select()
+    }
+    window.addEventListener(OPEN_GLOBAL_SEARCH_EVENT, focus)
+    return () => window.removeEventListener(OPEN_GLOBAL_SEARCH_EVENT, focus)
+  }, [])
 
   // Keep the keyboard handler current without re-binding on every render.
   const keyHandler = useRef<(event: KeyboardEvent) => void>(() => {})
   useEffect(() => {
     keyHandler.current = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.defaultPrevented || event.altKey) return
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        focusFilter()
+        return
+      }
+      if (event.metaKey || event.ctrlKey) return
       if (event.key === '/' && !isEditableTarget(event.target)) {
         event.preventDefault()
-        searchRef.current?.focus()
+        focusFilter()
         return
       }
       if (isEditableTarget(event.target) || !current) return
       const index = ordered.indexOf(current)
       const key = event.key.toLowerCase()
+      // Arrow keys step through the list only from the list itself, so they
+      // still scroll the document pane when it has focus.
+      const inDetail =
+        event.target instanceof Element &&
+        Boolean(event.target.closest('[data-ledger-detail]'))
+      const arrow = event.key === 'ArrowDown' || event.key === 'ArrowUp'
+      if (arrow && inDetail) return
       if (key === 'j' || event.key === 'ArrowDown') {
         const next = ordered[index + 1]
         if (next) {
@@ -293,13 +375,17 @@ export function LedgerCollection() {
           </button>
         </footer>
       </section>
-      <section data-ledger-detail aria-label="Knife details" aria-live="polite">
+      <section data-ledger-detail aria-label="Knife details">
         {current ? (
           <LedgerDocument
             summary={current}
             knives={knives}
+            auditLog={auditLog}
             actions={actions}
-            onBack={() => setDetailOpen(false)}
+            onBack={() => {
+              setDetailOpen(false)
+              focusRow(current.id, true)
+            }}
           />
         ) : (
           !isLoading && (
@@ -372,28 +458,15 @@ function LedgerRow({
         {detail && <small>{detail}</small>}
       </span>
       <span data-ledger-mono>{knife.specs.bladeMaterial || '—'}</span>
-      <span data-ledger-num>{knife.specs.price || '—'}</span>
+      <span data-ledger-num title={knife.specs.price || undefined}>
+        {formatRowPrice(knife.specs.price)}
+      </span>
     </button>
   )
 }
 
-/** Recent audit-log entries for one knife; the log is loaded once. */
-function useKnifeHistory(knifeId: string, version: string) {
-  const [events, setEvents] = useState<AuditLogEvent[] | null>(null)
-  useEffect(() => {
-    const controller = new AbortController()
-    void fetch('/api/logs', { signal: controller.signal, cache: 'no-store' })
-      .then(async (response) => {
-        if (!response.ok) throw new Error('History unavailable')
-        const data = (await response.json()) as { events?: AuditLogEvent[] }
-        setEvents(data.events ?? [])
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setEvents([])
-      })
-    return () => controller.abort()
-    // Reload when the selected knife changes on the server.
-  }, [version])
+/** The six most recent audit-log entries for one knife. */
+function knifeHistory(events: AuditLogEvent[] | null, knifeId: string) {
   return {
     loading: events === null,
     events: (events ?? [])
@@ -412,11 +485,13 @@ function fieldLabel(field: string) {
 function LedgerDocument({
   summary,
   knives,
+  auditLog,
   actions,
   onBack,
 }: {
   summary: Knife
   knives: Knife[]
+  auditLog: AuditLogEvent[] | null
   actions: ReturnType<typeof useLumenKnifeActions>
   onBack: () => void
 }) {
@@ -424,7 +499,7 @@ function LedgerDocument({
   const knife = useKnifeDetail(summary) ?? summary
   const [photo, setPhoto] = useState<{ id: string; index: number } | null>(null)
   const photoIndex = photo?.id === knife.id ? photo.index : 0
-  const history = useKnifeHistory(knife.id, knife.updatedAt)
+  const history = knifeHistory(auditLog, knife.id)
   const sideImages = knife.images
     .map((path, index) => ({ path, index }))
     .filter(({ index }) => index !== photoIndex)

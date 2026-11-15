@@ -7,8 +7,8 @@ import { Plus, Settings } from 'lucide-react'
 import { BrandMark } from '@/components/brand-mark'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
-import { ThemeCycleButton } from '@/components/theme-cycle-button'
 import { ThemeModeButton } from '@/components/theme-mode-button'
+import { WorkspaceFooter } from '@/components/workspace-footer'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useComparisons } from '@/components/providers/comparisons-provider'
@@ -21,20 +21,25 @@ const tabs = [
   { href: '/logs', label: 'History' },
 ] as const
 
+/** Keys typed here belong to the field, dialog or open menu, not to Ledger. */
 export function isEditableTarget(target: EventTarget | null) {
   return (
     target instanceof HTMLInputElement ||
     target instanceof HTMLTextAreaElement ||
     target instanceof HTMLSelectElement ||
     (target instanceof HTMLElement &&
-      (target.isContentEditable || Boolean(target.closest('[role="dialog"]'))))
+      (target.isContentEditable ||
+        Boolean(
+          target.closest('[role="dialog"], [role="menu"], [role="listbox"]'),
+        )))
   )
 }
 
 /**
  * Ledger: a dense, keyboard-friendly layout styled like a bound account book.
  * A cloth-green header carries the navigation as index tabs; pages fill the
- * ruled paper below without a sidebar.
+ * ruled paper below without a sidebar, above the shared workspace footer,
+ * which carries the theme switcher.
  */
 export function LedgerShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -50,6 +55,7 @@ export function LedgerShell({ children }: { children: React.ReactNode }) {
     const handleKey = (event: KeyboardEvent) => {
       if (
         event.key.toLowerCase() !== 'n' ||
+        event.defaultPrevented ||
         event.metaKey ||
         event.ctrlKey ||
         event.altKey ||
@@ -90,8 +96,9 @@ export function LedgerShell({ children }: { children: React.ReactNode }) {
               >
                 {label}
                 {href === '/compare' && compareCount > 0 && (
-                  <small aria-label={`${compareCount} in comparison`}>
+                  <small>
                     {compareCount}
+                    <span className="sr-only"> in comparison</span>
                   </small>
                 )}
               </Link>
@@ -108,7 +115,7 @@ export function LedgerShell({ children }: { children: React.ReactNode }) {
             <span id="studio-header-actions" ref={setHeaderActions} />
           )}
           <Link
-            href="/settings?tab=cloud-backup"
+            href="/settings?tab=backup"
             data-ledger-vault
             data-backup={isAutoBackupActive ? 'on' : 'off'}
             title={
@@ -122,35 +129,41 @@ export function LedgerShell({ children }: { children: React.ReactNode }) {
               )
             }
           >
-            {isLoading
-              ? 'Local vault · loading'
-              : isAutoBackupActive
-                ? 'Local vault · backed up'
-                : 'Local vault · saved'}
+            <span data-ledger-vault-text>
+              {isLoading
+                ? 'Local vault · loading'
+                : isAutoBackupActive
+                  ? 'Local vault · backed up'
+                  : 'Local vault · saved'}
+            </span>
           </Link>
           <ThemeModeButton data-ledger-button="icon" />
-          <ThemeCycleButton data-ledger-button="icon" />
           <Link
             href="/settings"
             data-ledger-button="ghost"
             aria-current={pathname === '/settings' ? 'page' : undefined}
             aria-label="Settings"
           >
-            <Settings aria-hidden="true" data-ledger-narrow-only />
-            <span data-ledger-wide-only>Settings</span>
+            <Settings aria-hidden="true" data-ledger-compact-only />
+            <span data-ledger-roomy-only>Settings</span>
           </Link>
           <button
             type="button"
             data-ledger-button
-            data-ledger-wide-only
+            data-ledger-import
             onClick={() => setIsImportOpen(true)}
           >
             Import
           </button>
-          <Link href="/add" data-ledger-button="primary">
+          <Link
+            href="/add"
+            data-ledger-button="primary"
+            aria-label="New knife"
+            aria-keyshortcuts="N"
+          >
             <Plus aria-hidden="true" />
             <span data-ledger-wide-only>New knife</span>
-            <kbd data-ledger-wide-only aria-hidden="true">
+            <kbd data-ledger-roomy-only aria-hidden="true">
               N
             </kbd>
           </Link>
@@ -163,6 +176,7 @@ export function LedgerShell({ children }: { children: React.ReactNode }) {
           </WorkspaceHeaderActionsContext.Provider>
         </main>
       </div>
+      <WorkspaceFooter />
       <BatchScrapeDialog open={isImportOpen} onOpenChange={setIsImportOpen} />
     </div>
   )

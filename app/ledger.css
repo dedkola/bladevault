@@ -251,7 +251,8 @@ html[data-theme-variant='ledger'].dark {
 /* Shell ------------------------------------------------------------- */
 
 html[data-theme-variant='ledger'] [data-lumen-shell='ledger'] {
-  grid-template-rows: 54px minmax(0, 1fr);
+  grid-template-rows: 54px minmax(0, 1fr) 34px;
+  grid-template-columns: minmax(0, 1fr);
   background: var(--ledger-page);
   color: var(--ledger-ink);
   font-size: 13.5px;
@@ -432,7 +433,8 @@ html[data-theme-variant='ledger']
 
 [data-ledger-search] {
   position: relative;
-  width: 250px;
+  flex: 0 1 250px;
+  min-width: 160px;
   height: 32px;
 }
 
@@ -639,7 +641,7 @@ html[data-theme-variant='ledger'].dark
   background: color-mix(in srgb, var(--ledger-brass) 85%, white);
 }
 
-[data-ledger-narrow-only] {
+[data-ledger-compact-only] {
   display: none;
 }
 
@@ -671,6 +673,135 @@ html[data-theme-variant='ledger'].dark
 
 [data-ledger-tabs] a[aria-current='page']:focus-visible {
   outline-color: var(--ledger-accent);
+}
+
+/* The shared footer reads as the foot of the page: paper, a hairline and
+ * the ledger's mono figures, with the theme switcher on the right. */
+html[data-theme-variant='ledger']
+  [data-lumen-shell='ledger']
+  [data-workspace-footer] {
+  border-top-color: var(--ledger-line);
+  background: var(--ledger-surface);
+  color: var(--ledger-muted);
+  font-family: var(--ledger-mono);
+}
+
+html[data-theme-variant='ledger']
+  [data-lumen-shell='ledger']
+  [data-workspace-footer]
+  :is(button, [data-theme-cycle]):hover {
+  color: var(--ledger-ink);
+}
+
+html[data-theme-variant='ledger']
+  [data-lumen-shell='ledger']
+  [data-workspace-footer]
+  [data-theme-cycle]:hover {
+  background: var(--ledger-hover);
+}
+
+html[data-theme-variant='ledger']
+  [data-lumen-shell='ledger']
+  [data-workspace-footer]
+  kbd {
+  border-color: var(--ledger-line-strong);
+  background: var(--ledger-page);
+  color: var(--ledger-ink-2);
+}
+
+/* Narrower desktops: the vault status keeps its dot, and Settings and the
+ * New knife key cap step aside so the tabs and actions fit on one line. */
+@media (max-width: 1535px) {
+  [data-ledger-vault] {
+    justify-content: center;
+    width: 30px;
+    padding: 0;
+  }
+
+  [data-ledger-vault-text] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 1279px) {
+  [data-ledger-head] {
+    gap: 14px;
+  }
+
+  [data-ledger-tabs] a {
+    padding: 0 10px;
+  }
+
+  [data-ledger-roomy-only] {
+    display: none;
+  }
+
+  [data-ledger-compact-only] {
+    display: block;
+  }
+
+  [data-ledger-head-right] a[href='/settings'][data-ledger-button] {
+    width: 30px;
+    padding: 0;
+  }
+}
+
+/* Below that, search folds into an icon; open, it drops down as a full
+ * field over the page instead of pushing the tabs aside. */
+@media (max-width: 1023px) {
+  [data-ledger-search] {
+    flex: none;
+    width: 30px;
+    min-width: 0;
+  }
+
+  [data-ledger-search]
+    [data-global-knife-search][data-embedded][data-state='closed'] {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  [data-ledger-search]
+    [data-global-knife-search][data-embedded][data-state='closed']
+    > div:first-child
+    > button {
+    justify-content: center;
+    padding: 0;
+  }
+
+  [data-ledger-search]
+    [data-global-knife-search][data-embedded][data-state='closed']
+    > div:first-child
+    > button
+    > :not(svg) {
+    display: none;
+  }
+
+  [data-ledger-search]
+    [data-global-knife-search][data-embedded][data-state='closed']
+    svg {
+    color: var(--ledger-cover-muted);
+  }
+
+  [data-ledger-search]
+    [data-global-knife-search][data-embedded][data-state='open'] {
+    position: fixed;
+    top: 11px;
+    right: 12px;
+    left: auto;
+    width: min(380px, calc(100vw - 24px));
+  }
+}
+
+@media (max-width: 900px) {
+  [data-ledger-import] {
+    display: none;
+  }
 }
 
 /* Collection split -------------------------------------------------- */
@@ -1630,7 +1761,7 @@ html[data-theme-variant='ledger'] [role='dialog'] {
 
 @media (max-width: 820px) {
   html[data-theme-variant='ledger'] [data-lumen-shell='ledger'] {
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) 34px;
   }
 
   [data-ledger-head] {
@@ -1650,13 +1781,8 @@ html[data-theme-variant='ledger'] [role='dialog'] {
     scrollbar-width: none;
   }
 
-  [data-ledger-wide-only],
-  [data-ledger-search] {
+  [data-ledger-wide-only] {
     display: none;
-  }
-
-  [data-ledger-narrow-only] {
-    display: block;
   }
 
   [data-ledger-head-right] [data-ledger-button] {
