@@ -471,7 +471,6 @@ html[data-theme-style='alloy'] [data-alloy-shell] [data-workspace-footer] {
   flex: 0 0 auto;
   min-height: 34px;
   margin-top: 24px;
-  padding-inline: var(--alloy-gutter);
 }
 [data-alloy-header] :is(a, button):focus-visible,
 [data-alloy-library] :is(a, button):focus-visible,
