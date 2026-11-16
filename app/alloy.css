@@ -1093,9 +1093,11 @@ html[data-theme-style='alloy'] [data-log-icon] > span {
   [data-alloy-nav] {
     order: 3;
     justify-content: space-between;
-    gap: 15px;
+    gap: 6px;
     width: 100%;
     height: 45px;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
   [data-alloy-nav] a {
     font-size: 11px;
