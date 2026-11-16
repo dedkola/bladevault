@@ -974,18 +974,13 @@ html[data-theme-variant='ledger']
   transition: background-color 120ms;
 }
 
-/* Green-bar paper: every other entry carries a pale band. */
-[data-ledger-rows] li:nth-child(even) > [data-ledger-row] {
-  background-color: var(--ledger-bar);
-}
-
-[data-ledger-row]:hover,
-[data-ledger-rows] li:nth-child(even) > [data-ledger-row]:hover {
+/* No zebra band: groups restart the count, and a pale band reads as a
+ * selected row. Divider lines keep entries apart. */
+[data-ledger-row]:hover {
   background-color: var(--ledger-hover);
 }
 
-[data-ledger-row][aria-current='true'],
-[data-ledger-rows] li:nth-child(even) > [data-ledger-row][aria-current='true'] {
+[data-ledger-row][aria-current='true'] {
   border-left-color: var(--ledger-accent);
   background-color: var(--ledger-accent-soft);
 }

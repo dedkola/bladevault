@@ -249,6 +249,8 @@ export function LedgerCollection() {
   }, [filtered, groupBy])
   // Keyboard order follows the grouped list, not the sort order.
   const ordered = useMemo(() => groups.flatMap(([, items]) => items), [groups])
+  // The detail pane falls back to the first knife, but the list marks a row
+  // only once the user picks it, so a fresh page shows no selected entry.
   const current =
     ordered.find((knife) => knife.id === chosenId) ?? ordered[0] ?? null
 
@@ -348,7 +350,8 @@ export function LedgerCollection() {
       const arrow = event.key === 'ArrowDown' || event.key === 'ArrowUp'
       if (arrow && inDetail) return
       if (key === 'j' || event.key === 'ArrowDown') {
-        const next = ordered[index + 1]
+        // Nothing marked yet: the first step lands on the first entry.
+        const next = chosenId === current.id ? ordered[index + 1] : current
         if (next) {
           event.preventDefault()
           select(next.id, true)
@@ -479,7 +482,7 @@ export function LedgerCollection() {
                         groupBy={groupBy}
                         columns={ledgerColumns.columns}
                         customFields={customFieldDefinitions}
-                        selected={knife.id === current?.id}
+                        selected={knife.id === chosenId}
                         dimensionUnit={dimensionUnit}
                         onSelect={() => select(knife.id)}
                       />
