@@ -20,6 +20,7 @@ import {
 import Image from '@/components/vault-image'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import { useKnives } from '@/components/providers/knives-provider'
+import { useCare } from '@/components/providers/care-provider'
 import { useSmartCollections } from '@/components/providers/smart-collections-provider'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import { WorkspaceFooter } from '@/components/workspace-footer'
@@ -41,6 +42,8 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const params = useSearchParams()
   const { knives, isAutoBackupActive, showFeedback } = useKnives()
+  const { reminders: careReminders, statusById: careStatusById } = useCare()
+  const careStatusFilter = careReminders.enabled ? careStatusById : undefined
   const { active } = useComparisons()
   const { collections, error: collectionsError } = useSmartCollections()
   const { update, downloadUpdate } = useDesktopUpdates()
@@ -243,6 +246,7 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
                           matchesCollection(
                             knife,
                             new URLSearchParams(collection.query),
+                            careStatusFilter,
                           ),
                         ).length
                       }

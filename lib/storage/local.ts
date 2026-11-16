@@ -40,6 +40,7 @@ import {
   maintenanceTypeName,
 } from '@/lib/data'
 import { normalizeKnifeTextFields } from '@/lib/knife-text'
+import type { MaintenanceLatestEntry } from '@/lib/maintenance-due'
 import { getLocalDb } from '@/lib/local-db'
 import { clearDockerImageCache } from '@/lib/docker-image-cache'
 import { fetchExternalUrl, validateExternalUrl } from '@/lib/url-validation'
@@ -429,6 +430,23 @@ export class LocalStorage implements Storage {
       type: row.event_type,
       occurredAt: row.occurred_at,
     }))
+  }
+
+  async getMaintenanceLatest(): Promise<MaintenanceLatestEntry[]> {
+    const rows = getDb()
+      .prepare(
+        `SELECT knife_id, type, MAX(occurred_at) AS last_at
+         FROM maintenance_events
+         GROUP BY knife_id, type`,
+      )
+      .all() as Array<{ knife_id: string; type: string; last_at: string }>
+    return rows
+      .filter((row) => isMaintenanceType(row.type))
+      .map((row) => ({
+        knifeId: row.knife_id,
+        type: row.type as MaintenanceType,
+        lastAt: row.last_at,
+      }))
   }
 
   async getAuditLog(): Promise<AuditLogEvent[]> {

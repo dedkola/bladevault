@@ -32,6 +32,7 @@ import { getImageUrl } from '@/lib/data'
 import { getKnifeFamilyKey, groupKnifeFamilies } from '@/lib/knife-families'
 import { getPinnedDetailLine } from '@/lib/card-fields'
 import { useKnives } from '@/components/providers/knives-provider'
+import { useCare } from '@/components/providers/care-provider'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -81,6 +82,8 @@ export function Sidebar() {
     dimensionUnit,
     themeStyle,
   } = useKnives()
+  const { reminders: careReminders, statusById: careStatusById } = useCare()
+  const careStatusFilter = careReminders.enabled ? careStatusById : undefined
   const { update, downloadUpdate } = useDesktopUpdates()
   const [brandsOpen, setBrandsOpen] = useState(true)
   const [pinnedOpen, setPinnedOpen] = useState(true)
@@ -372,7 +375,7 @@ export function Sidebar() {
                       searchParams.get('smart') === collection.id
                     const rules = new URLSearchParams(collection.query)
                     const count = knives.filter((knife) =>
-                      matchesCollection(knife, rules),
+                      matchesCollection(knife, rules, careStatusFilter),
                     ).length
                     return (
                       <Link

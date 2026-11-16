@@ -13,6 +13,7 @@ import './ledger.css'
 import { SmartCollectionsProvider } from '@/components/providers/smart-collections-provider'
 import { AppShell } from '@/components/app-shell'
 import { KnivesProvider } from '@/components/providers/knives-provider'
+import { CareProvider } from '@/components/providers/care-provider'
 import { DEFAULT_SETTINGS, getSettings } from '@/lib/settings'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import {
@@ -182,17 +183,19 @@ export default async function RootLayout({
             <AppLockSession />
             <VaultRestoreProvider initialStatus={vaultStatus}>
               <KnivesProvider initialThemeStyle={themeStyle}>
-                <SmartCollectionsProvider>
-                  <TooltipProvider>
-                    <Suspense>
-                      <ComparisonsProvider>
-                        <AppShell>{children}</AppShell>
-                      </ComparisonsProvider>
-                    </Suspense>
-                    <GlobalKnifeSearch />
-                    {promptForConsent ? <ErrorReportingPrompt /> : null}
-                  </TooltipProvider>
-                </SmartCollectionsProvider>
+                <CareProvider>
+                  <SmartCollectionsProvider>
+                    <TooltipProvider>
+                      <Suspense>
+                        <ComparisonsProvider>
+                          <AppShell>{children}</AppShell>
+                        </ComparisonsProvider>
+                      </Suspense>
+                      <GlobalKnifeSearch />
+                      {promptForConsent ? <ErrorReportingPrompt /> : null}
+                    </TooltipProvider>
+                  </SmartCollectionsProvider>
+                </CareProvider>
               </KnivesProvider>
             </VaultRestoreProvider>
           </>

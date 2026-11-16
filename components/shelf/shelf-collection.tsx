@@ -11,6 +11,7 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
+import { useCare } from '@/components/providers/care-provider'
 import { KnifePhoto } from '@/components/lumen/knife-photo'
 import {
   useLumenCollection,
@@ -507,13 +508,19 @@ function ShelfAllKnives({
 }) {
   const { knives, filtered, getValues } = collection
   const { customFieldDefinitions, dimensionUnit } = useKnives()
+  const { reminders: careReminders, statusById: careStatusById } = useCare()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const inputRef = useRef<HTMLInputElement>(null)
   const [visible, setVisible] = useState(48)
   const fields = useMemo(
-    () => buildChipFilterFields(knives, customFieldDefinitions),
-    [knives, customFieldDefinitions],
+    () =>
+      buildChipFilterFields(
+        knives,
+        customFieldDefinitions,
+        careReminders.enabled ? careStatusById : undefined,
+      ),
+    [knives, customFieldDefinitions, careReminders.enabled, careStatusById],
   )
   const styles = useMemo(
     () => countFacet(knives, (knife) => knife.bladeStyle).slice(0, 8),

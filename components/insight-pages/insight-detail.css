@@ -645,6 +645,9 @@
 .id-recent .id-scroll {
   max-height: clamp(300px, calc(100dvh - 590px), 620px);
 }
+.id-care .id-scroll {
+  max-height: clamp(260px, calc(100dvh - 640px), 600px);
+}
 .id-preview-list {
   max-height: 60dvh;
   overflow: auto;
@@ -880,6 +883,7 @@
   .id-completeness .id-scroll,
   .id-activity .id-scroll,
   .id-recent .id-scroll,
+  .id-care .id-scroll,
   .id-library .id-bottom .id-scroll {
     max-height: none;
     overflow: visible;
@@ -1028,6 +1032,7 @@
   .id-completeness .id-scroll,
   .id-activity .id-scroll,
   .id-recent .id-scroll,
+  .id-care .id-scroll,
   .id-library .id-bottom .id-scroll {
     max-height: none;
     overflow: visible;

@@ -13,6 +13,7 @@ import { InsightDetailShell } from '@/components/insight-pages/insight-detail-sh
 import { LibraryDetail } from '@/components/insight-pages/library-detail'
 import { MeasurementDetail } from '@/components/insight-pages/measurement-detail'
 import { RecentDetail } from '@/components/insight-pages/recent-detail'
+import { CareDetail } from '@/components/insight-pages/care-detail'
 import { useSearchParams } from './navigation'
 
 export function InsightPage({ slug }: { slug: string }) {
@@ -30,6 +31,7 @@ export function InsightPage({ slug }: { slug: string }) {
     completeness: 'Data completeness',
     activity: 'Collection activity',
     recent: 'Recently added',
+    care: 'Care status',
   }
   if (isInsightCategorySlug(slug))
     return (
@@ -50,6 +52,7 @@ export function InsightPage({ slug }: { slug: string }) {
       {slug === 'completeness' && <CompletenessDetail />}
       {slug === 'activity' && <ActivityDetail />}
       {slug === 'recent' && <RecentDetail />}
+      {slug === 'care' && <CareDetail />}
     </InsightDetailShell>
   )
 }

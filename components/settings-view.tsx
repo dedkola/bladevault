@@ -30,6 +30,7 @@ import {
   SlidersHorizontal,
   Trash2,
   Upload,
+  Wrench,
 } from 'lucide-react'
 import { CompareIcon } from '@/components/icons/compare-icon'
 import { FcGoogle } from 'react-icons/fc'
@@ -46,6 +47,7 @@ import {
   THEME_STYLES,
   TIME_FORMATS,
   DIMENSION_UNITS,
+  normalizeMaintenanceReminders,
   type AppSettings,
   type AppTheme,
   type CardField,
@@ -55,6 +57,7 @@ import {
   type TimeFormat,
   type DimensionUnit,
   type StartPage,
+  type MaintenanceReminderSettings,
 } from '@/lib/settings-shared'
 import { getHourCycle } from '@/lib/time-format'
 import { getCardFieldGroups, getCardFieldLabel } from '@/lib/card-fields'
@@ -71,6 +74,8 @@ import { ServerErrorReportingSettings } from '@/components/server-error-reportin
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { KnifeCardDetails } from '@/components/knife-card-details'
+import { CareBadgePill } from '@/components/care-badge'
+import { MaintenanceSettings } from '@/components/maintenance-settings'
 import { formatDimension, formatWeight } from '@/lib/measurements'
 import {
   SettingsSection,
@@ -112,7 +117,14 @@ type LocalBackupManifest = {
   imageCount: number
 }
 type SettingsTab =
-  'app-lock' | 'general' | 'backup' | 'appearance' | 'fields' | 'mcp' | 'about'
+  | 'app-lock'
+  | 'general'
+  | 'backup'
+  | 'appearance'
+  | 'fields'
+  | 'maintenance'
+  | 'mcp'
+  | 'about'
 
 type McpRuntimeStatus = {
   enabled: boolean
@@ -414,7 +426,7 @@ function CardFieldsPreview({
 }) {
   const exampleValues = getCardFieldExampleValues(dimensionUnit)
   const previewFields = fields
-    .filter((field) => field !== 'specs.modelNumber')
+    .filter((field) => field !== 'specs.modelNumber' && field !== 'care')
     .map((field) => ({
       key: field,
       label: getCardFieldLabel(field, customFields),
@@ -444,6 +456,11 @@ function CardFieldsPreview({
           fields={previewFields}
           bladeLength={formatDimension('80 mm', dimensionUnit)}
           dimensionUnit={dimensionUnit}
+          careBadge={
+            fields.includes('care') ? (
+              <CareBadgePill level="overdue" label="Sharpen overdue · 4d" />
+            ) : undefined
+          }
           footerAction={
             <span
               className="absolute right-2 inline-flex items-center gap-1"
@@ -520,6 +537,7 @@ function CardFieldOptions({
   disabled,
   onToggle,
   ariaLabelSuffix = 'cards',
+  excludeFields = [],
 }: {
   fields: CardField[]
   customFields: CustomField[]
@@ -527,6 +545,8 @@ function CardFieldOptions({
   disabled: boolean
   onToggle: (field: CardField, checked: boolean) => void
   ariaLabelSuffix?: string
+  /** Fields this picker does not offer. */
+  excludeFields?: readonly CardField[]
 }) {
   return (
     <div className="settings-card-fields-options" aria-busy={disabled}>
@@ -544,7 +564,13 @@ function CardFieldOptions({
           ))}
         </div>
       </div>
-      {getCardFieldGroups(customFields).map((group) => {
+      {getCardFieldGroups(customFields).map((rawGroup) => {
+        const group = {
+          ...rawGroup,
+          fields: rawGroup.fields.filter(
+            (field) => !excludeFields.includes(field.key),
+          ),
+        }
         if (group.fields.length === 0) return null
 
         return (
@@ -597,6 +623,7 @@ export default function SettingsView() {
     'backup',
     'appearance',
     'fields',
+    'maintenance',
     'mcp',
     'about',
   ].includes(normalizedTabParam || '')
@@ -674,6 +701,7 @@ export default function SettingsView() {
   const [newFieldName, setNewFieldName] = useState('')
   const [newFieldType, setNewFieldType] = useState<CustomFieldType>('text')
   const [isSavingCardFields, setIsSavingCardFields] = useState(false)
+  const [isSavingMaintenance, setIsSavingMaintenance] = useState(false)
   const [isSavingPinnedCardFields, setIsSavingPinnedCardFields] =
     useState(false)
   const [mcpStatus, setMcpStatus] = useState<McpRuntimeStatus | null>(null)
@@ -803,6 +831,12 @@ export default function SettingsView() {
         label: 'Custom fields',
         icon: SlidersHorizontal,
         blurb: 'Extra fields that apply to every knife in this vault.',
+      },
+      {
+        id: 'maintenance' as const,
+        label: 'Maintenance',
+        icon: Wrench,
+        blurb: 'Care reminders, intervals and how due dates are counted.',
       },
       {
         id: 'mcp' as const,
@@ -1312,6 +1346,44 @@ export default function SettingsView() {
       setLoadError(
         error instanceof Error ? error.message : 'Failed to save settings',
       )
+    }
+  }
+
+  const handleMaintenanceRemindersChange = async (
+    next: MaintenanceReminderSettings,
+  ) => {
+    if (!settings) return
+
+    try {
+      setIsSavingMaintenance(true)
+      await saveSettings({ maintenanceReminders: next })
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : 'Failed to save settings',
+      )
+    } finally {
+      setIsSavingMaintenance(false)
+    }
+  }
+
+  const handleResetCareOverrides = async () => {
+    if (
+      !settings ||
+      !window.confirm(
+        'Reset every knife to the default care intervals? Their custom intervals will be removed.',
+      )
+    )
+      return
+
+    try {
+      setIsSavingMaintenance(true)
+      await saveSettings({ careIntervalOverrides: {} })
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : 'Failed to save settings',
+      )
+    } finally {
+      setIsSavingMaintenance(false)
     }
   }
 
@@ -2106,6 +2178,13 @@ export default function SettingsView() {
                         onToggle={(field, checked) =>
                           void handleCardFieldToggle(field, checked)
                         }
+                        excludeFields={
+                          normalizeMaintenanceReminders(
+                            settings.maintenanceReminders,
+                          ).enabled
+                            ? []
+                            : ['care']
+                        }
                       />
                     </div>
                   </SettingsSection>
@@ -2130,10 +2209,27 @@ export default function SettingsView() {
                           void handlePinnedCardFieldToggle(field, checked)
                         }
                         ariaLabelSuffix="pinned items"
+                        excludeFields={['care']}
                       />
                     </div>
                   </SettingsSection>
                 </div>
+              )}
+
+              {activeTab === 'maintenance' && (
+                <MaintenanceSettings
+                  reminders={normalizeMaintenanceReminders(
+                    settings.maintenanceReminders,
+                  )}
+                  overrideCount={
+                    Object.keys(settings.careIntervalOverrides ?? {}).length
+                  }
+                  disabled={isSavingMaintenance}
+                  onChange={(next) =>
+                    void handleMaintenanceRemindersChange(next)
+                  }
+                  onResetOverrides={() => void handleResetCareOverrides()}
+                />
               )}
 
               {activeTab === 'fields' && (

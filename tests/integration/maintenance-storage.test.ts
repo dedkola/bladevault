@@ -177,4 +177,60 @@ describe('LocalStorage maintenance events', () => {
     await storage.deleteKnife(knife.id)
     expect(await storage.getMaintenanceEvents(knife.id)).toHaveLength(0)
   })
+
+  it('returns the latest event date per knife and type', async () => {
+    vault = await createTempVault()
+    const storage = new LocalStorage()
+    const first = await storage.createKnife(baseInput)
+    const second = await storage.createKnife({ ...baseInput, name: 'Mini' })
+
+    for (const occurredAt of [
+      '2026-05-01T12:00:00.000Z',
+      '2026-07-01T12:00:00.000Z',
+      '2026-06-01T12:00:00.000Z',
+    ]) {
+      await storage.addMaintenanceEvent(first.id, {
+        type: 'sharpening',
+        occurredAt,
+      })
+    }
+    await storage.addMaintenanceEvent(first.id, {
+      type: 'cleaning',
+      occurredAt: '2026-03-01T12:00:00.000Z',
+    })
+    await storage.addMaintenanceEvent(second.id, {
+      type: 'lubrication',
+      occurredAt: '2026-04-01T12:00:00.000Z',
+    })
+
+    const latest = await storage.getMaintenanceLatest()
+    const sorted = [...latest].sort((left, right) =>
+      `${left.knifeId}:${left.type}`.localeCompare(
+        `${right.knifeId}:${right.type}`,
+      ),
+    )
+    expect(sorted).toEqual(
+      [
+        {
+          knifeId: first.id,
+          type: 'cleaning',
+          lastAt: '2026-03-01T12:00:00.000Z',
+        },
+        {
+          knifeId: first.id,
+          type: 'sharpening',
+          lastAt: '2026-07-01T12:00:00.000Z',
+        },
+        {
+          knifeId: second.id,
+          type: 'lubrication',
+          lastAt: '2026-04-01T12:00:00.000Z',
+        },
+      ].sort((left, right) =>
+        `${left.knifeId}:${left.type}`.localeCompare(
+          `${right.knifeId}:${right.type}`,
+        ),
+      ),
+    )
+  })
 })

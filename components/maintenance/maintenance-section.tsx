@@ -16,7 +16,15 @@ import {
   MaintenanceSummarySkeleton,
 } from '@/components/maintenance/maintenance-summary'
 import { MaintenanceTimeline } from '@/components/maintenance/maintenance-timeline'
+import { CareIntervalsDialog } from '@/components/maintenance/care-intervals-dialog'
 import { useKnives } from '@/components/providers/knives-provider'
+import { useCare } from '@/components/providers/care-provider'
+import { MAINTENANCE_UPDATED_EVENT } from '@/lib/maintenance-due'
+import { CARE_TRACKS, CARE_TRACK_NAMES } from '@/lib/settings-shared'
+
+function announceMaintenanceChange() {
+  window.dispatchEvent(new Event(MAINTENANCE_UPDATED_EVENT))
+}
 
 function upsertMaintenanceEvent(
   events: MaintenanceEvent[],
@@ -30,6 +38,8 @@ function upsertMaintenanceEvent(
 
 export function MaintenanceSection({ knifeId }: { knifeId: string }) {
   const { scheduleVaultBackup } = useKnives()
+  const { reminders, overrides } = useCare()
+  const [isIntervalsOpen, setIsIntervalsOpen] = useState(false)
   const [events, setEvents] = useState<MaintenanceEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -107,6 +117,7 @@ export function MaintenanceSection({ knifeId }: { knifeId: string }) {
       }
       setEvents((current) => upsertMaintenanceEvent(current, data.event!))
       scheduleVaultBackup()
+      announceMaintenanceChange()
       setStatusMessage(`${maintenanceTypeLabel(type)} today`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to log maintenance')
@@ -161,6 +172,7 @@ export function MaintenanceSection({ knifeId }: { knifeId: string }) {
         scheduleVaultBackup()
       }
 
+      announceMaintenanceChange()
       setIsFormOpen(false)
       setEditingEvent(undefined)
       setStatusMessage(
@@ -196,6 +208,7 @@ export function MaintenanceSection({ knifeId }: { knifeId: string }) {
       }
       setEvents((current) => current.filter((item) => item.id !== event.id))
       scheduleVaultBackup()
+      announceMaintenanceChange()
       setStatusMessage('Maintenance entry deleted')
     } catch (err) {
       setError(
@@ -234,6 +247,28 @@ export function MaintenanceSection({ knifeId }: { knifeId: string }) {
             onQuickAdd={handleQuickAdd}
             onOpenForm={handleOpenForm}
           />
+          {reminders.enabled ? (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <span>
+                Care intervals:{' '}
+                {overrides[knifeId]
+                  ? 'Custom'
+                  : `Default (${CARE_TRACKS.map((track) => {
+                      const days = reminders.intervals[track]
+                      return days === null
+                        ? `${CARE_TRACK_NAMES[track]} off`
+                        : `${days}`
+                    }).join(' / ')} days)`}
+              </span>
+              <button
+                type="button"
+                className="font-medium text-foreground underline underline-offset-2 hover:text-[color:var(--bladevault-accent,inherit)]"
+                onClick={() => setIsIntervalsOpen(true)}
+              >
+                Customize…
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -252,7 +287,7 @@ export function MaintenanceSection({ knifeId }: { knifeId: string }) {
           <MaintenanceSummarySkeleton />
         ) : (
           <>
-            <MaintenanceSummary events={events} />
+            <MaintenanceSummary knifeId={knifeId} events={events} />
             <MaintenanceTimeline
               events={events}
               onEdit={handleEdit}
@@ -261,6 +296,14 @@ export function MaintenanceSection({ knifeId }: { knifeId: string }) {
           </>
         )}
       </div>
+
+      {isIntervalsOpen ? (
+        <CareIntervalsDialog
+          knifeId={knifeId}
+          open={isIntervalsOpen}
+          onOpenChange={setIsIntervalsOpen}
+        />
+      ) : null}
 
       <MaintenanceForm
         key={editingEvent?.id ?? 'new'}

@@ -11,6 +11,7 @@ import {
   MaintenanceEventUpdate,
 } from '@/lib/data'
 import type { ValidatedKnifeChange } from '@/lib/knife-fields'
+import type { MaintenanceLatestEntry } from '@/lib/maintenance-due'
 
 export type CreateKnifeInput = Omit<
   Knife,
@@ -83,6 +84,8 @@ export interface Storage {
   clearCompareList(): Promise<void>
   getAuditLog(): Promise<AuditLogEvent[]>
   getMaintenanceEvents(knifeId: string): Promise<MaintenanceEvent[]>
+  /** Latest event date per knife and maintenance type, for derived care status. */
+  getMaintenanceLatest(): Promise<MaintenanceLatestEntry[]>
   addMaintenanceEvent(
     knifeId: string,
     input: MaintenanceEventInput,

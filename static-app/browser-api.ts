@@ -205,6 +205,20 @@ function handle(request: Request, body: Record<string, unknown>) {
     return json({ enabled: false, unlocked: true })
   if (path === '/api/activity' && method === 'GET')
     return json({ activity: db.activity })
+  if (path === '/api/maintenance' && method === 'GET') {
+    const latest: { knifeId: string; type: string; lastAt: string }[] = []
+    for (const [knifeId, events] of Object.entries(db.maintenance)) {
+      const byType = new Map<string, string>()
+      for (const event of events) {
+        const previous = byType.get(event.type)
+        if (!previous || event.occurredAt > previous)
+          byType.set(event.type, event.occurredAt)
+      }
+      for (const [type, lastAt] of byType)
+        latest.push({ knifeId, type, lastAt })
+    }
+    return json({ latest })
+  }
   if (path === '/api/logs' && method === 'GET')
     return json({ events: db.events })
   if (path === '/api/settings/webpage-screenshots' && method === 'GET')
