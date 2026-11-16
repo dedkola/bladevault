@@ -1775,13 +1775,38 @@ html[data-theme-variant='shelf'] [data-lumen-photo] > [data-lumen-photo-empty] {
 
 /* Narrow screens ---------------------------------------------------- */
 
-@media (max-width: 1100px) {
+@media (max-width: 1259px) {
   [data-shelf-cmd] {
     min-width: 0;
   }
 
   [data-shelf-cmd] span {
     display: none;
+  }
+}
+
+/* The masthead links stop fitting beside the logo and actions here, so
+ * they move to their own row, as on phones. */
+@media (max-width: 1080px) {
+  [data-shelf-mast] {
+    flex-wrap: wrap;
+    row-gap: 12px;
+    padding-bottom: 0;
+  }
+
+  [data-shelf-nav] a {
+    padding: 4px 0 10px;
+  }
+
+  [data-shelf-nav] a[aria-current='page']::after {
+    bottom: 0;
+  }
+
+  [data-shelf-nav] {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 }
 

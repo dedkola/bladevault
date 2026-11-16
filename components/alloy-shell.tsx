@@ -34,6 +34,7 @@ const links = [
   { href: '/studio', label: 'Studio' },
   { href: '/insights', label: 'Insights' },
   { href: '/compare', label: 'Compare' },
+  { href: '/timeline', label: 'Timeline' },
   { href: '/logs', label: 'History' },
 ] as const
 

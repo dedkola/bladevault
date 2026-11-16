@@ -752,7 +752,7 @@ html[data-theme-variant='ledger']
 
 /* Below that, search folds into an icon; open, it drops down as a full
  * field over the page instead of pushing the tabs aside. */
-@media (max-width: 1023px) {
+@media (max-width: 1099px) {
   [data-ledger-search] {
     flex: none;
     width: 30px;

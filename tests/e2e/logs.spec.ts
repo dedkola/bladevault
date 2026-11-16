@@ -44,6 +44,7 @@ test('shows logs last in the primary sidebar navigation', async ({ page }) => {
     'Collection',
     'Studio',
     'Compare',
+    'Timeline',
     'History',
   ])
 })

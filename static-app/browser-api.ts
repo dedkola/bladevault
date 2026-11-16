@@ -207,6 +207,17 @@ function handle(request: Request, body: Record<string, unknown>) {
     return json({ activity: db.activity })
   if (path === '/api/logs' && method === 'GET')
     return json({ events: db.events })
+  if (path === '/api/timeline' && method === 'GET')
+    return json({
+      maintenanceEvents: Object.values(db.maintenance)
+        .flat()
+        .sort(
+          (a, b) => b.occurredAt.localeCompare(a.occurredAt) || b.id - a.id,
+        ),
+      notes: Object.values(db.notes)
+        .flat()
+        .sort((a, b) => b.notedAt.localeCompare(a.notedAt) || b.id - a.id),
+    })
   if (path === '/api/settings/webpage-screenshots' && method === 'GET')
     return json({ items: [] })
   if (path === '/api/settings/mcp' && method === 'GET')

@@ -83,6 +83,8 @@ export interface Storage {
   clearCompareList(): Promise<void>
   getAuditLog(): Promise<AuditLogEvent[]>
   getMaintenanceEvents(knifeId: string): Promise<MaintenanceEvent[]>
+  /** Every knife's maintenance, newest first. */
+  getAllMaintenanceEvents(): Promise<MaintenanceEvent[]>
   addMaintenanceEvent(
     knifeId: string,
     input: MaintenanceEventInput,
@@ -98,6 +100,8 @@ export interface Storage {
     options?: MaintenanceEventOptions,
   ): Promise<void>
   getKnifeNotes(knifeId: string): Promise<KnifeNote[]>
+  /** Every knife's notes, newest first. */
+  getAllKnifeNotes(): Promise<KnifeNote[]>
   addKnifeNote(knifeId: string, input: KnifeNoteInput): Promise<KnifeNote>
   updateKnifeNote(noteId: number, input: KnifeNoteUpdate): Promise<KnifeNote>
   deleteKnifeNote(noteId: number): Promise<void>

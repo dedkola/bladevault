@@ -24,6 +24,7 @@ import {
   Menu,
   Pin,
   History,
+  Milestone,
   X,
 } from 'lucide-react'
 import { CompareIcon } from '@/components/icons/compare-icon'
@@ -55,6 +56,7 @@ const links = [
   { href: '/collection', label: 'Collection', icon: Library },
   { href: '/studio', label: 'Studio', icon: GalleryVertical },
   { href: '/compare', label: 'Compare', icon: CompareIcon },
+  { href: '/timeline', label: 'Timeline', icon: Milestone },
   { href: '/logs', label: 'History', icon: History },
 ]
 

@@ -79,6 +79,10 @@ describe('empty static browser app', () => {
     expect((await request('/api/knives')).data.knives).toEqual([])
     expect((await request('/api/activity')).data.activity).toEqual([])
     expect((await request('/api/logs')).data.events).toEqual([])
+    expect((await request('/api/timeline')).data).toEqual({
+      maintenanceEvents: [],
+      notes: [],
+    })
     expect((await request('/api/smart-collections')).data.collections).toEqual(
       [],
     )
@@ -110,6 +114,40 @@ describe('empty static browser app', () => {
     await request(`/api/knives/${id}`, 'DELETE')
     expect((await request('/api/knives')).data.knives).toEqual([])
     expect((await request('/api/compare')).data.compareIds).toEqual([])
+  })
+
+  it('serves every knife’s maintenance and notes for the timeline, newest first', async () => {
+    const first = (await request('/api/knives', 'POST', { name: 'First' })).data
+      .knife.id
+    const second = (await request('/api/knives', 'POST', { name: 'Second' }))
+      .data.knife.id
+    await request(`/api/knives/${first}/maintenance`, 'POST', {
+      type: 'cleaning',
+      occurredAt: '2026-02-01T12:00:00.000Z',
+    })
+    await request(`/api/knives/${second}/maintenance`, 'POST', {
+      type: 'sharpening',
+      occurredAt: '2026-03-01T12:00:00.000Z',
+    })
+    await request(`/api/knives/${first}/notes`, 'POST', {
+      body: 'Carried daily',
+      notedAt: '2026-01-10T12:00:00.000Z',
+    })
+
+    const { status, data } = await request('/api/timeline')
+    expect(status).toBe(200)
+    expect(
+      data.maintenanceEvents.map((event: { knifeId: string; type: string }) => [
+        event.knifeId,
+        event.type,
+      ]),
+    ).toEqual([
+      [second, 'sharpening'],
+      [first, 'cleaning'],
+    ])
+    expect(data.notes).toEqual([
+      expect.objectContaining({ knifeId: first, body: 'Carried daily' }),
+    ])
   })
 
   it('rejects stale bulk updates without partially modifying records', async () => {

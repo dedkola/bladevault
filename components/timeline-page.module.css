@@ -1,0 +1,401 @@
+/* Collection timeline shared by every theme style. Forge-family variants set
+ * the --forge-* tokens (app/forge.css); other styles use the fallbacks. */
+.root {
+  --tl-line: var(
+    --insight-line,
+    color-mix(in srgb, var(--foreground) 11%, transparent)
+  );
+  --tl-soft: color-mix(in srgb, var(--foreground) 3%, var(--card));
+  --tl-accent: var(--forge-accent, var(--primary));
+  --tl-milestone: var(--bladevault-gold, var(--tl-accent));
+  --tl-radius: var(--forge-radius, 14px);
+  container-type: inline-size;
+  width: 100%;
+  max-width: 920px;
+  margin-inline: auto;
+  padding: 23px clamp(16px, 2.7vw, 36px) 40px;
+  color: var(--foreground);
+}
+
+/* ---- Year picker and summary ---------------------------------------- */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 18px;
+  margin-bottom: 20px;
+}
+.years {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--tl-line);
+  border-radius: 9px;
+  background: var(--tl-soft);
+}
+.years button {
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.years button:hover {
+  color: var(--foreground);
+}
+.years button[aria-pressed='true'] {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+}
+.years button:focus-visible,
+.more:focus-visible,
+.knifeLink:focus-visible,
+.subtleLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.summary {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.notice {
+  margin: 0 0 16px;
+  padding: 9px 12px;
+  border: 1px dashed var(--tl-line);
+  border-radius: 10px;
+  color: var(--muted-foreground);
+  font-size: 12.5px;
+}
+
+/* ---- Year in review ------------------------------------------------- */
+.recap {
+  margin-bottom: 30px;
+  padding: 22px 22px 20px;
+  border: 1px solid color-mix(in srgb, var(--tl-accent) 30%, var(--tl-line));
+  border-radius: var(--tl-radius);
+  background: radial-gradient(
+    120% 140% at 0% 0%,
+    color-mix(in srgb, var(--tl-accent) 10%, var(--card)) 0%,
+    var(--card) 60%
+  );
+}
+.eyebrow {
+  display: block;
+  color: var(--tl-accent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.recapHead h2 {
+  margin: 6px 0 0;
+  font-size: clamp(26px, 4cqi, 36px);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+.recapHead p {
+  margin: 6px 0 0;
+  color: var(--muted-foreground);
+  font-size: 13.5px;
+}
+.recapStats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 18px 0 0;
+  border: 1px solid var(--tl-line);
+  border-radius: 12px;
+  background: var(--tl-line);
+  overflow: hidden;
+}
+.recapStat {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  padding: 14px 16px;
+  background: var(--card);
+}
+.recapStat dd {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.recapStat dt {
+  margin-top: 6px;
+  color: var(--muted-foreground);
+  font-size: 12.5px;
+}
+.highlights {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px 24px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.highlights li > span {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+}
+.highlights li > p {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+@container (min-width: 640px) {
+  .recapStats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .highlights {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---- The rail ------------------------------------------------------- */
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.monthLabel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0 0 12px;
+  padding-left: 44px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.monthLabel span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.entries {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.entries::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 15.5px;
+  width: 1px;
+  background: var(--tl-line);
+}
+.entry {
+  position: relative;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.marker {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-top: 6px;
+  border: 1px solid var(--tl-line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--muted-foreground);
+}
+.card {
+  min-width: 0;
+  padding: 11px 14px 12px;
+  border: 1px solid var(--tl-line);
+  border-radius: 12px;
+  background: var(--card);
+}
+.entry[data-kind='added'] .marker {
+  border-color: color-mix(in srgb, var(--tl-accent) 55%, var(--tl-line));
+  color: var(--tl-accent);
+}
+.entry[data-kind='milestone'] .marker {
+  border-color: var(--tl-milestone);
+  background: var(--tl-milestone);
+  color: var(--background);
+}
+.entry[data-kind='milestone'] .card {
+  border-color: color-mix(in srgb, var(--tl-milestone) 45%, var(--tl-line));
+  background: color-mix(in srgb, var(--tl-milestone) 7%, var(--card));
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  color: var(--muted-foreground);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.meta span::before {
+  content: '·';
+  margin-right: 8px;
+}
+.knifeRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+.knifeText {
+  min-width: 0;
+}
+.thumb {
+  position: relative;
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background: var(--tl-soft);
+  color: var(--muted-foreground);
+  overflow: hidden;
+}
+.knifeLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 550;
+}
+.knifeLink {
+  border-radius: 3px;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+.knifeLink:hover {
+  color: var(--tl-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.badge {
+  display: inline-flex;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tl-accent) 12%, transparent);
+  color: color-mix(in srgb, var(--tl-accent) 75%, var(--foreground));
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.badge[data-tone='muted'] {
+  border: 1px solid var(--tl-line);
+  background: var(--tl-soft);
+  color: var(--muted-foreground);
+}
+.detail {
+  margin: 4px 0 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.milestoneTitle {
+  margin: 6px 0 0;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.subtleLink {
+  display: inline-block;
+  margin-top: 6px;
+  border-radius: 3px;
+  color: var(--tl-accent);
+  font-size: 12px;
+  text-decoration: none;
+}
+.subtleLink:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.more {
+  display: block;
+  margin: 24px auto 0;
+  padding: 8px 14px;
+  border: 1px solid var(--tl-line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  cursor: pointer;
+}
+.more:hover {
+  background: var(--tl-soft);
+}
+
+/* ---- Loading -------------------------------------------------------- */
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.loading > div {
+  height: 72px;
+  border: 1px solid var(--tl-line);
+  border-radius: 12px;
+  background: var(--tl-soft);
+}
+.loading > div:first-child {
+  height: 120px;
+}
+
+@container (max-width: 480px) {
+  .entry {
+    grid-template-columns: 26px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .marker {
+    width: 26px;
+    height: 26px;
+  }
+  .marker svg {
+    width: 11px;
+    height: 11px;
+  }
+  .entries::before {
+    left: 12.5px;
+  }
+  .monthLabel {
+    padding-left: 36px;
+  }
+  .thumb {
+    width: 40px;
+    height: 40px;
+  }
+  .recap {
+    padding: 18px 16px 16px;
+  }
+}
