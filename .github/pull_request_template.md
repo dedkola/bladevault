@@ -6,6 +6,10 @@
 
 <!-- The problem this solves or the behaviour it changes. -->
 
+## Release note
+
+<!-- One sentence for the release page, written for people who use BladeVault, e.g. "Attach photos to notes; they appear in the item gallery." Write "none" for changes users won't notice. Also add one label: feature, enhancement, bug, documentation or internal. -->
+
 ## How it was verified
 
 <!-- The commands you ran and what you checked by hand (styles, light/dark, desktop/narrow widths). -->
