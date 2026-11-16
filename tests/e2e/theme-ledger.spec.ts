@@ -71,8 +71,10 @@ test('steps through the ledger and acts on the selected knife from the keyboard'
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
 
-  // / and ⌘K focus the filter, which understands field:value words.
-  const filter = page.getByRole('searchbox', { name: /Filter knives/ })
+  // / and ⌘K focus the chip bar, whose typed text understands field:value words.
+  const filter = page.getByRole('combobox', {
+    name: 'Search and filter collection',
+  })
   await page.keyboard.press('/')
   await expect(filter).toBeFocused()
   await filter.fill('lock:axis')
@@ -82,7 +84,10 @@ test('steps through the ledger and acts on the selected knife from the keyboard'
   await page.keyboard.press('ControlOrMeta+k')
   await expect(filter).toBeFocused()
   await filter.fill('')
+  // Escape closes the suggestions first, then leaves the bar.
   await filter.press('Escape')
+  await filter.press('Escape')
+  await expect(filter).not.toBeFocused()
 
   // E opens the editor for the selected knife; N opens Add.
   await page.keyboard.press('e')

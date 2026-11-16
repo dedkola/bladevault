@@ -142,8 +142,9 @@ function CollectionContent() {
     isLoading,
   } = useKnives()
   const isAlloy = themeStyle === 'alloy'
-  // Lumen replaces the search field and filter grid with one chip bar.
-  const isLumen = themeStyle === 'lumen'
+  // Modern and its variants replace the search field and filter grid with
+  // one chip bar: free-text search plus field filters picked as you type.
+  const usesChipFilter = isModernThemeFamily(themeStyle)
   const isWorkspaceCollection = isModernThemeFamily(themeStyle) || isAlloy
   // Forge, Titanium and Field share the Forge cards and summary.
   const isForge = Boolean(getModernThemeVariant(themeStyle))
@@ -448,8 +449,10 @@ function CollectionContent() {
 
   const chipFilterFields = useMemo<ChipFilterField[]>(
     () =>
-      isLumen ? buildChipFilterFields(knives, customFieldDefinitions) : [],
-    [isLumen, knives, customFieldDefinitions],
+      usesChipFilter
+        ? buildChipFilterFields(knives, customFieldDefinitions)
+        : [],
+    [usesChipFilter, knives, customFieldDefinitions],
   )
 
   const filteredKnives = useMemo(() => {
@@ -1109,7 +1112,7 @@ function CollectionContent() {
           </nav>
         )}
 
-        {isLumen && knives.length > 0 && (
+        {usesChipFilter && knives.length > 0 && (
           <CollectionChipFilter
             fields={chipFilterFields}
             params={new URLSearchParams(searchParamsKey)}
@@ -1164,7 +1167,7 @@ function CollectionContent() {
                   <option value="pinned">Pinned</option>
                 </select>
               )}
-              {!isAlloy && !isLumen && (
+              {!isAlloy && !usesChipFilter && (
                 <SearchField
                   value={query}
                   onChange={setQuery}
@@ -1185,7 +1188,7 @@ function CollectionContent() {
                 type="button"
                 variant="outline"
                 size="default"
-                hidden={isLumen}
+                hidden={usesChipFilter}
                 onClick={() => setIsFiltersOpen((current) => !current)}
                 aria-expanded={isFiltersOpen}
                 aria-controls="collection-filters"
@@ -1302,7 +1305,7 @@ function CollectionContent() {
               id="collection-filters"
               className={cn(
                 'mt-3 gap-2 sm:grid-cols-2 lg:gap-2.5 xl:grid-cols-4',
-                isFiltersOpen && !isLumen ? 'grid' : 'hidden',
+                isFiltersOpen && !usesChipFilter ? 'grid' : 'hidden',
               )}
             >
               {filterDefinitions.map((definition) => (
@@ -1336,7 +1339,7 @@ function CollectionContent() {
           className={cn(
             'mb-6 flex flex-col gap-4',
             isWorkspaceCollection && hasActiveFilters && 'mb-3',
-            (!hasActiveFilters || isLumen) && 'hidden',
+            (!hasActiveFilters || usesChipFilter) && 'hidden',
           )}
         >
           <div className="flex flex-wrap items-center gap-2">

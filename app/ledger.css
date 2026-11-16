@@ -836,26 +836,44 @@ html[data-theme-variant='ledger']
   border-bottom: 1px solid var(--ledger-line);
 }
 
-[data-ledger-toolbar] input {
+/* The chip bar: search text plus picked field filters, as on Lumen. */
+[data-ledger-toolbar] [data-collection-chip-filter] {
   flex: 1;
   min-width: 0;
-  height: 30px;
-  padding: 0 10px;
+  min-height: 30px;
+  margin: 0;
+  padding: 2px 8px;
   border: 1px solid var(--ledger-line);
   border-radius: 5px;
   background: var(--ledger-page);
   color: var(--ledger-ink);
-  font: inherit;
-  outline: none;
 }
 
-[data-ledger-toolbar] input::placeholder {
+[data-ledger-toolbar] [data-collection-chip-filter]:focus-within {
+  border-color: var(--ledger-accent);
+  box-shadow: 0 0 0 3px var(--ledger-accent-soft);
+}
+
+[data-ledger-toolbar] [data-collection-chip-filter] input {
+  height: 24px;
+  color: var(--ledger-ink);
+  font: inherit;
+}
+
+[data-ledger-toolbar] [data-collection-chip-filter] input::placeholder {
   color: var(--ledger-faint);
 }
 
-[data-ledger-toolbar] input:focus {
-  border-color: var(--ledger-accent);
-  box-shadow: 0 0 0 3px var(--ledger-accent-soft);
+[data-ledger-toolbar] [data-collection-chip-filter] > span:has(> button) {
+  border-color: var(--ledger-accent-line);
+  border-radius: 4px;
+  background: var(--ledger-accent-soft);
+}
+
+[data-ledger-toolbar] [data-collection-chip-filter] > [role='listbox'] {
+  border-color: var(--ledger-line);
+  border-radius: 6px;
+  background: var(--ledger-surface);
 }
 
 [data-ledger-tokens] {
