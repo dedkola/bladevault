@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, ExternalLink, Star } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
 import { KnifePhoto } from '@/components/lumen/knife-photo'
 import { OPEN_GLOBAL_SEARCH_EVENT } from '@/components/global-knife-search'
+import { CollectionChipFilter } from '@/components/collection-chip-filter'
+import { buildChipFilterFields } from '@/lib/chip-filter-fields'
 import { isEditableTarget } from '@/components/ledger/ledger-shell'
 import {
   useLumenCollection,
@@ -194,6 +196,8 @@ function useAuditLog(version: string) {
 
 export function LedgerCollection() {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { dimensionUnit, cardFields, customFieldDefinitions } = useKnives()
   const [paneWidth, setPaneWidth] = useState<number | null>(null)
   const ledgerColumns = useLedgerColumns(
@@ -286,6 +290,39 @@ export function LedgerCollection() {
       on: true,
       toggle: () => toggleSingle('handleMaterial', handle),
     })
+  }
+  // The chip bar searches text and picks field values, as on Lumen. Pinned,
+  // owned, sold and handle stay on the quick-filter tokens below it.
+  const chipFields = useMemo(
+    () => buildChipFilterFields(knives, customFieldDefinitions),
+    [knives, customFieldDefinitions],
+  )
+  const knifeType = getValues('knifeType')[0]
+  const extraChips = [
+    ...(knifeType === 'fixed' || knifeType === 'folding'
+      ? [
+          {
+            key: 'knifeType',
+            label: knifeType === 'fixed' ? 'Fixed blades' : 'Folding knives',
+          },
+        ]
+      : []),
+    ...(getValues('missingSpecs')[0] === '1'
+      ? [{ key: 'missingSpecs', label: 'Missing specifications' }]
+      : []),
+  ]
+  // Start from the live URL so quick picks and typed text never overwrite
+  // each other, and skip a router round trip per keystroke.
+  const applyChipFilter = (update: (params: URLSearchParams) => void) => {
+    const next = new URLSearchParams(window.location.search)
+    update(next)
+    next.delete('smart')
+    const query = next.toString()
+    window.history.replaceState(
+      null,
+      '',
+      query ? `${pathname}?${query}` : pathname,
+    )
   }
   const filteredValue = summarizeCollectionValue(
     filtered.filter((knife) => !knife.sold),
@@ -386,16 +423,19 @@ export function LedgerCollection() {
       <h1 className="sr-only">Collection</h1>
       <section data-ledger-listpane aria-label="Knives" ref={paneRef}>
         <div data-ledger-toolbar>
-          <input
-            ref={searchRef}
-            type="search"
-            value={collection.query}
-            onChange={(event) => collection.setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') event.currentTarget.blur()
-            }}
-            placeholder="Filter…  steel:magnacut  lock:axis"
-            aria-label="Filter knives. Use steel:, lock:, brand:, style: or handle: to search one field."
+          <CollectionChipFilter
+            fields={chipFields}
+            params={new URLSearchParams(searchParams.toString())}
+            apply={applyChipFilter}
+            extraChips={extraChips}
+            lengthUnit={dimensionUnit}
+            onClearAll={collection.clearFilters}
+            summary={
+              filtered.length !== knives.length
+                ? `${filtered.length} of ${knives.length}`
+                : undefined
+            }
+            inputRef={searchRef}
           />
           <button
             type="button"
