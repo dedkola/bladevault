@@ -42,6 +42,13 @@ test('steps through the ledger and acts on the selected knife from the keyboard'
     .locator('[data-ledger-cell]')
   await expect(firstRowCells).toHaveText(['MagnaCut', '$69.99'])
 
+  // No row is marked until the user picks one; the first J lands on the
+  // first entry the detail pane already shows.
+  await expect(page.locator('[data-ledger-row][aria-current]')).toHaveCount(0)
+  await page.keyboard.press('j')
+  await expect(title).toHaveText('Ledger Alpha')
+  await expect(page.locator('[data-ledger-row][aria-current]')).toBeFocused()
+
   // J and K move the selection and keep keyboard focus on the row.
   await page.keyboard.press('j')
   await expect(title).toHaveText('Ledger Bravo')
