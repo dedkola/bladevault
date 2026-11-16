@@ -63,8 +63,11 @@ function readReleaseNote(body) {
   let section = body.slice(heading.index + heading[0].length)
   const next = NEXT_HEADING.exec(section)
   if (next) section = section.slice(0, next.index)
+  // Drop the template's hint comments, then escape "<" so any leftover or
+  // nested markup shows as text instead of reaching the release page as HTML.
   const text = section
     .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/</g, '&lt;')
     .replace(/\s+/g, ' ')
     .trim()
   if (!text) return null

@@ -76,6 +76,9 @@ describe('release notes', () => {
     ).toBeNull()
     expect(readReleaseNote('## What changed\n\nStuff')).toBeNull()
     expect(readReleaseNote(null)).toBeNull()
+    expect(
+      readReleaseNote('## Release note\n<!<!-- x -->-- <b>Bold</b>'),
+    ).toEqual({ text: '&lt;!-- &lt;b>Bold&lt;/b>' })
   })
 
   it('groups pull requests by label and uses release notes', () => {
