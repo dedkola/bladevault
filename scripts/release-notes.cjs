@@ -54,6 +54,25 @@ function parseCommits(log) {
     .filter((commit) => !VERSION_BUMP.test(commit.subject))
 }
 
+// Removes each "<!-- … -->" in one left-to-right pass; an unclosed comment
+// hides the rest of the text, as it would in HTML.
+function stripHtmlComments(text) {
+  let result = ''
+  let index = 0
+  while (index < text.length) {
+    const start = text.indexOf('<!--', index)
+    if (start === -1) {
+      result += text.slice(index)
+      break
+    }
+    result += text.slice(index, start)
+    const end = text.indexOf('-->', start + 4)
+    if (end === -1) break
+    index = end + 3
+  }
+  return result
+}
+
 // The "## Release note" section of a PR body: { text } for a sentence,
 // { none: true } for "none", or null when the section is missing or empty.
 function readReleaseNote(body) {
@@ -65,8 +84,7 @@ function readReleaseNote(body) {
   if (next) section = section.slice(0, next.index)
   // Drop the template's hint comments, then escape "<" so any leftover or
   // nested markup shows as text instead of reaching the release page as HTML.
-  const text = section
-    .replace(/<!--[\s\S]*?-->/g, '')
+  const text = stripHtmlComments(section)
     .replace(/</g, '&lt;')
     .replace(/\s+/g, ' ')
     .trim()
