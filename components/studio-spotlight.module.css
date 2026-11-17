@@ -12,14 +12,15 @@
   --spotlight-glass-line: rgb(255 255 255 / 30%);
 
   position: relative;
-  min-height: 260px;
-  /* Wide layouts (Alloy) would otherwise grow it to half the viewport. */
-  max-height: 420px;
+  width: 100%;
+  /* Roughly 21:8 of Studio's width (an inline-size container), held between
+     a readable minimum and a cap so wide screens fill the row instead of
+     narrowing the banner to keep its ratio. */
+  height: clamp(260px, 36cqi, 440px);
   margin-bottom: 18px;
   overflow: hidden;
   border: 1px solid var(--spotlight-line);
   border-radius: 18px;
-  aspect-ratio: 21 / 8;
   background: var(--spotlight-stage);
   box-shadow: 0 2px 3px color-mix(in srgb, var(--foreground) 2%, transparent);
   color: var(--spotlight-ink);
@@ -218,9 +219,7 @@
 /* Studio's root is an inline-size container. */
 @container (max-width: 760px) {
   .hero {
-    min-height: 0;
     height: 380px;
-    aspect-ratio: auto;
   }
 
   .image {
