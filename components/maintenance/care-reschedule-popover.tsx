@@ -31,7 +31,7 @@ function longDate(day: string) {
 
 /**
  * Small card next to a timeline pin: push the job to a later date without
- * logging care, undo that, or open the knife. A hover preview closes when the
+ * logging care, or open the knife. A hover preview closes when the
  * pointer leaves; a pinned card (opened by a click or the keyboard) takes
  * focus and stays until Escape, a click outside or an action.
  */
@@ -134,7 +134,7 @@ export function CareReschedulePopover({
     }
   }, [open, pinned, anchor])
 
-  async function apply(until: string | null) {
+  async function apply(until: string) {
     if (!job) return
     setPending(true)
     setFailure(null)
@@ -209,16 +209,6 @@ export function CareReschedulePopover({
               )
             })}
           </div>
-          {job.deferredUntil && (
-            <button
-              type="button"
-              className="id-care-reschedule-undo"
-              disabled={pending}
-              onClick={() => void apply(null)}
-            >
-              Restore the original date
-            </button>
-          )}
           {error && (
             <p role="alert" className="id-care-reschedule-error">
               {error}
