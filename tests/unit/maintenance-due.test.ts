@@ -38,6 +38,41 @@ const settings = (
   ...patch,
 })
 
+describe('care deferrals', () => {
+  const lastAt = daysAgo(94)
+  const sharpening = (until: string, after = lastAt) =>
+    getKnifeCareStatus(
+      'pm2',
+      { sharpening: lastAt },
+      settings(),
+      undefined,
+      now,
+      { sharpening: { until, after } },
+    ).tracks.find((track) => track.track === 'sharpening')
+
+  it('moves an overdue job to the deferred date', () => {
+    expect(sharpening('2026-11-23')).toMatchObject({
+      dueInDays: 7,
+      level: 'due-soon',
+      deferredUntil: '2026-11-23',
+    })
+  })
+
+  it('ignores a deferral once the care was logged again', () => {
+    expect(sharpening('2026-11-23', daysAgo(200))).toMatchObject({
+      dueInDays: -4,
+      deferredUntil: null,
+    })
+  })
+
+  it('never pulls a job earlier than its normal deadline', () => {
+    expect(sharpening('2026-11-10')).toMatchObject({
+      dueInDays: -4,
+      deferredUntil: null,
+    })
+  })
+})
+
 describe('care status', () => {
   it('classifies each track against its interval and due-soon window', () => {
     const status = getKnifeCareStatus(

@@ -13,6 +13,7 @@ import {
   normalizeTimeFormat,
   normalizeDimensionUnit,
   normalizeMaintenanceReminders,
+  normalizeCareDeferrals,
   normalizeCareIntervalOverrides,
   type AppSettings,
   type AppTheme,
@@ -49,6 +50,7 @@ const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
   customFields: 'custom_fields',
   maintenanceReminders: 'maintenance_reminders',
   careIntervalOverrides: 'care_interval_overrides',
+  careDeferrals: 'care_deferrals',
 }
 
 function parseMaintenanceReminders(value: string | undefined) {
@@ -62,6 +64,14 @@ function parseMaintenanceReminders(value: string | undefined) {
 function parseCareIntervalOverrides(value: string | undefined) {
   try {
     return normalizeCareIntervalOverrides(value ? JSON.parse(value) : undefined)
+  } catch {
+    return {}
+  }
+}
+
+function parseCareDeferrals(value: string | undefined) {
+  try {
+    return normalizeCareDeferrals(value ? JSON.parse(value) : undefined)
   } catch {
     return {}
   }
@@ -196,6 +206,7 @@ export function getSettings(): AppSettings {
     careIntervalOverrides: parseCareIntervalOverrides(
       map.get(SETTINGS_KEYS.careIntervalOverrides),
     ),
+    careDeferrals: parseCareDeferrals(map.get(SETTINGS_KEYS.careDeferrals)),
   }
 }
 
@@ -238,6 +249,10 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
         settings.careIntervalOverrides === undefined
           ? current.careIntervalOverrides
           : normalizeCareIntervalOverrides(settings.careIntervalOverrides),
+      careDeferrals:
+        settings.careDeferrals === undefined
+          ? current.careDeferrals
+          : normalizeCareDeferrals(settings.careDeferrals),
     }
 
     const insert = getDb().prepare(
@@ -260,6 +275,7 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
       ['customFields', JSON.stringify(next.customFields)],
       ['maintenanceReminders', JSON.stringify(next.maintenanceReminders)],
       ['careIntervalOverrides', JSON.stringify(next.careIntervalOverrides)],
+      ['careDeferrals', JSON.stringify(next.careDeferrals)],
     ]
 
     const transaction = getDb().transaction(() => {

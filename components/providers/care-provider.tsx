@@ -20,9 +20,11 @@ import {
 } from '@/lib/maintenance-due'
 import {
   DEFAULT_MAINTENANCE_REMINDERS,
+  normalizeCareDeferrals,
   normalizeCareIntervalOverrides,
   normalizeMaintenanceReminders,
   SETTINGS_UPDATED_EVENT,
+  type CareDeferrals,
   type CareIntervalOverrides,
   type CareTrack,
   type MaintenanceReminderSettings,
@@ -37,6 +39,8 @@ type CareContextValue = {
   /** Reminder preferences; care UI hides itself while `enabled` is false. */
   reminders: MaintenanceReminderSettings
   overrides: CareIntervalOverrides
+  /** Jobs the user pushed back to a later date. */
+  deferrals: CareDeferrals
   /** Latest maintenance dates per knife; empty until loaded. */
   latestByKnife: ReadonlyMap<string, LatestByType>
   /** Derived care status per knife (sold knives may be skipped). */
@@ -49,6 +53,15 @@ type CareContextValue = {
     knifeId: string,
     tracks: Partial<Record<CareTrack, number | null>> | null,
   ) => Promise<void>
+  /**
+   * Reschedules a job to `until` (local YYYY-MM-DD) without logging care; null
+   * brings it back to its normal date.
+   */
+  deferCare: (
+    knifeId: string,
+    track: CareTrack,
+    until: string | null,
+  ) => Promise<void>
 }
 
 const CareContext = createContext<CareContextValue | null>(null)
@@ -57,6 +70,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
   const { knives } = useKnives()
   const [reminders, setReminders] = useState(DEFAULT_MAINTENANCE_REMINDERS)
   const [overrides, setOverrides] = useState<CareIntervalOverrides>({})
+  const [deferrals, setDeferrals] = useState<CareDeferrals>({})
   const [latestByKnife, setLatestByKnife] = useState<Map<string, LatestByType>>(
     () => new Map(),
   )
@@ -64,10 +78,13 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
   const [now, setNow] = useState(() => new Date())
   const [refreshKey, setRefreshKey] = useState(0)
   const overridesRef = useRef(overrides)
+  const deferralsRef = useRef(deferrals)
+  const statusRef = useRef<ReadonlyMap<string, KnifeCareStatus>>(new Map())
 
   useEffect(() => {
     overridesRef.current = overrides
-  }, [overrides])
+    deferralsRef.current = deferrals
+  }, [overrides, deferrals])
 
   useEffect(() => {
     let cancelled = false
@@ -81,6 +98,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
           settings?: {
             maintenanceReminders?: unknown
             careIntervalOverrides?: unknown
+            careDeferrals?: unknown
           }
         }>(settingsResponse)
         const latestData = await readJsonResponse<{
@@ -97,6 +115,9 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
             normalizeCareIntervalOverrides(
               settingsData.settings?.careIntervalOverrides,
             ),
+          )
+          setDeferrals(
+            normalizeCareDeferrals(settingsData.settings?.careDeferrals),
           )
         }
         if (latestResponse.ok && Array.isArray(latestData.latest)) {
@@ -157,10 +178,14 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
         event as CustomEvent<{
           maintenanceReminders?: unknown
           careIntervalOverrides?: unknown
+          careDeferrals?: unknown
         }>
       ).detail
       if (detail?.maintenanceReminders !== undefined) {
         setReminders(normalizeMaintenanceReminders(detail.maintenanceReminders))
+      }
+      if (detail?.careDeferrals !== undefined) {
+        setDeferrals(normalizeCareDeferrals(detail.careDeferrals))
       }
       if (detail?.careIntervalOverrides !== undefined) {
         setOverrides(
@@ -204,24 +229,73 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
     [],
   )
 
-  const statusById = useMemo(
-    () => getCareStatuses(knives, latestByKnife, reminders, overrides, now),
-    [knives, latestByKnife, reminders, overrides, now],
+  const deferCare = useCallback(
+    async (knifeId: string, track: CareTrack, until: string | null) => {
+      const next: CareDeferrals = { ...deferralsRef.current }
+      const tracks = { ...next[knifeId] }
+      if (until) {
+        tracks[track] = {
+          until,
+          // Matches the care date the job was computed from, so a new log
+          // retires the deferral.
+          after:
+            statusRef.current
+              .get(knifeId)
+              ?.tracks.find((item) => item.track === track)?.lastAt ?? '',
+        }
+      } else {
+        delete tracks[track]
+      }
+      if (Object.keys(tracks).length > 0) next[knifeId] = tracks
+      else delete next[knifeId]
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ careDeferrals: next }),
+      })
+      if (!response.ok) {
+        const data = await readJsonResponse<{ error?: string }>(response)
+        throw new Error(data.error || 'Failed to reschedule the care')
+      }
+      setDeferrals(next)
+    },
+    [],
   )
+
+  const statusById = useMemo(
+    () =>
+      getCareStatuses(
+        knives,
+        latestByKnife,
+        reminders,
+        overrides,
+        now,
+        deferrals,
+      ),
+    [knives, latestByKnife, reminders, overrides, now, deferrals],
+  )
+
+  useEffect(() => {
+    statusRef.current = statusById
+  }, [statusById])
 
   const value = useMemo<CareContextValue>(
     () => ({
       reminders,
       overrides,
+      deferrals,
       latestByKnife,
       statusById,
       now,
       isLoading,
       setKnifeCareIntervals,
+      deferCare,
     }),
     [
       reminders,
       overrides,
+      deferrals,
+      deferCare,
       latestByKnife,
       statusById,
       now,
@@ -237,11 +311,15 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
 const DISABLED_CARE_CONTEXT: CareContextValue = {
   reminders: { ...DEFAULT_MAINTENANCE_REMINDERS, enabled: false },
   overrides: {},
+  deferrals: {},
   latestByKnife: new Map(),
   statusById: new Map(),
   now: new Date(0),
   isLoading: false,
   setKnifeCareIntervals: async () => {
+    throw new Error('Care reminders are unavailable here.')
+  },
+  deferCare: async () => {
     throw new Error('Care reminders are unavailable here.')
   },
 }

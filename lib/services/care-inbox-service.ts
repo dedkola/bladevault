@@ -27,6 +27,7 @@ export async function syncCareInbox(
     reminders,
     settings.careIntervalOverrides,
     now,
+    settings.careDeferrals,
   )
   return storage.syncCareNotifications(statuses, now)
 }
