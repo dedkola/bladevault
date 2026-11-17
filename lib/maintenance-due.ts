@@ -222,6 +222,30 @@ export function getCareStatuses(
   return statuses
 }
 
+/** Deferrals that still move a job; the rest no longer change anything. */
+export function pruneCareDeferrals(
+  deferrals: CareDeferrals,
+  statuses: ReadonlyMap<string, KnifeCareStatus>,
+): CareDeferrals {
+  const kept: CareDeferrals = {}
+  for (const [knifeId, entries] of Object.entries(deferrals)) {
+    const tracks = statuses.get(knifeId)?.tracks ?? []
+    const live: Partial<Record<CareTrack, CareDeferral>> = {}
+    for (const track of CARE_TRACKS) {
+      const entry = entries[track]
+      if (
+        entry &&
+        tracks.find((status) => status.track === track)?.deferredUntil ===
+          entry.until
+      ) {
+        live[track] = entry
+      }
+    }
+    if (Object.keys(live).length > 0) kept[knifeId] = live
+  }
+  return kept
+}
+
 export function countCareStatuses(
   statuses: ReadonlyMap<string, KnifeCareStatus>,
 ): Record<CareStatusLevel, number> {

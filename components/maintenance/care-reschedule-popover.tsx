@@ -1,10 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { careToneDotClass } from '@/components/care-badge'
 import { useCare } from '@/components/providers/care-provider'
-import type { CareJob } from '@/lib/care-insights'
+import { formatCareDate, type CareJob } from '@/lib/care-insights'
 import { localDateAfter } from '@/lib/care-notifications'
 import { CARE_TRACK_NAMES } from '@/lib/settings-shared'
 
@@ -20,13 +20,25 @@ function dueText(days: number) {
   return `due in ${days} day${days === 1 ? '' : 's'}`
 }
 
+function longDate(day: string) {
+  return new Date(`${day}T00:00`).toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 /**
  * Small card next to a timeline pin: push the job to a later date without
- * logging care, or open the knife. Light-dismisses like any popover.
+ * logging care, undo that, or open the knife. A hover preview closes when the
+ * pointer leaves; a pinned card (opened by a click or the keyboard) takes
+ * focus and stays until Escape, a click outside or an action.
  */
 export function CareReschedulePopover({
   job,
   anchor,
+  pinned,
   knifeName,
   now,
   onClose,
@@ -35,6 +47,7 @@ export function CareReschedulePopover({
 }: {
   job: CareJob | null
   anchor: HTMLElement | null
+  pinned: boolean
   knifeName: string
   now: Date
   onClose: () => void
@@ -45,44 +58,95 @@ export function CareReschedulePopover({
   const { deferCare } = useCare()
   const ref = useRef<HTMLDivElement>(null)
   const [pending, setPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Keyed by job, so another pin's card never shows this one's error.
+  const [failure, setFailure] = useState<{
+    key: string
+    message: string
+  } | null>(null)
+  const jobKey = job ? `${job.knifeId}\u0000${job.track}` : ''
+  const error = failure?.key === jobKey ? failure.message : null
   const open = job !== null && anchor !== null
+  const onCloseRef = useRef(onClose)
 
-  // Show in the top layer, then place it under (or above) the pin.
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  // Show in the top layer under (or above) the pin and follow it while the
+  // page scrolls or resizes.
   useLayoutEffect(() => {
     const popover = ref.current
     if (!popover || !open) return
+    const place = () => {
+      if (!anchor.isConnected) {
+        onCloseRef.current()
+        return
+      }
+      const rect = anchor.getBoundingClientRect()
+      const width = popover.offsetWidth
+      const height = popover.offsetHeight
+      const left = Math.min(
+        Math.max(8, rect.left + rect.width / 2 - width / 2),
+        window.innerWidth - width - 8,
+      )
+      const below = rect.bottom + 6
+      const top =
+        below + height > window.innerHeight - 8
+          ? Math.max(8, rect.top - height - 6)
+          : below
+      popover.style.left = `${left}px`
+      popover.style.top = `${top}px`
+      popover.setAttribute('data-placed', '')
+    }
     if (!popover.matches(':popover-open')) popover.showPopover()
-    const rect = anchor.getBoundingClientRect()
-    const width = popover.offsetWidth
-    const height = popover.offsetHeight
-    const left = Math.min(
-      Math.max(8, rect.left + rect.width / 2 - width / 2),
-      window.innerWidth - width - 8,
-    )
-    const below = rect.bottom + 6
-    const top =
-      below + height > window.innerHeight - 8
-        ? Math.max(8, rect.top - height - 6)
-        : below
-    popover.style.left = `${left}px`
-    popover.style.top = `${top}px`
-    popover.setAttribute('data-placed', '')
+    place()
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
     return () => {
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
       popover.removeAttribute('data-placed')
       if (popover.matches(':popover-open')) popover.hidePopover()
     }
   }, [open, anchor, job?.knifeId, job?.track])
 
-  async function apply(until: string) {
+  // A pinned card closes on Escape or a press outside it and its pin.
+  useEffect(() => {
+    const popover = ref.current
+    if (!popover || !open || !pinned) return
+    popover.focus({ preventScroll: true })
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (popover.contains(target) || anchor.contains(target)) return
+      onCloseRef.current()
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      onCloseRef.current()
+      anchor.focus({ preventScroll: true })
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open, pinned, anchor])
+
+  async function apply(until: string | null) {
     if (!job) return
     setPending(true)
-    setError(null)
+    setFailure(null)
     try {
       await deferCare(job.knifeId, job.track, until)
       onClose()
+      anchor?.focus({ preventScroll: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not reschedule')
+      setFailure({
+        key: jobKey,
+        message: err instanceof Error ? err.message : 'Could not reschedule',
+      })
     } finally {
       setPending(false)
     }
@@ -95,26 +159,20 @@ export function CareReschedulePopover({
   return (
     <div
       ref={ref}
-      popover="auto"
+      popover="manual"
+      role="dialog"
+      tabIndex={-1}
+      aria-label={
+        job ? `${CARE_TRACK_NAMES[job.track]}: ${knifeName}` : undefined
+      }
       className="id-care-pin-list id-care-reschedule"
       onMouseEnter={onHoverStart}
       onMouseLeave={onHoverEnd}
-      onToggle={(event) => {
-        if (event.newState === 'closed') {
-          setError(null)
-          onClose()
-        }
-      }}
     >
       {job && (
         <>
           <strong className="id-care-reschedule-date">
-            {new Date(`${job.dueOn}T00:00`).toLocaleDateString(undefined, {
-              weekday: 'short',
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-            })}
+            {longDate(job.dueOn)}
           </strong>
           <ul className="id-care-reschedule-rows">
             <li>
@@ -124,7 +182,13 @@ export function CareReschedulePopover({
             </li>
             <li>
               <i className={careToneDotClass(job.level)} />
-              <span>{job.dueInDays < 0 ? 'Overdue' : 'Due'}</span>
+              <span>
+                {job.deferredUntil
+                  ? 'Rescheduled'
+                  : job.dueInDays < 0
+                    ? 'Overdue'
+                    : 'Due'}
+              </span>
               <strong>{dueText(job.dueInDays)}</strong>
             </li>
           </ul>
@@ -137,11 +201,7 @@ export function CareReschedulePopover({
                   type="button"
                   // Only dates later than the current deadline help.
                   disabled={pending || until <= job.dueOn}
-                  title={
-                    option.label === 'Skip this time'
-                      ? `A full ${job.intervalDays}-day interval from today`
-                      : undefined
-                  }
+                  title={`Move to ${formatCareDate(until, now)}`}
                   onClick={() => void apply(until)}
                 >
                   {option.label}
@@ -149,6 +209,16 @@ export function CareReschedulePopover({
               )
             })}
           </div>
+          {job.deferredUntil && (
+            <button
+              type="button"
+              className="id-care-reschedule-undo"
+              disabled={pending}
+              onClick={() => void apply(null)}
+            >
+              Restore the original date
+            </button>
+          )}
           {error && (
             <p role="alert" className="id-care-reschedule-error">
               {error}

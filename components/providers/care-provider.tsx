@@ -14,6 +14,7 @@ import {
   buildLatestByKnife,
   getCareStatuses,
   MAINTENANCE_UPDATED_EVENT,
+  pruneCareDeferrals,
   type KnifeCareStatus,
   type LatestByType,
   type MaintenanceLatestEntry,
@@ -231,7 +232,9 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
 
   const deferCare = useCallback(
     async (knifeId: string, track: CareTrack, until: string | null) => {
-      const next: CareDeferrals = { ...deferralsRef.current }
+      // Drop deferrals a new log or an expired date retired, so they don't
+      // pile up in settings.
+      const next = pruneCareDeferrals(deferralsRef.current, statusRef.current)
       const tracks = { ...next[knifeId] }
       if (until) {
         tracks[track] = {

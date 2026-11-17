@@ -1081,6 +1081,25 @@ button.id-care-pin {
   opacity: 0.45;
   cursor: default;
 }
+.id-care-reschedule:focus {
+  outline: none;
+}
+.id-care-reschedule-undo {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 11.5px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.id-care-reschedule-undo:hover:not(:disabled),
+.id-care-reschedule-undo:focus-visible {
+  color: var(--foreground);
+}
 .id-care-reschedule-error {
   color: var(--destructive);
 }

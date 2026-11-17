@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useCare } from '@/components/providers/care-provider'
 import { CareReschedulePopover } from '@/components/maintenance/care-reschedule-popover'
 import { InsightPanel } from '@/components/insight-pages/detail-primitives'
@@ -681,8 +681,10 @@ export function CareComingUp({
     knifeId: string
     track: CareTrack
     anchor: HTMLElement
+    /** Opened by a click or the keyboard rather than a hover preview. */
+    pinned: boolean
   } | null>(null)
-  // Resolve from the live jobs so the box follows a reschedule.
+  // Resolve from the live jobs so the card follows a reschedule.
   const selectedJob = selected
     ? (jobs.find(
         (job) =>
@@ -693,13 +695,34 @@ export function CareComingUp({
   const cancelClose = () => window.clearTimeout(closeTimer.current)
   const select = (job: CareJob, anchor: HTMLElement) => {
     cancelClose()
-    setSelected({ knifeId: job.knifeId, track: job.track, anchor })
+    setSelected({
+      knifeId: job.knifeId,
+      track: job.track,
+      anchor,
+      pinned: true,
+    })
   }
-  // The card stays while the pointer moves from the pin onto it.
+  // A hover preview never replaces a card the user opened on purpose.
+  const preview = (job: CareJob, anchor: HTMLElement) => {
+    cancelClose()
+    setSelected((current) =>
+      current?.pinned
+        ? current
+        : { knifeId: job.knifeId, track: job.track, anchor, pinned: false },
+    )
+  }
+  // The preview stays while the pointer moves from the pin onto the card.
   const scheduleClose = () => {
     cancelClose()
-    closeTimer.current = window.setTimeout(() => setSelected(null), 180)
+    closeTimer.current = window.setTimeout(
+      () => setSelected((current) => (current?.pinned ? current : null)),
+      180,
+    )
   }
+  const close = useCallback(() => {
+    window.clearTimeout(closeTimer.current)
+    setSelected(null)
+  }, [])
   useEffect(() => () => window.clearTimeout(closeTimer.current), [])
   const [overRef, overWidth] = useElementWidth<HTMLDivElement>(400)
   const [futureRef, futureWidth] = useElementWidth<HTMLDivElement>(1100)
@@ -804,7 +827,7 @@ export function CareComingUp({
                   overdueCount={overdueCount}
                   now={now}
                   onSelect={select}
-                  onHover={select}
+                  onHover={preview}
                   onHoverEnd={scheduleClose}
                 />
               ))}
@@ -824,7 +847,7 @@ export function CareComingUp({
                   overdueCount={overdueCount}
                   now={now}
                   onSelect={select}
-                  onHover={select}
+                  onHover={preview}
                   onHoverEnd={scheduleClose}
                 />
               ))}
@@ -835,11 +858,12 @@ export function CareComingUp({
       <CareReschedulePopover
         job={selectedJob}
         anchor={selected?.anchor ?? null}
+        pinned={selected?.pinned ?? false}
         knifeName={knifeLabel(
           selectedJob ? knivesById.get(selectedJob.knifeId) : undefined,
         )}
         now={now}
-        onClose={() => setSelected(null)}
+        onClose={close}
         onHoverStart={cancelClose}
         onHoverEnd={scheduleClose}
       />

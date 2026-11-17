@@ -7,6 +7,7 @@ import {
   formatTrackDueLine,
   getCareStatuses,
   getKnifeCareStatus,
+  pruneCareDeferrals,
   rankCareAttention,
   resolveCareIntervals,
 } from '@/lib/maintenance-due'
@@ -62,6 +63,27 @@ describe('care deferrals', () => {
     expect(sharpening('2026-11-23', daysAgo(200))).toMatchObject({
       dueInDays: -4,
       deferredUntil: null,
+    })
+  })
+
+  it('prunes deferrals that no longer move a job', () => {
+    const deferrals = {
+      pm2: {
+        sharpening: { until: '2026-11-23', after: lastAt },
+        cleaning: { until: '2026-11-20', after: daysAgo(400) },
+      },
+      sold: { sharpening: { until: '2026-11-23', after: lastAt } },
+    }
+    const statuses = getCareStatuses(
+      [{ id: 'pm2' }],
+      new Map([['pm2', { sharpening: lastAt, cleaning: daysAgo(12) }]]),
+      settings(),
+      {},
+      now,
+      deferrals,
+    )
+    expect(pruneCareDeferrals(deferrals, statuses)).toEqual({
+      pm2: { sharpening: deferrals.pm2.sharpening },
     })
   })
 
