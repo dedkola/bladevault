@@ -1,16 +1,17 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useCare } from '@/components/providers/care-provider'
 import { InsightPanel } from '@/components/insight-pages/detail-primitives'
 import { careToneDotClass, careToneTextClass } from '@/components/care-badge'
 import { careFilterHref } from '@/components/care-status-summary'
 import { readJsonResponse } from '@/lib/api-response'
 import {
-  CARE_MONTH_GROUPS,
+  CARE_SESSION_KINDS,
+  buildCareTimeline,
+  careSessionKind,
   clusterTimelinePins,
-  countCareByMonth,
   overduePinPosition,
   formatCareDate,
   listCareJobs,
@@ -18,14 +19,17 @@ import {
   rhythmOutpacesInterval,
   summarizeCareTracks,
   type CareJob,
-  type CareMonthGroup,
+  type CareSession,
+  type CareSessionKind,
   type CareTimelinePin,
   type CareTrackSummary,
 } from '@/lib/care-insights'
 import {
   maintenanceTypeLabel,
+  maintenanceTypeName,
   type Knife,
   type MaintenanceEvent,
+  type SharpeningDetails,
 } from '@/lib/data'
 import {
   MAINTENANCE_UPDATED_EVENT,
@@ -45,12 +49,16 @@ import { cn } from '@/lib/utils'
 /** Days shown to the right of "today" in the Coming up timeline. */
 const HORIZON_DAYS = 30
 
-const GROUP_NAMES: Record<CareMonthGroup, string> = {
-  sharpening: 'Sharpen + strop',
+const SESSION_KIND_NAMES: Record<CareSessionKind, string> = {
+  sharpening: 'Sharpen / strop',
   cleaning: 'Clean',
   lubrication: 'Lube',
+  service: 'Strip-down / parts',
   other: 'Other',
 }
+
+/** Rows shown before "Show all" on the care history chart. */
+const HISTORY_ROWS = 10
 
 const COUNT_WORDS: Record<CareStatusLevel, string> = {
   overdue: 'overdue',
@@ -782,82 +790,354 @@ export function CareComingUp({
   )
 }
 
-export function CareMonthlyChart({
+const SHARPENING_FIELDS: [keyof SharpeningDetails, string][] = [
+  ['system', 'System'],
+  ['grit', 'Grit'],
+  ['angle', 'Angle'],
+  ['passes', 'Passes'],
+  ['ceramic', 'Ceramic'],
+  ['strop', 'Strop'],
+  ['compound', 'Compound'],
+]
+
+/** Clock time of an entry, or null when it was logged for the whole day. */
+function entryTime(occurredAt: string) {
+  const date = new Date(occurredAt)
+  if (!Number.isFinite(date.getTime())) return null
+  if (date.getHours() === 0 && date.getMinutes() === 0) return null
+  return date.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function sessionSummary(session: CareSession, knife: Knife | undefined) {
+  const date = new Date(`${session.day}T00:00:00`).toLocaleDateString(
+    undefined,
+    { month: 'long', day: 'numeric' },
+  )
+  return `${feedTitle(session.types)} ${knifeLabel(knife)}, ${date}`
+}
+
+function CareSessionCard({
+  session,
+  knife,
+  id,
+  style,
+}: {
+  session: CareSession
+  knife: Knife | undefined
+  id: string
+  style: React.CSSProperties
+}) {
+  const date = new Date(`${session.day}T00:00:00`).toLocaleDateString(
+    undefined,
+    { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' },
+  )
+  return (
+    <div id={id} role="tooltip" className="id-care-log-card" style={style}>
+      <header>
+        <b>{knifeLabel(knife)}</b>
+        <time dateTime={session.day}>{date}</time>
+      </header>
+      <ol>
+        {session.entries.map((entry) => {
+          const time = entryTime(entry.occurredAt)
+          const details = SHARPENING_FIELDS.flatMap(([field, label]) => {
+            const raw = entry.sharpeningDetails?.[field]
+            const value = typeof raw === 'string' ? raw.trim() : raw
+            if (value === undefined || value === null || value === '') return []
+            const shown =
+              field === 'angle' ? `${String(value).replace(/°$/, '')}°` : value
+            return [{ label, value: String(shown) }]
+          })
+          const extra = entry.sharpeningDetails?.notes?.trim()
+          const note = entry.notes.trim()
+          return (
+            <li key={entry.id}>
+              <span
+                className="id-care-swatch"
+                data-kind={careSessionKind(entry.type)}
+                aria-hidden="true"
+              />
+              <div>
+                <p>
+                  <b>{maintenanceTypeName(entry.type)}</b>
+                  {time && <small>{time}</small>}
+                </p>
+                {details.length > 0 && (
+                  <dl>
+                    {details.map((detail) => (
+                      <div key={detail.label}>
+                        <dt>{detail.label}</dt>
+                        <dd>{detail.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+                {extra && <q>{extra}</q>}
+                {note && <q>{note}</q>}
+              </div>
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
+}
+
+export function CareHistoryChart({
   events,
+  knivesById,
+  knifeLevelById,
   now,
   isLoading,
 }: {
   events: MaintenanceEvent[]
+  knivesById: ReadonlyMap<string, Knife>
+  knifeLevelById: ReadonlyMap<string, CareStatusLevel | null>
   now: Date
   isLoading: boolean
 }) {
-  const months = useMemo(() => countCareByMonth(events, now, 6), [events, now])
-  const max = Math.max(1, ...months.map((month) => month.total))
-  const totals = CARE_MONTH_GROUPS.map((group) => ({
-    group,
-    count: months.reduce((sum, month) => sum + month.counts[group], 0),
-  }))
-  const monthName = (value: string) =>
+  const [showAll, setShowAll] = useState(false)
+  const [active, setActive] = useState<{
+    key: string
+    style: React.CSSProperties
+  } | null>(null)
+  const logRef = useRef<HTMLDivElement>(null)
+  const cardId = useId()
+  const timeline = useMemo(() => buildCareTimeline(events, now), [events, now])
+  let activeSession: { session: CareSession; knife: Knife | undefined } | null =
+    null
+  if (active)
+    for (const row of timeline.rows)
+      for (const session of row.sessions)
+        if (`${row.knifeId}|${session.day}` === active.key)
+          activeSession = { session, knife: knivesById.get(row.knifeId) }
+  const open = (key: string, target: HTMLElement) => {
+    const box = logRef.current?.getBoundingClientRect()
+    if (!box) return
+    const mark = target.getBoundingClientRect()
+    const width = Math.min(280, box.width)
+    const center = mark.left + mark.width / 2 - box.left
+    const left = Math.min(Math.max(center - width / 2, 0), box.width - width)
+    const top = mark.top - box.top
+    // Open below marks in the upper half and above the rest, so the card
+    // stays inside the panel.
+    const style: React.CSSProperties =
+      top < box.height / 2
+        ? { left, width, top: top + mark.height + 8 }
+        : { left, width, bottom: box.height - top + 8 }
+    setActive({ key, style })
+  }
+  const close = (key?: string) =>
+    setActive((current) => (!key || current?.key === key ? null : current))
+  const rows = showAll ? timeline.rows : timeline.rows.slice(0, HISTORY_ROWS)
+  const hidden = timeline.rows.length - rows.length
+  const monthName = (day: string) =>
     new Date(
-      Number(value.slice(0, 4)),
-      Number(value.slice(5)) - 1,
+      Number(day.slice(0, 4)),
+      Number(day.slice(5, 7)) - 1,
       1,
     ).toLocaleDateString(undefined, { month: 'short' })
-  const summary = months
-    .map((month) => `${monthName(month.month)} ${month.total}`)
-    .join(', ')
+  const percent = (position: number) => `${(position * 100).toFixed(2)}%`
+  const kinds = CARE_SESSION_KINDS.filter((kind) => timeline.kindCounts[kind])
+  const since = timeline.months[0] ? monthName(timeline.months[0].day) : null
+  const grid = (
+    <>
+      {timeline.months.map((month) => (
+        <i
+          key={month.day}
+          className="id-care-log-grid"
+          style={{ left: percent(month.position) }}
+        />
+      ))}
+      <i
+        className="id-care-log-today"
+        style={{ left: percent(timeline.todayPosition) }}
+      />
+    </>
+  )
 
   return (
     <InsightPanel
-      title="Care logged per month"
-      description="Every maintenance entry over the last six months"
+      title="Care history"
+      description={
+        since
+          ? `Every session, knife by knife, since ${since}`
+          : 'Every session, knife by knife'
+      }
+      aside={
+        timeline.rows.length > 0 ? (
+          <dl className="id-care-log-stats">
+            <div>
+              <dt>Sessions</dt>
+              <dd>{timeline.sessionCount}</dd>
+            </div>
+            <div>
+              <dt>Knives</dt>
+              <dd>
+                {timeline.rows.length}
+                <small> / {knivesById.size}</small>
+              </dd>
+            </div>
+            <div>
+              <dt>Care days</dt>
+              <dd>{timeline.careDays}</dd>
+            </div>
+          </dl>
+        ) : undefined
+      }
+      footer={
+        timeline.rows.length > HISTORY_ROWS ? (
+          <>
+            <span>
+              {showAll
+                ? `All ${plural(timeline.rows.length, 'knife', 'knives')}`
+                : `${plural(hidden, 'more knife', 'more knives')} with older care`}
+            </span>
+            <button type="button" onClick={() => setShowAll((value) => !value)}>
+              {showAll ? 'Show fewer' : 'Show all'}
+            </button>
+          </>
+        ) : undefined
+      }
     >
       {isLoading ? (
         <p className="id-care-empty">Loading history…</p>
+      ) : timeline.rows.length === 0 ? (
+        <p className="id-care-empty">
+          No care logged in the last six months. Log sharpening, cleaning or
+          oiling from a knife’s page.
+        </p>
       ) : (
-        <>
-          <div
-            className="id-care-chart"
-            role="img"
-            aria-label={`Entries per month: ${summary}`}
-          >
-            {months.map((month) => (
-              <div key={month.month}>
-                {CARE_MONTH_GROUPS.map((group) =>
-                  month.counts[group] ? (
-                    <i
-                      key={group}
-                      className="id-care-swatch"
-                      data-kind={group}
-                      style={{
-                        height: `${(month.counts[group] / max) * 82}%`,
-                        width: '100%',
-                      }}
-                    />
-                  ) : null,
-                )}
-                <em>{month.total || ''}</em>
-              </div>
-            ))}
-          </div>
-          <div className="id-care-months" aria-hidden="true">
-            {months.map((month) => (
-              <span key={month.month}>{monthName(month.month)}</span>
-            ))}
+        <div className="id-care-log" ref={logRef}>
+          <ol>
+            {rows.map((row) => {
+              const knife = knivesById.get(row.knifeId)
+              const level = knifeLevelById.get(row.knifeId) ?? null
+              const last = formatCareDate(row.lastDay, now)
+              return (
+                <li key={row.knifeId}>
+                  <Link
+                    href={knifeHref(row.knifeId)}
+                    className="id-care-log-name"
+                  >
+                    <b>{shortKnifeName(knife)}</b>
+                    <small>
+                      {[knife?.brand, plural(row.sessions.length, 'session')]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </small>
+                    <span className="sr-only">
+                      , last care {last}
+                      {level === 'overdue' || level === 'due-soon'
+                        ? `, ${COUNT_WORDS[level]}`
+                        : ''}
+                    </span>
+                  </Link>
+                  <div className="id-care-log-lane">
+                    {grid}
+                    {row.sessions.map((session) => {
+                      const key = `${row.knifeId}|${session.day}`
+                      const isActive = active?.key === key
+                      return (
+                        <Fragment key={session.day}>
+                          {(session.notes.length > 0 ||
+                            session.details.length > 0) && (
+                            <i
+                              className="id-care-log-mark"
+                              style={{ left: percent(session.position) }}
+                            />
+                          )}
+                          <button
+                            type="button"
+                            className="id-care-log-session"
+                            style={{ left: percent(session.position) }}
+                            aria-label={sessionSummary(session, knife)}
+                            aria-describedby={isActive ? cardId : undefined}
+                            aria-expanded={isActive}
+                            data-active={isActive ? '' : undefined}
+                            onMouseEnter={(event) =>
+                              open(key, event.currentTarget)
+                            }
+                            onMouseLeave={() => close(key)}
+                            onFocus={(event) => open(key, event.currentTarget)}
+                            onBlur={() => close(key)}
+                            onClick={(event) =>
+                              isActive
+                                ? close(key)
+                                : open(key, event.currentTarget)
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === 'Escape') close(key)
+                            }}
+                          >
+                            {session.kinds.map((kind) => (
+                              <i key={kind} data-kind={kind} />
+                            ))}
+                          </button>
+                        </Fragment>
+                      )
+                    })}
+                  </div>
+                  <span
+                    className="id-care-log-last"
+                    title={`Last care ${last}`}
+                    aria-hidden="true"
+                  >
+                    {(level === 'overdue' || level === 'due-soon') && (
+                      <i className={careToneDotClass(level)} />
+                    )}
+                    {row.daysSince === 0 ? 'today' : `${row.daysSince}d ago`}
+                  </span>
+                </li>
+              )
+            })}
+          </ol>
+          <div className="id-care-log-axis" aria-hidden="true">
+            <span />
+            <div>
+              {timeline.months.map((month, index) => {
+                const next =
+                  timeline.months[index + 1]?.position ?? timeline.todayPosition
+                return (
+                  <span
+                    key={month.day}
+                    style={{ left: percent((month.position + next) / 2) }}
+                  >
+                    {monthName(month.day)}
+                  </span>
+                )
+              })}
+            </div>
+            <span>Last care</span>
           </div>
           <ul className="id-care-keys">
-            {totals.map(({ group, count }) => (
-              <li key={group}>
+            {kinds.map((kind) => (
+              <li key={kind}>
                 <span
                   className="id-care-swatch"
-                  data-kind={group}
+                  data-kind={kind}
                   aria-hidden="true"
                 />
-                {GROUP_NAMES[group]} {count}
+                {SESSION_KIND_NAMES[kind]}
               </li>
             ))}
+            <li>
+              <span className="id-care-log-note" aria-hidden="true" />
+              Note or angle
+            </li>
           </ul>
-        </>
+          {active && activeSession && (
+            <CareSessionCard
+              id={cardId}
+              session={activeSession.session}
+              knife={activeSession.knife}
+              style={active.style}
+            />
+          )}
+        </div>
       )}
     </InsightPanel>
   )
