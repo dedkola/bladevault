@@ -23,6 +23,7 @@ const navLinks = [
   { href: '/insights', label: 'Insights' },
   { href: '/studio', label: 'Studio' },
   { href: '/compare', label: 'Compare' },
+  { href: '/maintenance', label: 'Maintenance' },
   { href: '/logs', label: 'History' },
 ] as const
 

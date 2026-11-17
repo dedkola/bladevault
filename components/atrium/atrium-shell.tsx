@@ -8,6 +8,7 @@ import {
   CloudOff,
   GalleryVertical,
   History,
+  Wrench,
   LayoutDashboard,
   Library,
   Plus,
@@ -30,6 +31,7 @@ const dockLinks = [
   { href: '/collection', label: 'Collection', icon: Library },
   { href: '/studio', label: 'Studio', icon: GalleryVertical },
   { href: '/compare', label: 'Compare', icon: CompareIcon },
+  { href: '/maintenance', label: 'Maintenance', icon: Wrench },
   { href: '/logs', label: 'History', icon: History },
 ] as const
 

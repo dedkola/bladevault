@@ -1,5 +1,6 @@
 'use client'
 
+import { useSearchParams } from 'next/navigation'
 import { useCare } from '@/components/providers/care-provider'
 import { useKnives } from '@/components/providers/knives-provider'
 import { careBadgeLabel, type CareTrackLevel } from '@/lib/maintenance-due'
@@ -33,7 +34,8 @@ export function careToneDotClass(level: CareTrackLevel | null): string {
 
 /**
  * Compact care pill for collection cards ("Sharpen overdue · 4d"). Renders
- * nothing unless reminders are on and the Care card field is selected.
+ * nothing unless reminders are on. Overdue and due-soon knives always show it;
+ * up-to-date ones only with the Care card field or a care filter.
  */
 export function KnifeCareBadge({
   knifeId,
@@ -44,9 +46,16 @@ export function KnifeCareBadge({
 }) {
   const { cardFields } = useKnives()
   const { reminders, statusById } = useCare()
-  if (!reminders.enabled || !cardFields.includes('care')) return null
+  // Knives that need attention are always flagged. Up-to-date ones only show
+  // when the Care card field is on or a care filter is active.
+  const careFilterActive = useSearchParams().has('care')
+  if (!reminders.enabled) return null
   const status = statusById.get(knifeId)
   if (!status) return null
+  const needsAttention =
+    status.level === 'overdue' || status.level === 'due-soon'
+  if (!needsAttention && !careFilterActive && !cardFields.includes('care'))
+    return null
   const label = careBadgeLabel(status)
   if (!label) return null
   return (

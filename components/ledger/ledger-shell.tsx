@@ -19,6 +19,7 @@ const tabs = [
   { href: '/collection', label: 'Collection' },
   { href: '/studio', label: 'Studio' },
   { href: '/compare', label: 'Compare' },
+  { href: '/maintenance', label: 'Maintenance' },
   { href: '/logs', label: 'History' },
 ] as const
 

@@ -1342,7 +1342,7 @@ export function CollectionInsights() {
               <InsightPanel
                 eyebrow="Maintenance"
                 title="Care status"
-                detailHref="/insights/care"
+                detailHref="/maintenance"
                 description="Knives due for sharpening, cleaning or lubrication."
                 className="col-span-12"
               >

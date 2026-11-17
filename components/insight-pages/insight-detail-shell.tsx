@@ -11,8 +11,12 @@ export function InsightDetailShell({
   eyebrow,
   title,
   description,
+  backHref = '/insights',
+  backLabel = 'Back to insights',
   children,
 }: {
+  backHref?: string
+  backLabel?: string
   eyebrow: string
   title: string
   description?: string
@@ -24,10 +28,10 @@ export function InsightDetailShell({
       <Button
         variant="outline"
         size="sm"
-        render={<Link href="/insights" />}
+        render={<Link href={backHref} />}
         nativeButton={false}
       >
-        <ArrowLeft className="size-4" /> Back to insights
+        <ArrowLeft className="size-4" /> {backLabel}
       </Button>
       <header className="id-page-head">
         <div>

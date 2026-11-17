@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import {
   isInsightCategorySlug,
   isInsightSlug,
@@ -94,6 +94,8 @@ export default async function InsightStatPage({
   }>
 }) {
   const { stat } = await params
+
+  if (stat === 'care') redirect('/maintenance')
 
   if (!isInsightSlug(stat)) {
     notFound()
