@@ -49,6 +49,12 @@ const GROUP_NAMES: Record<CareMonthGroup, string> = {
   other: 'Other',
 }
 
+const COUNT_WORDS: Record<CareStatusLevel, string> = {
+  overdue: 'overdue',
+  'due-soon': 'due soon',
+  ok: 'up to date',
+}
+
 function plural(count: number, word: string, many = `${word}s`) {
   return `${count} ${count === 1 ? word : many}`
 }
@@ -134,6 +140,7 @@ export function CareKpis({
   events,
   dueSoonDays,
   knivesById,
+  knifeLevelById,
   now,
 }: {
   counts: Record<CareStatusLevel, number>
@@ -142,10 +149,17 @@ export function CareKpis({
   events: MaintenanceEvent[]
   dueSoonDays: number
   knivesById: ReadonlyMap<string, Knife>
+  knifeLevelById: ReadonlyMap<string, CareStatusLevel | null>
   now: Date
 }) {
   const overdueJobs = jobs.filter((job) => job.level === 'overdue').length
-  const dueSoonJobs = jobs.filter((job) => job.level === 'due-soon').length
+  const dueSoonJobs = jobs.filter((job) => job.level === 'due-soon')
+  // A knife counts once, under its worst kind of care, so a due-soon job on
+  // an already overdue knife is listed under Overdue; say so instead of
+  // showing "0 due soon · 1 job within 14 days".
+  const dueSoonElsewhere = dueSoonJobs.filter(
+    (job) => knifeLevelById.get(job.knifeId) === 'overdue',
+  ).length
   const upcoming = jobs.filter((job) => job.dueInDays >= 0)
   const next = upcoming[0]
   const sameDay = next
@@ -178,7 +192,10 @@ export function CareKpis({
           >
             {counts.overdue}
           </strong>
-          <small>{plural(overdueJobs, 'job')} past their interval</small>
+          <small>
+            {counts.overdue === 1 ? 'knife' : 'knives'} ·{' '}
+            {plural(overdueJobs, 'job')} past interval
+          </small>
         </dd>
       </div>
       <div className="id-care-kpi">
@@ -190,8 +207,16 @@ export function CareKpis({
         </dt>
         <dd>
           <strong>{counts['due-soon']}</strong>
-          <small>
-            {plural(dueSoonJobs, 'job')} within {dueSoonDays} days
+          <small
+            title={
+              dueSoonElsewhere > 0
+                ? `${plural(dueSoonElsewhere, 'more job')} due within ${dueSoonDays} days on knives already counted as overdue`
+                : undefined
+            }
+          >
+            {dueSoonElsewhere > 0
+              ? `+${plural(dueSoonElsewhere, 'job')} on overdue knives`
+              : `${counts['due-soon'] === 1 ? 'knife' : 'knives'} within ${dueSoonDays} days`}
           </small>
         </dd>
       </div>
@@ -202,7 +227,9 @@ export function CareKpis({
         </dt>
         <dd>
           <strong>{counts.ok}</strong>
-          <small>of {plural(tracked, 'tracked knife', 'tracked knives')}</small>
+          <small>
+            of {plural(tracked, 'tracked knife', 'tracked knives')} · every kind
+          </small>
         </dd>
       </div>
       <div className="id-care-kpi">
@@ -284,15 +311,17 @@ function CareKindCard({
             )}
         </span>
         <p className="id-care-counts">
-          <span>
-            <b>{counts.overdue}</b> overdue
-          </span>
-          <span>
-            <b>{counts['due-soon']}</b> due soon
-          </span>
-          <span>
-            <b>{counts.ok}</b> up to date
-          </span>
+          {segments.map((level) =>
+            counts[level] ? (
+              <Link key={level} href={careFilterHref(level, track)}>
+                <b>{counts[level]}</b> {COUNT_WORDS[level]}
+              </Link>
+            ) : (
+              <span key={level}>
+                <b>0</b> {COUNT_WORDS[level]}
+              </span>
+            ),
+          )}
         </p>
         <dl className="id-care-facts">
           <dt>Most overdue</dt>
@@ -433,7 +462,11 @@ export function CareComingUp({
             </span>,
             <span key={`${track}-over`} className="id-care-lane-over">
               {overdue.length > 0 && (
-                <Link href={careFilterHref('overdue')} tabIndex={-1}>
+                <Link
+                  href={careFilterHref('overdue', track)}
+                  tabIndex={-1}
+                  title={`Open ${overdue.length} with ${CARE_TRACK_NAMES[track].toLowerCase()} overdue`}
+                >
                   {overdue.length} · up to {-overdue[0].dueInDays}d
                 </Link>
               )}

@@ -59,7 +59,9 @@ import { useKnives } from '@/components/providers/knives-provider'
 import { useCare } from '@/components/providers/care-provider'
 import {
   CARE_FILTER_VALUES,
+  CARE_KIND_PARAM,
   CARE_STATUS_LABELS,
+  careKindChip,
   isCareStatusLevel,
   type CareStatusLevel,
 } from '@/lib/maintenance-due'
@@ -512,6 +514,9 @@ function CollectionContent() {
   const selectedCareValues = careStatusFilter
     ? searchParams.getAll('care').filter(isCareStatusLevel)
     : []
+  const selectedCareKind = careStatusFilter
+    ? careKindChip(searchParams.get(CARE_KIND_PARAM))
+    : null
   // Classic hides the toolbar count when it only repeats the collection total.
   const showToolbarCount =
     isWorkspaceCollection ||
@@ -634,6 +639,7 @@ function CollectionContent() {
       params.delete('missingSpecs')
       params.delete('knifeType')
       params.delete('care')
+      params.delete(CARE_KIND_PARAM)
       rangeDefinitions.forEach((field) => {
         params.delete(`${field.key}Min`)
         params.delete(`${field.key}Max`)
@@ -703,6 +709,7 @@ function CollectionContent() {
           },
         ]
       : []),
+    ...(selectedCareKind ? [selectedCareKind] : []),
   ]
   const updateExtraFilter = (key: string, value: string) => {
     replaceParams((params) => {

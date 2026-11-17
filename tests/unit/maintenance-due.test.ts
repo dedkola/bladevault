@@ -307,6 +307,53 @@ describe('care filter', () => {
     ).toBe(true)
   })
 
+  it('narrows to one kind of care with careKind', () => {
+    // Sharpening is fine but cleaning is overdue: the knife is overdue
+    // overall, yet must not appear under "sharpening overdue".
+    const mixed = createKnife({ id: 'mixed' })
+    const neverCleaned = createKnife({ id: 'never-cleaned' })
+    const kindStatuses = getCareStatuses(
+      [overdue, mixed, neverCleaned],
+      buildLatestByKnife([
+        { knifeId: 'overdue', type: 'sharpening', lastAt: daysAgo(200) },
+        { knifeId: 'mixed', type: 'sharpening', lastAt: daysAgo(1) },
+        { knifeId: 'mixed', type: 'cleaning', lastAt: daysAgo(200) },
+        { knifeId: 'never-cleaned', type: 'sharpening', lastAt: daysAgo(1) },
+      ]),
+      settings(),
+      {},
+      now,
+    )
+    const sharpOverdue = new URLSearchParams('care=overdue&careKind=sharpening')
+    expect(collectionQuery(sharpOverdue)).toBe(
+      'care=overdue&careKind=sharpening',
+    )
+    expect(matchesCollection(overdue, sharpOverdue, kindStatuses)).toBe(true)
+    expect(matchesCollection(mixed, sharpOverdue, kindStatuses)).toBe(false)
+    expect(
+      matchesCollection(
+        mixed,
+        new URLSearchParams('care=overdue'),
+        kindStatuses,
+      ),
+    ).toBe(true)
+    const cleanOk = new URLSearchParams('care=ok&careKind=cleaning')
+    // Never logged has no deadline, so it is not "up to date" either.
+    expect(matchesCollection(neverCleaned, cleanOk, kindStatuses)).toBe(false)
+    // A kind alone lists knives that have that kind logged.
+    const cleaning = new URLSearchParams('careKind=cleaning')
+    expect(matchesCollection(mixed, cleaning, kindStatuses)).toBe(true)
+    expect(matchesCollection(neverCleaned, cleaning, kindStatuses)).toBe(false)
+    // An unknown kind is ignored.
+    expect(
+      matchesCollection(
+        mixed,
+        new URLSearchParams('care=overdue&careKind=polish'),
+        kindStatuses,
+      ),
+    ).toBe(true)
+  })
+
   it('is ignored when care status is unavailable', () => {
     expect(matchesCollection(fine, new URLSearchParams('care=overdue'))).toBe(
       true,

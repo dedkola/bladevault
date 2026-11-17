@@ -759,6 +759,18 @@
   color: var(--foreground);
   font-weight: 650;
 }
+.id-care-counts a {
+  border-radius: 4px;
+  text-underline-offset: 2px;
+}
+.id-care-counts a:hover {
+  color: var(--foreground);
+  text-decoration: underline;
+}
+.id-care-counts a:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
 .id-care-facts {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

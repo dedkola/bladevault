@@ -31,7 +31,11 @@ import type {
 import { getCardFieldDisplayValue, getCardFieldLabel } from '@/lib/card-fields'
 import { useCare } from '@/components/providers/care-provider'
 import { careToneTextClass } from '@/components/care-badge'
-import { careDueSummary } from '@/lib/maintenance-due'
+import {
+  CARE_KIND_PARAM,
+  careDueSummary,
+  careKindChip,
+} from '@/lib/maintenance-due'
 import {
   countFacet,
   formatMoney,
@@ -317,6 +321,9 @@ export function LedgerCollection() {
     [knives, customFieldDefinitions, reminders.enabled, careStatusById],
   )
   const knifeType = getValues('knifeType')[0]
+  const careKind = reminders.enabled
+    ? careKindChip(getValues(CARE_KIND_PARAM)[0])
+    : null
   const extraChips = [
     ...(knifeType === 'fixed' || knifeType === 'folding'
       ? [
@@ -329,6 +336,7 @@ export function LedgerCollection() {
     ...(getValues('missingSpecs')[0] === '1'
       ? [{ key: 'missingSpecs', label: 'Missing specifications' }]
       : []),
+    ...(careKind ? [careKind] : []),
   ]
   // Start from the live URL so quick picks and typed text never overwrite
   // each other, and skip a router round trip per keystroke.

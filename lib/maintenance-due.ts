@@ -1,6 +1,7 @@
 import type { MaintenanceType } from '@/lib/data'
 import {
   CARE_TRACKS,
+  CARE_TRACK_NAMES,
   CARE_TRACK_VERBS,
   type CareIntervalOverrides,
   type CareTrack,
@@ -278,4 +279,46 @@ export function careDueSummary(status: KnifeCareStatus): string | null {
 
 export function isCareStatusLevel(value: string): value is CareStatusLevel {
   return (CARE_FILTER_VALUES as string[]).includes(value)
+}
+
+/**
+ * URL parameter that narrows the `care` filter to one kind of care, so
+ * "Sharpening overdue" lists knives whose sharpening is overdue rather than
+ * every knife with any overdue care.
+ */
+export const CARE_KIND_PARAM = 'careKind'
+
+export function parseCareKind(value: string | null): CareTrack | null {
+  return value && (CARE_TRACKS as readonly string[]).includes(value)
+    ? (value as CareTrack)
+    : null
+}
+
+/**
+ * Whether a knife passes the care filter. Without a kind it compares the
+ * knife's overall (worst) level; with a kind it compares that kind's own
+ * level and skips knives that have never had it logged.
+ */
+export function matchesCareFilter(
+  status: KnifeCareStatus | undefined,
+  levels: readonly CareStatusLevel[],
+  kind: CareTrack | null,
+): boolean {
+  if (!kind) {
+    if (levels.length === 0) return true
+    return Boolean(status?.level && levels.includes(status.level))
+  }
+  const track = status?.tracks.find((item) => item.track === kind)
+  if (!track || track.level === 'never') return false
+  return levels.length === 0 || levels.includes(track.level)
+}
+
+/** Chip for an active care-kind filter, so it shows and can be cleared. */
+export function careKindChip(
+  value: string | null | undefined,
+): { key: string; label: string } | null {
+  const kind = parseCareKind(value ?? null)
+  return kind
+    ? { key: CARE_KIND_PARAM, label: `Care kind: ${CARE_TRACK_NAMES[kind]}` }
+    : null
 }

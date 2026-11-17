@@ -23,6 +23,7 @@ import { CollectionChipFilter } from '@/components/collection-chip-filter'
 import type { Knife } from '@/lib/data'
 import { formatDimension, formatWeight } from '@/lib/measurements'
 import { buildChipFilterFields } from '@/lib/chip-filter-fields'
+import { CARE_KIND_PARAM, careKindChip } from '@/lib/maintenance-due'
 import {
   countAddedByMonth,
   countFacet,
@@ -529,6 +530,9 @@ function ShelfAllKnives({
   const activeStyles = getValues('bladeStyle')
   const knifeType = getValues('knifeType')[0]
   const status = getValues(LUMEN_STATUS_PARAM)[0]
+  const careKind = careReminders.enabled
+    ? careKindChip(getValues(CARE_KIND_PARAM)[0])
+    : null
   // Filters the chip bar has no field for, so they still show and clear.
   const extraChips = [
     ...(getValues('view')[0] === 'pinned'
@@ -553,6 +557,7 @@ function ShelfAllKnives({
     ...(getValues('missingSpecs')[0] === '1'
       ? [{ key: 'missingSpecs', label: 'Missing specifications' }]
       : []),
+    ...(careKind ? [careKind] : []),
   ]
 
   // Like Lumen's bar: start from the live URL so quick picks and typed text

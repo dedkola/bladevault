@@ -6,19 +6,27 @@ import { useCare } from '@/components/providers/care-provider'
 import { useKnives } from '@/components/providers/knives-provider'
 import { careToneDotClass, careToneTextClass } from '@/components/care-badge'
 import {
+  CARE_KIND_PARAM,
   CARE_STATUS_LABELS,
   careDueSummary,
   countCareStatuses,
   rankCareAttention,
   type CareStatusLevel,
 } from '@/lib/maintenance-due'
+import type { CareTrack } from '@/lib/settings-shared'
 import { cn } from '@/lib/utils'
 
 /** Bar and legend order: healthy first, then by urgency. */
 const SUMMARY_ORDER: CareStatusLevel[] = ['ok', 'due-soon', 'overdue']
 
-export function careFilterHref(level: CareStatusLevel): string {
-  return `/collection?care=${level}`
+/** Collection link for a care level, optionally for one kind of care. */
+export function careFilterHref(
+  level: CareStatusLevel,
+  kind?: CareTrack,
+): string {
+  const params = new URLSearchParams({ care: level })
+  if (kind) params.set(CARE_KIND_PARAM, kind)
+  return `/collection?${params}`
 }
 
 /** Care counts and the most urgent knives; null while reminders are off. */

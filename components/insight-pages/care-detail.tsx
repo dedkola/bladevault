@@ -18,7 +18,6 @@ import {
 import { careToneDotClass, careToneTextClass } from '@/components/care-badge'
 import {
   CareStatusBar,
-  CareStatusLegend,
   careFilterHref,
   useCareSummary,
 } from '@/components/care-status-summary'
@@ -33,6 +32,10 @@ import {
 } from '@/lib/maintenance-due'
 import { CARE_TRACK_NAMES } from '@/lib/settings-shared'
 import { cn } from '@/lib/utils'
+
+function plural(count: number, word: string, many: string) {
+  return `${count} ${count === 1 ? word : many}`
+}
 
 const LEVEL_ORDER: Record<CareStatusLevel, number> = {
   overdue: 0,
@@ -121,6 +124,17 @@ export function CareDetail() {
       )
   }, [knives, statusById])
 
+  const knifeLevelById = useMemo(
+    () =>
+      new Map(
+        [...statusById.values()].map((status) => [
+          status.knifeId,
+          status.level,
+        ]),
+      ),
+    [statusById],
+  )
+
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
     return rows.filter(
@@ -160,6 +174,7 @@ export function CareDetail() {
         events={dashboard.events}
         dueSoonDays={reminders.dueSoonDays}
         knivesById={dashboard.knivesById}
+        knifeLevelById={knifeLevelById}
         now={dashboard.now}
       />
       {dashboard.summaries.length > 0 && (
@@ -190,96 +205,76 @@ export function CareDetail() {
           isLoading={dashboard.isLoading}
         />
       </div>
-      <div className="id-grid id-recent-grid">
-        <InsightPanel
-          title="Needs attention"
-          description={
-            attention.length
-              ? `${attention.length} ${attention.length === 1 ? 'knife' : 'knives'} overdue or due soon`
-              : 'Nothing is due right now'
-          }
-          footer={
-            <>
-              <span>{tracked} tracked knives</span>
+      <InsightPanel
+        title="Tracked knives"
+        description={
+          attention.length
+            ? `${plural(attention.length, 'knife', 'knives')} overdue or due soon · most urgent first`
+            : 'Every tracked knife is inside its care interval'
+        }
+        footer={
+          <>
+            <span aria-live="polite">
+              {filtered.length} of {rows.length} knives
+            </span>
+            {counts.overdue > 0 && (
               <Link
                 href={careFilterHref('overdue')}
                 className="underline-offset-2 hover:underline"
               >
                 Open overdue in collection
               </Link>
-            </>
-          }
-        >
-          <CareStatusBar counts={counts} tracked={tracked} className="mb-3" />
-          <CareStatusLegend counts={counts} />
-          <div className="id-scroll mt-3">
-            {attention.length ? (
-              attention.map(({ knife, status }) => (
-                <CareKnifeRow key={knife.id} knife={knife} status={status} />
-              ))
-            ) : (
-              <p className="py-5 text-sm text-muted-foreground">
-                Every tracked knife is inside its care interval.
-              </p>
             )}
-          </div>
-        </InsightPanel>
-        <InsightPanel
-          title="All tracked knives"
-          description="Most urgent first · select a knife to log care"
-          footer={
-            <span aria-live="polite">
-              {filtered.length} of {rows.length} knives
-            </span>
-          }
+          </>
+        }
+      >
+        <CareStatusBar counts={counts} tracked={tracked} className="mb-3" />
+        <div
+          role="group"
+          aria-label="Filter by care status"
+          className="mb-2 flex flex-wrap gap-1.5"
         >
-          <div
-            role="group"
-            aria-label="Filter by care status"
-            className="mb-2 flex flex-wrap gap-1.5"
-          >
-            {CARE_FILTER_VALUES.map((level) => (
-              <button
-                key={level}
-                type="button"
-                aria-pressed={levels.includes(level)}
-                onClick={() => toggleLevel(level)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  levels.includes(level) &&
-                    'border-foreground/40 bg-muted text-foreground',
-                )}
-              >
-                <span
-                  aria-hidden="true"
-                  className={cn('size-2 rounded-full', careToneDotClass(level))}
-                />
-                {CARE_STATUS_LABELS[level]}
-                <span className="tabular-nums">{counts[level]}</span>
-              </button>
-            ))}
-          </div>
-          <input
-            className="id-search"
-            type="search"
-            aria-label="Search tracked knives"
-            placeholder="Search maker or model…"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          <div className="id-scroll">
-            {filtered.length ? (
-              filtered.map(({ knife, status }) => (
-                <CareKnifeRow key={knife.id} knife={knife} status={status} />
-              ))
-            ) : (
-              <p className="py-5 text-sm text-muted-foreground">
-                No matching knives.
-              </p>
-            )}
-          </div>
-        </InsightPanel>
-      </div>
+          {CARE_FILTER_VALUES.map((level) => (
+            <button
+              key={level}
+              type="button"
+              aria-pressed={levels.includes(level)}
+              onClick={() => toggleLevel(level)}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                levels.includes(level) &&
+                  'border-foreground/40 bg-muted text-foreground',
+              )}
+            >
+              <span
+                aria-hidden="true"
+                className={cn('size-2 rounded-full', careToneDotClass(level))}
+              />
+              {CARE_STATUS_LABELS[level]}
+              <span className="tabular-nums">{counts[level]}</span>
+            </button>
+          ))}
+        </div>
+        <input
+          className="id-search"
+          type="search"
+          aria-label="Search tracked knives"
+          placeholder="Search maker or model…"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <div className="id-scroll">
+          {filtered.length ? (
+            filtered.map(({ knife, status }) => (
+              <CareKnifeRow key={knife.id} knife={knife} status={status} />
+            ))
+          ) : (
+            <p className="py-5 text-sm text-muted-foreground">
+              No matching knives.
+            </p>
+          )}
+        </div>
+      </InsightPanel>
     </div>
   )
 }
