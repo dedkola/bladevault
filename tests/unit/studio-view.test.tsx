@@ -82,6 +82,41 @@ afterEach(() => {
   state.themeStyle = 'current'
 })
 
+describe('Studio spotlight placement', () => {
+  it('shows the knife of the day above the controls only for the whole collection', async () => {
+    const user = userEvent.setup()
+    render(<StudioView />)
+    const spotlight = screen.getByRole('region', { name: 'Knife of the day' })
+    expect(
+      spotlight.compareDocumentPosition(
+        screen.getByLabelText('Studio controls'),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    // Only the first knife has photos, so it is the pick.
+    await user.click(
+      within(spotlight).getByRole('button', { name: 'Quick look' }),
+    )
+    const dialog = screen.getByRole('dialog')
+    expect(
+      within(dialog).getByRole('heading', { name: 'First knife' }),
+    ).toBeVisible()
+    await user.keyboard('{Escape}')
+
+    await user.type(
+      screen.getByRole('searchbox', { name: 'Search knives' }),
+      'Second',
+    )
+    expect(
+      screen.queryByRole('region', { name: 'Knife of the day' }),
+    ).not.toBeInTheDocument()
+    await user.clear(screen.getByRole('searchbox', { name: 'Search knives' }))
+    await user.click(screen.getByRole('button', { name: 'Pinned' }))
+    expect(
+      screen.queryByRole('region', { name: 'Knife of the day' }),
+    ).not.toBeInTheDocument()
+  })
+})
+
 describe('Studio themes', () => {
   it('lists Smart Collections in the filter and shows only their knives', async () => {
     const user = userEvent.setup()

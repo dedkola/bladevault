@@ -1,0 +1,285 @@
+/* Knife of the day: a photo plate with the pick's name and actions on a
+   scrim. The stage stays light in both modes (like Studio tiles, whose
+   photos blend with multiply), so the overlay text is always light. */
+.hero {
+  --spotlight-line: color-mix(in srgb, var(--foreground) 11%, transparent);
+  --spotlight-highlight: var(--card);
+  --spotlight-stage: var(--bladevault-surface-soft, var(--muted));
+  --spotlight-stage-edge: var(--muted);
+  --spotlight-ink: #f7f3ec;
+  --spotlight-ink-dim: rgb(247 243 236 / 78%);
+  --spotlight-glass: rgb(255 255 255 / 14%);
+  --spotlight-glass-line: rgb(255 255 255 / 30%);
+
+  position: relative;
+  min-height: 260px;
+  /* Wide layouts (Alloy) would otherwise grow it to half the viewport. */
+  max-height: 420px;
+  margin-bottom: 18px;
+  overflow: hidden;
+  border: 1px solid var(--spotlight-line);
+  border-radius: 18px;
+  aspect-ratio: 21 / 8;
+  background: var(--spotlight-stage);
+  box-shadow: 0 2px 3px color-mix(in srgb, var(--foreground) 2%, transparent);
+  color: var(--spotlight-ink);
+}
+
+:global(.dark) .hero {
+  --spotlight-highlight: color-mix(in srgb, var(--muted) 8%, white);
+  --spotlight-stage: color-mix(in srgb, var(--muted) 18%, white);
+  --spotlight-stage-edge: color-mix(in srgb, var(--muted) 24%, white);
+}
+
+/* The plate carries the stage itself: its animation makes it a stacking
+   context, so the photo's multiply blend only sees what is inside it. */
+.plate {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    100% 90% at 50% 0%,
+    var(--spotlight-highlight),
+    var(--spotlight-stage) 70%,
+    var(--spotlight-stage-edge)
+  );
+  animation: spotlight-in 420ms ease both;
+}
+
+@keyframes spotlight-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+
+.image {
+  object-fit: contain;
+  mix-blend-mode: multiply;
+  /* Keep the knife clear of the name and actions along the bottom. */
+  padding: 26px 8% 96px;
+}
+
+.noImage {
+  position: absolute;
+  inset: 0 0 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.noImage svg {
+  width: 32px;
+  height: 32px;
+  opacity: 0.4;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgb(18 15 11 / 74%) 0%,
+    rgb(18 15 11 / 34%) 30%,
+    transparent 56%
+  );
+}
+
+.kicker {
+  position: absolute;
+  top: 16px;
+  left: 18px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--spotlight-line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 86%, transparent);
+  backdrop-filter: blur(12px);
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.kicker b {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.sold {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  padding: 4px 8px;
+  border: 1px solid var(--spotlight-line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--card) 86%, transparent);
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.foot {
+  position: absolute;
+  inset: auto 20px 18px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.identity {
+  min-width: 0;
+}
+
+.identity h2 {
+  margin: 0;
+  overflow: hidden;
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 12px rgb(0 0 0 / 30%);
+}
+
+.identity p {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: var(--spotlight-ink-dim);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--spotlight-glass-line);
+  border-radius: 999px;
+  background: var(--spotlight-glass);
+  backdrop-filter: blur(10px);
+  color: var(--spotlight-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background 160ms,
+    border-color 160ms;
+}
+
+.action:hover:not(:disabled) {
+  background: rgb(255 255 255 / 24%);
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--spotlight-ink);
+  outline-offset: 2px;
+}
+
+.action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.action[data-primary] {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.action[data-primary]:hover {
+  background: color-mix(in srgb, var(--primary) 88%, white);
+}
+
+.action svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Studio's root is an inline-size container. */
+@container (max-width: 760px) {
+  .hero {
+    min-height: 0;
+    height: 380px;
+    aspect-ratio: auto;
+  }
+
+  .image {
+    padding: 56px 6% 150px;
+  }
+
+  .noImage {
+    inset: 0 0 140px;
+  }
+
+  .scrim {
+    background: linear-gradient(
+      to top,
+      rgb(18 15 11 / 78%) 0%,
+      rgb(18 15 11 / 40%) 38%,
+      transparent 62%
+    );
+  }
+
+  .foot {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    inset: auto 16px 16px;
+  }
+
+  .identity h2 {
+    font-size: 20px;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
+
+  .action {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+/* Match Studio's radii in the default (non-Modern, non-Alloy) styles. */
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+  .hero {
+  margin-bottom: 24px;
+  border-color: var(--border);
+  border-radius: var(--radius-xl);
+}
+
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+  .kicker {
+  font-size: 11px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plate {
+    animation: none;
+  }
+
+  .action {
+    transition: none;
+  }
+}
