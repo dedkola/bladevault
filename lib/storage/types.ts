@@ -11,7 +11,14 @@ import {
   MaintenanceEventUpdate,
 } from '@/lib/data'
 import type { ValidatedKnifeChange } from '@/lib/knife-fields'
-import type { MaintenanceLatestEntry } from '@/lib/maintenance-due'
+import type {
+  KnifeCareStatus,
+  MaintenanceLatestEntry,
+} from '@/lib/maintenance-due'
+import type {
+  CareNotification,
+  CareNotificationAction,
+} from '@/lib/care-notifications'
 
 export type CreateKnifeInput = Omit<
   Knife,
@@ -100,6 +107,16 @@ export interface Storage {
     eventId: number,
     options?: MaintenanceEventOptions,
   ): Promise<void>
+  getCareNotifications(): Promise<CareNotification[]>
+  /** Brings the care inbox in line with current care status, atomically. */
+  syncCareNotifications(
+    statuses: ReadonlyMap<string, KnifeCareStatus>,
+    now: Date,
+  ): Promise<CareNotification[]>
+  updateCareNotifications(
+    action: CareNotificationAction,
+    now: Date,
+  ): Promise<CareNotification[]>
   getKnifeNotes(knifeId: string): Promise<KnifeNote[]>
   addKnifeNote(knifeId: string, input: KnifeNoteInput): Promise<KnifeNote>
   updateKnifeNote(noteId: number, input: KnifeNoteUpdate): Promise<KnifeNote>

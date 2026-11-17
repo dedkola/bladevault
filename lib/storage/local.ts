@@ -40,7 +40,18 @@ import {
   maintenanceTypeName,
 } from '@/lib/data'
 import { normalizeKnifeTextFields } from '@/lib/knife-text'
-import type { MaintenanceLatestEntry } from '@/lib/maintenance-due'
+import type {
+  KnifeCareStatus,
+  MaintenanceLatestEntry,
+} from '@/lib/maintenance-due'
+import {
+  applyCareNotificationAction,
+  isCareTrack,
+  reconcileCareNotifications,
+  type CareNotification,
+  type CareNotificationAction,
+  type CareNotificationChanges,
+} from '@/lib/care-notifications'
 import { getLocalDb } from '@/lib/local-db'
 import { clearDockerImageCache } from '@/lib/docker-image-cache'
 import { fetchExternalUrl, validateExternalUrl } from '@/lib/url-validation'
@@ -177,6 +188,108 @@ export function getNextImageIndex(images: string[]): number {
 
 function getDb() {
   return getLocalDb()
+}
+
+type CareNotificationRow = {
+  id: number
+  knife_id: string
+  track: string
+  last_at: string
+  due_on: string
+  level: string
+  created_at: string
+  updated_at: string
+  read_at: string | null
+  snoozed_until: string | null
+  dismissed_at: string | null
+  resolved_at: string | null
+  resolution: string | null
+}
+
+function readCareNotifications(
+  database: ReturnType<typeof getDb>,
+): CareNotification[] {
+  const rows = database
+    .prepare('SELECT * FROM care_notifications ORDER BY id')
+    .all() as CareNotificationRow[]
+  return rows.flatMap((row) =>
+    isCareTrack(row.track) &&
+    (row.level === 'due-soon' || row.level === 'overdue')
+      ? [
+          {
+            id: row.id,
+            knifeId: row.knife_id,
+            track: row.track,
+            lastAt: row.last_at,
+            dueOn: row.due_on,
+            level: row.level,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+            readAt: row.read_at,
+            snoozedUntil: row.snoozed_until,
+            dismissedAt: row.dismissed_at,
+            resolvedAt: row.resolved_at,
+            resolution:
+              row.resolution === 'logged' || row.resolution === 'cleared'
+                ? row.resolution
+                : null,
+          },
+        ]
+      : [],
+  )
+}
+
+/** Must run inside a transaction. */
+function writeCareNotificationChanges(
+  database: ReturnType<typeof getDb>,
+  changes: CareNotificationChanges,
+) {
+  const insert = database.prepare(
+    `INSERT INTO care_notifications
+       (knife_id, track, last_at, due_on, level, created_at, updated_at,
+        read_at, snoozed_until, dismissed_at, resolved_at, resolution)
+     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+     WHERE EXISTS (SELECT 1 FROM knives WHERE id = ?)
+     ON CONFLICT (knife_id, track, last_at) DO NOTHING`,
+  )
+  const update = database.prepare(
+    `UPDATE care_notifications
+     SET due_on = ?, level = ?, updated_at = ?, read_at = ?, snoozed_until = ?,
+         dismissed_at = ?, resolved_at = ?, resolution = ?
+     WHERE id = ?`,
+  )
+  const remove = database.prepare('DELETE FROM care_notifications WHERE id = ?')
+  for (const row of changes.create) {
+    insert.run(
+      row.knifeId,
+      row.track,
+      row.lastAt,
+      row.dueOn,
+      row.level,
+      row.createdAt,
+      row.updatedAt,
+      row.readAt,
+      row.snoozedUntil,
+      row.dismissedAt,
+      row.resolvedAt,
+      row.resolution,
+      row.knifeId,
+    )
+  }
+  for (const row of changes.update) {
+    update.run(
+      row.dueOn,
+      row.level,
+      row.updatedAt,
+      row.readAt,
+      row.snoozedUntil,
+      row.dismissedAt,
+      row.resolvedAt,
+      row.resolution,
+      row.id,
+    )
+  }
+  for (const id of changes.deleteIds) remove.run(id)
 }
 
 function nextUpdatedAt(previous: string): string {
@@ -447,6 +560,65 @@ export class LocalStorage implements Storage {
         type: row.type as MaintenanceType,
         lastAt: row.last_at,
       }))
+  }
+
+  async getCareNotifications(): Promise<CareNotification[]> {
+    return readCareNotifications(getDb())
+  }
+
+  async syncCareNotifications(
+    statuses: ReadonlyMap<string, KnifeCareStatus>,
+    now: Date,
+  ): Promise<CareNotification[]> {
+    const database = getDb()
+    const changes = reconcileCareNotifications(
+      readCareNotifications(database),
+      statuses,
+      now,
+    )
+    if (
+      changes.create.length === 0 &&
+      changes.update.length === 0 &&
+      changes.deleteIds.length === 0
+    ) {
+      return readCareNotifications(database)
+    }
+    return withVaultWrite(async () => {
+      // Re-plan inside the write so a concurrent request cannot be overwritten.
+      database.transaction(() => {
+        writeCareNotificationChanges(
+          database,
+          reconcileCareNotifications(
+            readCareNotifications(database),
+            statuses,
+            now,
+          ),
+        )
+      })()
+      return readCareNotifications(database)
+    })
+  }
+
+  async updateCareNotifications(
+    action: CareNotificationAction,
+    now: Date,
+  ): Promise<CareNotification[]> {
+    return withVaultWrite(async () => {
+      const database = getDb()
+      database.transaction(() => {
+        const changed = applyCareNotificationAction(
+          readCareNotifications(database),
+          action,
+          now,
+        )
+        writeCareNotificationChanges(database, {
+          create: [],
+          update: changed,
+          deleteIds: [],
+        })
+      })()
+      return readCareNotifications(database)
+    })
   }
 
   async getAuditLog(): Promise<AuditLogEvent[]> {
@@ -1160,6 +1332,9 @@ export class LocalStorage implements Storage {
           .run(id)
         database.prepare('DELETE FROM compare_list WHERE knife_id = ?').run(id)
         database.prepare('DELETE FROM knife_notes WHERE knife_id = ?').run(id)
+        database
+          .prepare('DELETE FROM care_notifications WHERE knife_id = ?')
+          .run(id)
         database
           .prepare(
             `UPDATE comparison_lists SET revision = revision + 1, updated_at = ?

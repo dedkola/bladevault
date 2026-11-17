@@ -14,6 +14,7 @@ import { SmartCollectionsProvider } from '@/components/providers/smart-collectio
 import { AppShell } from '@/components/app-shell'
 import { KnivesProvider } from '@/components/providers/knives-provider'
 import { CareProvider } from '@/components/providers/care-provider'
+import { CareInboxProvider } from '@/components/providers/care-inbox-provider'
 import { DEFAULT_SETTINGS, getSettings } from '@/lib/settings'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import {
@@ -184,17 +185,19 @@ export default async function RootLayout({
             <VaultRestoreProvider initialStatus={vaultStatus}>
               <KnivesProvider initialThemeStyle={themeStyle}>
                 <CareProvider>
-                  <SmartCollectionsProvider>
-                    <TooltipProvider>
-                      <Suspense>
-                        <ComparisonsProvider>
-                          <AppShell>{children}</AppShell>
-                        </ComparisonsProvider>
-                      </Suspense>
-                      <GlobalKnifeSearch />
-                      {promptForConsent ? <ErrorReportingPrompt /> : null}
-                    </TooltipProvider>
-                  </SmartCollectionsProvider>
+                  <CareInboxProvider>
+                    <SmartCollectionsProvider>
+                      <TooltipProvider>
+                        <Suspense>
+                          <ComparisonsProvider>
+                            <AppShell>{children}</AppShell>
+                          </ComparisonsProvider>
+                        </Suspense>
+                        <GlobalKnifeSearch />
+                        {promptForConsent ? <ErrorReportingPrompt /> : null}
+                      </TooltipProvider>
+                    </SmartCollectionsProvider>
+                  </CareInboxProvider>
                 </CareProvider>
               </KnivesProvider>
             </VaultRestoreProvider>

@@ -30,7 +30,7 @@ const NEVER_LOGGED_OPTIONS: readonly {
 
 const NEVER_LOGGED_HINTS: Record<NeverLoggedMode, string> = {
   tracked:
-    'A knife joins reminders with its first maintenance entry. After that, a kind of care it has never had shows as “never logged”.',
+    'A knife joins reminders with its first maintenance entry. After that, a kind of care it has never had shows as “missing care”.',
   all: 'Every knife is reminded, including knives with no maintenance entries yet.',
   off: 'Only knives with a logged entry are reminded, and missing kinds of care are not flagged.',
 }

@@ -1,5 +1,8 @@
 import {
+  DEFAULT_MAINTENANCE_REMINDERS,
   DEFAULT_SETTINGS,
+  normalizeCareIntervalOverrides,
+  normalizeMaintenanceReminders,
   normalizeCardFields,
   normalizeStartPage,
   normalizeDimensionUnit,
@@ -22,6 +25,18 @@ import {
   type Comparison,
 } from '@/lib/comparisons'
 import type { SmartCollection } from '@/lib/smart-collections'
+import {
+  buildLatestByKnife,
+  getCareStatuses,
+  type MaintenanceLatestEntry,
+} from '@/lib/maintenance-due'
+import {
+  applyCareNotificationAction,
+  mergeCareNotificationChanges,
+  parseCareNotificationAction,
+  reconcileCareNotifications,
+  type CareNotification,
+} from '@/lib/care-notifications'
 import { IDLE_CLOUD_BACKUP_JOB } from '@/lib/cloud-backup-shared'
 import { DRIVE_BACKUP_UNAVAILABLE } from '@/lib/drive-backup-shared'
 import { IDLE_CLOUD_RESTORE_JOB } from '@/lib/cloud-restore-shared'
@@ -43,6 +58,7 @@ type State = {
   activity: KnifeActivityEvent[]
   maintenance: Record<string, MaintenanceEvent[]>
   notes: Record<string, KnifeNote[]>
+  careNotifications: CareNotification[]
 }
 
 function emptyState(): State {
@@ -69,6 +85,7 @@ function emptyState(): State {
     activity: [],
     maintenance: {},
     notes: {},
+    careNotifications: [],
   }
 }
 
@@ -98,6 +115,9 @@ function getState(): State {
         ...parsed,
         // Sessions saved before notes existed have no notes map.
         notes: parsed.notes ?? {},
+        careNotifications: Array.isArray(parsed.careNotifications)
+          ? parsed.careNotifications
+          : [],
         knives: parsed.knives.map(normalizeKnife),
         settings: {
           ...parsed.settings,
@@ -190,6 +210,20 @@ function updateKnife(knife: Knife, updates: KnifeUpdates) {
   return updated
 }
 
+function latestMaintenance(db: State): MaintenanceLatestEntry[] {
+  const latest: MaintenanceLatestEntry[] = []
+  for (const [knifeId, events] of Object.entries(db.maintenance)) {
+    const byType = new Map<MaintenanceEvent['type'], string>()
+    for (const event of events) {
+      const previous = byType.get(event.type)
+      if (!previous || event.occurredAt > previous)
+        byType.set(event.type, event.occurredAt)
+    }
+    for (const [type, lastAt] of byType) latest.push({ knifeId, type, lastAt })
+  }
+  return latest
+}
+
 function handle(request: Request, body: Record<string, unknown>) {
   const db = getState(),
     path = new URL(request.url).pathname,
@@ -205,19 +239,56 @@ function handle(request: Request, body: Record<string, unknown>) {
     return json({ enabled: false, unlocked: true })
   if (path === '/api/activity' && method === 'GET')
     return json({ activity: db.activity })
-  if (path === '/api/maintenance' && method === 'GET') {
-    const latest: { knifeId: string; type: string; lastAt: string }[] = []
-    for (const [knifeId, events] of Object.entries(db.maintenance)) {
-      const byType = new Map<string, string>()
-      for (const event of events) {
-        const previous = byType.get(event.type)
-        if (!previous || event.occurredAt > previous)
-          byType.set(event.type, event.occurredAt)
+  if (path === '/api/maintenance' && method === 'GET')
+    return json({ latest: latestMaintenance(db) })
+  if (path === '/api/care-inbox') {
+    const now = new Date()
+    if (method === 'POST') {
+      const reminders = normalizeMaintenanceReminders(
+        db.settings.maintenanceReminders,
+        DEFAULT_MAINTENANCE_REMINDERS,
+      )
+      if (reminders.enabled) {
+        const statuses = getCareStatuses(
+          db.knives,
+          buildLatestByKnife(latestMaintenance(db)),
+          reminders,
+          normalizeCareIntervalOverrides(db.settings.careIntervalOverrides),
+          now,
+        )
+        db.careNotifications = mergeCareNotificationChanges(
+          db.careNotifications,
+          reconcileCareNotifications(db.careNotifications, statuses, now),
+          new Set(db.knives.map((knife) => knife.id)),
+        )
+        save()
       }
-      for (const [type, lastAt] of byType)
-        latest.push({ knifeId, type, lastAt })
+    } else if (method === 'PATCH') {
+      let action
+      try {
+        action = parseCareNotificationAction(body)
+      } catch (error) {
+        return json(
+          { error: error instanceof Error ? error.message : 'Invalid body' },
+          400,
+        )
+      }
+      db.careNotifications = mergeCareNotificationChanges(
+        db.careNotifications,
+        {
+          create: [],
+          update: applyCareNotificationAction(
+            db.careNotifications,
+            action,
+            now,
+          ),
+          deleteIds: [],
+        },
+        new Set(db.knives.map((knife) => knife.id)),
+      )
+      save()
     }
-    return json({ latest })
+    return json({ notifications: db.careNotifications })
   }
   if (path === '/api/logs' && method === 'GET')
     return json({ events: db.events })
@@ -380,6 +451,9 @@ function handle(request: Request, body: Record<string, unknown>) {
       })
       delete db.maintenance[knife.id]
       delete db.notes[knife.id]
+      db.careNotifications = db.careNotifications.filter(
+        (row) => row.knifeId !== knife.id,
+      )
       record('deleted', knife)
       save()
       return json({ success: true })

@@ -168,7 +168,7 @@ export function CareDetail() {
               }
             : {
                 value: counts.never,
-                label: 'Never logged',
+                label: 'Missing care',
                 helper: 'A kind of care with no entry yet',
               },
         ]}

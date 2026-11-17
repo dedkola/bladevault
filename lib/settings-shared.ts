@@ -274,8 +274,15 @@ export const CARE_TRACK_VERBS: Record<CareTrack, string> = {
   lubrication: 'Lube',
 }
 
+/** Past participle for missing-care labels: "Not yet cleaned or lubed". */
+export const CARE_TRACK_PAST: Record<CareTrack, string> = {
+  sharpening: 'sharpened',
+  cleaning: 'cleaned',
+  lubrication: 'lubed',
+}
+
 /**
- * Which knives show "never logged" for a kind of care with no entry:
+ * Which knives show "missing care" for a kind of care with no entry:
  * `tracked` only knives with at least one maintenance entry of any type,
  * `all` every knife, `off` none.
  */

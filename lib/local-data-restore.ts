@@ -162,6 +162,7 @@ export function validateLocalDatabase(dbPath: string): ValidatedLocalDatabase {
         ? ['webpage_screenshots', 'screenshot_backfill']
         : []),
       ...(schemaVersion >= 7 ? ['knife_notes'] : []),
+      ...(schemaVersion >= 8 ? ['care_notifications'] : []),
     ]
     const tableRows = database
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")

@@ -1,6 +1,7 @@
 import type { MaintenanceType } from '@/lib/data'
 import {
   CARE_TRACKS,
+  CARE_TRACK_PAST,
   CARE_TRACK_VERBS,
   type CareIntervalOverrides,
   type CareTrack,
@@ -23,7 +24,7 @@ export const CARE_STATUS_LABELS: Record<CareStatusLevel, string> = {
   ok: 'Up to date',
   'due-soon': 'Due soon',
   overdue: 'Overdue',
-  never: 'Never logged',
+  never: 'Missing care',
 }
 
 export type CareTrackStatus = {
@@ -255,7 +256,7 @@ export function formatDaysAgo(days: number): string {
 
 /** Short due line for a track tile: "Overdue by 4 days" / "Due in 9 days". */
 export function formatTrackDueLine(status: CareTrackStatus): string {
-  if (status.dueInDays === null) return 'Never logged'
+  if (status.dueInDays === null) return 'Not logged yet'
   if (status.dueInDays < 0)
     return `Overdue by ${-status.dueInDays} day${status.dueInDays === -1 ? '' : 's'}`
   if (status.dueInDays === 0) return 'Due today'
@@ -263,19 +264,26 @@ export function formatTrackDueLine(status: CareTrackStatus): string {
 }
 
 /**
- * "No care logged" when nothing was ever recorded, otherwise names the
- * missing track: "Lube never logged".
+ * "No care logged" when nothing was ever recorded, otherwise lists the
+ * kinds of care the knife has never had: "Not yet cleaned or lubed".
  */
-function neverLoggedLabel(status: KnifeCareStatus): string {
-  if (!status.hasHistory || !status.worst) return 'No care logged'
-  return `${CARE_TRACK_VERBS[status.worst.track]} never logged`
+function missingCareLabel(status: KnifeCareStatus): string {
+  const missing = status.tracks
+    .filter((track) => track.level === 'never')
+    .map((track) => CARE_TRACK_PAST[track.track])
+  if (!status.hasHistory || missing.length === 0) return 'No care logged'
+  const list =
+    missing.length === 1
+      ? missing[0]
+      : `${missing.slice(0, -1).join(', ')} or ${missing[missing.length - 1]}`
+  return `Not yet ${list}`
 }
 
 /** Compact badge label for cards: "Sharpen overdue · 4d". */
 export function careBadgeLabel(status: KnifeCareStatus): string | null {
   if (status.level === null) return null
   if (status.level === 'ok') return 'Care up to date'
-  if (status.level === 'never') return neverLoggedLabel(status)
+  if (status.level === 'never') return missingCareLabel(status)
   const worst = status.worst
   if (!worst || worst.dueInDays === null) return null
   const verb = CARE_TRACK_VERBS[worst.track]
@@ -289,7 +297,7 @@ export function careBadgeLabel(status: KnifeCareStatus): string | null {
 /** One-line summary for lists: "Sharpen · 34d overdue". */
 export function careDueSummary(status: KnifeCareStatus): string | null {
   const worst = status.worst
-  if (status.level === 'never') return neverLoggedLabel(status)
+  if (status.level === 'never') return missingCareLabel(status)
   if (!worst || worst.dueInDays === null) return null
   const verb = CARE_TRACK_VERBS[worst.track]
   if (worst.dueInDays < 0) return `${verb} · ${-worst.dueInDays}d overdue`

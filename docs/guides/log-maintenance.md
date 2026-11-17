@@ -76,6 +76,31 @@ To remove an entry, select its trash button, **Delete maintenance entry**, and c
 
 ![An entry's edit and delete buttons at the end of its row](../images/log-maintenance-entry-actions.png)
 
+## Get care reminders
+
+BladeVault reminds you when a knife is due for sharpening, cleaning, or lubrication. By default sharpening is due every 90 days, cleaning every 60, and lubrication every 180; a stropping entry counts as sharpening. Change these in **Settings → Maintenance**, or select **Customize…** under a knife's **Maintenance** to give that knife its own intervals.
+
+A knife joins reminders with its first maintenance entry. Its status is one of:
+
+| Status           | Meaning                                                                            |
+| ---------------- | ---------------------------------------------------------------------------------- |
+| **Overdue**      | A kind of care is past its interval.                                               |
+| **Due soon**     | A kind of care is due within the due-soon window (14 days by default).             |
+| **Missing care** | The knife has entries, but a kind of care it is tracked for has never been logged. |
+| **Up to date**   | Every tracked kind of care is inside its interval.                                 |
+
+Turn on the **Care** card field to show a status badge on collection cards, or filter the collection by **Care**. **Insights** has a **Care status** card listing the knives that need attention.
+
+### Use the Inbox
+
+When a knife turns due soon or overdue, a message arrives in **Inbox**. The bell in the header, or the **Inbox** row in the Classic sidebar, shows how many messages are unread. Each message offers:
+
+- **Log … today**: records that care for today, which resolves the message.
+- **Snooze**: hides the message until tomorrow, or for 3 days, a week, or a month. It comes back unread.
+- **Dismiss**: hides the message until that care is logged again. Find it under **Done** and select **Move back to inbox** to undo.
+
+Logging the care any other way also resolves the message. A due-soon message that becomes overdue is marked unread again. **Missing care** never sends a message. Closed messages stay under **Done** for 90 days.
+
 ## Review care across the collection
 
 Open **History** and select **Maintenance** to see maintenance activity for all knives. Expand an event to inspect its details. History also records edits and deletions, so it is useful when you need to understand a change to the history.

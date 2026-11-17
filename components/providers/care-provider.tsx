@@ -131,6 +131,23 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  // Keep day counts current when the app stays open past midnight.
+  useEffect(() => {
+    const checkDay = () =>
+      setNow((current) => {
+        const next = new Date()
+        return next.toDateString() === current.toDateString() ? current : next
+      })
+    const timer = window.setInterval(checkDay, 5 * 60_000)
+    window.addEventListener('focus', checkDay)
+    document.addEventListener('visibilitychange', checkDay)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', checkDay)
+      document.removeEventListener('visibilitychange', checkDay)
+    }
+  }, [])
+
   // The Settings page announces reminder changes through the shared event.
   useEffect(() => {
     const onSettingsUpdated = (event: Event) => {

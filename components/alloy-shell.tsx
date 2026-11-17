@@ -29,6 +29,7 @@ import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
 import { readJsonResponse } from '@/lib/api-response'
 import { matchesCollection } from '@/lib/smart-collections'
 import { SETTINGS_UPDATED_EVENT, type AppSettings } from '@/lib/settings-shared'
+import { CareInboxBell } from '@/components/care-inbox'
 
 const links = [
   { href: '/collection', label: 'Collection' },
@@ -156,6 +157,7 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
               <Loader2 className="animate-spin motion-reduce:animate-none" />
             </span>
           )}
+          <CareInboxBell />
           <Link
             href="/settings?tab=backup"
             aria-label="Cloud backup"

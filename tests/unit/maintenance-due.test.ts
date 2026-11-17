@@ -159,7 +159,9 @@ describe('care status', () => {
       now,
     )
     expect(otherOnly.level).toBe('never')
-    expect(careBadgeLabel(otherOnly)).toBe('Sharpen never logged')
+    expect(careBadgeLabel(otherOnly)).toBe(
+      'Not yet sharpened, cleaned or lubed',
+    )
   })
 
   it('names the missing kind of care on knives with history', () => {
@@ -171,8 +173,8 @@ describe('care status', () => {
       now,
     )
     expect(partial.level).toBe('never')
-    expect(careBadgeLabel(partial)).toBe('Lube never logged')
-    expect(careDueSummary(partial)).toBe('Lube never logged')
+    expect(careBadgeLabel(partial)).toBe('Not yet lubed')
+    expect(careDueSummary(partial)).toBe('Not yet lubed')
     const dueSoonWins = getKnifeCareStatus(
       'a',
       { sharpening: daysAgo(80), cleaning: daysAgo(1) },
