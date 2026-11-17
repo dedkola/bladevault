@@ -99,6 +99,13 @@ describe('Inspector history tab', () => {
         'Catalogued',
       ]),
     )
+    // Care entries open the care log; record changes and notes open History.
+    const hrefs = [
+      ...document.querySelectorAll('[data-inspector-history-link]'),
+    ].map((link) => link.getAttribute('href') ?? '')
+    expect(hrefs[0]).toMatch(/^\/maintenance\/log\?knife=/)
+    expect(hrefs[1]).toMatch(/^\/logs\?knife=/)
+    expect(hrefs[5]).toMatch(/^\/logs\?knife=/)
   })
 
   it('keeps maintenance entries out of History when a Maintenance tab exists', async () => {

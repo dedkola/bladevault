@@ -130,13 +130,18 @@ type HistoryRow = {
 }
 
 /**
- * Links to the History page entry recorded for this knife at `at`. The page
- * matches the timestamp against its log, since record and maintenance writes
- * stamp their log entry with the same time.
+ * Links to the log entry recorded for this knife at `at`: History for record
+ * changes and notes, the care log for maintenance. The page matches the
+ * timestamp against its log, since record and maintenance writes stamp their
+ * log entry with the same time.
  */
-function historyEntryHref(knifeId: string, at: string): string {
+function historyEntryHref(
+  knifeId: string,
+  at: string,
+  page: '/logs' | '/maintenance/log' = '/logs',
+): string {
   const params = new URLSearchParams({ knife: knifeId, at })
-  return `/logs?${params.toString()}`
+  return `${page}?${params.toString()}`
 }
 
 function startOfDay(isoString: string): number {
@@ -180,7 +185,7 @@ function buildHistoryRows(
         event.notes ? ` · ${event.notes}` : ''
       }`,
       day: startOfDay(event.occurredAt),
-      href: historyEntryHref(knife.id, event.createdAt),
+      href: historyEntryHref(knife.id, event.createdAt, '/maintenance/log'),
     })
   }
   for (const note of notes) {
