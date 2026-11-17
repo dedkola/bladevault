@@ -41,6 +41,7 @@ import { isAppLockEnabled, isAppUnlocked } from '@/lib/app-lock'
 import { APP_LOCK_COOKIE } from '@/lib/app-lock-shared'
 import { AppUnlockForm } from '@/components/app-unlock-form'
 import { AppLockSession } from '@/components/app-lock-session'
+import { BackupProgressNotice } from '@/components/vault-task-notice'
 import { VaultRestoreProvider } from '@/components/providers/vault-restore-provider'
 import { getVaultAccessState } from '@/lib/vault-access'
 import {
@@ -194,6 +195,7 @@ export default async function RootLayout({
                           </ComparisonsProvider>
                         </Suspense>
                         <GlobalKnifeSearch />
+                        <BackupProgressNotice />
                         {promptForConsent ? <ErrorReportingPrompt /> : null}
                       </TooltipProvider>
                     </SmartCollectionsProvider>
