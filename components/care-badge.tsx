@@ -48,7 +48,7 @@ export function KnifeCareBadge({
   const { reminders, statusById } = useCare()
   // Knives that need attention are always flagged. Up-to-date ones only show
   // when the Care card field is on or a care filter is active.
-  const careFilterActive = useSearchParams().has('care')
+  const careFilterActive = useSearchParams()?.has('care') ?? false
   if (!reminders.enabled) return null
   const status = statusById.get(knifeId)
   if (!status) return null
