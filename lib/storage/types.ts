@@ -93,6 +93,8 @@ export interface Storage {
   getMaintenanceEvents(knifeId: string): Promise<MaintenanceEvent[]>
   /** Latest event date per knife and maintenance type, for derived care status. */
   getMaintenanceLatest(): Promise<MaintenanceLatestEntry[]>
+  /** Every maintenance event in the vault, newest first. */
+  getAllMaintenanceEvents(): Promise<MaintenanceEvent[]>
   addMaintenanceEvent(
     knifeId: string,
     input: MaintenanceEventInput,

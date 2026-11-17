@@ -1429,6 +1429,20 @@ export class LocalStorage implements Storage {
     return rows.map((row) => this.rowToMaintenanceEvent(row))
   }
 
+  async getAllMaintenanceEvents(): Promise<MaintenanceEvent[]> {
+    const rows = getDb()
+      .prepare(
+        `SELECT id, knife_id, type, occurred_at, notes, sharpening_details, created_at
+         FROM maintenance_events
+         ORDER BY occurred_at DESC, id DESC`,
+      )
+      .all() as Array<Record<string, unknown>>
+
+    return rows
+      .filter((row) => isMaintenanceType(String(row.type)))
+      .map((row) => this.rowToMaintenanceEvent(row))
+  }
+
   async addMaintenanceEvent(
     knifeId: string,
     input: MaintenanceEventInput,

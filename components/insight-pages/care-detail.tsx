@@ -6,10 +6,15 @@ import { useMemo, useState } from 'react'
 import { ImageIcon } from 'lucide-react'
 import { useCare } from '@/components/providers/care-provider'
 import { useKnives } from '@/components/providers/knives-provider'
+import { InsightPanel } from '@/components/insight-pages/detail-primitives'
 import {
-  InsightMetrics,
-  InsightPanel,
-} from '@/components/insight-pages/detail-primitives'
+  CareComingUp,
+  CareKindCards,
+  CareKpis,
+  CareMonthlyChart,
+  CareRecentFeed,
+  useCareDashboard,
+} from '@/components/insight-pages/care-dashboard'
 import { careToneDotClass, careToneTextClass } from '@/components/care-badge'
 import {
   CareStatusBar,
@@ -96,6 +101,7 @@ export function CareDetail() {
   const { knives } = useKnives()
   const { reminders, statusById } = useCare()
   const summary = useCareSummary()
+  const dashboard = useCareDashboard(knives)
   const [levels, setLevels] = useState<CareStatusLevel[]>([])
   const [query, setQuery] = useState('')
 
@@ -147,25 +153,43 @@ export function CareDetail() {
 
   return (
     <div className="id-care">
-      <InsightMetrics
-        items={[
-          {
-            value: counts.overdue,
-            label: 'Overdue',
-            helper: 'Past their care interval',
-          },
-          {
-            value: counts['due-soon'],
-            label: 'Due soon',
-            helper: `Within ${reminders.dueSoonDays} days of the deadline`,
-          },
-          {
-            value: counts.ok,
-            label: 'Up to date',
-            helper: 'Inside every interval',
-          },
-        ]}
+      <CareKpis
+        counts={counts}
+        tracked={tracked}
+        jobs={dashboard.jobs}
+        events={dashboard.events}
+        dueSoonDays={reminders.dueSoonDays}
+        knivesById={dashboard.knivesById}
+        now={dashboard.now}
       />
+      {dashboard.summaries.length > 0 && (
+        <CareKindCards
+          summaries={dashboard.summaries}
+          knivesById={dashboard.knivesById}
+          now={dashboard.now}
+        />
+      )}
+      {dashboard.summaries.length > 0 && (
+        <CareComingUp
+          jobs={dashboard.jobs}
+          tracks={dashboard.summaries.map((item) => item.track)}
+          knivesById={dashboard.knivesById}
+          now={dashboard.now}
+        />
+      )}
+      <div className="id-grid id-two">
+        <CareMonthlyChart
+          events={dashboard.events}
+          now={dashboard.now}
+          isLoading={dashboard.isLoading}
+        />
+        <CareRecentFeed
+          events={dashboard.events}
+          knivesById={dashboard.knivesById}
+          now={dashboard.now}
+          isLoading={dashboard.isLoading}
+        />
+      </div>
       <div className="id-grid id-recent-grid">
         <InsightPanel
           title="Needs attention"

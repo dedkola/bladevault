@@ -102,6 +102,14 @@ Logging the care any other way also resolves the message. A due-soon message tha
 
 ## Review care across the collection
 
+Select the **Care status** card on **Insights** for the full care page:
+
+- Overdue, due-soon and up-to-date counts, the next deadline, and how many entries you logged this month.
+- A card for each kind of care with its interval, the most overdue knife, the next deadline, the last entry, and how often you usually do it. When you usually wait clearly longer than the interval, the card suggests changing it.
+- **Coming up**: overdue jobs, then the deadlines in the next 30 days.
+- Entries per month for the last six months, and the latest entries with their notes and sharpening angle.
+- Lists of the knives that need attention and of every tracked knife.
+
 Open **History** and select **Maintenance** to see maintenance activity for all knives. Expand an event to inspect its details. History also records edits and deletions, so it is useful when you need to understand a change to the history.
 
 ![The History page filtered to Maintenance activity](../images/log-maintenance-logs.png)

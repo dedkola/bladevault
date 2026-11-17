@@ -41,6 +41,8 @@ type CareContextValue = {
   latestByKnife: ReadonlyMap<string, LatestByType>
   /** Derived care status per knife (sold knives may be skipped). */
   statusById: ReadonlyMap<string, KnifeCareStatus>
+  /** The moment `statusById` was computed for; changes once per day. */
+  now: Date
   isLoading: boolean
   /** Saves per-knife interval overrides; null clears the knife's entry. */
   setKnifeCareIntervals: (
@@ -213,6 +215,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
       overrides,
       latestByKnife,
       statusById,
+      now,
       isLoading,
       setKnifeCareIntervals,
     }),
@@ -221,6 +224,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
       overrides,
       latestByKnife,
       statusById,
+      now,
       isLoading,
       setKnifeCareIntervals,
     ],
@@ -235,6 +239,7 @@ const DISABLED_CARE_CONTEXT: CareContextValue = {
   overrides: {},
   latestByKnife: new Map(),
   statusById: new Map(),
+  now: new Date(0),
   isLoading: false,
   setKnifeCareIntervals: async () => {
     throw new Error('Care reminders are unavailable here.')

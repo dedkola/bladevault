@@ -1,0 +1,352 @@
+import type { MaintenanceEvent, MaintenanceType } from '@/lib/data'
+import { localDateAfter } from '@/lib/care-notifications'
+import type {
+  CareStatusLevel,
+  CareTrackStatus,
+  KnifeCareStatus,
+} from '@/lib/maintenance-due'
+import {
+  CARE_TRACKS,
+  type CareTrack,
+  type MaintenanceReminderSettings,
+} from '@/lib/settings-shared'
+
+/** One kind of care on one knife that has a deadline. */
+export type CareJob = {
+  knifeId: string
+  track: CareTrack
+  /** Days until the deadline; negative when overdue. */
+  dueInDays: number
+  /** Local deadline date, YYYY-MM-DD. */
+  dueOn: string
+  level: CareStatusLevel
+  intervalDays: number
+  lastAt: string
+}
+
+export type CareTrackSummary = {
+  track: CareTrack
+  /** The default interval from Settings; null when the kind is switched off. */
+  intervalDays: number | null
+  /** Knives with a logged date for this kind of care. */
+  tracked: number
+  counts: Record<CareStatusLevel, number>
+  mostOverdue: CareJob | null
+  /** Earliest deadline that hasn't passed, with every knife due that day. */
+  nextDue: { dueOn: string; dueInDays: number; knifeIds: string[] } | null
+  lastDone: { knifeId: string; at: string } | null
+  /** Average days between logged entries on the same knife. */
+  rhythmDays: number | null
+  /** Gaps behind `rhythmDays`; a handful is needed before it means much. */
+  rhythmSamples: number
+}
+
+export type CareMonthGroup = 'sharpening' | 'cleaning' | 'lubrication' | 'other'
+
+export const CARE_MONTH_GROUPS: readonly CareMonthGroup[] = [
+  'sharpening',
+  'cleaning',
+  'lubrication',
+  'other',
+]
+
+export type CareMonth = {
+  /** YYYY-MM */
+  month: string
+  total: number
+  counts: Record<CareMonthGroup, number>
+}
+
+export type CareFeedItem = {
+  knifeId: string
+  /** Calendar day of the entries, YYYY-MM-DD (local time). */
+  day: string
+  occurredAt: string
+  types: MaintenanceType[]
+  notes: string[]
+  angle?: string
+  grit?: string
+}
+
+const FEED_TYPE_ORDER: readonly MaintenanceType[] = [
+  'disassembly',
+  'sharpening',
+  'stropping',
+  'cleaning',
+  'lubrication',
+  'reassembly',
+  'hardware_replacement',
+  'part_replacement',
+  'other',
+]
+
+/** Rhythms need this many gaps before the page compares them to an interval. */
+export const CARE_RHYTHM_MIN_SAMPLES = 3
+
+function pad(value: number) {
+  return String(value).padStart(2, '0')
+}
+
+function localDay(value: string): string | null {
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return null
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+function dayNumber(day: string): number {
+  const [year, month, date] = day.split('-').map(Number)
+  return Date.UTC(year, month - 1, date) / 86_400_000
+}
+
+/** The reminder kind an event counts toward, if any. */
+export function careTrackForType(
+  type: MaintenanceType,
+  settings: Pick<MaintenanceReminderSettings, 'stroppingCountsAsSharpening'>,
+): CareTrack | null {
+  if ((CARE_TRACKS as readonly string[]).includes(type))
+    return type as CareTrack
+  if (type === 'stropping' && settings.stroppingCountsAsSharpening)
+    return 'sharpening'
+  return null
+}
+
+function monthGroup(type: MaintenanceType): CareMonthGroup {
+  if (type === 'sharpening' || type === 'stropping') return 'sharpening'
+  if (type === 'cleaning' || type === 'lubrication') return type
+  return 'other'
+}
+
+function toJob(
+  knifeId: string,
+  track: CareTrackStatus,
+  now: Date,
+): CareJob | null {
+  if (
+    track.level === 'never' ||
+    track.dueInDays === null ||
+    track.lastAt === null
+  )
+    return null
+  return {
+    knifeId,
+    track: track.track,
+    dueInDays: track.dueInDays,
+    dueOn: localDateAfter(now, track.dueInDays),
+    level: track.level,
+    intervalDays: track.intervalDays,
+    lastAt: track.lastAt,
+  }
+}
+
+/** Every kind of care with a deadline, most urgent first. */
+export function listCareJobs(
+  statuses: ReadonlyMap<string, KnifeCareStatus>,
+  now: Date,
+): CareJob[] {
+  const jobs: CareJob[] = []
+  for (const status of statuses.values()) {
+    for (const track of status.tracks) {
+      const job = toJob(status.knifeId, track, now)
+      if (job) jobs.push(job)
+    }
+  }
+  return jobs.sort(
+    (left, right) =>
+      left.dueInDays - right.dueInDays ||
+      CARE_TRACKS.indexOf(left.track) - CARE_TRACKS.indexOf(right.track) ||
+      left.knifeId.localeCompare(right.knifeId),
+  )
+}
+
+/**
+ * Average gap in days between entries of one kind on the same knife.
+ * Several entries on one day count once.
+ */
+function careRhythms(
+  events: readonly MaintenanceEvent[],
+  settings: Pick<MaintenanceReminderSettings, 'stroppingCountsAsSharpening'>,
+  knifeIds: ReadonlySet<string>,
+): Record<CareTrack, { days: number | null; samples: number }> {
+  const days = new Map<string, Set<string>>()
+  for (const event of events) {
+    if (!knifeIds.has(event.knifeId)) continue
+    const track = careTrackForType(event.type, settings)
+    const day = localDay(event.occurredAt)
+    if (!track || !day) continue
+    const key = `${track}\u0000${event.knifeId}`
+    const set = days.get(key) ?? new Set<string>()
+    set.add(day)
+    days.set(key, set)
+  }
+  const totals = Object.fromEntries(
+    CARE_TRACKS.map((track) => [track, { sum: 0, samples: 0 }]),
+  ) as Record<CareTrack, { sum: number; samples: number }>
+  for (const [key, set] of days) {
+    const track = key.split('\u0000')[0] as CareTrack
+    const sorted = [...set].map(dayNumber).sort((left, right) => left - right)
+    for (let index = 1; index < sorted.length; index += 1) {
+      totals[track].sum += sorted[index] - sorted[index - 1]
+      totals[track].samples += 1
+    }
+  }
+  return Object.fromEntries(
+    CARE_TRACKS.map((track) => {
+      const { sum, samples } = totals[track]
+      return [
+        track,
+        { days: samples ? Math.round(sum / samples) : null, samples },
+      ]
+    }),
+  ) as Record<CareTrack, { days: number | null; samples: number }>
+}
+
+/** Per-kind overview: counts, the worst and next deadline, and habits. */
+export function summarizeCareTracks(
+  statuses: ReadonlyMap<string, KnifeCareStatus>,
+  events: readonly MaintenanceEvent[],
+  settings: MaintenanceReminderSettings,
+  now: Date,
+): CareTrackSummary[] {
+  const jobs = listCareJobs(statuses, now)
+  const rhythms = careRhythms(events, settings, new Set(statuses.keys()))
+  return CARE_TRACKS.flatMap((track) => {
+    const own = jobs.filter((job) => job.track === track)
+    const intervalDays = settings.intervals[track]
+    // A kind switched off everywhere has nothing to show.
+    if (intervalDays === null && own.length === 0) return []
+    const counts: Record<CareStatusLevel, number> = {
+      ok: 0,
+      'due-soon': 0,
+      overdue: 0,
+    }
+    for (const job of own) counts[job.level] += 1
+    const overdue = own.filter((job) => job.dueInDays < 0)
+    const upcoming = own.filter((job) => job.dueInDays >= 0)
+    const next = upcoming[0]
+    const lastDone = own.reduce<CareTrackSummary['lastDone']>(
+      (latest, job) =>
+        !latest || job.lastAt > latest.at
+          ? { knifeId: job.knifeId, at: job.lastAt }
+          : latest,
+      null,
+    )
+    return [
+      {
+        track,
+        intervalDays,
+        tracked: own.length,
+        counts,
+        mostOverdue: overdue[0] ?? null,
+        nextDue: next
+          ? {
+              dueOn: next.dueOn,
+              dueInDays: next.dueInDays,
+              knifeIds: upcoming
+                .filter((job) => job.dueOn === next.dueOn)
+                .map((job) => job.knifeId),
+            }
+          : null,
+        lastDone,
+        rhythmDays: rhythms[track].days,
+        rhythmSamples: rhythms[track].samples,
+      },
+    ]
+  })
+}
+
+/**
+ * True when you usually wait clearly longer than the reminder interval, so
+ * the reminder fires before you'd normally get to it.
+ */
+export function rhythmOutpacesInterval(summary: CareTrackSummary): boolean {
+  return (
+    summary.intervalDays !== null &&
+    summary.rhythmDays !== null &&
+    summary.rhythmSamples >= CARE_RHYTHM_MIN_SAMPLES &&
+    summary.rhythmDays >= summary.intervalDays * 1.25
+  )
+}
+
+/** Entries per calendar month for the last `months` months, oldest first. */
+export function countCareByMonth(
+  events: readonly MaintenanceEvent[],
+  now: Date,
+  months = 6,
+): CareMonth[] {
+  const buckets: CareMonth[] = []
+  for (let offset = months - 1; offset >= 0; offset -= 1) {
+    const date = new Date(now.getFullYear(), now.getMonth() - offset, 1)
+    buckets.push({
+      month: `${date.getFullYear()}-${pad(date.getMonth() + 1)}`,
+      total: 0,
+      counts: { sharpening: 0, cleaning: 0, lubrication: 0, other: 0 },
+    })
+  }
+  const byMonth = new Map(buckets.map((bucket) => [bucket.month, bucket]))
+  for (const event of events) {
+    const bucket = byMonth.get(localDay(event.occurredAt)?.slice(0, 7) ?? '')
+    if (!bucket) continue
+    bucket.counts[monthGroup(event.type)] += 1
+    bucket.total += 1
+  }
+  return buckets
+}
+
+/**
+ * Latest entries, with same-day entries on one knife merged ("Sharpened +
+ * stropped"). Expects events newest first.
+ */
+export function recentCareFeed(
+  events: readonly MaintenanceEvent[],
+  limit = 8,
+): CareFeedItem[] {
+  const items: CareFeedItem[] = []
+  const byKey = new Map<string, CareFeedItem>()
+  for (const event of events) {
+    const day = localDay(event.occurredAt)
+    if (!day) continue
+    const key = `${event.knifeId}\u0000${day}`
+    let item = byKey.get(key)
+    if (!item) {
+      if (items.length >= limit) continue
+      item = {
+        knifeId: event.knifeId,
+        day,
+        occurredAt: event.occurredAt,
+        types: [],
+        notes: [],
+      }
+      byKey.set(key, item)
+      items.push(item)
+    }
+    if (!item.types.includes(event.type)) item.types.push(event.type)
+    const note = event.notes.trim()
+    if (note && !item.notes.includes(note)) item.notes.push(note)
+    item.angle ??= event.sharpeningDetails?.angle?.trim() || undefined
+    item.grit ??= event.sharpeningDetails?.grit?.trim() || undefined
+  }
+  // A fixed order reads the same everywhere: "Sharpened + stropped".
+  for (const item of items)
+    item.types.sort(
+      (left, right) =>
+        FEED_TYPE_ORDER.indexOf(left) - FEED_TYPE_ORDER.indexOf(right),
+    )
+  return items
+}
+
+/** "Nov 26", with the year when it isn't this year. */
+export function formatCareDate(value: string, now: Date): string {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(
+        Number(value.slice(0, 4)),
+        Number(value.slice(5, 7)) - 1,
+        Number(value.slice(8, 10)),
+      )
+    : new Date(value)
+  if (!Number.isFinite(date.getTime())) return ''
+  return date.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
+  })
+}

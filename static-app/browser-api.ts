@@ -241,6 +241,16 @@ function handle(request: Request, body: Record<string, unknown>) {
     return json({ activity: db.activity })
   if (path === '/api/maintenance' && method === 'GET')
     return json({ latest: latestMaintenance(db) })
+  if (path === '/api/maintenance/events' && method === 'GET')
+    return json({
+      events: Object.values(db.maintenance)
+        .flat()
+        .sort(
+          (left, right) =>
+            right.occurredAt.localeCompare(left.occurredAt) ||
+            right.id - left.id,
+        ),
+    })
   if (path === '/api/care-inbox') {
     const now = new Date()
     if (method === 'POST') {
