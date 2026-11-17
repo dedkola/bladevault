@@ -2,10 +2,10 @@
 
 import { useCare } from '@/components/providers/care-provider'
 import { useKnives } from '@/components/providers/knives-provider'
-import { careBadgeLabel, type CareStatusLevel } from '@/lib/maintenance-due'
+import { careBadgeLabel, type CareTrackLevel } from '@/lib/maintenance-due'
 import { cn } from '@/lib/utils'
 
-export function careToneTextClass(level: CareStatusLevel | null): string {
+export function careToneTextClass(level: CareTrackLevel | null): string {
   switch (level) {
     case 'overdue':
       return 'text-red-700 dark:text-red-400'
@@ -18,7 +18,7 @@ export function careToneTextClass(level: CareStatusLevel | null): string {
   }
 }
 
-export function careToneDotClass(level: CareStatusLevel | null): string {
+export function careToneDotClass(level: CareTrackLevel | null): string {
   switch (level) {
     case 'overdue':
       return 'bg-red-500'
@@ -59,7 +59,7 @@ export function CareBadgePill({
   label,
   className,
 }: {
-  level: CareStatusLevel | null
+  level: CareTrackLevel | null
   label: string
   className?: string
 }) {

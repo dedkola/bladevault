@@ -80,14 +80,13 @@ To remove an entry, select its trash button, **Delete maintenance entry**, and c
 
 BladeVault reminds you when a knife is due for sharpening, cleaning, or lubrication. By default sharpening is due every 90 days, cleaning every 60, and lubrication every 180; a stropping entry counts as sharpening. Change these in **Settings → Maintenance**, or select **Customize…** under a knife's **Maintenance** to give that knife its own intervals.
 
-A knife joins reminders with its first maintenance entry. Its status is one of:
+Each kind of care counts from the last time you logged it. A kind of care you have never logged on a knife has no date to count from, so it gives no reminder until you log it once. A knife that is only ever sharpened is reminded about sharpening alone. Its status is one of:
 
-| Status           | Meaning                                                                            |
-| ---------------- | ---------------------------------------------------------------------------------- |
-| **Overdue**      | A kind of care is past its interval.                                               |
-| **Due soon**     | A kind of care is due within the due-soon window (14 days by default).             |
-| **Missing care** | The knife has entries, but a kind of care it is tracked for has never been logged. |
-| **Up to date**   | Every tracked kind of care is inside its interval.                                 |
+| Status         | Meaning                                                                       |
+| -------------- | ----------------------------------------------------------------------------- |
+| **Overdue**    | A logged kind of care is past its interval.                                   |
+| **Due soon**   | A logged kind of care is due within the due-soon window (14 days by default). |
+| **Up to date** | Every logged kind of care is inside its interval.                             |
 
 Turn on the **Care** card field to show a status badge on collection cards, or filter the collection by **Care**. **Insights** has a **Care status** card listing the knives that need attention.
 
@@ -99,7 +98,7 @@ When a knife turns due soon or overdue, a message arrives in **Inbox**. The bell
 - **Snooze**: hides the message until tomorrow, or for 3 days, a week, or a month. It comes back unread.
 - **Dismiss**: hides the message until that care is logged again. Find it under **Done** and select **Move back to inbox** to undo.
 
-Logging the care any other way also resolves the message. A due-soon message that becomes overdue is marked unread again. **Missing care** never sends a message. Closed messages stay under **Done** for 90 days.
+Logging the care any other way also resolves the message. A due-soon message that becomes overdue is marked unread again. Closed messages stay under **Done** for 90 days.
 
 ## Review care across the collection
 

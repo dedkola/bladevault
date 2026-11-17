@@ -15,7 +15,7 @@ import {
 import { cn } from '@/lib/utils'
 
 /** Bar and legend order: healthy first, then by urgency. */
-const SUMMARY_ORDER: CareStatusLevel[] = ['ok', 'due-soon', 'overdue', 'never']
+const SUMMARY_ORDER: CareStatusLevel[] = ['ok', 'due-soon', 'overdue']
 
 export function careFilterHref(level: CareStatusLevel): string {
   return `/collection?care=${level}`

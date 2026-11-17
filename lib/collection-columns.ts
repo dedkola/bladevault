@@ -14,6 +14,7 @@ import {
 import {
   careDueSummary,
   CARE_STATUS_LABELS,
+  type CareStatusLevel,
   type KnifeCareStatus,
 } from '@/lib/maintenance-due'
 
@@ -90,7 +91,11 @@ function formatDate(value: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString()
 }
 
-const CARE_SORT_RANK = { overdue: 0, 'due-soon': 1, never: 2, ok: 3 }
+const CARE_SORT_RANK: Record<CareStatusLevel, number> = {
+  overdue: 0,
+  'due-soon': 1,
+  ok: 2,
+}
 
 function careColumn(
   careStatusById: ReadonlyMap<string, KnifeCareStatus>,

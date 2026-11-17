@@ -32,8 +32,7 @@ import { cn } from '@/lib/utils'
 const LEVEL_ORDER: Record<CareStatusLevel, number> = {
   overdue: 0,
   'due-soon': 1,
-  never: 2,
-  ok: 3,
+  ok: 2,
 }
 
 function CareKnifeRow({
@@ -160,17 +159,11 @@ export function CareDetail() {
             label: 'Due soon',
             helper: `Within ${reminders.dueSoonDays} days of the deadline`,
           },
-          reminders.neverLogged === 'off'
-            ? {
-                value: counts.ok,
-                label: 'Up to date',
-                helper: 'Inside every interval',
-              }
-            : {
-                value: counts.never,
-                label: 'Missing care',
-                helper: 'A kind of care with no entry yet',
-              },
+          {
+            value: counts.ok,
+            label: 'Up to date',
+            helper: 'Inside every interval',
+          },
         ]}
       />
       <div className="id-grid id-recent-grid">

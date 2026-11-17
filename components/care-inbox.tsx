@@ -661,7 +661,7 @@ export function CareInboxView() {
       </div>
       <p className="mt-3 text-xs text-muted-foreground">
         A reminder arrives when a knife turns due soon or overdue, and resolves
-        itself once that care is logged. Missing care never sends one.
+        itself once that care is logged.
       </p>
     </div>
   )

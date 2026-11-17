@@ -139,10 +139,9 @@ describe('care status', () => {
     expect(status.level).toBe('overdue')
   })
 
-  it('leaves knives without any maintenance out by default', () => {
+  it('judges a knife only by the kinds of care it has logged', () => {
     const untouched = getKnifeCareStatus('a', {}, settings(), undefined, now)
     expect(untouched.level).toBeNull()
-    expect(untouched.hasHistory).toBe(false)
     expect(careBadgeLabel(untouched)).toBeNull()
     // The knife's own page still lists its tracks.
     expect(untouched.tracks.map((track) => track.level)).toEqual([
@@ -151,57 +150,38 @@ describe('care status', () => {
       'never',
     ])
 
-    const otherOnly = getKnifeCareStatus(
-      'a',
-      { disassembly: daysAgo(3) },
-      settings(),
-      undefined,
-      now,
-    )
-    expect(otherOnly.level).toBe('never')
-    expect(careBadgeLabel(otherOnly)).toBe(
-      'Not yet sharpened, cleaned or lubed',
-    )
-  })
-
-  it('names the missing kind of care on knives with history', () => {
-    const partial = getKnifeCareStatus(
-      'a',
-      { sharpening: daysAgo(1), cleaning: daysAgo(1) },
-      settings(),
-      undefined,
-      now,
-    )
-    expect(partial.level).toBe('never')
-    expect(careBadgeLabel(partial)).toBe('Not yet lubed')
-    expect(careDueSummary(partial)).toBe('Not yet lubed')
-    const dueSoonWins = getKnifeCareStatus(
-      'a',
-      { sharpening: daysAgo(80), cleaning: daysAgo(1) },
-      settings(),
-      undefined,
-      now,
-    )
-    expect(dueSoonWins.level).toBe('due-soon')
-  })
-
-  it('flags every knife or none, depending on the setting', () => {
-    const everyKnife = getKnifeCareStatus(
-      'a',
-      {},
-      settings({ neverLogged: 'all' }),
-      undefined,
-      now,
-    )
-    expect(everyKnife.level).toBe('never')
-    expect(careBadgeLabel(everyKnife)).toBe('No care logged')
-
-    const off = settings({ neverLogged: 'off' })
+    // Only "other" maintenance: no tracked kind of care has a date.
     expect(
-      getKnifeCareStatus('a', { cleaning: daysAgo(1) }, off, undefined, now)
-        .level,
-    ).toBe('ok')
-    expect(getKnifeCareStatus('a', {}, off, undefined, now).level).toBeNull()
+      getKnifeCareStatus(
+        'a',
+        { disassembly: daysAgo(3) },
+        settings(),
+        undefined,
+        now,
+      ).level,
+    ).toBeNull()
+
+    // Sharpened recently, never cleaned or lubed: up to date, not flagged.
+    const sharpenedOnly = getKnifeCareStatus(
+      'a',
+      { sharpening: daysAgo(10), stropping: daysAgo(2) },
+      settings(),
+      undefined,
+      now,
+    )
+    expect(sharpenedOnly.level).toBe('ok')
+    expect(careBadgeLabel(sharpenedOnly)).toBe('Care up to date')
+
+    // Sharpened 95 days ago: overdue on sharpening alone.
+    const overdue = getKnifeCareStatus(
+      'a',
+      { sharpening: daysAgo(95) },
+      settings(),
+      undefined,
+      now,
+    )
+    expect(overdue.level).toBe('overdue')
+    expect(careBadgeLabel(overdue)).toBe('Sharpen overdue · 5d')
   })
 
   it('ignores future and invalid dates', () => {
@@ -262,7 +242,6 @@ describe('care status', () => {
       ok: 1,
       'due-soon': 1,
       overdue: 2,
-      never: 0,
     })
     expect(rankCareAttention(statuses).map((status) => status.knifeId)).toEqual(
       ['later', 'late', 'soon'],
@@ -281,17 +260,13 @@ describe('care settings normalization', () => {
         intervals: { sharpening: 0, cleaning: null, lubrication: 45.4 },
         dueSoonDays: -1,
         skipSoldKnives: 'yes',
-        neverLogged: 'sometimes',
+        neverLogged: 'all',
       }),
     ).toEqual({
       ...DEFAULT_MAINTENANCE_REMINDERS,
       enabled: false,
       intervals: { sharpening: 90, cleaning: null, lubrication: 45 },
     })
-    expect(DEFAULT_MAINTENANCE_REMINDERS.neverLogged).toBe('tracked')
-    expect(
-      normalizeMaintenanceReminders({ neverLogged: 'all' }).neverLogged,
-    ).toBe('all')
   })
 
   it('keeps only valid per-knife overrides', () => {
@@ -345,7 +320,6 @@ describe('care filter', () => {
       [
         ['overdue', 1],
         ['due-soon', 0],
-        ['never', 0],
         ['ok', 1],
       ],
     )

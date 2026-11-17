@@ -1,7 +1,6 @@
 import type { MaintenanceType } from '@/lib/data'
 import {
   CARE_TRACKS,
-  CARE_TRACK_PAST,
   CARE_TRACK_VERBS,
   type CareIntervalOverrides,
   type CareTrack,
@@ -11,12 +10,14 @@ import {
 /** Window event fired after maintenance events change, so derived care status refreshes. */
 export const MAINTENANCE_UPDATED_EVENT = 'bladevault-maintenance-change'
 
-export type CareStatusLevel = 'ok' | 'due-soon' | 'overdue' | 'never'
+/** A knife's care status, from the kinds of care it has a logged date for. */
+export type CareStatusLevel = 'ok' | 'due-soon' | 'overdue'
+/** One kind of care; `never` when it has no entry yet, so no deadline. */
+export type CareTrackLevel = CareStatusLevel | 'never'
 
 export const CARE_FILTER_VALUES: readonly CareStatusLevel[] = [
   'overdue',
   'due-soon',
-  'never',
   'ok',
 ]
 
@@ -24,7 +25,6 @@ export const CARE_STATUS_LABELS: Record<CareStatusLevel, string> = {
   ok: 'Up to date',
   'due-soon': 'Due soon',
   overdue: 'Overdue',
-  never: 'Missing care',
 }
 
 export type CareTrackStatus = {
@@ -35,18 +35,19 @@ export type CareTrackStatus = {
   daysSince: number | null
   /** Days until the deadline (negative = overdue); null when never logged. */
   dueInDays: number | null
-  level: CareStatusLevel
+  level: CareTrackLevel
 }
 
 export type KnifeCareStatus = {
   knifeId: string
   tracks: CareTrackStatus[]
-  /** Worst track level; null when no track applies to this knife. */
+  /**
+   * Worst level among the kinds of care with a logged date; null when none
+   * has one yet, so the knife gets no reminders.
+   */
   level: CareStatusLevel | null
   /** The track behind `level`; null when no track applies. */
   worst: CareTrackStatus | null
-  /** Whether the knife has any maintenance entry, of any type. */
-  hasHistory: boolean
 }
 
 /** Latest event date per knife and maintenance type, from storage. */
@@ -109,12 +110,10 @@ function latestTrackDate(
   return stropped > own ? stropped : own
 }
 
-/** A near deadline is more actionable than a track that was never logged. */
 const LEVEL_SEVERITY: Record<CareStatusLevel, number> = {
   ok: 0,
-  never: 1,
-  'due-soon': 2,
-  overdue: 3,
+  'due-soon': 1,
+  overdue: 2,
 }
 
 export function getKnifeCareStatus(
@@ -136,7 +135,7 @@ export function getKnifeCareStatus(
       lastDate && Number.isFinite(lastDate.getTime()) && lastDate <= now
     const daysSince = valid ? today - calendarDay(lastDate) : null
     const dueInDays = daysSince === null ? null : intervalDays - daysSince
-    const level: CareStatusLevel =
+    const level: CareTrackLevel =
       dueInDays === null
         ? 'never'
         : dueInDays < 0
@@ -154,20 +153,11 @@ export function getKnifeCareStatus(
     })
   }
 
-  const hasHistory = Object.values(latestByType).some((value) => {
-    const date = value ? new Date(value) : null
-    return Boolean(date && Number.isFinite(date.getTime()) && date <= now)
-  })
-  // Reminders start with a knife's first maintenance entry unless every
-  // knife is tracked; the tracks stay available for the knife's own page.
-  if (!hasHistory && settings.neverLogged !== 'all') {
-    return { knifeId, tracks, level: null, worst: null, hasHistory }
-  }
-
   let level: CareStatusLevel | null = null
   let worst: CareTrackStatus | null = null
   for (const status of tracks) {
-    if (status.level === 'never' && settings.neverLogged === 'off') continue
+    // A kind of care with no entry has no deadline, so it never flags a knife.
+    if (status.level === 'never') continue
     if (
       level === null ||
       LEVEL_SEVERITY[status.level] > LEVEL_SEVERITY[level]
@@ -184,7 +174,7 @@ export function getKnifeCareStatus(
       worst = status
     }
   }
-  return { knifeId, tracks, level, worst, hasHistory }
+  return { knifeId, tracks, level, worst }
 }
 
 export function getCareStatuses(
@@ -219,7 +209,6 @@ export function countCareStatuses(
     ok: 0,
     'due-soon': 0,
     overdue: 0,
-    never: 0,
   }
   for (const status of statuses.values()) {
     if (status.level) counts[status.level] += 1
@@ -263,27 +252,10 @@ export function formatTrackDueLine(status: CareTrackStatus): string {
   return `Due in ${status.dueInDays} day${status.dueInDays === 1 ? '' : 's'}`
 }
 
-/**
- * "No care logged" when nothing was ever recorded, otherwise lists the
- * kinds of care the knife has never had: "Not yet cleaned or lubed".
- */
-function missingCareLabel(status: KnifeCareStatus): string {
-  const missing = status.tracks
-    .filter((track) => track.level === 'never')
-    .map((track) => CARE_TRACK_PAST[track.track])
-  if (!status.hasHistory || missing.length === 0) return 'No care logged'
-  const list =
-    missing.length === 1
-      ? missing[0]
-      : `${missing.slice(0, -1).join(', ')} or ${missing[missing.length - 1]}`
-  return `Not yet ${list}`
-}
-
 /** Compact badge label for cards: "Sharpen overdue · 4d". */
 export function careBadgeLabel(status: KnifeCareStatus): string | null {
   if (status.level === null) return null
   if (status.level === 'ok') return 'Care up to date'
-  if (status.level === 'never') return missingCareLabel(status)
   const worst = status.worst
   if (!worst || worst.dueInDays === null) return null
   const verb = CARE_TRACK_VERBS[worst.track]
@@ -297,7 +269,6 @@ export function careBadgeLabel(status: KnifeCareStatus): string | null {
 /** One-line summary for lists: "Sharpen · 34d overdue". */
 export function careDueSummary(status: KnifeCareStatus): string | null {
   const worst = status.worst
-  if (status.level === 'never') return missingCareLabel(status)
   if (!worst || worst.dueInDays === null) return null
   const verb = CARE_TRACK_VERBS[worst.track]
   if (worst.dueInDays < 0) return `${verb} · ${-worst.dueInDays}d overdue`

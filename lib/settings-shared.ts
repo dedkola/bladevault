@@ -281,14 +281,6 @@ export const CARE_TRACK_PAST: Record<CareTrack, string> = {
   lubrication: 'lubed',
 }
 
-/**
- * Which knives show "missing care" for a kind of care with no entry:
- * `tracked` only knives with at least one maintenance entry of any type,
- * `all` every knife, `off` none.
- */
-export const NEVER_LOGGED_MODES = ['tracked', 'all', 'off'] as const
-export type NeverLoggedMode = (typeof NEVER_LOGGED_MODES)[number]
-
 export type MaintenanceReminderSettings = {
   /** Master switch for badges, the care filter and the Insights card. */
   enabled: boolean
@@ -298,8 +290,6 @@ export type MaintenanceReminderSettings = {
   dueSoonDays: number
   /** A stropping entry resets the sharpening timer. */
   stroppingCountsAsSharpening: boolean
-  /** Knives with no maintenance history stay out unless this is `all`. */
-  neverLogged: NeverLoggedMode
   skipSoldKnives: boolean
 }
 
@@ -308,7 +298,6 @@ export const DEFAULT_MAINTENANCE_REMINDERS: MaintenanceReminderSettings = {
   intervals: { sharpening: 90, cleaning: 60, lubrication: 180 },
   dueSoonDays: 14,
   stroppingCountsAsSharpening: true,
-  neverLogged: 'tracked',
   skipSoldKnives: true,
 }
 
@@ -377,11 +366,6 @@ export function normalizeMaintenanceReminders(
     intervals,
     dueSoonDays,
     stroppingCountsAsSharpening: bool('stroppingCountsAsSharpening'),
-    neverLogged: NEVER_LOGGED_MODES.includes(
-      record.neverLogged as NeverLoggedMode,
-    )
-      ? (record.neverLogged as NeverLoggedMode)
-      : fallback.neverLogged,
     skipSoldKnives: bool('skipSoldKnives'),
   }
 }

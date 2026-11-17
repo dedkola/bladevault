@@ -102,7 +102,7 @@ export function MaintenanceSummary({
                 )}
               >
                 {track.daysSince === null
-                  ? `Reminder every ${track.intervalDays} days`
+                  ? `Every ${track.intervalDays} days, from the first entry`
                   : formatTrackDueLine(track)}
               </div>
             ) : careStatus ? (

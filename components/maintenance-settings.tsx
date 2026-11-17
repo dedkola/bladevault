@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  SegmentedControl,
   SettingsRow,
   SettingsSection,
   SettingsSwitch,
@@ -16,24 +15,7 @@ import {
   DEFAULT_MAINTENANCE_REMINDERS,
   type CareTrack,
   type MaintenanceReminderSettings,
-  type NeverLoggedMode,
 } from '@/lib/settings-shared'
-
-const NEVER_LOGGED_OPTIONS: readonly {
-  value: NeverLoggedMode
-  label: string
-}[] = [
-  { value: 'tracked', label: 'Logged knives' },
-  { value: 'all', label: 'Every knife' },
-  { value: 'off', label: 'Off' },
-]
-
-const NEVER_LOGGED_HINTS: Record<NeverLoggedMode, string> = {
-  tracked:
-    'A knife joins reminders with its first maintenance entry. After that, a kind of care it has never had shows as “missing care”.',
-  all: 'Every knife is reminded, including knives with no maintenance entries yet.',
-  off: 'Only knives with a logged entry are reminded, and missing kinds of care are not flagged.',
-}
 
 /** A day count that saves on blur or Enter and reverts invalid input. */
 function DaysInput({
@@ -188,18 +170,6 @@ export function MaintenanceSettings({
             onCheckedChange={(checked) =>
               update({ stroppingCountsAsSharpening: checked })
             }
-          />
-        </SettingsRow>
-        <SettingsRow
-          label="Which knives get reminders"
-          description={NEVER_LOGGED_HINTS[reminders.neverLogged]}
-        >
-          <SegmentedControl
-            aria-label="Which knives get reminders"
-            value={reminders.neverLogged}
-            options={NEVER_LOGGED_OPTIONS}
-            disabled={isOff}
-            onValueChange={(value) => update({ neverLogged: value })}
           />
         </SettingsRow>
         <SettingsRow
