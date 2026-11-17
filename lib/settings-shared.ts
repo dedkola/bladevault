@@ -313,6 +313,18 @@ export type CareIntervalOverrides = Record<
   Partial<Record<CareTrack, number | null>>
 >
 
+/**
+ * Care the user pushed back, keyed by knife id and then track. `until` is the
+ * local date (YYYY-MM-DD) the job is rescheduled to; `after` is the latest
+ * logged date of that care when it was pushed back, so logging the care again
+ * retires the deferral.
+ */
+export type CareDeferral = { until: string; after: string }
+export type CareDeferrals = Record<
+  string,
+  Partial<Record<CareTrack, CareDeferral>>
+>
+
 function normalizeCareIntervalDays(value: unknown): number | null | undefined {
   if (value === null) return null
   if (
@@ -392,6 +404,31 @@ export function normalizeCareIntervalOverrides(
   return overrides
 }
 
+export function normalizeCareDeferrals(value: unknown): CareDeferrals {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const deferrals: CareDeferrals = {}
+  for (const [knifeId, entry] of Object.entries(
+    value as Record<string, unknown>,
+  )) {
+    if (!knifeId || !entry || typeof entry !== 'object') continue
+    const tracks: Partial<Record<CareTrack, CareDeferral>> = {}
+    for (const track of CARE_TRACKS) {
+      const item = (entry as Record<string, unknown>)[track]
+      if (!item || typeof item !== 'object') continue
+      const { until, after } = item as Record<string, unknown>
+      if (
+        typeof until === 'string' &&
+        /^\d{4}-\d{2}-\d{2}$/.test(until) &&
+        typeof after === 'string'
+      ) {
+        tracks[track] = { until, after }
+      }
+    }
+    if (Object.keys(tracks).length > 0) deferrals[knifeId] = tracks
+  }
+  return deferrals
+}
+
 export type AppSettings = {
   collectionDisplay: CollectionDisplay
   theme: AppTheme
@@ -408,6 +445,7 @@ export type AppSettings = {
   customFields: CustomField[]
   maintenanceReminders: MaintenanceReminderSettings
   careIntervalOverrides: CareIntervalOverrides
+  careDeferrals: CareDeferrals
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -426,6 +464,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   customFields: [],
   maintenanceReminders: DEFAULT_MAINTENANCE_REMINDERS,
   careIntervalOverrides: {},
+  careDeferrals: {},
 }
 
 export function normalizeStartPage(

@@ -1,6 +1,7 @@
 import {
   DEFAULT_MAINTENANCE_REMINDERS,
   DEFAULT_SETTINGS,
+  normalizeCareDeferrals,
   normalizeCareIntervalOverrides,
   normalizeMaintenanceReminders,
   normalizeCardFields,
@@ -265,6 +266,7 @@ function handle(request: Request, body: Record<string, unknown>) {
           reminders,
           normalizeCareIntervalOverrides(db.settings.careIntervalOverrides),
           now,
+          normalizeCareDeferrals(db.settings.careDeferrals),
         )
         db.careNotifications = mergeCareNotificationChanges(
           db.careNotifications,
