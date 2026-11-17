@@ -175,14 +175,13 @@ export function StudioSpotlight({
       <div key={knife.id} className={styles.plate}>
         <SpotlightImage key={knife.images[0] ?? knife.id} knife={knife} />
       </div>
-      <div className={styles.scrim} aria-hidden="true" />
       <p className={styles.kicker}>
         <b>Knife of the day</b>
         <span aria-hidden="true">·</span>
         <time dateTime={dateKey}>{formatDay(dateKey)}</time>
       </p>
       {knife.sold && <span className={styles.sold}>Sold</span>}
-      <div className={styles.foot}>
+      <div className={styles.caption}>
         <div className={styles.identity}>
           <h2>{knife.name || 'Untitled knife'}</h2>
           {meta && <p>{meta}</p>}

@@ -1,15 +1,12 @@
-/* Knife of the day: a photo plate with the pick's name and actions on a
-   scrim. The stage stays light in both modes (like Studio tiles, whose
-   photos blend with multiply), so the overlay text is always light. */
+/* Knife of the day: the pick on the same light stage as Studio tiles, with
+   its name and actions in a frosted caption like theirs. The caption class
+   name also picks up the Modern variants' Studio caption rules. */
 .hero {
   --spotlight-line: color-mix(in srgb, var(--foreground) 11%, transparent);
+  --spotlight-glass: color-mix(in srgb, var(--card) 86%, transparent);
   --spotlight-highlight: var(--card);
   --spotlight-stage: var(--bladevault-surface-soft, var(--muted));
   --spotlight-stage-edge: var(--muted);
-  --spotlight-ink: #f7f3ec;
-  --spotlight-ink-dim: rgb(247 243 236 / 78%);
-  --spotlight-glass: rgb(255 255 255 / 14%);
-  --spotlight-glass-line: rgb(255 255 255 / 30%);
 
   position: relative;
   width: 100%;
@@ -23,7 +20,7 @@
   border-radius: 18px;
   background: var(--spotlight-stage);
   box-shadow: 0 2px 3px color-mix(in srgb, var(--foreground) 2%, transparent);
-  color: var(--spotlight-ink);
+  color: var(--foreground);
 }
 
 :global(.dark) .hero {
@@ -56,7 +53,7 @@
 .image {
   object-fit: contain;
   mix-blend-mode: multiply;
-  /* Keep the knife clear of the name and actions along the bottom. */
+  /* Keep the knife clear of the caption along the bottom. */
   padding: 26px 8% 96px;
 }
 
@@ -78,18 +75,6 @@
   opacity: 0.4;
 }
 
-.scrim {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    to top,
-    rgb(18 15 11 / 74%) 0%,
-    rgb(18 15 11 / 34%) 30%,
-    transparent 56%
-  );
-}
-
 .kicker {
   position: absolute;
   top: 16px;
@@ -101,7 +86,7 @@
   padding: 6px 12px;
   border: 1px solid var(--spotlight-line);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--card) 86%, transparent);
+  background: var(--spotlight-glass);
   backdrop-filter: blur(12px);
   color: var(--muted-foreground);
   font-size: 10.5px;
@@ -122,19 +107,24 @@
   padding: 4px 8px;
   border: 1px solid var(--spotlight-line);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--card) 86%, transparent);
+  background: var(--spotlight-glass);
   color: var(--muted-foreground);
   font-size: 10px;
   font-weight: 600;
 }
 
-.foot {
+.caption {
   position: absolute;
-  inset: auto 20px 18px;
+  inset: auto 14px 14px;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
+  padding: 12px 12px 12px 16px;
+  border: 1px solid var(--spotlight-line);
+  border-radius: 14px;
+  background: var(--spotlight-glass);
+  backdrop-filter: blur(18px);
 }
 
 .identity {
@@ -144,19 +134,18 @@
 .identity h2 {
   margin: 0;
   overflow: hidden;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 650;
   letter-spacing: -0.02em;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-shadow: 0 1px 12px rgb(0 0 0 / 30%);
 }
 
 .identity p {
   margin: 3px 0 0;
   overflow: hidden;
-  color: var(--spotlight-ink-dim);
+  color: var(--muted-foreground);
   font-size: 12.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -174,11 +163,10 @@
   gap: 7px;
   min-height: 34px;
   padding: 0 14px;
-  border: 1px solid var(--spotlight-glass-line);
+  border: 1px solid var(--spotlight-line);
   border-radius: 999px;
-  background: var(--spotlight-glass);
-  backdrop-filter: blur(10px);
-  color: var(--spotlight-ink);
+  background: var(--card);
+  color: var(--foreground);
   font-size: 12.5px;
   font-weight: 600;
   white-space: nowrap;
@@ -188,11 +176,11 @@
 }
 
 .action:hover:not(:disabled) {
-  background: rgb(255 255 255 / 24%);
+  background: var(--accent);
 }
 
 .action:focus-visible {
-  outline: 2px solid var(--spotlight-ink);
+  outline: 2px solid var(--ring, var(--primary));
   outline-offset: 2px;
 }
 
@@ -230,24 +218,16 @@
     inset: 0 0 140px;
   }
 
-  .scrim {
-    background: linear-gradient(
-      to top,
-      rgb(18 15 11 / 78%) 0%,
-      rgb(18 15 11 / 40%) 38%,
-      transparent 62%
-    );
-  }
-
-  .foot {
+  .caption {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
-    inset: auto 16px 16px;
+    inset: auto 10px 10px;
+    padding: 12px;
   }
 
   .identity h2 {
-    font-size: 20px;
+    font-size: 18px;
   }
 
   .actions {
@@ -269,8 +249,50 @@
 }
 
 :global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+  .caption {
+  border-color: var(--border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: none;
+}
+
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
   .kicker {
   font-size: 11px;
+}
+
+/* Alloy: like its tiles, the caption sits straight on the stage in the
+   display face, and the light mode uses the Collection's neutral tray. */
+:global(html[data-theme-style='alloy']) .hero {
+  border-radius: 12px;
+}
+
+:global(html[data-theme-style='alloy']:not(.dark)) .hero {
+  --spotlight-stage: var(--alloy-stage, var(--muted));
+  border-color: var(--border);
+}
+
+:global(html[data-theme-style='alloy']) .caption {
+  inset: auto 20px 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+:global(html[data-theme-style='alloy']) .identity h2 {
+  font-family: var(--font-display, var(--font-sans));
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+:global(html[data-theme-style='alloy'].dark) .caption {
+  color: #231f18;
+}
+
+:global(html[data-theme-style='alloy'].dark) .identity p {
+  color: #595348;
 }
 
 @media (prefers-reduced-motion: reduce) {
