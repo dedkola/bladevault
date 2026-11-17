@@ -752,7 +752,7 @@ html[data-theme-variant='ledger']
 
 /* Below that, search folds into an icon; open, it drops down as a full
  * field over the page instead of pushing the tabs aside. */
-@media (max-width: 1099px) {
+@media (max-width: 1023px) {
   [data-ledger-search] {
     flex: none;
     width: 30px;
@@ -1661,26 +1661,13 @@ html[data-theme-variant='ledger'] [data-modern-logs] [data-logs-card] {
   background: var(--ledger-surface);
 }
 
-html[data-theme-variant='ledger'] [data-log-entry] {
-  border-left: 3px solid transparent;
-}
-
-html[data-theme-variant='ledger'] [data-log-entry]:nth-of-type(even) {
-  background: var(--ledger-bar);
-}
-
-html[data-theme-variant='ledger'] [data-log-entry]:hover {
-  border-left-color: var(--ledger-accent);
-  background: var(--ledger-hover);
-}
-
 html[data-theme-variant='ledger'] [data-logs-date] {
   color: var(--ledger-accent-ink);
   font-family: var(--ledger-mono);
 }
 
 html[data-theme-variant='ledger']
-  :is([data-log-time], [data-logs-summary] dd, [data-insight-label]) {
+  :is([data-logs-summary] dd, [data-insight-label]) {
   font-family: var(--ledger-mono);
 }
 

@@ -27,7 +27,6 @@ test('selects Alloy in Appearance and keeps its horizontal shell after reload', 
     'Studio',
     'Insights',
     'Compare',
-    'Timeline',
     'History',
   ]) {
     await expect(

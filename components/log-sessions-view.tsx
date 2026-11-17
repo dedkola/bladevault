@@ -1,59 +1,46 @@
 'use client'
 
-import {
-  Fragment,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Popover } from '@base-ui/react/popover'
 import { DayPicker, SelectionState, UI, type DateRange } from 'react-day-picker'
-import {
-  ChevronLeft,
-  ChevronRight,
-  CircleAlert,
-  Pencil,
-  Plus,
-  Trash2,
-  Search,
-  ShieldCheck,
-  StickyNote,
-  Wrench,
-} from 'lucide-react'
+import { ChevronLeft, ChevronRight, CircleAlert, Search } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { PageHeader } from '@/components/page-header'
-import { LogEventDetails } from '@/components/log-event-details'
+import {
+  eventTitle,
+  HistoryRail,
+  HistoryShowMore,
+  HistoryYears,
+  isMaintenanceEvent,
+  isNoteEvent,
+  YearRecapCard,
+  type HistoryDay,
+  type HistoryItem,
+  type ViewEvent,
+} from '@/components/history-timeline'
 import { dayPickerClassNames } from '@/components/ui/date-input'
 import { Input } from '@/components/ui/input'
 import { useKnives } from '@/components/providers/knives-provider'
-import type { AuditLogEvent } from '@/lib/data'
+import type { AuditLogEvent, KnifeNote, MaintenanceEvent } from '@/lib/data'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
+import { buildHistoryStory } from '@/lib/history-story'
 import type { TimeFormat } from '@/lib/settings-shared'
 import { getHourCycle } from '@/lib/time-format'
+import { formatKnifeName } from '@/lib/timeline'
+import { buildYearRecap } from '@/lib/timeline-stats'
 import { cn } from '@/lib/utils'
 
 type EventType = AuditLogEvent['type']
 type LogFilter = 'all' | EventType | 'maintenance' | 'notes'
 
-type ViewEvent = AuditLogEvent & {
-  title: string
-  shortDate: string
-  time: string
-  rowTime: string
-  dateKey: string
-  dateLabel: string
+type TimelinePayload = {
+  maintenanceEvents?: MaintenanceEvent[]
+  notes?: KnifeNote[]
 }
+
+/** Days rendered at first, and added by each "Show earlier days" press. */
+const DAY_PAGE = 30
 
 const quickRanges = [
   { label: 'Today', days: 1 },
@@ -76,72 +63,6 @@ const rangePickerClassNames = {
 
 const pendingRangeClassName =
   'range-pending [&>button]:bg-[var(--bladevault-gold)] [&>button]:text-[var(--bladevault-olive)] [&>button:hover]:bg-[var(--bladevault-gold)]'
-
-const typeMeta: Record<EventType, { label: string; className: string }> = {
-  created: {
-    label: 'Created',
-    className: 'text-emerald-700 dark:text-emerald-400',
-  },
-  updated: { label: 'Updated', className: 'text-[var(--bladevault-title)]' },
-  deleted: { label: 'Deleted', className: 'text-destructive' },
-  system: { label: 'System', className: 'text-slate-600 dark:text-slate-300' },
-}
-
-function isMaintenanceEvent(event: AuditLogEvent): boolean {
-  return (
-    event.source === 'Maintenance' ||
-    event.source === 'MCP / add_maintenance_event'
-  )
-}
-
-function isNoteEvent(event: AuditLogEvent): boolean {
-  return event.source === 'Notes'
-}
-
-function eventMeta(event: AuditLogEvent): {
-  label: string
-  className: string
-} {
-  if (isNoteEvent(event)) {
-    return {
-      label: 'Note',
-      className: 'text-sky-700 dark:text-sky-300',
-    }
-  }
-  if (isMaintenanceEvent(event)) {
-    return {
-      label: 'Maintenance',
-      className: 'text-amber-700 dark:text-amber-300',
-    }
-  }
-  return typeMeta[event.type]
-}
-
-function eventTitle(event: AuditLogEvent): string {
-  if (isNoteEvent(event)) {
-    if (event.type === 'deleted') return 'Note deleted'
-    if (event.summary === 'A note was updated.') return 'Note updated'
-    return 'Note added'
-  }
-  if (isMaintenanceEvent(event)) {
-    if (event.type === 'deleted') return 'Maintenance deleted'
-    if (event.summary.endsWith('entry was updated.')) {
-      return 'Maintenance updated'
-    }
-    return 'Maintenance logged'
-  }
-
-  switch (event.type) {
-    case 'created':
-      return 'Knife added'
-    case 'updated':
-      return 'Metadata updated'
-    case 'deleted':
-      return 'Knife deleted'
-    case 'system':
-      return 'System event'
-  }
-}
 
 function formatEventTime(
   occurredAt: string,
@@ -249,20 +170,23 @@ function getCalendarStartMonth(date: Date, numberOfMonths: number): Date {
   return month
 }
 
-function EventIcon({ event }: { event: ViewEvent }) {
-  if (isNoteEvent(event)) return <StickyNote className="size-4" />
-  if (isMaintenanceEvent(event)) return <Wrench className="size-4" />
+function inDateRange(occurredAt: string, range: DateRange | undefined) {
+  if (!range?.from) return true
+  const day = startOfDay(new Date(occurredAt)).getTime()
+  return (
+    day >= startOfDay(range.from).getTime() &&
+    day <= startOfDay(range.to ?? range.from).getTime()
+  )
+}
 
-  const { type } = event
-  const Icon =
-    type === 'created'
-      ? Plus
-      : type === 'deleted'
-        ? Trash2
-        : type === 'system'
-          ? ShieldCheck
-          : Pencil
-  return <Icon className="size-4" />
+/** The calendar year a range covers exactly, if any. */
+function fullYearOf(range: DateRange | undefined): number | null {
+  if (!range?.from || !range.to) return null
+  const year = range.from.getFullYear()
+  return isSameDay(range.from, new Date(year, 0, 1)) &&
+    isSameDay(range.to, new Date(year, 11, 31))
+    ? year
+    : null
 }
 
 /**
@@ -312,6 +236,8 @@ export function LogSessionsView() {
   const [calendarMonths, setCalendarMonths] = useState(1)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [loadAttempt, setLoadAttempt] = useState(0)
+  const [timeline, setTimeline] = useState<TimelinePayload | null>(null)
+  const [visibleDays, setVisibleDays] = useState(DAY_PAGE)
   const entryButtons = useRef(new Map<number, HTMLButtonElement>())
   const pendingRowPosition = useRef<{ id: number; top: number } | null>(null)
   const pendingLinkedEntry = useRef<number | null>(null)
@@ -374,6 +300,25 @@ export function LogSessionsView() {
     }
   }, [loadAttempt])
 
+  // Maintenance and notes feed milestones and the Year in review; History
+  // still works from its own log if they cannot load.
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const response = await fetch('/api/timeline', { cache: 'no-store' })
+        const data = await readJsonResponse<TimelinePayload>(response)
+        if (!cancelled) setTimeline(response.ok ? data : {})
+      } catch {
+        if (!cancelled) setTimeline({})
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [loadAttempt])
+
   const events = useMemo<ViewEvent[]>(
     () =>
       rawEvents.map((event) => ({
@@ -400,6 +345,54 @@ export function LogSessionsView() {
     }
   }, [])
 
+  const maintenanceEvents = useMemo(
+    () =>
+      Array.isArray(timeline?.maintenanceEvents)
+        ? timeline.maintenanceEvents
+        : [],
+    [timeline],
+  )
+  const notes = useMemo(
+    () => (Array.isArray(timeline?.notes) ? timeline.notes : []),
+    [timeline],
+  )
+  const story = useMemo(
+    () => buildHistoryStory(rawEvents, knives, maintenanceEvents, notes),
+    [rawEvents, knives, maintenanceEvents, notes],
+  )
+  const storyItems = useMemo<HistoryItem[]>(
+    () =>
+      story.entries.map((entry) => ({
+        kind: 'story',
+        key: entry.id,
+        entry,
+        time: entry.time,
+        shortDate: formatEventShortDate(entry.occurredAt),
+        rowTime: formatEventTime(entry.occurredAt, timeFormat, false),
+        ...getEventDate(entry.occurredAt),
+      })),
+    [story, timeFormat],
+  )
+
+  const filteredStory = useMemo(() => {
+    if (filter !== 'all' && filter !== 'created') return []
+    const normalizedQuery = query.trim().toLowerCase()
+    return storyItems.filter((item) => {
+      if (item.kind !== 'story') return false
+      const { entry } = item
+      if (filter === 'created' && entry.type !== 'added') return false
+      const matchesQuery =
+        !normalizedQuery ||
+        [
+          entry.title,
+          entry.detail ?? '',
+          entry.knife ? formatKnifeName(entry.knife) : '',
+          entry.type === 'added' ? 'Collection record' : 'Milestone',
+        ].some((value) => value.toLowerCase().includes(normalizedQuery))
+      return matchesQuery && inDateRange(entry.occurredAt, selectedRange)
+    })
+  }, [storyItems, filter, query, selectedRange])
+
   const filteredEvents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     return events.filter((event) => {
@@ -424,18 +417,11 @@ export function LogSessionsView() {
             change.after,
           ]),
         ].some((value) => value.toLowerCase().includes(normalizedQuery))
-      const eventDay = startOfDay(new Date(event.occurredAt)).getTime()
-      const rangeStart = selectedRange?.from
-        ? startOfDay(selectedRange.from).getTime()
-        : undefined
-      const rangeEnd = selectedRange?.from
-        ? startOfDay(selectedRange.to ?? selectedRange.from).getTime()
-        : undefined
-      const matchesDate =
-        rangeStart === undefined ||
-        rangeEnd === undefined ||
-        (eventDay >= rangeStart && eventDay <= rangeEnd)
-      return matchesType && matchesQuery && matchesDate
+      return (
+        matchesType &&
+        matchesQuery &&
+        inDateRange(event.occurredAt, selectedRange)
+      )
     })
   }, [events, filter, query, selectedRange])
 
@@ -450,38 +436,82 @@ export function LogSessionsView() {
     button?.focus({ preventScroll: true })
   }, [selectedId])
 
-  const currentKnifeIds = useMemo(
-    () => new Set(knives.map((knife) => knife.id)),
+  const knivesById = useMemo(
+    () => new Map(knives.map((knife) => [knife.id, knife])),
     [knives],
   )
 
-  const groupedEvents = useMemo(() => {
-    const groups: Array<{
-      dateKey: string
-      dateLabel: string
-      events: ViewEvent[]
-    }> = []
-
-    for (const event of filteredEvents) {
+  const days = useMemo<HistoryDay[]>(() => {
+    const items: HistoryItem[] = [
+      ...filteredEvents.map<HistoryItem>((event) => ({
+        kind: 'event',
+        key: `event:${event.id}`,
+        event,
+        time: Date.parse(event.occurredAt),
+        shortDate: event.shortDate,
+        rowTime: event.rowTime,
+        dateKey: event.dateKey,
+        dateLabel: event.dateLabel,
+      })),
+      ...filteredStory,
+    ]
+    // Newest first; at the same moment the log event leads its milestone.
+    items.sort(
+      (left, right) =>
+        right.time - left.time ||
+        Number(left.kind === 'story') - Number(right.kind === 'story'),
+    )
+    const groups: HistoryDay[] = []
+    for (const item of items) {
       const current = groups.at(-1)
-      if (current?.dateKey === event.dateKey) {
-        current.events.push(event)
-      } else {
+      if (current?.dateKey === item.dateKey) current.items.push(item)
+      else
         groups.push({
-          dateKey: event.dateKey,
-          dateLabel: event.dateLabel,
-          events: [event],
+          dateKey: item.dateKey,
+          dateLabel: item.dateLabel,
+          items: [item],
         })
-      }
     }
-
     return groups
-  }, [filteredEvents])
+  }, [filteredEvents, filteredStory])
+  // Story entries need the knife list and the maintenance and notes data.
+  const showLoading = isLoading || knivesLoading || timeline === null
+  const registerButton = (id: number, node: HTMLButtonElement | null) => {
+    if (node) entryButtons.current.set(id, node)
+    else entryButtons.current.delete(id)
+  }
+  const entryCount = filteredEvents.length + filteredStory.length
+  const hasAnyEntries = events.length + storyItems.length > 0
+  // A deep-linked or selected entry stays rendered even when it is old.
+  const selectedDay =
+    selectedId === null
+      ? -1
+      : days.findIndex((day) =>
+          day.items.some(
+            (item) => item.kind === 'event' && item.event.id === selectedId,
+          ),
+        )
+  const shownDays = days.slice(0, Math.max(visibleDays, selectedDay + 1))
+
+  const years = useMemo(() => {
+    const all = new Set<number>()
+    for (const event of events)
+      all.add(new Date(event.occurredAt).getFullYear())
+    for (const item of storyItems) all.add(new Date(item.time).getFullYear())
+    return [...all].sort((left, right) => right - left)
+  }, [events, storyItems])
+  const recapYear = fullYearOf(selectedRange)
+  const recap = useMemo(
+    () =>
+      recapYear === null
+        ? undefined
+        : buildYearRecap(knives, maintenanceEvents, notes, recapYear),
+    [recapYear, knives, maintenanceEvents, notes],
+  )
 
   const selectedEvent = selectedId
     ? filteredEvents.find((event) => event.id === selectedId)
     : undefined
-  const columnCount = 4
   const summary = useMemo(() => {
     let additions = 0
     let edits = 0
@@ -494,17 +524,28 @@ export function LogSessionsView() {
       else if (event.type === 'created') additions += 1
       else if (event.type === 'updated') edits += 1
     }
+    for (const item of storyItems) {
+      if (item.kind === 'story' && item.entry.type === 'added') {
+        additions += 1
+        activeDays.add(item.dateKey)
+      }
+    }
     return [
       ['Additions', additions],
       ['Edits', edits],
       ['Maintenance events', maintenance],
       ['Active days', activeDays.size],
     ] as const
-  }, [events])
-  const getKnifeHref = (event: AuditLogEvent) =>
-    event.knifeId && currentKnifeIds.has(event.knifeId)
-      ? `/collection/${encodeURIComponent(event.knifeId)}`
-      : null
+  }, [events, storyItems])
+  const chooseYear = (year: number | 'all') => {
+    const range =
+      year === 'all'
+        ? undefined
+        : { from: new Date(year, 0, 1), to: new Date(year, 11, 31) }
+    setSelectedRange(range)
+    setDraftRange(range)
+    setVisibleDays(DAY_PAGE)
+  }
   const closeDetails = () => {
     if (selectedEvent)
       entryButtons.current.get(selectedEvent.id)?.focus({ preventScroll: true })
@@ -867,12 +908,22 @@ export function LogSessionsView() {
                 ))}
               </div>
               <p aria-live="polite" className="sr-only">
-                {!isLoading && !error
-                  ? `${filteredEvents.length} ${filteredEvents.length === 1 ? 'entry' : 'entries'}`
+                {!showLoading && !error
+                  ? `${entryCount} ${entryCount === 1 ? 'entry' : 'entries'}`
                   : ''}
               </p>
             </div>
           </div>
+          {!error && !showLoading && (
+            <HistoryYears
+              years={years}
+              activeYear={recapYear}
+              showingAll={!selectedRange}
+              disabled={false}
+              onChoose={chooseYear}
+            />
+          )}
+          {!error && !showLoading && recap && <YearRecapCard recap={recap} />}
           {error ? (
             <div
               data-logs-state
@@ -893,7 +944,7 @@ export function LogSessionsView() {
                 Try again
               </Button>
             </div>
-          ) : isLoading ? (
+          ) : showLoading ? (
             <div
               data-logs-state
               role="status"
@@ -907,231 +958,54 @@ export function LogSessionsView() {
                 />
               ))}
             </div>
-          ) : filteredEvents.length ? (
-            <>
-              <Table
-                className="table-fixed text-xs [overflow-anchor:none]"
-                containerClassName="overflow-x-clip"
-              >
-                <caption className="sr-only">
-                  Collection activity, newest first. Select an event to inspect
-                  its changes.
-                </caption>
-                <TableHeader className="border-t border-border/60 bg-muted/40">
-                  <TableRow className="hover:bg-transparent [&_th]:h-8 [&_th]:text-[10px] [&_th]:text-muted-foreground">
-                    <TableHead
-                      scope="col"
-                      className="w-16 pl-3 sm:w-24 sm:pl-5"
-                    >
-                      Time
-                    </TableHead>
-                    <TableHead scope="col">Knife / subject</TableHead>
-                    <TableHead scope="col" className="w-[104px] sm:w-28">
-                      Event
-                    </TableHead>
-                    <TableHead scope="col" className="w-8 sm:w-10">
-                      <span className="sr-only">Details</span>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                {groupedEvents.map((group) => (
-                  <TableBody key={group.dateKey}>
-                    <TableRow
-                      data-log-day
-                      className="border-0 hover:bg-transparent"
-                    >
-                      <TableHead
-                        scope="rowgroup"
-                        colSpan={columnCount}
-                        className="h-auto whitespace-normal px-3 pb-2 pt-4 text-[10px] sm:px-5"
-                      >
-                        <span className="font-semibold">
-                          {new Date(
-                            group.events[0].occurredAt,
-                          ).toLocaleDateString(undefined, {
-                            weekday: 'long',
-                            month: 'long',
-                            day: 'numeric',
-                            year:
-                              new Date(
-                                group.events[0].occurredAt,
-                              ).getFullYear() === new Date().getFullYear()
-                                ? undefined
-                                : 'numeric',
-                          })}
-                        </span>
-                      </TableHead>
-                    </TableRow>
-                    {group.events.map((event) => {
-                      const meta = eventMeta(event)
-                      const selected = selectedEvent?.id === event.id
-                      const knifeHref = getKnifeHref(event)
-                      const detailId = `log-detail-${event.id}`
-                      return (
-                        <Fragment key={event.id}>
-                          <TableRow
-                            data-log-entry
-                            data-event-type={event.type}
-                            data-event-title={event.title}
-                            data-maintenance={
-                              isMaintenanceEvent(event) || undefined
-                            }
-                            data-state={selected ? 'selected' : undefined}
-                            className="cursor-pointer border-border/60 hover:bg-muted/60 data-[state=selected]:bg-accent/60 [&_td]:whitespace-normal [&_td]:py-3"
-                            onClick={(click) => {
-                              if (
-                                (click.target as HTMLElement).closest(
-                                  'a, button',
-                                )
-                              )
-                                return
-                              toggleDetails(event.id)
-                              entryButtons.current
-                                .get(event.id)
-                                ?.focus({ preventScroll: true })
-                            }}
-                          >
-                            <TableCell
-                              data-log-time
-                              className="pl-3 align-top sm:pl-5"
-                            >
-                              <time
-                                dateTime={event.occurredAt}
-                                title={`${event.shortDate} · ${event.time}`}
-                                className="block text-[10px] leading-relaxed tabular-nums text-muted-foreground sm:text-[11px]"
-                              >
-                                <span className="sr-only">
-                                  {event.shortDate} ·{' '}
-                                </span>
-                                {event.rowTime}
-                              </time>
-                            </TableCell>
-                            <TableCell
-                              data-log-subject
-                              className="[overflow-wrap:anywhere]"
-                            >
-                              <span className="text-xs font-medium leading-relaxed text-muted-foreground">
-                                {event.subject}
-                              </span>
-                              <div data-log-subtitle>
-                                <span data-log-kind-label>{meta.label}</span>
-                                <span>{event.source}</span>
-                                <span aria-hidden="true">·</span>
-                                <span data-log-summary>{event.summary}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell
-                              data-log-icon
-                              data-kind={
-                                isNoteEvent(event)
-                                  ? 'note'
-                                  : isMaintenanceEvent(event)
-                                    ? 'maintenance'
-                                    : event.type
-                              }
-                            >
-                              <span className="flex items-center gap-1.5 text-[10px] sm:text-[11px]">
-                                <span
-                                  aria-hidden
-                                  className={cn(
-                                    'shrink-0 [&_svg]:size-3',
-                                    meta.className,
-                                  )}
-                                >
-                                  <EventIcon event={event} />
-                                </span>
-                                <span className="sr-only">{meta.label}</span>
-                              </span>
-                            </TableCell>
-                            <TableCell
-                              data-log-expand
-                              className="px-0 pr-1 sm:pr-2"
-                            >
-                              <button
-                                type="button"
-                                ref={(node) => {
-                                  if (node)
-                                    entryButtons.current.set(event.id, node)
-                                  else entryButtons.current.delete(event.id)
-                                }}
-                                onClick={() => toggleDetails(event.id)}
-                                aria-expanded={selected}
-                                aria-controls={selected ? detailId : undefined}
-                                aria-label={`${selected ? 'Collapse' : 'Expand'} ${event.title} details for ${event.subject}`}
-                                className="flex size-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                              >
-                                <ChevronRight
-                                  className={cn(
-                                    'size-3.5 transition-transform',
-                                    selected &&
-                                      'rotate-90 text-[var(--bladevault-title)] dark:text-[var(--bladevault-gold)]',
-                                  )}
-                                />
-                              </button>
-                            </TableCell>
-                          </TableRow>
-                          {selected && (
-                            <TableRow
-                              data-log-detail-row
-                              className="hover:bg-transparent"
-                            >
-                              <TableCell
-                                colSpan={columnCount}
-                                className="whitespace-normal border-b border-border/60 bg-muted/30 p-0"
-                              >
-                                <section
-                                  id={detailId}
-                                  aria-label={`Event details for ${event.subject}`}
-                                >
-                                  <LogEventDetails
-                                    compact
-                                    event={event}
-                                    title={event.title}
-                                    time={event.time}
-                                    knifeHref={knifeHref}
-                                    knifeUnavailable={
-                                      !knivesLoading &&
-                                      !!event.knifeId &&
-                                      !knifeHref
-                                    }
-                                    onClose={closeDetails}
-                                  />
-                                </section>
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </Fragment>
-                      )
-                    })}
-                  </TableBody>
-                ))}
-              </Table>
+          ) : entryCount ? (
+            <div data-logs-list className="min-w-0 [overflow-anchor:none]">
+              <p className="sr-only">
+                Collection activity, newest first. Select an event to inspect
+                its changes.
+              </p>
+              <HistoryRail
+                days={shownDays}
+                knivesById={knivesById}
+                firstOfBrand={story.firstOfBrand}
+                selectedId={selectedEvent?.id ?? null}
+                knivesLoading={knivesLoading}
+                registerButton={registerButton}
+                onToggle={(id) => {
+                  toggleDetails(id)
+                  entryButtons.current.get(id)?.focus({ preventScroll: true })
+                }}
+                onClose={closeDetails}
+              />
+              <HistoryShowMore
+                hiddenDays={days.length - shownDays.length}
+                onShowMore={() => setVisibleDays((count) => count + DAY_PAGE)}
+              />
               <div
                 data-logs-footer
                 className="flex flex-wrap justify-between gap-2 border-t border-border/60 px-5 py-3 text-[10px] text-muted-foreground"
               >
                 <span>
-                  {filteredEvents.length}{' '}
-                  {filteredEvents.length === 1 ? 'entry' : 'entries'} · Newest
+                  {entryCount} {entryCount === 1 ? 'entry' : 'entries'} · Newest
                   first
                 </span>
                 <span>Local time</span>
               </div>
-            </>
+            </div>
           ) : (
             <div
               data-logs-state
               className="border-t border-border/60 p-10 text-center"
             >
               <h2 className="text-sm font-medium">
-                {events.length ? 'No matching entries' : 'No history yet'}
+                {hasAnyEntries ? 'No matching entries' : 'No history yet'}
               </h2>
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                {events.length
+                {hasAnyEntries
                   ? 'Try another search or clear your filters.'
                   : 'Changes to your collection will appear here.'}
               </p>
-              {events.length > 0 && (
+              {hasAnyEntries && (
                 <Button
                   variant="outline"
                   size="sm"

@@ -1693,21 +1693,7 @@ html[data-theme-variant='shelf'] [data-detail-section] > h3 {
   color: var(--shelf-accent-ink);
 }
 
-/* History: dates as italic serif headings, entries on hairlines. */
-html[data-theme-variant='shelf'] [data-modern-logs] [data-log-day] > th {
-  color: var(--shelf-ink);
-  font-family: var(--shelf-serif);
-  font-size: 15px;
-  font-style: italic;
-  font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-html[data-theme-variant='shelf'] [data-log-entry]:hover {
-  background: var(--shelf-hover);
-}
-
+/* History: serif totals; the timeline sets its own serif day headings. */
 html[data-theme-variant='shelf'] [data-modern-logs] [data-logs-summary] dd {
   font-family: var(--shelf-serif);
   font-optical-sizing: auto;
@@ -1775,38 +1761,13 @@ html[data-theme-variant='shelf'] [data-lumen-photo] > [data-lumen-photo-empty] {
 
 /* Narrow screens ---------------------------------------------------- */
 
-@media (max-width: 1259px) {
+@media (max-width: 1100px) {
   [data-shelf-cmd] {
     min-width: 0;
   }
 
   [data-shelf-cmd] span {
     display: none;
-  }
-}
-
-/* The masthead links stop fitting beside the logo and actions here, so
- * they move to their own row, as on phones. */
-@media (max-width: 1080px) {
-  [data-shelf-mast] {
-    flex-wrap: wrap;
-    row-gap: 12px;
-    padding-bottom: 0;
-  }
-
-  [data-shelf-nav] a {
-    padding: 4px 0 10px;
-  }
-
-  [data-shelf-nav] a[aria-current='page']::after {
-    bottom: 0;
-  }
-
-  [data-shelf-nav] {
-    order: 3;
-    width: 100%;
-    overflow-x: auto;
-    scrollbar-width: none;
   }
 }
 

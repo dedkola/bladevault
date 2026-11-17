@@ -55,12 +55,7 @@ export const LIGHT_ONLY_THEME_STYLES = ['lumen', 'espresso', 'atrium'] as const
 export const LUMEN_PALETTE_THEME_STYLES = ['lumen', 'atrium'] as const
 /** Styles that always render dark and ignore the light color mode. */
 export const DARK_ONLY_THEME_STYLES = ['phosphor'] as const
-export const START_PAGES = [
-  'insights',
-  'studio',
-  'collection',
-  'timeline',
-] as const
+export const START_PAGES = ['insights', 'studio', 'collection'] as const
 export type StartPage = (typeof START_PAGES)[number]
 
 export const TIME_FORMATS = ['12h', '24h'] as const

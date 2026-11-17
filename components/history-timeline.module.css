@@ -1,52 +1,40 @@
-/* Collection timeline shared by every theme style. Forge-family variants set
- * the --forge-* tokens (app/forge.css); other styles use the fallbacks. */
-.root {
-  --tl-line: var(
-    --insight-line,
-    color-mix(in srgb, var(--foreground) 11%, transparent)
-  );
+/* History as a timeline, shared by every theme style. Forge-family variants
+ * set the --forge-* tokens (app/forge.css); other styles use the fallbacks. */
+.rail,
+.recap,
+.years,
+.more {
+  --tl-line: color-mix(in srgb, var(--foreground) 11%, transparent);
   --tl-soft: color-mix(in srgb, var(--foreground) 3%, var(--card));
   --tl-accent: var(--forge-accent, var(--primary));
   --tl-milestone: var(--bladevault-gold, var(--tl-accent));
   --tl-radius: var(--forge-radius, 14px);
-  container-type: inline-size;
-  width: 100%;
-  max-width: 920px;
-  margin-inline: auto;
-  padding: 23px clamp(16px, 2.7vw, 36px) 40px;
-  color: var(--foreground);
 }
 
-/* ---- Year picker and summary ---------------------------------------- */
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px 18px;
-  margin-bottom: 20px;
-}
+/* ---- Year picker ---------------------------------------------------- */
 .years {
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
+  justify-self: start;
+  margin: 0 0 14px;
   padding: 3px;
   border: 1px solid var(--tl-line);
   border-radius: 9px;
   background: var(--tl-soft);
 }
 .years button {
-  padding: 5px 10px;
+  padding: 4px 10px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--muted-foreground);
-  font-size: 12.5px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   line-height: 1.4;
   cursor: pointer;
 }
-.years button:hover {
+.years button:hover:not(:disabled) {
   color: var(--foreground);
 }
 .years button[aria-pressed='true'] {
@@ -54,31 +42,23 @@
   color: var(--foreground);
   box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
 }
+.years button:disabled {
+  opacity: 0.5;
+}
 .years button:focus-visible,
 .more:focus-visible,
+.expand:focus-visible,
 .knifeLink:focus-visible,
 .subtleLink:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
-.summary {
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: 13px;
-}
-.notice {
-  margin: 0 0 16px;
-  padding: 9px 12px;
-  border: 1px dashed var(--tl-line);
-  border-radius: 10px;
-  color: var(--muted-foreground);
-  font-size: 12.5px;
-}
 
 /* ---- Year in review ------------------------------------------------- */
 .recap {
-  margin-bottom: 30px;
-  padding: 22px 22px 20px;
+  container-type: inline-size;
+  margin: 0 0 22px;
+  padding: 20px 20px 18px;
   border: 1px solid color-mix(in srgb, var(--tl-accent) 30%, var(--tl-line));
   border-radius: var(--tl-radius);
   background: radial-gradient(
@@ -86,6 +66,7 @@
     color-mix(in srgb, var(--tl-accent) 10%, var(--card)) 0%,
     var(--card) 60%
   );
+  color: var(--foreground);
 }
 .eyebrow {
   display: block;
@@ -95,53 +76,53 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.recapHead h2 {
+.recap h2 {
   margin: 6px 0 0;
-  font-size: clamp(26px, 4cqi, 36px);
+  font-size: clamp(24px, 4cqi, 34px);
   font-weight: 650;
   letter-spacing: -0.03em;
   line-height: 1.1;
 }
-.recapHead p {
+.recapLead {
   margin: 6px 0 0;
   color: var(--muted-foreground);
-  font-size: 13.5px;
+  font-size: 13px;
 }
 .recapStats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1px;
-  margin: 18px 0 0;
+  margin: 16px 0 0;
   border: 1px solid var(--tl-line);
   border-radius: 12px;
   background: var(--tl-line);
   overflow: hidden;
 }
-.recapStat {
+.recapStats > div {
   display: flex;
   flex-direction: column-reverse;
   justify-content: flex-end;
-  padding: 14px 16px;
+  padding: 12px 14px;
   background: var(--card);
 }
-.recapStat dd {
+.recapStats dd {
   margin: 0;
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
   line-height: 1;
 }
-.recapStat dt {
+.recapStats dt {
   margin-top: 6px;
   color: var(--muted-foreground);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 .highlights {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 14px 24px;
-  margin: 18px 0 0;
+  gap: 12px 24px;
+  margin: 16px 0 0;
   padding: 0;
   list-style: none;
 }
@@ -149,15 +130,14 @@
   display: block;
   color: var(--muted-foreground);
   font-size: 11.5px;
-  letter-spacing: 0.02em;
 }
 .highlights li > p {
   margin: 2px 0 0;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 550;
   overflow-wrap: anywhere;
 }
-@container (min-width: 640px) {
+@container (min-width: 620px) {
   .recapStats {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -168,24 +148,27 @@
 
 /* ---- The rail ------------------------------------------------------- */
 .rail {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 24px;
+  min-width: 0;
+  color: var(--foreground);
 }
-.monthLabel {
+.dayLabel {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 10px;
-  margin: 0 0 12px;
+  margin: 0 0 10px;
   padding-left: 44px;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
-.monthLabel span {
+.dayLabel span {
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 400;
   letter-spacing: 0;
 }
@@ -207,7 +190,7 @@
   width: 1px;
   background: var(--tl-line);
 }
-.entry {
+.item {
   position: relative;
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
@@ -221,31 +204,62 @@
   place-items: center;
   width: 32px;
   height: 32px;
-  margin-top: 6px;
+  margin-top: 8px;
   border: 1px solid var(--tl-line);
   border-radius: 999px;
   background: var(--card);
   color: var(--muted-foreground);
 }
-.card {
-  min-width: 0;
-  padding: 11px 14px 12px;
-  border: 1px solid var(--tl-line);
-  border-radius: 12px;
-  background: var(--card);
-}
-.entry[data-kind='added'] .marker {
+.item:is([data-kind='created'], [data-kind='added']) .marker {
   border-color: color-mix(in srgb, var(--tl-accent) 55%, var(--tl-line));
   color: var(--tl-accent);
 }
-.entry[data-kind='milestone'] .marker {
+.item[data-kind='deleted'] .marker {
+  border-color: color-mix(in srgb, var(--destructive) 45%, var(--tl-line));
+  color: var(--destructive);
+}
+.item[data-kind='milestone'] .marker {
   border-color: var(--tl-milestone);
   background: var(--tl-milestone);
   color: var(--background);
 }
-.entry[data-kind='milestone'] .card {
+.stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  min-width: 0;
+  padding: 11px 8px 12px 14px;
+  border: 1px solid var(--tl-line);
+  border-radius: 12px;
+  background: var(--card);
+  transition: border-color 140ms;
+}
+.card[data-log-entry] {
+  cursor: pointer;
+}
+.card[data-log-entry]:hover {
+  border-color: color-mix(in srgb, var(--tl-accent) 35%, var(--tl-line));
+}
+.card[data-state='selected'] {
+  border-color: color-mix(in srgb, var(--tl-accent) 55%, var(--tl-line));
+  border-bottom-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+.item[data-kind='milestone'] .card {
+  padding-right: 14px;
   border-color: color-mix(in srgb, var(--tl-milestone) 45%, var(--tl-line));
   background: color-mix(in srgb, var(--tl-milestone) 7%, var(--card));
+}
+.item[data-kind='added'] .card {
+  border-style: dashed;
+}
+.cardBody {
+  min-width: 0;
 }
 .meta {
   display: flex;
@@ -254,17 +268,33 @@
   gap: 2px 8px;
   color: var(--muted-foreground);
   font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
 }
-.meta span::before {
+.meta > :not(:first-child)::before {
   content: '·';
   margin-right: 8px;
 }
+.time {
+  font-variant-numeric: tabular-nums;
+}
+.kindLabel {
+  color: var(--foreground);
+  font-weight: 500;
+}
+.item[data-kind='maintenance'] .kindLabel {
+  color: color-mix(
+    in srgb,
+    var(--bv-chart-4, var(--tl-accent)) 70%,
+    var(--foreground)
+  );
+}
+.item[data-kind='deleted'] .kindLabel {
+  color: var(--destructive);
+}
 .knifeRow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
-  margin-top: 6px;
+  margin-top: 7px;
 }
 .knifeText {
   min-width: 0;
@@ -274,9 +304,9 @@
   display: grid;
   flex-shrink: 0;
   place-items: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 8px;
+  width: 56px;
+  height: 56px;
+  border-radius: 9px;
   background: var(--tl-soft);
   color: var(--muted-foreground);
   overflow: hidden;
@@ -301,6 +331,9 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+.subject {
+  overflow-wrap: anywhere;
+}
 .badge {
   display: inline-flex;
   padding: 1px 7px;
@@ -316,22 +349,54 @@
   background: var(--tl-soft);
   color: var(--muted-foreground);
 }
-.detail {
-  margin: 4px 0 0;
+.summary {
+  margin: 3px 0 0;
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: 12.5px;
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
+.summary b {
+  color: var(--foreground);
+  font-weight: 550;
+}
+.changes {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 9px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--tl-line);
+  list-style: none;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.changes li {
+  display: grid;
+  grid-template-columns: minmax(70px, 120px) minmax(0, 1fr);
+  gap: 10px;
+  overflow-wrap: anywhere;
+}
+.changes s {
+  color: var(--muted-foreground);
+  opacity: 0.75;
+}
+.changeField {
+  color: var(--muted-foreground);
+}
+.changes .moreChanges {
+  display: block;
+  color: var(--muted-foreground);
+}
 .milestoneTitle {
-  margin: 6px 0 0;
+  margin: 0;
   font-size: 16px;
   font-weight: 650;
   letter-spacing: -0.01em;
 }
 .subtleLink {
   display: inline-block;
-  margin-top: 6px;
+  margin-top: 5px;
   border-radius: 3px;
   color: var(--tl-accent);
   font-size: 12px;
@@ -341,9 +406,42 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+.expand {
+  display: grid;
+  place-items: center;
+  align-self: start;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.expand:hover {
+  background: var(--tl-soft);
+  color: var(--foreground);
+}
+.expand svg {
+  transition: transform 140ms;
+}
+.expand[aria-expanded='true'] svg {
+  transform: rotate(90deg);
+  color: var(--tl-accent);
+}
+.details {
+  margin-top: -1px;
+  padding: 2px 14px 12px;
+  border: 1px solid color-mix(in srgb, var(--tl-accent) 55%, var(--tl-line));
+  border-top: 1px dashed var(--tl-line);
+  border-radius: 0 0 12px 12px;
+  background: var(--card);
+}
+
+/* ---- Show more ------------------------------------------------------ */
 .more {
   display: block;
-  margin: 24px auto 0;
+  margin: 22px auto 4px;
   padding: 8px 14px;
   border: 1px solid var(--tl-line);
   border-radius: 999px;
@@ -356,26 +454,33 @@
   background: var(--tl-soft);
 }
 
-/* ---- Loading -------------------------------------------------------- */
-.loading {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+/* ---- Style touches -------------------------------------------------- */
+:global(html[data-theme-variant='shelf']) .dayLabel {
+  font-family: var(--shelf-serif);
+  font-size: 16px;
+  font-style: italic;
+  font-weight: 500;
 }
-.loading > div {
-  height: 72px;
-  border: 1px solid var(--tl-line);
-  border-radius: 12px;
-  background: var(--tl-soft);
-}
-.loading > div:first-child {
-  height: 120px;
+:global(html[data-theme-variant='ledger']) .time,
+:global(html[data-theme-variant='forge']) .time,
+:global(html[data-theme-style='classic']) .time {
+  font-family: var(
+    --ledger-mono,
+    var(--forge-mono, var(--font-mono), monospace)
+  );
 }
 
-@container (max-width: 480px) {
-  .entry {
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .expand svg {
+    transition: none;
+  }
+}
+
+@container (max-width: 520px) {
+  .item {
     grid-template-columns: 26px minmax(0, 1fr);
-    gap: 10px;
+    gap: 9px;
   }
   .marker {
     width: 26px;
@@ -388,14 +493,18 @@
   .entries::before {
     left: 12.5px;
   }
-  .monthLabel {
-    padding-left: 36px;
+  .dayLabel {
+    padding-left: 35px;
   }
   .thumb {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
   }
-  .recap {
-    padding: 18px 16px 16px;
+  .changes li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .card {
+    padding-left: 11px;
   }
 }

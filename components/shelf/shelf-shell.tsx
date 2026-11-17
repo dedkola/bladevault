@@ -23,7 +23,6 @@ const navLinks = [
   { href: '/insights', label: 'Insights' },
   { href: '/studio', label: 'Studio' },
   { href: '/compare', label: 'Compare' },
-  { href: '/timeline', label: 'Timeline' },
   { href: '/logs', label: 'History' },
 ] as const
 
@@ -86,7 +85,6 @@ export function ShelfShell({ children }: { children: React.ReactNode }) {
       hint: compareCount ? `${compareCount} in comparison` : undefined,
       run: () => router.push('/compare'),
     },
-    { label: 'Open Timeline', run: () => router.push('/timeline') },
     { label: 'Open History', run: () => router.push('/logs') },
     {
       label: 'Cloud backup settings',

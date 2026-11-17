@@ -45,7 +45,6 @@ test('shows logs last in the primary sidebar navigation', async ({ page }) => {
     'Collection',
     'Studio',
     'Compare',
-    'Timeline',
     'History',
   ])
 })
@@ -301,7 +300,7 @@ test('inspects real log changes inline at all screen sizes', async ({
     ).toBeVisible()
     const geometry = await page.evaluate(() => {
       const main = document.querySelector('main')!
-      const table = document.querySelector('[data-slot="table-container"]')!
+      const table = document.querySelector('[data-logs-list]')!
       return {
         documentWidth: document.documentElement.scrollWidth,
         viewport: innerWidth,
@@ -408,9 +407,57 @@ test('retries a failed log request and renders an empty vault', async ({
     route.fulfill({ json: { events: [] } }),
   )
   await page.reload()
-  await expect(page.getByText('No history yet', { exact: true })).toBeVisible()
+  // With no recorded events, the knife still appears from its own record.
+  await expect(
+    page.locator('[data-story-entry="added"]').filter({
+      hasText: 'Retry Test Knife',
+    }),
+  ).toBeVisible()
   await expect(logEntries(page)).toHaveCount(0)
   await expect(
     page.getByRole('complementary', { name: /Event details for/ }),
   ).toHaveCount(0)
+})
+
+test('shows the collection story with photos, milestones and a year recap', async ({
+  page,
+  request,
+}) => {
+  const { knife } = await seedKnife(request, { name: 'Story Knife' })
+  await request.post(`/api/knives/${knife.id}/maintenance`, {
+    data: { type: 'sharpening', occurredAt: new Date().toISOString() },
+  })
+  await page.goto('/logs')
+
+  const created = logEntry(page, 'created', 'Story Knife')
+  await expect(created).toContainText('Knife added')
+  await expect(
+    created.getByRole('link', { name: 'Benchmade · Story Knife' }),
+  ).toHaveAttribute('href', `/collection/${knife.id}`)
+  const milestones = page.locator('[data-story-entry="milestone"]')
+  await expect(
+    milestones.filter({ hasText: 'The collection begins' }),
+  ).toBeVisible()
+  await expect(
+    milestones.filter({ hasText: 'First maintenance logged' }),
+  ).toBeVisible()
+
+  const year = String(new Date().getFullYear())
+  const years = page.getByRole('group', { name: 'Show a year' })
+  await years.getByRole('button', { name: year }).click()
+  await expect(years.getByRole('button', { name: year })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  const recap = page.locator('[data-history-recap]')
+  await expect(
+    recap.getByRole('heading', { name: `Your ${year} so far` }),
+  ).toBeVisible()
+  await expect(recap).toContainText('Most-maintained blade')
+  await expect(
+    page.getByRole('button', { name: /change date range/i }),
+  ).toBeVisible()
+
+  await years.getByRole('button', { name: 'All time' }).click()
+  await expect(recap).toHaveCount(0)
 })

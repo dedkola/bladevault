@@ -43,18 +43,6 @@ export type TimelineEntry = {
   firstOfBrand?: boolean
 }
 
-export type TimelineOrder = 'newest' | 'oldest'
-
-export type TimelineGroup = {
-  /** Local calendar month, `YYYY-MM`. */
-  key: string
-  year: number
-  /** 0-based month index. */
-  month: number
-  label: string
-  entries: TimelineEntry[]
-}
-
 export const NOTE_EXCERPT_LENGTH = 220
 
 /** Collection sizes worth a milestone: 10, 25, 50, then every 25. */
@@ -128,18 +116,10 @@ function compareOldestFirst(left: TimelineEntry, right: TimelineEntry) {
   )
 }
 
-export function sortTimelineEntries(
-  entries: TimelineEntry[],
-  order: TimelineOrder,
-): TimelineEntry[] {
-  const sorted = [...entries].sort(compareOldestFirst)
-  return order === 'newest' ? sorted.reverse() : sorted
-}
-
 /**
  * Assembles the collection story from knives, maintenance events, and notes.
  * Entries tied to a knife that is no longer in the list are skipped. Returned
- * oldest first; use `sortTimelineEntries` or `groupTimelineByMonth` to reorder.
+ * oldest first.
  */
 export function buildTimelineEntries(
   knives: TimelineKnifeSource[],
@@ -267,57 +247,4 @@ export function buildTimelineEntries(
   }
 
   return entries.sort(compareOldestFirst)
-}
-
-export function getEntryYear(entry: Pick<TimelineEntry, 'time'>): number {
-  return new Date(entry.time).getFullYear()
-}
-
-export function filterTimelineByYear(
-  entries: TimelineEntry[],
-  year: number | 'all',
-): TimelineEntry[] {
-  if (year === 'all') return entries
-  return entries.filter((entry) => getEntryYear(entry) === year)
-}
-
-/** Years that have at least one entry, newest first. */
-export function listTimelineYears(entries: TimelineEntry[]): number[] {
-  return [...new Set(entries.map(getEntryYear))].sort((a, b) => b - a)
-}
-
-export function formatMonthLabel(year: number, month: number): string {
-  return new Date(year, month, 1).toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  })
-}
-
-/** Groups entries by local calendar month, ordered within and across months. */
-export function groupTimelineByMonth(
-  entries: TimelineEntry[],
-  order: TimelineOrder = 'newest',
-): TimelineGroup[] {
-  const groups: TimelineGroup[] = []
-  let current: TimelineGroup | undefined
-
-  for (const entry of sortTimelineEntries(entries, order)) {
-    const date = new Date(entry.time)
-    const year = date.getFullYear()
-    const month = date.getMonth()
-    const key = `${year}-${String(month + 1).padStart(2, '0')}`
-    if (!current || current.key !== key) {
-      current = {
-        key,
-        year,
-        month,
-        label: formatMonthLabel(year, month),
-        entries: [],
-      }
-      groups.push(current)
-    }
-    current.entries.push(entry)
-  }
-
-  return groups
 }

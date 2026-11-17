@@ -23,7 +23,7 @@ describe('settings persistence', () => {
     )
   })
 
-  it.each(['insights', 'studio', 'collection', 'timeline'] as const)(
+  it.each(['insights', 'studio', 'collection'] as const)(
     'persists %s as the start page and uses it when opening the app',
     async (startPage) => {
       vault = await createTempVault('bladevault-settings-')

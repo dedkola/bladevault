@@ -2,11 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { KnifeNote, MaintenanceEvent, MaintenanceType } from '@/lib/data'
 import {
   buildTimelineEntries,
-  filterTimelineByYear,
-  groupTimelineByMonth,
   isKnifeCountMilestone,
   isMaintenanceCountMilestone,
-  listTimelineYears,
 } from '@/lib/timeline'
 import { createKnife } from '../fixtures/knife'
 
@@ -145,49 +142,8 @@ describe('buildTimelineEntries', () => {
   })
 })
 
-describe('grouping and year filtering', () => {
-  const entries = buildTimelineEntries(
-    [
-      knife('a', 'Alpha', at(2024, 11, 30)),
-      knife('b', 'Beta', at(2025, 0, 2)),
-      knife('c', 'Gamma', at(2025, 0, 20)),
-    ],
-    [maintenance('a', at(2025, 2, 3))],
-  )
-
-  it('groups by local month, newest first by default', () => {
-    const groups = groupTimelineByMonth(entries)
-    expect(groups.map((group) => group.key)).toEqual([
-      '2025-03',
-      '2025-01',
-      '2024-12',
-    ])
-    expect(groups[0].label).toBe('March 2025')
-    expect(groups[1].entries.map((entry) => entry.id)).toEqual([
-      'added:c',
-      'added:b',
-    ])
-  })
-
-  it('can read oldest first, with the milestone after its addition', () => {
-    const groups = groupTimelineByMonth(entries, 'oldest')
-    expect(groups[0].entries.map((entry) => entry.id)).toEqual([
-      'added:a',
-      'milestone:first-knife',
-    ])
-  })
-
-  it('lists years newest first and filters to one year', () => {
-    expect(listTimelineYears(entries)).toEqual([2025, 2024])
-    expect(
-      filterTimelineByYear(entries, 2024).map((entry) => entry.id),
-    ).toEqual(['added:a', 'milestone:first-knife'])
-    expect(filterTimelineByYear(entries, 'all')).toBe(entries)
-  })
-
-  it('handles an empty collection', () => {
+describe('empty collection', () => {
+  it('has no entries', () => {
     expect(buildTimelineEntries([])).toEqual([])
-    expect(groupTimelineByMonth([])).toEqual([])
-    expect(listTimelineYears([])).toEqual([])
   })
 })

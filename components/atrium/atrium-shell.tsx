@@ -10,7 +10,6 @@ import {
   History,
   LayoutDashboard,
   Library,
-  Milestone,
   Plus,
   Search,
   Settings,
@@ -31,7 +30,6 @@ const dockLinks = [
   { href: '/collection', label: 'Collection', icon: Library },
   { href: '/studio', label: 'Studio', icon: GalleryVertical },
   { href: '/compare', label: 'Compare', icon: CompareIcon },
-  { href: '/timeline', label: 'Timeline', icon: Milestone },
   { href: '/logs', label: 'History', icon: History },
 ] as const
 
