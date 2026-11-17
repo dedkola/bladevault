@@ -512,31 +512,21 @@ export function LogSessionsView() {
   const selectedEvent = selectedId
     ? filteredEvents.find((event) => event.id === selectedId)
     : undefined
+  // Plain totals for the collection as it is now, plus the size of the log.
   const summary = useMemo(() => {
-    let additions = 0
-    let edits = 0
-    let maintenance = 0
-    const activeDays = new Set<string>()
-    for (const event of events) {
-      activeDays.add(event.dateKey)
-      if (isMaintenanceEvent(event)) maintenance += 1
-      else if (isNoteEvent(event)) continue
-      else if (event.type === 'created') additions += 1
-      else if (event.type === 'updated') edits += 1
-    }
-    for (const item of storyItems) {
-      if (item.kind === 'story' && item.entry.type === 'added') {
-        additions += 1
-        activeDays.add(item.dateKey)
-      }
-    }
+    const sessions = maintenanceEvents.filter((event) =>
+      knivesById.has(event.knifeId),
+    )
     return [
-      ['Additions', additions],
-      ['Edits', edits],
-      ['Maintenance events', maintenance],
-      ['Active days', activeDays.size],
+      ['Knives', knives.length],
+      [
+        'Maintained knives',
+        new Set(sessions.map((event) => event.knifeId)).size,
+      ],
+      ['Care sessions', sessions.length],
+      ['History entries', events.length],
     ] as const
-  }, [events, storyItems])
+  }, [knives, knivesById, maintenanceEvents, events])
   const chooseYear = (year: number | 'all') => {
     const range =
       year === 'all'
@@ -663,11 +653,11 @@ export function LogSessionsView() {
           }
         }}
       >
-        <dl data-logs-summary aria-label="Recorded activity totals">
+        <dl data-logs-summary aria-label="Collection totals">
           {summary.map(([label, count]) => (
             <div key={label}>
               <dt>{label}</dt>
-              <dd>{isLoading || error ? '—' : count.toLocaleString()}</dd>
+              <dd>{showLoading || error ? '—' : count.toLocaleString()}</dd>
             </div>
           ))}
         </dl>
