@@ -10,7 +10,8 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { AlertCircle, CloudDownload, Loader2 } from 'lucide-react'
+import { AlertCircle, Loader2 } from 'lucide-react'
+import { RestoreProgressNotice } from '@/components/vault-task-notice'
 import {
   createVaultFetchGuard,
   getCloudRestoreJob,
@@ -225,17 +226,13 @@ export function VaultRestoreProvider({
             {children}
           </div>
           {status.readOnly && !applying ? (
-            <div
-              role="status"
-              className="fixed bottom-4 left-1/2 z-40 flex w-[min(30rem,calc(100%-2rem))] -translate-x-1/2 items-center gap-2 rounded-lg border bg-background px-3 py-2 text-xs text-muted-foreground shadow-sm"
-            >
-              <CloudDownload className="size-4 shrink-0" />
-              <span>
-                {status.recoveryRequired
+            <RestoreProgressNotice
+              message={
+                status.recoveryRequired
                   ? RECOVERY_MESSAGE
-                  : 'Restoring cloud backup. You can browse; editing is paused.'}
-              </span>
-            </div>
+                  : 'Restoring cloud backup. You can browse; editing is paused.'
+              }
+            />
           ) : null}
           {applying ? (
             <div
