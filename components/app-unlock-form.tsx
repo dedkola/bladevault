@@ -41,12 +41,16 @@ export function AppUnlockForm() {
     () => true,
     () => false,
   )
-  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
 
   async function unlock(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    // Read the field itself: text typed before hydration never reached React
+    // state, so a controlled value would send an empty password.
+    const password = String(
+      new FormData(event.currentTarget).get('password') ?? '',
+    )
     setPending(true)
     setError('')
     try {
@@ -94,13 +98,12 @@ export function AppUnlockForm() {
             </label>
             <Input
               id="unlock-password"
+              name="password"
               type="password"
               autoComplete="current-password"
               autoFocus
               required
               maxLength={1024}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
               disabled={pending}
               aria-describedby={error ? 'unlock-error' : undefined}
             />
