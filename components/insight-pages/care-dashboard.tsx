@@ -1,8 +1,17 @@
 'use client'
 
 import Link from 'next/link'
-import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useCare } from '@/components/providers/care-provider'
+import { CareReschedulePopover } from '@/components/maintenance/care-reschedule-popover'
 import { InsightPanel } from '@/components/insight-pages/detail-primitives'
 import { careToneDotClass, careToneTextClass } from '@/components/care-badge'
 import { careFilterHref } from '@/components/care-status-summary'
@@ -444,6 +453,9 @@ function CarePin({
   knivesById,
   overdueCount,
   now,
+  onSelect,
+  onHover,
+  onHoverEnd,
   row = 0,
 }: {
   pin: CareTimelinePin
@@ -453,6 +465,11 @@ function CarePin({
   /** Overdue jobs of this kind in total, for the "open all" link. */
   overdueCount: number
   now: Date
+  /** Opens the reschedule box for one job. */
+  onSelect: (job: CareJob, anchor: HTMLElement) => void
+  /** Hovering a single-job pin previews the same card. */
+  onHover: (job: CareJob, anchor: HTMLElement) => void
+  onHoverEnd: () => void
   /** Sub-row inside the lane when pins would otherwise overlap. */
   row?: number
 }) {
@@ -470,17 +487,22 @@ function CarePin({
   if (pin.jobs.length === 1) {
     const description = describe(pin.jobs[0])
     return (
-      <Link
+      <button
+        type="button"
         className="id-care-pin"
+        data-kind={track}
         data-level={pin.level}
         data-align={align}
         style={style}
-        href={knifeHref(pin.jobs[0].knifeId)}
         title={description}
+        aria-haspopup="dialog"
         aria-label={`${CARE_TRACK_NAMES[track]}: ${description}`}
+        onClick={(event) => onSelect(pin.jobs[0], event.currentTarget)}
+        onMouseEnter={(event) => onHover(pin.jobs[0], event.currentTarget)}
+        onMouseLeave={onHoverEnd}
       >
         {label}
-      </Link>
+      </button>
     )
   }
 
@@ -525,6 +547,7 @@ function CarePin({
         ref={buttonRef}
         type="button"
         className="id-care-pin"
+        data-kind={track}
         data-level={pin.level}
         data-align={align}
         style={style}
@@ -547,14 +570,20 @@ function CarePin({
         <ul>
           {sorted.map((job) => (
             <li key={job.knifeId}>
-              <Link href={knifeHref(job.knifeId)}>
+              <button
+                type="button"
+                onClick={() => {
+                  popoverRef.current?.hidePopover()
+                  if (buttonRef.current) onSelect(job, buttonRef.current)
+                }}
+              >
                 <span>{knifeLabel(knivesById.get(job.knifeId))}</span>
                 <span className={careToneTextClass(job.level)}>
                   {job.dueInDays < 0
                     ? dueLabel(job.dueInDays)
                     : formatCareDate(job.dueOn, now)}
                 </span>
-              </Link>
+              </button>
             </li>
           ))}
         </ul>
@@ -646,6 +675,7 @@ function stackPins(
   return { pins: stacked, rows: Math.max(1, ends.length) }
 }
 
+/** Pins keep their urgency color until the job is done. */
 const LEGEND: readonly { level: string; label: string }[] = [
   { level: 'overdue', label: 'Overdue' },
   { level: 'due-soon', label: 'Due soon' },
@@ -663,6 +693,53 @@ export function CareComingUp({
   knivesById: ReadonlyMap<string, Knife>
   now: Date
 }) {
+  const [selected, setSelected] = useState<{
+    knifeId: string
+    track: CareTrack
+    anchor: HTMLElement
+    /** Opened by a click or the keyboard rather than a hover preview. */
+    pinned: boolean
+  } | null>(null)
+  // Resolve from the live jobs so the card follows a reschedule.
+  const selectedJob = selected
+    ? (jobs.find(
+        (job) =>
+          job.knifeId === selected.knifeId && job.track === selected.track,
+      ) ?? null)
+    : null
+  const closeTimer = useRef<number | undefined>(undefined)
+  const cancelClose = () => window.clearTimeout(closeTimer.current)
+  const select = (job: CareJob, anchor: HTMLElement) => {
+    cancelClose()
+    setSelected({
+      knifeId: job.knifeId,
+      track: job.track,
+      anchor,
+      pinned: true,
+    })
+  }
+  // A hover preview never replaces a card the user opened on purpose.
+  const preview = (job: CareJob, anchor: HTMLElement) => {
+    cancelClose()
+    setSelected((current) =>
+      current?.pinned
+        ? current
+        : { knifeId: job.knifeId, track: job.track, anchor, pinned: false },
+    )
+  }
+  // The preview stays while the pointer moves from the pin onto the card.
+  const scheduleClose = () => {
+    cancelClose()
+    closeTimer.current = window.setTimeout(
+      () => setSelected((current) => (current?.pinned ? current : null)),
+      180,
+    )
+  }
+  const close = useCallback(() => {
+    window.clearTimeout(closeTimer.current)
+    setSelected(null)
+  }, [])
+  useEffect(() => () => window.clearTimeout(closeTimer.current), [])
   const [overRef, overWidth] = useElementWidth<HTMLDivElement>(400)
   const [futureRef, futureWidth] = useElementWidth<HTMLDivElement>(1100)
   const middle = new Date(now)
@@ -712,7 +789,7 @@ export function CareComingUp({
   return (
     <InsightPanel
       title="Coming up"
-      description={`Overdue jobs on the left, the next ${HORIZON_DAYS} days on the right. Select a pin to open the knife.`}
+      description={`Overdue jobs on the left, the next ${HORIZON_DAYS} days on the right. Select a pin to reschedule it or open the knife.`}
       aside={
         <ul className="id-care-legend" aria-label="Pin colours">
           {LEGEND.map(({ level, label }) => (
@@ -743,7 +820,14 @@ export function CareComingUp({
               } as React.CSSProperties
             }
           >
-            <h3>{CARE_TRACK_NAMES[track]}</h3>
+            <h3>
+              <span
+                className="id-care-swatch"
+                data-kind={track}
+                aria-hidden="true"
+              />
+              {CARE_TRACK_NAMES[track]}
+            </h3>
             <div
               className="id-care-tl-over"
               ref={index === 0 ? overRef : undefined}
@@ -758,6 +842,9 @@ export function CareComingUp({
                   knivesById={knivesById}
                   overdueCount={overdueCount}
                   now={now}
+                  onSelect={select}
+                  onHover={preview}
+                  onHoverEnd={scheduleClose}
                 />
               ))}
             </div>
@@ -775,12 +862,27 @@ export function CareComingUp({
                   knivesById={knivesById}
                   overdueCount={overdueCount}
                   now={now}
+                  onSelect={select}
+                  onHover={preview}
+                  onHoverEnd={scheduleClose}
                 />
               ))}
             </div>
           </section>
         ))}
       </div>
+      <CareReschedulePopover
+        job={selectedJob}
+        anchor={selected?.anchor ?? null}
+        pinned={selected?.pinned ?? false}
+        knifeName={knifeLabel(
+          selectedJob ? knivesById.get(selectedJob.knifeId) : undefined,
+        )}
+        now={now}
+        onClose={close}
+        onHoverStart={cancelClose}
+        onHoverEnd={scheduleClose}
+      />
       {isEmpty && (
         <p className="id-care-tl-empty">
           Nothing is overdue or comes due in the next {HORIZON_DAYS} days.
@@ -1168,6 +1270,7 @@ export function CareRecentFeed({
     <InsightPanel
       title="Recent care"
       description="Latest entries across the collection"
+      footer={<Link href="/maintenance/log">View all care logs →</Link>}
     >
       {isLoading ? (
         <p className="id-care-empty">Loading history…</p>

@@ -88,8 +88,8 @@ test('logs maintenance events from the knife detail page', async ({
     await expect(event).toHaveAttribute('href', `/collection/${knife.id}`)
   }
 
-  await page.goto('/logs')
-  // History keeps entries for knives deleted by earlier tests; count this one.
+  await page.goto('/maintenance/log')
+  // The care log keeps entries for knives deleted by earlier tests; count this one.
   const knifeEntries = page
     .locator('[data-log-entry]')
     .filter({ hasText: 'Benchmade · Bugout' })
@@ -104,16 +104,16 @@ test('logs maintenance events from the knife detail page', async ({
       .first(),
   ).toBeVisible()
 
-  const search = page.getByRole('textbox', { name: 'Search history' })
+  const search = page.getByRole('textbox', { name: 'Search care log' })
   const searchWidthBefore = await search.evaluate(
     (element) => element.getBoundingClientRect().width,
   )
-  const maintenanceFilter = page.getByRole('button', {
-    name: 'maintenance',
+  const loggedFilter = page.getByRole('button', {
+    name: 'logged',
     exact: true,
   })
-  await maintenanceFilter.click()
-  await expect(maintenanceFilter).toHaveAttribute('aria-pressed', 'true')
+  await loggedFilter.click()
+  await expect(loggedFilter).toHaveAttribute('aria-pressed', 'true')
   const searchWidthAfter = await search.evaluate(
     (element) => element.getBoundingClientRect().width,
   )
@@ -171,7 +171,7 @@ test('edits and deletes maintenance events', async ({ page, request }) => {
     page.getByText('No maintenance recorded yet', { exact: true }),
   ).toBeVisible()
 
-  await page.goto('/logs')
+  await page.goto('/maintenance/log')
   await expect(
     page
       .locator('[data-log-entry]')

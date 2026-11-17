@@ -275,6 +275,7 @@ describe('Coming up timeline pins', () => {
     level,
     intervalDays: 30,
     lastAt: daysAgo(30 - dueInDays),
+    deferredUntil: null,
   })
 
   it('merges nearby jobs and keeps distant ones apart', () => {

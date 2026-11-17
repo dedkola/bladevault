@@ -22,6 +22,8 @@ export type CareJob = {
   level: CareStatusLevel
   intervalDays: number
   lastAt: string
+  /** Date the job was pushed back to; null when it keeps its normal date. */
+  deferredUntil: string | null
 }
 
 export type CareTrackSummary = {
@@ -170,6 +172,7 @@ function toJob(
     level: track.level,
     intervalDays: track.intervalDays,
     lastAt: track.lastAt,
+    deferredUntil: track.deferredUntil,
   }
 }
 

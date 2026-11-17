@@ -842,6 +842,9 @@
   padding-bottom: 6px;
 }
 .id-care-tl-lane > h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   grid-column: 1 / -1;
   margin: 0;
   padding: 6px 0 4px;
@@ -929,6 +932,7 @@
 .id-care-pin[data-align='end'] {
   transform: translateX(-100%);
 }
+/* Sharpening follows the text color, so its label flips with the theme. */
 .id-care-pin[data-level='overdue'] {
   background: var(--id-pin-over);
 }
@@ -977,7 +981,8 @@ button.id-care-pin {
   padding: 0;
   list-style: none;
 }
-.id-care-pin-list li a {
+.id-care-pin-list li a,
+.id-care-pin-list li button {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -985,20 +990,122 @@ button.id-care-pin {
   padding: 6px;
   border-radius: 6px;
 }
-.id-care-pin-list li a > span:first-child {
+.id-care-pin-list li button {
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.id-care-pin-list li a > span:first-child,
+.id-care-pin-list li button > span:first-child {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.id-care-pin-list li a > span:last-child {
+.id-care-pin-list li a > span:last-child,
+.id-care-pin-list li button > span:last-child {
   flex-shrink: 0;
   font-size: 11px;
   font-weight: 600;
 }
 .id-care-pin-list a:hover,
-.id-care-pin-list a:focus-visible {
+.id-care-pin-list a:focus-visible,
+.id-care-pin-list li button:hover,
+.id-care-pin-list li button:focus-visible {
   background: var(--muted);
+  outline: none;
+}
+.id-care-reschedule {
+  display: grid;
+  gap: 9px;
+  width: min(250px, calc(100vw - 16px));
+  padding: 12px 13px 11px;
+  border-radius: 12px;
+}
+.id-care-reschedule-date {
+  font-family: var(--forge-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.id-care-reschedule-rows {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.id-care-reschedule-rows li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.id-care-reschedule-rows i {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+.id-care-reschedule-rows span {
+  flex: 1;
+  color: var(--muted-foreground);
+}
+.id-care-reschedule-rows strong {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.id-care-reschedule-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.id-care-reschedule-options button {
+  padding: 6px 8px;
+  border: 1px solid var(--id-line, var(--border));
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.id-care-reschedule-options button:hover:not(:disabled),
+.id-care-reschedule-options button:focus-visible {
+  background: var(--muted);
+  outline: none;
+}
+.id-care-reschedule-options button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.id-care-reschedule:focus {
+  outline: none;
+}
+.id-care-reschedule-error {
+  color: var(--destructive);
+}
+.id-care-reschedule-open {
+  display: block;
+  margin: 0;
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 600;
+  text-align: center;
+}
+.id-care-pin-list a.id-care-reschedule-open:hover,
+.id-care-pin-list a.id-care-reschedule-open:focus-visible {
+  background: var(--primary);
+  filter: brightness(1.08);
   outline: none;
 }
 .id-care-pin-all {

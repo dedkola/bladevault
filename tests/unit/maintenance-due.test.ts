@@ -7,6 +7,7 @@ import {
   formatTrackDueLine,
   getCareStatuses,
   getKnifeCareStatus,
+  pruneCareDeferrals,
   rankCareAttention,
   resolveCareIntervals,
 } from '@/lib/maintenance-due'
@@ -36,6 +37,62 @@ const settings = (
   ...DEFAULT_MAINTENANCE_REMINDERS,
   intervals: { ...DEFAULT_MAINTENANCE_REMINDERS.intervals },
   ...patch,
+})
+
+describe('care deferrals', () => {
+  const lastAt = daysAgo(94)
+  const sharpening = (until: string, after = lastAt) =>
+    getKnifeCareStatus(
+      'pm2',
+      { sharpening: lastAt },
+      settings(),
+      undefined,
+      now,
+      { sharpening: { until, after } },
+    ).tracks.find((track) => track.track === 'sharpening')
+
+  it('moves an overdue job to the deferred date', () => {
+    expect(sharpening('2026-11-23')).toMatchObject({
+      dueInDays: 7,
+      level: 'due-soon',
+      deferredUntil: '2026-11-23',
+    })
+  })
+
+  it('ignores a deferral once the care was logged again', () => {
+    expect(sharpening('2026-11-23', daysAgo(200))).toMatchObject({
+      dueInDays: -4,
+      deferredUntil: null,
+    })
+  })
+
+  it('prunes deferrals that no longer move a job', () => {
+    const deferrals = {
+      pm2: {
+        sharpening: { until: '2026-11-23', after: lastAt },
+        cleaning: { until: '2026-11-20', after: daysAgo(400) },
+      },
+      sold: { sharpening: { until: '2026-11-23', after: lastAt } },
+    }
+    const statuses = getCareStatuses(
+      [{ id: 'pm2' }],
+      new Map([['pm2', { sharpening: lastAt, cleaning: daysAgo(12) }]]),
+      settings(),
+      {},
+      now,
+      deferrals,
+    )
+    expect(pruneCareDeferrals(deferrals, statuses)).toEqual({
+      pm2: { sharpening: deferrals.pm2.sharpening },
+    })
+  })
+
+  it('never pulls a job earlier than its normal deadline', () => {
+    expect(sharpening('2026-11-10')).toMatchObject({
+      dueInDays: -4,
+      deferredUntil: null,
+    })
+  })
 })
 
 describe('care status', () => {

@@ -3,6 +3,8 @@ import {
   CARE_TRACKS,
   CARE_TRACK_NAMES,
   CARE_TRACK_VERBS,
+  type CareDeferral,
+  type CareDeferrals,
   type CareIntervalOverrides,
   type CareTrack,
   type MaintenanceReminderSettings,
@@ -37,6 +39,8 @@ export type CareTrackStatus = {
   /** Days until the deadline (negative = overdue); null when never logged. */
   dueInDays: number | null
   level: CareTrackLevel
+  /** Local date the job was pushed back to, while that still applies. */
+  deferredUntil: string | null
 }
 
 export type KnifeCareStatus = {
@@ -123,6 +127,7 @@ export function getKnifeCareStatus(
   settings: MaintenanceReminderSettings,
   override: Partial<Record<CareTrack, number | null>> | undefined,
   now: Date,
+  deferral?: Partial<Record<CareTrack, CareDeferral>>,
 ): KnifeCareStatus {
   const intervals = resolveCareIntervals(settings, override)
   const today = calendarDay(now)
@@ -135,7 +140,18 @@ export function getKnifeCareStatus(
     const valid =
       lastDate && Number.isFinite(lastDate.getTime()) && lastDate <= now
     const daysSince = valid ? today - calendarDay(lastDate) : null
-    const dueInDays = daysSince === null ? null : intervalDays - daysSince
+    let dueInDays = daysSince === null ? null : intervalDays - daysSince
+    // A pushed-back job keeps its new date until the care is logged again.
+    let deferredUntil: string | null = null
+    const pushed = deferral?.[track]
+    if (pushed && dueInDays !== null && pushed.after === (lastAt ?? '')) {
+      const [year, month, day] = pushed.until.split('-').map(Number)
+      const untilDays = Date.UTC(year, month - 1, day) / 86_400_000 - today
+      if (untilDays > dueInDays) {
+        dueInDays = untilDays
+        deferredUntil = pushed.until
+      }
+    }
     const level: CareTrackLevel =
       dueInDays === null
         ? 'never'
@@ -151,6 +167,7 @@ export function getKnifeCareStatus(
       daysSince,
       dueInDays,
       level,
+      deferredUntil,
     })
   }
 
@@ -184,6 +201,7 @@ export function getCareStatuses(
   settings: MaintenanceReminderSettings,
   overrides: CareIntervalOverrides,
   now: Date,
+  deferrals: CareDeferrals = {},
 ): Map<string, KnifeCareStatus> {
   const statuses = new Map<string, KnifeCareStatus>()
   if (!settings.enabled) return statuses
@@ -197,10 +215,35 @@ export function getCareStatuses(
         settings,
         overrides[knife.id],
         now,
+        deferrals[knife.id],
       ),
     )
   }
   return statuses
+}
+
+/** Deferrals that still move a job; the rest no longer change anything. */
+export function pruneCareDeferrals(
+  deferrals: CareDeferrals,
+  statuses: ReadonlyMap<string, KnifeCareStatus>,
+): CareDeferrals {
+  const kept: CareDeferrals = {}
+  for (const [knifeId, entries] of Object.entries(deferrals)) {
+    const tracks = statuses.get(knifeId)?.tracks ?? []
+    const live: Partial<Record<CareTrack, CareDeferral>> = {}
+    for (const track of CARE_TRACKS) {
+      const entry = entries[track]
+      if (
+        entry &&
+        tracks.find((status) => status.track === track)?.deferredUntil ===
+          entry.until
+      ) {
+        live[track] = entry
+      }
+    }
+    if (Object.keys(live).length > 0) kept[knifeId] = live
+  }
+  return kept
 }
 
 export function countCareStatuses(
