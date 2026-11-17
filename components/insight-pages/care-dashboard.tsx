@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useCare } from '@/components/providers/care-provider'
 import { InsightPanel } from '@/components/insight-pages/detail-primitives'
 import { careToneDotClass, careToneTextClass } from '@/components/care-badge'
@@ -434,35 +434,126 @@ function CarePin({
   track,
   label,
   knivesById,
+  overdueCount,
+  now,
 }: {
   pin: CareTimelinePin
   track: CareTrack
   label: string
   knivesById: ReadonlyMap<string, Knife>
+  /** Overdue jobs of this kind in total, for the "open all" link. */
+  overdueCount: number
+  now: Date
 }) {
-  const single = pin.jobs.length === 1
-  const description = pin.jobs
-    .map(
-      (job) =>
-        `${knifeLabel(knivesById.get(job.knifeId))} (${dueLabel(job.dueInDays)})`,
+  const id = useId()
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const describe = (job: CareJob) =>
+    `${knifeLabel(knivesById.get(job.knifeId))} (${dueLabel(job.dueInDays)})`
+  const style = { left: `${pin.position}%` }
+  const align = pinAlign(pin.position)
+
+  if (pin.jobs.length === 1) {
+    const description = describe(pin.jobs[0])
+    return (
+      <Link
+        className="id-care-pin"
+        data-level={pin.level}
+        data-align={align}
+        style={style}
+        href={knifeHref(pin.jobs[0].knifeId)}
+        title={description}
+        aria-label={`${CARE_TRACK_NAMES[track]}: ${description}`}
+      >
+        {label}
+      </Link>
     )
-    .join(', ')
+  }
+
+  // Place the list under the pin when it opens; it lives in the top layer,
+  // so the timeline's clipping doesn't cut it off.
+  const place = (event: React.ToggleEvent<HTMLDivElement>) => {
+    const popover = popoverRef.current
+    if (event.newState !== 'open') {
+      popover?.removeAttribute('data-placed')
+      return
+    }
+    const button = buttonRef.current
+    if (!popover || !button) return
+    const anchor = button.getBoundingClientRect()
+    const width = popover.offsetWidth
+    const height = popover.offsetHeight
+    const left = Math.min(
+      Math.max(8, anchor.left + anchor.width / 2 - width / 2),
+      window.innerWidth - width - 8,
+    )
+    const below = anchor.bottom + 6
+    const top =
+      below + height > window.innerHeight - 8
+        ? Math.max(8, anchor.top - height - 6)
+        : below
+    popover.style.left = `${left}px`
+    popover.style.top = `${top}px`
+    popover.setAttribute('data-placed', '')
+  }
+  const sorted = [...pin.jobs].sort(
+    (left, right) =>
+      left.dueInDays - right.dueInDays ||
+      knifeLabel(knivesById.get(left.knifeId)).localeCompare(
+        knifeLabel(knivesById.get(right.knifeId)),
+      ),
+  )
+  const isOverdue = pin.jobs.every((job) => job.dueInDays < 0)
+
   return (
-    <Link
-      className="id-care-pin"
-      data-level={pin.level}
-      data-align={pinAlign(pin.position)}
-      style={{ left: `${pin.position}%` }}
-      href={
-        single
-          ? knifeHref(pin.jobs[0].knifeId)
-          : careFilterHref(pin.level, track)
-      }
-      title={description}
-      aria-label={`${CARE_TRACK_NAMES[track]}: ${description}`}
-    >
-      {label}
-    </Link>
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        className="id-care-pin"
+        data-level={pin.level}
+        data-align={align}
+        style={style}
+        popoverTarget={id}
+        aria-label={`${CARE_TRACK_NAMES[track]}: ${pin.jobs.map(describe).join(', ')}`}
+      >
+        {label}
+      </button>
+      <div
+        ref={popoverRef}
+        id={id}
+        popover="auto"
+        className="id-care-pin-list"
+        onToggle={place}
+      >
+        <p>
+          {CARE_TRACK_NAMES[track]} ·{' '}
+          {plural(pin.jobs.length, 'knife', 'knives')}
+        </p>
+        <ul>
+          {sorted.map((job) => (
+            <li key={job.knifeId}>
+              <Link href={knifeHref(job.knifeId)}>
+                <span>{knifeLabel(knivesById.get(job.knifeId))}</span>
+                <span className={careToneTextClass(job.level)}>
+                  {job.dueInDays < 0
+                    ? dueLabel(job.dueInDays)
+                    : formatCareDate(job.dueOn, now)}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+        {isOverdue && overdueCount > pin.jobs.length && (
+          <Link
+            className="id-care-pin-all"
+            href={careFilterHref('overdue', track)}
+          >
+            All {overdueCount} overdue in collection
+          </Link>
+        )}
+      </div>
+    </>
   )
 }
 
@@ -550,6 +641,7 @@ export function CareComingUp({
     const own = jobs.filter((job) => job.track === track)
     return {
       track,
+      overdueCount: own.filter((job) => job.dueInDays < 0).length,
       overdue: clusterTimelinePins(
         own.filter((job) => job.dueInDays < 0),
         overdueAt,
@@ -592,7 +684,7 @@ export function CareComingUp({
             <span>{formatCareDate(end.toISOString(), now)}</span>
           </span>
         </div>
-        {lanes.map(({ track, overdue, upcoming }, index) => (
+        {lanes.map(({ track, overdue, upcoming, overdueCount }, index) => (
           <section
             key={track}
             className="id-care-tl-lane"
@@ -610,6 +702,8 @@ export function CareComingUp({
                   track={track}
                   label={overduePinLabel(pin.jobs, pin.position, knivesById)}
                   knivesById={knivesById}
+                  overdueCount={overdueCount}
+                  now={now}
                 />
               ))}
             </div>
@@ -624,6 +718,8 @@ export function CareComingUp({
                   track={track}
                   label={upcomingPinLabel(pin.jobs, knivesById, now)}
                   knivesById={knivesById}
+                  overdueCount={overdueCount}
+                  now={now}
                 />
               ))}
             </div>
