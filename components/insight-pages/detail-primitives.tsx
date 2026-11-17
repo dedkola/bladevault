@@ -24,6 +24,7 @@ export function InsightPanel({
   className,
   id,
   ariaLabel,
+  aside,
 }: {
   title: string
   description?: string
@@ -32,6 +33,8 @@ export function InsightPanel({
   className?: string
   id?: string
   ariaLabel?: string
+  /** Small content pinned to the top right of the header. */
+  aside?: React.ReactNode
 }) {
   return (
     <section
@@ -44,6 +47,7 @@ export function InsightPanel({
           <h2>{title}</h2>
           {description && <p>{description}</p>}
         </div>
+        {aside}
       </div>
       <div className="id-panel-body">{children}</div>
       {footer && <div className="id-panel-foot">{footer}</div>}

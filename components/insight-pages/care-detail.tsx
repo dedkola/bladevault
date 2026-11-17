@@ -149,7 +149,10 @@ export function CareDetail() {
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
         Care reminders are off. Turn them on in{' '}
-        <Link href="/settings" className="underline underline-offset-2">
+        <Link
+          href="/settings?tab=maintenance"
+          className="underline underline-offset-2"
+        >
           Settings → Maintenance
         </Link>
         .
