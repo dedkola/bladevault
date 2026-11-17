@@ -5,6 +5,9 @@ import {
   recentCareFeed,
   rhythmOutpacesInterval,
   summarizeCareTracks,
+  clusterTimelinePins,
+  overduePinPosition,
+  type CareJob,
 } from '@/lib/care-insights'
 import type { MaintenanceEvent, MaintenanceType } from '@/lib/data'
 import { buildLatestByKnife, getCareStatuses } from '@/lib/maintenance-due'
@@ -206,5 +209,58 @@ describe('care insights', () => {
       notes: ['change angle to 17'],
       angle: '17',
     })
+  })
+})
+
+describe('Coming up timeline pins', () => {
+  const job = (
+    knifeId: string,
+    dueInDays: number,
+    level: CareJob['level'],
+  ): CareJob => ({
+    knifeId,
+    track: 'cleaning',
+    dueInDays,
+    dueOn: '2026-11-17',
+    level,
+    intervalDays: 30,
+    lastAt: daysAgo(30 - dueInDays),
+  })
+
+  it('merges nearby jobs and keeps distant ones apart', () => {
+    const jobs = [
+      job('banter', -49, 'overdue'),
+      job('purest', -47, 'overdue'),
+      job('porcupine', -44, 'overdue'),
+      job('raccoon', -2, 'overdue'),
+      job('porcupine-2', -2, 'overdue'),
+    ]
+    const pins = clusterTimelinePins(
+      jobs,
+      (item) => overduePinPosition(-item.dueInDays, 59),
+      24,
+    )
+    expect(pins.map((pin) => pin.jobs.map((item) => item.knifeId))).toEqual([
+      ['banter', 'purest', 'porcupine'],
+      ['porcupine-2', 'raccoon'],
+    ])
+    // Most overdue sits furthest left.
+    expect(pins[0].position).toBeLessThan(pins[1].position)
+  })
+
+  it('colours a merged pin by its most urgent job', () => {
+    const [pin] = clusterTimelinePins(
+      [job('a', 15, 'ok'), job('b', 14, 'due-soon')],
+      (item) => (item.dueInDays / 30) * 100,
+      14,
+    )
+    expect(pin.jobs).toHaveLength(2)
+    expect(pin.level).toBe('due-soon')
+  })
+
+  it('places overdue pins on a shared scale', () => {
+    expect(overduePinPosition(59, 59)).toBe(8)
+    expect(overduePinPosition(0, 59)).toBe(92)
+    expect(overduePinPosition(5, 0)).toBe(50)
   })
 })

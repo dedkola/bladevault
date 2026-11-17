@@ -9,7 +9,9 @@ import { careFilterHref } from '@/components/care-status-summary'
 import { readJsonResponse } from '@/lib/api-response'
 import {
   CARE_MONTH_GROUPS,
+  clusterTimelinePins,
   countCareByMonth,
+  overduePinPosition,
   formatCareDate,
   listCareJobs,
   recentCareFeed,
@@ -17,6 +19,7 @@ import {
   summarizeCareTracks,
   type CareJob,
   type CareMonthGroup,
+  type CareTimelinePin,
   type CareTrackSummary,
 } from '@/lib/care-insights'
 import {
@@ -415,6 +418,110 @@ export function CareKindCards({
   )
 }
 
+function shortKnifeName(knife: Knife | undefined) {
+  return knife?.name || 'Removed knife'
+}
+
+/** Pin anchor: near an edge it grows inward so it stays inside its region. */
+function pinAlign(position: number) {
+  if (position < 12) return 'start'
+  if (position > 88) return 'end'
+  return undefined
+}
+
+function CarePin({
+  pin,
+  track,
+  label,
+  knivesById,
+}: {
+  pin: CareTimelinePin
+  track: CareTrack
+  label: string
+  knivesById: ReadonlyMap<string, Knife>
+}) {
+  const single = pin.jobs.length === 1
+  const description = pin.jobs
+    .map(
+      (job) =>
+        `${knifeLabel(knivesById.get(job.knifeId))} (${dueLabel(job.dueInDays)})`,
+    )
+    .join(', ')
+  return (
+    <Link
+      className="id-care-pin"
+      data-level={pin.level}
+      data-align={pinAlign(pin.position)}
+      style={{ left: `${pin.position}%` }}
+      href={
+        single
+          ? knifeHref(pin.jobs[0].knifeId)
+          : careFilterHref(pin.level, track)
+      }
+      title={description}
+      aria-label={`${CARE_TRACK_NAMES[track]}: ${description}`}
+    >
+      {label}
+    </Link>
+  )
+}
+
+function overduePinLabel(
+  jobs: readonly CareJob[],
+  position: number,
+  knivesById: ReadonlyMap<string, Knife>,
+) {
+  const days = jobs.map((job) => -job.dueInDays)
+  const most = Math.max(...days)
+  const least = Math.min(...days)
+  if (jobs.length === 1)
+    return `${shortKnifeName(knivesById.get(jobs[0].knifeId))} ${most}d`
+  // Right next to today there is little room: the count alone.
+  if (position > 75) return String(jobs.length)
+  return `${jobs.length} knives ${most === least ? most : `${least}–${most}`}d`
+}
+
+function upcomingPinLabel(
+  jobs: readonly CareJob[],
+  knivesById: ReadonlyMap<string, Knife>,
+  now: Date,
+) {
+  const first = formatCareDate(jobs[0].dueOn, now)
+  const last = formatCareDate(jobs[jobs.length - 1].dueOn, now)
+  const days = first === last ? first : `${first}–${last}`
+  return `${days} · ${
+    jobs.length === 1
+      ? shortKnifeName(knivesById.get(jobs[0].knifeId))
+      : `${jobs.length} knives`
+  }`
+}
+
+/** Rough pin width in px for a label at the pin's 10.5px semibold text. */
+function estimatePinWidth(label: string) {
+  return label.length * 6.2 + 16
+}
+
+/** Width of an element, kept current as the layout changes. */
+function useElementWidth<T extends HTMLElement>(fallback: number) {
+  const [element, setElement] = useState<T | null>(null)
+  const [width, setWidth] = useState(fallback)
+  useEffect(() => {
+    if (!element) return
+    const update = () => setWidth(element.clientWidth || fallback)
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [element, fallback])
+  return [setElement, width] as const
+}
+
+/** Percent gap two pins need so that their labels don't touch. */
+function pinGap(left: string, right: string, regionWidth: number) {
+  const px = (estimatePinWidth(left) + estimatePinWidth(right)) / 2 + 6
+  return (px / Math.max(regionWidth, 1)) * 100
+}
+
 export function CareComingUp({
   jobs,
   tracks,
@@ -426,106 +533,108 @@ export function CareComingUp({
   knivesById: ReadonlyMap<string, Knife>
   now: Date
 }) {
-  const soon = jobs.filter(
-    (job) => job.dueInDays >= 0 && job.dueInDays <= HORIZON_DAYS,
-  )
+  const [overRef, overWidth] = useElementWidth<HTMLDivElement>(400)
+  const [futureRef, futureWidth] = useElementWidth<HTMLDivElement>(1100)
   const middle = new Date(now)
   middle.setDate(middle.getDate() + HORIZON_DAYS / 2)
   const end = new Date(now)
   end.setDate(end.getDate() + HORIZON_DAYS)
+  const maxOverdue = Math.max(
+    0,
+    ...jobs.filter((job) => job.dueInDays < 0).map((job) => -job.dueInDays),
+  )
+  const overdueAt = (job: CareJob) =>
+    overduePinPosition(-job.dueInDays, maxOverdue)
+  const upcomingAt = (job: CareJob) => (job.dueInDays / HORIZON_DAYS) * 100
+  const lanes = tracks.map((track) => {
+    const own = jobs.filter((job) => job.track === track)
+    return {
+      track,
+      overdue: clusterTimelinePins(
+        own.filter((job) => job.dueInDays < 0),
+        overdueAt,
+        (group, next) =>
+          pinGap(
+            overduePinLabel(group, overdueAt(group[0]), knivesById),
+            overduePinLabel([next], overdueAt(next), knivesById),
+            overWidth,
+          ),
+      ),
+      upcoming: clusterTimelinePins(
+        own.filter(
+          (job) => job.dueInDays >= 0 && job.dueInDays <= HORIZON_DAYS,
+        ),
+        upcomingAt,
+        (group, next) =>
+          pinGap(
+            upcomingPinLabel(group, knivesById, now),
+            upcomingPinLabel([next], knivesById, now),
+            futureWidth,
+          ),
+      ),
+    }
+  })
+  const isEmpty = lanes.every(
+    (lane) => lane.overdue.length === 0 && lane.upcoming.length === 0,
+  )
 
   return (
     <InsightPanel
       title="Coming up"
-      description={`Overdue jobs on the left, the next ${HORIZON_DAYS} days on the right`}
+      description={`Overdue jobs on the left, the next ${HORIZON_DAYS} days on the right. Select a pin to open the knife.`}
     >
-      <div className="id-care-lanes" aria-hidden="true">
-        <span className="id-care-axis" data-spacer="" />
-        <span className="id-care-axis">Overdue</span>
-        <span className="id-care-axis id-care-axis-dates">
-          <b>Today</b>
-          <span>{formatCareDate(middle.toISOString(), now)}</span>
-          <span>{formatCareDate(end.toISOString(), now)}</span>
-        </span>
-        {tracks.map((track) => {
-          const own = jobs.filter((job) => job.track === track)
-          const overdue = own.filter((job) => job.dueInDays < 0)
-          const byDay = new Map<string, CareJob[]>()
-          for (const job of own) {
-            if (job.dueInDays < 0 || job.dueInDays > HORIZON_DAYS) continue
-            byDay.set(job.dueOn, [...(byDay.get(job.dueOn) ?? []), job])
-          }
-          return [
-            <span key={`${track}-label`} className="id-care-lane-label">
-              <span className="id-care-swatch" data-kind={track} />
-              {CARE_TRACK_NAMES[track]}
-            </span>,
-            <span key={`${track}-over`} className="id-care-lane-over">
-              {overdue.length > 0 && (
-                <Link
-                  href={careFilterHref('overdue', track)}
-                  tabIndex={-1}
-                  title={`Open ${overdue.length} with ${CARE_TRACK_NAMES[track].toLowerCase()} overdue`}
-                >
-                  {overdue.length} · up to {-overdue[0].dueInDays}d
-                </Link>
-              )}
-            </span>,
-            <span key={`${track}-future`} className="id-care-lane-future">
-              {[...byDay.values()].map((day) => (
-                <span
-                  key={day[0].dueOn}
-                  className={cn(
-                    'id-care-marker',
-                    careToneDotClass(day[0].level),
-                  )}
-                  style={{
-                    left: `${Math.max(2, (day[0].dueInDays / HORIZON_DAYS) * 100)}%`,
-                  }}
-                  title={`${formatCareDate(day[0].dueOn, now)}: ${day
-                    .map((job) => knifeLabel(knivesById.get(job.knifeId)))
-                    .join(', ')}`}
-                >
-                  {day.length > 1 ? day.length : ''}
-                </span>
-              ))}
-            </span>,
-          ]
-        })}
-      </div>
-      <div className="id-care-next">
-        {soon.length ? (
-          soon.slice(0, 6).map((job) => (
-            <Link
-              key={`${job.knifeId}-${job.track}`}
-              href={knifeHref(job.knifeId)}
+      <div className="id-care-timeline">
+        <div className="id-care-tl-axis" aria-hidden="true">
+          <span>Overdue</span>
+          <span className="id-care-tl-dates">
+            <b>Today</b>
+            <span>{formatCareDate(middle.toISOString(), now)}</span>
+            <span>{formatCareDate(end.toISOString(), now)}</span>
+          </span>
+        </div>
+        {lanes.map(({ track, overdue, upcoming }, index) => (
+          <section
+            key={track}
+            className="id-care-tl-lane"
+            aria-label={CARE_TRACK_NAMES[track]}
+          >
+            <h3>{CARE_TRACK_NAMES[track]}</h3>
+            <div
+              className="id-care-tl-over"
+              ref={index === 0 ? overRef : undefined}
             >
-              <time dateTime={job.dueOn}>{formatCareDate(job.dueOn, now)}</time>
-              <span
-                className="id-care-swatch"
-                data-kind={job.track}
-                aria-hidden="true"
-              />
-              <span className="min-w-0 truncate">
-                {CARE_TRACK_VERBS[job.track]}{' '}
-                {knifeLabel(knivesById.get(job.knifeId))}
-              </span>
-              <span className={careToneTextClass(job.level)}>
-                {dueLabel(job.dueInDays)}
-              </span>
-            </Link>
-          ))
-        ) : (
-          <p className="text-muted-foreground">
-            Nothing comes due in the next {HORIZON_DAYS} days.
-          </p>
-        )}
-        {soon.length > 6 && (
-          <p className="text-muted-foreground">
-            +{soon.length - 6} more in the next {HORIZON_DAYS} days
-          </p>
-        )}
+              {overdue.map((pin) => (
+                <CarePin
+                  key={pin.jobs[0].knifeId}
+                  pin={pin}
+                  track={track}
+                  label={overduePinLabel(pin.jobs, pin.position, knivesById)}
+                  knivesById={knivesById}
+                />
+              ))}
+            </div>
+            <div
+              className="id-care-tl-future"
+              ref={index === 0 ? futureRef : undefined}
+            >
+              {upcoming.map((pin) => (
+                <CarePin
+                  key={pin.jobs[0].knifeId}
+                  pin={pin}
+                  track={track}
+                  label={upcomingPinLabel(pin.jobs, knivesById, now)}
+                  knivesById={knivesById}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
       </div>
+      {isEmpty && (
+        <p className="id-care-tl-empty">
+          Nothing is overdue or comes due in the next {HORIZON_DAYS} days.
+        </p>
+      )}
     </InsightPanel>
   )
 }

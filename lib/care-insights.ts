@@ -350,3 +350,70 @@ export function formatCareDate(value: string, now: Date): string {
     ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
   })
 }
+
+/** One pin on the Coming up timeline: a job, or nearby jobs merged. */
+export type CareTimelinePin = {
+  jobs: CareJob[]
+  /** Horizontal position within its region, 0–100. */
+  position: number
+  /** The most urgent level among `jobs`. */
+  level: CareStatusLevel
+}
+
+const PIN_SEVERITY: Record<CareStatusLevel, number> = {
+  ok: 0,
+  'due-soon': 1,
+  overdue: 2,
+}
+
+/**
+ * Places jobs on a 0–100 scale and merges a job into the pin before it when
+ * their centres are closer than `minGap`, so pins never overlap. `minGap`
+ * can depend on the pins' labels, since wider labels need more room.
+ */
+export function clusterTimelinePins(
+  jobs: readonly CareJob[],
+  positionOf: (job: CareJob) => number,
+  minGap: number | ((group: readonly CareJob[], next: CareJob) => number),
+): CareTimelinePin[] {
+  const placed = jobs
+    .map((job) => ({ job, at: Math.min(100, Math.max(0, positionOf(job))) }))
+    .sort(
+      (left, right) =>
+        left.at - right.at || left.job.knifeId.localeCompare(right.job.knifeId),
+    )
+  const groups: { first: number; last: number; jobs: CareJob[] }[] = []
+  for (const { job, at } of placed) {
+    const group = groups.at(-1)
+    const gap =
+      group && (typeof minGap === 'number' ? minGap : minGap(group.jobs, job))
+    if (
+      group &&
+      gap !== undefined &&
+      at - (group.first + group.last) / 2 < gap
+    ) {
+      group.jobs.push(job)
+      group.last = at
+    } else {
+      groups.push({ first: at, last: at, jobs: [job] })
+    }
+  }
+  return groups.map((group) => ({
+    jobs: group.jobs,
+    position: (group.first + group.last) / 2,
+    level: group.jobs.reduce<CareStatusLevel>(
+      (worst, job) =>
+        PIN_SEVERITY[job.level] > PIN_SEVERITY[worst] ? job.level : worst,
+      'ok',
+    ),
+  }))
+}
+
+/**
+ * Overdue pins sit on one scale shared by every lane: the most overdue job
+ * on the far left, just past due next to today.
+ */
+export function overduePinPosition(daysOverdue: number, maxDays: number) {
+  if (maxDays <= 0) return 50
+  return 8 + (1 - Math.min(daysOverdue, maxDays) / maxDays) * 84
+}
