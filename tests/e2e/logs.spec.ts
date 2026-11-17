@@ -41,6 +41,7 @@ test('shows logs last in the primary sidebar navigation', async ({ page }) => {
   )
   await expect(primaryLinks).toHaveText([
     'Insights',
+    'Inbox',
     'Collection',
     'Studio',
     'Compare',
