@@ -805,6 +805,7 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+.id-panel-head:has(> .id-care-legend),
 .id-care-timeline {
   --id-pin-over: #e5383b;
   --id-pin-warn: #e8960c;
@@ -846,7 +847,7 @@
 .id-care-tl-over,
 .id-care-tl-future {
   position: relative;
-  height: 26px;
+  height: calc(var(--id-rows, 1) * 24px + 2px);
   min-width: 0;
 }
 .id-care-tl-over {
@@ -859,6 +860,41 @@
 }
 .id-care-tl-future {
   border-left: 2px solid var(--foreground);
+}
+.id-panel-head:has(> .id-care-legend) {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.id-care-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.id-care-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.id-care-legend li::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--id-pin-ok);
+}
+.id-care-legend li[data-level='overdue']::before {
+  background: var(--id-pin-over);
+}
+.id-care-legend li[data-level='due-soon']::before {
+  background: var(--id-pin-warn);
 }
 .id-care-pin {
   position: absolute;
@@ -1337,14 +1373,6 @@ button.id-care-pin {
   .id-care-pin {
     padding: 0 5px;
     font-size: 9.5px;
-  }
-  /* Too narrow for several overdue pins: show the oldest, centred. */
-  .id-care-tl-over .id-care-pin:not(:first-child) {
-    display: none;
-  }
-  .id-care-tl-over .id-care-pin {
-    left: 50% !important;
-    transform: translateX(-50%);
   }
   .id-care-chart,
   .id-care-months {

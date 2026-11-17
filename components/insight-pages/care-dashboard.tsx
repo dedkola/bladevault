@@ -387,7 +387,7 @@ function CareKindCard({
           <p className="id-care-hint">
             You usually {verb} about every {summary.rhythmDays} days, but the
             reminder is every {summary.intervalDays}.{' '}
-            <Link href="/settings">Change interval</Link>
+            <Link href="/settings?tab=maintenance">Change interval</Link>
           </p>
         )}
       </div>
@@ -436,6 +436,7 @@ function CarePin({
   knivesById,
   overdueCount,
   now,
+  row = 0,
 }: {
   pin: CareTimelinePin
   track: CareTrack
@@ -444,13 +445,18 @@ function CarePin({
   /** Overdue jobs of this kind in total, for the "open all" link. */
   overdueCount: number
   now: Date
+  /** Sub-row inside the lane when pins would otherwise overlap. */
+  row?: number
 }) {
   const id = useId()
   const popoverRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const describe = (job: CareJob) =>
     `${knifeLabel(knivesById.get(job.knifeId))} (${dueLabel(job.dueInDays)})`
-  const style = { left: `${pin.position}%` }
+  const style: React.CSSProperties = {
+    left: `${pin.position}%`,
+    ...(row > 0 ? { top: `${3 + row * 24}px` } : {}),
+  }
   const align = pinAlign(pin.position)
 
   if (pin.jobs.length === 1) {
@@ -607,11 +613,36 @@ function useElementWidth<T extends HTMLElement>(fallback: number) {
   return [setElement, width] as const
 }
 
-/** Percent gap two pins need so that their labels don't touch. */
-function pinGap(left: string, right: string, regionWidth: number) {
-  const px = (estimatePinWidth(left) + estimatePinWidth(right)) / 2 + 6
-  return (px / Math.max(regionWidth, 1)) * 100
+/** Gives each pin a row so that no two labels in the same row overlap. */
+function stackPins(
+  pins: readonly CareTimelinePin[],
+  labelOf: (pin: CareTimelinePin) => string,
+  regionWidth: number,
+) {
+  const ends: number[] = []
+  const stacked = pins.map((pin) => {
+    const width =
+      (estimatePinWidth(labelOf(pin)) / Math.max(regionWidth, 1)) * 100
+    const align = pinAlign(pin.position)
+    const start =
+      align === 'start'
+        ? pin.position
+        : align === 'end'
+          ? pin.position - width
+          : pin.position - width / 2
+    let row = ends.findIndex((end) => end + 0.5 <= start)
+    if (row === -1) row = ends.length
+    ends[row] = start + width
+    return { pin, row }
+  })
+  return { pins: stacked, rows: Math.max(1, ends.length) }
 }
+
+const LEGEND: readonly { level: string; label: string }[] = [
+  { level: 'overdue', label: 'Overdue' },
+  { level: 'due-soon', label: 'Due soon' },
+  { level: 'ok', label: 'Later' },
+]
 
 export function CareComingUp({
   jobs,
@@ -642,38 +673,47 @@ export function CareComingUp({
     return {
       track,
       overdueCount: own.filter((job) => job.dueInDays < 0).length,
-      overdue: clusterTimelinePins(
-        own.filter((job) => job.dueInDays < 0),
-        overdueAt,
-        (group, next) =>
-          pinGap(
-            overduePinLabel(group, overdueAt(group[0]), knivesById),
-            overduePinLabel([next], overdueAt(next), knivesById),
-            overWidth,
-          ),
-      ),
-      upcoming: clusterTimelinePins(
-        own.filter(
-          (job) => job.dueInDays >= 0 && job.dueInDays <= HORIZON_DAYS,
+      overdue: stackPins(
+        clusterTimelinePins(
+          own.filter((job) => job.dueInDays < 0),
+          overdueAt,
+          0,
         ),
-        upcomingAt,
-        (group, next) =>
-          pinGap(
-            upcomingPinLabel(group, knivesById, now),
-            upcomingPinLabel([next], knivesById, now),
-            futureWidth,
+        (pin) => overduePinLabel(pin.jobs, pin.position, knivesById),
+        overWidth,
+      ),
+      // Every upcoming job keeps its own pin so each knife is named;
+      // pins that would collide go on their own row instead of merging.
+      upcoming: stackPins(
+        clusterTimelinePins(
+          own.filter(
+            (job) => job.dueInDays >= 0 && job.dueInDays <= HORIZON_DAYS,
           ),
+          upcomingAt,
+          0,
+        ),
+        (pin) => upcomingPinLabel(pin.jobs, knivesById, now),
+        futureWidth,
       ),
     }
   })
   const isEmpty = lanes.every(
-    (lane) => lane.overdue.length === 0 && lane.upcoming.length === 0,
+    (lane) => lane.overdue.pins.length === 0 && lane.upcoming.pins.length === 0,
   )
 
   return (
     <InsightPanel
       title="Coming up"
       description={`Overdue jobs on the left, the next ${HORIZON_DAYS} days on the right. Select a pin to open the knife.`}
+      aside={
+        <ul className="id-care-legend" aria-label="Pin colours">
+          {LEGEND.map(({ level, label }) => (
+            <li key={level} data-level={level}>
+              {label}
+            </li>
+          ))}
+        </ul>
+      }
     >
       <div className="id-care-timeline">
         <div className="id-care-tl-axis" aria-hidden="true">
@@ -689,16 +729,22 @@ export function CareComingUp({
             key={track}
             className="id-care-tl-lane"
             aria-label={CARE_TRACK_NAMES[track]}
+            style={
+              {
+                '--id-rows': Math.max(overdue.rows, upcoming.rows),
+              } as React.CSSProperties
+            }
           >
             <h3>{CARE_TRACK_NAMES[track]}</h3>
             <div
               className="id-care-tl-over"
               ref={index === 0 ? overRef : undefined}
             >
-              {overdue.map((pin) => (
+              {overdue.pins.map(({ pin, row }) => (
                 <CarePin
                   key={pin.jobs[0].knifeId}
                   pin={pin}
+                  row={row}
                   track={track}
                   label={overduePinLabel(pin.jobs, pin.position, knivesById)}
                   knivesById={knivesById}
@@ -711,10 +757,11 @@ export function CareComingUp({
               className="id-care-tl-future"
               ref={index === 0 ? futureRef : undefined}
             >
-              {upcoming.map((pin) => (
+              {upcoming.pins.map(({ pin, row }) => (
                 <CarePin
                   key={pin.jobs[0].knifeId}
                   pin={pin}
+                  row={row}
                   track={track}
                   label={upcomingPinLabel(pin.jobs, knivesById, now)}
                   knivesById={knivesById}
