@@ -95,6 +95,7 @@ export const CARD_FIELDS = [
   'specs.bladeThickness',
   'specs.handleLength',
   'specs.weight',
+  'care',
 ] as const
 
 export type BuiltInCardField = (typeof CARD_FIELDS)[number]
@@ -146,6 +147,7 @@ export const COLLECTION_COLUMNS = [
   'addedAt',
   'updatedAt',
   'images',
+  'care',
 ] as const
 export type CollectionColumn =
   (typeof COLLECTION_COLUMNS)[number] | `custom:${string}`
@@ -255,6 +257,141 @@ export function normalizeCollectionDisplay(
   }
 }
 
+/** Maintenance types that carry a reminder interval. */
+export const CARE_TRACKS = ['sharpening', 'cleaning', 'lubrication'] as const
+export type CareTrack = (typeof CARE_TRACKS)[number]
+
+export const CARE_TRACK_NAMES: Record<CareTrack, string> = {
+  sharpening: 'Sharpening',
+  cleaning: 'Cleaning',
+  lubrication: 'Lubrication',
+}
+
+/** Short imperative verb for badges: "Sharpen overdue · 4d". */
+export const CARE_TRACK_VERBS: Record<CareTrack, string> = {
+  sharpening: 'Sharpen',
+  cleaning: 'Clean',
+  lubrication: 'Lube',
+}
+
+/** Past participle for missing-care labels: "Not yet cleaned or lubed". */
+export const CARE_TRACK_PAST: Record<CareTrack, string> = {
+  sharpening: 'sharpened',
+  cleaning: 'cleaned',
+  lubrication: 'lubed',
+}
+
+export type MaintenanceReminderSettings = {
+  /** Master switch for badges, the care filter and the Insights card. */
+  enabled: boolean
+  /** Days between events per track; null switches the track off. */
+  intervals: Record<CareTrack, number | null>
+  /** Days before the deadline a knife turns "due soon". */
+  dueSoonDays: number
+  /** A stropping entry resets the sharpening timer. */
+  stroppingCountsAsSharpening: boolean
+  skipSoldKnives: boolean
+}
+
+export const DEFAULT_MAINTENANCE_REMINDERS: MaintenanceReminderSettings = {
+  enabled: true,
+  intervals: { sharpening: 90, cleaning: 60, lubrication: 180 },
+  dueSoonDays: 14,
+  stroppingCountsAsSharpening: true,
+  skipSoldKnives: true,
+}
+
+export const CARE_INTERVAL_MAX_DAYS = 3650
+
+/**
+ * Per-knife interval overrides, keyed by knife id. A missing track falls back
+ * to the global interval; an explicit null switches that track off for the
+ * knife.
+ */
+export type CareIntervalOverrides = Record<
+  string,
+  Partial<Record<CareTrack, number | null>>
+>
+
+function normalizeCareIntervalDays(value: unknown): number | null | undefined {
+  if (value === null) return null
+  if (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= 1 &&
+    value <= CARE_INTERVAL_MAX_DAYS
+  ) {
+    return Math.round(value)
+  }
+  return undefined
+}
+
+export function normalizeMaintenanceReminders(
+  value: unknown,
+  fallback: MaintenanceReminderSettings = DEFAULT_MAINTENANCE_REMINDERS,
+): MaintenanceReminderSettings {
+  if (!value || typeof value !== 'object') {
+    return {
+      ...fallback,
+      intervals: { ...fallback.intervals },
+    }
+  }
+  const record = value as Record<string, unknown>
+  const intervalsInput =
+    record.intervals && typeof record.intervals === 'object'
+      ? (record.intervals as Record<string, unknown>)
+      : {}
+  const intervals = {} as Record<CareTrack, number | null>
+  for (const track of CARE_TRACKS) {
+    const normalized =
+      track in intervalsInput
+        ? normalizeCareIntervalDays(intervalsInput[track])
+        : undefined
+    intervals[track] =
+      normalized === undefined ? fallback.intervals[track] : normalized
+  }
+  const dueSoonDays =
+    typeof record.dueSoonDays === 'number' &&
+    Number.isFinite(record.dueSoonDays) &&
+    record.dueSoonDays >= 0 &&
+    record.dueSoonDays <= 365
+      ? Math.round(record.dueSoonDays)
+      : fallback.dueSoonDays
+  const bool = (key: keyof MaintenanceReminderSettings) =>
+    typeof record[key] === 'boolean'
+      ? (record[key] as boolean)
+      : (fallback[key] as boolean)
+  return {
+    enabled: bool('enabled'),
+    intervals,
+    dueSoonDays,
+    stroppingCountsAsSharpening: bool('stroppingCountsAsSharpening'),
+    skipSoldKnives: bool('skipSoldKnives'),
+  }
+}
+
+export function normalizeCareIntervalOverrides(
+  value: unknown,
+): CareIntervalOverrides {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const overrides: CareIntervalOverrides = {}
+  for (const [knifeId, entry] of Object.entries(
+    value as Record<string, unknown>,
+  )) {
+    if (!knifeId || !entry || typeof entry !== 'object') continue
+    const tracks: Partial<Record<CareTrack, number | null>> = {}
+    for (const track of CARE_TRACKS) {
+      if (!(track in (entry as Record<string, unknown>))) continue
+      const normalized = normalizeCareIntervalDays(
+        (entry as Record<string, unknown>)[track],
+      )
+      if (normalized !== undefined) tracks[track] = normalized
+    }
+    if (Object.keys(tracks).length > 0) overrides[knifeId] = tracks
+  }
+  return overrides
+}
+
 export type AppSettings = {
   collectionDisplay: CollectionDisplay
   theme: AppTheme
@@ -269,6 +406,8 @@ export type AppSettings = {
   mcpEnabled: boolean
   mcpWriteEnabled: boolean
   customFields: CustomField[]
+  maintenanceReminders: MaintenanceReminderSettings
+  careIntervalOverrides: CareIntervalOverrides
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -285,6 +424,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   mcpEnabled: true,
   mcpWriteEnabled: false,
   customFields: [],
+  maintenanceReminders: DEFAULT_MAINTENANCE_REMINDERS,
+  careIntervalOverrides: {},
 }
 
 export function normalizeStartPage(

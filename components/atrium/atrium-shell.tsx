@@ -23,6 +23,7 @@ import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-act
 import { useKnives } from '@/components/providers/knives-provider'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import { useLumenCollection } from '@/components/lumen/use-lumen-collection'
+import { CareInboxBell } from '@/components/care-inbox'
 
 const dockLinks = [
   { href: '/insights', label: 'Insights', icon: LayoutDashboard },
@@ -116,6 +117,7 @@ export function AtriumShell({ children }: { children: React.ReactNode }) {
           {isStudio && (
             <span id="studio-header-actions" ref={setHeaderActions} />
           )}
+          <CareInboxBell data-atrium-icon-button="" />
           <Link
             href="/settings?tab=backup"
             data-atrium-icon-button

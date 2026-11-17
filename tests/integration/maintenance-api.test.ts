@@ -4,6 +4,7 @@ import * as maintenanceRoute from '@/app/api/knives/[id]/maintenance/route'
 import * as maintenanceEventRoute from '@/app/api/knives/[id]/maintenance/[eventId]/route'
 import * as knivesRoute from '@/app/api/knives/route'
 import * as logsRoute from '@/app/api/logs/route'
+import * as maintenanceEventsRoute from '@/app/api/maintenance/events/route'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 let vault: TempVault | null = null
@@ -289,5 +290,44 @@ describe('maintenance API routes', () => {
       )
     ).json()) as { events: unknown[] }
     expect(firstKnifeEvents.events).toHaveLength(1)
+  })
+
+  it('lists every maintenance event across knives, newest first', async () => {
+    vault = await createTempVault()
+    const ids: string[] = []
+    for (const name of ['Bugout', 'Mini Grip']) {
+      const created = await knivesRoute.POST(
+        jsonRequest('http://localhost/api/knives', 'POST', {
+          name,
+          brand: 'Benchmade',
+        }),
+      )
+      ids.push(((await created.json()) as { knife: { id: string } }).knife.id)
+    }
+    const log = (knifeId: string, type: string, occurredAt: string) =>
+      maintenanceRoute.POST(
+        jsonRequest(
+          `http://localhost/api/knives/${knifeId}/maintenance`,
+          'POST',
+          { type, occurredAt },
+        ),
+        params(knifeId),
+      )
+    await log(ids[0], 'sharpening', '2026-09-01T10:00:00.000Z')
+    await log(ids[1], 'cleaning', '2026-10-01T10:00:00.000Z')
+    await log(ids[0], 'stropping', '2026-08-01T10:00:00.000Z')
+
+    const response = await maintenanceEventsRoute.GET(
+      new Request('http://localhost/api/maintenance/events'),
+    )
+    expect(response.status).toBe(200)
+    const payload = (await response.json()) as {
+      events: Array<{ knifeId: string; type: string }>
+    }
+    expect(payload.events.map((event) => [event.knifeId, event.type])).toEqual([
+      [ids[1], 'cleaning'],
+      [ids[0], 'sharpening'],
+      [ids[0], 'stropping'],
+    ])
   })
 })

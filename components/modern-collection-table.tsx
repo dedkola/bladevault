@@ -15,6 +15,8 @@ import { formatDimension } from '@/lib/measurements'
 import type { CollectionColumnSort, DimensionUnit } from '@/lib/settings-shared'
 import { useCollectionItemNavigation } from '@/hooks/use-collection-item-navigation'
 import { getVisibleCardFields } from '@/lib/card-fields'
+import { KnifeCareBadge, careToneTextClass } from '@/components/care-badge'
+import { useCare } from '@/components/providers/care-provider'
 import { useKnives } from '@/components/providers/knives-provider'
 
 // Collection summaries omit descriptions; load them only when this column is visible.
@@ -174,6 +176,7 @@ export function ModernCollectionTable({
   onOpenDetail: (knife: Knife) => void
 }) {
   const navigation = useCollectionItemNavigation(onOpen, onOpenDetail)
+  const { statusById: careStatusById } = useCare()
   const [previewWidths, setPreviewWidths] = useState<Record<string, number>>({})
   const widths = { ...columnWidths, ...previewWidths }
   const resizeGrip = (key: string, label: string) => {
@@ -460,7 +463,13 @@ export function ModernCollectionTable({
                         data-collection-status={
                           column.key === 'status' ? '' : undefined
                         }
-                        className="truncate px-2 py-[7px]"
+                        className={cn(
+                          'truncate px-2 py-[7px]',
+                          column.key === 'care' &&
+                            careToneTextClass(
+                              careStatusById.get(knife.id)?.level ?? null,
+                            ),
+                        )}
                         title={value || undefined}
                       >
                         {column.key === 'status' ? (
@@ -596,6 +605,7 @@ export function ModernCollectionGallery({
                 ))}
               </span>
             )}
+            <KnifeCareBadge knifeId={knife.id} className="self-start" />
           </button>
         )
       })}

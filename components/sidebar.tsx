@@ -24,6 +24,7 @@ import {
   Menu,
   Pin,
   History,
+  Inbox,
   X,
 } from 'lucide-react'
 import { CompareIcon } from '@/components/icons/compare-icon'
@@ -32,6 +33,9 @@ import { getImageUrl } from '@/lib/data'
 import { getKnifeFamilyKey, groupKnifeFamilies } from '@/lib/knife-families'
 import { getPinnedDetailLine } from '@/lib/card-fields'
 import { useKnives } from '@/components/providers/knives-provider'
+import { useCare } from '@/components/providers/care-provider'
+import { useCareInbox } from '@/components/providers/care-inbox-provider'
+import { CareInboxCount } from '@/components/care-inbox'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -52,6 +56,7 @@ import {
 
 const links = [
   { href: '/insights', label: 'Insights', icon: LayoutDashboard },
+  { href: '/inbox', label: 'Inbox', icon: Inbox },
   { href: '/collection', label: 'Collection', icon: Library },
   { href: '/studio', label: 'Studio', icon: GalleryVertical },
   { href: '/compare', label: 'Compare', icon: CompareIcon },
@@ -81,6 +86,9 @@ export function Sidebar() {
     dimensionUnit,
     themeStyle,
   } = useKnives()
+  const { reminders: careReminders, statusById: careStatusById } = useCare()
+  const careStatusFilter = careReminders.enabled ? careStatusById : undefined
+  const { enabled: inboxEnabled, unreadCount: inboxUnread } = useCareInbox()
   const { update, downloadUpdate } = useDesktopUpdates()
   const [brandsOpen, setBrandsOpen] = useState(true)
   const [pinnedOpen, setPinnedOpen] = useState(true)
@@ -290,6 +298,7 @@ export function Sidebar() {
             Main
           </div>
           {links.map((link) => {
+            if (link.href === '/inbox' && !inboxEnabled) return null
             if (link.href === '/compare')
               return (
                 <ComparisonNavigation
@@ -331,6 +340,7 @@ export function Sidebar() {
                       {knives.length}
                     </span>
                   ) : null}
+                  {link.href === '/inbox' ? <CareInboxCount /> : null}
                 </span>
               </Link>
             )
@@ -372,7 +382,7 @@ export function Sidebar() {
                       searchParams.get('smart') === collection.id
                     const rules = new URLSearchParams(collection.query)
                     const count = knives.filter((knife) =>
-                      matchesCollection(knife, rules),
+                      matchesCollection(knife, rules, careStatusFilter),
                     ).length
                     return (
                       <Link
@@ -631,12 +641,23 @@ export function Sidebar() {
             <Button
               variant="outline"
               size="icon-sm"
-              className="size-10"
-              aria-label="Open navigation"
+              className="relative size-10"
+              aria-label={
+                inboxUnread > 0
+                  ? `Open navigation, ${inboxUnread} unread care ${inboxUnread === 1 ? 'reminder' : 'reminders'}`
+                  : 'Open navigation'
+              }
             />
           }
         >
           <Menu className="h-4 w-4" />
+          {inboxUnread > 0 && (
+            <span
+              aria-hidden="true"
+              data-care-inbox-dot
+              className="absolute top-1.5 right-1.5 size-2 rounded-full bg-red-600 ring-2 ring-sidebar"
+            />
+          )}
         </DialogTrigger>
       </div>
 

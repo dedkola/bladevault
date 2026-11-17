@@ -43,6 +43,8 @@ import {
 } from '@/lib/collection-filters'
 import { cn } from '@/lib/utils'
 import { getMaintenanceRecency } from '@/lib/maintenance-recency'
+import { useCare } from '@/components/providers/care-provider'
+import { CareStatusSummary } from '@/components/care-status-summary'
 
 const LEGEND_DOT_CLASSES = [
   'bg-[var(--bv-chart-1)]',
@@ -715,6 +717,7 @@ export function DrilldownKnife({ knife }: { knife: Knife }) {
 
 export function CollectionInsights() {
   const { knives, isLoading, dimensionUnit = 'in' } = useKnives()
+  const { reminders: careReminders } = useCare()
   const [activity, setActivity] = useState<KnifeActivityEvent[]>()
   const [isActivityLoaded, setIsActivityLoaded] = useState(false)
   const [measurementKey, setMeasurementKey] =
@@ -1335,6 +1338,17 @@ export function CollectionInsights() {
           </section>
 
           <section className="mt-3 grid grid-cols-12 gap-3">
+            {careReminders.enabled && (
+              <InsightPanel
+                eyebrow="Maintenance"
+                title="Care status"
+                detailHref="/insights/care"
+                description="Knives due for sharpening, cleaning or lubrication."
+                className="col-span-12"
+              >
+                <CareStatusSummary />
+              </InsightPanel>
+            )}
             <InsightPanel
               eyebrow="Materials"
               title="Blade steel mix"

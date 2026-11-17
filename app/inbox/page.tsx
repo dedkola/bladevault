@@ -1,0 +1,23 @@
+import type { Metadata } from 'next'
+import { PageHeader } from '@/components/page-header'
+import { CareInboxView } from '@/components/care-inbox'
+
+export const metadata: Metadata = {
+  title: 'BladeVault | Inbox',
+  description: 'Care reminders for knives that are due.',
+}
+
+export default function InboxPage() {
+  return (
+    <div
+      data-inbox-content
+      className="flex w-full flex-1 flex-col p-4 sm:p-6 lg:p-8"
+    >
+      <PageHeader
+        title="Inbox"
+        description="Care reminders for knives that are due soon or overdue."
+      />
+      <CareInboxView />
+    </div>
+  )
+}

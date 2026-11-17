@@ -56,6 +56,15 @@ import {
 import { FilterMultiSelect } from '@/components/filter-multi-select'
 import { SearchField } from '@/components/search-field'
 import { useKnives } from '@/components/providers/knives-provider'
+import { useCare } from '@/components/providers/care-provider'
+import {
+  CARE_FILTER_VALUES,
+  CARE_KIND_PARAM,
+  CARE_STATUS_LABELS,
+  careKindChip,
+  isCareStatusLevel,
+  type CareStatusLevel,
+} from '@/lib/maintenance-due'
 import { Knife, prioritizePinnedKnives } from '@/lib/data'
 import { getKnifeFamilyKey, groupKnifeFamilies } from '@/lib/knife-families'
 import {
@@ -141,6 +150,8 @@ function CollectionContent() {
     dimensionUnit,
     isLoading,
   } = useKnives()
+  const { reminders: careReminders, statusById: careStatusById } = useCare()
+  const careStatusFilter = careReminders.enabled ? careStatusById : undefined
   const isAlloy = themeStyle === 'alloy'
   // Modern and its variants replace the search field and filter grid with
   // one chip bar: free-text search plus field filters picked as you type.
@@ -337,8 +348,13 @@ function CollectionContent() {
   )
 
   const collectionColumns = useMemo(
-    () => getCollectionColumns(customFieldDefinitions, dimensionUnit),
-    [customFieldDefinitions, dimensionUnit],
+    () =>
+      getCollectionColumns(
+        customFieldDefinitions,
+        dimensionUnit,
+        careStatusFilter,
+      ),
+    [customFieldDefinitions, dimensionUnit, careStatusFilter],
   )
   const visibleColumns = collectionDisplay.columns.flatMap((key) => {
     const column = collectionColumns.find((item) => item.key === key)
@@ -450,9 +466,13 @@ function CollectionContent() {
   const chipFilterFields = useMemo<ChipFilterField[]>(
     () =>
       usesChipFilter
-        ? buildChipFilterFields(knives, customFieldDefinitions)
+        ? buildChipFilterFields(
+            knives,
+            customFieldDefinitions,
+            careStatusFilter,
+          )
         : [],
-    [usesChipFilter, knives, customFieldDefinitions],
+    [usesChipFilter, knives, customFieldDefinitions, careStatusFilter],
   )
 
   const filteredKnives = useMemo(() => {
@@ -461,7 +481,8 @@ function CollectionContent() {
     params.set('q', debouncedQuery)
     const matches = knives.filter(
       (knife) =>
-        matchesCollection(knife, params) && (!isPinnedView || knife.pinned),
+        matchesCollection(knife, params, careStatusFilter) &&
+        (!isPinnedView || knife.pinned),
     )
     if (columnSort) {
       return prioritizePinnedKnives(
@@ -488,7 +509,14 @@ function CollectionContent() {
     sortOrder,
     columnSort,
     collectionColumns,
+    careStatusFilter,
   ])
+  const selectedCareValues = careStatusFilter
+    ? searchParams.getAll('care').filter(isCareStatusLevel)
+    : []
+  const selectedCareKind = careStatusFilter
+    ? careKindChip(searchParams.get(CARE_KIND_PARAM))
+    : null
   // Classic hides the toolbar count when it only repeats the collection total.
   const showToolbarCount =
     isWorkspaceCollection ||
@@ -610,6 +638,8 @@ function CollectionContent() {
       params.delete('smart')
       params.delete('missingSpecs')
       params.delete('knifeType')
+      params.delete('care')
+      params.delete(CARE_KIND_PARAM)
       rangeDefinitions.forEach((field) => {
         params.delete(`${field.key}Min`)
         params.delete(`${field.key}Max`)
@@ -668,6 +698,18 @@ function CollectionContent() {
     ...(searchParams.get('missingSpecs') === '1'
       ? [{ key: 'missingSpecs', label: 'Missing specifications' }]
       : []),
+    // The chip bar shows care as a regular field chip; other styles need a badge.
+    ...(!usesChipFilter && selectedCareValues.length > 0
+      ? [
+          {
+            key: 'care',
+            label: `Care: ${selectedCareValues
+              .map((value) => CARE_STATUS_LABELS[value])
+              .join(', ')}`,
+          },
+        ]
+      : []),
+    ...(selectedCareKind ? [selectedCareKind] : []),
   ]
   const updateExtraFilter = (key: string, value: string) => {
     replaceParams((params) => {
@@ -679,7 +721,15 @@ function CollectionContent() {
   const hasActiveFilters =
     activeFilters.length > 0 ||
     extraFilters.length > 0 ||
+    selectedCareValues.length > 0 ||
     query.trim().length > 0
+  const setCareValues = (values: string[]) => {
+    replaceParams((params) => {
+      params.delete('care')
+      for (const value of values) params.append('care', value)
+    })
+    setVisibleCount(PAGE_SIZE)
+  }
 
   useEffect(() => {
     const loadMoreElement = loadMoreRef.current
@@ -1327,6 +1377,25 @@ function CollectionContent() {
                   getOptionLabel={getFilterOptionLabel}
                 />
               ))}
+              {careStatusFilter && (
+                <FilterMultiSelect
+                  label="Care"
+                  options={[...CARE_FILTER_VALUES]}
+                  selectedValues={selectedCareValues}
+                  onToggleValue={(value) =>
+                    setCareValues(
+                      selectedCareValues.includes(value as CareStatusLevel)
+                        ? selectedCareValues.filter((item) => item !== value)
+                        : [...selectedCareValues, value],
+                    )
+                  }
+                  onSelectAll={() => setCareValues([...CARE_FILTER_VALUES])}
+                  onClear={() => setCareValues([])}
+                  getOptionLabel={(value) =>
+                    isCareStatusLevel(value) ? CARE_STATUS_LABELS[value] : value
+                  }
+                />
+              )}
               <CollectionRanges
                 params={new URLSearchParams(searchParamsKey)}
                 update={updateExtraFilter}

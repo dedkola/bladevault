@@ -12,6 +12,8 @@ import {
   normalizeThemeStyle,
   normalizeTimeFormat,
   normalizeDimensionUnit,
+  normalizeMaintenanceReminders,
+  normalizeCareIntervalOverrides,
   type AppSettings,
   type AppTheme,
   type CardField,
@@ -45,6 +47,24 @@ const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
   mcpEnabled: 'mcp_enabled',
   mcpWriteEnabled: 'mcp_write_enabled',
   customFields: 'custom_fields',
+  maintenanceReminders: 'maintenance_reminders',
+  careIntervalOverrides: 'care_interval_overrides',
+}
+
+function parseMaintenanceReminders(value: string | undefined) {
+  try {
+    return normalizeMaintenanceReminders(value ? JSON.parse(value) : undefined)
+  } catch {
+    return normalizeMaintenanceReminders(undefined)
+  }
+}
+
+function parseCareIntervalOverrides(value: string | undefined) {
+  try {
+    return normalizeCareIntervalOverrides(value ? JSON.parse(value) : undefined)
+  } catch {
+    return {}
+  }
 }
 
 function parseCardFields(value: string | undefined): CardField[] {
@@ -170,6 +190,12 @@ export function getSettings(): AppSettings {
       DEFAULT_SETTINGS.mcpWriteEnabled,
     ),
     customFields: parseCustomFields(map.get(SETTINGS_KEYS.customFields)),
+    maintenanceReminders: parseMaintenanceReminders(
+      map.get(SETTINGS_KEYS.maintenanceReminders),
+    ),
+    careIntervalOverrides: parseCareIntervalOverrides(
+      map.get(SETTINGS_KEYS.careIntervalOverrides),
+    ),
   }
 }
 
@@ -201,6 +227,17 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
         current.dimensionUnit,
       ),
       startPage: normalizeStartPage(settings.startPage, current.startPage),
+      maintenanceReminders:
+        settings.maintenanceReminders === undefined
+          ? current.maintenanceReminders
+          : normalizeMaintenanceReminders(
+              settings.maintenanceReminders,
+              current.maintenanceReminders,
+            ),
+      careIntervalOverrides:
+        settings.careIntervalOverrides === undefined
+          ? current.careIntervalOverrides
+          : normalizeCareIntervalOverrides(settings.careIntervalOverrides),
     }
 
     const insert = getDb().prepare(
@@ -221,6 +258,8 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
       ['mcpEnabled', next.mcpEnabled ? '1' : '0'],
       ['mcpWriteEnabled', next.mcpWriteEnabled ? '1' : '0'],
       ['customFields', JSON.stringify(next.customFields)],
+      ['maintenanceReminders', JSON.stringify(next.maintenanceReminders)],
+      ['careIntervalOverrides', JSON.stringify(next.careIntervalOverrides)],
     ]
 
     const transaction = getDb().transaction(() => {

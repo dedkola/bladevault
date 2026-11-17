@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, useSyncExternalStore, type FormEvent } from 'react'
 import { Lock, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,13 +31,26 @@ export async function resolveUnlockedDestination(
   }
 }
 
+const subscribeToNothing = () => () => {}
+
 export function AppUnlockForm() {
-  const [password, setPassword] = useState('')
+  // Before hydration a click would submit the form natively and reload the
+  // page instead of unlocking, so the button waits for React.
+  const hydrated = useSyncExternalStore(
+    subscribeToNothing,
+    () => true,
+    () => false,
+  )
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
 
   async function unlock(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    // Read the field itself: text typed before hydration never reached React
+    // state, so a controlled value would send an empty password.
+    const password = String(
+      new FormData(event.currentTarget).get('password') ?? '',
+    )
     setPending(true)
     setError('')
     try {
@@ -85,13 +98,12 @@ export function AppUnlockForm() {
             </label>
             <Input
               id="unlock-password"
+              name="password"
               type="password"
               autoComplete="current-password"
               autoFocus
               required
               maxLength={1024}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
               disabled={pending}
               aria-describedby={error ? 'unlock-error' : undefined}
             />
@@ -105,7 +117,11 @@ export function AppUnlockForm() {
               {error}
             </p>
           )}
-          <Button type="submit" disabled={pending} className="w-full">
+          <Button
+            type="submit"
+            disabled={pending || !hydrated}
+            className="w-full"
+          >
             {pending && <Loader2 className="h-4 w-4 animate-spin" />}
             {pending ? 'Unlocking…' : 'Unlock'}
           </Button>

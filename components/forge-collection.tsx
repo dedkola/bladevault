@@ -10,6 +10,7 @@ import { useComparisons } from '@/components/providers/comparisons-provider'
 import { useCollectionItemNavigation } from '@/hooks/use-collection-item-navigation'
 import { getImageUrl, getKnifeImageCount, type Knife } from '@/lib/data'
 import { getVisibleCardFields } from '@/lib/card-fields'
+import { KnifeCareBadge } from '@/components/care-badge'
 import type { DimensionUnit } from '@/lib/settings-shared'
 
 function formatAddedDate(value: string): string {
@@ -167,6 +168,7 @@ const ForgeCollectionCard = memo(function ForgeCollectionCard({
             ))}
           </dl>
         )}
+        <KnifeCareBadge knifeId={knife.id} className="mt-2 self-start" />
       </div>
 
       <div data-forge-card-foot>

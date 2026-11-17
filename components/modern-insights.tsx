@@ -9,6 +9,8 @@ import { ArrowUpRight, Plus } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { useKnives } from '@/components/providers/knives-provider'
 import { ForgeActivityMap } from '@/components/forge-activity-map'
+import { useCare } from '@/components/providers/care-provider'
+import { CareStatusSummary } from '@/components/care-status-summary'
 import { readJsonResponse } from '@/lib/api-response'
 import {
   createCollectionStats,
@@ -236,6 +238,7 @@ function Bars({
 
 export function ModernInsights() {
   const { knives, isLoading, themeStyle, dimensionUnit = 'in' } = useKnives()
+  const { reminders: careReminders } = useCare()
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>()
   const [measurementKey, setMeasurementKey] =
     useState<MeasurementKey>('bladeLength')
@@ -428,6 +431,19 @@ export function ModernInsights() {
                 }
               >
                 <ForgeActivityMap stats={stats} knivesById={knivesById} />
+              </Panel>
+            )}
+
+            {careReminders.enabled && (
+              <Panel
+                eyebrow="Maintenance"
+                title="Care status"
+                description="Knives due for sharpening, cleaning or lubrication."
+                action={<DetailLink href="/insights/care">Details</DetailLink>}
+              >
+                <div className={styles.careBody}>
+                  <CareStatusSummary />
+                </div>
               </Panel>
             )}
 

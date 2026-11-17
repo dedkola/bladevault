@@ -11,6 +11,7 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
+import { useCare } from '@/components/providers/care-provider'
 import { KnifePhoto } from '@/components/lumen/knife-photo'
 import {
   useLumenCollection,
@@ -22,6 +23,7 @@ import { CollectionChipFilter } from '@/components/collection-chip-filter'
 import type { Knife } from '@/lib/data'
 import { formatDimension, formatWeight } from '@/lib/measurements'
 import { buildChipFilterFields } from '@/lib/chip-filter-fields'
+import { CARE_KIND_PARAM, careKindChip } from '@/lib/maintenance-due'
 import {
   countAddedByMonth,
   countFacet,
@@ -507,13 +509,19 @@ function ShelfAllKnives({
 }) {
   const { knives, filtered, getValues } = collection
   const { customFieldDefinitions, dimensionUnit } = useKnives()
+  const { reminders: careReminders, statusById: careStatusById } = useCare()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const inputRef = useRef<HTMLInputElement>(null)
   const [visible, setVisible] = useState(48)
   const fields = useMemo(
-    () => buildChipFilterFields(knives, customFieldDefinitions),
-    [knives, customFieldDefinitions],
+    () =>
+      buildChipFilterFields(
+        knives,
+        customFieldDefinitions,
+        careReminders.enabled ? careStatusById : undefined,
+      ),
+    [knives, customFieldDefinitions, careReminders.enabled, careStatusById],
   )
   const styles = useMemo(
     () => countFacet(knives, (knife) => knife.bladeStyle).slice(0, 8),
@@ -522,6 +530,9 @@ function ShelfAllKnives({
   const activeStyles = getValues('bladeStyle')
   const knifeType = getValues('knifeType')[0]
   const status = getValues(LUMEN_STATUS_PARAM)[0]
+  const careKind = careReminders.enabled
+    ? careKindChip(getValues(CARE_KIND_PARAM)[0])
+    : null
   // Filters the chip bar has no field for, so they still show and clear.
   const extraChips = [
     ...(getValues('view')[0] === 'pinned'
@@ -546,6 +557,7 @@ function ShelfAllKnives({
     ...(getValues('missingSpecs')[0] === '1'
       ? [{ key: 'missingSpecs', label: 'Missing specifications' }]
       : []),
+    ...(careKind ? [careKind] : []),
   ]
 
   // Like Lumen's bar: start from the live URL so quick picks and typed text
