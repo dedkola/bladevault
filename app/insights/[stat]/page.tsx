@@ -13,6 +13,7 @@ import { InsightDetailShell } from '@/components/insight-pages/insight-detail-sh
 import { LibraryDetail } from '@/components/insight-pages/library-detail'
 import { MeasurementDetail } from '@/components/insight-pages/measurement-detail'
 import { RecentDetail } from '@/components/insight-pages/recent-detail'
+import { CareDetail } from '@/components/insight-pages/care-detail'
 
 const SLUG_META: Record<
   InsightSlug,
@@ -75,6 +76,12 @@ const SLUG_META: Record<
     title: 'Recently added',
     description: 'Your collection, ordered by the date each knife was added.',
   },
+  care: {
+    eyebrow: 'Maintenance',
+    title: 'Care status',
+    description:
+      'Knives due for sharpening, cleaning or lubrication, based on your maintenance log.',
+  },
 }
 
 export default async function InsightStatPage({
@@ -122,6 +129,7 @@ export default async function InsightStatPage({
       {stat === 'completeness' && <CompletenessDetail />}
       {stat === 'activity' && <ActivityDetail />}
       {stat === 'recent' && <RecentDetail />}
+      {stat === 'care' && <CareDetail />}
     </InsightDetailShell>
   )
 }

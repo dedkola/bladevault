@@ -29,6 +29,13 @@ import type {
   DimensionUnit,
 } from '@/lib/settings-shared'
 import { getCardFieldDisplayValue, getCardFieldLabel } from '@/lib/card-fields'
+import { useCare } from '@/components/providers/care-provider'
+import { careToneTextClass } from '@/components/care-badge'
+import {
+  CARE_KIND_PARAM,
+  careDueSummary,
+  careKindChip,
+} from '@/lib/maintenance-due'
 import {
   countFacet,
   formatMoney,
@@ -59,6 +66,7 @@ const NEXT_SORT: Record<CollectionDisplay['sort'], CollectionDisplay['sort']> =
 
 /** Shorter column heads for the card fields, so they fit narrow columns. */
 const SHORT_LABELS: Partial<Record<CardField, string>> = {
+  care: 'Care',
   'specs.modelNumber': 'Model',
   'specs.bladeMaterial': 'Steel',
   'specs.bladeCoating': 'Finish',
@@ -199,9 +207,17 @@ export function LedgerCollection() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { dimensionUnit, cardFields, customFieldDefinitions } = useKnives()
+  const { reminders, statusById: careStatusById } = useCare()
   const [paneWidth, setPaneWidth] = useState<number | null>(null)
+  const columnFields = useMemo(
+    () =>
+      reminders.enabled
+        ? cardFields
+        : cardFields.filter((field) => field !== 'care'),
+    [cardFields, reminders.enabled],
+  )
   const ledgerColumns = useLedgerColumns(
-    cardFields,
+    columnFields,
     customFieldDefinitions,
     paneWidth,
   )
@@ -296,10 +312,18 @@ export function LedgerCollection() {
   // The chip bar searches text and picks field values, as on Lumen. Pinned,
   // owned, sold and handle stay on the quick-filter tokens below it.
   const chipFields = useMemo(
-    () => buildChipFilterFields(knives, customFieldDefinitions),
-    [knives, customFieldDefinitions],
+    () =>
+      buildChipFilterFields(
+        knives,
+        customFieldDefinitions,
+        reminders.enabled ? careStatusById : undefined,
+      ),
+    [knives, customFieldDefinitions, reminders.enabled, careStatusById],
   )
   const knifeType = getValues('knifeType')[0]
+  const careKind = reminders.enabled
+    ? careKindChip(getValues(CARE_KIND_PARAM)[0])
+    : null
   const extraChips = [
     ...(knifeType === 'fixed' || knifeType === 'folding'
       ? [
@@ -312,6 +336,7 @@ export function LedgerCollection() {
     ...(getValues('missingSpecs')[0] === '1'
       ? [{ key: 'missingSpecs', label: 'Missing specifications' }]
       : []),
+    ...(careKind ? [careKind] : []),
   ]
   // Start from the live URL so quick picks and typed text never overwrite
   // each other, and skip a router round trip per keystroke.
@@ -613,6 +638,7 @@ function LedgerRow({
   dimensionUnit: DimensionUnit
   onSelect: () => void
 }) {
+  const { statusById: careStatusById } = useCare()
   // The line under the name skips what the group or a column already shows.
   const shown = new Set<CardField>(columns.map((column) => column.key))
   if (groupBy === 'style') shown.add('bladeStyle')
@@ -647,6 +673,21 @@ function LedgerRow({
         {detail && <small>{detail}</small>}
       </span>
       {columns.map((column) => {
+        if (column.key === 'care') {
+          const status = careStatusById.get(knife.id)
+          const text = (status && careDueSummary(status)) || '—'
+          return (
+            <span
+              key={column.key}
+              data-ledger-cell
+              data-empty={text === '—' || undefined}
+              title={text === '—' ? undefined : text}
+              className={status ? careToneTextClass(status.level) : undefined}
+            >
+              {text}
+            </span>
+          )
+        }
         const cell = formatCell(knife, column.key, customFields, dimensionUnit)
         return (
           <span

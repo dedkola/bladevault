@@ -7,6 +7,12 @@ import {
 } from '@/lib/collection-filters'
 import type { CustomField, CustomFieldType } from '@/lib/settings-shared'
 import { rangeDefinitions } from '@/lib/smart-collections'
+import {
+  CARE_FILTER_VALUES,
+  CARE_STATUS_LABELS,
+  countCareStatuses,
+  type KnifeCareStatus,
+} from '@/lib/maintenance-due'
 
 /** Shows a custom date value in the reader's locale; other types as stored. */
 export function formatCustomFilterValue(
@@ -49,6 +55,8 @@ export function sortFilterOptions(
 export function buildChipFilterFields(
   knives: Knife[],
   customFields: CustomField[],
+  /** Derived care status; when given, a "Care" field with status options is appended. */
+  careStatusById?: ReadonlyMap<string, KnifeCareStatus>,
 ): ChipFilterField[] {
   const definitions = [
     ...builtInFilterDefinitions.map((definition) => ({
@@ -67,7 +75,7 @@ export function buildChipFilterFields(
     })),
   ]
 
-  return definitions.map((definition) => {
+  const fields = definitions.map((definition) => {
     const counts = new Map<string, number>()
     for (const knife of knives) {
       const value = definition.getValue(knife)
@@ -97,4 +105,21 @@ export function buildChipFilterFields(
       })),
     }
   })
+
+  if (careStatusById) {
+    const counts = countCareStatuses(careStatusById)
+    fields.push({
+      key: 'care',
+      label: 'Care',
+      custom: false,
+      rangeUnit: undefined,
+      options: CARE_FILTER_VALUES.map((value) => ({
+        value,
+        label: CARE_STATUS_LABELS[value],
+        count: counts[value],
+      })),
+    })
+  }
+
+  return fields
 }

@@ -1,5 +1,12 @@
 import { matchesKnifeSearch, type Knife } from '@/lib/data'
 import {
+  CARE_KIND_PARAM,
+  isCareStatusLevel,
+  matchesCareFilter,
+  parseCareKind,
+  type KnifeCareStatus,
+} from '@/lib/maintenance-due'
+import {
   builtInFilterDefinitions,
   NOT_SET_FILTER_VALUE,
 } from '@/lib/collection-filters'
@@ -25,6 +32,8 @@ export function collectionQuery(params: URLSearchParams): string {
       (key === 'q' ||
         key === 'missingSpecs' ||
         key === 'knifeType' ||
+        key === 'care' ||
+        key === CARE_KIND_PARAM ||
         key.startsWith('custom:') ||
         builtInFilterDefinitions.some((field) => field.key === key) ||
         rangeDefinitions.some(
@@ -57,9 +66,23 @@ export function rangeError(params: URLSearchParams): string | null {
 export function matchesCollection(
   knife: Knife,
   params: URLSearchParams,
+  /**
+   * Derived care status per knife; without it the `care` filter is ignored,
+   * so callers that cannot know care status keep their current results.
+   */
+  careStatusById?: ReadonlyMap<string, KnifeCareStatus>,
 ): boolean {
   if (rangeError(params) || !matchesKnifeSearch(knife, params.get('q') ?? ''))
     return false
+  if (careStatusById) {
+    const careValues = params.getAll('care').filter(isCareStatusLevel)
+    const careKind = parseCareKind(params.get(CARE_KIND_PARAM))
+    if (
+      (careValues.length > 0 || careKind) &&
+      !matchesCareFilter(careStatusById.get(knife.id), careValues, careKind)
+    )
+      return false
+  }
   const knifeType = params.get('knifeType')
   if (knifeType === 'fixed' || knifeType === 'folding') {
     const lock = knife.specs.lockingMechanism?.trim() ?? ''

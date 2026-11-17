@@ -9,6 +9,8 @@ import {
 } from '@/components/providers/knives-provider'
 import { ComparisonsProvider } from '@/components/providers/comparisons-provider'
 import { SmartCollectionsProvider } from '@/components/providers/smart-collections-provider'
+import { CareProvider } from '@/components/providers/care-provider'
+import { CareInboxProvider } from '@/components/providers/care-inbox-provider'
 import { KnifeFamilyPanelProvider } from '@/components/providers/knife-family-panel-provider'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { VaultRestoreProvider } from '@/components/providers/vault-restore-provider'
@@ -37,6 +39,7 @@ const Compare = lazy(() => import('@/app/compare/page'))
 const Settings = lazy(() => import('@/app/settings/page'))
 const Logs = lazy(() => import('@/app/logs/page'))
 const Timeline = lazy(() => import('@/app/timeline/page'))
+const InboxPage = lazy(() => import('@/app/inbox/page'))
 const KnifeDetail = lazy(() => import('@/components/knife-detail'))
 const InsightPage = lazy(() =>
   import('./insight-page').then((module) => ({ default: module.InsightPage })),
@@ -66,6 +69,7 @@ function Route() {
   if (pathname === '/settings') return <Settings />
   if (pathname === '/logs') return <Logs />
   if (pathname === '/timeline') return <Timeline />
+  if (pathname === '/inbox') return <InboxPage />
   const detail = pathname.match(/^\/collection\/([^/]+)$/)
   if (detail) {
     if (isLoading)
@@ -123,53 +127,57 @@ export function StaticApp() {
     <Suspense>
       <VaultRestoreProvider initialStatus={STATIC_VAULT_STATUS}>
         <KnivesProvider>
-          <SmartCollectionsProvider>
-            <TooltipProvider>
-              <ComparisonsProvider>
-                <KnifeFamilyPanelProvider>
-                  <ThemeColorSync />
-                  <div className="flex min-h-dvh flex-col">
-                    <div className="sticky top-0 z-40 flex h-8 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4 text-xs text-muted-foreground print:hidden">
-                      <span>Browser preview · Data stays in this tab</span>
-                      <button
-                        className="shrink-0 underline underline-offset-2"
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              'Clear this tab’s collection and settings?',
-                            )
-                          ) {
-                            resetSession()
-                            navigate('/', true)
-                            window.location.reload()
-                          }
-                        }}
-                      >
-                        Clear session
-                      </button>
-                    </div>
-                    <div className="static-preview-layout flex flex-1 flex-col md:flex-row">
-                      <AppShell>
-                        <Suspense
-                          fallback={
-                            <div
-                              role="status"
-                              className="p-8 text-sm text-muted-foreground"
+          <CareProvider>
+            <CareInboxProvider>
+              <SmartCollectionsProvider>
+                <TooltipProvider>
+                  <ComparisonsProvider>
+                    <KnifeFamilyPanelProvider>
+                      <ThemeColorSync />
+                      <div className="flex min-h-dvh flex-col">
+                        <div className="sticky top-0 z-40 flex h-8 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4 text-xs text-muted-foreground print:hidden">
+                          <span>Browser preview · Data stays in this tab</span>
+                          <button
+                            className="shrink-0 underline underline-offset-2"
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  'Clear this tab’s collection and settings?',
+                                )
+                              ) {
+                                resetSession()
+                                navigate('/', true)
+                                window.location.reload()
+                              }
+                            }}
+                          >
+                            Clear session
+                          </button>
+                        </div>
+                        <div className="static-preview-layout flex flex-1 flex-col md:flex-row">
+                          <AppShell>
+                            <Suspense
+                              fallback={
+                                <div
+                                  role="status"
+                                  className="p-8 text-sm text-muted-foreground"
+                                >
+                                  Loading BladeVault…
+                                </div>
+                              }
                             >
-                              Loading BladeVault…
-                            </div>
-                          }
-                        >
-                          <Route />
-                        </Suspense>
-                      </AppShell>
-                    </div>
-                  </div>
-                  <GlobalKnifeSearch />
-                </KnifeFamilyPanelProvider>
-              </ComparisonsProvider>
-            </TooltipProvider>
-          </SmartCollectionsProvider>
+                              <Route />
+                            </Suspense>
+                          </AppShell>
+                        </div>
+                      </div>
+                      <GlobalKnifeSearch />
+                    </KnifeFamilyPanelProvider>
+                  </ComparisonsProvider>
+                </TooltipProvider>
+              </SmartCollectionsProvider>
+            </CareInboxProvider>
+          </CareProvider>
         </KnivesProvider>
       </VaultRestoreProvider>
     </Suspense>

@@ -16,6 +16,7 @@ export function KnifeCardDetails({
   variantLabel,
   sold = false,
   footerAction,
+  careBadge,
 }: {
   brand: string
   name: string
@@ -27,6 +28,8 @@ export function KnifeCardDetails({
   variantLabel?: string
   sold?: boolean
   footerAction?: ReactNode
+  /** Derived care pill; rendered under the fields when provided. */
+  careBadge?: ReactNode
 }) {
   const lengthInFields =
     !variantLabel &&
@@ -91,6 +94,7 @@ export function KnifeCardDetails({
             ))}
           </dl>
         ) : null}
+        {careBadge ? <div className="mt-2.5">{careBadge}</div> : null}
       </CardContent>
       <div
         data-card-footer

@@ -12,6 +12,7 @@ import { WorkspaceFooter } from '@/components/workspace-footer'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useComparisons } from '@/components/providers/comparisons-provider'
+import { CareInboxBell } from '@/components/care-inbox'
 
 const tabs = [
   { href: '/insights', label: 'Insights' },
@@ -138,6 +139,7 @@ export function LedgerShell({ children }: { children: React.ReactNode }) {
                   : 'Local vault · saved'}
             </span>
           </Link>
+          <CareInboxBell data-ledger-button="icon" />
           <ThemeModeButton data-ledger-button="icon" />
           <Link
             href="/settings"

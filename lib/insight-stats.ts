@@ -12,6 +12,7 @@ export const INSIGHT_SLUGS = [
   'completeness',
   'activity',
   'recent',
+  'care',
 ] as const
 
 export type InsightSlug = (typeof INSIGHT_SLUGS)[number]

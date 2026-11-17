@@ -21,7 +21,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 7
+export const LOCAL_DB_SCHEMA_VERSION = 8
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -661,6 +661,31 @@ function migrateSchema(database: Database.Database) {
         `ALTER TABLE knife_notes ADD COLUMN images TEXT NOT NULL DEFAULT '[]'`,
       )
     }
+  }
+
+  if (!tables.some((t) => t.name === 'care_notifications')) {
+    database.exec(`
+      CREATE TABLE care_notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        knife_id TEXT NOT NULL,
+        track TEXT NOT NULL,
+        last_at TEXT NOT NULL,
+        due_on TEXT NOT NULL,
+        level TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        read_at TEXT,
+        snoozed_until TEXT,
+        dismissed_at TEXT,
+        resolved_at TEXT,
+        resolution TEXT,
+        UNIQUE (knife_id, track, last_at),
+        FOREIGN KEY (knife_id) REFERENCES knives(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX care_notifications_knife_id_idx
+      ON care_notifications (knife_id);
+    `)
   }
 
   normalizeKnifeRows(database)

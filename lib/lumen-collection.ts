@@ -1,5 +1,6 @@
 import { prioritizePinnedKnives, type Knife } from '@/lib/data'
 import { matchesCollection } from '@/lib/smart-collections'
+import type { KnifeCareStatus } from '@/lib/maintenance-due'
 import type { CollectionDisplay } from '@/lib/settings-shared'
 
 /**
@@ -14,6 +15,7 @@ export const LUMEN_STATUS_PARAM = 'status'
 export function filterLumenKnives(
   knives: Knife[],
   params: URLSearchParams,
+  careStatusById?: ReadonlyMap<string, KnifeCareStatus>,
 ): Knife[] {
   const filters = new URLSearchParams(params)
   const pinnedOnly = filters.get('view') === 'pinned'
@@ -26,7 +28,7 @@ export function filterLumenKnives(
   return knives.filter(
     (knife) =>
       matchesLumenSearch(knife, query) &&
-      matchesCollection(knife, filters) &&
+      matchesCollection(knife, filters, careStatusById) &&
       (!pinnedOnly || knife.pinned) &&
       (status === 'sold'
         ? knife.sold

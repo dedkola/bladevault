@@ -23,6 +23,7 @@ import {
   hasFixedColorMode,
   isModernThemeFamily,
 } from '@/lib/settings-shared'
+import { CareInboxBell } from '@/components/care-inbox'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -70,9 +71,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               ? ['Collection', 'Knife details']
               : pathname.startsWith('/settings')
                 ? ['Workspace', 'Settings']
-                : pathname.startsWith('/add')
-                  ? ['Collection', 'Add knife']
-                  : ['Workspace', 'Insights']
+                : pathname === '/inbox'
+                  ? ['Workspace', 'Inbox']
+                  : pathname.startsWith('/add')
+                    ? ['Collection', 'Add knife']
+                    : ['Workspace', 'Insights']
   async function toggleTheme() {
     const root = document.documentElement
     const dark = !root.classList.contains('dark')
@@ -126,6 +129,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {pathname === '/studio' && (
             <span id="studio-header-actions" ref={setHeaderActions} />
           )}
+          <CareInboxBell />
           <Link
             href="/settings?tab=backup"
             aria-label="Cloud backup"

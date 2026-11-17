@@ -15,6 +15,7 @@ import { useComparisons } from '@/components/providers/comparisons-provider'
 import { KnifePhoto } from '@/components/lumen/knife-photo'
 import type { Knife } from '@/lib/data'
 import { matchesLumenSearch } from '@/lib/lumen-collection'
+import { CareInboxBell } from '@/components/care-inbox'
 
 const navLinks = [
   { href: '/collection', label: 'Home' },
@@ -151,6 +152,7 @@ export function ShelfShell({ children }: { children: React.ReactNode }) {
                 <span>Search or jump to…</span>
                 <kbd aria-hidden="true">⌘K</kbd>
               </button>
+              <CareInboxBell data-shelf-icon-button="" />
               <ThemeModeButton data-shelf-icon-button="" />
               <Link
                 href="/settings"

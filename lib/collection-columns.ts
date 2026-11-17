@@ -11,6 +11,12 @@ import {
   parseLengthToInches,
   parseWeightToOunces,
 } from '@/lib/measurement-parser'
+import {
+  careDueSummary,
+  CARE_STATUS_LABELS,
+  type CareStatusLevel,
+  type KnifeCareStatus,
+} from '@/lib/maintenance-due'
 
 type SortValue = string | number | undefined
 
@@ -85,9 +91,41 @@ function formatDate(value: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString()
 }
 
+const CARE_SORT_RANK: Record<CareStatusLevel, number> = {
+  overdue: 0,
+  'due-soon': 1,
+  ok: 2,
+}
+
+function careColumn(
+  careStatusById: ReadonlyMap<string, KnifeCareStatus>,
+): CollectionColumnDefinition {
+  return {
+    key: 'care',
+    label: 'Care',
+    width: '150px',
+    getValue: (knife) => {
+      const status = careStatusById.get(knife.id)
+      if (!status?.level) return ''
+      return careDueSummary(status) ?? CARE_STATUS_LABELS[status.level]
+    },
+    // Most urgent first when ascending; untracked knives stay last.
+    getSortValue: (knife) => {
+      const status = careStatusById.get(knife.id)
+      if (!status?.level) return undefined
+      return (
+        CARE_SORT_RANK[status.level] * 100_000 +
+        Math.max(-99_999, Math.min(99_999, status.worst?.dueInDays ?? 0))
+      )
+    },
+  }
+}
+
 export function getCollectionColumns(
   customFields: CustomField[],
   dimensionUnit: DimensionUnit = 'in',
+  /** Derived care status; when given, a Care column is offered. */
+  careStatusById?: ReadonlyMap<string, KnifeCareStatus>,
 ): CollectionColumnDefinition[] {
   const columns: CollectionColumnDefinition[] = [
     ...defaultColumns,
@@ -156,6 +194,7 @@ export function getCollectionColumns(
       getValue: (knife) => String(getKnifeImageCount(knife)),
       getSortValue: (knife) => getKnifeImageCount(knife),
     },
+    ...(careStatusById ? [careColumn(careStatusById)] : []),
     ...customFields.map((field) => ({
       key: `custom:${field.id}` as CollectionColumn,
       label: field.name,
