@@ -27,6 +27,7 @@ import Image from '@/components/vault-image'
 import { useKnives } from '@/components/providers/knives-provider'
 import { PageHeader } from '@/components/page-header'
 import { useComparisons } from '@/components/providers/comparisons-provider'
+import { StudioSpotlight } from '@/components/studio-spotlight'
 import { useSmartCollections } from '@/components/providers/smart-collections-provider'
 import { Button, buttonVariants } from '@/components/ui/button'
 import {
@@ -677,6 +678,16 @@ export function StudioView() {
             actions={headerActions}
           />
         ) : null}
+        {!isLoading &&
+          knives.length > 0 &&
+          activeFilter === 'all' &&
+          !query.trim() && (
+            <StudioSpotlight
+              knives={knives}
+              dimensionUnit={dimensionUnit}
+              onQuickLook={openQuickLook}
+            />
+          )}
         <div className={styles.toolbar} aria-label="Studio controls">
           <div className={styles.toolbarLeft}>
             <div

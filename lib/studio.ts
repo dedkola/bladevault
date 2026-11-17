@@ -5,7 +5,7 @@ export type StudioLayoutItem<T> = {
   size: StudioTileSize
 }
 
-function createRandom(seed: number) {
+export function createRandom(seed: number) {
   let value = seed >>> 0
   return () => {
     value += 0x6d2b79f5

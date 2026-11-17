@@ -1,0 +1,306 @@
+/* Knife of the day: the pick on the same light stage as Studio tiles, with
+   its name and actions in a frosted caption like theirs. The caption class
+   name also picks up the Modern variants' Studio caption rules. */
+.hero {
+  --spotlight-line: color-mix(in srgb, var(--foreground) 11%, transparent);
+  --spotlight-glass: color-mix(in srgb, var(--card) 86%, transparent);
+  --spotlight-highlight: var(--card);
+  --spotlight-stage: var(--bladevault-surface-soft, var(--muted));
+  --spotlight-stage-edge: var(--muted);
+
+  position: relative;
+  width: 100%;
+  /* Roughly 21:8 of Studio's width (an inline-size container), held between
+     a readable minimum and a cap so wide screens fill the row instead of
+     narrowing the banner to keep its ratio. */
+  height: clamp(260px, 36cqi, 440px);
+  margin-bottom: 18px;
+  overflow: hidden;
+  border: 1px solid var(--spotlight-line);
+  border-radius: 18px;
+  background: var(--spotlight-stage);
+  box-shadow: 0 2px 3px color-mix(in srgb, var(--foreground) 2%, transparent);
+  color: var(--foreground);
+}
+
+:global(.dark) .hero {
+  --spotlight-highlight: color-mix(in srgb, var(--muted) 8%, white);
+  --spotlight-stage: color-mix(in srgb, var(--muted) 18%, white);
+  --spotlight-stage-edge: color-mix(in srgb, var(--muted) 24%, white);
+}
+
+/* The plate carries the stage itself: its animation makes it a stacking
+   context, so the photo's multiply blend only sees what is inside it. */
+.plate {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    100% 90% at 50% 0%,
+    var(--spotlight-highlight),
+    var(--spotlight-stage) 70%,
+    var(--spotlight-stage-edge)
+  );
+  animation: spotlight-in 420ms ease both;
+}
+
+@keyframes spotlight-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+
+.image {
+  object-fit: contain;
+  mix-blend-mode: multiply;
+  /* Keep the knife clear of the caption along the bottom. */
+  padding: 26px 8% 96px;
+}
+
+.noImage {
+  position: absolute;
+  inset: 0 0 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.noImage svg {
+  width: 32px;
+  height: 32px;
+  opacity: 0.4;
+}
+
+.kicker {
+  position: absolute;
+  top: 16px;
+  left: 18px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--spotlight-line);
+  border-radius: 999px;
+  background: var(--spotlight-glass);
+  backdrop-filter: blur(12px);
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.kicker b {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.sold {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  padding: 4px 8px;
+  border: 1px solid var(--spotlight-line);
+  border-radius: 6px;
+  background: var(--spotlight-glass);
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.caption {
+  position: absolute;
+  inset: auto 14px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 12px 12px 16px;
+  border: 1px solid var(--spotlight-line);
+  border-radius: 14px;
+  background: var(--spotlight-glass);
+  backdrop-filter: blur(18px);
+}
+
+.identity {
+  min-width: 0;
+}
+
+.identity h2 {
+  margin: 0;
+  overflow: hidden;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identity p {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--spotlight-line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background 160ms,
+    border-color 160ms;
+}
+
+.action:hover:not(:disabled) {
+  background: var(--accent);
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--ring, var(--primary));
+  outline-offset: 2px;
+}
+
+.action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.action[data-primary] {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.action[data-primary]:hover {
+  background: color-mix(in srgb, var(--primary) 88%, white);
+}
+
+.action svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Studio's root is an inline-size container. */
+@container (max-width: 760px) {
+  .hero {
+    height: 380px;
+  }
+
+  .image {
+    padding: 56px 6% 150px;
+  }
+
+  .noImage {
+    inset: 0 0 140px;
+  }
+
+  .caption {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    inset: auto 10px 10px;
+    padding: 12px;
+  }
+
+  .identity h2 {
+    font-size: 18px;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
+
+  .action {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+/* Match Studio's radii in the default (non-Modern, non-Alloy) styles. */
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+  .hero {
+  margin-bottom: 24px;
+  border-color: var(--border);
+  border-radius: var(--radius-xl);
+}
+
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+  .caption {
+  border-color: var(--border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: none;
+}
+
+:global(html:not([data-theme-style='modern']):not([data-theme-style='alloy']))
+  .kicker {
+  font-size: 11px;
+}
+
+/* Alloy: like its tiles, the caption sits straight on the stage in the
+   display face, and the light mode uses the Collection's neutral tray. */
+:global(html[data-theme-style='alloy']) .hero {
+  border-radius: 12px;
+}
+
+:global(html[data-theme-style='alloy']:not(.dark)) .hero {
+  --spotlight-stage: var(--alloy-stage, var(--muted));
+  border-color: var(--border);
+}
+
+:global(html[data-theme-style='alloy']) .caption {
+  inset: auto 20px 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+:global(html[data-theme-style='alloy']) .identity h2 {
+  font-family: var(--font-display, var(--font-sans));
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+:global(html[data-theme-style='alloy'].dark) .caption {
+  color: #231f18;
+}
+
+:global(html[data-theme-style='alloy'].dark) .identity p {
+  color: #595348;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plate {
+    animation: none;
+  }
+
+  .action {
+    transition: none;
+  }
+}
