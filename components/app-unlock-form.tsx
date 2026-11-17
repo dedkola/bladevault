@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, useSyncExternalStore, type FormEvent } from 'react'
 import { Lock, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,7 +31,16 @@ export async function resolveUnlockedDestination(
   }
 }
 
+const subscribeToNothing = () => () => {}
+
 export function AppUnlockForm() {
+  // Before hydration a click would submit the form natively and reload the
+  // page instead of unlocking, so the button waits for React.
+  const hydrated = useSyncExternalStore(
+    subscribeToNothing,
+    () => true,
+    () => false,
+  )
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
@@ -105,7 +114,11 @@ export function AppUnlockForm() {
               {error}
             </p>
           )}
-          <Button type="submit" disabled={pending} className="w-full">
+          <Button
+            type="submit"
+            disabled={pending || !hydrated}
+            className="w-full"
+          >
             {pending && <Loader2 className="h-4 w-4 animate-spin" />}
             {pending ? 'Unlocking…' : 'Unlock'}
           </Button>
