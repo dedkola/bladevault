@@ -32,7 +32,7 @@ import { buildYearRecap } from '@/lib/timeline-stats'
 import { cn } from '@/lib/utils'
 
 type EventType = AuditLogEvent['type']
-type LogFilter = 'all' | EventType | 'maintenance' | 'notes'
+type LogFilter = 'all' | EventType | 'notes'
 
 type TimelinePayload = {
   maintenanceEvents?: MaintenanceEvent[]
@@ -217,7 +217,13 @@ function findLinkedEntryId(
   return match?.id ?? null
 }
 
-export function LogSessionsView() {
+export function LogSessionsView({
+  scope = 'history',
+}: {
+  /** `history` hides care entries; `maintenance` shows only those. */
+  scope?: 'history' | 'maintenance'
+}) {
+  const isCareLog = scope === 'maintenance'
   const {
     knives,
     timeFormat,
@@ -274,7 +280,10 @@ export function LogSessionsView() {
         if (!cancelled) {
           const loaded = data.events ?? []
           setRawEvents(loaded)
-          const linkedId = findLinkedEntryId(loaded, window.location.search)
+          const linkedId = findLinkedEntryId(
+            loaded.filter((event) => isMaintenanceEvent(event) === isCareLog),
+            window.location.search,
+          )
           if (linkedId !== null) {
             pendingLinkedEntry.current = linkedId
             setSelectedId(linkedId)
@@ -298,7 +307,7 @@ export function LogSessionsView() {
     return () => {
       cancelled = true
     }
-  }, [loadAttempt])
+  }, [loadAttempt, isCareLog])
 
   // Maintenance and notes feed milestones and the Year in review; History
   // still works from its own log if they cannot load.
@@ -321,15 +330,17 @@ export function LogSessionsView() {
 
   const events = useMemo<ViewEvent[]>(
     () =>
-      rawEvents.map((event) => ({
-        ...event,
-        title: eventTitle(event),
-        shortDate: formatEventShortDate(event.occurredAt),
-        time: formatEventTime(event.occurredAt, timeFormat),
-        rowTime: formatEventTime(event.occurredAt, timeFormat, false),
-        ...getEventDate(event.occurredAt),
-      })),
-    [rawEvents, timeFormat],
+      rawEvents
+        .filter((event) => isMaintenanceEvent(event) === isCareLog)
+        .map((event) => ({
+          ...event,
+          title: eventTitle(event),
+          shortDate: formatEventShortDate(event.occurredAt),
+          time: formatEventTime(event.occurredAt, timeFormat),
+          rowTime: formatEventTime(event.occurredAt, timeFormat, false),
+          ...getEventDate(event.occurredAt),
+        })),
+    [rawEvents, timeFormat, isCareLog],
   )
 
   useEffect(() => {
@@ -362,16 +373,20 @@ export function LogSessionsView() {
   )
   const storyItems = useMemo<HistoryItem[]>(
     () =>
-      story.entries.map((entry) => ({
-        kind: 'story',
-        key: entry.id,
-        entry,
-        time: entry.time,
-        shortDate: formatEventShortDate(entry.occurredAt),
-        rowTime: formatEventTime(entry.occurredAt, timeFormat, false),
-        ...getEventDate(entry.occurredAt),
-      })),
-    [story, timeFormat],
+      story.entries
+        .filter(
+          (entry) => (entry.milestone === 'maintenance-count') === isCareLog,
+        )
+        .map((entry) => ({
+          kind: 'story',
+          key: entry.id,
+          entry,
+          time: entry.time,
+          shortDate: formatEventShortDate(entry.occurredAt),
+          rowTime: formatEventTime(entry.occurredAt, timeFormat, false),
+          ...getEventDate(entry.occurredAt),
+        })),
+    [story, timeFormat, isCareLog],
   )
 
   const filteredStory = useMemo(() => {
@@ -398,8 +413,11 @@ export function LogSessionsView() {
     return events.filter((event) => {
       const matchesType =
         filter === 'all' ||
-        (filter === 'maintenance'
-          ? isMaintenanceEvent(event)
+        (isCareLog && (filter === 'created' || filter === 'updated')
+          ? event.title ===
+            (filter === 'created'
+              ? 'Maintenance logged'
+              : 'Maintenance updated')
           : filter === 'notes'
             ? isNoteEvent(event)
             : event.type === filter && !isNoteEvent(event))
@@ -423,7 +441,7 @@ export function LogSessionsView() {
         inDateRange(event.occurredAt, selectedRange)
       )
     })
-  }, [events, filter, query, selectedRange])
+  }, [events, filter, query, selectedRange, isCareLog])
 
   useEffect(() => {
     const id = pendingLinkedEntry.current
@@ -503,10 +521,10 @@ export function LogSessionsView() {
   const recapYear = fullYearOf(selectedRange)
   const recap = useMemo(
     () =>
-      recapYear === null
+      recapYear === null || isCareLog
         ? undefined
         : buildYearRecap(knives, maintenanceEvents, notes, recapYear),
-    [recapYear, knives, maintenanceEvents, notes],
+    [recapYear, knives, maintenanceEvents, notes, isCareLog],
   )
 
   const selectedEvent = selectedId
@@ -524,9 +542,9 @@ export function LogSessionsView() {
         new Set(sessions.map((event) => event.knifeId)).size,
       ],
       ['Care sessions', sessions.length],
-      ['History entries', events.length],
+      [isCareLog ? 'Care log entries' : 'History entries', events.length],
     ] as const
-  }, [knives, knivesById, maintenanceEvents, events])
+  }, [knives, knivesById, maintenanceEvents, events, isCareLog])
   const chooseYear = (year: number | 'all') => {
     const range =
       year === 'all'
@@ -577,7 +595,7 @@ export function LogSessionsView() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `bladevault-history-${new Date().toISOString().slice(0, 10)}.json`
+    link.download = `bladevault-${isCareLog ? 'care-log' : 'history'}-${new Date().toISOString().slice(0, 10)}.json`
     link.click()
     window.setTimeout(() => URL.revokeObjectURL(url), 0)
   }
@@ -618,11 +636,15 @@ export function LogSessionsView() {
   return (
     <>
       {themeStyle === 'alloy' ? (
-        <h1 className="sr-only">History</h1>
+        <h1 className="sr-only">{isCareLog ? 'Care log' : 'History'}</h1>
       ) : (
         <PageHeader
-          title="History"
-          description="Changes, maintenance, and system activity from your vault."
+          title={isCareLog ? 'Care log' : 'History'}
+          description={
+            isCareLog
+              ? 'Every sharpening, cleaning and lubrication entry in your vault.'
+              : 'Changes, notes, and system activity from your vault.'
+          }
           actions={
             <Button
               data-logs-export
@@ -633,7 +655,7 @@ export function LogSessionsView() {
               }
               onClick={exportLogs}
             >
-              Export history
+              {isCareLog ? 'Export care log' : 'Export history'}
             </Button>
           }
         />
@@ -672,7 +694,9 @@ export function LogSessionsView() {
               className="mb-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2"
             >
               <label className="relative min-w-0">
-                <span className="sr-only">Search history</span>
+                <span className="sr-only">
+                  {isCareLog ? 'Search care log' : 'Search history'}
+                </span>
                 <Search className="pointer-events-none absolute left-0 top-2.5 size-3.5 text-muted-foreground" />
                 <Input
                   value={query}
@@ -871,15 +895,9 @@ export function LogSessionsView() {
                 className="flex flex-wrap gap-x-2 sm:gap-x-5"
                 aria-label="Filter history event type"
               >
-                {(
-                  [
-                    'all',
-                    'created',
-                    'updated',
-                    'maintenance',
-                    'notes',
-                    'deleted',
-                  ] as const
+                {(isCareLog
+                  ? (['all', 'created', 'updated', 'deleted'] as const)
+                  : (['all', 'created', 'updated', 'notes', 'deleted'] as const)
                 ).map((value) => (
                   <button
                     key={value}
@@ -893,7 +911,11 @@ export function LogSessionsView() {
                         'border-[var(--bladevault-gold)] font-medium text-[var(--bladevault-title)] dark:text-[var(--bladevault-gold)]',
                     )}
                   >
-                    {value === 'all' ? 'All activity' : value}
+                    {value === 'all'
+                      ? 'All activity'
+                      : isCareLog && value === 'created'
+                        ? 'logged'
+                        : value}
                   </button>
                 ))}
               </div>
@@ -988,12 +1010,18 @@ export function LogSessionsView() {
               className="border-t border-border/60 p-10 text-center"
             >
               <h2 className="text-sm font-medium">
-                {hasAnyEntries ? 'No matching entries' : 'No history yet'}
+                {hasAnyEntries
+                  ? 'No matching entries'
+                  : isCareLog
+                    ? 'No care logged yet'
+                    : 'No history yet'}
               </h2>
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                 {hasAnyEntries
                   ? 'Try another search or clear your filters.'
-                  : 'Changes to your collection will appear here.'}
+                  : isCareLog
+                    ? 'Sharpening, cleaning and oiling you log on a knife’s page will appear here.'
+                    : 'Changes to your collection will appear here.'}
               </p>
               {hasAnyEntries && (
                 <Button

@@ -441,9 +441,13 @@ test('shows the collection story with photos, milestones and a year recap', asyn
   await expect(
     milestones.filter({ hasText: 'The collection begins' }),
   ).toBeVisible()
+  // Care milestones and entries live in the care log, not History.
   await expect(
     milestones.filter({ hasText: 'First maintenance logged' }),
-  ).toBeVisible()
+  ).toHaveCount(0)
+  await expect(page.locator('[data-log-entry][data-maintenance]')).toHaveCount(
+    0,
+  )
 
   const year = String(new Date().getFullYear())
   const years = page.getByRole('group', { name: 'Show a year' })
@@ -463,4 +467,16 @@ test('shows the collection story with photos, milestones and a year recap', asyn
 
   await years.getByRole('button', { name: 'All time' }).click()
   await expect(recap).toHaveCount(0)
+
+  await page.goto('/maintenance/log')
+  await expect(
+    page
+      .locator('[data-story-entry="milestone"]')
+      .filter({ hasText: 'First maintenance logged' }),
+  ).toBeVisible()
+  await expect(
+    page
+      .locator('[data-story-entry="milestone"]')
+      .filter({ hasText: 'The collection begins' }),
+  ).toHaveCount(0)
 })

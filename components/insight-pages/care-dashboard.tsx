@@ -888,6 +888,7 @@ export function CareRecentFeed({
     <InsightPanel
       title="Recent care"
       description="Latest entries across the collection"
+      footer={<Link href="/maintenance/log">View all care logs →</Link>}
     >
       {isLoading ? (
         <p className="id-care-empty">Loading history…</p>
