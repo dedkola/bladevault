@@ -439,7 +439,7 @@ export function ModernInsights() {
                 eyebrow="Maintenance"
                 title="Care status"
                 description="Knives due for sharpening, cleaning or lubrication."
-                action={<DetailLink href="/insights/care">Details</DetailLink>}
+                action={<DetailLink href="/maintenance">Details</DetailLink>}
               >
                 <div className={styles.careBody}>
                   <CareStatusSummary />

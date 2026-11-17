@@ -38,6 +38,7 @@ const Add = lazy(() => import('@/app/add/page'))
 const Compare = lazy(() => import('@/app/compare/page'))
 const Settings = lazy(() => import('@/app/settings/page'))
 const Logs = lazy(() => import('@/app/logs/page'))
+const Maintenance = lazy(() => import('@/app/maintenance/page'))
 const InboxPage = lazy(() => import('@/app/inbox/page'))
 const KnifeDetail = lazy(() => import('@/components/knife-detail'))
 const InsightPage = lazy(() =>
@@ -67,6 +68,7 @@ function Route() {
   if (pathname === '/compare') return <Compare />
   if (pathname === '/settings') return <Settings />
   if (pathname === '/logs') return <Logs />
+  if (pathname === '/maintenance') return <Maintenance />
   if (pathname === '/inbox') return <InboxPage />
   const detail = pathname.match(/^\/collection\/([^/]+)$/)
   if (detail) {

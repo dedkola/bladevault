@@ -33,7 +33,9 @@ test.beforeEach(async ({ request }) => {
   await resetVault(request)
 })
 
-test('shows logs last in the primary sidebar navigation', async ({ page }) => {
+test('shows maintenance and logs last in the primary sidebar navigation', async ({
+  page,
+}) => {
   await page.goto('/')
 
   const primaryLinks = page.locator(
@@ -45,6 +47,7 @@ test('shows logs last in the primary sidebar navigation', async ({ page }) => {
     'Collection',
     'Studio',
     'Compare',
+    'Maintenance',
     'History',
   ])
 })

@@ -59,21 +59,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     pathname !== '/studio' && pathname !== '/collection'
   const crumb = pathname.startsWith('/compare')
     ? ['Compare', 'Saved comparisons']
-    : pathname.startsWith('/logs')
-      ? ['Activity', 'History']
-      : pathname === '/studio'
-        ? ['Studio', 'Visual library']
-        : pathname === '/collection'
-          ? ['Collection', 'All knives']
-          : pathname.startsWith('/collection/')
-            ? ['Collection', 'Knife details']
-            : pathname.startsWith('/settings')
-              ? ['Workspace', 'Settings']
-              : pathname === '/inbox'
-                ? ['Workspace', 'Inbox']
-                : pathname.startsWith('/add')
-                  ? ['Collection', 'Add knife']
-                  : ['Workspace', 'Insights']
+    : pathname.startsWith('/maintenance')
+      ? ['Activity', 'Maintenance']
+      : pathname.startsWith('/logs')
+        ? ['Activity', 'History']
+        : pathname === '/studio'
+          ? ['Studio', 'Visual library']
+          : pathname === '/collection'
+            ? ['Collection', 'All knives']
+            : pathname.startsWith('/collection/')
+              ? ['Collection', 'Knife details']
+              : pathname.startsWith('/settings')
+                ? ['Workspace', 'Settings']
+                : pathname === '/inbox'
+                  ? ['Workspace', 'Inbox']
+                  : pathname.startsWith('/add')
+                    ? ['Collection', 'Add knife']
+                    : ['Workspace', 'Insights']
   async function toggleTheme() {
     const root = document.documentElement
     const dark = !root.classList.contains('dark')
