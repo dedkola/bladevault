@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  countCareByMonth,
+  buildCareTimeline,
   listCareJobs,
   recentCareFeed,
   rhythmOutpacesInterval,
@@ -175,23 +175,73 @@ describe('care insights', () => {
     ).toEqual(['sharpening', 'lubrication'])
   })
 
-  it('counts entries per month by kind', () => {
-    const months = countCareByMonth(events, now, 4)
-    expect(months.map((month) => month.month)).toEqual([
-      '2026-08',
-      '2026-09',
-      '2026-10',
-      '2026-11',
+  it('groups entries into sessions per knife on a timeline', () => {
+    const timeline = buildCareTimeline(events, now, 6)
+    // The first entry is 101 days back (Aug 8), so the window opens on Aug 1.
+    expect(timeline.startDay).toBe('2026-08-01')
+    expect(timeline.months.map((month) => month.day)).toEqual([
+      '2026-08-01',
+      '2026-09-01',
+      '2026-10-01',
+      '2026-11-01',
     ])
-    const november = months[3]
-    expect(november.total).toBe(4)
-    expect(november.counts).toEqual({
-      sharpening: 3,
-      cleaning: 0,
-      lubrication: 1,
+    expect(timeline.months[0].position).toBe(0)
+    expect(timeline.todayPosition).toBeGreaterThan(0.9)
+    expect(timeline.todayPosition).toBeLessThan(1)
+
+    // Most recently cared for first; Porcupine wins the tie on session count.
+    expect(timeline.rows.map((row) => row.knifeId)).toEqual([
+      'porcupine',
+      'begleiter',
+      'bone',
+    ])
+    const porcupine = timeline.rows[0]
+    expect(porcupine.daysSince).toBe(11)
+    // Sharpen + strop on one day is one session, with its note and angle.
+    const sharpened = porcupine.sessions.find(
+      (session) => session.day === timeline.rows[1].lastDay,
+    )
+    expect(sharpened).toMatchObject({
+      kinds: ['sharpening'],
+      types: ['sharpening', 'stropping'],
+      notes: ['change angle to 17'],
+      details: ['17°'],
+    })
+    expect(sharpened?.entries.map((entry) => entry.type).sort()).toEqual([
+      'sharpening',
+      'stropping',
+    ])
+    // Disassembly and cleaning on one day share a session.
+    expect(
+      porcupine.sessions.find(
+        (session) =>
+          session.types.length === 2 && session.kinds.includes('service'),
+      ),
+    ).toMatchObject({ kinds: ['cleaning', 'service'] })
+    expect(porcupine.sessions).toHaveLength(7)
+    expect(timeline.sessionCount).toBe(9)
+    expect(timeline.kindCounts).toEqual({
+      sharpening: 4,
+      cleaning: 1,
+      lubrication: 4,
+      service: 1,
       other: 0,
     })
-    expect(months[1].counts.other).toBe(1)
+  })
+
+  it('keeps the timeline to the last few months but dates rows by their latest care', () => {
+    const timeline = buildCareTimeline(
+      [event('smolt', 'sharpening', 400), event('smolt', 'cleaning', 30)],
+      now,
+      6,
+    )
+    expect(timeline.startDay).toBe('2026-06-01')
+    expect(timeline.rows).toHaveLength(1)
+    expect(timeline.rows[0].sessions).toHaveLength(1)
+    expect(timeline.rows[0].daysSince).toBe(30)
+    expect(
+      buildCareTimeline([event('old', 'sharpening', 400)], now, 6).rows,
+    ).toEqual([])
   })
 
   it('merges same-day entries on one knife in the recent feed', () => {

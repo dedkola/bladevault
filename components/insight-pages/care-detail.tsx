@@ -11,7 +11,7 @@ import {
   CareComingUp,
   CareKindCards,
   CareKpis,
-  CareMonthlyChart,
+  CareHistoryChart,
   CareRecentFeed,
   useCareDashboard,
 } from '@/components/insight-pages/care-dashboard'
@@ -195,9 +195,11 @@ export function CareDetail() {
           now={dashboard.now}
         />
       )}
-      <div className="id-grid id-two">
-        <CareMonthlyChart
+      <div className="id-grid id-care-history">
+        <CareHistoryChart
           events={dashboard.events}
+          knivesById={dashboard.knivesById}
+          knifeLevelById={knifeLevelById}
           now={dashboard.now}
           isLoading={dashboard.isLoading}
         />

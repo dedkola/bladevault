@@ -43,20 +43,53 @@ export type CareTrackSummary = {
   rhythmSamples: number
 }
 
-export type CareMonthGroup = 'sharpening' | 'cleaning' | 'lubrication' | 'other'
+/** Colour groups for care sessions on the timeline. */
+export type CareSessionKind =
+  'sharpening' | 'cleaning' | 'lubrication' | 'service' | 'other'
 
-export const CARE_MONTH_GROUPS: readonly CareMonthGroup[] = [
+export const CARE_SESSION_KINDS: readonly CareSessionKind[] = [
   'sharpening',
   'cleaning',
   'lubrication',
+  'service',
   'other',
 ]
 
-export type CareMonth = {
-  /** YYYY-MM */
-  month: string
-  total: number
-  counts: Record<CareMonthGroup, number>
+/** Every entry logged on one knife on one local day. */
+export type CareSession = {
+  /** YYYY-MM-DD (local time). */
+  day: string
+  /** 0–1 across the timeline window. */
+  position: number
+  kinds: CareSessionKind[]
+  types: MaintenanceType[]
+  notes: string[]
+  /** Sharpening details worth showing, such as "17°" or "1000 grit". */
+  details: string[]
+  /** The logged entries behind the session, in the order they happened. */
+  entries: MaintenanceEvent[]
+}
+
+export type CareTimelineRow = {
+  knifeId: string
+  sessions: CareSession[]
+  /** Latest session day, including any before the window. */
+  lastDay: string
+  daysSince: number
+}
+
+export type CareTimeline = {
+  /** First day shown, YYYY-MM-DD: the 1st of the earliest month. */
+  startDay: string
+  today: string
+  todayPosition: number
+  /** First of each month in the window, with its 0–1 position. */
+  months: { day: string; position: number }[]
+  /** Knives with a session in the window, most recently cared for first. */
+  rows: CareTimelineRow[]
+  sessionCount: number
+  careDays: number
+  kindCounts: Record<CareSessionKind, number>
 }
 
 export type CareFeedItem = {
@@ -112,10 +145,12 @@ export function careTrackForType(
   return null
 }
 
-function monthGroup(type: MaintenanceType): CareMonthGroup {
+/** The timeline colour group an entry belongs to. */
+export function careSessionKind(type: MaintenanceType): CareSessionKind {
   if (type === 'sharpening' || type === 'stropping') return 'sharpening'
   if (type === 'cleaning' || type === 'lubrication') return type
-  return 'other'
+  if (type === 'other') return 'other'
+  return 'service'
 }
 
 function toJob(
@@ -270,29 +305,134 @@ export function rhythmOutpacesInterval(summary: CareTrackSummary): boolean {
   )
 }
 
-/** Entries per calendar month for the last `months` months, oldest first. */
-export function countCareByMonth(
+/** Days of empty space after today, so today's dots aren't cut off. */
+const TIMELINE_TAIL_DAYS = 3
+
+/**
+ * Care sessions (same knife, same local day) per knife, from the month of the
+ * first entry, and at most `maxMonths` months back.
+ */
+export function buildCareTimeline(
   events: readonly MaintenanceEvent[],
   now: Date,
-  months = 6,
-): CareMonth[] {
-  const buckets: CareMonth[] = []
-  for (let offset = months - 1; offset >= 0; offset -= 1) {
-    const date = new Date(now.getFullYear(), now.getMonth() - offset, 1)
-    buckets.push({
-      month: `${date.getFullYear()}-${pad(date.getMonth() + 1)}`,
-      total: 0,
-      counts: { sharpening: 0, cleaning: 0, lubrication: 0, other: 0 },
+  maxMonths = 6,
+): CareTimeline {
+  const today = localDay(now.toISOString()) ?? '1970-01-01'
+  const sessions = new Map<string, Map<string, CareSession>>()
+  const lastDayByKnife = new Map<string, string>()
+  let firstDay: string | null = null
+  for (const event of events) {
+    const day = localDay(event.occurredAt)
+    if (!day || day > today) continue
+    const last = lastDayByKnife.get(event.knifeId)
+    if (!last || day > last) lastDayByKnife.set(event.knifeId, day)
+    let byDay = sessions.get(event.knifeId)
+    if (!byDay) {
+      byDay = new Map()
+      sessions.set(event.knifeId, byDay)
+    }
+    let session = byDay.get(day)
+    if (!session) {
+      session = {
+        day,
+        position: 0,
+        kinds: [],
+        types: [],
+        notes: [],
+        details: [],
+        entries: [],
+      }
+      byDay.set(day, session)
+    }
+    session.entries.push(event)
+    const kind = careSessionKind(event.type)
+    if (!session.kinds.includes(kind)) session.kinds.push(kind)
+    if (!session.types.includes(event.type)) session.types.push(event.type)
+    const note = event.notes.trim()
+    if (note && !session.notes.includes(note)) session.notes.push(note)
+    const angle = event.sharpeningDetails?.angle?.trim().replace(/°$/, '')
+    const grit = event.sharpeningDetails?.grit?.trim()
+    for (const detail of [angle && `${angle}°`, grit && `${grit} grit`])
+      if (detail && !session.details.includes(detail))
+        session.details.push(detail)
+    if (!firstDay || day < firstDay) firstDay = day
+  }
+
+  const [year, month] = today.split('-').map(Number)
+  const earliest = new Date(year, month - maxMonths, 1)
+  const earliestDay = `${earliest.getFullYear()}-${pad(earliest.getMonth() + 1)}-01`
+  const firstMonth = firstDay ? `${firstDay.slice(0, 7)}-01` : today
+  const startDay = firstMonth > earliestDay ? firstMonth : earliestDay
+  const start = dayNumber(startDay)
+  const span = Math.max(1, dayNumber(today) + TIMELINE_TAIL_DAYS - start)
+  const position = (day: string) => (dayNumber(day) - start) / span
+
+  const months: CareTimeline['months'] = []
+  for (
+    let date = new Date(
+      Number(startDay.slice(0, 4)),
+      Number(startDay.slice(5, 7)) - 1,
+      1,
+    );
+    ;
+    date = new Date(date.getFullYear(), date.getMonth() + 1, 1)
+  ) {
+    const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-01`
+    if (day > today) break
+    months.push({ day, position: position(day) })
+  }
+
+  const kindCounts = Object.fromEntries(
+    CARE_SESSION_KINDS.map((kind) => [kind, 0]),
+  ) as Record<CareSessionKind, number>
+  const days = new Set<string>()
+  const rows: CareTimelineRow[] = []
+  for (const [knifeId, byDay] of sessions) {
+    const shown = [...byDay.values()]
+      .filter((session) => session.day >= startDay)
+      .sort((left, right) => left.day.localeCompare(right.day))
+    if (!shown.length) continue
+    for (const session of shown) {
+      session.position = position(session.day)
+      session.kinds.sort(
+        (left, right) =>
+          CARE_SESSION_KINDS.indexOf(left) - CARE_SESSION_KINDS.indexOf(right),
+      )
+      session.types.sort(
+        (left, right) =>
+          FEED_TYPE_ORDER.indexOf(left) - FEED_TYPE_ORDER.indexOf(right),
+      )
+      session.entries.sort(
+        (left, right) =>
+          left.occurredAt.localeCompare(right.occurredAt) || left.id - right.id,
+      )
+      for (const kind of session.kinds) kindCounts[kind] += 1
+      days.add(session.day)
+    }
+    const lastDay = lastDayByKnife.get(knifeId) ?? shown.at(-1)!.day
+    rows.push({
+      knifeId,
+      sessions: shown,
+      lastDay,
+      daysSince: dayNumber(today) - dayNumber(lastDay),
     })
   }
-  const byMonth = new Map(buckets.map((bucket) => [bucket.month, bucket]))
-  for (const event of events) {
-    const bucket = byMonth.get(localDay(event.occurredAt)?.slice(0, 7) ?? '')
-    if (!bucket) continue
-    bucket.counts[monthGroup(event.type)] += 1
-    bucket.total += 1
+  rows.sort(
+    (left, right) =>
+      right.lastDay.localeCompare(left.lastDay) ||
+      right.sessions.length - left.sessions.length,
+  )
+
+  return {
+    startDay,
+    today,
+    todayPosition: position(today),
+    months,
+    rows,
+    sessionCount: rows.reduce((sum, row) => sum + row.sessions.length, 0),
+    careDays: days.size,
+    kindCounts,
   }
-  return buckets
 }
 
 /**

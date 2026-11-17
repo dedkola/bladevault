@@ -652,7 +652,9 @@
   --id-care-sharpening: color-mix(in srgb, var(--foreground) 78%, #6b6a3a);
   --id-care-cleaning: #4f86c6;
   --id-care-lubrication: #c79a2b;
+  --id-care-service: #8a6fb8;
   --id-care-other: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+  --id-care-note: #c2553b;
   display: grid;
   gap: 20px;
 }
@@ -728,6 +730,9 @@
 }
 .id-care-swatch[data-kind='lubrication'] {
   background: var(--id-care-lubrication);
+}
+.id-care-swatch[data-kind='service'] {
+  background: var(--id-care-service);
 }
 .id-care-kind .id-panel-head > div {
   display: flex;
@@ -1117,44 +1122,272 @@ button.id-care-pin {
   color: var(--muted-foreground);
   font-size: 12px;
 }
-.id-care-chart {
-  display: grid;
-  grid-auto-columns: minmax(0, 1fr);
-  grid-auto-flow: column;
-  gap: 14px;
-  height: 170px;
-  align-items: end;
-  border-bottom: 1px solid var(--id-line, var(--border));
-  padding: 0 2px;
+.id-care-history {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
 }
-.id-care-chart > div {
+.id-panel-head:has(> .id-care-log-stats) {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.id-care-log-stats {
+  display: flex;
+  gap: 18px;
+  flex-shrink: 0;
+  text-align: right;
+}
+.id-care-log-stats div {
   display: flex;
   flex-direction: column-reverse;
-  gap: 2px;
-  height: 100%;
 }
-.id-care-chart i {
-  display: block;
-  border-radius: 3px;
-  min-height: 2px;
+.id-care-log-stats dt {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
 }
-.id-care-chart em {
-  order: 99;
-  font-style: normal;
-  text-align: center;
-  font-size: 11px;
+.id-care-log-stats dd {
+  margin: 0;
+  font-size: 17px;
   font-weight: 650;
-  margin-bottom: 3px;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
 }
-.id-care-months {
+.id-care-log-stats small {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+.id-care-log li,
+.id-care-log-axis {
   display: grid;
-  grid-auto-columns: minmax(0, 1fr);
-  grid-auto-flow: column;
-  gap: 14px;
-  padding: 6px 2px 0;
-  text-align: center;
+  grid-template-columns: 128px minmax(0, 1fr) 62px;
+  gap: 0 10px;
+  align-items: center;
+}
+.id-care-log ol li {
+  min-height: 38px;
+  border-bottom: 1px dashed var(--id-line, var(--border));
+}
+.id-care-log-name {
+  min-width: 0;
+  padding: 5px 0;
+  font-size: 12px;
+  line-height: 1.25;
+}
+.id-care-log-name b,
+.id-care-log-name small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.id-care-log-name b {
+  font-weight: 600;
+}
+.id-care-log-name small {
+  font-size: 10.5px;
+  color: var(--muted-foreground);
+}
+.id-care-log-name:hover b {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.id-care-log-lane {
+  position: relative;
+  align-self: stretch;
+}
+.id-care-log-grid,
+.id-care-log-today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+.id-care-log-grid {
+  width: 1px;
+  background: var(--id-line, var(--border));
+}
+.id-care-log-today {
+  border-left: 1.5px dashed var(--id-care-note);
+  opacity: 0.6;
+}
+.id-care-log {
+  position: relative;
+}
+.id-care-log-session {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 9px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: none;
+  outline: 2px solid var(--card);
+  cursor: pointer;
+}
+.id-care-log-session:hover,
+.id-care-log-session[data-active] {
+  outline-color: var(--foreground);
+  z-index: 1;
+}
+.id-care-log-session:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+  z-index: 1;
+}
+.id-care-log-card {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  padding: 11px 13px;
+  border: 1px solid var(--id-line, var(--border));
+  border-radius: 10px;
+  background: var(--popover, var(--card));
+  color: var(--popover-foreground, var(--foreground));
+  box-shadow: 0 10px 28px #0000002e;
+  font-size: 12px;
+}
+.id-care-log-card header {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--id-line, var(--border));
+}
+.id-care-log-card header b {
+  font-weight: 650;
+}
+.id-care-log-card header time {
   font-size: 11px;
   color: var(--muted-foreground);
+}
+.id-care-log-card ol {
+  display: grid;
+  gap: 8px;
+}
+.id-care-log-card li {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+.id-care-log-card li > .id-care-swatch {
+  margin-top: 4px;
+}
+.id-care-log-card p {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+}
+.id-care-log-card p b {
+  font-weight: 600;
+}
+.id-care-log-card p small {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.id-care-log-card dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+  margin: 3px 0 0;
+  font-size: 11px;
+}
+.id-care-log-card dl div {
+  display: flex;
+  gap: 4px;
+}
+.id-care-log-card dt {
+  color: var(--muted-foreground);
+}
+.id-care-log-card dd {
+  margin: 0;
+  font-weight: 600;
+}
+.id-care-log-card q {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+.id-care-log-session i {
+  display: block;
+  height: 5px;
+  background: var(--id-care-other);
+}
+.id-care-log-session i[data-kind='sharpening'] {
+  background: var(--id-care-sharpening);
+}
+.id-care-log-session i[data-kind='cleaning'] {
+  background: var(--id-care-cleaning);
+}
+.id-care-log-session i[data-kind='lubrication'] {
+  background: var(--id-care-lubrication);
+}
+.id-care-log-session i[data-kind='service'] {
+  background: var(--id-care-service);
+}
+.id-care-log-mark,
+.id-care-log-note {
+  width: 6px;
+  height: 6px;
+  background: var(--id-care-note);
+  transform: rotate(45deg);
+}
+.id-care-log-mark {
+  position: absolute;
+  top: 3px;
+  margin-left: -3px;
+}
+.id-care-log-note {
+  display: inline-block;
+  margin: 0 2px;
+}
+.id-care-log-last {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.id-care-log-last i {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.id-care-log-axis {
+  padding-top: 6px;
+  font-size: 10.5px;
+  color: var(--muted-foreground);
+}
+.id-care-log-axis > div {
+  position: relative;
+  height: 14px;
+}
+.id-care-log-axis > div span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.id-care-log-axis > span:last-child {
+  text-align: right;
+}
+.id-care-history .id-panel-foot button {
+  color: var(--bladevault-title);
+  font-weight: 600;
 }
 .id-care-keys {
   display: flex;
@@ -1481,9 +1714,16 @@ button.id-care-pin {
     padding: 0 5px;
     font-size: 9.5px;
   }
-  .id-care-chart,
-  .id-care-months {
-    gap: 8px;
+  .id-care-log li,
+  .id-care-log-axis {
+    grid-template-columns: 92px minmax(0, 1fr) 48px;
+    gap: 0 8px;
+  }
+  .id-panel-head:has(> .id-care-log-stats) {
+    flex-direction: column;
+  }
+  .id-care-log-stats {
+    text-align: left;
   }
   .insight-detail {
     padding: 18px 14px;
@@ -1627,5 +1867,10 @@ button.id-care-pin {
   }
   .id-date-metric dd {
     font-size: 20px;
+  }
+}
+@media (max-width: 1150px) {
+  .id-care-history {
+    grid-template-columns: 1fr;
   }
 }
