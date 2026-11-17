@@ -1575,23 +1575,6 @@ html[data-theme-variant]
   color: var(--background);
 }
 
-html[data-theme-variant] [data-log-day] th {
-  color: var(--bladevault-title);
-  font-family: var(--forge-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-}
-
-html[data-theme-variant] [data-log-time] {
-  font-family: var(--forge-mono);
-  font-size: 11.5px;
-}
-
-html[data-theme-variant] [data-log-entry]:hover {
-  background: color-mix(in srgb, var(--forge-accent) 6%, transparent);
-}
-
 /* ================================================================== */
 /* Glow line controls                                                   */
 /* Transparent pills with a faint line at rest. Hover lights the line   */

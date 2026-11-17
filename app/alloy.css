@@ -984,10 +984,6 @@ html[data-theme-style='alloy'] [data-compare-image] {
 html[data-theme-style='alloy'] [data-compare-image] img {
   mix-blend-mode: multiply;
 }
-html[data-theme-style='alloy'] [data-log-icon] > span {
-  background: var(--accent);
-  color: var(--bladevault-title);
-}
 
 @media (max-width: 1280px) {
   [data-alloy-header] {

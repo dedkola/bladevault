@@ -89,7 +89,11 @@ test('logs maintenance events from the knife detail page', async ({
   }
 
   await page.goto('/logs')
-  const maintenanceEntries = page.locator('[data-log-entry]').filter({
+  // History keeps entries for knives deleted by earlier tests; count this one.
+  const knifeEntries = page
+    .locator('[data-log-entry]')
+    .filter({ hasText: 'Benchmade · Bugout' })
+  const maintenanceEntries = knifeEntries.filter({
     has: page.getByRole('button', { name: /Maintenance logged details/ }),
   })
   await expect(maintenanceEntries).toHaveCount(4)
@@ -114,12 +118,8 @@ test('logs maintenance events from the knife detail page', async ({
     (element) => element.getBoundingClientRect().width,
   )
   expect(searchWidthAfter).toBe(searchWidthBefore)
-  await expect(page.locator('[data-log-entry]')).toHaveCount(4)
-  await expect(
-    page.locator('[data-log-entry]').filter({
-      has: page.getByRole('button', { name: /Maintenance logged details/ }),
-    }),
-  ).toHaveCount(4)
+  await expect(knifeEntries).toHaveCount(4)
+  await expect(maintenanceEntries).toHaveCount(4)
 })
 
 test('edits and deletes maintenance events', async ({ page, request }) => {

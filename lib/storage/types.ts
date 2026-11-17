@@ -120,6 +120,8 @@ export interface Storage {
     now: Date,
   ): Promise<CareNotification[]>
   getKnifeNotes(knifeId: string): Promise<KnifeNote[]>
+  /** Every knife's notes, newest first. */
+  getAllKnifeNotes(): Promise<KnifeNote[]>
   addKnifeNote(knifeId: string, input: KnifeNoteInput): Promise<KnifeNote>
   updateKnifeNote(noteId: number, input: KnifeNoteUpdate): Promise<KnifeNote>
   deleteKnifeNote(noteId: number): Promise<void>

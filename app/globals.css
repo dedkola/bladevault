@@ -944,7 +944,9 @@ html:is(
   display: flex;
   flex-direction: column-reverse;
   justify-content: flex-end;
+  align-items: center;
   padding: 10px 12px;
+  text-align: center;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--card);
@@ -1037,7 +1039,6 @@ html:is(
   font-weight: 550;
 }
 
-[data-modern-logs] [data-slot='table-container'],
 [data-modern-logs] [data-logs-state] {
   border: 1px solid var(--border);
   border-radius: 13px;
@@ -1045,172 +1046,12 @@ html:is(
   box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
 }
 
-[data-modern-logs] [data-slot='table-container'] {
-  overflow: hidden;
-}
-
-[data-modern-logs] [data-slot='table'],
-[data-modern-logs] [data-slot='table-body'] {
-  display: block;
-}
-
-[data-modern-logs] [data-slot='table-header'] {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-}
-
-[data-modern-logs] [data-log-day],
-[data-modern-logs] [data-log-detail-row],
-[data-modern-logs] [data-log-detail-row] > td {
-  display: block;
-}
-
-[data-modern-logs] [data-log-day] > th {
-  display: block;
-  padding: 8px 13px;
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--card) 60%, var(--background));
-  font-size: var(--modern-font-caption);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-[data-modern-logs] [data-log-entry] {
-  display: grid;
-  position: relative;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 13px;
-  border-bottom: 1px solid var(--border);
-}
-
-[data-modern-logs] [data-log-entry] > td {
-  padding: 0;
-}
-
-[data-modern-logs] [data-log-entry][data-state='selected'] {
-  background: var(--card);
-}
-
-[data-modern-logs] [data-log-entry]:hover {
-  background: color-mix(in srgb, var(--foreground) 3%, var(--card));
-}
-
-[data-modern-logs] [data-log-detail-row] > td {
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
-}
-
-[data-modern-logs] [data-log-icon] {
-  grid-column: 1;
-  grid-row: 1;
-}
-
-[data-modern-logs] [data-log-icon] > span {
-  display: grid;
-  width: 27px;
-  height: 27px;
-  place-items: center;
-  border-radius: 8px;
-  background: var(--muted);
-}
-
-[data-modern-logs] [data-log-icon][data-kind='created'] > span {
-  background: rgb(47 158 109 / 12%);
-}
-
-[data-modern-logs] [data-log-icon][data-kind='updated'] > span {
-  background: var(--bladevault-nav-active-bg);
-}
-
-[data-modern-logs] [data-log-icon][data-kind='maintenance'] > span {
-  background: rgb(246 130 31 / 12%);
-}
-
-[data-modern-logs] [data-log-icon][data-kind='note'] > span {
-  background: rgb(14 116 189 / 12%);
-}
-
-[data-modern-logs] [data-log-icon][data-kind='deleted'] > span {
-  background: color-mix(in srgb, var(--destructive) 10%, transparent);
-}
-
 [data-modern-logs] svg {
   stroke-width: 1.7;
 }
 
-[data-modern-logs] [data-log-icon] svg {
-  width: 14px;
-  height: 14px;
-}
-
-[data-modern-logs] [data-log-subject] {
-  grid-column: 2;
-  grid-row: 1;
-  min-width: 0;
-}
-
-[data-modern-logs] [data-log-subject] > :is(a, span) {
-  font-size: var(--modern-font-body);
-  font-weight: 550;
-  color: var(--foreground);
-}
-
-[data-modern-logs] [data-log-subtitle] {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 3px 6px;
-  margin-top: 2px;
-  font-size: var(--modern-font-caption);
-  color: var(--muted-foreground);
-}
-
-[data-modern-logs] [data-log-kind-label] {
-  display: inline-flex;
-  align-items: center;
-  height: 18px;
-  padding: 0 7px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  font-size: var(--modern-font-caption);
-  text-transform: lowercase;
-}
-
-[data-modern-logs] [data-log-time] {
-  grid-column: 3;
-  grid-row: 1;
-  align-self: center;
-  white-space: nowrap;
-}
-
-[data-modern-logs] [data-log-time] time {
-  font-size: var(--modern-font-caption);
-}
-
-[data-modern-logs] [data-log-expand] {
-  position: absolute;
-  inset: 0;
-}
-
-[data-modern-logs] [data-log-expand] button {
-  width: 100%;
-  height: 100%;
-  border-radius: 0;
-  background: transparent;
-  outline-offset: -2px;
-}
-
-[data-modern-logs] [data-log-expand] svg {
-  display: none;
-}
-
 [data-compact-log-details] {
-  padding: 0 13px 12px 51px;
+  padding: 8px 0 0;
 }
 
 [data-compact-log-summary] {
@@ -1337,36 +1178,14 @@ html:is(
     font-size: 16px;
   }
 
-  [data-modern-logs] [data-log-entry] {
-    grid-template-columns: 25px minmax(0, 1fr);
-    gap: 8px;
-    padding-inline: 10px;
-  }
-
-  [data-modern-logs] [data-log-time] {
-    grid-column: 2;
-    grid-row: 2;
-  }
-
-  [data-compact-log-details] {
-    padding-left: 43px;
-  }
-
   [data-compact-log-changes] > div {
     grid-template-columns: minmax(0, 1fr);
     gap: 2px;
   }
-
-  [data-modern-logs] [data-log-subtitle] [data-log-summary] {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
 }
 
 /* Classic Logs uses the same layout as the Modern styles, with Lumen's
- * joined stats strip, pill filters and caps day headings in Classic colors. */
+ * joined stats strip and pill filters in Classic colors. */
 html[data-theme-style='classic'] [data-logs-content] {
   --modern-font-caption: 0.6875rem;
   --modern-font-secondary: 0.75rem;
@@ -1429,31 +1248,6 @@ html[data-theme-style='classic']
   border-radius: 999px;
   font-size: 11.5px;
   font-weight: 500;
-}
-
-html[data-theme-style='classic'] [data-modern-logs] [data-log-day] > th {
-  color: var(--bladevault-title);
-  font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-}
-
-html[data-theme-style='classic'] [data-modern-logs] [data-log-time] {
-  font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 11.5px;
-}
-
-html[data-theme-style='classic']
-  [data-modern-logs]
-  [data-log-icon][data-kind='updated']
-  > span {
-  background: color-mix(in srgb, var(--bladevault-gold) 14%, transparent);
-  color: var(--bladevault-title);
-}
-
-html[data-theme-style='classic'] [data-modern-logs] [data-log-entry]:hover {
-  background: color-mix(in srgb, var(--bladevault-gold) 6%, transparent);
 }
 
 /* Reference Collection workspace: one command bar above the list and inspector. */
