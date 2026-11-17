@@ -38,6 +38,7 @@ import { PageHeader } from '@/components/page-header'
 import { ImageCountBadge } from '@/components/image-count-badge'
 import { Gallery } from '@/components/gallery'
 import { KnifeVariantSwitcher } from '@/components/knife-variant-switcher'
+import { useCare } from '@/components/providers/care-provider'
 import { MaintenanceSection } from '@/components/maintenance/maintenance-section'
 import { KnifeUserNotes } from '@/components/knife-user-notes'
 import { Button } from '@/components/ui/button'
@@ -220,9 +221,11 @@ function NotesCard({
 export default function KnifeDetail({
   knife: initialKnife,
   initialEditing = false,
+  initialTab = 'details',
 }: {
   knife: Knife
   initialEditing?: boolean
+  initialTab?: 'details' | 'maintenance'
 }) {
   const router = useRouter()
   const {
@@ -234,6 +237,12 @@ export default function KnifeDetail({
     dimensionUnit,
     syncKnife,
   } = useKnives()
+  const { reminders, statusById } = useCare()
+  const careLevel = statusById.get(initialKnife.id)?.level
+  const careAlert =
+    reminders.enabled && (careLevel === 'overdue' || careLevel === 'due-soon')
+      ? careLevel
+      : null
   const [detailKnife, setDetailKnife] = useState(initialKnife)
   const [galleryFocus, setGalleryFocus] = useState<{
     src: string
@@ -652,7 +661,7 @@ export default function KnifeDetail({
         </div>
 
         <Tabs
-          defaultValue="details"
+          defaultValue={initialTab}
           className="order-2 min-w-0 gap-4 lg:order-none"
         >
           <TabsList className="w-full">
@@ -663,6 +672,18 @@ export default function KnifeDetail({
             <TabsTrigger value="maintenance">
               <Wrench aria-hidden="true" />
               Maintenance
+              {careAlert ? (
+                <span
+                  role="img"
+                  aria-label={
+                    careAlert === 'overdue' ? 'Care overdue' : 'Care due soon'
+                  }
+                  className={cn(
+                    'size-2 rounded-full',
+                    careAlert === 'overdue' ? 'bg-red-500' : 'bg-amber-500',
+                  )}
+                />
+              ) : null}
             </TabsTrigger>
           </TabsList>
 

@@ -8,7 +8,7 @@ export default async function KnifeDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ edit?: string | string[] }>
+  searchParams: Promise<{ edit?: string | string[]; tab?: string | string[] }>
 }) {
   await requireUnlockedPage()
   const { id } = await params
@@ -24,6 +24,7 @@ export default async function KnifeDetailPage({
       key={knife.id}
       knife={knife}
       initialEditing={query.edit === '1'}
+      initialTab={query.tab === 'maintenance' ? 'maintenance' : 'details'}
     />
   )
 }

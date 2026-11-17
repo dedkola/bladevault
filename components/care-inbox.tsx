@@ -284,7 +284,7 @@ function CareMessageRow({
   const tone = messageTone(notification, now)
   const ids = [notification.id]
   const href = knife
-    ? `/collection/${encodeURIComponent(knife.id)}`
+    ? `/collection/${encodeURIComponent(knife.id)}?tab=maintenance`
     : '/collection'
   return (
     <li
