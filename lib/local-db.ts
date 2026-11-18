@@ -21,7 +21,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 10
+export const LOCAL_DB_SCHEMA_VERSION = 11
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -959,10 +959,21 @@ function migratePriceMonitoringSchema(
     ],
   ]
   const missing = statements.filter(([name]) => !has(name))
-  if (!missing.length) return
-  database.transaction(() => {
-    for (const [, sql] of missing) database.exec(sql)
-  })()
+  if (missing.length)
+    database.transaction(() => {
+      for (const [, sql] of missing) database.exec(sql)
+    })()
+
+  // Schema 11: the AI problem solver's per-store recipe and per-check steps.
+  const addColumn = (table: string, column: string, type: string) => {
+    const columns = database
+      .prepare(`SELECT name FROM pragma_table_info('${table}')`)
+      .all() as Array<{ name: string }>
+    if (!columns.some((entry) => entry.name === column))
+      database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`)
+  }
+  addColumn('price_host_state', 'solver_recipe', 'TEXT')
+  addColumn('price_check_log', 'solver_steps', 'TEXT')
 }
 
 function normalizeKnifeRows(database: Database.Database) {

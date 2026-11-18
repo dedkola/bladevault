@@ -25,7 +25,6 @@ describe('settings persistence', () => {
         enabled: false,
         schedule: { mode: 'custom', intervalHours: 6, activeHours: [22, 6] },
         pacing: {
-          maxParallelStores: 2,
           minGapSeconds: 90,
           amazonMinGapSeconds: 600,
         },
@@ -35,7 +34,7 @@ describe('settings persistence', () => {
           outOfStock: true,
           backInStock: false,
         },
-        thresholds: { minPercent: 2.5, minAbsolute: 15 },
+        thresholds: { minPercent: 2.5 },
         ai: {
           enabled: true,
           baseUrl: 'http://localhost:11434/v1',
@@ -43,6 +42,8 @@ describe('settings persistence', () => {
           headers: { 'x-opencode-session': 'bladevault' },
           extractionFallback: false,
           advisor: true,
+          resolveErrors: false,
+          vision: false,
         },
         otherStores: {
           enabled: true,
@@ -58,7 +59,6 @@ describe('settings persistence', () => {
       skipSoldKnives: true,
       schedule: { mode: 'custom', intervalHours: 6, activeHours: [22, 6] },
       pacing: {
-        maxParallelStores: 2,
         minGapSeconds: 90,
         amazonMinGapSeconds: 600,
       },
@@ -68,7 +68,7 @@ describe('settings persistence', () => {
         outOfStock: true,
         backInStock: false,
       },
-      thresholds: { minPercent: 2.5, minAbsolute: 15 },
+      thresholds: { minPercent: 2.5 },
       ai: {
         enabled: true,
         baseUrl: 'http://localhost:11434/v1',
@@ -76,6 +76,8 @@ describe('settings persistence', () => {
         headers: { 'x-opencode-session': 'bladevault' },
         extractionFallback: false,
         advisor: true,
+        resolveErrors: false,
+        vision: false,
       },
       otherStores: {
         enabled: true,
@@ -108,7 +110,7 @@ describe('settings persistence', () => {
         outOfStock: false,
         backInStock: true,
       },
-      thresholds: { minPercent: 5, minAbsolute: 0 },
+      thresholds: { minPercent: 5 },
     })
 
     getLocalDb()

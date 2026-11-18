@@ -36,7 +36,6 @@ function input(
     candidates,
     lanes: new Map(lanes.map((lane) => [lane.laneKey, lane])),
     busyLanes: new Set(),
-    maxParallel: 3,
     now: NOW,
     scheduledActive: true,
     defaultLane: (laneKey) => defaultLaneState(laneKey, pacing, NOW),
@@ -72,22 +71,18 @@ describe('pickNextChecks', () => {
     expect(picks.map((pick) => pick.laneKey)).toEqual(['kizer.example'])
   })
 
-  it('respects the parallel limit and lets stores take turns', () => {
+  it('starts every ready store at once, longest-waiting first', () => {
+    const hosts = Array.from({ length: 20 }, (_, i) => `s${i}.example`)
     const picks = pickNextChecks(
       input(
-        [source('a.example'), source('b.example'), source('c.example')],
-        { maxParallel: 2 },
-        [
-          lane('a.example', { lastRequestAt: NOW - 5 * MIN }),
-          lane('b.example', { lastRequestAt: NOW - 50 * MIN }),
-          lane('c.example', { lastRequestAt: NOW - 10 * MIN }),
-        ],
+        hosts.map((host) => source(host)),
+        { busyLanes: new Set(['busy.example']) },
+        hosts.map((host, i) =>
+          lane(host, { lastRequestAt: NOW - (i + 1) * 5 * MIN }),
+        ),
       ),
     )
-    expect(picks.map((pick) => pick.laneKey)).toEqual([
-      'b.example',
-      'c.example',
-    ])
+    expect(picks.map((pick) => pick.laneKey)).toEqual([...hosts].reverse())
   })
 
   it('takes Check now first, then the most overdue product', () => {

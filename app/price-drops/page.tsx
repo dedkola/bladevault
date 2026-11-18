@@ -7,13 +7,20 @@ export const metadata: Metadata = {
     'Market prices, price changes and stock for knives in your collection.',
 }
 
-export default function PriceDropsPage() {
+export default async function PriceDropsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ section?: string | string[] }>
+}) {
+  const { section } = await searchParams
   return (
     <div
       data-price-drops-page
       className="flex w-full flex-1 flex-col p-4 sm:p-6 lg:p-8"
     >
-      <PriceDropsView />
+      <PriceDropsView
+        initialSection={typeof section === 'string' ? section : undefined}
+      />
     </div>
   )
 }

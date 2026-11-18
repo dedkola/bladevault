@@ -65,7 +65,7 @@ import { getVaultAccessState } from '@/lib/vault-access'
 
 /**
  * The paced monitoring queue. One worker per vault (a lease in SQLite), at
- * most one check per store and `maxParallelStores` stores at a time, each
+ * most one check per store at a time (different stores run in parallel), each
  * store's checks spread over the frequency window, with adaptive gaps and a
  * circuit breaker per store. It runs in the Next.js server process and does
  * not depend on any page being open.
@@ -288,7 +288,6 @@ export class PriceMonitorWorker {
         candidates,
         lanes,
         busyLanes: this.busyLanes(),
-        maxParallel: settings.pacing.maxParallelStores,
         now,
         scheduledActive,
         defaultLane: (laneKey) =>
@@ -334,7 +333,7 @@ export class PriceMonitorWorker {
 
   /**
    * Other stores: starts one AI search on the Amazon lane when the lane is
-   * free and ready, a parallel slot is open and a knife is due. The search
+   * free and ready and a knife is due. The search
    * counts as an Amazon request for pacing and the circuit breaker.
    */
   private maybeDiscover(input: QueueInput, context: PassContext, now: number) {
@@ -343,7 +342,7 @@ export class PriceMonitorWorker {
     if (!discoveryActive(context.settings) || now < this.discoveryNotBefore)
       return
     const busy = this.busyLanes()
-    if (busy.has(DISCOVERY_LANE) || busy.size >= input.maxParallel) return
+    if (busy.has(DISCOVERY_LANE)) return
     const lane =
       input.lanes.get(DISCOVERY_LANE) ?? input.defaultLane(DISCOVERY_LANE)
     if (laneAvailability(lane, now).state !== 'ready') return
@@ -575,7 +574,6 @@ export type QueueSnapshot = {
   activeHours: ActiveHours | null
   timeZone: string
   frequencyMs: number
-  maxParallelStores: number
   inFlight: Array<{
     sourceId: number
     laneKey: string
@@ -670,7 +668,6 @@ export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
     activeHours: hours,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     frequencyMs: frequencyMs(settings.schedule),
-    maxParallelStores: settings.pacing.maxParallelStores,
     inFlight: [...worker.inFlight.values()].map((entry) => ({
       sourceId: entry.sourceId,
       laneKey: entry.laneKey,

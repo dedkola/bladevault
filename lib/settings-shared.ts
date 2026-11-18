@@ -453,9 +453,8 @@ export type PriceMonitoringSettings = {
     /** Null: around the clock (Twice daily defaults to 8–22). */
     activeHours: ActiveHours | null
   }
+  /** Per-store limits; different stores are checked in parallel. */
   pacing: {
-    /** Stores checked at the same time, 1–5. Never two at one store. */
-    maxParallelStores: number
     /** Floor between two checks at one store; raised automatically. */
     minGapSeconds: number
     amazonMinGapSeconds: number
@@ -463,15 +462,13 @@ export type PriceMonitoringSettings = {
   /** Which detected changes create an Inbox notification. */
   notify: PriceNotifyCategories
   /**
-   * Price changes notify when either enabled threshold is met. A threshold
-   * of 0 is off; with both off, every price change notifies. Stock changes
-   * ignore the thresholds.
+   * Price changes notify when they move by at least `minPercent` of the
+   * previous price; 0 notifies on every price change. Stock changes ignore
+   * the threshold.
    */
   thresholds: {
     /** Percent of the previous price, 0–100. */
     minPercent: number
-    /** Major units of the source's currency, e.g. 5 = 5.00 USD. */
-    minAbsolute: number
   }
   /** Optional OpenAI-compatible AI; monitoring works without it. */
   ai: PriceAiSettings
@@ -527,6 +524,14 @@ export type PriceAiSettings = {
   extractionFallback: boolean
   /** Let AI review store pacing (statistics and store host names only). */
   advisor: boolean
+  /**
+   * Let AI solve failed checks: work the page in the monitoring browser to
+   * reach the price (price-monitor/solver) and choose how to recover from
+   * errors within fixed limits (price-monitor/troubleshoot).
+   */
+  resolveErrors: boolean
+  /** The model reads images: the solver may read a price from a screenshot. */
+  vision: boolean
 }
 
 export type PriceNotifyCategories = {
@@ -538,20 +543,18 @@ export type PriceNotifyCategories = {
 
 export const PRICE_MONITORING_LIMITS = {
   intervalHours: [1, 168],
-  maxParallelStores: [1, 5],
   minGapSeconds: [30, 3600],
   amazonMinGapSeconds: [60, 21_600],
   minPercent: [0, 100],
-  minAbsolute: [0, 1_000_000],
 } as const
 
 export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
   enabled: true,
   skipSoldKnives: true,
   schedule: { mode: 'daily', intervalHours: 24, activeHours: null },
-  pacing: { maxParallelStores: 3, minGapSeconds: 60, amazonMinGapSeconds: 300 },
+  pacing: { minGapSeconds: 60, amazonMinGapSeconds: 300 },
   notify: { drop: true, increase: false, outOfStock: false, backInStock: true },
-  thresholds: { minPercent: 5, minAbsolute: 0 },
+  thresholds: { minPercent: 5 },
   ai: {
     enabled: false,
     baseUrl: '',
@@ -559,6 +562,8 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
     headers: {},
     extractionFallback: true,
     advisor: true,
+    resolveErrors: true,
+    vision: false,
   },
   otherStores: {
     enabled: false,
@@ -703,7 +708,10 @@ function normalizePriceAi(
   fallback: PriceAiSettings,
 ): PriceAiSettings {
   const record = plainObject(value)
-  const flag = (key: 'enabled' | 'extractionFallback' | 'advisor') =>
+  const flag = (
+    key:
+      'enabled' | 'extractionFallback' | 'advisor' | 'resolveErrors' | 'vision',
+  ) =>
     typeof record[key] === 'boolean' ? (record[key] as boolean) : fallback[key]
   let baseUrl = fallback.baseUrl
   if (typeof record.baseUrl === 'string')
@@ -717,6 +725,8 @@ function normalizePriceAi(
     headers: headersOrFallback(record.headers, fallback.headers),
     extractionFallback: flag('extractionFallback'),
     advisor: flag('advisor'),
+    resolveErrors: flag('resolveErrors'),
+    vision: flag('vision'),
   }
 }
 
@@ -835,11 +845,6 @@ export function normalizePriceMonitoring(
           : fallback.schedule.activeHours,
     },
     pacing: {
-      maxParallelStores: boundedInteger(
-        pacing.maxParallelStores,
-        PRICE_MONITORING_LIMITS.maxParallelStores,
-        fallback.pacing.maxParallelStores,
-      ),
       minGapSeconds: boundedInteger(
         pacing.minGapSeconds,
         PRICE_MONITORING_LIMITS.minGapSeconds,
@@ -863,12 +868,6 @@ export function normalizePriceMonitoring(
         PRICE_MONITORING_LIMITS.minPercent,
         1,
         fallback.thresholds.minPercent,
-      ),
-      minAbsolute: boundedDecimal(
-        thresholds.minAbsolute,
-        PRICE_MONITORING_LIMITS.minAbsolute,
-        2,
-        fallback.thresholds.minAbsolute,
       ),
     },
     ai: normalizePriceAi(record.ai, fallback.ai),

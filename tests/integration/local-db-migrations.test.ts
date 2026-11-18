@@ -36,7 +36,7 @@ describe('local database migrations', () => {
       ).map((row) => row.name)
 
     expect(tableNames()).toEqual(expect.arrayContaining(priceTables))
-    expect(getLocalDb().pragma('user_version', { simple: true })).toBe(10)
+    expect(getLocalDb().pragma('user_version', { simple: true })).toBe(11)
     getLocalDb()
       .prepare(
         `INSERT INTO price_monitor_daily (day, lane_key, checks)

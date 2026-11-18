@@ -154,7 +154,7 @@ const lanesOf = (pending: Pending[], ids: Map<string, number>) => {
 }
 
 describe('price monitor worker', () => {
-  it('starts with one check per store and at most three stores, no burst', async () => {
+  it('starts every store at once, but one check per store, no burst', async () => {
     await knife(['https://kizer.example/a', 'https://kizer.example/b'])
     await knife(['https://vosteed.com/a', 'https://vosteed.com/b'])
     await knife([
@@ -167,16 +167,18 @@ describe('price monitor worker', () => {
     worker.start({ scheduled: true })
     await worker.pass()
 
-    expect(pending).toHaveLength(3)
-    expect(new Set(lanesOf(pending, ids)).size).toBe(3)
+    expect(lanesOf(pending, ids)).toEqual([
+      'bladehq.com',
+      'kizer.example',
+      'vosteed.com',
+      'www.amazon.com',
+    ])
 
-    // A finished store waits for its gap; the fourth store takes the slot.
+    // A finished store waits for its gap instead of starting its next product.
     const firstHost = lanesOf([pending[0]], ids)[0]
     await finish(0)
     expect(pending).toHaveLength(3)
-    expect(new Set(lanesOf(pending, ids)).size).toBe(3)
     expect(lanesOf(pending, ids)).not.toContain(firstHost)
-    expect(lanesOf(pending, ids)).toContain('bladehq.com')
   })
 
   it('spreads a store over the day and records its pace', async () => {
@@ -360,6 +362,8 @@ describe('price monitor worker', () => {
           headers: {},
           extractionFallback: true,
           advisor: true,
+          resolveErrors: true,
+          vision: false,
         },
       },
     })

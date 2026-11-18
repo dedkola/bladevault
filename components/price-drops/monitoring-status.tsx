@@ -27,15 +27,28 @@ const MAX_STORE_LANES = 6
 
 type Group = 'result' | 'store'
 
+/** Pins closer than this many pixels merge into one "N knives" pin. */
+const MERGE_PX = 56
+
 type Pin = {
   /** 0–100 across the zone. */
   position: number
   sources: MonitoredSource[]
   label: string
   result: SourceResult
+  /** Already due and waiting in its store's queue. */
+  due: boolean
 }
 
 type PlacedPin = Pin & { row: number; align: 'start' | 'mid' | 'end' }
+
+/** "26 min", "3 h", "2 d": how long a due knife has been waiting. */
+function waitLabel(ms: number) {
+  const minutes = Math.max(1, Math.round(ms / 60_000))
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.round(minutes / 60)
+  return hours < 48 ? `${hours} h` : `${Math.round(hours / 24)} d`
+}
 
 function shortName(source: MonitoredSource) {
   const name = source.knife.name || source.knife.brand
@@ -54,34 +67,51 @@ function pinLabel(source: MonitoredSource, upcoming: boolean) {
  * each pin a row so no two labels overlap (as in Maintenance > Coming up).
  */
 function placePins(
-  items: { position: number; source: MonitoredSource }[],
+  items: { position: number; source: MonitoredSource; due?: boolean }[],
   upcoming: boolean,
   width: number,
 ): { pins: PlacedPin[]; rows: number } {
-  const sorted = [...items].sort((a, b) => a.position - b.position)
-  const gap = upcoming ? 12 : 5
+  const sorted = [...items].sort(
+    (a, b) =>
+      Number(b.due ?? 0) - Number(a.due ?? 0) || a.position - b.position,
+  )
+  const gap = (MERGE_PX / Math.max(width, 1)) * 100
   const merged: Pin[] = []
   for (const item of sorted) {
     const last = merged.at(-1)
-    if (last && item.position - last.position < gap) {
+    const due = Boolean(item.due)
+    // Due knives all wait at Now as one queue pin; the rest merge by distance.
+    if (
+      last &&
+      last.due === due &&
+      (due || item.position - last.position < gap)
+    ) {
       last.sources.push(item.source)
-      last.position =
-        last.position + (item.position - last.position) / last.sources.length
-      last.label = `${last.sources.length} knives`
+      if (!due)
+        last.position =
+          last.position + (item.position - last.position) / last.sources.length
+      last.label = due
+        ? `${last.sources.length} in queue`
+        : `${last.sources.length} knives`
       continue
     }
     merged.push({
-      position: item.position,
+      position: due ? 0 : item.position,
       sources: [item.source],
       label: pinLabel(item.source, upcoming),
       result: item.source.result,
+      due,
     })
   }
   const ends: number[] = []
   const pins = merged.map((pin) => {
     const size = ((pin.label.length * 6.2 + 18) / Math.max(width, 1)) * 100
     const align: PlacedPin['align'] =
-      pin.position < 8 ? 'start' : pin.position > 92 ? 'end' : 'mid'
+      pin.due || pin.position < size / 2
+        ? 'start'
+        : pin.position > 100 - size / 2
+          ? 'end'
+          : 'mid'
     const start =
       align === 'start'
         ? pin.position
@@ -141,14 +171,21 @@ function TimelinePin({
 }) {
   const single = pin.sources.length === 1 ? pin.sources[0] : null
   const label = single
-    ? describe(single, now)
-    : `${pin.sources.length} knives ${upcoming ? 'checked soon' : 'checked around then'}`
+    ? `${describe(single, now)}${pin.due ? ' · waiting in the store queue' : ''}`
+    : `${pin.sources.length} knives ${
+        pin.due
+          ? 'due and waiting in the store queue'
+          : upcoming
+            ? 'with their next check around then'
+            : 'checked around then'
+      }`
   return (
     <button
       type="button"
       className="pd-pin"
       data-result={pin.result}
       data-upcoming={upcoming || undefined}
+      data-due={pin.due || undefined}
       data-align={pin.align}
       aria-pressed={single ? selectedKnife === single.knife.id : undefined}
       aria-label={label}
@@ -220,8 +257,30 @@ function lanesFor(group: Group, sources: MonitoredSource[]): Lane[] {
   return lanes
 }
 
-function hourLabel(offset: number) {
-  return offset === 0 ? 'Now' : `${offset} h`
+/** Hours before now marked on the past zone, oldest first. */
+const PAST_TICKS = [24, 18, 12, 6]
+
+/** Up to four evenly spaced hour marks across the upcoming zone. */
+function futureTicks(horizonHours: number) {
+  return [
+    ...new Set([1, 2, 3, 4].map((i) => Math.round((horizonHours * i) / 4))),
+  ]
+}
+
+/** Faint hour lines behind the pins, matching the axis marks. */
+function GridLines({ positions }: { positions: number[] }) {
+  return (
+    <>
+      {positions.map((position) => (
+        <span
+          key={position}
+          className="pd-tl-grid"
+          style={{ left: `${position}%` }}
+          aria-hidden="true"
+        />
+      ))}
+    </>
+  )
 }
 
 /**
@@ -293,22 +352,29 @@ function StatusTimeline({
     const upcoming = placePins(
       lane.sources
         .filter((source) => source.nextCheckAt)
-        .map((source) => ({
-          source,
-          position: Math.min(
-            99.5,
-            Math.max(
-              0.5,
-              ((Date.parse(source.nextCheckAt!) - now) / horizonMs) * 100,
+        .map((source) => {
+          const at = Date.parse(source.nextCheckAt!)
+          return {
+            source,
+            due: at <= now,
+            position: Math.min(
+              99.5,
+              Math.max(0.5, ((at - now) / horizonMs) * 100),
             ),
-          ),
-        })),
+          }
+        }),
       true,
       futureWidth,
     )
     return { ...lane, past, upcoming }
   })
-  const ticks = [3, 6].map((step) => Math.round((horizonHours * step) / 6))
+  const ticks = futureTicks(horizonHours)
+  const pastGrid = PAST_TICKS.slice(1).map((hours) => 100 - (hours / 24) * 100)
+  const futureGrid = ticks
+    .filter((tick) => tick < horizonHours)
+    .map((tick) => (tick / horizonHours) * 100)
+  const openCluster = (pin: PlacedPin, upcoming: boolean, rect: DOMRect) =>
+    setCluster({ pin, upcoming, left: rect.left, top: rect.bottom + 4 })
 
   return (
     <div className="pd-timeline">
@@ -339,15 +405,29 @@ function StatusTimeline({
       </div>
       <div className="pd-tl-axis" aria-hidden="true">
         <span className="pd-tl-dates">
-          <span>24 h ago</span>
-          <span>18 h</span>
-          <span>12 h</span>
-          <span>6 h</span>
-          <b>{hourLabel(0)}</b>
+          {PAST_TICKS.map((hours, index) => (
+            <span
+              key={hours}
+              data-align={index === 0 ? 'start' : undefined}
+              data-minor={hours % 12 ? true : undefined}
+              style={{ left: `${100 - (hours / 24) * 100}%` }}
+            >
+              {index === 0 ? `${hours} h ago` : `−${hours} h`}
+            </span>
+          ))}
         </span>
         <span className="pd-tl-dates pd-tl-dates-future">
+          <b data-align="start" style={{ left: 0 }}>
+            Now
+          </b>
           {ticks.map((tick) => (
-            <span key={tick}>+{tick} h</span>
+            <span
+              key={tick}
+              data-align={tick === horizonHours ? 'end' : undefined}
+              style={{ left: `${(tick / horizonHours) * 100}%` }}
+            >
+              +{tick} h
+            </span>
           ))}
         </span>
       </div>
@@ -372,6 +452,7 @@ function StatusTimeline({
               <span className="pd-tl-count">· {lane.sources.length}</span>
             </h3>
             <div className="pd-tl-past" ref={index === 0 ? pastRef : undefined}>
+              <GridLines positions={pastGrid} />
               {lane.past.pins.map((pin) => (
                 <TimelinePin
                   key={`p-${pin.sources[0].sourceId}`}
@@ -380,14 +461,7 @@ function StatusTimeline({
                   selectedKnife={selectedKnife}
                   now={now}
                   onSelect={onSelect}
-                  onOpenCluster={(p, up, rect) =>
-                    setCluster({
-                      pin: p,
-                      upcoming: up,
-                      left: rect.left,
-                      top: rect.bottom + 4,
-                    })
-                  }
+                  onOpenCluster={openCluster}
                 />
               ))}
             </div>
@@ -395,22 +469,16 @@ function StatusTimeline({
               className="pd-tl-future"
               ref={index === 0 ? futureRef : undefined}
             >
+              <GridLines positions={futureGrid} />
               {lane.upcoming.pins.map((pin) => (
                 <TimelinePin
-                  key={`u-${pin.sources[0].sourceId}`}
+                  key={`u-${pin.due ? 'due-' : ''}${pin.sources[0].sourceId}`}
                   pin={pin}
                   upcoming
                   selectedKnife={selectedKnife}
                   now={now}
                   onSelect={onSelect}
-                  onOpenCluster={(p, up, rect) =>
-                    setCluster({
-                      pin: p,
-                      upcoming: up,
-                      left: rect.left,
-                      top: rect.bottom + 4,
-                    })
-                  }
+                  onOpenCluster={openCluster}
                 />
               ))}
             </div>
@@ -430,29 +498,43 @@ function StatusTimeline({
         >
           <p>
             {cluster.pin.sources.length} knives ·{' '}
-            {cluster.upcoming ? 'checking soon' : 'checked around then'}
+            {cluster.pin.due
+              ? 'due, checked one at a time per store'
+              : cluster.upcoming
+                ? 'next check'
+                : 'last checked'}
           </p>
           <ul>
-            {cluster.pin.sources.map((source) => (
-              <li key={source.sourceId}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCluster(null)
-                    onSelect(source.knife.id)
-                  }}
-                >
-                  <span>
-                    {source.knife.brand} {source.knife.name}
-                  </span>
-                  <span>
-                    {cluster.upcoming
-                      ? relativeTime(source.nextCheckAt, now)
-                      : relativeTime(source.lastCheckedAt, now)}
-                  </span>
-                </button>
-              </li>
-            ))}
+            {[...cluster.pin.sources]
+              .sort((a, b) =>
+                cluster.upcoming
+                  ? (a.nextCheckAt ?? '').localeCompare(b.nextCheckAt ?? '')
+                  : (b.lastCheckedAt ?? '').localeCompare(
+                      a.lastCheckedAt ?? '',
+                    ),
+              )
+              .map((source) => (
+                <li key={source.sourceId}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCluster(null)
+                      onSelect(source.knife.id)
+                    }}
+                  >
+                    <span>
+                      {source.knife.brand} {source.knife.name}
+                    </span>
+                    <span>
+                      {cluster.pin.due
+                        ? `waiting ${waitLabel(now - Date.parse(source.nextCheckAt!))}`
+                        : cluster.upcoming
+                          ? relativeTime(source.nextCheckAt, now)
+                          : relativeTime(source.lastCheckedAt, now)}
+                    </span>
+                  </button>
+                </li>
+              ))}
           </ul>
         </div>
       ) : null}
@@ -581,10 +663,11 @@ export function MonitoringStatus({
   const attention = sources.filter(
     (source) => source.result === 'attention' || source.result === 'pending',
   ).length
-  const nextDue = sources
+  const nextChecks = sources
     .map((source) => source.nextCheckAt)
     .filter((value): value is string => Boolean(value))
-    .sort()[0]
+  const queued = nextChecks.filter((value) => Date.parse(value) <= now).length
+  const nextDue = nextChecks.sort()[0]
   const interval = overview.round.intervalHours
   const horizonHours = Math.min(24, Math.max(6, interval ?? 12))
 
@@ -597,8 +680,9 @@ export function MonitoringStatus({
       <header className="pd-status-head">
         <h2 id="price-status-title">Monitoring status</h2>
         <p>
-          The last 24 hours of checks on the left, the next {horizonHours} hours
-          on the right. Select a pin to open the knife.
+          What the next {horizonHours} hours will check, with the last 24 hours
+          in brief on the left. Knives already due wait at Now and are checked
+          one at a time per store. Select a pin to open the knife.
         </p>
       </header>
       <div className="pd-status-body">
@@ -615,14 +699,13 @@ export function MonitoringStatus({
           <span>
             <b>{attention}</b> need attention
           </span>
-          {nextDue ? (
+          {queued ? (
             <span>
-              next check{' '}
-              <b>
-                {Date.parse(nextDue) <= now
-                  ? 'due now'
-                  : relativeTime(nextDue, now)}
-              </b>
+              <b>{queued}</b> waiting in the queue
+            </span>
+          ) : nextDue ? (
+            <span>
+              next check <b>{relativeTime(nextDue, now)}</b>
             </span>
           ) : null}
         </p>
@@ -671,7 +754,17 @@ export function MonitoringStatus({
 }
 
 /** Change badge for a monitored source: icon plus words, never color alone. */
-export function ResultBadge({ source }: { source: MonitoredSource }) {
+/**
+ * A source's result. With `onResolve`, a Needs attention badge is a button
+ * that starts Solve in browser for that store page.
+ */
+export function ResultBadge({
+  source,
+  onResolve,
+}: {
+  source: MonitoredSource
+  onResolve?: () => void
+}) {
   if (
     (source.result === 'drop' || source.result === 'increase') &&
     source.deltaMinor !== null
@@ -711,6 +804,30 @@ export function ResultBadge({ source }: { source: MonitoredSource }) {
       : source.result === 'pending'
         ? 'Waiting'
         : RESULT_LABEL[source.result]
+  if (source.result === 'attention' && onResolve)
+    return (
+      <button
+        type="button"
+        className="pd-badge cursor-pointer underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        data-result={source.result}
+        title={
+          source.status === 'blocked'
+            ? 'Solve the bot check in a browser window'
+            : 'Open the store page in a browser window to fix it'
+        }
+        onClick={(event) => {
+          event.stopPropagation()
+          onResolve()
+        }}
+      >
+        {icon[source.result]} {text}
+        <span className="sr-only">
+          {' '}
+          —{' '}
+          {source.status === 'blocked' ? 'solve in browser' : 'fix in browser'}
+        </span>
+      </button>
+    )
   return (
     <span className="pd-badge" data-result={source.result}>
       {icon[source.result]} {text}

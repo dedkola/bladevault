@@ -213,13 +213,13 @@ describe('price notifications', () => {
           outOfStock: true,
           backInStock: false,
         },
-        thresholds: { minPercent: 0, minAbsolute: 15 },
+        thresholds: { minPercent: 15 },
       },
     })
     const knifeId = await createKnife()
     const sourceId = await sourceIdFor(knifeId)
 
-    // +10.00 is under 15.00; +20.00 notifies; drops are off.
+    // +10% is under 15%; 110 → 130 (+18%) notifies; drops are off.
     await check(sourceId, offer(100), offer(110), offer(130), offer(100))
     await check(sourceId, offer(null, 'out_of_stock'))
     expect(notificationRows()).toEqual([

@@ -1,10 +1,13 @@
 import { getLocalDb } from '@/lib/local-db'
+import { syncPriceAttention } from '@/lib/price-monitor/attention'
+import { reportServerError } from '@/lib/sentry/server'
 import {
   aiFallbackAllowed,
   extractOfferWithAi,
   type AiAnswerRejection,
 } from '@/lib/price-monitor/ai'
 import {
+  clearBrowserState,
   loadBrowserState,
   saveBrowserState,
 } from '@/lib/price-monitor/browser-state'
@@ -27,11 +30,23 @@ import {
   toMinorUnits,
 } from '@/lib/price-monitor/money'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
+import {
+  parseRecipe,
+  replayRecipe,
+  SOLVER_BUDGET_MS,
+  solveOnPage,
+  solverAllowed,
+  summarizeSteps,
+  type SolverAction,
+  type SolverLogStep,
+  type SolverResult,
+} from '@/lib/price-monitor/solver'
 import type { PriceProvider } from '@/lib/price-monitor/shared'
 import {
   markSourceChecking,
   readHostState,
   readRecentPrices,
+  readRecentSourceChecks,
   readSource,
   recordCheck,
   type CheckOutcomeKind,
@@ -41,6 +56,11 @@ import {
   type RecordedObservation,
   type SourceRow,
 } from '@/lib/price-monitor/store'
+import {
+  troubleshootAllowed,
+  troubleshootCheck,
+  type TroubleshootPlan,
+} from '@/lib/price-monitor/troubleshoot'
 import type { ExtractedOffer } from '@/lib/scrape-offer'
 import { ScrapeError, toScrapeError } from '@/lib/scrape-errors'
 import { createScrapeOperation } from '@/lib/scrape-operation'
@@ -64,7 +84,7 @@ const DEFAULT_INTERVAL_MS = DAY_MS
 
 const MESSAGES: Record<string, string> = {
   challenge:
-    'The store showed a bot check (CAPTCHA). BladeVault will try again later.',
+    "The store showed a bot check (CAPTCHA). Use Solve in browser to pass it once; BladeVault keeps the store's cookies for later checks.",
   network: 'Could not reach the store.',
   timeout: 'The page took too long to load.',
   redirect: 'The store redirected somewhere BladeVault cannot follow.',
@@ -100,6 +120,8 @@ type Strategy = 'http' | 'browser'
 function chooseStrategy(source: SourceRow, host: HostState, now: number) {
   if (source.fetch_override === 'http') return 'http'
   if (source.fetch_override === 'browser') return 'browser'
+  // A solver recipe acts on the rendered page.
+  if (parseRecipe(host.solverRecipe)) return 'browser'
   const pinnedToBrowser =
     host.strategy === 'browser_first' &&
     host.strategyUntil !== null &&
@@ -122,6 +144,9 @@ function isBlockingFailure(error: unknown): boolean {
 class CheckFlow {
   host: HostPatch = {}
   shopify: boolean
+  /** The store's solver recipe, replayed on every browser reading. */
+  recipe: SolverAction[] | null
+  recipeUsed = false
 
   constructor(
     readonly source: SourceRow,
@@ -130,16 +155,30 @@ class CheckFlow {
     readonly operation: ReturnType<typeof createScrapeOperation>,
   ) {
     this.shopify = source.provider === 'shopify'
+    this.recipe = parseRecipe(hostState.solverRecipe)
   }
 
   async browser(): Promise<Reading> {
     const lane = this.source.lane_key
     const storageState = await loadBrowserState(lane)
     let method: Reading['method'] = 'browser'
+    const recipe = this.recipe
+    let recipeOffer: ExtractedOffer | null = null
+    const interact = recipe
+      ? async (page: Parameters<typeof replayRecipe>[0]) => {
+          this.recipeUsed = true
+          const replay = await replayRecipe(page, recipe, {
+            currencyHint: this.currencyHint,
+          })
+          if (replay.challenge) throw new ScrapeError('challenge')
+          recipeOffer = replay.offer
+        }
+      : undefined
     let page
     try {
       page = await checkViaBrowser(this.source.url, this.operation, {
         storageState,
+        interact,
       })
     } catch (error) {
       if (toScrapeError(error).code !== 'challenge' || !headedRetryAvailable())
@@ -149,8 +188,11 @@ class CheckFlow {
       page = await checkViaBrowser(this.source.url, this.operation, {
         storageState,
         headless: false,
+        interact,
       })
     }
+    // A recipe may end on the store's product data rather than a page.
+    if (recipeOffer && !page.offer?.amount) page.offer = recipeOffer
     if (page.isShopify) this.shopify = true
     if (page.offer && page.storageState)
       await saveBrowserState(lane, page.storageState).catch(() => {})
@@ -184,6 +226,79 @@ class CheckFlow {
     })
     if (check.isShopify) this.shopify = true
     return { check, method: 'http' }
+  }
+
+  /**
+   * The AI problem solver on a fresh browser reading with its own budget.
+   * Never throws for page problems: a bot check or a failed load comes back
+   * as a result.
+   */
+  async solve(input: {
+    problem: { code: string; message: string }
+    settings: PriceAiSettings
+    accept: (offer: ExtractedOffer) => boolean
+    signal?: AbortSignal
+  }): Promise<SolverResult> {
+    const storageState = await loadBrowserState(this.source.lane_key)
+    const apiKey = await readPriceAiKey()
+    const operation = createScrapeOperation({
+      signal: input.signal,
+      timeoutMs: SOLVER_BUDGET_MS,
+    })
+    let result: SolverResult | null = null
+    try {
+      await checkViaBrowser(this.source.url, operation, {
+        storageState,
+        budgetMs: SOLVER_BUDGET_MS,
+        interact: async (page) => {
+          result = await solveOnPage(page, {
+            problem: input.problem,
+            currencyHint: this.currencyHint,
+            settings: input.settings,
+            endpoint: {
+              baseUrl: input.settings.baseUrl,
+              apiKey,
+              headers: input.settings.headers,
+            },
+            accept: input.accept,
+            signal: operation.signal,
+          })
+        },
+      })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'VaultAccessError')
+        throw error
+      if (!result) {
+        const code = toScrapeError(error).code
+        const message =
+          error instanceof Error && error.name === 'AiClientError'
+            ? error.message
+            : messageFor(code, error)
+        return {
+          status: code === 'challenge' ? 'challenge' : 'failed',
+          offer: null,
+          readByAi: false,
+          recipe: null,
+          steps: [],
+          aiCalls:
+            error instanceof Error && error.name === 'AiClientError' ? 1 : 0,
+          note: code === 'challenge' ? null : `AI problem solver: ${message}`,
+        }
+      }
+    } finally {
+      operation.dispose()
+    }
+    return (
+      result ?? {
+        status: 'failed',
+        offer: null,
+        readByAi: false,
+        recipe: null,
+        steps: [],
+        aiCalls: 0,
+        note: null,
+      }
+    )
   }
 
   /** HTTP first when learned; any HTTP problem falls back to the browser. */
@@ -324,6 +439,93 @@ async function readWithAi(input: {
     return { attempted: true, offer: null, note: `AI fallback: ${reason}` }
   }
 }
+
+type AiRecovery = {
+  /** The model was asked; starts the source's 24 h AI pause. */
+  attempted: boolean
+  plan: TroubleshootPlan | null
+  /** Why AI did not help, for the check log. */
+  note: string | null
+}
+
+/**
+ * The optional AI troubleshooter for a check that failed before a price
+ * could be read: only with AI enabled and at most once per source per 24
+ * hours (shared with the extraction fallback). See troubleshoot.ts for the
+ * bounds its plan is clamped to.
+ */
+async function recoverWithAi(input: {
+  source: SourceRow
+  settings: PriceAiSettings
+  errorCode: string
+  httpStatus: number | null
+  errorMessage: string
+  blocked: boolean
+  failures: number
+  trigger: CheckTrigger
+  defaultNextCheckAt: string
+  signal: AbortSignal | undefined
+}): Promise<AiRecovery> {
+  const none: AiRecovery = { attempted: false, plan: null, note: null }
+  const now = Date.now()
+  if (
+    input.signal?.aborted ||
+    !troubleshootAllowed({
+      settings: input.settings,
+      errorCode: input.errorCode,
+      lastAiAt: input.source.last_ai_at,
+      now,
+    })
+  )
+    return none
+  try {
+    const apiKey = await readPriceAiKey()
+    const plan = await troubleshootCheck({
+      failure: {
+        store: input.source.lane_key,
+        errorCode: input.errorCode,
+        httpStatus: input.httpStatus,
+        errorMessage: input.errorMessage,
+        blocked: input.blocked,
+        consecutiveFailures: input.failures,
+        trigger: input.trigger,
+        fetchMode: input.source.fetch_override,
+        defaultRetryMinutes: Math.max(
+          0,
+          Math.round((Date.parse(input.defaultNextCheckAt) - now) / 60_000),
+        ),
+        recent: readRecentSourceChecks(getLocalDb(), input.source.id),
+      },
+      endpoint: {
+        baseUrl: input.settings.baseUrl,
+        apiKey,
+        headers: input.settings.headers,
+      },
+      model: input.settings.model,
+      now,
+      signal: input.signal,
+    })
+    return { attempted: true, plan, note: null }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'VaultAccessError') throw error
+    const reason =
+      error instanceof Error && error.name === 'AiClientError'
+        ? error.message
+        : 'The AI request failed.'
+    return {
+      attempted: true,
+      plan: null,
+      note: `AI troubleshooting: ${reason}`,
+    }
+  }
+}
+
+/** Page-read problems the AI extraction fallback may fix. */
+const AI_EXTRACTION_CODES = new Set([
+  'not_found',
+  'no_currency',
+  'invalid_price',
+])
 
 const RETRY_DELAYS_MS = [10 * 60 * 1000, 60 * 60 * 1000] as const
 const RETRYABLE_CODES = new Set(['network', 'timeout'])
@@ -472,6 +674,15 @@ export async function checkPriceSource(
       provider: (flow.shopify ? 'shopify' : source.provider) as PriceProvider,
       host: flow.host,
     })
+    // The Inbox lists store pages that need attention; never fails a check.
+    await syncPriceAttention({
+      previousStatus: source.status,
+      status: readSource(getLocalDb(), source.id)?.status ?? null,
+    }).catch((error: unknown) => {
+      if (error instanceof Error && error.name === 'VaultAccessError')
+        throw error
+      reportServerError(error, 'price-monitor/attention')
+    })
     return {
       status: 'done',
       outcome: record.outcome,
@@ -487,6 +698,11 @@ export async function checkPriceSource(
     }
   }
   const nextOk = () => new Date(Date.now() + intervalMs).toISOString()
+  let aiUsed = false
+  let solverSteps: SolverLogStep[] | null = null
+  let solverNote: string | null = null
+  const withSolverNote = (message: string) =>
+    solverNote ? `${message} ${solverNote}` : message
 
   try {
     const validation = await validateExternalUrl(source.url, {
@@ -501,13 +717,38 @@ export async function checkPriceSource(
         validation.reason,
       )
 
-    let reading = await flow.read(chooseStrategy(source, hostState, Date.now()))
-    let method: CheckRecord['method'] = reading.method
-    let evaluated = evaluate(reading.check.offer, source, knife.specs.price)
-    let aiUsed = false
+    // Slow or unreadable pages may still be rescued by the solver below.
+    let reading: Reading | null = null
+    let readError: unknown = null
+    try {
+      reading = await flow.read(chooseStrategy(source, hostState, Date.now()))
+    } catch (error) {
+      if (
+        !solverAllowed({
+          settings: aiSettings,
+          errorCode: toScrapeError(error).code,
+          lastAiAt: source.last_ai_at,
+          now: Date.now(),
+        })
+      )
+        throw error
+      readError = error
+    }
+    let method: CheckRecord['method'] = reading?.method ?? null
+    let evaluated: Evaluated = reading
+      ? evaluate(reading.check.offer, source, knife.specs.price)
+      : {
+          kind: 'rejected',
+          outcome: 'failed',
+          errorCode: toScrapeError(readError).code,
+        }
     let aiNote: string | null = null
 
-    if (evaluated.kind === 'rejected' && evaluated.errorCode === 'not_found') {
+    if (
+      reading &&
+      evaluated.kind === 'rejected' &&
+      AI_EXTRACTION_CODES.has(evaluated.errorCode)
+    ) {
       const ai = await readWithAi({
         html: reading.check.html,
         source,
@@ -523,6 +764,68 @@ export async function checkPriceSource(
         method = 'ai'
       }
     }
+
+    // The AI problem solver works the page when nothing else read a price.
+    if (
+      evaluated.kind === 'rejected' &&
+      solverAllowed({
+        settings: aiSettings,
+        errorCode: evaluated.errorCode,
+        lastAiAt: source.last_ai_at,
+        now: Date.now(),
+      })
+    ) {
+      const problemCode = evaluated.errorCode
+      const solved = await flow.solve({
+        problem: { code: problemCode, message: messageFor(problemCode) },
+        settings: aiSettings,
+        accept: (offer) => {
+          const result = evaluate(offer, source, knife.specs.price)
+          return (
+            result.kind === 'observation' &&
+            result.observation.priceMinor !== null
+          )
+        },
+        signal: options.signal,
+      })
+      aiUsed = aiUsed || solved.aiCalls > 0
+      solverSteps = solved.steps.length ? solved.steps : null
+      if (solved.offer) {
+        evaluated = evaluate(solved.offer, source, knife.specs.price)
+        method = 'solver'
+        readError = null
+        aiNote = null
+        if (solved.recipe && !solved.readByAi) {
+          flow.recipe = solved.recipe
+          flow.host = {
+            ...flow.host,
+            solverRecipe: JSON.stringify(solved.recipe),
+          }
+        }
+      } else {
+        solverNote =
+          solved.status === 'challenge'
+            ? 'AI reached a bot check: use Solve in browser to pass it once.'
+            : [
+                solved.note,
+                solved.steps.length
+                  ? `Tried: ${summarizeSteps(solved.steps)}.`
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' ') || null
+      }
+    }
+    // A recipe that stopped working is forgotten.
+    if (
+      flow.recipeUsed &&
+      evaluated.kind === 'rejected' &&
+      flow.host.solverRecipe === undefined
+    )
+      flow.host = { ...flow.host, solverRecipe: null }
+    if (readError) throw readError
+    if (!reading && evaluated.kind === 'rejected')
+      throw new ScrapeError('unknown')
 
     if (
       evaluated.kind === 'observation' &&
@@ -547,6 +850,7 @@ export async function checkPriceSource(
           method,
           attempt: 2,
           aiUsed,
+          solverSteps,
           errorCode: 'implausible',
           errorMessage: messageFor('implausible'),
           nextCheckAt: nextCheckAfterFailure({
@@ -564,10 +868,13 @@ export async function checkPriceSource(
         outcome: evaluated.outcome,
         method,
         aiUsed,
+        solverSteps,
         errorCode: evaluated.errorCode,
-        errorMessage: aiNote
-          ? `${messageFor(evaluated.errorCode)} ${aiNote}`
-          : messageFor(evaluated.errorCode),
+        errorMessage: withSolverNote(
+          aiNote
+            ? `${messageFor(evaluated.errorCode)} ${aiNote}`
+            : messageFor(evaluated.errorCode),
+        ),
         nextCheckAt: nextOk(),
       })
     }
@@ -576,6 +883,7 @@ export async function checkPriceSource(
       outcome: 'ok',
       method,
       aiUsed,
+      solverSteps,
       observation: evaluated.observation,
       errorCode: null,
       errorMessage: null,
@@ -591,25 +899,69 @@ export async function checkPriceSource(
     const failures = source.consecutive_failures + 1
     const missing = status === 404 || status === 410
     const pause = missing && failures >= MISSING_PAGE_PAUSE_AFTER
-    return done(
+    let errorMessage = withSolverNote(
+      pause
+        ? 'The page was not found three times in a row, so this source is paused. Check the URL, then resume it.'
+        : messageFor(failure.code, failure),
+    )
+    let nextCheckAt = nextCheckAfterFailure({
+      failures,
+      retryable: isRetryable(failure.code, status),
+      intervalMs,
+      now: Date.now(),
+    })
+    let disable = pause
+    const ai = pause
+      ? null
+      : await recoverWithAi({
+          source,
+          settings: aiSettings,
+          errorCode: failure.code,
+          httpStatus: status,
+          errorMessage,
+          blocked: outcome === 'blocked',
+          failures,
+          trigger: options.trigger,
+          defaultNextCheckAt: nextCheckAt,
+          signal: options.signal,
+        })
+    const plan = ai?.plan ?? null
+    if (plan) {
+      if (plan.useBrowser)
+        flow.host = {
+          ...flow.host,
+          strategy: 'browser_first',
+          strategyUntil: new Date(Date.now() + BROWSER_PIN_MS).toISOString(),
+          httpMatchStreak: 0,
+        }
+      if (plan.nextCheckAt) nextCheckAt = plan.nextCheckAt
+      if (plan.pauseSource) {
+        disable = true
+        errorMessage =
+          'AI paused this source because the product page seems to be gone. Check the URL, then resume it.'
+      }
+      if (plan.explanation)
+        errorMessage = `${errorMessage} AI: ${plan.explanation}`
+    } else if (ai?.note) {
+      errorMessage = `${errorMessage} ${ai.note}`
+    }
+    const summary = await done(
       {
         outcome,
         method: null,
         httpStatus: status,
         errorCode: failure.code,
-        errorMessage: pause
-          ? 'The page was not found three times in a row, so this source is paused. Check the URL, then resume it.'
-          : messageFor(failure.code, failure),
-        nextCheckAt: nextCheckAfterFailure({
-          failures,
-          retryable: isRetryable(failure.code, status),
-          intervalMs,
-          now: Date.now(),
-        }),
-        disable: pause,
+        errorMessage,
+        nextCheckAt,
+        disable,
+        aiUsed: aiUsed || (ai?.attempted ?? false),
+        solverSteps,
       },
       { retryAfterMs: retryAfterMs(error) },
     )
+    if (plan?.resetCookies)
+      await clearBrowserState(source.lane_key).catch(() => {})
+    return summary
   } finally {
     operation.dispose()
   }

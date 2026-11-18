@@ -85,6 +85,8 @@ export type HostState = {
   strategy: HostStrategy
   strategyUntil: string | null
   httpMatchStreak: number
+  /** JSON steps the AI problem solver found work for this store. */
+  solverRecipe: string | null
 }
 
 export class PriceWatchError extends Error {
@@ -203,6 +205,7 @@ export function readHostState(
         strategy: HostStrategy
         strategy_until: string | null
         http_match_streak: number
+        solver_recipe: string | null
       }
     | undefined
   return {
@@ -210,6 +213,7 @@ export function readHostState(
     strategy: row?.strategy ?? 'auto',
     strategyUntil: row?.strategy_until ?? null,
     httpMatchStreak: row?.http_match_streak ?? 0,
+    solverRecipe: row?.solver_recipe ?? null,
   }
 }
 
@@ -476,7 +480,10 @@ export type RecordedObservation = Observation & {
 }
 
 export type HostPatch = Partial<
-  Pick<HostState, 'strategy' | 'strategyUntil' | 'httpMatchStreak'>
+  Pick<
+    HostState,
+    'strategy' | 'strategyUntil' | 'httpMatchStreak' | 'solverRecipe'
+  >
 >
 
 export type CheckRecord = {
@@ -486,8 +493,11 @@ export type CheckRecord = {
   startedAt: string
   durationMs: number
   outcome: CheckOutcomeKind
-  /** 'ai': the price was read by the AI fallback from the fetched page. */
-  method: 'http' | 'browser' | 'headed' | 'ai' | null
+  /**
+   * 'ai': the price was read by the AI fallback from the fetched page.
+   * 'solver': the AI problem solver (or a store recipe it found) got it.
+   */
+  method: 'http' | 'browser' | 'headed' | 'ai' | 'solver' | null
   attempt?: number
   httpStatus?: number | null
   errorCode?: string | null
@@ -500,6 +510,12 @@ export type CheckRecord = {
   disable?: boolean
   /** The AI fallback was asked (successful or not): starts its 24 h pause. */
   aiUsed?: boolean
+  /** What the AI problem solver did on the page, for the check history. */
+  solverSteps?: ReadonlyArray<{
+    action: string
+    detail: string
+    result: string
+  }> | null
   /** Inbox categories and thresholds; the defaults when left out. */
   notifications?: PriceNotificationSettings
 }
@@ -541,12 +557,13 @@ function upsertHostState(
     .prepare(
       `INSERT INTO price_host_state
         (lane_key, min_gap_ms, ready_at, strategy, strategy_until,
-         http_match_streak, last_outcome, updated_at)
-       VALUES (?, 0, ?, ?, ?, ?, ?, ?)
+         http_match_streak, solver_recipe, last_outcome, updated_at)
+       VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(lane_key) DO UPDATE SET
          strategy = excluded.strategy,
          strategy_until = excluded.strategy_until,
          http_match_streak = excluded.http_match_streak,
+         solver_recipe = excluded.solver_recipe,
          last_outcome = excluded.last_outcome,
          updated_at = excluded.updated_at`,
     )
@@ -556,6 +573,7 @@ function upsertHostState(
       next.strategy,
       next.strategyUntil,
       next.httpMatchStreak,
+      next.solverRecipe,
       outcome,
       now,
     )
@@ -586,8 +604,9 @@ export async function recordCheck(
           .prepare(
             `INSERT INTO price_check_log
               (lane_key, trigger, source_id, knife_id, started_at, duration_ms,
-               outcome, method, attempt, http_status, error_code, error_message)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               outcome, method, attempt, http_status, error_code, error_message,
+               solver_steps)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             source.lane_key,
@@ -602,6 +621,9 @@ export async function recordCheck(
             record.httpStatus ?? null,
             record.errorCode ?? null,
             record.errorMessage ?? null,
+            record.solverSteps?.length
+              ? JSON.stringify(record.solverSteps)
+              : null,
           ).lastInsertRowid,
       )
 
@@ -1119,6 +1141,30 @@ export type RecentCheckProblem = {
   outcome: CheckOutcomeKind
   errorCode: string | null
   errorMessage: string | null
+}
+
+/** A source's last check outcomes, newest first (for the AI troubleshooter). */
+export function readRecentSourceChecks(
+  database: Database.Database,
+  sourceId: number,
+  limit = 5,
+): Array<{ outcome: CheckOutcomeKind; errorCode: string | null; at: string }> {
+  return (
+    database
+      .prepare(
+        `SELECT outcome, error_code, started_at FROM price_check_log
+         WHERE source_id = ? ORDER BY id DESC LIMIT ?`,
+      )
+      .all(sourceId, limit) as Array<{
+      outcome: CheckOutcomeKind
+      error_code: string | null
+      started_at: string
+    }>
+  ).map((row) => ({
+    outcome: row.outcome,
+    errorCode: row.error_code,
+    at: row.started_at,
+  }))
 }
 
 export function readRecentProblems(
