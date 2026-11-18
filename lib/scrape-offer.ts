@@ -19,7 +19,14 @@ export const OFFER_AVAILABILITIES = [
 ] as const
 export type OfferAvailability = (typeof OFFER_AVAILABILITIES)[number]
 
-export type OfferMethod = 'jsonld' | 'microdata' | 'meta' | 'shopify' | 'amazon'
+export type OfferMethod =
+  | 'jsonld'
+  | 'microdata'
+  | 'meta'
+  | 'shopify'
+  | 'amazon'
+  // Price monitoring's optional AI fallback (lib/price-monitor/ai.ts).
+  | 'ai'
 
 export type ExtractedOffer = {
   /** Major units, e.g. 129.99; null when the page shows no price. */

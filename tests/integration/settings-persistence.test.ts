@@ -36,6 +36,13 @@ describe('settings persistence', () => {
           backInStock: false,
         },
         thresholds: { minPercent: 2.5, minAbsolute: 15 },
+        ai: {
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          model: 'llama3.2',
+          extractionFallback: false,
+          advisor: true,
+        },
       },
     })
     saveSettings({ startPage: 'studio' })
@@ -56,7 +63,22 @@ describe('settings persistence', () => {
         backInStock: false,
       },
       thresholds: { minPercent: 2.5, minAbsolute: 15 },
+      ai: {
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        model: 'llama3.2',
+        extractionFallback: false,
+        advisor: true,
+      },
     })
+    // The AI key is never part of the settings table.
+    expect(
+      JSON.stringify(
+        getLocalDb()
+          .prepare('SELECT value FROM settings WHERE key = ?')
+          .get('price_monitoring'),
+      ),
+    ).not.toMatch(/apiKey|api_key/i)
 
     // Settings saved before notifications existed get the defaults.
     getLocalDb()

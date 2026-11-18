@@ -1,5 +1,10 @@
 import { getLocalDb } from '@/lib/local-db'
 import {
+  aiFallbackAllowed,
+  extractOfferWithAi,
+  type AiAnswerRejection,
+} from '@/lib/price-monitor/ai'
+import {
   loadBrowserState,
   saveBrowserState,
 } from '@/lib/price-monitor/browser-state'
@@ -21,6 +26,7 @@ import {
   parseStoredPrice,
   toMinorUnits,
 } from '@/lib/price-monitor/money'
+import { readPriceAiKey } from '@/lib/price-monitor/secrets'
 import type { PriceProvider } from '@/lib/price-monitor/shared'
 import {
   markSourceChecking,
@@ -39,6 +45,7 @@ import type { ExtractedOffer } from '@/lib/scrape-offer'
 import { ScrapeError, toScrapeError } from '@/lib/scrape-errors'
 import { createScrapeOperation } from '@/lib/scrape-operation'
 import { getSettings } from '@/lib/settings'
+import type { PriceAiSettings } from '@/lib/settings-shared'
 import { getStorage } from '@/lib/storage'
 import { validateExternalUrl } from '@/lib/url-validation'
 import { getVaultAccessState } from '@/lib/vault-access'
@@ -72,6 +79,15 @@ const MESSAGES: Record<string, string> = {
   implausible:
     'The price changed too much to trust from one reading; it was not stored.',
   cancelled: 'The check was cancelled.',
+}
+
+const AI_REJECTIONS: Record<AiAnswerRejection | 'empty_page', string> = {
+  not_found: 'AI found no price either.',
+  low_confidence: 'AI was not sure enough about the price.',
+  not_in_page:
+    'AI suggested a price that is not on the page, so it was ignored.',
+  invalid_price: 'AI suggested a price that is not a valid amount.',
+  empty_page: 'The page had nothing for AI to read.',
 }
 
 function messageFor(code: string, error?: unknown): string {
@@ -247,9 +263,61 @@ function evaluate(
       priceMinor: toMinorUnits(offer.amount, currency),
       currency,
       availability: offer.availability,
-      extractionStatus: 'ok',
+      extractionStatus: offer.method === 'ai' ? 'ai' : 'ok',
       extractionMethod: offer.method,
     },
+  }
+}
+
+type AiReading = {
+  /** The model was asked; starts the source's 24 h AI pause. */
+  attempted: boolean
+  offer: ExtractedOffer | null
+  /** Why AI did not help, for the check log. */
+  note: string | null
+}
+
+/**
+ * The optional AI fallback for a page the parsers could not read: only with
+ * AI enabled and at most once per source per 24 hours. The key is optional
+ * for local servers such as Ollama; the endpoint decides.
+ */
+async function readWithAi(input: {
+  html: string | undefined
+  source: SourceRow
+  settings: PriceAiSettings
+  currencyHint: string
+  signal: AbortSignal
+}): Promise<AiReading> {
+  const none: AiReading = { attempted: false, offer: null, note: null }
+  if (
+    !input.html ||
+    !aiFallbackAllowed({
+      settings: input.settings,
+      lastAiAt: input.source.last_ai_at,
+      now: Date.now(),
+    })
+  )
+    return none
+  try {
+    const apiKey = await readPriceAiKey()
+    const result = await extractOfferWithAi({
+      html: input.html,
+      endpoint: { baseUrl: input.settings.baseUrl, apiKey },
+      model: input.settings.model,
+      currencyHint: input.currencyHint,
+      signal: input.signal,
+    })
+    if (result.status === 'ok')
+      return { attempted: true, offer: result.offer, note: null }
+    return { attempted: true, offer: null, note: AI_REJECTIONS[result.reason] }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'VaultAccessError') throw error
+    const reason =
+      error instanceof Error && error.name === 'AiClientError'
+        ? error.message
+        : 'The AI request failed.'
+    return { attempted: true, offer: null, note: `AI fallback: ${reason}` }
   }
 }
 
@@ -380,7 +448,7 @@ export async function checkPriceSource(
     operation,
   )
 
-  const { notify, thresholds } = getSettings().priceMonitoring
+  const { notify, thresholds, ai: aiSettings } = getSettings().priceMonitoring
   const base = {
     generation,
     sourceId: source.id,
@@ -430,7 +498,27 @@ export async function checkPriceSource(
       )
 
     let reading = await flow.read(chooseStrategy(source, hostState, Date.now()))
+    let method: CheckRecord['method'] = reading.method
     let evaluated = evaluate(reading.check.offer, source, knife.specs.price)
+    let aiUsed = false
+    let aiNote: string | null = null
+
+    if (evaluated.kind === 'rejected' && evaluated.errorCode === 'not_found') {
+      const ai = await readWithAi({
+        html: reading.check.html,
+        source,
+        settings: aiSettings,
+        currencyHint: flow.currencyHint,
+        signal: operation.signal,
+      })
+      aiUsed = ai.attempted
+      aiNote = ai.note
+      if (ai.offer) {
+        // Same validation and plausibility checks as any other reading.
+        evaluated = evaluate(ai.offer, source, knife.specs.price)
+        method = 'ai'
+      }
+    }
 
     if (
       evaluated.kind === 'observation' &&
@@ -443,6 +531,7 @@ export async function checkPriceSource(
     ) {
       const first = evaluated.observation
       reading = await flow.browser()
+      method = reading.method
       evaluated = evaluate(reading.check.offer, source, knife.specs.price)
       const confirmed =
         evaluated.kind === 'observation' &&
@@ -451,8 +540,9 @@ export async function checkPriceSource(
       if (!confirmed) {
         return done({
           outcome: 'failed',
-          method: reading.method,
+          method,
           attempt: 2,
+          aiUsed,
           errorCode: 'implausible',
           errorMessage: messageFor('implausible'),
           nextCheckAt: nextCheckAfterFailure({
@@ -468,16 +558,20 @@ export async function checkPriceSource(
     if (evaluated.kind === 'rejected') {
       return done({
         outcome: evaluated.outcome,
-        method: reading.method,
+        method,
+        aiUsed,
         errorCode: evaluated.errorCode,
-        errorMessage: messageFor(evaluated.errorCode),
+        errorMessage: aiNote
+          ? `${messageFor(evaluated.errorCode)} ${aiNote}`
+          : messageFor(evaluated.errorCode),
         nextCheckAt: nextOk(),
       })
     }
 
     return done({
       outcome: 'ok',
-      method: reading.method,
+      method,
+      aiUsed,
       observation: evaluated.observation,
       errorCode: null,
       errorMessage: null,

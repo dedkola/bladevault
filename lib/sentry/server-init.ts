@@ -1,5 +1,6 @@
 import os from 'node:os'
 import * as Sentry from '@sentry/nextjs'
+import { redactSecretsDeep } from '@/lib/price-monitor/secret-registry'
 import {
   getErrorReportingConfig,
   isErrorReportingAllowed,
@@ -26,9 +27,13 @@ if (config) {
     },
     // Without consent nothing leaves the server, not even dropped-event counts.
     sendClientReports: false,
+    // The price AI key is redacted wherever it appears.
     beforeSend: (event) =>
-      isErrorReportingAllowed() ? scrubEvent(event, homeDir) : null,
-    beforeBreadcrumb: (breadcrumb) => scrubBreadcrumb(breadcrumb, homeDir),
+      isErrorReportingAllowed()
+        ? scrubEvent(redactSecretsDeep(event), homeDir)
+        : null,
+    beforeBreadcrumb: (breadcrumb) =>
+      scrubBreadcrumb(redactSecretsDeep(breadcrumb), homeDir),
     beforeSendMetric: (metric) => (isErrorReportingAllowed() ? metric : null),
     beforeSendLog: (log) => (isErrorReportingAllowed() ? log : null),
   })

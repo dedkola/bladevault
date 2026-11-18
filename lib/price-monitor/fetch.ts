@@ -19,6 +19,8 @@ export type PageCheck = {
   finalUrl: string
   /** Detected from the page: lets later HTTP checks use Shopify's .js. */
   isShopify: boolean
+  /** The page's HTML, for the AI fallback; absent for Shopify's JSON. */
+  html?: string
 }
 
 export type BrowserPageCheck = PageCheck & {
@@ -114,6 +116,7 @@ export async function checkViaHttp(
     offer: extractOfferFromHtml(body, finalUrl),
     finalUrl,
     isShopify: isShopifyProductPage(finalUrl, body),
+    html: body,
   }
 }
 
@@ -140,6 +143,7 @@ export async function checkViaBrowser(
     finalUrl: page.finalUrl,
     isShopify: isShopifyProductPage(page.finalUrl, page.html),
     storageState: page.storageState,
+    html: page.html,
   }
 }
 

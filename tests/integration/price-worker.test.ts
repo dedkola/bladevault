@@ -1,7 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as knivesRoute from '@/app/api/knives/route'
 import * as priceWatchRoute from '@/app/api/knives/[id]/price-watch/route'
 import { getLocalDb } from '@/lib/local-db'
+import { recordAdvice } from '@/lib/price-monitor/advice-store'
 import type { CheckSummary } from '@/lib/price-monitor/engine'
 import { requestSourceChecks } from '@/lib/price-monitor/store'
 import {
@@ -9,7 +10,8 @@ import {
   PriceMonitorWorker,
   type WorkerDeps,
 } from '@/lib/price-monitor/worker'
-import { saveSettings } from '@/lib/settings'
+import { getSettings, saveSettings } from '@/lib/settings'
+import { getVaultAccessState } from '@/lib/vault-access'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 const MIN = 60_000
@@ -80,7 +82,7 @@ type Pending = {
 }
 
 /** A worker with a manual clock and checks that finish when told to. */
-function harness() {
+function harness(extra: Partial<WorkerDeps> = {}) {
   let now = Date.UTC(2026, 10, 18, 12)
   const pending: Pending[] = []
   const deps: WorkerDeps = {
@@ -120,12 +122,14 @@ function harness() {
           },
         })
       }),
+    ...extra,
   }
   const worker = new PriceMonitorWorker(deps)
   workers.push(worker)
   return {
     worker,
     pending,
+    now: () => now,
     advance: (ms: number) => {
       now += ms
     },
@@ -265,5 +269,103 @@ describe('price monitor worker', () => {
     await second.worker.pass()
     expect(first.pending).toHaveLength(1)
     expect(second.pending).toHaveLength(0)
+  })
+
+  it('holds stores in advised quiet hours or pauses; Check now still runs', async () => {
+    await knife(['https://a.example/p'])
+    await knife(['https://b.example/p'])
+    await knife(['https://c.example/p'])
+    const ids = sourceIds()
+    const { worker, pending, now } = harness()
+    const hour = new Date(now()).getHours()
+    const createdAt = new Date(now()).toISOString()
+    const expiresAt = new Date(now() + 48 * 60 * MIN).toISOString()
+    const lane = {
+      minGapMs: null,
+      pauseUntil: null,
+      quietHours: null,
+      strategy: null,
+      reason: 'test',
+      adjustments: [],
+    }
+    await recordAdvice({
+      generation: getVaultAccessState().generation,
+      createdAt,
+      trigger: 'manual',
+      model: 'm',
+      input: {
+        now: createdAt,
+        timeZone: 'UTC',
+        frequencyHours: 24,
+        activeHours: null,
+        statsDays: 7,
+        stores: [],
+      },
+      applied: {
+        createdAt,
+        expiresAt,
+        lanes: [
+          {
+            ...lane,
+            laneKey: 'a.example',
+            quietHours: [hour, (hour + 2) % 24],
+          },
+          {
+            ...lane,
+            laneKey: 'b.example',
+            pauseUntil: new Date(now() + 60 * MIN).toISOString(),
+          },
+        ],
+      },
+    })
+    worker.start({ scheduled: true })
+    await worker.pass()
+    expect(pending.map((check) => check.sourceId)).toEqual([
+      ids.get('https://c.example/p'),
+    ])
+
+    await requestSourceChecks([ids.get('https://a.example/p')!])
+    await worker.pass()
+    expect(pending.map((check) => [check.sourceId, check.trigger])).toEqual([
+      [ids.get('https://c.example/p'), 'scheduled'],
+      [ids.get('https://a.example/p'), 'manual'],
+    ])
+  })
+
+  it('asks the AI advisor once it is due, only with AI on', async () => {
+    await knife(['https://a.example/p'])
+    const advise = vi.fn<NonNullable<WorkerDeps['advise']>>(async () => ({
+      status: 'skipped' as const,
+      reason: 'no_data' as const,
+    }))
+    const off = harness({ advise })
+    off.worker.start({ scheduled: true })
+    await off.worker.pass()
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(advise).not.toHaveBeenCalled()
+    await off.worker.stop()
+
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        ai: {
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          model: 'm',
+          extractionFallback: true,
+          advisor: true,
+        },
+      },
+    })
+    const on = harness({ advise })
+    on.worker.start({ scheduled: true })
+    await on.worker.pass()
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(advise).toHaveBeenCalledTimes(1)
+    expect(advise).toHaveBeenCalledWith('daily')
+    // Checked again only every 10 minutes.
+    await on.worker.pass()
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(advise).toHaveBeenCalledTimes(1)
   })
 })

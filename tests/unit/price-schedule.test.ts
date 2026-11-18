@@ -118,6 +118,7 @@ describe('normalizePriceMonitoring', () => {
         backInStock: true,
       },
       thresholds: { minPercent: 100, minAbsolute: 12.35 },
+      ai: DEFAULT_PRICE_MONITORING.ai,
     })
     expect(
       normalizePriceMonitoring({

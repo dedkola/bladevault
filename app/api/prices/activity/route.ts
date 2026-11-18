@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { getLocalDb } from '@/lib/local-db'
+import { readRecentAdvice } from '@/lib/price-monitor/advice-store'
 import {
   readDailyActivity,
   readRecentProblems,
@@ -13,7 +14,7 @@ function dayString(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
-/** Execution history: daily totals per store and recent problems. */
+/** Execution history: daily totals per store, recent problems and AI advice. */
 export async function GET(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
@@ -31,6 +32,7 @@ export async function GET(request: Request) {
         days,
         daily: readDailyActivity(database, dayString(since)),
         problems: readRecentProblems(database),
+        advice: readRecentAdvice(database),
       },
       { headers: { 'Cache-Control': 'no-store' } },
     )

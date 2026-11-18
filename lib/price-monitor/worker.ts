@@ -1,5 +1,17 @@
 import { randomUUID } from 'node:crypto'
 import { getLocalDb } from '@/lib/local-db'
+import { readActiveAdvice } from '@/lib/price-monitor/advice-store'
+import {
+  advisorDue,
+  applyAdviceToLane,
+  inQuietHours,
+  lastAdvisorRunAt,
+  runPriceAdvisor,
+  type ActiveLaneAdvice,
+  type AdvisorRunResult,
+  type AdvisorTrigger,
+} from '@/lib/price-monitor/advisor'
+import { aiConfigured } from '@/lib/price-monitor/ai'
 import { clearBrowserState } from '@/lib/price-monitor/browser-state'
 import { checkPriceSource } from '@/lib/price-monitor/engine'
 import {
@@ -57,6 +69,8 @@ const MAX_SLEEP_MS = MINUTE_MS
 const HEARTBEAT_MS = 30 * SECOND_MS
 const SYNC_EVERY_MS = 10 * MINUTE_MS
 const PRUNE_EVERY_MS = 24 * 60 * MINUTE_MS
+/** How often the worker looks whether the AI advisor is due. */
+const ADVISOR_CHECK_EVERY_MS = 10 * MINUTE_MS
 export const DEFAULT_WARMUP_MS = 2 * MINUTE_MS
 
 export type WorkerDeps = {
@@ -65,6 +79,8 @@ export type WorkerDeps = {
   clearTimer: (handle: unknown) => void
   check: typeof checkPriceSource
   random: () => number
+  /** The AI pacing advisor; only runs when AI and the advisor are on. */
+  advise?: (trigger: AdvisorTrigger) => Promise<AdvisorRunResult>
 }
 
 const realDeps: WorkerDeps = {
@@ -77,6 +93,7 @@ const realDeps: WorkerDeps = {
   clearTimer: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
   check: (...args) => checkPriceSource(...args),
   random: () => Math.random(),
+  advise: (trigger) => runPriceAdvisor({ trigger }),
 }
 
 type InFlight = {
@@ -108,6 +125,16 @@ function normalizeLane(
   }
 }
 
+/** A store's pacing with the floor and any AI advice in force. */
+function effectiveLane(
+  lane: LaneState,
+  pacing: PriceMonitoringSettings['pacing'],
+  advice: ActiveLaneAdvice | undefined,
+  now: number,
+): LaneState {
+  return applyAdviceToLane(normalizeLane(lane, pacing), advice, now)
+}
+
 function scheduledCounts(candidates: readonly CandidateRow[]) {
   const counts = new Map<string, number>()
   for (const candidate of candidates)
@@ -125,6 +152,8 @@ export class PriceMonitorWorker {
   private lastHeartbeat = 0
   private lastSync = 0
   private lastPrune = 0
+  private lastAdvisorCheck = 0
+  private advising: Promise<unknown> | null = null
   private timer: unknown = null
   private passing: Promise<void> | null = null
   private passAgain = false
@@ -212,13 +241,23 @@ export class PriceMonitorWorker {
         this.scheduled &&
         settings.enabled &&
         isWithinActiveHours(hours, new Date(now))
-      const candidates = readQueueCandidates(database, settings)
+      const advice = readActiveAdvice(database, now)
+      // Advised quiet hours hold a store's scheduled checks; Check now still runs.
+      const candidates = readQueueCandidates(database, settings).map(
+        (candidate) =>
+          candidate.scheduled &&
+          inQuietHours(advice.get(candidate.laneKey), new Date(now))
+            ? { ...candidate, scheduled: false }
+            : candidate,
+      )
+      const stored = readLaneStates(database)
       const lanes = new Map(
-        [...readLaneStates(database)].map(([key, lane]) => [
+        [...stored].map(([key, lane]) => [
           key,
-          normalizeLane(lane, settings.pacing),
+          effectiveLane(lane, settings.pacing, advice.get(key), now),
         ]),
       )
+      if (scheduledActive) this.maybeAdvise(settings, stored.values(), now)
       const input: QueueInput = {
         candidates,
         lanes,
@@ -227,7 +266,12 @@ export class PriceMonitorWorker {
         now,
         scheduledActive,
         defaultLane: (laneKey) =>
-          defaultLaneState(laneKey, settings.pacing, now),
+          effectiveLane(
+            defaultLaneState(laneKey, settings.pacing, now),
+            settings.pacing,
+            advice.get(laneKey),
+            now,
+          ),
       }
       const context: PassContext = {
         settings,
@@ -251,6 +295,33 @@ export class PriceMonitorWorker {
     } finally {
       this.wake(delay)
     }
+  }
+
+  /**
+   * Starts the AI advisor in the background when it is due (daily, or after
+   * a store blocked us twice within 24 hours). Never blocks the queue.
+   */
+  private maybeAdvise(
+    settings: PriceMonitoringSettings,
+    lanes: Iterable<LaneState>,
+    now: number,
+  ) {
+    if (this.advising || !this.deps.advise) return
+    if (!aiConfigured(settings.ai) || !settings.ai.advisor) return
+    if (now - this.lastAdvisorCheck < ADVISOR_CHECK_EVERY_MS) return
+    this.lastAdvisorCheck = now
+    const trigger = advisorDue({ lastRunAt: lastAdvisorRunAt(), lanes, now })
+    if (!trigger) return
+    this.advising = this.deps
+      .advise(trigger)
+      .catch((error) => {
+        if (!isVaultError(error))
+          reportServerError(error, 'price-monitor/advisor')
+      })
+      .finally(() => {
+        this.advising = null
+        this.wake(0)
+      })
   }
 
   private launch(pick: QueuePick, lane: LaneState, context: PassContext) {
@@ -306,8 +377,8 @@ export class PriceMonitorWorker {
 
   /** Resolves when no check is running and no pass is in progress. */
   async idle(): Promise<void> {
-    while (this.passing || this.checks.size) {
-      await Promise.all([this.passing, ...this.checks])
+    while (this.passing || this.checks.size || this.advising) {
+      await Promise.all([this.passing, this.advising, ...this.checks])
     }
   }
 
@@ -374,6 +445,14 @@ export type QueueLaneView = {
   fullPassMs: number
   lastRequestAt: string | null
   checking: boolean
+  /** AI advice in force for this store, if any. */
+  advice: {
+    minGapMs: number | null
+    pauseUntil: string | null
+    quietHours: ActiveHours | null
+    reason: string
+    expiresAt: string
+  } | null
 }
 
 export type QueueSnapshot = {
@@ -411,6 +490,7 @@ export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
     if (candidate.priority >= 2)
       manual.set(candidate.laneKey, (manual.get(candidate.laneKey) ?? 0) + 1)
   const stored = readLaneStates(database)
+  const advice = readActiveAdvice(database, now)
   const laneKeys = new Set([...counts.keys(), ...manual.keys()])
   const windowMs = activeWindowMs(settings.schedule)
   const checkingLanes = new Set(
@@ -426,9 +506,12 @@ export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
 
   const lanes = [...laneKeys].sort().map((laneKey): QueueLaneView => {
     const raw = stored.get(laneKey)
-    const lane = normalizeLane(
+    const laneAdvice = advice.get(laneKey)
+    const lane = effectiveLane(
       raw ?? defaultLaneState(laneKey, settings.pacing, now),
       settings.pacing,
+      laneAdvice,
+      now,
     )
     const sources = counts.get(laneKey) ?? 0
     const gapMs = laneGapMs({
@@ -452,6 +535,15 @@ export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
       fullPassMs: fullPassMs(gapMs, sources),
       lastRequestAt: iso(lane.lastRequestAt),
       checking: worker.inFlight.has(laneKey) || checkingLanes.has(laneKey),
+      advice: laneAdvice
+        ? {
+            minGapMs: laneAdvice.minGapMs,
+            pauseUntil: iso(laneAdvice.pauseUntil),
+            quietHours: laneAdvice.quietHours,
+            reason: laneAdvice.reason,
+            expiresAt: new Date(laneAdvice.expiresAt).toISOString(),
+          }
+        : null,
     }
   })
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -10,11 +10,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  PriceAiSettingsSection,
+  type AdvisorLaneAdvice,
+} from '@/components/price-drops/price-ai-settings'
+import {
   SegmentedControl,
   SettingsRow,
   SettingsSection,
   SettingsSwitch,
 } from '@/components/settings-panels'
+import { hasServerRuntime } from '@/lib/runtime-capabilities'
 import {
   PRICE_MONITORING_LIMITS,
   type ActiveHours,
@@ -50,6 +55,7 @@ type LaneView = {
   strategy: 'auto' | 'http_first' | 'browser_first'
   fullPassMs: number
   checking: boolean
+  advice?: AdvisorLaneAdvice | null
 }
 
 type QueueSnapshot = {
@@ -209,7 +215,30 @@ function laneStatus(lane: LaneView): string {
   if (lane.circuit === 'open' && lane.cooldownUntil)
     return `Paused until ${formatTime(lane.cooldownUntil)} (blocked)`
   if (lane.manual) return `${lane.manual} waiting for Check now`
+  const pause = lane.advice?.pauseUntil
+  if (pause && Date.parse(pause) > Date.now())
+    return `Paused by AI until ${formatTime(pause)}`
   return 'Ready'
+}
+
+const hour = (value: number) => `${String(value % 24).padStart(2, '0')}:00`
+
+/**
+ * "AI: at most one check every 20 min, quiet 18:00–23:00 — reason". A pause
+ * shows in the status column.
+ */
+function adviceSummary(advice: AdvisorLaneAdvice): string {
+  const parts: string[] = []
+  if (advice.minGapMs)
+    parts.push(`at most one check every ${formatDuration(advice.minGapMs)}`)
+  if (advice.pauseUntil && Date.parse(advice.pauseUntil) > Date.now())
+    parts.push('paused')
+  if (advice.quietHours)
+    parts.push(
+      `quiet ${hour(advice.quietHours[0])}–${hour(advice.quietHours[1])}`,
+    )
+  if (!parts.length) parts.push('checks in the browser only')
+  return `AI: ${parts.join(', ')}${advice.reason ? ` — “${advice.reason}”` : ''}`
 }
 
 /**
@@ -227,35 +256,40 @@ export function PriceMonitoringSettings({
 }) {
   const [queue, setQueue] = useState<QueueSnapshot | null>(null)
   const [queueAvailable, setQueueAvailable] = useState(true)
+  // The static web app has no server: no AI settings there.
+  const [serverRuntime] = useState(hasServerRuntime)
+
+  const loadQueue = useCallback(async () => {
+    try {
+      const response = await fetch('/api/prices/queue', {
+        cache: 'no-store',
+      })
+      if (response.status === 501) {
+        setQueueAvailable(false)
+        return
+      }
+      if (!response.ok) return
+      const data = (await response.json()) as { queue: QueueSnapshot }
+      setQueue(data.queue)
+    } catch {
+      // The status table is optional; settings still work.
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
-    async function load() {
-      try {
-        const response = await fetch('/api/prices/queue', {
-          cache: 'no-store',
-        })
-        if (cancelled) return
-        if (response.status === 501) {
-          setQueueAvailable(false)
-          return
-        }
-        if (!response.ok) return
-        const data = (await response.json()) as { queue: QueueSnapshot }
-        if (!cancelled) setQueue(data.queue)
-      } catch {
-        // The status table is optional; settings still work.
-      }
+    const load = () => {
+      if (!cancelled) void loadQueue()
     }
-    void load()
+    load()
     const timer = setInterval(() => {
-      if (document.visibilityState === 'visible') void load()
+      if (document.visibilityState === 'visible') load()
     }, QUEUE_POLL_MS)
     return () => {
       cancelled = true
       clearInterval(timer)
     }
-  }, [])
+  }, [loadQueue])
 
   const update = (patch: Partial<PriceMonitoringSettings>) =>
     onChange({ ...settings, ...patch })
@@ -481,6 +515,15 @@ export function PriceMonitoringSettings({
         </SettingsRow>
       </SettingsSection>
 
+      {serverRuntime ? (
+        <PriceAiSettingsSection
+          settings={settings.ai}
+          disabled={disabled}
+          onChange={(ai) => update({ ai })}
+          onAdviceApplied={() => void loadQueue()}
+        />
+      ) : null}
+
       {queueAvailable && queue && queue.lanes.length ? (
         <SettingsSection
           title="Stores"
@@ -499,33 +542,44 @@ export function PriceMonitoringSettings({
               </thead>
               <tbody>
                 {queue.lanes.map((lane) => (
-                  <tr
-                    key={lane.laneKey}
-                    className="border-t border-[var(--bladevault-line)]"
-                  >
-                    <td className="py-1.5 pr-3 font-medium text-foreground">
-                      {lane.laneKey === 'amazon' ? 'Amazon' : lane.laneKey}
-                      {lane.strategy === 'http_first' ? (
-                        <span className="ml-1.5 text-muted-foreground">
-                          · fast HTTP
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="py-1.5 pr-3 tabular-nums">{lane.sources}</td>
-                    <td className="py-1.5 pr-3 tabular-nums">
-                      {formatDuration(lane.gapMs)}
-                    </td>
-                    <td className="py-1.5 pr-3 tabular-nums">
-                      {lane.sources
-                        ? `${formatDuration(lane.fullPassMs)}${
-                            lane.fullPassMs > queue.frequencyMs
-                              ? ' (longer than the schedule)'
-                              : ''
-                          }`
-                        : '—'}
-                    </td>
-                    <td className="py-1.5">{laneStatus(lane)}</td>
-                  </tr>
+                  <Fragment key={lane.laneKey}>
+                    <tr className="border-t border-[var(--bladevault-line)]">
+                      <td className="py-1.5 pr-3 font-medium text-foreground">
+                        {lane.laneKey === 'amazon' ? 'Amazon' : lane.laneKey}
+                        {lane.strategy === 'http_first' ? (
+                          <span className="ml-1.5 text-muted-foreground">
+                            · fast HTTP
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="py-1.5 pr-3 tabular-nums">
+                        {lane.sources}
+                      </td>
+                      <td className="py-1.5 pr-3 tabular-nums">
+                        {formatDuration(lane.gapMs)}
+                      </td>
+                      <td className="py-1.5 pr-3 tabular-nums">
+                        {lane.sources
+                          ? `${formatDuration(lane.fullPassMs)}${
+                              lane.fullPassMs > queue.frequencyMs
+                                ? ' (longer than the schedule)'
+                                : ''
+                            }`
+                          : '—'}
+                      </td>
+                      <td className="py-1.5">{laneStatus(lane)}</td>
+                    </tr>
+                    {lane.advice ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="pb-1.5 text-muted-foreground"
+                        >
+                          {adviceSummary(lane.advice)}
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

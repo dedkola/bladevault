@@ -102,6 +102,7 @@ describe('checkViaHttp', () => {
       },
       finalUrl: 'https://shop.example/products/knife',
       isShopify: true,
+      html: expect.stringContaining('<h1>'),
     })
   })
 

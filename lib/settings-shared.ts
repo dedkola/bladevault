@@ -473,6 +473,24 @@ export type PriceMonitoringSettings = {
     /** Major units of the source's currency, e.g. 5 = 5.00 USD. */
     minAbsolute: number
   }
+  /** Optional OpenAI-compatible AI; monitoring works without it. */
+  ai: PriceAiSettings
+}
+
+/**
+ * The API key is not part of these settings: it lives in a private file in
+ * the vault's control folder (never in backups), see price-monitor/secrets.
+ */
+export type PriceAiSettings = {
+  enabled: boolean
+  /** OpenAI-compatible base URL, e.g. https://api.openai.com/v1 or a local Ollama. */
+  baseUrl: string
+  /** Model id from Discover models, or typed. */
+  model: string
+  /** Read the price with AI when the page parsers find none. */
+  extractionFallback: boolean
+  /** Let AI review store pacing (statistics and store host names only). */
+  advisor: boolean
 }
 
 export type PriceNotifyCategories = {
@@ -498,6 +516,65 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
   pacing: { maxParallelStores: 3, minGapSeconds: 60, amazonMinGapSeconds: 300 },
   notify: { drop: true, increase: false, outOfStock: false, backInStock: true },
   thresholds: { minPercent: 5, minAbsolute: 0 },
+  ai: {
+    enabled: false,
+    baseUrl: '',
+    model: '',
+    extractionFallback: true,
+    advisor: true,
+  },
+}
+
+export const PRICE_AI_LIMITS = { baseUrlLength: 500, modelLength: 200 } as const
+
+/**
+ * An http(s) base URL without credentials, query or fragment, and without a
+ * trailing slash; null when it is not usable. Local addresses are allowed on
+ * purpose (Ollama, LM Studio).
+ */
+export function normalizeAiBaseUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.length > PRICE_AI_LIMITS.baseUrlLength) return null
+  let url: URL
+  try {
+    url = new URL(trimmed)
+  } catch {
+    return null
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+  if (url.username || url.password || url.search || url.hash) return null
+  return url.toString().replace(/\/+$/, '')
+}
+
+/** A model id: printable, without spaces at either end. */
+export function normalizeAiModel(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (trimmed.length > PRICE_AI_LIMITS.modelLength) return null
+  if (/[\u0000-\u001f\u007f]/.test(trimmed)) return null
+  return trimmed
+}
+
+function normalizePriceAi(
+  value: unknown,
+  fallback: PriceAiSettings,
+): PriceAiSettings {
+  const record = plainObject(value)
+  const flag = (key: 'enabled' | 'extractionFallback' | 'advisor') =>
+    typeof record[key] === 'boolean' ? (record[key] as boolean) : fallback[key]
+  let baseUrl = fallback.baseUrl
+  if (typeof record.baseUrl === 'string')
+    baseUrl = record.baseUrl.trim()
+      ? (normalizeAiBaseUrl(record.baseUrl) ?? fallback.baseUrl)
+      : ''
+  return {
+    enabled: flag('enabled'),
+    baseUrl,
+    model: normalizeAiModel(record.model) ?? fallback.model,
+    extractionFallback: flag('extractionFallback'),
+    advisor: flag('advisor'),
+  }
 }
 
 const PRICE_NOTIFY_KEYS = [
@@ -628,6 +705,7 @@ export function normalizePriceMonitoring(
         fallback.thresholds.minAbsolute,
       ),
     },
+    ai: normalizePriceAi(record.ai, fallback.ai),
   }
 }
 

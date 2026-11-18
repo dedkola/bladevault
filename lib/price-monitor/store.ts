@@ -464,7 +464,8 @@ export type CheckRecord = {
   startedAt: string
   durationMs: number
   outcome: CheckOutcomeKind
-  method: 'http' | 'browser' | 'headed' | null
+  /** 'ai': the price was read by the AI fallback from the fetched page. */
+  method: 'http' | 'browser' | 'headed' | 'ai' | null
   attempt?: number
   httpStatus?: number | null
   errorCode?: string | null
@@ -475,6 +476,8 @@ export type CheckRecord = {
   host?: HostPatch
   /** Pause the source, e.g. after its page was missing three times. */
   disable?: boolean
+  /** The AI fallback was asked (successful or not): starts its 24 h pause. */
+  aiUsed?: boolean
   /** Inbox categories and thresholds; the defaults when left out. */
   notifications?: PriceNotificationSettings
 }
@@ -726,6 +729,7 @@ export async function recordCheck(
              next_check_at = ?,
              priority = 0,
              enabled = CASE WHEN ? THEN 0 ELSE enabled END,
+             last_ai_at = CASE WHEN ? THEN ? ELSE last_ai_at END,
              updated_at = ?
            WHERE id = ?`,
         )
@@ -746,6 +750,8 @@ export async function recordCheck(
           succeeded ? 1 : 0,
           record.nextCheckAt,
           record.disable ? 1 : 0,
+          record.aiUsed ? 1 : 0,
+          now,
           now,
           source.id,
         )
@@ -753,14 +759,16 @@ export async function recordCheck(
       database
         .prepare(
           `INSERT INTO price_monitor_daily
-            (day, lane_key, checks, ok, no_price, failed, blocked, total_ms)
-           VALUES (?, ?, 1, ?, ?, ?, ?, ?)
+            (day, lane_key, checks, ok, no_price, failed, blocked, ai_used,
+             total_ms)
+           VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(day, lane_key) DO UPDATE SET
              checks = checks + 1,
              ok = ok + excluded.ok,
              no_price = no_price + excluded.no_price,
              failed = failed + excluded.failed,
              blocked = blocked + excluded.blocked,
+             ai_used = ai_used + excluded.ai_used,
              total_ms = total_ms + excluded.total_ms`,
         )
         .run(
@@ -770,6 +778,7 @@ export async function recordCheck(
           record.outcome === 'no_price' ? 1 : 0,
           record.outcome === 'failed' ? 1 : 0,
           record.outcome === 'blocked' ? 1 : 0,
+          record.aiUsed ? 1 : 0,
           record.durationMs,
         )
 
