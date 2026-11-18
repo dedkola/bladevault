@@ -179,24 +179,33 @@
 .pd-tl-axis,
 .pd-tl-lane {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 1.1fr);
+  /* The upcoming checks matter most, so they get the wider side. */
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
 }
 .pd-tl-axis {
   color: var(--muted-foreground);
   padding-bottom: 6px;
 }
 .pd-tl-dates {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
+  position: relative;
+  height: 14px;
+}
+.pd-tl-dates > * {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.pd-tl-dates > [data-align='start'] {
+  transform: none;
+}
+.pd-tl-dates > [data-align='end'] {
+  transform: translateX(-100%);
 }
 .pd-tl-dates b {
+  padding-left: 6px;
   color: var(--foreground);
   font-weight: 650;
-}
-.pd-tl-dates-future {
-  justify-content: space-around;
-  padding-left: 6px;
 }
 .pd-tl-lane {
   border-top: 1px dashed var(--bladevault-line);
@@ -235,11 +244,21 @@
 }
 .pd-tl-future {
   border-left: 2px solid var(--foreground);
+  border-radius: 0 6px 6px 0;
   background: repeating-linear-gradient(
     -45deg,
-    color-mix(in srgb, var(--bladevault-gold) 8%, transparent) 0 6px,
-    color-mix(in srgb, var(--bladevault-gold) 3%, transparent) 6px 12px
+    color-mix(in srgb, var(--muted-foreground) 6%, transparent) 0 6px,
+    transparent 6px 12px
   );
+}
+.pd-tl-grid {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed
+    color-mix(in srgb, var(--muted-foreground) 22%, transparent);
+  pointer-events: none;
 }
 .pd-pin {
   position: absolute;
@@ -278,6 +297,10 @@
   color: var(--foreground);
   border: 1px solid var(--bladevault-line);
   font-weight: 550;
+}
+.pd-pin[data-due] {
+  border: 1.5px solid var(--pd-color);
+  font-weight: 650;
 }
 .pd-pin:hover {
   filter: brightness(0.92);
@@ -417,6 +440,9 @@
   }
   .pd-tl-axis,
   .pd-tl-lane {
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  }
+  .pd-tl-dates > [data-minor] {
+    display: none;
   }
 }
