@@ -25,6 +25,7 @@ const {
 } = require('./scrape-browser.cjs')
 const backgroundMode = require('./background-mode.cjs')
 const errorReporting = require('./error-reporting.cjs')
+const claudeDesktopConfig = require('./claude-desktop-config.cjs')
 const whatsNew = require('./whats-new.cjs')
 const desktopPackage = require('../package.json')
 
@@ -902,6 +903,74 @@ function getNodeExecPath() {
   return process.execPath
 }
 
+// The embedded server writes its MCP URL and token here; the stdio bridge
+// (mcp-stdio.cjs) reads it to reach the running app.
+function getMcpDiscoveryFile() {
+  return (
+    process.env.BLADEVAULT_MCP_DISCOVERY_FILE?.trim() ||
+    path.join(app.getPath('userData'), 'mcp-endpoint.json')
+  )
+}
+
+function getMcpStdioBridgePath() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'mcp-stdio.cjs')
+    : path.join(__dirname, 'mcp-stdio.cjs')
+}
+
+function removeMcpDiscoveryFile(serverPid) {
+  const file = getMcpDiscoveryFile()
+  try {
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'))
+    if (serverPid && data.pid !== serverPid) return
+    fs.rmSync(file, { force: true })
+  } catch {
+    // Missing or unreadable: nothing to clean up.
+  }
+}
+
+function connectClaudeDesktop() {
+  if (
+    app.isPackaged &&
+    process.platform === 'darwin' &&
+    !app.isInApplicationsFolder()
+  ) {
+    return {
+      ok: false,
+      error:
+        'Move BladeVault to the Applications folder and open it from there, then try again.',
+    }
+  }
+
+  const bridgePath = getMcpStdioBridgePath()
+  if (!fs.existsSync(bridgePath)) {
+    return {
+      ok: false,
+      error: `The MCP bridge is missing from this build (${bridgePath}).`,
+    }
+  }
+
+  try {
+    const result = claudeDesktopConfig.installClaudeDesktopServer({
+      configPath: claudeDesktopConfig.getClaudeDesktopConfigPath(),
+      entry: claudeDesktopConfig.buildBladeVaultServerEntry({
+        command: getNodeExecPath(),
+        bridgePath,
+        discoveryFile: getMcpDiscoveryFile(),
+      }),
+    })
+    return { ok: true, ...result }
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not update Claude Desktop's config file.",
+    }
+  }
+}
+
 function getPreloadPath() {
   return path.join(__dirname, 'preload.cjs')
 }
@@ -1051,6 +1120,7 @@ async function startEmbeddedServer() {
     BLADEVAULT_DESKTOP_RUNTIME: '1',
     BLADEVAULT_MCP_NODE_COMMAND: getNodeExecPath(),
     BLADEVAULT_MCP_ENTRY: path.join(getStandaloneDir(), 'bladevault-mcp.mjs'),
+    BLADEVAULT_MCP_DISCOVERY_FILE: getMcpDiscoveryFile(),
     HOSTNAME: '127.0.0.1',
     NEXT_TELEMETRY_DISABLED: '1',
     NODE_ENV: 'production',
@@ -1126,6 +1196,7 @@ function stopEmbeddedServer() {
     return
   }
 
+  removeMcpDiscoveryFile(child.pid)
   child.kill()
 }
 
@@ -1495,6 +1566,10 @@ function syncTray() {
 function keepsRunningInBackground() {
   return backgroundModeEnabled && tray !== null && !isQuitting
 }
+
+ipcMain.handle('bladevault:connect-claude-desktop', () =>
+  connectClaudeDesktop(),
+)
 
 ipcMain.handle('bladevault:select-directory', async () => {
   const result = await dialog.showOpenDialog(mainWindow ?? undefined, {

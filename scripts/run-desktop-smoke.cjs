@@ -275,6 +275,9 @@ async function main() {
       scrapeBrowserKeys: Object.keys(
         window.bladevaultDesktop?.scrapeBrowser ?? {},
       ).sort(),
+      claudeDesktopKeys: Object.keys(
+        window.bladevaultDesktop?.claudeDesktop ?? {},
+      ).sort(),
       errorReportingKeys: Object.keys(
         window.bladevaultDesktop?.errorReporting ?? {},
       ).sort(),
@@ -285,6 +288,7 @@ async function main() {
     }))
     assert.deepEqual(boundary.bridgeKeys, [
       'checkForUpdates',
+      'claudeDesktop',
       'downloadUpdate',
       'errorReporting',
       'getBackgroundMode',
@@ -302,6 +306,7 @@ async function main() {
       'fetchImages',
       'open',
     ])
+    assert.deepEqual(boundary.claudeDesktopKeys, ['connect'])
     assert.deepEqual(boundary.errorReportingKeys, ['get', 'restart', 'set'])
     // Smoke runs never report: the option must be unavailable and off.
     assert.deepEqual(boundary.errorReportingStatus, {

@@ -31,6 +31,17 @@ declare global {
 
   interface Window {
     bladevaultDesktop?: {
+      claudeDesktop?: {
+        connect: () => Promise<
+          | {
+              ok: true
+              configPath: string
+              backupPath: string | null
+              changed: boolean
+            }
+          | { ok: false; error: string }
+        >
+      }
       errorReporting?: {
         get: () => Promise<BladeVaultErrorReportingStatus>
         set: (

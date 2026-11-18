@@ -79,6 +79,12 @@ const config = {
       from: path.join('build', 'icons', '256x256.png'),
       to: 'icon.png',
     },
+    // Outside the asar archive so Claude Desktop can run it with the app's
+    // Electron binary in Node mode.
+    {
+      from: path.join('electron', 'mcp-stdio.cjs'),
+      to: 'mcp-stdio.cjs',
+    },
   ],
   files: ['package.json', 'electron/**/*', '.next/standalone/**/*'],
   publish: {

@@ -73,6 +73,7 @@ import type { DriveBackupStatus } from '@/lib/drive-backup-shared'
 import { ScreenshotBackfill } from '@/components/screenshot-backfill'
 import { AppLockSettings } from '@/components/app-lock-settings'
 import { DesktopErrorReportingSettings } from '@/components/desktop-error-reporting-settings'
+import { ClaudeDesktopMcpSettings } from '@/components/claude-desktop-mcp-settings'
 import { ServerErrorReportingSettings } from '@/components/server-error-reporting-settings'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -2513,8 +2514,19 @@ export default function SettingsView() {
                           {mcpClientConfig || 'Loading configuration…'}
                         </code>
                       </pre>
+                      <p className="text-xs text-muted-foreground">
+                        For MCP clients that connect to a URL, such as ChatGPT
+                        or OpenCode.
+                        {isDesktop
+                          ? ' Claude Desktop can’t use it: connect Claude Desktop below.'
+                          : null}
+                      </p>
                     </div>
                   </SettingsSection>
+
+                  <ClaudeDesktopMcpSettings
+                    buttonClassName={settingsSecondaryButtonClassName}
+                  />
 
                   <SettingsSection
                     title={

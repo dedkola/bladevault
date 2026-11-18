@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('bladevaultDesktop', {
   getBackgroundMode: () => ipcRenderer.invoke('bladevault:get-background-mode'),
   setBackgroundMode: (enabled) =>
     ipcRenderer.invoke('bladevault:set-background-mode', enabled === true),
+  claudeDesktop: {
+    connect: () => ipcRenderer.invoke('bladevault:connect-claude-desktop'),
+  },
   errorReporting: {
     get: () => ipcRenderer.invoke('bladevault:get-error-reporting'),
     set: (enabled, usageMetrics) =>

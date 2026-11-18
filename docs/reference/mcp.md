@@ -21,6 +21,12 @@ Open **Settings → AI / MCP** to review activity, copy the local client configu
 
 Metadata updates require the expected record timestamp to prevent overwriting newer edits. They are recorded in the change log. Maintenance writes append dated events to a knife's history. MCP cannot replace knife IDs, record timestamps, images, or entire records.
 
+## Connect Claude Desktop
+
+Claude Desktop only starts local MCP servers, so a `url` entry in its config is ignored. In the desktop app, open **Settings → AI / MCP** and select **Connect** under **Claude Desktop**. BladeVault backs up `claude_desktop_config.json`, adds a `bladevault` entry, and leaves your other servers unchanged. Quit Claude Desktop completely (⌘Q on Mac) and reopen it.
+
+The entry runs a small bridge (`mcp-stdio.cjs`) with the Electron runtime BladeVault already ships, so Node.js isn't needed. The bridge forwards each request to the running app, which still handles every read and write, so write access, timestamp checks, and the change log work as usual. It finds the app's port and token in `mcp-endpoint.json` in BladeVault's app data folder. If BladeVault is closed, Claude Desktop keeps the server listed and tool calls return a message asking you to open the app. On macOS, move BladeVault to Applications before connecting.
+
 ## Connect an MCP client
 
 Client configuration formats differ. Open **Settings → AI / MCP** through the address you want to use and select **Copy config**, or copy the displayed URL and token into your client's settings. For clients that accept an `mcpServers` JSON configuration:
