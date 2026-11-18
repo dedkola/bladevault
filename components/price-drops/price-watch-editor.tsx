@@ -154,6 +154,11 @@ function SourceRow({
                 Product link
               </span>
             ) : null}
+            {source.foundByAi ? (
+              <span className="rounded-full border border-[var(--bladevault-line)] px-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                Found by AI
+              </span>
+            ) : null}
             {!source.enabled ? (
               <span className="rounded-full border border-[var(--bladevault-line)] px-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
                 Paused

@@ -475,6 +475,36 @@ export type PriceMonitoringSettings = {
   }
   /** Optional OpenAI-compatible AI; monitoring works without it. */
   ai: PriceAiSettings
+  /** AI looks for monitored knives on other stores (needs AI connected). */
+  otherStores: PriceOtherStoresSettings
+}
+
+/** Marketplaces AI can search for monitored knives. */
+export const AMAZON_MARKETPLACES = [
+  'amazon.com',
+  'amazon.ca',
+  'amazon.co.uk',
+  'amazon.de',
+  'amazon.fr',
+  'amazon.it',
+  'amazon.es',
+  'amazon.nl',
+  'amazon.se',
+  'amazon.pl',
+  'amazon.com.au',
+  'amazon.co.jp',
+] as const
+export type AmazonMarketplace = (typeof AMAZON_MARKETPLACES)[number]
+
+/** Stores AI can search; Amazon first, more can join the list later. */
+export const OTHER_STORE_IDS = ['amazon'] as const
+export type OtherStoreId = (typeof OTHER_STORE_IDS)[number]
+
+export type PriceOtherStoresSettings = {
+  /** Let AI find, verify and add monitored knives on the stores below. */
+  enabled: boolean
+  stores: Record<OtherStoreId, boolean>
+  amazonMarketplace: AmazonMarketplace
 }
 
 /**
@@ -529,6 +559,11 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
     headers: {},
     extractionFallback: true,
     advisor: true,
+  },
+  otherStores: {
+    enabled: false,
+    stores: { amazon: true },
+    amazonMarketplace: 'amazon.com',
   },
 }
 
@@ -685,6 +720,29 @@ function normalizePriceAi(
   }
 }
 
+function normalizeOtherStores(
+  value: unknown,
+  fallback: PriceOtherStoresSettings,
+): PriceOtherStoresSettings {
+  const record = plainObject(value)
+  const stores = plainObject(record.stores)
+  return {
+    enabled:
+      typeof record.enabled === 'boolean' ? record.enabled : fallback.enabled,
+    stores: Object.fromEntries(
+      OTHER_STORE_IDS.map((id) => [
+        id,
+        typeof stores[id] === 'boolean' ? stores[id] : fallback.stores[id],
+      ]),
+    ) as Record<OtherStoreId, boolean>,
+    amazonMarketplace: (AMAZON_MARKETPLACES as readonly unknown[]).includes(
+      record.amazonMarketplace,
+    )
+      ? (record.amazonMarketplace as AmazonMarketplace)
+      : fallback.amazonMarketplace,
+  }
+}
+
 const PRICE_NOTIFY_KEYS = [
   'drop',
   'increase',
@@ -814,6 +872,7 @@ export function normalizePriceMonitoring(
       ),
     },
     ai: normalizePriceAi(record.ai, fallback.ai),
+    otherStores: normalizeOtherStores(record.otherStores, fallback.otherStores),
   }
 }
 

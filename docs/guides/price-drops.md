@@ -108,6 +108,24 @@ Two features use it:
 
 The API key is stored next to the vault in its private control folder, outside backups, and the settings page only shows its last four characters. Docker and Helm can provide it with `BLADEVAULT_PRICE_AI_API_KEY` instead.
 
+## Find knives at other stores with AI
+
+A knife's own store is often sold out. **Settings → Price monitoring → Other stores** lets AI look for every monitored knife at other stores and add the listings it finds as price sources. Amazon is the first store on the list. It needs [AI assistance](#optional-ai-assistance) connected: with **Use AI** off, or without a base URL and model, nothing is searched.
+
+1. Connect AI in **AI assistance**.
+2. Turn on **Look for knives at other stores**.
+3. Keep **Amazon** on and choose the marketplace, for example `amazon.com` or `amazon.de`.
+
+For each knife, AI does the work in three steps:
+
+- **Find** — BladeVault opens the store's search for the knife's brand, name, and model number, and AI picks the listing that sells exactly this knife. Sheaths, sharpeners, parts, and other models never count.
+- **Check** — BladeVault opens that product page, and AI confirms it is the same knife. A different steel, blade length, or lock is a different knife.
+- **Parse** — the product becomes a source marked **Found by AI** and is checked like any other source. The Amazon parser reads the price, and AI reads it when the parser cannot (with **Read prices the page parsers miss** on).
+
+Searches cover every knife that price monitoring covers, including knives without a product link, and skip knives that already have an Amazon source. They run with scheduled checks, one knife at a time, and share Amazon's pace: a due Amazon price check always goes first, and a bot check pauses both. AI receives the knife's brand, name, and specs and the store's listing titles, never what you paid, notes, or photos.
+
+The section lists recent results. A knife that is not found is searched again after 30 days, and a failed search after a few hours. **Search again for missing** searches those knives at the next free slot. A found listing is never replaced: remove its source to stop monitoring it, and it is not added again.
+
 ## Keep checking with the desktop app closed
 
 In the desktop app, **Settings → Price monitoring → Desktop app → Keep running in the background** keeps BladeVault in the menu bar or system tray when you close its window, so scheduled checks continue. The tray menu offers **Open BladeVault**, **Check prices now**, and **Quit**. Use **Quit** to stop BladeVault completely.

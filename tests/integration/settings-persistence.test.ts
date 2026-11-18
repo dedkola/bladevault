@@ -44,6 +44,11 @@ describe('settings persistence', () => {
           extractionFallback: false,
           advisor: true,
         },
+        otherStores: {
+          enabled: true,
+          stores: { amazon: true },
+          amazonMarketplace: 'amazon.de',
+        },
       },
     })
     saveSettings({ startPage: 'studio' })
@@ -71,6 +76,11 @@ describe('settings persistence', () => {
         headers: { 'x-opencode-session': 'bladevault' },
         extractionFallback: false,
         advisor: true,
+      },
+      otherStores: {
+        enabled: true,
+        stores: { amazon: true },
+        amazonMarketplace: 'amazon.de',
       },
     })
     // The AI key is never part of the settings table.

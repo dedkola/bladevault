@@ -198,6 +198,7 @@ const PRICE_MONITORING_KNIFE_TABLES = [
   'stock_events',
   'price_notifications',
   'price_check_log',
+  'price_discovery',
 ] as const
 
 type CareNotificationRow = {

@@ -3,6 +3,10 @@ import * as knivesRoute from '@/app/api/knives/route'
 import * as priceWatchRoute from '@/app/api/knives/[id]/price-watch/route'
 import { getLocalDb } from '@/lib/local-db'
 import { recordAdvice } from '@/lib/price-monitor/advice-store'
+import {
+  nextDiscoveryKnife,
+  type DiscoverySummary,
+} from '@/lib/price-monitor/discovery'
 import type { CheckSummary } from '@/lib/price-monitor/engine'
 import { requestSourceChecks } from '@/lib/price-monitor/store'
 import {
@@ -11,6 +15,7 @@ import {
   type WorkerDeps,
 } from '@/lib/price-monitor/worker'
 import { getSettings, saveSettings } from '@/lib/settings'
+import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
 import { getVaultAccessState } from '@/lib/vault-access'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
@@ -368,5 +373,77 @@ describe('price monitor worker', () => {
     await on.worker.pass()
     await new Promise((resolve) => setImmediate(resolve))
     expect(advise).toHaveBeenCalledTimes(1)
+  })
+
+  it('searches other stores on the Amazon lane only when it is free', async () => {
+    await knife(['https://www.amazon.com/dp/B000000001'])
+    const lookFor = await knife([])
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        ai: {
+          ...DEFAULT_PRICE_MONITORING.ai,
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          model: 'test-model',
+        },
+        otherStores: {
+          enabled: true,
+          stores: { amazon: true },
+          amazonMarketplace: 'amazon.com',
+        },
+      },
+    })
+    let finishSearch: (summary: DiscoverySummary) => void = () => {}
+    const discover = vi.fn(
+      (_knifeId: string, options: { signal: AbortSignal }) =>
+        new Promise<DiscoverySummary>((resolve) => {
+          finishSearch = resolve
+          options.signal.addEventListener('abort', () =>
+            resolve({ status: 'skipped', reason: 'missing' }),
+          )
+        }),
+    )
+    const { worker, pending, finish, advance, now } = harness({
+      nextDiscovery: nextDiscoveryKnife,
+      discover,
+    })
+    worker.start({ scheduled: true })
+    await worker.pass()
+    // The due Amazon check goes first; the search waits for the lane.
+    expect(pending).toHaveLength(1)
+    expect(discover).not.toHaveBeenCalled()
+    await finish()
+    expect(discover).not.toHaveBeenCalled()
+
+    advance(2 * 60 * MIN + MIN)
+    await worker.pass()
+    expect(discover).toHaveBeenCalledTimes(1)
+    expect(discover.mock.calls[0]).toEqual([
+      lookFor,
+      { signal: expect.any(AbortSignal) },
+    ])
+    // The search holds the Amazon lane like a check would.
+    expect(worker.discovering).not.toBeNull()
+    await requestSourceChecks([...sourceIds().values()])
+    await worker.pass()
+    expect(pending).toHaveLength(0)
+
+    finishSearch({
+      status: 'done',
+      result: 'not_found',
+      laneOutcome: 'success',
+      aiProblem: false,
+      durationMs: 4000,
+      retryAfterMs: null,
+      sourceId: null,
+    })
+    await worker.idle()
+    const lane = getLocalDb()
+      .prepare(
+        "SELECT last_request_at FROM price_host_state WHERE lane_key = 'amazon'",
+      )
+      .get() as { last_request_at: string }
+    expect(Date.parse(lane.last_request_at)).toBe(now())
   })
 })

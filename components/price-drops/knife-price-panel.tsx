@@ -147,6 +147,11 @@ function SourceLine({
           ) : (
             storeLabel(source.storeName)
           )}
+          {source.foundByAi ? (
+            <span className="shrink-0 text-xs text-muted-foreground">
+              · found by AI
+            </span>
+          ) : null}
           {!source.enabled ? (
             <span className="text-xs text-muted-foreground">· paused</span>
           ) : null}
