@@ -75,6 +75,12 @@ Choose which changes notify you in **Settings → Price monitoring → Notificat
 
 Every price and stock change is still recorded and shown on the Price Drops page and Market tab, whatever the notification settings are.
 
+## Fix pages that need attention
+
+Checks that fail, are blocked by a bot check (CAPTCHA), or find no price show as **Needs attention** on **Price Drops**, and the Inbox gets one message that lists them when a product newly runs into a problem. The message closes on its own once every store page reads fine again.
+
+Select the **Blocked**, **Failed**, or **Unavailable** mark in the table (or the window button next to a store in the knife's sources) to open the store page in a visible browser window. Pass the bot check, or settle a cookie banner, age prompt, or region choice yourself, then select **Done**. BladeVault keeps that window's cookies for the store, so later checks get through, and checks the price again right away. The window opens on the computer that runs BladeVault, so this works with the desktop app or a local server, not with a server in Docker.
+
 ## How checks are scheduled
 
 Open **Settings → Price monitoring** to control automatic checks:
@@ -101,9 +107,10 @@ Prices are compared only within one currency. Implausible jumps are confirmed wi
 5. Select **Discover models** and choose a model, or type a model ID.
 6. Select **Test connection** to confirm that the model reads a sample price.
 
-Two features use it:
+Three features use it:
 
-- **Read prices the page parsers miss** sends a trimmed part of the product page (title, price, and stock elements) at most once a day per product. A price the model returns is used only if it appears on the page as written.
+- **Read prices the page parsers miss** sends a trimmed part of the product page (title, price, and stock elements) at most once a day per product. It also runs when the parsers found a price without a currency or with an unusable amount. A price the model returns is used only if it appears on the page as written.
+- **Resolve check errors** steps in when a check cannot read a price (no price, no currency, an unusable amount, or a slow page). AI works the product page in the monitoring browser, one step at a time and at most six steps: it can wait for content, scroll, accept or reject a cookie banner, confirm an age prompt, close a pop-up, pick a variant or region, open the store's own canonical, AMP, or Shopify product data, and read the price. With **The model reads images** on, it can also read a price from a screenshot of the page. A price read by AI must appear on the page as written (or, from a screenshot, be read with very high confidence) and then passes the usual checks. Steps that let the page parsers find the price are remembered for the store and replayed first on later checks, without AI; a remembered recipe that stops working is forgotten. After an HTTP error, a timeout, a network error, or a redirect, AI also chooses how to recover within fixed limits: reset the store's saved cookies after a block, load the store in the browser instead of plain HTTP for 7 days, wait longer before checking the product again, or pause a product whose page is gone after repeated failures. The steps it took and its explanation appear in the check history. AI runs at most once a day per product, shared with price reading. It never buys, signs in, fills forms, leaves the store's site, or solves a bot check, and never retries a blocked store sooner than the normal backoff.
 - **Pacing advisor** reviews each store's check statistics once a day, or after a store blocked checks twice, and may slow a store down, pause it, or set quiet hours within fixed limits. Only store host names and statistics are sent. AI can never speed a store up or shorten a pause after a bot check, and its advice lasts 48 hours. **Review pacing now** runs a review on demand.
 
 The API key is stored next to the vault in its private control folder, outside backups, and the settings page only shows its last four characters. Docker and Helm can provide it with `BLADEVAULT_PRICE_AI_API_KEY` instead.

@@ -754,7 +754,17 @@ export function MonitoringStatus({
 }
 
 /** Change badge for a monitored source: icon plus words, never color alone. */
-export function ResultBadge({ source }: { source: MonitoredSource }) {
+/**
+ * A source's result. With `onResolve`, a Needs attention badge is a button
+ * that starts Solve in browser for that store page.
+ */
+export function ResultBadge({
+  source,
+  onResolve,
+}: {
+  source: MonitoredSource
+  onResolve?: () => void
+}) {
   if (
     (source.result === 'drop' || source.result === 'increase') &&
     source.deltaMinor !== null
@@ -794,6 +804,30 @@ export function ResultBadge({ source }: { source: MonitoredSource }) {
       : source.result === 'pending'
         ? 'Waiting'
         : RESULT_LABEL[source.result]
+  if (source.result === 'attention' && onResolve)
+    return (
+      <button
+        type="button"
+        className="pd-badge cursor-pointer underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        data-result={source.result}
+        title={
+          source.status === 'blocked'
+            ? 'Solve the bot check in a browser window'
+            : 'Open the store page in a browser window to fix it'
+        }
+        onClick={(event) => {
+          event.stopPropagation()
+          onResolve()
+        }}
+      >
+        {icon[source.result]} {text}
+        <span className="sr-only">
+          {' '}
+          —{' '}
+          {source.status === 'blocked' ? 'solve in browser' : 'fix in browser'}
+        </span>
+      </button>
+    )
   return (
     <span className="pd-badge" data-result={source.result}>
       {icon[source.result]} {text}

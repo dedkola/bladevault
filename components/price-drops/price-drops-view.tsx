@@ -16,6 +16,7 @@ import { KnifePricePanel } from './knife-price-panel'
 import { MonitoringStatus, ResultBadge } from './monitoring-status'
 import { money, relativeTime, storeLabel } from './price-format'
 import { KnifeThumb, StatusDot, useMinuteClock } from './price-ui'
+import { SolveInBrowserDialog, type SolveTarget } from './solve-in-browser'
 
 type QueueLane = {
   laneKey: string
@@ -187,6 +188,7 @@ function SourceTableRow({
   lanes,
   now,
   onSelect,
+  onResolve,
 }: {
   source: MonitoredSource
   selected: boolean
@@ -194,6 +196,7 @@ function SourceTableRow({
   lanes: Map<string, QueueLane>
   now: number
   onSelect: () => void
+  onResolve: () => void
 }) {
   const paused = laneNote(lanes, source)
   const showNext = section === 'attention'
@@ -239,7 +242,7 @@ function SourceTableRow({
         ) : null}
       </td>
       <td className="py-2 pr-3">
-        <ResultBadge source={source} />
+        <ResultBadge source={source} onResolve={onResolve} />
       </td>
       <td className="py-2 pr-3 text-right whitespace-nowrap">
         <VsPaid source={source} />
@@ -283,12 +286,19 @@ function laneNote(lanes: Map<string, QueueLane>, source: SourceSummary) {
  * monitored store listing in tabs beside the selected knife's chart and
  * sources.
  */
-export function PriceDropsView() {
+export function PriceDropsView({
+  initialSection = 'all',
+}: {
+  initialSection?: string
+} = {}) {
   const [version, setVersion] = useState(0)
   const { overview, error } = useOverview(version)
   const queue = useQueue()
   const now = useMinuteClock()
-  const [section, setSection] = useState<Section>('all')
+  const [section, setSection] = useState<Section>(
+    initialSection in SECTION_LABEL ? (initialSection as Section) : 'all',
+  )
+  const [solveTarget, setSolveTarget] = useState<SolveTarget | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -518,6 +528,15 @@ export function PriceDropsView() {
                           lanes={lanes}
                           now={now}
                           onSelect={() => setSelected(source.knife.id)}
+                          onResolve={() => {
+                            setSelected(source.knife.id)
+                            setSolveTarget({
+                              sourceId: source.sourceId,
+                              url: source.url,
+                              storeName: source.storeName,
+                              status: source.status,
+                            })
+                          }}
                         />
                       ))}
                     </tbody>
@@ -550,6 +569,11 @@ export function PriceDropsView() {
           </Card>
         </>
       )}
+      <SolveInBrowserDialog
+        target={solveTarget}
+        onClose={() => setSolveTarget(null)}
+        onSolved={() => setVersion((value) => value + 1)}
+      />
     </div>
   )
 }

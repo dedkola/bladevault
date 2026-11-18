@@ -357,6 +357,8 @@ describe('price monitor worker', () => {
           headers: {},
           extractionFallback: true,
           advisor: true,
+          resolveErrors: true,
+          vision: false,
         },
       },
     })

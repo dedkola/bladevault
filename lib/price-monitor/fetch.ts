@@ -8,7 +8,11 @@ import {
   type ExtractedOffer,
 } from '@/lib/scrape-offer'
 import type { ScrapeOperation } from '@/lib/scrape-operation'
-import type { BrowserStorageState, RenderedPage } from '@/lib/scrape-playwright'
+import type {
+  BrowserStorageState,
+  RenderOptions,
+  RenderedPage,
+} from '@/lib/scrape-playwright'
 import { fetchExternalUrl } from '@/lib/url-validation'
 
 const USER_AGENT =
@@ -124,7 +128,12 @@ export async function checkViaHttp(
 export async function checkViaBrowser(
   url: string,
   operation: ScrapeOperation,
-  options: { storageState?: BrowserStorageState; headless?: boolean },
+  options: {
+    storageState?: BrowserStorageState
+    headless?: boolean
+    budgetMs?: number
+    interact?: RenderOptions['interact']
+  },
 ): Promise<BrowserPageCheck> {
   const { fetchRenderedHtml } = await import('@/lib/scrape-playwright')
   const page: RenderedPage = await fetchRenderedHtml(url, operation, {
@@ -134,6 +143,8 @@ export async function checkViaBrowser(
     captureStorageState: true,
     storageState: options.storageState,
     headless: options.headless,
+    budgetMs: options.budgetMs,
+    interact: options.interact,
   })
   return {
     offer: extractOfferFromHtml(page.html, page.finalUrl),

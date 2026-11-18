@@ -191,6 +191,14 @@ export async function listAiModels(
 
 export type JsonSchema = Record<string, unknown>
 
+/** OpenAI chat content parts: text, and images for vision models. */
+export type UserContent =
+  | string
+  | Array<
+      | { type: 'text'; text: string }
+      | { type: 'image_url'; image_url: { url: string } }
+    >
+
 type ResponseFormat = 'json_schema' | 'json_object' | 'none'
 
 function messageText(content: unknown): string {
@@ -239,7 +247,7 @@ export async function requestJsonCompletion(
   request: {
     model: string
     system: string
-    user: string
+    user: UserContent
     schemaName: string
     schema: JsonSchema
     maxTokens?: number

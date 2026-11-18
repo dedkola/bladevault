@@ -1,6 +1,6 @@
 import { getLocalDb } from '@/lib/local-db'
 import { tryCaptureWebpageScreenshot } from '@/lib/webpage-screenshot-capture'
-import { chromium, type BrowserContextOptions } from 'playwright'
+import { chromium, type BrowserContextOptions, type Page } from 'playwright'
 import { installScrapeBrowserInitScript } from '@/lib/scrape-browser-context'
 import { createScrapeBrowserResources } from '@/lib/scrape-browser-resources'
 import {
@@ -41,6 +41,13 @@ export type RenderOptions = {
   captureStorageState?: boolean
   /** Launch with a window (default headless). Needs a display, e.g. Xvfb. */
   headless?: boolean
+  /** Whole render budget in ms (default and cap without it: 40 s). */
+  budgetMs?: number
+  /**
+   * Runs on the loaded page before its HTML is read: the price monitor's
+   * AI problem solver and store recipes act on the page here.
+   */
+  interact?: (page: Page, operation: ScrapeOperation) => Promise<void>
 }
 
 const LIGHT_BLOCKED_RESOURCES = new Set(['media', 'image', 'font'])
@@ -60,7 +67,10 @@ export async function fetchRenderedHtml(
   // Leave part of the request's 60-second budget for HTTP fallback/enrichment.
   const operation = createScrapeOperation({
     signal: parent?.signal,
-    timeoutMs: Math.min(40_000, parent?.remainingMs() ?? 40_000),
+    timeoutMs: Math.min(
+      options.budgetMs ?? 40_000,
+      parent?.remainingMs() ?? options.budgetMs ?? 40_000,
+    ),
   })
   const resources = createScrapeBrowserResources(operation)
   try {
@@ -239,6 +249,7 @@ export async function fetchRenderedHtml(
       await page.waitForTimeout(1000)
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
       await page.waitForTimeout(500)
+      if (options.interact) await options.interact(page, operation)
       const html = await page.content()
       const finalUrl = page.url()
       if (isSecurityChallengePage(html)) throw new ScrapeError('challenge')
