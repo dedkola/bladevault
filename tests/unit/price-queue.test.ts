@@ -126,6 +126,37 @@ describe('pickNextChecks', () => {
     ).toEqual([])
   })
 
+  it('works through a backlog after a restart at the normal pace', () => {
+    // The desktop app was closed for days: every product is overdue, and the
+    // stores' saved gaps survive the restart.
+    const DAY = 24 * 60 * MIN
+    const backlog = [
+      ...Array.from({ length: 5 }, (_, index) =>
+        source('shop.example', { nextCheckAt: NOW - (3 + index) * DAY }),
+      ),
+      ...Array.from({ length: 5 }, () =>
+        source('amazon', { nextCheckAt: NOW - 2 * DAY }),
+      ),
+    ]
+    const stillWaiting = lane('amazon', {
+      readyAt: NOW + 20 * MIN,
+      lastRequestAt: NOW - 3 * DAY,
+    })
+    const first = pickNextChecks(input(backlog, {}, [stillWaiting]))
+    expect(first.map((pick) => pick.laneKey)).toEqual(['shop.example'])
+
+    // After that check the store waits for its gap again: no burst.
+    const afterCheck = lane('shop.example', {
+      readyAt: NOW + 30 * MIN,
+      lastRequestAt: NOW,
+    })
+    expect(
+      pickNextChecks(
+        input(backlog, { now: NOW + MIN }, [stillWaiting, afterCheck]),
+      ),
+    ).toEqual([])
+  })
+
   it('pauses blocked stores and sends a single probe after the cooldown', () => {
     const cooling = lane('shop.example', {
       circuit: 'open',

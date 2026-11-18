@@ -15,6 +15,7 @@ import {
   SettingsSection,
   SettingsSwitch,
 } from '@/components/settings-panels'
+import { DesktopBackgroundSettings } from '@/components/price-drops/desktop-background-settings'
 import {
   PRICE_MONITORING_LIMITS,
   type ActiveHours,
@@ -308,6 +309,8 @@ export function PriceMonitoringSettings({
           />
         </SettingsRow>
       </SettingsSection>
+
+      <DesktopBackgroundSettings />
 
       <SettingsSection
         title="Schedule"
