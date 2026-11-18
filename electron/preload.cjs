@@ -8,6 +8,9 @@ contextBridge.exposeInMainWorld('bladevaultDesktop', {
   checkForUpdates: () => ipcRenderer.invoke('bladevault:check-for-updates'),
   downloadUpdate: () => ipcRenderer.invoke('bladevault:download-update'),
   installUpdate: () => ipcRenderer.invoke('bladevault:install-update'),
+  claudeDesktop: {
+    connect: () => ipcRenderer.invoke('bladevault:connect-claude-desktop'),
+  },
   errorReporting: {
     get: () => ipcRenderer.invoke('bladevault:get-error-reporting'),
     set: (enabled, usageMetrics) =>
