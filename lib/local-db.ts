@@ -21,7 +21,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 8
+export const LOCAL_DB_SCHEMA_VERSION = 9
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -685,6 +685,24 @@ function migrateSchema(database: Database.Database) {
 
       CREATE INDEX care_notifications_knife_id_idx
       ON care_notifications (knife_id);
+    `)
+  }
+
+  if (!tables.some((t) => t.name === 'system_messages')) {
+    database.exec(`
+      CREATE TABLE system_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind TEXT NOT NULL,
+        title TEXT NOT NULL,
+        detail TEXT NOT NULL DEFAULT '',
+        occurrences INTEGER NOT NULL DEFAULT 1,
+        occurred_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        read_at TEXT,
+        dismissed_at TEXT,
+        resolved_at TEXT
+      );
     `)
   }
 

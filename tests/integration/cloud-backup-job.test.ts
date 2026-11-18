@@ -10,6 +10,7 @@ import {
 import { IDLE_CLOUD_BACKUP_JOB } from '@/lib/cloud-backup-shared'
 import { setAppLockPassword } from '@/lib/app-lock'
 import { getLocalDb } from '@/lib/local-db'
+import { getSystemMessages } from '@/lib/system-message-store'
 import { getSettings, saveSettings } from '@/lib/settings'
 import { LocalStorage } from '@/lib/storage/local'
 import type { CreateKnifeInput } from '@/lib/storage/types'
@@ -212,12 +213,25 @@ describe('server-owned cloud backup job', () => {
       message: 'Google Drive upload failed (503).',
     })
     await expectTemporaryFilesRemoved()
+    // The failure is already in the Inbox when the job reports it.
+    expect(await getSystemMessages()).toEqual([
+      expect.objectContaining({
+        kind: 'backup-failed',
+        detail: 'Google Drive upload failed (503).',
+        occurrences: 1,
+        readAt: null,
+        resolvedAt: null,
+      }),
+    ])
 
     upload.mockImplementationOnce(async () => {})
     const retry = startCloudBackupJob()
     expect(retry.id).not.toBe(first.id)
     await waitForJob('success')
     expect(upload).toHaveBeenCalledTimes(2)
+    // A backup that works resolves the open failure instead of deleting it.
+    const [resolved] = await getSystemMessages()
+    expect(resolved.resolvedAt).toEqual(expect.any(String))
   })
 
   it.each(['delete', 'replace'] as const)(

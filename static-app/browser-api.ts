@@ -252,6 +252,8 @@ function handle(request: Request, body: Record<string, unknown>) {
             right.id - left.id,
         ),
     })
+  // The static build runs no backups, so it has no system messages.
+  if (path === '/api/system-messages') return json({ messages: [] })
   if (path === '/api/care-inbox') {
     const now = new Date()
     if (method === 'POST') {
