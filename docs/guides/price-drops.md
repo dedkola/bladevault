@@ -84,7 +84,7 @@ Open **Settings → Price monitoring** to control automatic checks:
 - **How often** — **Once daily**, **Twice daily**, **Every 12 hours**, or **Custom** with an interval in hours.
 - **Only check between** limits checks to set hours, in the server's time zone.
 
-BladeVault does not check everything at once. Each store is checked one product at a time, and checks are spread evenly over the chosen interval. **Pacing** sets how many stores are checked at the same time and the minimum pause between two checks at one store, with a separate, longer pause shared by all Amazon marketplaces.
+BladeVault never hits one store with several requests at once. Each store is checked one product at a time, and its checks are spread evenly over the chosen interval; different stores are checked in parallel. **Pacing** sets the minimum pause between two checks at one store, with a separate, longer pause shared by all Amazon marketplaces.
 
 The pace adapts by itself: a store that answers slowly, rate-limits, or shows a bot check is slowed down or paused, and speeds up again after successful checks. The **Stores** table shows each store's current pace, how long a full pass takes, and any pause.
 

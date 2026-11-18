@@ -78,7 +78,7 @@ describe('normalizePriceMonitoring', () => {
     expect(DEFAULT_PRICE_MONITORING).toMatchObject({
       enabled: true,
       skipSoldKnives: true,
-      pacing: { maxParallelStores: 3 },
+      pacing: { minGapSeconds: 60, amazonMinGapSeconds: 300 },
       notify: {
         drop: true,
         increase: false,
@@ -95,7 +95,6 @@ describe('normalizePriceMonitoring', () => {
         enabled: false,
         schedule: { mode: 'custom', intervalHours: 999, activeHours: [5, 5] },
         pacing: {
-          maxParallelStores: 9,
           minGapSeconds: 1,
           amazonMinGapSeconds: 'x',
         },
@@ -107,7 +106,6 @@ describe('normalizePriceMonitoring', () => {
       skipSoldKnives: true,
       schedule: { mode: 'custom', intervalHours: 168, activeHours: null },
       pacing: {
-        maxParallelStores: 5,
         minGapSeconds: 30,
         amazonMinGapSeconds: 300,
       },
@@ -132,10 +130,10 @@ describe('normalizePriceMonitoring', () => {
       schedule: { mode: 'twice_daily', activeHours: [7, 23] },
     })
     expect(
-      normalizePriceMonitoring({ pacing: { maxParallelStores: 2 } }, current),
+      normalizePriceMonitoring({ pacing: { minGapSeconds: 120 } }, current),
     ).toMatchObject({
       schedule: { mode: 'twice_daily', activeHours: [7, 23] },
-      pacing: { maxParallelStores: 2, minGapSeconds: 60 },
+      pacing: { minGapSeconds: 120, amazonMinGapSeconds: 300 },
     })
     const alerts = normalizePriceMonitoring(
       { notify: { increase: true }, thresholds: { minAbsolute: 10 } },

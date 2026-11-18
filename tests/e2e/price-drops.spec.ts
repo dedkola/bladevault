@@ -94,9 +94,10 @@ test('offers schedule and pacing settings', async ({ page }) => {
   await expect(
     page.getByRole('radiogroup', { name: 'How often to check prices' }),
   ).toBeVisible()
-  await expect(page.getByLabel('Stores checked at the same time')).toHaveValue(
-    '3',
-  )
+  await expect(
+    page.getByLabel('Minimum pause per store in seconds'),
+  ).toHaveValue('60')
+  await expect(page.getByText('Stores checked at the same time')).toHaveCount(0)
 })
 
 test('offers notification categories and thresholds', async ({

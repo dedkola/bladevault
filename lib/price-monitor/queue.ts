@@ -27,7 +27,6 @@ export type QueueInput = {
   lanes: ReadonlyMap<string, LaneState>
   /** Lanes with a check in flight: never a second one at the same store. */
   busyLanes: ReadonlySet<string>
-  maxParallel: number
   now: number
   /** Monitoring enabled and inside the active hours. */
   scheduledActive: boolean
@@ -49,17 +48,13 @@ function byUrgency(a: QueueCandidate, b: QueueCandidate): number {
 }
 
 /**
- * Chooses which checks start now: at most one per store, at most
- * `maxParallel` stores at once, stores taking turns (the one that waited
- * longest goes first), and inside a store Check now first, then the most
- * overdue source. A store paused by its circuit breaker gets one probe once
+ * Chooses which checks start now: at most one per store, with every ready
+ * store starting in parallel (different stores never slow each other down),
+ * and inside a store Check now first, then the most overdue source. A store paused by its circuit breaker gets one probe once
  * its cooldown ends. Check now skips the even spread but keeps the store's
  * minimum gap.
  */
 export function pickNextChecks(input: QueueInput): QueuePick[] {
-  const slots = input.maxParallel - input.busyLanes.size
-  if (slots <= 0) return []
-
   const byLane = new Map<string, QueueCandidate[]>()
   for (const candidate of input.candidates) {
     if (input.busyLanes.has(candidate.laneKey) || !isDue(candidate, input))
@@ -95,7 +90,6 @@ export function pickNextChecks(input: QueueInput): QueuePick[] {
 
   return ready
     .sort((a, b) => a.lastRequestAt - b.lastRequestAt)
-    .slice(0, slots)
     .map((entry) => entry.pick)
 }
 

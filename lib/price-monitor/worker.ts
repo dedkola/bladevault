@@ -58,7 +58,7 @@ import { getVaultAccessState } from '@/lib/vault-access'
 
 /**
  * The paced monitoring queue. One worker per vault (a lease in SQLite), at
- * most one check per store and `maxParallelStores` stores at a time, each
+ * most one check per store at a time (different stores run in parallel), each
  * store's checks spread over the frequency window, with adaptive gaps and a
  * circuit breaker per store. It runs in the Next.js server process and does
  * not depend on any page being open.
@@ -262,7 +262,6 @@ export class PriceMonitorWorker {
         candidates,
         lanes,
         busyLanes: new Set(this.inFlight.keys()),
-        maxParallel: settings.pacing.maxParallelStores,
         now,
         scheduledActive,
         defaultLane: (laneKey) =>
@@ -464,7 +463,6 @@ export type QueueSnapshot = {
   activeHours: ActiveHours | null
   timeZone: string
   frequencyMs: number
-  maxParallelStores: number
   inFlight: Array<{
     sourceId: number
     laneKey: string
@@ -556,7 +554,6 @@ export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
     activeHours: hours,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     frequencyMs: frequencyMs(settings.schedule),
-    maxParallelStores: settings.pacing.maxParallelStores,
     inFlight: [...worker.inFlight.values()].map((entry) => ({
       sourceId: entry.sourceId,
       laneKey: entry.laneKey,

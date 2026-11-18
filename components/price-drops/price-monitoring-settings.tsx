@@ -422,22 +422,6 @@ export function PriceMonitoringSettings({
         description="BladeVault slows a store down by itself when it answers slowly, rate-limits or shows a bot check, and speeds up again after successful checks. These are the limits."
       >
         <SettingsRow
-          label="Stores checked at the same time"
-          description="Each store still gets one request at a time."
-        >
-          <NumberField
-            aria-label="Stores checked at the same time"
-            value={settings.pacing.maxParallelStores}
-            min={PRICE_MONITORING_LIMITS.maxParallelStores[0]}
-            max={PRICE_MONITORING_LIMITS.maxParallelStores[1]}
-            unit="stores"
-            disabled={off}
-            onCommit={(maxParallelStores) =>
-              updatePacing({ maxParallelStores })
-            }
-          />
-        </SettingsRow>
-        <SettingsRow
           label="Minimum pause per store"
           description="The shortest time between two checks at the same store."
         >
