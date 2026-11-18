@@ -61,6 +61,7 @@ Price monitoring stores its history in the same `bladevault.sqlite` file, so loc
 | `stock_events`        | Every out-of-stock and back-in-stock change.                                                           |
 | `price_notifications` | The Inbox **Prices** notifications. Closed ones are deleted after 90 days.                             |
 | `price_check_log`     | Recent checks, including failures. Failures never enter the price history.                             |
+| `price_discovery`     | What AI found at other stores for each knife (**Other stores**), and when it searches again.           |
 
 Prices are stored as whole numbers in the currency's smallest unit (cents for USD) together with the currency code. The change and snapshot tables are permanent; deleting a knife deletes its sources, history, and notifications.
 

@@ -49,6 +49,8 @@ export type PriceSourceView = {
   lastError: string | null
   consecutiveFailures: number
   createdAt: string
+  /** Added by Other stores: AI found and confirmed this product. */
+  foundByAi?: boolean
 }
 
 export type EligibilityReason =

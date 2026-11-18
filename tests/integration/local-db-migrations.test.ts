@@ -26,6 +26,7 @@ describe('local database migrations', () => {
       'price_monitor_daily',
       'price_regulator_advice',
       'price_check_log',
+      'price_discovery',
     ]
     const tableNames = () =>
       (

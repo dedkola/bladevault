@@ -117,6 +117,7 @@ describe('normalizePriceMonitoring', () => {
       },
       thresholds: { minPercent: 100 },
       ai: DEFAULT_PRICE_MONITORING.ai,
+      otherStores: DEFAULT_PRICE_MONITORING.otherStores,
     })
     expect(
       normalizePriceMonitoring({

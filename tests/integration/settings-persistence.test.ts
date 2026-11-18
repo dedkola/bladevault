@@ -45,6 +45,11 @@ describe('settings persistence', () => {
           resolveErrors: false,
           vision: false,
         },
+        otherStores: {
+          enabled: true,
+          stores: { amazon: true },
+          amazonMarketplace: 'amazon.de',
+        },
       },
     })
     saveSettings({ startPage: 'studio' })
@@ -73,6 +78,11 @@ describe('settings persistence', () => {
         advisor: true,
         resolveErrors: false,
         vision: false,
+      },
+      otherStores: {
+        enabled: true,
+        stores: { amazon: true },
+        amazonMarketplace: 'amazon.de',
       },
     })
     // The AI key is never part of the settings table.

@@ -246,6 +246,7 @@ export function buildPriceWatchView(
   const database = db()
   const mode = readWatchMode(database, knife.id)
   const sources = readActiveSources(database, knife.id)
+  const found = readDiscoveredSourceIds(database, knife.id)
   return {
     knifeId: knife.id,
     mode,
@@ -255,7 +256,11 @@ export function buildPriceWatchView(
       sources.filter((source) => source.enabled === 1).length,
       settings,
     ),
-    sources: sources.map(toSourceView),
+    sources: sources.map((source) =>
+      found.has(source.id)
+        ? { ...toSourceView(source), foundByAi: true }
+        : toSourceView(source),
+    ),
     maxSources: MAX_PRICE_SOURCES_PER_KNIFE,
     // Check now waits as priority 2 until its store's next free slot.
     queuedSourceIds: sources
@@ -264,9 +269,26 @@ export function buildPriceWatchView(
   }
 }
 
+/** Sources that Other stores added (AI found and confirmed them). */
+export function readDiscoveredSourceIds(
+  database: Database.Database,
+  knifeId: string,
+): Set<number> {
+  return new Set(
+    (
+      database
+        .prepare(
+          `SELECT source_id FROM price_discovery
+           WHERE knife_id = ? AND source_id IS NOT NULL`,
+        )
+        .all(knifeId) as Array<{ source_id: number }>
+    ).map((row) => row.source_id),
+  )
+}
+
 // --------------------------------------------------------------- writes
 
-function insertSource(
+export function insertSource(
   database: Database.Database,
   knifeId: string,
   url: string,

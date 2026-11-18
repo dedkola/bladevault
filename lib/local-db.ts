@@ -935,6 +935,28 @@ function migratePriceMonitoringSchema(
       CREATE INDEX price_check_log_lane
         ON price_check_log (lane_key, started_at);`,
     ],
+    [
+      // AI searches for monitored knives on other stores (Other stores).
+      // One row per knife and store; a found product becomes a price source.
+      'price_discovery',
+      `CREATE TABLE price_discovery (
+        knife_id TEXT NOT NULL,
+        store TEXT NOT NULL,
+        marketplace TEXT NOT NULL,
+        status TEXT NOT NULL,
+        source_id INTEGER,
+        url TEXT,
+        title TEXT,
+        confidence REAL,
+        detail TEXT,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        last_attempt_at TEXT NOT NULL,
+        next_attempt_at TEXT,
+        PRIMARY KEY (knife_id, store, marketplace)
+      );
+      CREATE INDEX price_discovery_time
+        ON price_discovery (last_attempt_at);`,
+    ],
   ]
   const missing = statements.filter(([name]) => !has(name))
   if (missing.length)

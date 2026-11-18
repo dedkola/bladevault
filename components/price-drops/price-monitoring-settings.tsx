@@ -20,6 +20,7 @@ import {
   SettingsSwitch,
 } from '@/components/settings-panels'
 import { hasServerRuntime } from '@/lib/runtime-capabilities'
+import { OtherStoresSettings } from '@/components/price-drops/other-stores-settings'
 import { DesktopBackgroundSettings } from '@/components/price-drops/desktop-background-settings'
 import {
   PRICE_MONITORING_LIMITS,
@@ -497,6 +498,17 @@ export function PriceMonitoringSettings({
           disabled={disabled}
           onChange={(ai) => update({ ai })}
           onAdviceApplied={() => void loadQueue()}
+        />
+      ) : null}
+
+      {serverRuntime ? (
+        <OtherStoresSettings
+          settings={settings.otherStores}
+          aiReady={Boolean(
+            settings.ai.enabled && settings.ai.baseUrl && settings.ai.model,
+          )}
+          disabled={disabled}
+          onChange={(otherStores) => update({ otherStores })}
         />
       ) : null}
 
