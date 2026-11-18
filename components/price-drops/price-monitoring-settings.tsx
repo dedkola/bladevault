@@ -476,7 +476,7 @@ export function PriceMonitoringSettings({
         ))}
         <SettingsRow
           label="Minimum change"
-          description="A price change notifies when it reaches either amount. Set a field to 0 to turn it off; with both at 0, every price change notifies. Stock changes always notify."
+          description="Price changes smaller than this don't notify. Set it to 0 to be notified about every price change. Stock changes always notify."
         >
           <NumberField
             aria-label="Minimum price change in percent"
@@ -487,17 +487,6 @@ export function PriceMonitoringSettings({
             unit="%"
             disabled={disabled || !priceAlertsOn}
             onCommit={(minPercent) => updateThresholds({ minPercent })}
-          />
-          <span className="text-xs text-muted-foreground">or</span>
-          <NumberField
-            aria-label="Minimum price change in the store's currency"
-            value={settings.thresholds.minAbsolute}
-            min={PRICE_MONITORING_LIMITS.minAbsolute[0]}
-            max={PRICE_MONITORING_LIMITS.minAbsolute[1]}
-            decimals={2}
-            unit="in the store's currency"
-            disabled={disabled || !priceAlertsOn}
-            onCommit={(minAbsolute) => updateThresholds({ minAbsolute })}
           />
         </SettingsRow>
       </SettingsSection>

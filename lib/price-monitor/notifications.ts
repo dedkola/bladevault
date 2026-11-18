@@ -13,7 +13,6 @@
  * - Closed notifications are deleted after 90 days.
  */
 import type { ChangeEvent } from '@/lib/price-monitor/insights'
-import { toMinorUnits } from '@/lib/price-monitor/money'
 import type { PriceMonitoringSettings } from '@/lib/settings-shared'
 
 export type PriceNotificationKind =
@@ -168,24 +167,12 @@ export function expiredPriceNotificationIds(
   })
 }
 
-/**
- * Whether a price change is big enough. A threshold of 0 is off; with both
- * off every change counts, otherwise meeting either one is enough.
- */
+/** Whether a price change is big enough; a threshold of 0 lets every change through. */
 export function meetsPriceThreshold(
-  change: { currency: string; deltaMinor: number; deltaPct: number },
+  change: { deltaPct: number },
   thresholds: PriceNotificationSettings['thresholds'],
 ): boolean {
-  const percentOn = thresholds.minPercent > 0
-  const absoluteOn = thresholds.minAbsolute > 0
-  if (!percentOn && !absoluteOn) return true
-  if (percentOn && Math.abs(change.deltaPct) >= thresholds.minPercent)
-    return true
-  return (
-    absoluteOn &&
-    Math.abs(change.deltaMinor) >=
-      toMinorUnits(thresholds.minAbsolute, change.currency)
-  )
+  return Math.abs(change.deltaPct) >= thresholds.minPercent
 }
 
 /** Whether an event's category is on and, for prices, above the threshold. */

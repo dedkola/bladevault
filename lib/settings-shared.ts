@@ -462,15 +462,13 @@ export type PriceMonitoringSettings = {
   /** Which detected changes create an Inbox notification. */
   notify: PriceNotifyCategories
   /**
-   * Price changes notify when either enabled threshold is met. A threshold
-   * of 0 is off; with both off, every price change notifies. Stock changes
-   * ignore the thresholds.
+   * Price changes notify when they move by at least `minPercent` of the
+   * previous price; 0 notifies on every price change. Stock changes ignore
+   * the threshold.
    */
   thresholds: {
     /** Percent of the previous price, 0–100. */
     minPercent: number
-    /** Major units of the source's currency, e.g. 5 = 5.00 USD. */
-    minAbsolute: number
   }
   /** Optional OpenAI-compatible AI; monitoring works without it. */
   ai: PriceAiSettings
@@ -518,7 +516,6 @@ export const PRICE_MONITORING_LIMITS = {
   minGapSeconds: [30, 3600],
   amazonMinGapSeconds: [60, 21_600],
   minPercent: [0, 100],
-  minAbsolute: [0, 1_000_000],
 } as const
 
 export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
@@ -527,7 +524,7 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
   schedule: { mode: 'daily', intervalHours: 24, activeHours: null },
   pacing: { minGapSeconds: 60, amazonMinGapSeconds: 300 },
   notify: { drop: true, increase: false, outOfStock: false, backInStock: true },
-  thresholds: { minPercent: 5, minAbsolute: 0 },
+  thresholds: { minPercent: 5 },
   ai: {
     enabled: false,
     baseUrl: '',
@@ -813,12 +810,6 @@ export function normalizePriceMonitoring(
         PRICE_MONITORING_LIMITS.minPercent,
         1,
         fallback.thresholds.minPercent,
-      ),
-      minAbsolute: boundedDecimal(
-        thresholds.minAbsolute,
-        PRICE_MONITORING_LIMITS.minAbsolute,
-        2,
-        fallback.thresholds.minAbsolute,
       ),
     },
     ai: normalizePriceAi(record.ai, fallback.ai),
