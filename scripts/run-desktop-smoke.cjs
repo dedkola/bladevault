@@ -295,6 +295,7 @@ async function main() {
       'getUpdateStatus',
       'installUpdate',
       'onUpdateStatus',
+      'reloadWindow',
       'saveBackupFile',
       'scrapeBrowser',
       'selectDirectory',
