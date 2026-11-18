@@ -100,6 +100,8 @@ When a knife turns due soon or overdue, a message arrives in **Inbox**. The bell
 
 Logging the care any other way also resolves the message. A due-soon message that becomes overdue is marked unread again. Closed messages stay under **Done** for 90 days.
 
+The Inbox also holds app messages, such as a failed Google Drive backup. Use the **All**, **Maintenance** and **System** tabs at the top to show every message or one kind.
+
 ## Review care across the collection
 
 Select the **Care status** card on **Insights** for the full care page:

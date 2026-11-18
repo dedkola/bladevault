@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { Popover } from '@base-ui/react/popover'
 import { Menu } from '@base-ui/react/menu'
@@ -9,10 +10,14 @@ import {
   BellOff,
   Check,
   ChevronDown,
+  CloudAlert,
+  CloudCheck,
   ImageIcon,
   Inbox,
   Loader2,
   RotateCcw,
+  Settings,
+  UploadCloud,
   X,
 } from 'lucide-react'
 import Image from '@/components/vault-image'
@@ -31,6 +36,14 @@ import {
   type CareNotificationBox,
 } from '@/lib/care-notifications'
 import type { CareStatusLevel } from '@/lib/maintenance-due'
+import {
+  getSystemMessageBox,
+  isSystemMessageUnread,
+  sortSystemMessages,
+  systemMessageTime,
+  type SystemMessage,
+  type SystemMessageAction,
+} from '@/lib/system-messages'
 import { CARE_TRACK_NAMES, CARE_TRACK_PAST } from '@/lib/settings-shared'
 import { cn } from '@/lib/utils'
 
@@ -183,17 +196,26 @@ function useInboxKnives() {
 
 /** Runs an inbox action and reports failures through the app's feedback toast. */
 function useInboxAction() {
-  const { act, logCare } = useCareInbox()
+  const { act, actSystem, logCare } = useCareInbox()
   const { showFeedback } = useKnives()
   const [busyId, setBusyId] = useState<number | null>(null)
+  const report = (error: unknown) =>
+    showFeedback(
+      error instanceof Error ? error.message : 'Could not update the inbox',
+      'error',
+    )
   const run = async (action: CareNotificationAction) => {
     try {
       await act(action)
     } catch (error) {
-      showFeedback(
-        error instanceof Error ? error.message : 'Could not update the inbox',
-        'error',
-      )
+      report(error)
+    }
+  }
+  const runSystem = async (action: SystemMessageAction) => {
+    try {
+      await actSystem(action)
+    } catch (error) {
+      report(error)
     }
   }
   const log = async (notification: CareNotification) => {
@@ -213,7 +235,7 @@ function useInboxAction() {
       setBusyId(null)
     }
   }
-  return { run, log, busyId }
+  return { run, runSystem, log, busyId }
 }
 
 function SnoozeMenu({
@@ -412,10 +434,195 @@ function CareMessageRow({
   )
 }
 
+function formatTime(value: string): string {
+  const date = new Date(value)
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+    : ''
+}
+
+function systemMessageDetail(message: SystemMessage, now: Date): string {
+  const when = `${formatWhen(message.occurredAt, now)}, ${formatTime(message.occurredAt)}`
+  const repeats =
+    message.occurrences > 1
+      ? `Happened ${plural(message.occurrences, 'time')}, last ${when.toLowerCase()}`
+      : when
+  if (message.resolvedAt) {
+    return message.kind === 'backup-failed'
+      ? `A later backup worked on ${formatShortDate(message.resolvedAt, now)}, ${formatTime(message.resolvedAt)}`
+      : `Resolved ${formatShortDate(message.resolvedAt, now)}`
+  }
+  if (message.dismissedAt) return `${repeats} · dismissed`
+  return repeats
+}
+
+function SystemMessageIcon({
+  message,
+  size = 'md',
+}: {
+  message: SystemMessage
+  size?: 'sm' | 'md'
+}) {
+  const resolved = Boolean(message.resolvedAt)
+  const open = getSystemMessageBox(message) === 'open'
+  const Icon = resolved ? CloudCheck : CloudAlert
+  return (
+    <span
+      className={cn(
+        'grid shrink-0 place-items-center rounded-lg border border-[var(--bladevault-line)]/70',
+        size === 'sm' ? 'size-9' : 'size-11',
+        open
+          ? 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400'
+          : resolved
+            ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
+            : 'bg-muted/30 text-muted-foreground',
+      )}
+    >
+      <Icon className={size === 'sm' ? 'size-4' : 'size-5'} />
+    </span>
+  )
+}
+
+function SystemMessageRow({
+  message,
+  now,
+  compact = false,
+  onAction,
+  onNavigate,
+}: {
+  message: SystemMessage
+  now: Date
+  compact?: boolean
+  onAction: (action: SystemMessageAction) => void
+  onNavigate?: () => void
+}) {
+  const { startVaultBackup, cloudBackupJob } = useKnives()
+  const box = getSystemMessageBox(message)
+  const unread = isSystemMessageUnread(message)
+  const ids = [message.id]
+  const backingUp = cloudBackupJob.status === 'running'
+  const markRead = () => {
+    if (unread) onAction({ action: 'read', ids })
+  }
+  return (
+    <li
+      data-system-message={box}
+      data-unread={unread || undefined}
+      className={cn(
+        'flex items-start gap-3',
+        compact ? 'px-3 py-2.5' : 'px-4 py-3.5',
+        box === 'done' && 'bg-muted/25',
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className={cn(
+          'mt-2 size-1.5 shrink-0 rounded-full',
+          unread ? 'bg-[var(--bladevault-title)]' : 'bg-transparent',
+        )}
+      />
+      <SystemMessageIcon message={message} size={compact ? 'sm' : 'md'} />
+      <div className="min-w-0 flex-1">
+        <Link
+          href="/settings?tab=backup"
+          onClick={() => {
+            markRead()
+            onNavigate?.()
+          }}
+          className={cn(
+            'block truncate text-sm text-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            unread ? 'font-semibold' : 'font-medium',
+          )}
+        >
+          {message.title}
+          {unread && <span className="sr-only"> (unread)</span>}
+        </Link>
+        <p
+          className={cn(
+            'text-xs font-medium',
+            box === 'done'
+              ? 'text-muted-foreground'
+              : 'text-red-600 dark:text-red-400',
+            compact && 'truncate',
+          )}
+        >
+          {message.detail}
+        </p>
+        {!compact && (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {systemMessageDetail(message, now)}
+          </p>
+        )}
+        {!compact && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {box === 'open' && message.kind === 'backup-failed' && (
+              <>
+                <Button
+                  type="button"
+                  size="xs"
+                  disabled={backingUp}
+                  onClick={() => {
+                    markRead()
+                    void startVaultBackup()
+                  }}
+                >
+                  {backingUp ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <UploadCloud className="size-3" />
+                  )}
+                  {backingUp ? 'Backing up…' : 'Back up now'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  render={
+                    <Link href="/settings?tab=backup" onClick={markRead} />
+                  }
+                  nativeButton={false}
+                >
+                  <Settings className="size-3" />
+                  Backup settings
+                </Button>
+              </>
+            )}
+            {box === 'open' && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                onClick={() => onAction({ action: 'dismiss', ids })}
+              >
+                <X className="size-3" />
+                Dismiss
+              </Button>
+            )}
+            {box === 'done' && message.dismissedAt && !message.resolvedAt && (
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={() => onAction({ action: 'restore', ids })}
+              >
+                <RotateCcw className="size-3" />
+                Move back to inbox
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+      <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+        {formatWhen(message.occurredAt, now)}
+      </span>
+    </li>
+  )
+}
+
 /** Unread count for nav rows; renders nothing when there is nothing new. */
 export function CareInboxCount({ className }: { className?: string }) {
-  const { enabled, unreadCount } = useCareInbox()
-  if (!enabled || unreadCount === 0) return null
+  const { visible, unreadCount } = useCareInbox()
+  if (!visible || unreadCount === 0) return null
   return (
     <span
       data-care-inbox-count
@@ -432,9 +639,18 @@ export function CareInboxCount({ className }: { className?: string }) {
 
 const POPOVER_LIMIT = 5
 
+type InboxItem =
+  | { type: 'care'; at: string; row: CareNotification }
+  | { type: 'system'; at: string; row: SystemMessage }
+
+function inboxItemKey(item: InboxItem) {
+  return `${item.type}-${item.row.id}`
+}
+
 /**
- * Header bell with the unread count; opens the newest open messages. Extra
- * props style the trigger like its neighbours in each shell's header.
+ * Header bell with the unread count; opens the newest open messages, system
+ * problems first. Extra props style the trigger like its neighbours in each
+ * shell's header.
  */
 export function CareInboxBell({
   className,
@@ -443,25 +659,45 @@ export function CareInboxBell({
   React.ButtonHTMLAttributes<HTMLButtonElement>,
   'type' | 'onClick' | 'children'
 > & { [dataAttribute: `data-${string}`]: string | undefined }) {
-  const { enabled, notifications, now, unreadCount, counts } = useCareInbox()
+  const {
+    visible,
+    enabled,
+    notifications,
+    systemMessages,
+    now,
+    unreadCount,
+    counts,
+    systemCounts,
+  } = useCareInbox()
   const knivesById = useInboxKnives()
-  const { run, log, busyId } = useInboxAction()
+  const { run, runSystem, log, busyId } = useInboxAction()
   const [open, setOpen] = useState(false)
-  const openMessages = useMemo(
-    () =>
-      sortCareNotifications(
-        notifications.filter(
-          (row) => getCareNotificationBox(row, now) === 'open',
-        ),
-        'open',
-      ),
-    [notifications, now],
+  const openItems = useMemo<InboxItem[]>(
+    () => [
+      ...sortSystemMessages(
+        systemMessages.filter((row) => getSystemMessageBox(row) === 'open'),
+      ).map((row) => ({ type: 'system' as const, at: row.occurredAt, row })),
+      ...(enabled
+        ? sortCareNotifications(
+            notifications.filter(
+              (row) => getCareNotificationBox(row, now) === 'open',
+            ),
+            'open',
+          ).map((row) => ({ type: 'care' as const, at: row.createdAt, row }))
+        : []),
+    ],
+    [enabled, notifications, systemMessages, now],
   )
-  if (!enabled) return null
+  if (!visible) return null
+  const openCount = (enabled ? counts.open : 0) + systemCounts.open
   const label =
     unreadCount > 0
-      ? `Care inbox, ${plural(unreadCount, 'unread message')}`
-      : 'Care inbox'
+      ? `Inbox, ${plural(unreadCount, 'unread message')}`
+      : 'Inbox'
+  const markAllRead = () => {
+    if (enabled) void run({ action: 'read-all' })
+    void runSystem({ action: 'read-all' })
+  }
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger
@@ -484,54 +720,69 @@ export function CareInboxBell({
       <Popover.Portal>
         <Popover.Positioner align="end" sideOffset={8} className="z-50">
           <Popover.Popup
-            aria-label="Care inbox"
+            aria-label="Inbox"
             className="w-[min(24rem,calc(100vw-1.5rem))] origin-(--transform-origin) overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
           >
             <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
               <Popover.Title className="text-sm font-semibold">
-                Care inbox
+                Inbox
               </Popover.Title>
               <span className="text-xs text-muted-foreground">
-                {counts.open
-                  ? `${counts.open} open${unreadCount ? ` · ${unreadCount} unread` : ''}`
+                {openCount
+                  ? `${openCount} open${unreadCount ? ` · ${unreadCount} unread` : ''}`
                   : 'All caught up'}
               </span>
               {unreadCount > 0 && (
                 <button
                   type="button"
-                  onClick={() => void run({ action: 'read-all' })}
+                  onClick={markAllRead}
                   className="ml-auto rounded text-xs font-medium text-[var(--bladevault-title)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   Mark all read
                 </button>
               )}
             </div>
-            {openMessages.length ? (
+            {openItems.length ? (
               <ul className="max-h-[min(22rem,60dvh)] divide-y divide-border overflow-y-auto">
-                {openMessages.slice(0, POPOVER_LIMIT).map((notification) => (
-                  <CareMessageRow
-                    key={notification.id}
-                    notification={notification}
-                    knife={knivesById.get(notification.knifeId)}
-                    now={now}
-                    compact
-                    busy={busyId === notification.id}
-                    onAction={(action) => void run(action)}
-                    onLog={() => void log(notification)}
-                    onNavigate={() => setOpen(false)}
-                  />
-                ))}
+                {openItems
+                  .slice(0, POPOVER_LIMIT)
+                  .map((item) =>
+                    item.type === 'system' ? (
+                      <SystemMessageRow
+                        key={inboxItemKey(item)}
+                        message={item.row}
+                        now={now}
+                        compact
+                        onAction={(action) => void runSystem(action)}
+                        onNavigate={() => setOpen(false)}
+                      />
+                    ) : (
+                      <CareMessageRow
+                        key={inboxItemKey(item)}
+                        notification={item.row}
+                        knife={knivesById.get(item.row.knifeId)}
+                        now={now}
+                        compact
+                        busy={busyId === item.row.id}
+                        onAction={(action) => void run(action)}
+                        onLog={() => void log(item.row)}
+                        onNavigate={() => setOpen(false)}
+                      />
+                    ),
+                  )}
               </ul>
             ) : (
               <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-                Nothing is due. Every tracked knife is inside its care interval.
+                {enabled
+                  ? 'Nothing needs attention. Every tracked knife is inside its care interval.'
+                  : 'Nothing needs attention.'}
               </p>
             )}
             <div className="flex items-center justify-between gap-2 border-t border-border bg-muted/30 px-3 py-2 text-xs">
               <span className="text-muted-foreground">
-                {openMessages.length > POPOVER_LIMIT
-                  ? `${openMessages.length - POPOVER_LIMIT} more in the inbox`
-                  : counts.snoozed
+                {openItems.length > POPOVER_LIMIT
+                  ? `${openItems.length - POPOVER_LIMIT} more in the inbox`
+                  : enabled && counts.snoozed
                     ? `${counts.snoozed} snoozed`
                     : ''}
               </span>
@@ -550,118 +801,295 @@ export function CareInboxBell({
   )
 }
 
+type InboxFilter = 'all' | 'maintenance' | 'system'
+
+const FILTER_TABS: readonly { filter: InboxFilter; label: string }[] = [
+  { filter: 'all', label: 'All' },
+  { filter: 'maintenance', label: 'Maintenance' },
+  { filter: 'system', label: 'System' },
+]
+
+function isInboxFilter(value: string | null): value is InboxFilter {
+  return value === 'all' || value === 'maintenance' || value === 'system'
+}
+
 const BOX_TABS: readonly { box: CareNotificationBox; label: string }[] = [
   { box: 'open', label: 'Open' },
   { box: 'snoozed', label: 'Snoozed' },
   { box: 'done', label: 'Done' },
 ]
 
-const EMPTY_TEXT: Record<CareNotificationBox, string> = {
-  open: 'All caught up. Nothing is due right now.',
-  snoozed: 'No snoozed reminders.',
-  done: 'Logged, dismissed and expired reminders show up here for 90 days.',
+const EMPTY_TEXT: Record<InboxFilter, Record<CareNotificationBox, string>> = {
+  all: {
+    open: 'All caught up. Nothing needs attention right now.',
+    snoozed: 'No snoozed messages.',
+    done: 'Resolved and dismissed messages show up here for 90 days.',
+  },
+  maintenance: {
+    open: 'All caught up. Nothing is due right now.',
+    snoozed: 'No snoozed reminders.',
+    done: 'Logged, dismissed and expired reminders show up here for 90 days.',
+  },
+  system: {
+    open: 'No problems. Failed backups and other app events show up here.',
+    snoozed: 'System messages can’t be snoozed.',
+    done: 'Resolved and dismissed system messages show up here for 90 days.',
+  },
 }
 
-/** Full Inbox page: open, snoozed and done care reminders. */
+const FOOTNOTE: Record<InboxFilter, string> = {
+  all: 'Care reminders and app events, such as a failed Google Drive backup, land here. Each one resolves itself once the problem is fixed.',
+  maintenance:
+    'A reminder arrives when a knife turns due soon or overdue, and resolves itself once that care is logged.',
+  system:
+    'A failed Google Drive backup stays here until a later backup works. Successful backups only show a short notice.',
+}
+
+/** Newest first, like mail. Done messages sort by when they closed. */
+function sortInboxItems(items: InboxItem[]): InboxItem[] {
+  return [...items].sort(
+    (left, right) =>
+      right.at.localeCompare(left.at) ||
+      inboxItemKey(left).localeCompare(inboxItemKey(right)),
+  )
+}
+
+/**
+ * Full Inbox page: care reminders and system messages in one list, with
+ * filters for each kind and Open/Snoozed/Done boxes.
+ */
 export function CareInboxView() {
-  const { enabled, isLoading, notifications, now, unreadCount, counts } =
-    useCareInbox()
+  const {
+    enabled,
+    isLoading,
+    notifications,
+    systemMessages,
+    now,
+    careUnreadCount,
+    systemUnreadCount,
+    counts,
+    systemCounts,
+  } = useCareInbox()
   const knivesById = useInboxKnives()
-  const { run, log, busyId } = useInboxAction()
+  const { run, runSystem, log, busyId } = useInboxAction()
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  // The filter lives in the URL, so links such as the backup notice's
+  // “Details” open the System filter directly.
+  const requestedFilter = searchParams.get('filter')
+  const filter: InboxFilter = isInboxFilter(requestedFilter)
+    ? requestedFilter
+    : 'all'
+  const setFilter = (next: InboxFilter) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (next === 'all') params.delete('filter')
+    else params.set('filter', next)
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+  }
   const [box, setBox] = useState<CareNotificationBox>('open')
-  const visible = useMemo(
-    () =>
-      sortCareNotifications(
-        notifications.filter((row) => getCareNotificationBox(row, now) === box),
-        box,
-      ),
-    [notifications, now, box],
+
+  const showCare = enabled && filter !== 'system'
+  const showSystem = filter !== 'maintenance'
+  // System messages have no snoozed box.
+  const activeBox = filter === 'system' && box === 'snoozed' ? 'open' : box
+
+  const visible = useMemo<InboxItem[]>(() => {
+    const care = showCare
+      ? notifications
+          .filter((row) => getCareNotificationBox(row, now) === activeBox)
+          .map((row) => ({
+            type: 'care' as const,
+            at:
+              activeBox === 'done'
+                ? (row.resolvedAt ?? row.dismissedAt ?? row.updatedAt)
+                : row.createdAt,
+            row,
+          }))
+      : []
+    const system =
+      showSystem && activeBox !== 'snoozed'
+        ? systemMessages
+            .filter((row) => getSystemMessageBox(row) === activeBox)
+            .map((row) => ({
+              type: 'system' as const,
+              at: systemMessageTime(row),
+              row,
+            }))
+        : []
+    // Maintenance alone keeps its deadline order: most overdue first.
+    if (filter === 'maintenance') {
+      const sorted = sortCareNotifications(
+        care.map((item) => item.row),
+        activeBox,
+      )
+      return sorted.map((row) => ({ type: 'care' as const, at: '', row }))
+    }
+    return sortInboxItems([...care, ...system])
+  }, [
+    showCare,
+    showSystem,
+    filter,
+    notifications,
+    systemMessages,
+    now,
+    activeBox,
+  ])
+
+  const boxCount = (target: CareNotificationBox) =>
+    (showCare ? counts[target] : 0) +
+    (showSystem && target !== 'snoozed' ? systemCounts[target] : 0)
+  const filterUnread: Record<InboxFilter, number> = {
+    all: careUnreadCount + systemUnreadCount,
+    maintenance: careUnreadCount,
+    system: systemUnreadCount,
+  }
+  const unread = filterUnread[filter]
+  const boxTabs = BOX_TABS.filter(
+    (tab) => tab.box !== 'snoozed' || filter !== 'system',
   )
 
-  if (!enabled) {
-    return (
-      <p className="py-10 text-center text-sm text-muted-foreground">
-        Care reminders are off. Turn them on in{' '}
-        <Link href="/settings" className="underline underline-offset-2">
-          Settings → Maintenance
-        </Link>{' '}
-        to get messages when a knife is due.
-      </p>
-    )
+  const markAllRead = () => {
+    if (showCare && careUnreadCount > 0) void run({ action: 'read-all' })
+    if (showSystem && systemUnreadCount > 0)
+      void runSystem({ action: 'read-all' })
   }
 
   return (
     <div data-care-inbox className="w-full max-w-3xl">
+      <div
+        role="tablist"
+        aria-label="Message type"
+        className="mb-3 flex gap-1 overflow-x-auto border-b border-border"
+      >
+        {FILTER_TABS.map((tab) => {
+          const selected = filter === tab.filter
+          const count = filterUnread[tab.filter]
+          return (
+            <button
+              key={tab.filter}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              data-inbox-filter={tab.filter}
+              onClick={() => setFilter(tab.filter)}
+              className={cn(
+                '-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                selected
+                  ? 'border-[var(--bladevault-title)] font-semibold text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {tab.label}
+              {count > 0 && (
+                <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white tabular-nums">
+                  {count > 99 ? '99+' : count}
+                  <span className="sr-only"> unread</span>
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
       <div className="mb-3 flex flex-wrap items-center gap-1.5">
         <div
           role="group"
-          aria-label="Show reminders"
+          aria-label="Show messages"
           className="flex flex-wrap gap-1.5"
         >
-          {BOX_TABS.map((tab) => (
+          {boxTabs.map((tab) => (
             <button
               key={tab.box}
               type="button"
-              aria-pressed={box === tab.box}
+              aria-pressed={activeBox === tab.box}
               onClick={() => setBox(tab.box)}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                box === tab.box &&
+                activeBox === tab.box &&
                   'border-transparent bg-[var(--bladevault-nav-active-bg)] text-[var(--bladevault-nav-active-fg)] hover:text-[var(--bladevault-nav-active-fg)]',
               )}
             >
               {tab.label}
               <span className="font-semibold tabular-nums">
-                {counts[tab.box]}
+                {boxCount(tab.box)}
               </span>
             </button>
           ))}
         </div>
-        {unreadCount > 0 && (
+        {unread > 0 && (
           <Button
             type="button"
             variant="outline"
             size="xs"
             className="ml-auto"
-            onClick={() => void run({ action: 'read-all' })}
+            onClick={markAllRead}
           >
             <Check className="size-3" />
             Mark all read
           </Button>
         )}
       </div>
-      <div className="overflow-hidden rounded-xl border border-[var(--bladevault-line)]/70 bg-card">
-        {isLoading && notifications.length === 0 ? (
-          <p
-            role="status"
-            className="px-4 py-10 text-center text-sm text-muted-foreground"
-          >
-            Checking care reminders…
-          </p>
-        ) : visible.length ? (
-          <ul className="divide-y divide-border" aria-live="polite">
-            {visible.map((notification) => (
-              <CareMessageRow
-                key={notification.id}
-                notification={notification}
-                knife={knivesById.get(notification.knifeId)}
-                now={now}
-                busy={busyId === notification.id}
-                onAction={(action) => void run(action)}
-                onLog={() => void log(notification)}
-              />
-            ))}
-          </ul>
-        ) : (
-          <div className="flex flex-col items-center gap-2 px-4 py-12 text-center text-sm text-muted-foreground">
-            <Inbox className="size-6 opacity-60" aria-hidden="true" />
-            {EMPTY_TEXT[box]}
-          </div>
-        )}
-      </div>
+      {filter === 'maintenance' && !enabled ? (
+        <p className="rounded-xl border border-[var(--bladevault-line)]/70 bg-card px-4 py-10 text-center text-sm text-muted-foreground">
+          Care reminders are off. Turn them on in{' '}
+          <Link href="/settings" className="underline underline-offset-2">
+            Settings → Maintenance
+          </Link>{' '}
+          to get messages when a knife is due.
+        </p>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-[var(--bladevault-line)]/70 bg-card">
+          {isLoading && showCare && notifications.length === 0 ? (
+            <p
+              role="status"
+              className="px-4 py-10 text-center text-sm text-muted-foreground"
+            >
+              Checking messages…
+            </p>
+          ) : visible.length ? (
+            <ul className="divide-y divide-border" aria-live="polite">
+              {visible.map((item) =>
+                item.type === 'system' ? (
+                  <SystemMessageRow
+                    key={inboxItemKey(item)}
+                    message={item.row}
+                    now={now}
+                    onAction={(action) => void runSystem(action)}
+                  />
+                ) : (
+                  <CareMessageRow
+                    key={inboxItemKey(item)}
+                    notification={item.row}
+                    knife={knivesById.get(item.row.knifeId)}
+                    now={now}
+                    busy={busyId === item.row.id}
+                    onAction={(action) => void run(action)}
+                    onLog={() => void log(item.row)}
+                  />
+                ),
+              )}
+            </ul>
+          ) : (
+            <div className="flex flex-col items-center gap-2 px-4 py-12 text-center text-sm text-muted-foreground">
+              <Inbox className="size-6 opacity-60" aria-hidden="true" />
+              {EMPTY_TEXT[filter][activeBox]}
+            </div>
+          )}
+        </div>
+      )}
       <p className="mt-3 text-xs text-muted-foreground">
-        A reminder arrives when a knife turns due soon or overdue, and resolves
-        itself once that care is logged.
+        {FOOTNOTE[filter]}
+        {filter === 'all' && !enabled && (
+          <>
+            {' '}
+            Care reminders are off; turn them on in{' '}
+            <Link href="/settings" className="underline underline-offset-2">
+              Settings → Maintenance
+            </Link>
+            .
+          </>
+        )}
       </p>
     </div>
   )

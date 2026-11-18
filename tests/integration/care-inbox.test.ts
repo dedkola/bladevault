@@ -49,10 +49,12 @@ afterEach(async () => {
 })
 
 describe('care inbox storage', () => {
-  it('creates the table in schema 8', async () => {
+  it('creates the table from schema 8 on', async () => {
     vault = await createTempVault()
-    expect(LOCAL_DB_SCHEMA_VERSION).toBe(8)
-    expect(getLocalDb().pragma('user_version', { simple: true })).toBe(8)
+    expect(LOCAL_DB_SCHEMA_VERSION).toBeGreaterThanOrEqual(8)
+    expect(getLocalDb().pragma('user_version', { simple: true })).toBe(
+      LOCAL_DB_SCHEMA_VERSION,
+    )
     expect(
       getLocalDb()
         .prepare(

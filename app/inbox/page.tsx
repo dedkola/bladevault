@@ -4,7 +4,7 @@ import { CareInboxView } from '@/components/care-inbox'
 
 export const metadata: Metadata = {
   title: 'BladeVault | Inbox',
-  description: 'Care reminders for knives that are due.',
+  description: 'Care reminders and app messages such as failed backups.',
 }
 
 export default function InboxPage() {
@@ -15,7 +15,7 @@ export default function InboxPage() {
     >
       <PageHeader
         title="Inbox"
-        description="Care reminders for knives that are due soon or overdue."
+        description="Care reminders and important app messages, like a failed backup."
       />
       <CareInboxView />
     </div>

@@ -15,6 +15,10 @@ import { uploadDriveBackup } from '@/lib/drive-backup'
 import { getLocalDataDirPath, getLocalDb } from '@/lib/local-db'
 import { resolveLocalImagePath } from '@/lib/local-image-path'
 import {
+  reportSystemMessage,
+  resolveSystemMessages,
+} from '@/lib/system-message-store'
+import {
   tryBeginVaultOperation,
   VaultOperationBusyError,
 } from '@/lib/vault-operation'
@@ -254,8 +258,35 @@ async function runCloudBackupJob(
         }
       }
     }
+    await recordBackupResult(result, dataDir, database)
     Object.assign(job, result)
     job.phase = null
+  }
+}
+
+/**
+ * Keeps a failed backup in the Inbox until a later backup works. Runs before
+ * the job reports its result, so the Inbox already has it when the app asks.
+ */
+async function recordBackupResult(
+  result: Pick<CloudBackupJobState, 'status' | 'message'>,
+  dataDir: string,
+  database: Database.Database,
+) {
+  // A restore or vault switch during the backup leaves this vault alone.
+  if (!database.open || getLocalDataDirPath() !== dataDir) return
+  try {
+    if (result.status === 'success') {
+      await resolveSystemMessages('backup-failed')
+    } else {
+      await reportSystemMessage({
+        kind: 'backup-failed',
+        title: 'Google Drive backup failed',
+        detail: result.message || 'Google Drive backup failed.',
+      })
+    }
+  } catch {
+    // The Inbox is a convenience; the job state still reports the result.
   }
 }
 

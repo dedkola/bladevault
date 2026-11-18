@@ -20,20 +20,39 @@ import {
   type CareNotificationBox,
 } from '@/lib/care-notifications'
 import { MAINTENANCE_UPDATED_EVENT } from '@/lib/maintenance-due'
+import {
+  applySystemMessageAction,
+  getSystemMessageBox,
+  isSystemMessageUnread,
+  mergeSystemMessageChanges,
+  type SystemMessage,
+  type SystemMessageAction,
+  type SystemMessageBox,
+} from '@/lib/system-messages'
 import type { MaintenanceEventInput } from '@/lib/data'
 import type { CareTrack } from '@/lib/settings-shared'
 import { useCare } from '@/components/providers/care-provider'
+import { useKnives } from '@/components/providers/knives-provider'
 
 type CareInboxContextValue = {
-  /** False while reminders are off; inbox surfaces hide themselves. */
+  /** False while care reminders are off; care messages hide themselves. */
   enabled: boolean
+  /** True when there is anything to show: care reminders or system messages. */
+  visible: boolean
   isLoading: boolean
   notifications: readonly CareNotification[]
+  /** App events such as failed backups, independent of care reminders. */
+  systemMessages: readonly SystemMessage[]
   /** Clock used to decide which messages are snoozed; ticks every minute. */
   now: Date
+  /** Unread care and system messages together. */
   unreadCount: number
+  careUnreadCount: number
+  systemUnreadCount: number
   counts: Record<CareNotificationBox, number>
+  systemCounts: Record<SystemMessageBox, number>
   act: (action: CareNotificationAction) => Promise<void>
+  actSystem: (action: SystemMessageAction) => Promise<void>
   /** Logs the care for today, which resolves the message on the next sync. */
   logCare: (knifeId: string, track: CareTrack) => Promise<void>
 }
@@ -56,6 +75,24 @@ async function requestInbox(init: RequestInit): Promise<CareNotification[]> {
   return data.notifications
 }
 
+async function requestSystemMessages(
+  init: RequestInit = {},
+): Promise<SystemMessage[]> {
+  const response = await fetch('/api/system-messages', {
+    cache: 'no-store',
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...init.headers },
+  })
+  const data = await readJsonResponse<{
+    messages?: SystemMessage[]
+    error?: string
+  }>(response)
+  if (!response.ok || !Array.isArray(data.messages)) {
+    throw new Error(data.error || 'Could not update the inbox')
+  }
+  return data.messages
+}
+
 export function CareInboxProvider({ children }: { children: React.ReactNode }) {
   const { reminders, statusById, isLoading: careLoading } = useCare()
   const enabled = reminders.enabled
@@ -63,10 +100,40 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
   const [hasSynced, setHasSynced] = useState(false)
   const [now, setNow] = useState(() => new Date())
   const notificationsRef = useRef(notifications)
+  const { cloudBackupJob } = useKnives()
+  const [systemMessages, setSystemMessages] = useState<SystemMessage[]>([])
+  const systemMessagesRef = useRef(systemMessages)
 
   useEffect(() => {
     notificationsRef.current = notifications
   }, [notifications])
+
+  useEffect(() => {
+    systemMessagesRef.current = systemMessages
+  }, [systemMessages])
+
+  // System messages come from the server's background work (backups), so
+  // reload them on start, when a backup ends and when the window regains focus.
+  const backupSettled = cloudBackupJob.status !== 'running'
+  useEffect(() => {
+    if (!backupSettled) return
+    let cancelled = false
+    const load = async () => {
+      try {
+        const next = await requestSystemMessages()
+        if (!cancelled) setSystemMessages(next)
+      } catch {
+        // Keep the last messages; the next focus or backup retries.
+      }
+    }
+    void load()
+    const onFocus = () => void load()
+    window.addEventListener('focus', onFocus)
+    return () => {
+      cancelled = true
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [backupSettled, cloudBackupJob.id])
 
   // Care status changes on load, after maintenance edits, settings changes and
   // at midnight; each change syncs the stored inbox on the server.
@@ -122,6 +189,28 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  const actSystem = useCallback(async (action: SystemMessageAction) => {
+    const previous = systemMessagesRef.current
+    setSystemMessages(
+      mergeSystemMessageChanges(previous, {
+        create: [],
+        update: applySystemMessageAction(previous, action, new Date()),
+        deleteIds: [],
+      }),
+    )
+    try {
+      setSystemMessages(
+        await requestSystemMessages({
+          method: 'PATCH',
+          body: JSON.stringify(action),
+        }),
+      )
+    } catch (error) {
+      setSystemMessages(previous)
+      throw error
+    }
+  }, [])
+
   const logCare = useCallback(async (knifeId: string, track: CareTrack) => {
     const input: MaintenanceEventInput = {
       type: track,
@@ -150,22 +239,44 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
       snoozed: 0,
       done: 0,
     }
-    let unreadCount = 0
+    let careUnreadCount = 0
     for (const row of notifications) {
       counts[getCareNotificationBox(row, now)] += 1
-      if (isCareNotificationUnread(row, now)) unreadCount += 1
+      if (isCareNotificationUnread(row, now)) careUnreadCount += 1
     }
+    const systemCounts: Record<SystemMessageBox, number> = { open: 0, done: 0 }
+    let systemUnreadCount = 0
+    for (const row of systemMessages) {
+      systemCounts[getSystemMessageBox(row)] += 1
+      if (isSystemMessageUnread(row)) systemUnreadCount += 1
+    }
+    if (!enabled) careUnreadCount = 0
     return {
       enabled,
+      visible: enabled || systemMessages.length > 0,
       isLoading: enabled && !hasSynced,
       notifications,
+      systemMessages,
       now,
-      unreadCount: enabled ? unreadCount : 0,
+      unreadCount: careUnreadCount + systemUnreadCount,
+      careUnreadCount,
+      systemUnreadCount,
       counts,
+      systemCounts,
       act,
+      actSystem,
       logCare,
     }
-  }, [enabled, hasSynced, notifications, now, act, logCare])
+  }, [
+    enabled,
+    hasSynced,
+    notifications,
+    systemMessages,
+    now,
+    act,
+    actSystem,
+    logCare,
+  ])
 
   return (
     <CareInboxContext.Provider value={value}>
@@ -176,13 +287,21 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
 
 const DISABLED_INBOX: CareInboxContextValue = {
   enabled: false,
+  visible: false,
   isLoading: false,
   notifications: [],
+  systemMessages: [],
   now: new Date(0),
   unreadCount: 0,
+  careUnreadCount: 0,
+  systemUnreadCount: 0,
   counts: { open: 0, snoozed: 0, done: 0 },
+  systemCounts: { open: 0, done: 0 },
   act: async () => {
     throw new Error('The care inbox is unavailable here.')
+  },
+  actSystem: async () => {
+    throw new Error('The inbox is unavailable here.')
   },
   logCare: async () => {
     throw new Error('The care inbox is unavailable here.')

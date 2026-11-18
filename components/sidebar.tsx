@@ -90,7 +90,7 @@ export function Sidebar() {
   } = useKnives()
   const { reminders: careReminders, statusById: careStatusById } = useCare()
   const careStatusFilter = careReminders.enabled ? careStatusById : undefined
-  const { enabled: inboxEnabled, unreadCount: inboxUnread } = useCareInbox()
+  const { visible: inboxEnabled, unreadCount: inboxUnread } = useCareInbox()
   const { update, downloadUpdate } = useDesktopUpdates()
   const [brandsOpen, setBrandsOpen] = useState(true)
   const [pinnedOpen, setPinnedOpen] = useState(true)
@@ -646,7 +646,7 @@ export function Sidebar() {
               className="relative size-10"
               aria-label={
                 inboxUnread > 0
-                  ? `Open navigation, ${inboxUnread} unread care ${inboxUnread === 1 ? 'reminder' : 'reminders'}`
+                  ? `Open navigation, ${inboxUnread} unread inbox ${inboxUnread === 1 ? 'message' : 'messages'}`
                   : 'Open navigation'
               }
             />

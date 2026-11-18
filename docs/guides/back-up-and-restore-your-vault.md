@@ -56,6 +56,8 @@ Each backup replaces the single `bladevault-data.tar.gz` file in the `BladeVault
 
 To back up after edits, turn on **Automatic backup to Google Drive** in the same panel. During an open app session, BladeVault waits at least 30 seconds after edits settle before starting a backup. Changes made during a backup can be included in a later one.
 
+While a Google Drive backup runs, a notice at the bottom of the window shows its progress. When it ends, the notice briefly says **Backed up to Google Drive** or that the backup failed. A failed backup also leaves a message under **Inbox → System** with the error and a **Back up now** button. The message resolves itself after the next backup that works.
+
 Saved comparisons are included in full-vault backups, but changing a comparison list alone does not trigger an automatic backup. Use **Backup** when you want to include those changes immediately.
 
 ## Restore from Google Drive
