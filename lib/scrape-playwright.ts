@@ -1,6 +1,6 @@
 import { getLocalDb } from '@/lib/local-db'
 import { tryCaptureWebpageScreenshot } from '@/lib/webpage-screenshot-capture'
-import { chromium } from 'playwright'
+import { chromium, type BrowserContextOptions } from 'playwright'
 import { installScrapeBrowserInitScript } from '@/lib/scrape-browser-context'
 import { createScrapeBrowserResources } from '@/lib/scrape-browser-resources'
 import {
@@ -19,7 +19,14 @@ export type RenderedPage = {
   screenshotWarning?: string
   /** The main document as the server sent it, before scripts ran. */
   serverHtml?: string
+  /** Cookies and storage after the page loaded, when requested. */
+  storageState?: BrowserStorageState
 }
+
+export type BrowserStorageState = Exclude<
+  BrowserContextOptions['storageState'],
+  string | undefined
+>
 
 export type RenderOptions = {
   /** Capture the webpage screenshot (default true). Monitoring skips it. */
@@ -28,6 +35,12 @@ export type RenderOptions = {
   light?: boolean
   /** Return the navigation response body as `serverHtml`. */
   captureServerHtml?: boolean
+  /** Start from saved cookies and storage (price monitoring, per store). */
+  storageState?: BrowserStorageState
+  /** Return the context's cookies and storage after the page loaded. */
+  captureStorageState?: boolean
+  /** Launch with a window (default headless). Needs a display, e.g. Xvfb. */
+  headless?: boolean
 }
 
 const LIGHT_BLOCKED_RESOURCES = new Set(['media', 'image', 'font'])
@@ -89,6 +102,7 @@ export async function fetchRenderedHtml(
           browser = await resources.acquireBrowser(() =>
             chromium.launch({
               ...launchOptions,
+              headless: options.headless ?? true,
               channel,
               timeout: Math.min(10_000, operation.remainingMs()),
             }),
@@ -113,6 +127,9 @@ export async function fetchRenderedHtml(
           timezoneId: 'America/New_York',
           serviceWorkers: 'block',
           extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
+          ...(options.storageState
+            ? { storageState: options.storageState }
+            : {}),
         }),
       )
       await installScrapeBrowserInitScript(context)
@@ -164,9 +181,18 @@ export async function fetchRenderedHtml(
       if (isSecurityChallengePage(initialHtml))
         throw new ScrapeError('challenge')
       if (response && !response.ok()) {
-        throw new ScrapeError(
-          'http',
-          `The website returned HTTP ${response.status()}. Open the URL in your browser or try again later.`,
+        throw Object.assign(
+          new ScrapeError(
+            'http',
+            `The website returned HTTP ${response.status()}. Open the URL in your browser or try again later.`,
+          ),
+          // Price monitoring honors Retry-After when pacing a store.
+          {
+            retryAfter:
+              typeof response.headers === 'function'
+                ? (response.headers()['retry-after'] ?? null)
+                : null,
+          },
         )
       }
 
@@ -224,6 +250,9 @@ export async function fetchRenderedHtml(
           'The page returned an automation error; falling back to plain fetch.',
         )
       }
+      const storageState = options.captureStorageState
+        ? await context.storageState().catch(() => undefined)
+        : undefined
       if (getLocalDb() !== database) {
         return {
           html,
@@ -233,7 +262,8 @@ export async function fetchRenderedHtml(
             'The active vault changed during scraping. Please retry.',
         }
       }
-      if (options.screenshot === false) return { html, finalUrl, serverHtml }
+      if (options.screenshot === false)
+        return { html, finalUrl, serverHtml, storageState }
 
       const screenshotBudget = Math.min(25_000, operation.remainingMs() - 1000)
       if (screenshotBudget < 1000) {

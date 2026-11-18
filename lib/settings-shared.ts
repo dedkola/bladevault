@@ -429,6 +429,146 @@ export function normalizeCareDeferrals(value: unknown): CareDeferrals {
   return deferrals
 }
 
+export const PRICE_SCHEDULE_MODES = [
+  'daily',
+  'twice_daily',
+  'every_12h',
+  'custom',
+] as const
+export type PriceScheduleMode = (typeof PRICE_SCHEDULE_MODES)[number]
+
+/** [startHour, endHour) in server local time; start > end wraps midnight. */
+export type ActiveHours = [number, number]
+
+export type PriceMonitoringSettings = {
+  /** Scheduled checks; Check now works either way. */
+  enabled: boolean
+  /** Auto mode skips sold knives; Always monitor still covers them. */
+  skipSoldKnives: boolean
+  /** Target frequency per source; the queue spreads checks across it. */
+  schedule: {
+    mode: PriceScheduleMode
+    /** Custom mode only, 1–168. */
+    intervalHours: number
+    /** Null: around the clock (Twice daily defaults to 8–22). */
+    activeHours: ActiveHours | null
+  }
+  pacing: {
+    /** Stores checked at the same time, 1–5. Never two at one store. */
+    maxParallelStores: number
+    /** Floor between two checks at one store; raised automatically. */
+    minGapSeconds: number
+    amazonMinGapSeconds: number
+  }
+}
+
+export const PRICE_MONITORING_LIMITS = {
+  intervalHours: [1, 168],
+  maxParallelStores: [1, 5],
+  minGapSeconds: [30, 3600],
+  amazonMinGapSeconds: [60, 21_600],
+} as const
+
+export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
+  enabled: true,
+  skipSoldKnives: true,
+  schedule: { mode: 'daily', intervalHours: 24, activeHours: null },
+  pacing: { maxParallelStores: 3, minGapSeconds: 60, amazonMinGapSeconds: 300 },
+}
+
+function boundedInteger(
+  value: unknown,
+  [min, max]: readonly [number, number],
+  fallback: number,
+): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(max, Math.max(min, Math.round(value)))
+    : fallback
+}
+
+function normalizeActiveHours(
+  value: unknown,
+  fallback: ActiveHours | null,
+): ActiveHours | null {
+  if (value === null) return null
+  if (!Array.isArray(value) || value.length !== 2) return fallback
+  const [start, end] = value
+  if (
+    !Number.isInteger(start) ||
+    !Number.isInteger(end) ||
+    start < 0 ||
+    start > 23 ||
+    end < 0 ||
+    end > 24 ||
+    start === end % 24
+  )
+    return fallback
+  return [start, end]
+}
+
+export function normalizePriceMonitoring(
+  value: unknown,
+  fallback: PriceMonitoringSettings = DEFAULT_PRICE_MONITORING,
+): PriceMonitoringSettings {
+  const record =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {}
+  const schedule =
+    record.schedule && typeof record.schedule === 'object'
+      ? (record.schedule as Record<string, unknown>)
+      : {}
+  const pacing =
+    record.pacing && typeof record.pacing === 'object'
+      ? (record.pacing as Record<string, unknown>)
+      : {}
+  const mode = (PRICE_SCHEDULE_MODES as readonly unknown[]).includes(
+    schedule.mode,
+  )
+    ? (schedule.mode as PriceScheduleMode)
+    : fallback.schedule.mode
+  return {
+    enabled:
+      typeof record.enabled === 'boolean' ? record.enabled : fallback.enabled,
+    skipSoldKnives:
+      typeof record.skipSoldKnives === 'boolean'
+        ? record.skipSoldKnives
+        : fallback.skipSoldKnives,
+    schedule: {
+      mode,
+      intervalHours: boundedInteger(
+        schedule.intervalHours,
+        PRICE_MONITORING_LIMITS.intervalHours,
+        fallback.schedule.intervalHours,
+      ),
+      activeHours:
+        'activeHours' in schedule
+          ? normalizeActiveHours(
+              schedule.activeHours,
+              fallback.schedule.activeHours,
+            )
+          : fallback.schedule.activeHours,
+    },
+    pacing: {
+      maxParallelStores: boundedInteger(
+        pacing.maxParallelStores,
+        PRICE_MONITORING_LIMITS.maxParallelStores,
+        fallback.pacing.maxParallelStores,
+      ),
+      minGapSeconds: boundedInteger(
+        pacing.minGapSeconds,
+        PRICE_MONITORING_LIMITS.minGapSeconds,
+        fallback.pacing.minGapSeconds,
+      ),
+      amazonMinGapSeconds: boundedInteger(
+        pacing.amazonMinGapSeconds,
+        PRICE_MONITORING_LIMITS.amazonMinGapSeconds,
+        fallback.pacing.amazonMinGapSeconds,
+      ),
+    },
+  }
+}
+
 export type AppSettings = {
   collectionDisplay: CollectionDisplay
   theme: AppTheme
@@ -446,6 +586,7 @@ export type AppSettings = {
   maintenanceReminders: MaintenanceReminderSettings
   careIntervalOverrides: CareIntervalOverrides
   careDeferrals: CareDeferrals
+  priceMonitoring: PriceMonitoringSettings
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -465,6 +606,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   maintenanceReminders: DEFAULT_MAINTENANCE_REMINDERS,
   careIntervalOverrides: {},
   careDeferrals: {},
+  priceMonitoring: DEFAULT_PRICE_MONITORING,
 }
 
 export function normalizeStartPage(

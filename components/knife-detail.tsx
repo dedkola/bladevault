@@ -431,6 +431,7 @@ export default function KnifeDetail({
           isSaving={isSaving}
           saveError={error}
           screenshotKnife={knife}
+          priceWatchKnifeId={knife.id}
           onScreenshotCaptured={(updatedKnife) => {
             setDetailKnife(updatedKnife)
             scheduleVaultBackup()

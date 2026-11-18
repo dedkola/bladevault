@@ -190,6 +190,16 @@ function getDb() {
   return getLocalDb()
 }
 
+const PRICE_MONITORING_KNIFE_TABLES = [
+  'price_watch',
+  'price_sources',
+  'price_snapshots',
+  'price_change_events',
+  'stock_events',
+  'price_notifications',
+  'price_check_log',
+] as const
+
 type CareNotificationRow = {
   id: number
   knife_id: string
@@ -1335,6 +1345,9 @@ export class LocalStorage implements Storage {
         database
           .prepare('DELETE FROM care_notifications WHERE knife_id = ?')
           .run(id)
+        // Price history belongs to the knife; store-level rollups stay.
+        for (const table of PRICE_MONITORING_KNIFE_TABLES)
+          database.prepare(`DELETE FROM ${table} WHERE knife_id = ?`).run(id)
         database
           .prepare(
             `UPDATE comparison_lists SET revision = revision + 1, updated_at = ?

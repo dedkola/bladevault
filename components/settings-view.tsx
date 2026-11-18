@@ -30,6 +30,7 @@ import {
   SlidersHorizontal,
   Trash2,
   Upload,
+  TrendingDown,
   Wrench,
 } from 'lucide-react'
 import { CompareIcon } from '@/components/icons/compare-icon'
@@ -48,6 +49,7 @@ import {
   TIME_FORMATS,
   DIMENSION_UNITS,
   normalizeMaintenanceReminders,
+  normalizePriceMonitoring,
   type AppSettings,
   type AppTheme,
   type CardField,
@@ -58,6 +60,7 @@ import {
   type DimensionUnit,
   type StartPage,
   type MaintenanceReminderSettings,
+  type PriceMonitoringSettings,
 } from '@/lib/settings-shared'
 import { getHourCycle } from '@/lib/time-format'
 import { getCardFieldGroups, getCardFieldLabel } from '@/lib/card-fields'
@@ -76,6 +79,7 @@ import { Card } from '@/components/ui/card'
 import { KnifeCardDetails } from '@/components/knife-card-details'
 import { CareBadgePill } from '@/components/care-badge'
 import { MaintenanceSettings } from '@/components/maintenance-settings'
+import { PriceMonitoringSettings as PriceMonitoringSettingsPanel } from '@/components/price-drops/price-monitoring-settings'
 import { formatDimension, formatWeight } from '@/lib/measurements'
 import {
   SettingsSection,
@@ -123,6 +127,7 @@ type SettingsTab =
   | 'appearance'
   | 'fields'
   | 'maintenance'
+  | 'prices'
   | 'mcp'
   | 'about'
 
@@ -624,6 +629,7 @@ export default function SettingsView() {
     'appearance',
     'fields',
     'maintenance',
+    'prices',
     'mcp',
     'about',
   ].includes(normalizedTabParam || '')
@@ -702,6 +708,7 @@ export default function SettingsView() {
   const [newFieldType, setNewFieldType] = useState<CustomFieldType>('text')
   const [isSavingCardFields, setIsSavingCardFields] = useState(false)
   const [isSavingMaintenance, setIsSavingMaintenance] = useState(false)
+  const [isSavingPriceMonitoring, setIsSavingPriceMonitoring] = useState(false)
   const [isSavingPinnedCardFields, setIsSavingPinnedCardFields] =
     useState(false)
   const [mcpStatus, setMcpStatus] = useState<McpRuntimeStatus | null>(null)
@@ -837,6 +844,12 @@ export default function SettingsView() {
         label: 'Maintenance',
         icon: Wrench,
         blurb: 'Care reminders, intervals and how due dates are counted.',
+      },
+      {
+        id: 'prices' as const,
+        label: 'Price monitoring',
+        icon: TrendingDown,
+        blurb: 'How often store prices are checked and how gently.',
       },
       {
         id: 'mcp' as const,
@@ -1363,6 +1376,21 @@ export default function SettingsView() {
       )
     } finally {
       setIsSavingMaintenance(false)
+    }
+  }
+
+  const handlePriceMonitoringChange = async (next: PriceMonitoringSettings) => {
+    if (!settings) return
+
+    try {
+      setIsSavingPriceMonitoring(true)
+      await saveSettings({ priceMonitoring: next })
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : 'Failed to save settings',
+      )
+    } finally {
+      setIsSavingPriceMonitoring(false)
     }
   }
 
@@ -2229,6 +2257,14 @@ export default function SettingsView() {
                     void handleMaintenanceRemindersChange(next)
                   }
                   onResetOverrides={() => void handleResetCareOverrides()}
+                />
+              )}
+
+              {activeTab === 'prices' && (
+                <PriceMonitoringSettingsPanel
+                  settings={normalizePriceMonitoring(settings.priceMonitoring)}
+                  disabled={isSavingPriceMonitoring}
+                  onChange={(next) => void handlePriceMonitoringChange(next)}
                 />
               )}
 

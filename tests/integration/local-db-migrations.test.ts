@@ -1,7 +1,7 @@
 import path from 'path'
 import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
-import { getLocalDb } from '@/lib/local-db'
+import { closeLocalDb, getLocalDb } from '@/lib/local-db'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 let vault: TempVault | null = null
@@ -12,6 +12,46 @@ afterEach(async () => {
 })
 
 describe('local database migrations', () => {
+  it('adds the price monitoring tables once and keeps them on reopen', async () => {
+    vault = await createTempVault()
+    const priceTables = [
+      'price_watch',
+      'price_sources',
+      'price_snapshots',
+      'price_change_events',
+      'stock_events',
+      'price_notifications',
+      'price_worker_lease',
+      'price_host_state',
+      'price_monitor_daily',
+      'price_regulator_advice',
+      'price_check_log',
+    ]
+    const tableNames = () =>
+      (
+        getLocalDb()
+          .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+          .all() as Array<{ name: string }>
+      ).map((row) => row.name)
+
+    expect(tableNames()).toEqual(expect.arrayContaining(priceTables))
+    expect(getLocalDb().pragma('user_version', { simple: true })).toBe(10)
+    getLocalDb()
+      .prepare(
+        `INSERT INTO price_monitor_daily (day, lane_key, checks)
+         VALUES ('2026-11-18', 'shop.example', 3)`,
+      )
+      .run()
+
+    // Reopening (and re-running migrations on an older user_version) keeps data.
+    getLocalDb().pragma('user_version = 9')
+    closeLocalDb()
+    expect(tableNames()).toEqual(expect.arrayContaining(priceTables))
+    expect(
+      getLocalDb().prepare('SELECT checks FROM price_monitor_daily').get(),
+    ).toEqual({ checks: 3 })
+  })
+
   it('adds missing columns and backfills updated_at without losing a legacy knife', async () => {
     vault = await createTempVault()
     const legacy = new Database(path.join(vault.dataDir, 'bladevault.sqlite'))

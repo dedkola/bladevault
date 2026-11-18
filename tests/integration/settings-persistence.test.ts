@@ -12,6 +12,44 @@ afterEach(async () => {
 })
 
 describe('settings persistence', () => {
+  it('stores price monitoring settings and keeps them across unrelated saves', async () => {
+    vault = await createTempVault('bladevault-settings-')
+
+    expect(getSettings().priceMonitoring).toMatchObject({
+      enabled: true,
+      schedule: { mode: 'daily' },
+    })
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        enabled: false,
+        schedule: { mode: 'custom', intervalHours: 6, activeHours: [22, 6] },
+        pacing: {
+          maxParallelStores: 2,
+          minGapSeconds: 90,
+          amazonMinGapSeconds: 600,
+        },
+      },
+    })
+    saveSettings({ startPage: 'studio' })
+    closeLocalDb()
+    expect(getSettings().priceMonitoring).toEqual({
+      enabled: false,
+      skipSoldKnives: true,
+      schedule: { mode: 'custom', intervalHours: 6, activeHours: [22, 6] },
+      pacing: {
+        maxParallelStores: 2,
+        minGapSeconds: 90,
+        amazonMinGapSeconds: 600,
+      },
+    })
+
+    getLocalDb()
+      .prepare("UPDATE settings SET value = '{broken' WHERE key = ?")
+      .run('price_monitoring')
+    expect(getSettings().priceMonitoring.enabled).toBe(true)
+  })
+
   it('opens Insights for an existing vault without a start-page setting', async () => {
     vault = await createTempVault('bladevault-settings-')
 
