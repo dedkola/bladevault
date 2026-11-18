@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
-import { ExternalLink, Loader2, RefreshCw, X } from 'lucide-react'
+import { AppWindow, ExternalLink, Loader2, RefreshCw, X } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { getSafeExternalUrl } from '@/lib/external-url'
 import type { HistoryRange } from '@/lib/price-monitor/insights'
@@ -27,6 +27,7 @@ import {
   usePriceHistory,
 } from './price-history-chart'
 import { ChangePill, KnifeThumb, StatusDot, useMinuteClock } from './price-ui'
+import { SolveInBrowserDialog, type SolveTarget } from './solve-in-browser'
 
 const MODE_LABEL = { auto: 'Auto', on: 'Always monitor', off: 'Never monitor' }
 
@@ -111,12 +112,18 @@ function SourceLine({
   queued,
   now,
   onCheck,
+  onSolve,
 }: {
   source: PriceSourceView
   queued: boolean
   now: number
   onCheck: () => void
+  onSolve: () => void
 }) {
+  const needsHelp =
+    source.status === 'blocked' ||
+    source.status === 'failed' ||
+    source.status === 'price_unavailable'
   const safeUrl = getSafeExternalUrl(source.url)
   const status =
     queued && source.status !== 'checking' ? 'checking' : source.status
@@ -169,6 +176,23 @@ function SourceLine({
           ? '—'
           : money(source.lastPriceMinor, source.lastCurrency)}
       </span>
+      {needsHelp ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label={`${source.status === 'blocked' ? 'Solve the bot check' : 'Fix the page'} at ${storeLabel(source.storeName)} in a browser`}
+          title={
+            source.status === 'blocked'
+              ? 'Solve in browser'
+              : 'Open in a browser to fix'
+          }
+          disabled={queued}
+          onClick={onSolve}
+        >
+          <AppWindow className="size-3" />
+        </Button>
+      ) : null}
       <Button
         type="button"
         variant="ghost"
@@ -209,6 +233,7 @@ export function KnifePricePanel({
   )
   const [version, setVersion] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [solveTarget, setSolveTarget] = useState<SolveTarget | null>(null)
   const now = useMinuteClock()
   const [historyVersion, setHistoryVersion] = useState(0)
   const { watch } = usePriceWatch(knifeId, version, () => {
@@ -359,6 +384,14 @@ export function KnifePricePanel({
                 queued={queued.has(source.id)}
                 now={now}
                 onCheck={() => void check(source.id)}
+                onSolve={() =>
+                  setSolveTarget({
+                    sourceId: source.id,
+                    url: source.url,
+                    storeName: source.storeName,
+                    status: source.status,
+                  })
+                }
               />
             ))}
           </ul>
@@ -413,6 +446,11 @@ export function KnifePricePanel({
           Edit monitoring
         </Link>
       </div>
+      <SolveInBrowserDialog
+        target={solveTarget}
+        onClose={() => setSolveTarget(null)}
+        onSolved={() => setVersion((value) => value + 1)}
+      />
     </div>
   )
 }

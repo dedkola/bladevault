@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as knivesRoute from '@/app/api/knives/route'
+import * as solveRoute from '@/app/api/prices/sources/[id]/solve/route'
 import * as advisorRoute from '@/app/api/prices/advisor/route'
 import * as activityRoute from '@/app/api/prices/activity/route'
 import * as keyRoute from '@/app/api/settings/price-ai-key/route'
@@ -9,9 +10,16 @@ import * as modelsRoute from '@/app/api/settings/price-ai-models/route'
 import * as testRoute from '@/app/api/settings/price-ai-test/route'
 import * as settingsRoute from '@/app/api/settings/route'
 import { getLocalDb } from '@/lib/local-db'
+import {
+  loadBrowserState,
+  saveBrowserState,
+} from '@/lib/price-monitor/browser-state'
 import { readActiveAdvice } from '@/lib/price-monitor/advice-store'
 import { runPriceAdvisor } from '@/lib/price-monitor/advisor'
 import { checkPriceSource } from '@/lib/price-monitor/engine'
+import { extractOfferFromHtml } from '@/lib/price-monitor/fetch'
+import type { SolverPage } from '@/lib/price-monitor/solver'
+import { getSystemMessages } from '@/lib/system-message-store'
 import {
   getPriceAiKeyStatus,
   PRICE_AI_KEY_ENV,
@@ -26,11 +34,21 @@ import {
 } from '@/lib/price-monitor/worker'
 import { getSettings, saveSettings } from '@/lib/settings'
 import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
+import { ScrapeError } from '@/lib/scrape-errors'
 import type { ExtractedOffer } from '@/lib/scrape-offer'
 import { getVaultAccessState } from '@/lib/vault-access'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
-const mocks = vi.hoisted(() => ({ browser: vi.fn(), http: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  browser: vi.fn(),
+  http: vi.fn(),
+  exportSession: vi.fn(),
+}))
+
+vi.mock('@/lib/scrape-interactive', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/scrape-interactive')>()),
+  exportInteractiveSessionState: mocks.exportSession,
+}))
 
 vi.mock('@/lib/price-monitor/fetch', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/price-monitor/fetch')>()),
@@ -238,6 +256,8 @@ describe('AI settings routes', () => {
       model: 'm1',
       extractionFallback: true,
       advisor: true,
+      resolveErrors: true,
+      vision: false,
       headers: {},
     })
     await settingsRoute.POST(
@@ -447,6 +467,351 @@ describe('AI extraction fallback in a check', () => {
     browserPage(null)
     await checkPriceSource(source.id, { trigger: 'manual' })
     expect(aiFetch).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('AI troubleshooting of failed checks', () => {
+  function sourceRow(id: number) {
+    return rows(
+      'SELECT enabled, next_check_at, last_ai_at FROM price_sources WHERE id = ?',
+      id,
+    )[0]
+  }
+
+  it('recovers from a bot check within bounds and explains it in the log', async () => {
+    enableAi()
+    await writePriceAiKey(KEY)
+    const { source } = await createKnife('Secret Raccoon Knife')
+    await saveBrowserState(source.lane_key, { cookies: [], origins: [] })
+
+    mocks.browser.mockRejectedValueOnce(new ScrapeError('challenge'))
+    aiFetch.mockResolvedValueOnce(
+      chat({
+        resetCookies: true,
+        useBrowser: false,
+        // Sooner than the backoff: raised to it.
+        retryInMinutes: 5,
+        pauseSource: false,
+        explanation: 'The store showed a bot check; cookies were reset.',
+      }),
+    )
+    const before = Date.now()
+    const summary = await checkPriceSource(source.id, { trigger: 'manual' })
+    expect(summary).toMatchObject({
+      status: 'done',
+      outcome: 'blocked',
+      errorCode: 'challenge',
+    })
+    expect(aiFetch).toHaveBeenCalledTimes(1)
+    const sent = String(aiFetch.mock.calls[0][1]?.body)
+    expect(sent).toContain('shop.example')
+    expect(sent).not.toContain(PRODUCT_URL)
+    expect(sent).not.toContain('Raccoon')
+    expect(sent).not.toContain(KEY)
+
+    expect(
+      String(
+        rows('SELECT error_message FROM price_check_log')[0].error_message,
+      ),
+    ).toContain('AI: The store showed a bot check; cookies were reset.')
+    const row = sourceRow(source.id)
+    expect(row.last_ai_at).toEqual(expect.any(String))
+    // The default backoff after a first failure is the 24 h frequency.
+    expect(Date.parse(String(row.next_check_at))).toBeGreaterThanOrEqual(
+      before + 24 * 60 * 60 * 1000 - 1000,
+    )
+    expect(await loadBrowserState(source.lane_key)).toBeUndefined()
+
+    // Within 24 hours AI is not asked again.
+    mocks.browser.mockRejectedValueOnce(new ScrapeError('challenge'))
+    await checkPriceSource(source.id, { trigger: 'manual' })
+    expect(aiFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('pins the store to the browser and pauses a gone page', async () => {
+    enableAi()
+    const { source } = await createKnife()
+    getLocalDb()
+      .prepare('UPDATE price_sources SET consecutive_failures = 1 WHERE id = ?')
+      .run(source.id)
+    mocks.browser.mockRejectedValueOnce(
+      new ScrapeError('http', 'The store returned HTTP 404.'),
+    )
+    aiFetch.mockResolvedValueOnce(
+      chat({
+        resetCookies: true,
+        useBrowser: true,
+        retryInMinutes: null,
+        pauseSource: true,
+        explanation: 'The product page no longer exists.',
+      }),
+    )
+    await checkPriceSource(source.id, { trigger: 'manual' })
+    expect(sourceRow(source.id).enabled).toBe(0)
+    expect(
+      String(
+        rows('SELECT error_message FROM price_check_log')[0].error_message,
+      ),
+    ).toContain('AI paused this source')
+    expect(
+      rows(
+        'SELECT strategy FROM price_host_state WHERE lane_key = ?',
+        source.lane_key,
+      ),
+    ).toEqual([{ strategy: 'browser_first' }])
+  })
+
+  it('keeps the normal failure handling when AI fails, is off or cannot help', async () => {
+    enableAi()
+    await writePriceAiKey(KEY)
+    const { source } = await createKnife()
+    mocks.browser.mockRejectedValueOnce(new ScrapeError('timeout'))
+    aiFetch.mockRejectedValueOnce(new TypeError('fetch failed'))
+    const failed = await checkPriceSource(source.id, { trigger: 'manual' })
+    expect(failed).toMatchObject({ outcome: 'failed', errorCode: 'timeout' })
+    const message = String(
+      rows('SELECT error_message FROM price_check_log')[0].error_message,
+    )
+    expect(message).toContain('AI troubleshooting: Could not reach')
+    expect(message).not.toContain(KEY)
+
+    getLocalDb().prepare('UPDATE price_sources SET last_ai_at = NULL').run()
+    mocks.browser.mockRejectedValueOnce(new ScrapeError('browser'))
+    await checkPriceSource(source.id, { trigger: 'manual' })
+    enableAi({ resolveErrors: false })
+    mocks.browser.mockRejectedValueOnce(new ScrapeError('challenge'))
+    await checkPriceSource(source.id, { trigger: 'manual' })
+    expect(aiFetch).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('AI problem solver in a check', () => {
+  const NO_PRICE = `<html><head><title>Raccoon</title></head><body><h1>Raccoon</h1>
+<div class="cookie-banner"><button id="accept">Accept cookies</button></div></body></html>`
+  const PRICED = `<html><head><title>Raccoon</title>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Raccoon","offers":{"@type":"Offer","price":"118.50","priceCurrency":"USD","availability":"https://schema.org/InStock"}}</script>
+</head><body><h1>Raccoon</h1></body></html>`
+
+  /** Each browser reading renders a page where #accept reveals the price. */
+  function storeWithCookieWall() {
+    const clicks: string[] = []
+    mocks.browser.mockImplementation(
+      async (
+        url: string,
+        operation: unknown,
+        options: {
+          interact?: (page: SolverPage, op: unknown) => Promise<void>
+        },
+      ) => {
+        let html = NO_PRICE
+        const page = {
+          url: () => url,
+          content: async () => html,
+          evaluate: async (_fn: unknown, arg?: unknown) =>
+            typeof arg === 'number' && html === NO_PRICE
+              ? [
+                  {
+                    tag: 'button',
+                    text: 'Accept cookies',
+                    selector: '#accept',
+                    inDialog: true,
+                    submit: false,
+                  },
+                ]
+              : typeof arg === 'number'
+                ? []
+                : undefined,
+          locator: (selector: string) => ({
+            first: () => ({
+              innerText: async () => 'Accept cookies',
+              click: async () => {
+                clicks.push(selector)
+                if (selector === '#accept') html = PRICED
+              },
+            }),
+          }),
+          waitForTimeout: async () => {},
+          waitForLoadState: async () => {},
+          keyboard: { press: async () => {} },
+        } as unknown as SolverPage
+        if (options.interact) await options.interact(page, operation)
+        return {
+          offer: extractOfferFromHtml(html, url),
+          serverOffer: null,
+          finalUrl: url,
+          isShopify: false,
+          html,
+        }
+      },
+    )
+    return clicks
+  }
+
+  it('solves a cookie wall, remembers the recipe and replays it without AI', async () => {
+    enableAi({ extractionFallback: false })
+    const { source } = await createKnife()
+    const clicks = storeWithCookieWall()
+    aiFetch.mockResolvedValueOnce(
+      chat({
+        action: 'click',
+        target: 0,
+        value: null,
+        seconds: null,
+        price: null,
+        currency: null,
+        availability: 'unknown',
+        confidence: 0,
+        reason: 'A cookie banner hides the page.',
+      }),
+    )
+    const first = await checkPriceSource(source.id, { trigger: 'manual' })
+    expect(first).toMatchObject({ status: 'done', outcome: 'ok' })
+    expect(aiFetch).toHaveBeenCalledTimes(1)
+    const log = rows('SELECT method, solver_steps FROM price_check_log')[0]
+    expect(log.method).toBe('solver')
+    expect(JSON.parse(String(log.solver_steps))).toEqual([
+      { action: 'click', detail: 'Accept cookies', result: 'clicked' },
+    ])
+    expect(
+      JSON.parse(
+        String(
+          rows(
+            'SELECT solver_recipe FROM price_host_state WHERE lane_key = ?',
+            source.lane_key,
+          )[0].solver_recipe,
+        ),
+      ),
+    ).toEqual([
+      { action: 'click', selector: '#accept', label: 'Accept cookies' },
+    ])
+    expect(rows('SELECT price_minor FROM price_snapshots')).toEqual([
+      { price_minor: 11850 },
+    ])
+
+    // Next check: the recipe runs first, no AI call.
+    const second = await checkPriceSource(source.id, { trigger: 'manual' })
+    expect(second).toMatchObject({ outcome: 'ok' })
+    expect(aiFetch).toHaveBeenCalledTimes(1)
+    expect(clicks).toEqual(['#accept', '#accept'])
+  })
+
+  it('stays off with the switch off and logs what it tried when it fails', async () => {
+    enableAi({ extractionFallback: false, resolveErrors: false })
+    const { source } = await createKnife()
+    browserPage(null)
+    await checkPriceSource(source.id, { trigger: 'manual' })
+    expect(aiFetch).not.toHaveBeenCalled()
+
+    enableAi({ extractionFallback: false })
+    storeWithCookieWall()
+    aiFetch.mockResolvedValueOnce(
+      chat({
+        action: 'give_up',
+        target: null,
+        value: null,
+        seconds: null,
+        price: null,
+        currency: null,
+        availability: 'unknown',
+        confidence: 0,
+        reason: 'The price is not shown.',
+      }),
+    )
+    const result = await checkPriceSource(source.id, { trigger: 'manual' })
+    expect(result).toMatchObject({
+      outcome: 'no_price',
+      errorCode: 'not_found',
+    })
+    expect(
+      String(
+        rows('SELECT error_message FROM price_check_log ORDER BY id DESC')[0]
+          .error_message,
+      ),
+    ).toContain('AI gave up: The price is not shown.')
+  })
+})
+
+describe('Needs attention in the Inbox', () => {
+  it('lists a newly blocked store once and resolves when it reads again', async () => {
+    const { source } = await createKnife('Secret Raccoon')
+    mocks.browser.mockRejectedValueOnce(new ScrapeError('challenge'))
+    await checkPriceSource(source.id, { trigger: 'manual' })
+    let messages = (await getSystemMessages()).filter(
+      (row) => row.kind === 'price-attention',
+    )
+    expect(messages).toHaveLength(1)
+    expect(messages[0].title).toBe('A price check needs attention')
+    expect(messages[0].detail).toContain(
+      'Vosteed Secret Raccoon at shop.example',
+    )
+    expect(messages[0].detail).toContain('solve the bot check')
+
+    // Still blocked: no new notification.
+    mocks.browser.mockRejectedValueOnce(new ScrapeError('challenge'))
+    await checkPriceSource(source.id, { trigger: 'manual' })
+    messages = (await getSystemMessages()).filter(
+      (row) => row.kind === 'price-attention',
+    )
+    expect(messages[0].occurrences).toBe(1)
+
+    browserPage({
+      amount: 120,
+      currency: 'USD',
+      availability: 'in_stock',
+      method: 'jsonld',
+    })
+    await checkPriceSource(source.id, { trigger: 'manual' })
+    messages = (await getSystemMessages()).filter(
+      (row) => row.kind === 'price-attention',
+    )
+    expect(messages[0].resolvedAt).toEqual(expect.any(String))
+  })
+})
+
+describe('Solve in browser', () => {
+  it('keeps the window cookies for the store and queues a check', async () => {
+    const { source } = await createKnife()
+    mocks.exportSession.mockResolvedValueOnce({
+      finalUrl: 'https://www.shop.example/products/raccoon',
+      storageState: { cookies: [], origins: [] },
+    })
+    const response = await solveRoute.POST(
+      json(`http://localhost/api/prices/sources/${source.id}/solve`, 'POST', {
+        sessionId: 'abc',
+      }),
+      { params: Promise.resolve({ id: String(source.id) }) },
+    )
+    expect(response.status).toBe(202)
+    expect(await response.json()).toMatchObject({
+      saved: true,
+      queued: [source.id],
+    })
+    expect(await loadBrowserState(source.lane_key)).toEqual({
+      cookies: [],
+      origins: [],
+    })
+    await getPriceMonitorWorker().stop()
+  })
+
+  it('refuses cookies from another site and reports a bot check still open', async () => {
+    const { source } = await createKnife()
+    const call = () =>
+      solveRoute.POST(
+        json(`http://localhost/api/prices/sources/${source.id}/solve`, 'POST', {
+          sessionId: 'abc',
+        }),
+        { params: Promise.resolve({ id: String(source.id) }) },
+      )
+    mocks.exportSession.mockResolvedValueOnce({
+      finalUrl: 'https://login.other.example/',
+      storageState: { cookies: [], origins: [] },
+    })
+    expect((await call()).status).toBe(409)
+    expect(await loadBrowserState(source.lane_key)).toBeUndefined()
+
+    mocks.exportSession.mockRejectedValueOnce(new ScrapeError('challenge'))
+    const blocked = await call()
+    expect(await blocked.json()).toMatchObject({ code: 'challenge' })
   })
 })
 

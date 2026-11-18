@@ -544,6 +544,32 @@ export function PriceAiSettingsSection({
       </SettingsRow>
       <SettingsRow
         inline
+        label="Resolve check errors"
+        description="When a check cannot read a price, AI works the product page in the monitoring browser: it can wait, scroll, accept or reject cookie banners, confirm age prompts, close pop-ups, pick a variant or region, open the store's own product data, and read the price. Steps that work are remembered for the store and tried first next time, without AI. After an HTTP error or a timeout it also chooses how long to wait and whether to reset the store's cookies. At most once a day per product. AI never buys, signs in, fills forms or solves a bot check: for a bot check, use Solve in browser on Price Drops."
+      >
+        <SettingsSwitch
+          aria-label="Let AI resolve failed price checks"
+          checked={settings.resolveErrors}
+          disabled={off}
+          onCheckedChange={(checked) => update({ resolveErrors: checked })}
+        />
+      </SettingsRow>
+      {settings.resolveErrors ? (
+        <SettingsRow
+          inline
+          label="The model reads images"
+          description="Lets AI read a price from a screenshot of the page when it is drawn as an image. Turn on only for a vision model, such as gpt-4o-mini or llava. A price read this way must be very confident."
+        >
+          <SettingsSwitch
+            aria-label="Let AI read prices from screenshots"
+            checked={settings.vision}
+            disabled={off}
+            onCheckedChange={(checked) => update({ vision: checked })}
+          />
+        </SettingsRow>
+      ) : null}
+      <SettingsRow
+        inline
         label="Pacing advisor"
         description="Once a day, or after a store blocked checks twice, AI reviews each store's check statistics and may slow a store down, pause it or set quiet hours, within fixed limits. Only store host names and statistics are sent: no product links, knife names or keys."
       >

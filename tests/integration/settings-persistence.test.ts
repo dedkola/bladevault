@@ -43,6 +43,8 @@ describe('settings persistence', () => {
           headers: { 'x-opencode-session': 'bladevault' },
           extractionFallback: false,
           advisor: true,
+          resolveErrors: false,
+          vision: false,
         },
       },
     })
@@ -71,6 +73,8 @@ describe('settings persistence', () => {
         headers: { 'x-opencode-session': 'bladevault' },
         extractionFallback: false,
         advisor: true,
+        resolveErrors: false,
+        vision: false,
       },
     })
     // The AI key is never part of the settings table.

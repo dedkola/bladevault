@@ -497,6 +497,14 @@ export type PriceAiSettings = {
   extractionFallback: boolean
   /** Let AI review store pacing (statistics and store host names only). */
   advisor: boolean
+  /**
+   * Let AI solve failed checks: work the page in the monitoring browser to
+   * reach the price (price-monitor/solver) and choose how to recover from
+   * errors within fixed limits (price-monitor/troubleshoot).
+   */
+  resolveErrors: boolean
+  /** The model reads images: the solver may read a price from a screenshot. */
+  vision: boolean
 }
 
 export type PriceNotifyCategories = {
@@ -529,6 +537,8 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
     headers: {},
     extractionFallback: true,
     advisor: true,
+    resolveErrors: true,
+    vision: false,
   },
 }
 
@@ -668,7 +678,10 @@ function normalizePriceAi(
   fallback: PriceAiSettings,
 ): PriceAiSettings {
   const record = plainObject(value)
-  const flag = (key: 'enabled' | 'extractionFallback' | 'advisor') =>
+  const flag = (
+    key:
+      'enabled' | 'extractionFallback' | 'advisor' | 'resolveErrors' | 'vision',
+  ) =>
     typeof record[key] === 'boolean' ? (record[key] as boolean) : fallback[key]
   let baseUrl = fallback.baseUrl
   if (typeof record.baseUrl === 'string')
@@ -682,6 +695,8 @@ function normalizePriceAi(
     headers: headersOrFallback(record.headers, fallback.headers),
     extractionFallback: flag('extractionFallback'),
     advisor: flag('advisor'),
+    resolveErrors: flag('resolveErrors'),
+    vision: flag('vision'),
   }
 }
 

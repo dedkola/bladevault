@@ -257,6 +257,8 @@ describe('AI settings normalization', () => {
       headers: {},
       extractionFallback: true,
       advisor: true,
+      resolveErrors: true,
+      vision: false,
     })
     const next = normalizePriceMonitoring(
       { ai: { advisor: false, baseUrl: 'not a url' } },

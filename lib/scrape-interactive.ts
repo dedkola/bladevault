@@ -336,3 +336,45 @@ export async function cancelInteractiveSession(
   if (parent) await parent.run(() => closeSession(id))
   else await closeSession(id)
 }
+
+export type InteractiveStorageExport = {
+  finalUrl: string
+  storageState: Awaited<ReturnType<BrowserContext['storageState']>>
+}
+
+/**
+ * Price monitoring's Solve in browser: once the person has passed the
+ * store's check in the visible window, returns the session's cookies and
+ * storage for later checks and closes it. A bot check still on the page
+ * throws `challenge` and keeps the window open for another try.
+ */
+export async function exportInteractiveSessionState(
+  id: string,
+  parent?: ScrapeOperation,
+): Promise<InteractiveStorageExport> {
+  const session = sessions.get(id)
+  if (!session) throw new ScrapeError('session_expired')
+  if (session.status === 'scraping')
+    throw new ScrapeError(
+      'unknown',
+      'This page is already being saved. Wait for it to finish.',
+      409,
+    )
+  const operation = parent ?? createScrapeOperation({ timeoutMs: 15_000 })
+  session.status = 'scraping'
+  try {
+    return await operation.run(async () => {
+      const html = await session.page.content()
+      if (isSecurityChallengePage(html)) throw new ScrapeError('challenge')
+      const storageState = await session.context.storageState()
+      const finalUrl = session.page.url()
+      await closeSession(id)
+      return { finalUrl, storageState }
+    })
+  } catch (error) {
+    if (sessions.has(id)) session.status = 'waiting'
+    throw error
+  } finally {
+    if (!parent) operation.dispose()
+  }
+}

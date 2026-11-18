@@ -1,9 +1,10 @@
 /**
  * App events that land in the Inbox next to care reminders, such as a failed
- * Google Drive backup. Each kind keeps at most one open message: a repeat of
- * the same problem updates it instead of piling up new ones.
+ * Google Drive backup or store pages price monitoring cannot read. Each kind
+ * keeps at most one open message: a repeat of the same problem updates it
+ * instead of piling up new ones.
  */
-export type SystemMessageKind = 'backup-failed'
+export type SystemMessageKind = 'backup-failed' | 'price-attention'
 export type SystemMessageBox = 'open' | 'done'
 
 export type SystemMessage = {
@@ -29,6 +30,7 @@ export type SystemMessageAction =
 
 export const SYSTEM_MESSAGE_KINDS: readonly SystemMessageKind[] = [
   'backup-failed',
+  'price-attention',
 ]
 export const SYSTEM_MESSAGE_RETENTION_DAYS = 90
 

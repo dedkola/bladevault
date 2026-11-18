@@ -12,6 +12,8 @@ import {
   ChevronDown,
   CloudAlert,
   CloudCheck,
+  CircleAlert,
+  CircleCheck,
   ExternalLink,
   ImageIcon,
   Inbox,
@@ -464,6 +466,11 @@ function formatTime(value: string): string {
     : ''
 }
 
+const SYSTEM_MESSAGE_HREF: Record<SystemMessage['kind'], string> = {
+  'backup-failed': '/settings?tab=backup',
+  'price-attention': '/price-drops?section=attention',
+}
+
 function systemMessageDetail(message: SystemMessage, now: Date): string {
   const when = `${formatWhen(message.occurredAt, now)}, ${formatTime(message.occurredAt)}`
   const repeats =
@@ -473,7 +480,9 @@ function systemMessageDetail(message: SystemMessage, now: Date): string {
   if (message.resolvedAt) {
     return message.kind === 'backup-failed'
       ? `A later backup worked on ${formatShortDate(message.resolvedAt, now)}, ${formatTime(message.resolvedAt)}`
-      : `Resolved ${formatShortDate(message.resolvedAt, now)}`
+      : message.kind === 'price-attention'
+        ? `Every store page read fine again on ${formatShortDate(message.resolvedAt, now)}, ${formatTime(message.resolvedAt)}`
+        : `Resolved ${formatShortDate(message.resolvedAt, now)}`
   }
   if (message.dismissedAt) return `${repeats} · dismissed`
   return repeats
@@ -488,7 +497,14 @@ function SystemMessageIcon({
 }) {
   const resolved = Boolean(message.resolvedAt)
   const open = getSystemMessageBox(message) === 'open'
-  const Icon = resolved ? CloudCheck : CloudAlert
+  const Icon =
+    message.kind === 'price-attention'
+      ? resolved
+        ? CircleCheck
+        : CircleAlert
+      : resolved
+        ? CloudCheck
+        : CloudAlert
   return (
     <span
       className={cn(
@@ -547,7 +563,7 @@ function SystemMessageRow({
       <SystemMessageIcon message={message} size={compact ? 'sm' : 'md'} />
       <div className="min-w-0 flex-1">
         <Link
-          href="/settings?tab=backup"
+          href={SYSTEM_MESSAGE_HREF[message.kind]}
           onClick={() => {
             markRead()
             onNavigate?.()
@@ -609,6 +625,22 @@ function SystemMessageRow({
                   Backup settings
                 </Button>
               </>
+            )}
+            {box === 'open' && message.kind === 'price-attention' && (
+              <Button
+                type="button"
+                size="xs"
+                render={
+                  <Link
+                    href={SYSTEM_MESSAGE_HREF['price-attention']}
+                    onClick={markRead}
+                  />
+                }
+                nativeButton={false}
+              >
+                <LineChart className="size-3" />
+                Open Needs attention
+              </Button>
             )}
             {box === 'open' && (
               <Button
