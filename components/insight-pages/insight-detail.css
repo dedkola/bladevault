@@ -1086,6 +1086,43 @@ button.id-care-pin {
   opacity: 0.45;
   cursor: default;
 }
+.id-care-reschedule-options .id-care-reschedule-set-toggle {
+  grid-column: 1 / -1;
+}
+.id-care-reschedule-calendar {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  padding-top: 8px;
+  border-top: 1px solid var(--id-line, var(--border));
+}
+.id-care-reschedule-calendar-actions {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px;
+  width: 100%;
+}
+.id-care-reschedule-calendar-actions button {
+  padding: 6px 10px;
+  border: 1px solid var(--id-line, var(--border));
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.id-care-reschedule-calendar-actions button[data-primary] {
+  font-weight: 600;
+}
+.id-care-reschedule-calendar-actions button:hover:not(:disabled),
+.id-care-reschedule-calendar-actions button:focus-visible {
+  background: var(--muted);
+  outline: none;
+}
+.id-care-reschedule-calendar-actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 .id-care-reschedule:focus {
   outline: none;
 }

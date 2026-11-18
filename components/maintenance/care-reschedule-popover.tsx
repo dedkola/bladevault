@@ -2,11 +2,34 @@
 
 import Link from 'next/link'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { DayPicker, UI, type ClassNames } from 'react-day-picker'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { careToneDotClass } from '@/components/care-badge'
+import { dayPickerClassNames } from '@/components/ui/date-input'
 import { useCare } from '@/components/providers/care-provider'
 import { formatCareDate, type CareJob } from '@/lib/care-insights'
 import { localDateAfter } from '@/lib/care-notifications'
 import { CARE_TRACK_NAMES } from '@/lib/settings-shared'
+
+// The app's date-picker calendar, sized down to fit the card.
+const calendarClassNames: Partial<ClassNames> = {
+  ...dayPickerClassNames,
+  [UI.Root]: 'relative text-foreground',
+  [UI.Weekday]:
+    'w-8 text-center text-[10.5px] font-medium uppercase tracking-wide text-muted-foreground',
+  [UI.Day]: 'size-8 p-0 text-center text-[12.5px]',
+  [UI.DayButton]:
+    'inline-flex size-8 items-center justify-center rounded-md text-[12.5px] text-foreground transition-colors hover:bg-[var(--bladevault-surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-35',
+}
+
+function parseDay(day: string) {
+  const [year, month, date] = day.split('-').map(Number)
+  return new Date(year, month - 1, date)
+}
+
+function toDay(date: Date) {
+  return localDateAfter(date, 0)
+}
 
 const OPTIONS = [
   { label: 'Tomorrow', days: 1 },
@@ -18,6 +41,19 @@ function dueText(days: number) {
   if (days < 0) return `${-days} day${days === -1 ? '' : 's'} overdue`
   if (days === 0) return 'due today'
   return `due in ${days} day${days === 1 ? '' : 's'}`
+}
+
+/**
+ * First day a reschedule can move the job to: the day after its normal
+ * deadline (last logged care plus its interval), since a reschedule only
+ * ever pushes a job later.
+ */
+function firstLaterDay(job: CareJob) {
+  const last = new Date(job.lastAt)
+  return localDateAfter(
+    new Date(last.getFullYear(), last.getMonth(), last.getDate()),
+    job.intervalDays + 1,
+  )
 }
 
 function longDate(day: string) {
@@ -65,6 +101,14 @@ export function CareReschedulePopover({
   } | null>(null)
   const jobKey = job ? `${job.knifeId}\u0000${job.track}` : ''
   const error = failure?.key === jobKey ? failure.message : null
+  // The "Set to" calendar, open for this job only: the picked day and the
+  // month on show.
+  const [picker, setPicker] = useState<{
+    key: string
+    day: string | null
+    month: Date
+  } | null>(null)
+  const picking = picker?.key === jobKey
   const open = job !== null && anchor !== null
   const onCloseRef = useRef(onClose)
 
@@ -100,13 +144,19 @@ export function CareReschedulePopover({
     }
     if (!popover.matches(':popover-open')) popover.showPopover()
     place()
+    // The card grows when its calendar opens; keep it on screen.
+    const resizes = new ResizeObserver(place)
+    resizes.observe(popover)
     window.addEventListener('scroll', place, true)
     window.addEventListener('resize', place)
     return () => {
+      resizes.disconnect()
       window.removeEventListener('scroll', place, true)
       window.removeEventListener('resize', place)
       popover.removeAttribute('data-placed')
       if (popover.matches(':popover-open')) popover.hidePopover()
+      // Reopening the card starts from the quick options again.
+      setPicker(null)
     }
   }, [open, anchor, job?.knifeId, job?.track])
 
@@ -121,7 +171,8 @@ export function CareReschedulePopover({
       onCloseRef.current()
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
+      // The calendar handles its own Escape (closing just the calendar).
+      if (event.key !== 'Escape' || event.defaultPrevented) return
       event.preventDefault()
       onCloseRef.current()
       anchor.focus({ preventScroll: true })
@@ -155,6 +206,36 @@ export function CareReschedulePopover({
   const options = job
     ? [...OPTIONS, { label: 'Skip this time', days: job.intervalDays }]
     : []
+  // A planned date can't be in the past or before the normal deadline.
+  const today = localDateAfter(now, 0)
+  const pushFrom = job ? firstLaterDay(job) : today
+  const earliest = pushFrom > today ? pushFrom : today
+  const chosen = picking ? picker.day : null
+  const canSet =
+    job !== null &&
+    !pending &&
+    chosen !== null &&
+    chosen >= earliest &&
+    chosen !== job.dueOn
+
+  function openPicker() {
+    if (!job) return
+    const day = job.dueOn < earliest ? null : job.dueOn
+    setPicker({ key: jobKey, day, month: parseDay(day ?? earliest) })
+    // Let the keyboard carry on into the calendar.
+    requestAnimationFrame(() => {
+      ref.current
+        ?.querySelector<HTMLButtonElement>(
+          '.id-care-reschedule-calendar button[aria-selected="true"], .id-care-reschedule-calendar td:not([data-disabled]) button',
+        )
+        ?.focus()
+    })
+  }
+
+  function closePicker() {
+    setPicker(null)
+    ref.current?.focus({ preventScroll: true })
+  }
 
   return (
     <div
@@ -167,7 +248,8 @@ export function CareReschedulePopover({
       }
       className="id-care-pin-list id-care-reschedule"
       onMouseEnter={onHoverStart}
-      onMouseLeave={onHoverEnd}
+      // Keep a hover preview open while its calendar is in use.
+      onMouseLeave={picking ? undefined : onHoverEnd}
     >
       {job && (
         <>
@@ -208,7 +290,67 @@ export function CareReschedulePopover({
                 </button>
               )
             })}
+            {!picking && (
+              <button
+                type="button"
+                className="id-care-reschedule-set-toggle"
+                disabled={pending}
+                onClick={openPicker}
+              >
+                Set to…
+              </button>
+            )}
           </div>
+          {picking && (
+            <div
+              className="id-care-reschedule-calendar"
+              onKeyDown={(event) => {
+                if (event.key !== 'Escape') return
+                // Close just the calendar, not the whole card; the card's
+                // own Escape handler skips handled events.
+                event.preventDefault()
+                closePicker()
+              }}
+            >
+              <DayPicker
+                mode="single"
+                month={picker.month}
+                onMonthChange={(month) => setPicker({ ...picker, month })}
+                startMonth={parseDay(earliest)}
+                selected={chosen ? parseDay(chosen) : undefined}
+                onSelect={(date) =>
+                  setPicker({ ...picker, day: date ? toDay(date) : null })
+                }
+                disabled={{ before: parseDay(earliest) }}
+                showOutsideDays
+                fixedWeeks
+                classNames={calendarClassNames}
+                components={{
+                  Chevron: ({ orientation, className }) =>
+                    orientation === 'left' ? (
+                      <ChevronLeft className={className} size={14} />
+                    ) : (
+                      <ChevronRight className={className} size={14} />
+                    ),
+                }}
+              />
+              <div className="id-care-reschedule-calendar-actions">
+                <button type="button" onClick={closePicker}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-primary
+                  disabled={!canSet}
+                  onClick={() => chosen && void apply(chosen)}
+                >
+                  {chosen
+                    ? `Set to ${formatCareDate(chosen, now)}`
+                    : 'Pick a day'}
+                </button>
+              </div>
+            </div>
+          )}
           {error && (
             <p role="alert" className="id-care-reschedule-error">
               {error}
