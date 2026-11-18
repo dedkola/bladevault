@@ -28,6 +28,7 @@
 - [Customize cards and collection appearance](guides/customize-appearance.md)
 - [Compare knives](guides/compare.md)
 - [Log maintenance and sharpening](guides/log-maintenance.md)
+- [Watch market prices with Price Drops](guides/price-drops.md)
 - [Collection insights](guides/insights.md)
 - [Improve collection data quality](guides/improve-data-quality.md)
 - [Review collection activity in History](guides/review-collection-activity.md)
