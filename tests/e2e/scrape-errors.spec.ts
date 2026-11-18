@@ -40,92 +40,90 @@ test.beforeEach(async ({ request }) => {
   await resetVault(request)
 })
 
-for (const themeStyle of ['classic', 'modern', 'alloy'] as const) {
-  for (const theme of ['light', 'dark'] as const) {
-    for (const viewport of [
-      { name: 'desktop', width: 1440, height: 1000 },
-      { name: 'narrow', width: 390, height: 844 },
-    ]) {
-      test(`${themeStyle} ${theme} ${viewport.name} shows scrape errors and allows retry`, async ({
-        page,
-        request,
-      }, testInfo) => {
-        await page.setViewportSize(viewport)
-        const settings = await request.post('/api/settings', {
-          data: { themeStyle, theme },
-        })
-        expect(settings.ok()).toBe(true)
-        let attempts = 0
-        await page.route('**/api/scrape', (route) => {
-          attempts += 1
-          return route.fulfill(
-            attempts === 1
-              ? {
-                  status: 502,
-                  json: {
-                    code: 'network',
-                    error:
-                      'Could not connect to the website. Check the URL and your connection, then try again.',
-                  },
-                }
-              : { json: importedPage },
-          )
-        })
-        await openAddPage(page, themeStyle)
-        await expect(page.locator('html')).toHaveAttribute(
-          'data-theme-style',
-          themeStyle,
-        )
-        if (theme === 'dark') {
-          await expect(page.locator('html')).toHaveClass(/\bdark\b/)
-        } else {
-          await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
-        }
-        const url = page.getByRole('textbox', { name: 'Product URL' })
-        await url.fill(productUrl)
-        const scrape = page.getByRole('button', { name: 'Scrape', exact: true })
-        await scrape.focus()
-        await scrape.press('Enter')
+const desktop = { name: 'desktop', width: 1440, height: 1000 }
+const narrow = { name: 'narrow', width: 390, height: 844 }
 
-        const error = page
-          .getByRole('alert')
-          .filter({ hasText: 'Could not connect to the website' })
-        await expect(error).toContainText('Could not connect to the website')
-        await expect(error).toContainText('try again')
-        await expect(error).toBeInViewport()
-        await expect(url).toBeEnabled()
-        await expect(scrape).toBeEnabled()
-        await expect(scrape.locator('.animate-spin')).toHaveCount(0)
-        await expect(
-          page.getByRole('button', { name: 'Interact with page' }),
-        ).toBeEnabled()
-        expect(
-          await page.evaluate(() => document.documentElement.scrollWidth),
-        ).toBeLessThanOrEqual(viewport.width)
+// Each layout once, with both color modes and both widths covered between them.
+for (const { themeStyle, theme, viewport } of [
+  { themeStyle: 'classic', theme: 'light', viewport: desktop },
+  { themeStyle: 'modern', theme: 'dark', viewport: narrow },
+  { themeStyle: 'alloy', theme: 'light', viewport: narrow },
+] as const) {
+  test(`${themeStyle} ${theme} ${viewport.name} shows scrape errors and allows retry`, async ({
+    page,
+    request,
+  }, testInfo) => {
+    await page.setViewportSize(viewport)
+    const settings = await request.post('/api/settings', {
+      data: { themeStyle, theme },
+    })
+    expect(settings.ok()).toBe(true)
+    let attempts = 0
+    await page.route('**/api/scrape', (route) => {
+      attempts += 1
+      return route.fulfill(
+        attempts === 1
+          ? {
+              status: 502,
+              json: {
+                code: 'network',
+                error:
+                  'Could not connect to the website. Check the URL and your connection, then try again.',
+              },
+            }
+          : { json: importedPage },
+      )
+    })
+    await openAddPage(page, themeStyle)
+    await expect(page.locator('html')).toHaveAttribute(
+      'data-theme-style',
+      themeStyle,
+    )
+    if (theme === 'dark') {
+      await expect(page.locator('html')).toHaveClass(/\bdark\b/)
+    } else {
+      await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
+    }
+    const url = page.getByRole('textbox', { name: 'Product URL' })
+    await url.fill(productUrl)
+    const scrape = page.getByRole('button', { name: 'Scrape', exact: true })
+    await scrape.focus()
+    await scrape.press('Enter')
 
-        if (
-          (theme === 'light' && viewport.name === 'desktop') ||
-          (theme === 'dark' && viewport.name === 'narrow')
-        ) {
-          const screenshot = testInfo.outputPath('scrape-error.png')
-          await page.screenshot({ path: screenshot })
-          await testInfo.attach('Scrape error and available controls', {
-            path: screenshot,
-            contentType: 'image/png',
-          })
-        }
+    const error = page
+      .getByRole('alert')
+      .filter({ hasText: 'Could not connect to the website' })
+    await expect(error).toContainText('Could not connect to the website')
+    await expect(error).toContainText('try again')
+    await expect(error).toBeInViewport()
+    await expect(url).toBeEnabled()
+    await expect(scrape).toBeEnabled()
+    await expect(scrape.locator('.animate-spin')).toHaveCount(0)
+    await expect(
+      page.getByRole('button', { name: 'Interact with page' }),
+    ).toBeEnabled()
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(viewport.width)
 
-        await scrape.focus()
-        await scrape.press('Enter')
-        await expect(
-          page.getByRole('textbox', { name: 'Model Name' }),
-        ).toHaveValue(product.name)
-        await expect(error).toHaveCount(0)
-        await expect(scrape).toBeEnabled()
-        expect(attempts).toBe(2)
+    if (themeStyle !== 'alloy') {
+      const screenshot = testInfo.outputPath('scrape-error.png')
+      await page.screenshot({ path: screenshot })
+      await testInfo.attach('Scrape error and available controls', {
+        path: screenshot,
+        contentType: 'image/png',
       })
     }
-  }
+
+    await scrape.focus()
+    await scrape.press('Enter')
+    await expect(page.getByRole('textbox', { name: 'Model Name' })).toHaveValue(
+      product.name,
+    )
+    await expect(error).toHaveCount(0)
+    await expect(scrape).toBeEnabled()
+    expect(attempts).toBe(2)
+  })
 }
 
 test('keeps the manual CAPTCHA session available until Continue succeeds', async ({

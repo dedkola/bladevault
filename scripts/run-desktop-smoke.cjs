@@ -53,55 +53,6 @@ function withStageTimeout(promise, timeoutMs, stage) {
   })
 }
 
-async function closeElectronApplication(electronApp, stage) {
-  const electronProcess = electronApp.process()
-  const pid = electronProcess.pid ?? 'unknown'
-  logStage(`${stage}: requesting graceful close for Electron pid ${pid}.`)
-
-  try {
-    await withStageTimeout(
-      Promise.all([electronApp.close(), waitForProcessExit(electronProcess)]),
-      electronShutdownTimeoutMs,
-      `${stage}: graceful close`,
-    )
-  } catch (error) {
-    if (isProcessExited(electronProcess)) {
-      if (error?.code === 'BLADEVAULT_SMOKE_STAGE_TIMEOUT') {
-        logStage(
-          `${stage}: process exited, but Playwright close did not settle; continuing with a fresh connection.`,
-        )
-        return
-      }
-      throw error
-    }
-
-    logStage(
-      `${stage}: graceful close failed; force-terminating Electron pid ${pid}.`,
-    )
-    killProcessTree(electronProcess)
-
-    try {
-      await withStageTimeout(
-        waitForProcessExit(electronProcess),
-        forcedShutdownTimeoutMs,
-        `${stage}: forced process cleanup`,
-      )
-    } catch (cleanupError) {
-      throw new Error(
-        `${stage} failed and Electron pid ${pid} did not exit after forced cleanup.`,
-        { cause: cleanupError },
-      )
-    }
-
-    throw new Error(
-      `${stage} failed; Electron pid ${pid} was force-terminated after the graceful close did not complete.`,
-      { cause: error },
-    )
-  }
-
-  logStage(`${stage}: Electron pid ${pid} exited.`)
-}
-
 async function waitForNoElectronWindows(electronApp, stage) {
   await withStageTimeout(
     electronApp.evaluate(async ({ BrowserWindow }) => {
@@ -291,35 +242,28 @@ async function main() {
   try {
     const executablePath = await ensureElectronExecutable()
     console.log('Launching Electron smoke application...')
-    const launch = () =>
-      electron.launch({
-        args: [
-          '.',
-          ...(process.platform === 'win32'
-            ? ['--disable-gpu', '--disable-software-rasterizer']
-            : process.platform === 'linux'
-              ? // CI containers have no setuid chrome-sandbox helper.
-                [
-                  '--no-sandbox',
-                  '--disable-gpu',
-                  '--disable-software-rasterizer',
-                ]
-              : []),
-        ],
-        cwd: projectRoot,
-        executablePath,
-        env: {
-          ...process.env,
-          BLADEVAULT_DATA_DIR: dataDir,
-          BLADEVAULT_DESKTOP_PORT: '0',
-          BLADEVAULT_FORCE_PROD_SERVER: '1',
-          BLADEVAULT_SKIP_UPDATE_CHECK: '1',
-          NEXT_TELEMETRY_DISABLED: '1',
-        },
-        timeout: 120000,
-      })
-
-    electronApp = await launch()
+    electronApp = await electron.launch({
+      args: [
+        '.',
+        ...(process.platform === 'win32'
+          ? ['--disable-gpu', '--disable-software-rasterizer']
+          : process.platform === 'linux'
+            ? // CI containers have no setuid chrome-sandbox helper.
+              ['--no-sandbox', '--disable-gpu', '--disable-software-rasterizer']
+            : []),
+      ],
+      cwd: projectRoot,
+      executablePath,
+      env: {
+        ...process.env,
+        BLADEVAULT_DATA_DIR: dataDir,
+        BLADEVAULT_DESKTOP_PORT: '0',
+        BLADEVAULT_FORCE_PROD_SERVER: '1',
+        BLADEVAULT_SKIP_UPDATE_CHECK: '1',
+        NEXT_TELEMETRY_DISABLED: '1',
+      },
+      timeout: 120000,
+    })
     let window = await electronApp.firstWindow({ timeout: 60000 })
     window.on('pageerror', (error) => pageErrors.push(error.message))
     await window.waitForLoadState('domcontentloaded')
@@ -512,7 +456,10 @@ async function main() {
       [{ name: 'Desktop comparison', ids: ['electron-smoke'] }],
     )
 
-    console.log('Checking App lock and authenticated desktop backup...')
+    // App lock itself is covered by tests/integration/app-lock.test.ts; this
+    // checks only the desktop-specific part: the preload backup bridge still
+    // authenticates while a password is set.
+    console.log('Checking authenticated desktop backup with App lock on...')
     const enableLock = await window.evaluate(async () => {
       const response = await fetch('/api/app-lock', {
         method: 'POST',
@@ -540,77 +487,10 @@ async function main() {
     assert.equal(fs.statSync(lockedBackupPath).size > 0, true)
     fs.unlinkSync(lockedBackupPath)
 
-    logStage('App lock restart: closing the first Electron application.')
-    await closeElectronApplication(electronApp, 'App lock restart')
-    electronApp = null
-
-    logStage('App lock restart: launching a fresh Electron application.')
-    electronApp = await withStageTimeout(
-      launch(),
-      120000,
-      'App lock restart: Electron launch',
-    )
-    logStage('App lock restart: waiting for the first window.')
-    window = await withStageTimeout(
-      electronApp.firstWindow({ timeout: 60000 }),
-      65000,
-      'App lock restart: first window',
-    )
-    window.on('pageerror', (error) => pageErrors.push(error.message))
-    logStage('App lock restart: waiting for the unlock screen.')
-    await withStageTimeout(
-      window.getByRole('heading', { name: 'Unlock BladeVault' }).waitFor(),
-      windowLifecycleTimeoutMs,
-      'App lock restart: unlock screen',
-    )
-    logStage('App lock restart: unlock screen is ready.')
-    const lockedStatus = await withStageTimeout(
-      window
-        .context()
-        .request.get(new URL('/api/knives', window.url()).toString(), {
-          timeout: windowLifecycleTimeoutMs,
-        })
-        .then((response) => response.status()),
-      windowLifecycleTimeoutMs + 5000,
-      'App lock restart: locked API request',
-    )
-    assert.equal(lockedStatus, 401)
-    logStage('App lock restart: API is locked; trying a wrong password.')
-    const passwordInput = window.getByLabel('Password', { exact: true })
-    const unlockButton = window.getByRole('button', {
-      name: 'Unlock',
-      exact: true,
-    })
-    await withStageTimeout(
-      (async () => {
-        await passwordInput.fill('wrong')
-        await unlockButton.click()
-        await window
-          .getByRole('alert')
-          .filter({ hasText: 'Incorrect password.' })
-          .waitFor()
-      })(),
-      windowLifecycleTimeoutMs + 5000,
-      'App lock restart: wrong password rejection',
-    )
-    logStage('App lock restart: wrong password rejected; unlocking.')
-    await withStageTimeout(
-      (async () => {
-        await passwordInput.fill('desktop-test')
-        await unlockButton.click()
-        await window
-          .getByRole('heading', { name: 'Collection Insights' })
-          .waitFor()
-      })(),
-      windowLifecycleTimeoutMs + 5000,
-      'App lock restart: unlock',
-    )
-    logStage('App lock restart: unlocked.')
-
     assert.deepEqual(pageErrors, [])
 
     console.log(
-      'Desktop smoke passed: API, comparisons, SQLite, restore, reload, App lock restart/unlock, authenticated backup, and preload boundary.',
+      'Desktop smoke passed: API, comparisons, SQLite, restore, reload, authenticated backup, and preload boundary.',
     )
   } catch (error) {
     // Print the failure before cleanup: if cleanup stalls, the parent kills

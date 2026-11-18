@@ -1,34 +1,10 @@
 name: Cross-platform Desktop Smoke
 
+# Cross-platform launch and packaging checks are slow (macOS runners queue,
+# installers take ~5 min each) and duplicate the Linux Electron smoke in
+# test.yml, so they run weekly and on demand rather than on every PR or push.
+# desktop-release.yml builds and verifies every platform again at release.
 on:
-  pull_request:
-    paths:
-      - 'electron/**'
-      - 'lib/local-db.ts'
-      - 'lib/storage/**'
-      - 'scripts/prepare-desktop-build.cjs'
-      - 'scripts/run-desktop-smoke.cjs'
-      - 'scripts/sync-desktop-runtime-deps.cjs'
-      - 'electron-builder.config.cjs'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.nvmrc'
-      - '.github/workflows/desktop-smoke.yml'
-  push:
-    branches:
-      - main
-    paths:
-      - 'electron/**'
-      - 'lib/local-db.ts'
-      - 'lib/storage/**'
-      - 'scripts/prepare-desktop-build.cjs'
-      - 'scripts/run-desktop-smoke.cjs'
-      - 'scripts/sync-desktop-runtime-deps.cjs'
-      - 'electron-builder.config.cjs'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.nvmrc'
-      - '.github/workflows/desktop-smoke.yml'
   schedule:
     - cron: '47 4 * * 2'
   workflow_dispatch:
