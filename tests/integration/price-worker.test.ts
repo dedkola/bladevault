@@ -352,6 +352,7 @@ describe('price monitor worker', () => {
           enabled: true,
           baseUrl: 'http://localhost:11434/v1',
           model: 'm',
+          headers: {},
           extractionFallback: true,
           advisor: true,
         },

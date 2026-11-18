@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     apiKey?: unknown
   } | null
   try {
-    const { baseUrl } = getSettings().priceMonitoring.ai
+    const { baseUrl, headers } = getSettings().priceMonitoring.ai
     if (!baseUrl)
       return NextResponse.json(
         { error: 'Set the AI base URL first.' },
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
         ? await readPriceAiKey()
         : validatePriceAiKey(body.apiKey)
     const models = await listAiModels(
-      { baseUrl, apiKey },
+      { baseUrl, apiKey, headers },
       { signal: request.signal },
     )
     return NextResponse.json({ models }, { headers: NO_STORE })

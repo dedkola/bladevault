@@ -8,11 +8,11 @@ Price monitoring needs the BladeVault server: it works in the desktop app, Docke
 
 Every knife starts in **Auto** mode. In Auto, a knife is monitored when it has a stored purchase price above 0 and a product link (**Source URL**). Its product link becomes its first store source automatically.
 
-| Mode               | What it does                                                                                          |
-| ------------------ | ----------------------------------------------------------------------------------------------------- |
-| **Auto**           | Monitors the knife when a purchase price is stored. Sold knives are skipped unless you change that.  |
-| **Always monitor** | Monitors the knife even without a stored price, and even when it is marked as sold.                   |
-| **Never monitor**  | Leaves the knife out of scheduled checks. **Check now** still takes a single reading.                 |
+| Mode               | What it does                                                                                        |
+| ------------------ | --------------------------------------------------------------------------------------------------- |
+| **Auto**           | Monitors the knife when a purchase price is stored. Sold knives are skipped unless you change that. |
+| **Always monitor** | Monitors the knife even without a stored price, and even when it is marked as sold.                 |
+| **Never monitor**  | Leaves the knife out of scheduled checks. **Check now** still takes a single reading.               |
 
 Change the mode for one knife in edit mode:
 
@@ -97,8 +97,9 @@ Prices are compared only within one currency. Implausible jumps are confirmed wi
 1. Turn on **Use AI**.
 2. Enter the **Base URL**, for example `https://api.openai.com/v1` or `http://localhost:11434/v1` for Ollama.
 3. Enter an **API key** if the endpoint needs one. Local servers usually do not.
-4. Select **Discover models** and choose a model, or type a model ID.
-5. Select **Test connection** to confirm that the model reads a sample price.
+4. If the gateway needs extra headers, enter them as a JSON object in **Custom headers**. OpenCode Go, for example, rejects requests without a session header: `{"x-opencode-session": "bladevault"}`. Custom headers are saved with the other settings, so keep keys in the API key field.
+5. Select **Discover models** and choose a model, or type a model ID.
+6. Select **Test connection** to confirm that the model reads a sample price.
 
 Two features use it:
 

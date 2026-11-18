@@ -303,7 +303,11 @@ async function readWithAi(input: {
     const apiKey = await readPriceAiKey()
     const result = await extractOfferWithAi({
       html: input.html,
-      endpoint: { baseUrl: input.settings.baseUrl, apiKey },
+      endpoint: {
+        baseUrl: input.settings.baseUrl,
+        apiKey,
+        headers: input.settings.headers,
+      },
       model: input.settings.model,
       currencyHint: input.currencyHint,
       signal: input.signal,

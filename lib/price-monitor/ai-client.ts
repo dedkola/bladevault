@@ -11,6 +11,8 @@ import { normalizeAiBaseUrl } from '@/lib/settings-shared'
 export type AiEndpoint = {
   baseUrl: string
   apiKey: string | null
+  /** Extra headers from settings (already validated by parseAiHeaders). */
+  headers?: Record<string, string>
 }
 
 export type AiErrorCode =
@@ -40,6 +42,8 @@ function endpointUrl(endpoint: AiEndpoint, suffix: string): string {
 
 function headers(endpoint: AiEndpoint, json: boolean): Headers {
   const result = new Headers({ Accept: 'application/json' })
+  for (const [name, value] of Object.entries(endpoint.headers ?? {}))
+    result.set(name, value)
   if (json) result.set('Content-Type', 'application/json')
   if (endpoint.apiKey) result.set('Authorization', `Bearer ${endpoint.apiKey}`)
   return result

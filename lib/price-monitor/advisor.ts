@@ -534,7 +534,11 @@ export async function runPriceAdvisor(options: {
     let output: unknown
     try {
       output = await requestJsonCompletion(
-        { baseUrl: settings.ai.baseUrl, apiKey: await readPriceAiKey() },
+        {
+          baseUrl: settings.ai.baseUrl,
+          apiKey: await readPriceAiKey(),
+          headers: settings.ai.headers,
+        },
         {
           model: settings.ai.model,
           system: ADVISOR_PROMPT,

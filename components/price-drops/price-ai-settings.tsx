@@ -17,8 +17,10 @@ import {
 } from '@/components/settings-panels'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
 import {
+  formatAiHeaders,
   normalizeAiBaseUrl,
   normalizeAiModel,
+  parseAiHeaders,
   type PriceAiSettings,
 } from '@/lib/settings-shared'
 
@@ -442,6 +444,25 @@ export function PriceAiSettingsSection({
         description="Stored on this server outside the vault, so it is never part of a backup. Local servers usually need none."
       >
         <ApiKeyControl disabled={off} />
+      </SettingsRow>
+      <SettingsRow
+        label="Custom headers"
+        description='Optional JSON object of extra HTTP headers sent with every AI request, for gateways that need them, e.g. {"x-opencode-session": "bladevault"} for OpenCode Go. Saved with the settings, so do not put keys here.'
+      >
+        <TextField
+          aria-label="AI custom headers (JSON)"
+          value={formatAiHeaders(settings.headers)}
+          placeholder='{"X-Org": "acme"}'
+          disabled={off}
+          validate={(value) => {
+            const parsed = parseAiHeaders(value)
+            return parsed.ok ? null : parsed.error
+          }}
+          onCommit={(value) => {
+            const parsed = parseAiHeaders(value)
+            if (parsed.ok) update({ headers: parsed.headers })
+          }}
+        />
       </SettingsRow>
       <SettingsRow
         label="Model"

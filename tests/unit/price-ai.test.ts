@@ -22,6 +22,7 @@ import {
   DEFAULT_PRICE_MONITORING,
   normalizeAiBaseUrl,
   normalizePriceMonitoring,
+  parseAiHeaders,
 } from '@/lib/settings-shared'
 
 const KEY = 'sk-test-0123456789abcdef'
@@ -253,6 +254,7 @@ describe('AI settings normalization', () => {
       enabled: true,
       baseUrl: 'https://api.example.com/v1',
       model: 'm1',
+      headers: {},
       extractionFallback: true,
       advisor: true,
     })
@@ -265,6 +267,81 @@ describe('AI settings normalization', () => {
       normalizePriceMonitoring({ ai: { baseUrl: '  ' } }, current).ai.baseUrl,
     ).toBe('')
     expect(normalizePriceMonitoring({}).ai).toEqual(DEFAULT_PRICE_MONITORING.ai)
+  })
+})
+
+describe('custom AI headers', () => {
+  it('accepts a JSON object of string headers', () => {
+    expect(
+      parseAiHeaders(
+        '{ "x-opencode-session": " s-1 ", "User-Agent": "github-copilot-chat/1.0" }',
+      ),
+    ).toEqual({
+      ok: true,
+      headers: {
+        'x-opencode-session': 's-1',
+        'User-Agent': 'github-copilot-chat/1.0',
+      },
+    })
+    expect(parseAiHeaders('  ')).toEqual({ ok: true, headers: {} })
+  })
+
+  it('rejects invalid, reserved and duplicate headers', () => {
+    for (const value of [
+      'not json',
+      '[]',
+      '{"bad name": "x"}',
+      '{"Authorization": "Bearer x"}',
+      '{"Host": "evil.example"}',
+      '{"X-A": 1}',
+      '{"X-A": "line\\nbreak"}',
+      '{"X-A": "a", "x-a": "b"}',
+    ])
+      expect(parseAiHeaders(value).ok, value).toBe(false)
+  })
+
+  it('keeps saved headers when an update is invalid', () => {
+    const current = normalizePriceMonitoring({
+      ai: { headers: { 'x-opencode-session': 'bv' } },
+    })
+    expect(current.ai.headers).toEqual({ 'x-opencode-session': 'bv' })
+    expect(
+      normalizePriceMonitoring({ ai: { headers: { Host: 'x' } } }, current).ai
+        .headers,
+    ).toEqual({ 'x-opencode-session': 'bv' })
+    expect(
+      normalizePriceMonitoring({ ai: { headers: {} } }, current).ai.headers,
+    ).toEqual({})
+  })
+
+  it('sends custom headers with chat and model requests', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(chatResponse('{"ok":true}'))
+      .mockResolvedValueOnce(
+        new Response('{"data":[{"id":"m"}]}', { status: 200 }),
+      )
+    const withHeaders = {
+      ...endpoint,
+      headers: { 'x-opencode-session': 'bv-1' },
+    }
+    await requestJsonCompletion(
+      withHeaders,
+      {
+        model: 'm',
+        system: 's',
+        user: 'u',
+        schemaName: 'x',
+        schema: { type: 'object' },
+      },
+      { timeoutMs: 1000, fetchImpl },
+    )
+    await listAiModels(withHeaders, { fetchImpl })
+    for (const call of fetchImpl.mock.calls) {
+      const sent = new Headers(call[1]?.headers)
+      expect(sent.get('x-opencode-session')).toBe('bv-1')
+      expect(sent.get('Authorization')).toBe(`Bearer ${KEY}`)
+    }
   })
 })
 

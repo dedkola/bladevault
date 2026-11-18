@@ -46,7 +46,11 @@ export async function POST(request: Request) {
     const started = Date.now()
     const result = await extractOfferWithAi({
       html: SAMPLE_PAGE,
-      endpoint: { baseUrl: settings.baseUrl, apiKey: await readPriceAiKey() },
+      endpoint: {
+        baseUrl: settings.baseUrl,
+        apiKey: await readPriceAiKey(),
+        headers: settings.headers,
+      },
       model,
       signal: request.signal,
     })
