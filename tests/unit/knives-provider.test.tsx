@@ -12,11 +12,13 @@ import {
   type CloudBackupJobState,
 } from '@/lib/cloud-backup-shared'
 import { DRIVE_CONNECTION_EVENT } from '@/lib/drive-backup-shared'
+import { MAINTENANCE_UPDATED_EVENT } from '@/lib/maintenance-due'
 import { SETTINGS_UPDATED_EVENT } from '@/lib/settings-shared'
 import { createKnife } from '@/tests/fixtures/knife'
 import {
   INITIAL_VAULT_CLIENT_STATE,
   setVaultClientState,
+  VAULT_EXTERNAL_CHANGE_EVENT,
 } from '@/lib/vault-client-state'
 
 const { getCloudBackupJob, getDriveConnected, startCloudBackupArchive } =
@@ -143,6 +145,9 @@ describe('KnivesProvider background backup', () => {
         }
         if (url === '/api/cloud-backup/job') {
           return jsonResponse({ job: serverJob })
+        }
+        if (url === '/api/vault/changes') {
+          return jsonResponse({ token: 'unchanged' })
         }
         if (url === '/api/knives' && !init?.method) {
           return jsonResponse({ knives: [knife] })
@@ -492,5 +497,84 @@ describe('KnivesProvider background backup', () => {
       await advanceTime(60_000)
       expect(startCloudBackupArchive).toHaveBeenCalledOnce()
     })
+  })
+})
+
+describe('KnivesProvider external vault changes', () => {
+  let token: string
+  let brand: string
+  let knivesFetches: number
+
+  function BrandConsumer() {
+    const { knives, isLoading } = useKnives()
+    return <span>{isLoading ? 'loading' : (knives[0]?.brand ?? 'none')}</span>
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    token = 'gen:1:0'
+    brand = 'Before'
+    knivesFetches = 0
+    getDriveConnected.mockReset().mockResolvedValue(false)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url === '/api/vault/changes') return jsonResponse({ token })
+        if (url === '/api/knives') {
+          knivesFetches += 1
+          return jsonResponse({
+            knives: [createKnife({ id: 'knife', brand })],
+          })
+        }
+        if (url === '/api/compare') return jsonResponse({ compareIds: [] })
+        if (url === '/api/settings') return jsonResponse({ settings: {} })
+        throw new Error(`Unexpected fetch: ${url}`)
+      }),
+    )
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('reloads the collection when MCP or the CLI writes the vault', async () => {
+    await act(async () => {
+      render(
+        <KnivesProvider>
+          <BrandConsumer />
+        </KnivesProvider>,
+      )
+    })
+    expect(screen.getByText('Before')).toBeInTheDocument()
+
+    await advanceTime(5_000)
+    expect(knivesFetches).toBe(1)
+
+    const external = vi.fn()
+    const maintenance = vi.fn()
+    window.addEventListener(VAULT_EXTERNAL_CHANGE_EVENT, external)
+    window.addEventListener(MAINTENANCE_UPDATED_EVENT, maintenance)
+    try {
+      token = 'gen:1:1'
+      brand = 'After'
+      await act(async () => {
+        window.dispatchEvent(new Event('focus'))
+      })
+      await advanceTime(0)
+
+      expect(screen.getByText('After')).toBeInTheDocument()
+      expect(knivesFetches).toBe(2)
+      expect(external).toHaveBeenCalledOnce()
+      expect(maintenance).toHaveBeenCalledOnce()
+
+      await advanceTime(5_000)
+      expect(knivesFetches).toBe(2)
+    } finally {
+      window.removeEventListener(VAULT_EXTERNAL_CHANGE_EVENT, external)
+      window.removeEventListener(MAINTENANCE_UPDATED_EVENT, maintenance)
+    }
   })
 })

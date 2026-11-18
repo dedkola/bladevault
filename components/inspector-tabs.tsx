@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { formatDimension, formatWeight } from '@/lib/measurements'
 import { markdownToPlainText } from '@/lib/note-markdown'
+import { useVaultExternalChangeKey } from '@/lib/use-vault-external-change'
 import type { DimensionUnit } from '@/lib/settings-shared'
 import {
   maintenanceTypeName,
@@ -27,6 +28,7 @@ type MaintenanceState = {
  */
 function useMaintenanceEvents(knifeId: string, enabled: boolean) {
   const [state, setState] = useState<MaintenanceState | null>(null)
+  const externalChangeKey = useVaultExternalChangeKey()
   useEffect(() => {
     if (!enabled) return
     const controller = new AbortController()
@@ -44,7 +46,7 @@ function useMaintenanceEvents(knifeId: string, enabled: boolean) {
           setState({ knifeId, status: 'error', events: [] })
       })
     return () => controller.abort()
-  }, [enabled, knifeId])
+  }, [enabled, knifeId, externalChangeKey])
   const current = state?.knifeId === knifeId ? state : null
   return {
     events: current?.events ?? [],

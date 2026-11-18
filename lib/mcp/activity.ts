@@ -4,6 +4,7 @@ type McpActivityState = {
   lastActivityAt: string | null
   httpRequestsSinceStart: number
   toolCallsSinceStart: number
+  writesSinceStart: number
   lastTransport: McpTransport | null
 }
 
@@ -16,6 +17,7 @@ function getActivityState(): McpActivityState {
     lastActivityAt: null,
     httpRequestsSinceStart: 0,
     toolCallsSinceStart: 0,
+    writesSinceStart: 0,
     lastTransport: null,
   }
   return globalActivity.__bladeVaultMcpActivity
@@ -36,6 +38,15 @@ export function recordMcpHttpRequest() {
 export function recordMcpToolCall(transport: McpTransport) {
   const activity = markActivity(transport)
   activity.toolCallsSinceStart += 1
+}
+
+/**
+ * Counts MCP writes made through this server process. MCP shares the app's
+ * SQLite connection, so `PRAGMA data_version` cannot see these writes; open
+ * windows compare this counter to know when to reload.
+ */
+export function recordMcpWrite() {
+  getActivityState().writesSinceStart += 1
 }
 
 export function getMcpActivity() {

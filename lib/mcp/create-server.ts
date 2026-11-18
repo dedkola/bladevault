@@ -19,7 +19,7 @@ import {
   type AddMaintenanceInput,
 } from '@/lib/services/maintenance-service'
 import { MAINTENANCE_TYPES } from '@/lib/data'
-import { recordMcpToolCall } from '@/lib/mcp/activity'
+import { recordMcpToolCall, recordMcpWrite } from '@/lib/mcp/activity'
 import { areMcpWritesEnabled } from '@/lib/mcp/config'
 
 const fieldValueSchema = z.union([z.string(), z.boolean(), z.null()])
@@ -218,12 +218,14 @@ export function createBladeVaultMcpServer(transport: McpTransport): McpServer {
     ({ knife_id, expected_updated_at, changes }) =>
       runTool(transport, async () => {
         requireMcpWrites()
-        return updateKnifeMetadata({
+        const result = await updateKnifeMetadata({
           knifeId: knife_id,
           expectedUpdatedAt: expected_updated_at,
           changes,
           transport,
         })
+        recordMcpWrite()
+        return result
       }),
   )
 
@@ -252,7 +254,7 @@ export function createBladeVaultMcpServer(transport: McpTransport): McpServer {
     ({ items, apply, preview_hash }) =>
       runTool(transport, async () => {
         if (apply) requireMcpWrites()
-        return bulkUpdateKnifeMetadata({
+        const result = await bulkUpdateKnifeMetadata({
           items: items.map((item) => ({
             knifeId: item.knife_id,
             expectedUpdatedAt: item.expected_updated_at,
@@ -262,6 +264,8 @@ export function createBladeVaultMcpServer(transport: McpTransport): McpServer {
           previewHash: preview_hash,
           transport,
         })
+        if (apply) recordMcpWrite()
+        return result
       }),
   )
 
@@ -319,6 +323,7 @@ export function createBladeVaultMcpServer(transport: McpTransport): McpServer {
           origin: 'mcp',
         }
         const event = await addMaintenanceEvent(input)
+        recordMcpWrite()
         return { event }
       }),
   )

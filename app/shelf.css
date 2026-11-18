@@ -260,14 +260,14 @@ html[data-theme-variant='shelf']
 html[data-theme-variant='shelf']
   [data-lumen-shell='shelf']
   [data-workspace-footer]
-  :is(button, [data-theme-cycle]):hover {
+  :is(button, [data-theme-cycle], [data-reload-data]):hover {
   color: var(--shelf-ink);
 }
 
 html[data-theme-variant='shelf']
   [data-lumen-shell='shelf']
   [data-workspace-footer]
-  [data-theme-cycle]:hover {
+  :is([data-theme-cycle], [data-reload-data]):hover {
   background: var(--shelf-hover);
 }
 

@@ -56,6 +56,7 @@ declare global {
       checkForUpdates: () => Promise<BladeVaultUpdateStatus>
       downloadUpdate: () => Promise<BladeVaultUpdateStatus>
       installUpdate: () => Promise<BladeVaultUpdateStatus>
+      reloadWindow?: () => Promise<void>
       scrapeBrowser?: {
         open: (
           url: string,

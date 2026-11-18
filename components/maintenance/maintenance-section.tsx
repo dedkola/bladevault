@@ -20,6 +20,7 @@ import { CareIntervalsDialog } from '@/components/maintenance/care-intervals-dia
 import { useKnives } from '@/components/providers/knives-provider'
 import { useCare } from '@/components/providers/care-provider'
 import { MAINTENANCE_UPDATED_EVENT } from '@/lib/maintenance-due'
+import { useVaultExternalChangeKey } from '@/lib/use-vault-external-change'
 import { CARE_TRACKS, CARE_TRACK_NAMES } from '@/lib/settings-shared'
 
 function announceMaintenanceChange() {
@@ -50,6 +51,7 @@ export function MaintenanceSection({ knifeId }: { knifeId: string }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState('')
+  const externalChangeKey = useVaultExternalChangeKey()
 
   useEffect(() => {
     let cancelled = false
@@ -88,7 +90,7 @@ export function MaintenanceSection({ knifeId }: { knifeId: string }) {
     return () => {
       cancelled = true
     }
-  }, [knifeId])
+  }, [knifeId, externalChangeKey])
 
   const handleQuickAdd = async (type: MaintenanceType) => {
     setError(null)

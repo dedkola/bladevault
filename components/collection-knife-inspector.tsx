@@ -91,7 +91,7 @@ export function CollectionKnifeInspector({
       })
 
     return () => controller.abort()
-  }, [knife.id])
+  }, [knife.id, knife.updatedAt])
 
   const togglePin = async () => {
     setIsUpdatingPin(true)

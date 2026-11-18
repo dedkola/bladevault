@@ -1487,6 +1487,14 @@ ipcMain.handle(
     return getErrorReportingStatus()
   },
 )
+// Footer "Reload data": drop the HTTP cache and reload the window that asked,
+// keeping cookies and storage so App Lock and preferences survive.
+ipcMain.handle('bladevault:reload-window', async (event) => {
+  const contents = event.sender
+  if (contents.isDestroyed()) return
+  await contents.session.clearCache()
+  contents.reloadIgnoringCache()
+})
 ipcMain.handle('bladevault:restart-app', () => {
   app.relaunch()
   app.quit()

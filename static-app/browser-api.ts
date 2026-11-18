@@ -230,6 +230,8 @@ function handle(request: Request, body: Record<string, unknown>) {
     path = new URL(request.url).pathname,
     method = request.method
   if (path === '/api/vault/status') return json(STATIC_VAULT_STATUS)
+  // Only this tab writes the static vault, so it never changes underneath it.
+  if (path === '/api/vault/changes') return json({ token: 'static' })
   if (path === '/api/cloud-backup/job' && method === 'GET')
     return json({ job: IDLE_CLOUD_BACKUP_JOB })
   if (path === '/api/cloud-backup/restore-job' && method === 'GET')
@@ -340,6 +342,7 @@ function handle(request: Request, body: Record<string, unknown>) {
           lastActivityAt: null,
           httpRequestsSinceStart: 0,
           toolCallsSinceStart: 0,
+          writesSinceStart: 0,
           lastTransport: null,
         },
         stats: {
