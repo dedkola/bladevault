@@ -45,6 +45,9 @@ declare global {
       checkForUpdates: () => Promise<BladeVaultUpdateStatus>
       downloadUpdate: () => Promise<BladeVaultUpdateStatus>
       installUpdate: () => Promise<BladeVaultUpdateStatus>
+      // Keep running in the tray after the last window closes.
+      getBackgroundMode?: () => Promise<boolean>
+      setBackgroundMode?: (enabled: boolean) => Promise<boolean>
       scrapeBrowser?: {
         open: (
           url: string,

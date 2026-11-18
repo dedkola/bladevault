@@ -287,12 +287,14 @@ async function main() {
       'checkForUpdates',
       'downloadUpdate',
       'errorReporting',
+      'getBackgroundMode',
       'getUpdateStatus',
       'installUpdate',
       'onUpdateStatus',
       'saveBackupFile',
       'scrapeBrowser',
       'selectDirectory',
+      'setBackgroundMode',
     ])
     assert.deepEqual(boundary.scrapeBrowserKeys, [
       'cancel',
@@ -456,6 +458,64 @@ async function main() {
       [{ name: 'Desktop comparison', ids: ['electron-smoke'] }],
     )
 
+    // Smoke runs keep this choice in memory only, so it starts off and never
+    // touches the developer's own user-data folder.
+    logStage('Background mode: closing the window keeps BladeVault running.')
+    assert.equal(
+      await window.evaluate(() => window.bladevaultDesktop.getBackgroundMode()),
+      false,
+    )
+    assert.equal(
+      await window.evaluate(() =>
+        window.bladevaultDesktop.setBackgroundMode(true),
+      ),
+      true,
+    )
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      for (const appWindow of BrowserWindow.getAllWindows()) appWindow.close()
+    })
+    await withStageTimeout(
+      electronApp.evaluate(async ({ BrowserWindow }) => {
+        while (BrowserWindow.getAllWindows().some((item) => item.isVisible())) {
+          await new Promise((resolve) => setTimeout(resolve, 50))
+        }
+      }),
+      windowLifecycleTimeoutMs,
+      'Background mode: waiting for the window to hide',
+    )
+    assert.equal(
+      await electronApp.evaluate(
+        ({ BrowserWindow }) => BrowserWindow.getAllWindows().length,
+      ),
+      1,
+    )
+    const backgroundServer = await window.evaluate(async () => {
+      const response = await fetch('/api/knives', { cache: 'no-store' })
+      return response.status
+    })
+    assert.equal(backgroundServer, 200)
+    // Opening BladeVault again (tray, dock or a second launch) shows the
+    // same window.
+    await electronApp.evaluate(({ app }) => app.emit('second-instance'))
+    await withStageTimeout(
+      electronApp.evaluate(async ({ BrowserWindow }) => {
+        while (
+          !BrowserWindow.getAllWindows().some((item) => item.isVisible())
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, 50))
+        }
+      }),
+      windowLifecycleTimeoutMs,
+      'Background mode: waiting for the window to show',
+    )
+    assert.equal(
+      await window.evaluate(() =>
+        window.bladevaultDesktop.setBackgroundMode(false),
+      ),
+      false,
+    )
+    logStage('Background mode: window hid and came back.')
+
     // App lock itself is covered by tests/integration/app-lock.test.ts; this
     // checks only the desktop-specific part: the preload backup bridge still
     // authenticates while a password is set.
@@ -490,7 +550,7 @@ async function main() {
     assert.deepEqual(pageErrors, [])
 
     console.log(
-      'Desktop smoke passed: API, comparisons, SQLite, restore, reload, authenticated backup, and preload boundary.',
+      'Desktop smoke passed: API, comparisons, SQLite, restore, reload, background mode, authenticated backup, and preload boundary.',
     )
   } catch (error) {
     // Print the failure before cleanup: if cleanup stalls, the parent kills
