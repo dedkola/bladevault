@@ -460,6 +460,26 @@ export type PriceMonitoringSettings = {
     minGapSeconds: number
     amazonMinGapSeconds: number
   }
+  /** Which detected changes create an Inbox notification. */
+  notify: PriceNotifyCategories
+  /**
+   * Price changes notify when either enabled threshold is met. A threshold
+   * of 0 is off; with both off, every price change notifies. Stock changes
+   * ignore the thresholds.
+   */
+  thresholds: {
+    /** Percent of the previous price, 0–100. */
+    minPercent: number
+    /** Major units of the source's currency, e.g. 5 = 5.00 USD. */
+    minAbsolute: number
+  }
+}
+
+export type PriceNotifyCategories = {
+  drop: boolean
+  increase: boolean
+  outOfStock: boolean
+  backInStock: boolean
 }
 
 export const PRICE_MONITORING_LIMITS = {
@@ -467,6 +487,8 @@ export const PRICE_MONITORING_LIMITS = {
   maxParallelStores: [1, 5],
   minGapSeconds: [30, 3600],
   amazonMinGapSeconds: [60, 21_600],
+  minPercent: [0, 100],
+  minAbsolute: [0, 1_000_000],
 } as const
 
 export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
@@ -474,7 +496,16 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
   skipSoldKnives: true,
   schedule: { mode: 'daily', intervalHours: 24, activeHours: null },
   pacing: { maxParallelStores: 3, minGapSeconds: 60, amazonMinGapSeconds: 300 },
+  notify: { drop: true, increase: false, outOfStock: false, backInStock: true },
+  thresholds: { minPercent: 5, minAbsolute: 0 },
 }
+
+const PRICE_NOTIFY_KEYS = [
+  'drop',
+  'increase',
+  'outOfStock',
+  'backInStock',
+] as const satisfies readonly (keyof PriceNotifyCategories)[]
 
 function boundedInteger(
   value: unknown,
@@ -484,6 +515,24 @@ function boundedInteger(
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.min(max, Math.max(min, Math.round(value)))
     : fallback
+}
+
+/** Clamps to the range and rounds to `decimals` places. */
+function boundedDecimal(
+  value: unknown,
+  [min, max]: readonly [number, number],
+  decimals: number,
+  fallback: number,
+): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  const factor = 10 ** decimals
+  return Math.min(max, Math.max(min, Math.round(value * factor) / factor))
+}
+
+function plainObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
 }
 
 function normalizeActiveHours(
@@ -510,18 +559,11 @@ export function normalizePriceMonitoring(
   value: unknown,
   fallback: PriceMonitoringSettings = DEFAULT_PRICE_MONITORING,
 ): PriceMonitoringSettings {
-  const record =
-    value && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : {}
-  const schedule =
-    record.schedule && typeof record.schedule === 'object'
-      ? (record.schedule as Record<string, unknown>)
-      : {}
-  const pacing =
-    record.pacing && typeof record.pacing === 'object'
-      ? (record.pacing as Record<string, unknown>)
-      : {}
+  const record = plainObject(value)
+  const schedule = plainObject(record.schedule)
+  const pacing = plainObject(record.pacing)
+  const notify = plainObject(record.notify)
+  const thresholds = plainObject(record.thresholds)
   const mode = (PRICE_SCHEDULE_MODES as readonly unknown[]).includes(
     schedule.mode,
   )
@@ -564,6 +606,26 @@ export function normalizePriceMonitoring(
         pacing.amazonMinGapSeconds,
         PRICE_MONITORING_LIMITS.amazonMinGapSeconds,
         fallback.pacing.amazonMinGapSeconds,
+      ),
+    },
+    notify: Object.fromEntries(
+      PRICE_NOTIFY_KEYS.map((key) => [
+        key,
+        typeof notify[key] === 'boolean' ? notify[key] : fallback.notify[key],
+      ]),
+    ) as PriceNotifyCategories,
+    thresholds: {
+      minPercent: boundedDecimal(
+        thresholds.minPercent,
+        PRICE_MONITORING_LIMITS.minPercent,
+        1,
+        fallback.thresholds.minPercent,
+      ),
+      minAbsolute: boundedDecimal(
+        thresholds.minAbsolute,
+        PRICE_MONITORING_LIMITS.minAbsolute,
+        2,
+        fallback.thresholds.minAbsolute,
       ),
     },
   }

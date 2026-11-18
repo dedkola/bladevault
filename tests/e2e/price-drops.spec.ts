@@ -87,3 +87,67 @@ test('offers schedule and pacing settings', async ({ page }) => {
     '3',
   )
 })
+
+test('offers notification categories and thresholds', async ({
+  page,
+  request,
+}) => {
+  await page.goto('/settings?tab=prices')
+  const drops = page.getByRole('switch', { name: 'Notify about price drops' })
+  const increases = page.getByRole('switch', {
+    name: 'Notify about price increases',
+  })
+  await expect(drops).toBeChecked()
+  await expect(increases).not.toBeChecked()
+  await expect(
+    page.getByRole('switch', { name: 'Notify about back in stock' }),
+  ).toBeChecked()
+  const percent = page.getByLabel('Minimum price change in percent')
+  await expect(percent).toHaveValue('5')
+
+  await percent.fill('7.5')
+  await percent.press('Enter')
+  await increases.click()
+  await expect
+    .poll(async () => {
+      const response = await request.get('/api/settings')
+      const { settings } = (await response.json()) as {
+        settings: {
+          priceMonitoring: {
+            notify: { increase: boolean }
+            thresholds: { minPercent: number }
+          }
+        }
+      }
+      return settings.priceMonitoring
+    })
+    .toMatchObject({
+      notify: { increase: true },
+      thresholds: { minPercent: 7.5 },
+    })
+
+  // Settings outlive resetVault; put the defaults back for later specs.
+  const restored = await request.post('/api/settings', {
+    data: {
+      priceMonitoring: {
+        notify: { increase: false },
+        thresholds: { minPercent: 5 },
+      },
+    },
+  })
+  expect(restored.ok()).toBe(true)
+})
+
+test('shows a Prices section in the Inbox', async ({ page }) => {
+  await page.goto('/inbox?filter=prices')
+  await expect(page.getByRole('tab', { name: 'Prices' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await expect(
+    page.getByText('No price changes.', { exact: false }),
+  ).toBeVisible()
+  await expect(
+    page.getByText('Settings → Price monitoring', { exact: false }),
+  ).toBeVisible()
+})

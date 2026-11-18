@@ -19,6 +19,7 @@ import {
   PRICE_MONITORING_LIMITS,
   type ActiveHours,
   type PriceMonitoringSettings,
+  type PriceNotifyCategories,
   type PriceScheduleMode,
 } from '@/lib/settings-shared'
 
@@ -77,12 +78,16 @@ function formatTime(iso: string): string {
   })
 }
 
-/** A whole number that saves on blur or Enter and reverts invalid input. */
+/**
+ * A number that saves on blur or Enter and reverts invalid input. Rounded to
+ * `decimals` places (whole numbers by default).
+ */
 function NumberField({
   value,
   min,
   max,
   unit,
+  decimals = 0,
   disabled,
   onCommit,
   'aria-label': ariaLabel,
@@ -91,6 +96,7 @@ function NumberField({
   min: number
   max: number
   unit: string
+  decimals?: number
   disabled?: boolean
   onCommit: (value: number) => void
   'aria-label': string
@@ -98,7 +104,11 @@ function NumberField({
   const [draft, setDraft] = useState<string | null>(null)
   const commit = () => {
     if (draft === null) return
-    const parsed = Math.round(Number(draft))
+    const factor = 10 ** decimals
+    const trimmed = draft.trim().replace(',', '.')
+    const parsed = trimmed
+      ? Math.round(Number(trimmed) * factor) / factor
+      : Number.NaN
     setDraft(null)
     if (!Number.isFinite(parsed) || parsed < min || parsed > max) return
     if (parsed !== value) onCommit(parsed)
@@ -107,9 +117,10 @@ function NumberField({
     <span className="inline-flex items-center gap-1.5">
       <Input
         type="number"
-        inputMode="numeric"
+        inputMode={decimals ? 'decimal' : 'numeric'}
         min={min}
         max={max}
+        step={decimals ? 1 / 10 ** decimals : 1}
         value={draft ?? String(value)}
         disabled={disabled}
         aria-label={ariaLabel}
@@ -162,6 +173,33 @@ function HourSelect({
     </Select>
   )
 }
+
+const NOTIFY_OPTIONS: ReadonlyArray<{
+  key: keyof PriceNotifyCategories
+  label: string
+  description: string
+}> = [
+  {
+    key: 'drop',
+    label: 'Price drops',
+    description: 'A store lowered the price.',
+  },
+  {
+    key: 'increase',
+    label: 'Price increases',
+    description: 'A store raised the price.',
+  },
+  {
+    key: 'outOfStock',
+    label: 'Out of stock',
+    description: 'A store stopped selling the knife for now.',
+  },
+  {
+    key: 'backInStock',
+    label: 'Back in stock',
+    description: 'A store has the knife available again.',
+  },
+]
 
 const START_HOURS = Array.from({ length: 24 }, (_, hour) => hour)
 const END_HOURS = Array.from({ length: 24 }, (_, hour) => hour + 1)
@@ -226,6 +264,12 @@ export function PriceMonitoringSettings({
   ) => update({ schedule: { ...settings.schedule, ...patch } })
   const updatePacing = (patch: Partial<PriceMonitoringSettings['pacing']>) =>
     update({ pacing: { ...settings.pacing, ...patch } })
+  const updateNotify = (patch: Partial<PriceNotifyCategories>) =>
+    update({ notify: { ...settings.notify, ...patch } })
+  const updateThresholds = (
+    patch: Partial<PriceMonitoringSettings['thresholds']>,
+  ) => update({ thresholds: { ...settings.thresholds, ...patch } })
+  const priceAlertsOn = settings.notify.drop || settings.notify.increase
 
   const off = disabled || !settings.enabled
   const hours: ActiveHours | null =
@@ -384,6 +428,55 @@ export function PriceMonitoringSettings({
             onCommit={(amazonMinGapSeconds) =>
               updatePacing({ amazonMinGapSeconds })
             }
+          />
+        </SettingsRow>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Notifications"
+        description="Changes found by a check show up in the Inbox under Prices. Repeats for the same store update one notification instead of adding more."
+      >
+        {NOTIFY_OPTIONS.map((option) => (
+          <SettingsRow
+            key={option.key}
+            inline
+            label={option.label}
+            description={option.description}
+          >
+            <SettingsSwitch
+              aria-label={`Notify about ${option.label.toLowerCase()}`}
+              checked={settings.notify[option.key]}
+              disabled={disabled}
+              onCheckedChange={(checked) =>
+                updateNotify({ [option.key]: checked })
+              }
+            />
+          </SettingsRow>
+        ))}
+        <SettingsRow
+          label="Minimum change"
+          description="A price change notifies when it reaches either amount. Set a field to 0 to turn it off; with both at 0, every price change notifies. Stock changes always notify."
+        >
+          <NumberField
+            aria-label="Minimum price change in percent"
+            value={settings.thresholds.minPercent}
+            min={PRICE_MONITORING_LIMITS.minPercent[0]}
+            max={PRICE_MONITORING_LIMITS.minPercent[1]}
+            decimals={1}
+            unit="%"
+            disabled={disabled || !priceAlertsOn}
+            onCommit={(minPercent) => updateThresholds({ minPercent })}
+          />
+          <span className="text-xs text-muted-foreground">or</span>
+          <NumberField
+            aria-label="Minimum price change in the store's currency"
+            value={settings.thresholds.minAbsolute}
+            min={PRICE_MONITORING_LIMITS.minAbsolute[0]}
+            max={PRICE_MONITORING_LIMITS.minAbsolute[1]}
+            decimals={2}
+            unit="in the store's currency"
+            disabled={disabled || !priceAlertsOn}
+            onCommit={(minAbsolute) => updateThresholds({ minAbsolute })}
           />
         </SettingsRow>
       </SettingsSection>

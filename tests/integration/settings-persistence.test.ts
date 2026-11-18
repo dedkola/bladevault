@@ -29,6 +29,13 @@ describe('settings persistence', () => {
           minGapSeconds: 90,
           amazonMinGapSeconds: 600,
         },
+        notify: {
+          drop: true,
+          increase: true,
+          outOfStock: true,
+          backInStock: false,
+        },
+        thresholds: { minPercent: 2.5, minAbsolute: 15 },
       },
     })
     saveSettings({ startPage: 'studio' })
@@ -42,6 +49,32 @@ describe('settings persistence', () => {
         minGapSeconds: 90,
         amazonMinGapSeconds: 600,
       },
+      notify: {
+        drop: true,
+        increase: true,
+        outOfStock: true,
+        backInStock: false,
+      },
+      thresholds: { minPercent: 2.5, minAbsolute: 15 },
+    })
+
+    // Settings saved before notifications existed get the defaults.
+    getLocalDb()
+      .prepare('UPDATE settings SET value = ? WHERE key = ?')
+      .run(
+        JSON.stringify({ enabled: false, skipSoldKnives: false }),
+        'price_monitoring',
+      )
+    expect(getSettings().priceMonitoring).toMatchObject({
+      enabled: false,
+      skipSoldKnives: false,
+      notify: {
+        drop: true,
+        increase: false,
+        outOfStock: false,
+        backInStock: true,
+      },
+      thresholds: { minPercent: 5, minAbsolute: 0 },
     })
 
     getLocalDb()

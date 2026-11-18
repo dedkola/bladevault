@@ -38,6 +38,7 @@ import {
 import type { ExtractedOffer } from '@/lib/scrape-offer'
 import { ScrapeError, toScrapeError } from '@/lib/scrape-errors'
 import { createScrapeOperation } from '@/lib/scrape-operation'
+import { getSettings } from '@/lib/settings'
 import { getStorage } from '@/lib/storage'
 import { validateExternalUrl } from '@/lib/url-validation'
 import { getVaultAccessState } from '@/lib/vault-access'
@@ -379,11 +380,13 @@ export async function checkPriceSource(
     operation,
   )
 
+  const { notify, thresholds } = getSettings().priceMonitoring
   const base = {
     generation,
     sourceId: source.id,
     trigger: options.trigger,
     startedAt: startedAt.toISOString(),
+    notifications: { notify, thresholds },
   }
   const done = async (
     record: Omit<CheckRecord, keyof typeof base | 'durationMs' | 'host'>,

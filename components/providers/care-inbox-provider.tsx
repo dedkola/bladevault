@@ -29,6 +29,16 @@ import {
   type SystemMessageAction,
   type SystemMessageBox,
 } from '@/lib/system-messages'
+import {
+  applyPriceNotificationAction,
+  getPriceNotificationBox,
+  isPriceNotificationUnread,
+  mergePriceNotificationUpdates,
+  type PriceNotificationAction,
+  type PriceNotificationBox,
+  type PriceNotificationView,
+} from '@/lib/price-monitor/notifications'
+import { hasServerRuntime } from '@/lib/runtime-capabilities'
 import type { MaintenanceEventInput } from '@/lib/data'
 import type { CareTrack } from '@/lib/settings-shared'
 import { useCare } from '@/components/providers/care-provider'
@@ -37,22 +47,29 @@ import { useKnives } from '@/components/providers/knives-provider'
 type CareInboxContextValue = {
   /** False while care reminders are off; care messages hide themselves. */
   enabled: boolean
-  /** True when there is anything to show: care reminders or system messages. */
+  /** True when there is anything to show: care, system or price messages. */
   visible: boolean
+  /** False in the static web app, which has no price monitoring. */
+  pricesAvailable: boolean
   isLoading: boolean
   notifications: readonly CareNotification[]
   /** App events such as failed backups, independent of care reminders. */
   systemMessages: readonly SystemMessage[]
+  /** Price and stock changes found by price monitoring. */
+  priceNotifications: readonly PriceNotificationView[]
   /** Clock used to decide which messages are snoozed; ticks every minute. */
   now: Date
-  /** Unread care and system messages together. */
+  /** Unread care, system and price messages together. */
   unreadCount: number
   careUnreadCount: number
   systemUnreadCount: number
+  priceUnreadCount: number
   counts: Record<CareNotificationBox, number>
   systemCounts: Record<SystemMessageBox, number>
+  priceCounts: Record<PriceNotificationBox, number>
   act: (action: CareNotificationAction) => Promise<void>
   actSystem: (action: SystemMessageAction) => Promise<void>
+  actPrice: (action: PriceNotificationAction) => Promise<void>
   /** Logs the care for today, which resolves the message on the next sync. */
   logCare: (knifeId: string, track: CareTrack) => Promise<void>
 }
@@ -93,6 +110,27 @@ async function requestSystemMessages(
   return data.messages
 }
 
+async function requestPriceNotifications(
+  init: RequestInit = {},
+): Promise<PriceNotificationView[]> {
+  const response = await fetch('/api/price-notifications', {
+    cache: 'no-store',
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...init.headers },
+  })
+  const data = await readJsonResponse<{
+    notifications?: PriceNotificationView[]
+    error?: string
+  }>(response)
+  if (!response.ok || !Array.isArray(data.notifications)) {
+    throw new Error(data.error || 'Could not update price notifications')
+  }
+  return data.notifications
+}
+
+/** Price checks run in the background; poll while the window is visible. */
+const PRICE_POLL_MS = 5 * 60_000
+
 export function CareInboxProvider({ children }: { children: React.ReactNode }) {
   const { reminders, statusById, isLoading: careLoading } = useCare()
   const enabled = reminders.enabled
@@ -103,6 +141,11 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
   const { cloudBackupJob } = useKnives()
   const [systemMessages, setSystemMessages] = useState<SystemMessage[]>([])
   const systemMessagesRef = useRef(systemMessages)
+  const [pricesAvailable] = useState(hasServerRuntime)
+  const [priceNotifications, setPriceNotifications] = useState<
+    PriceNotificationView[]
+  >([])
+  const priceNotificationsRef = useRef(priceNotifications)
 
   useEffect(() => {
     notificationsRef.current = notifications
@@ -111,6 +154,36 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     systemMessagesRef.current = systemMessages
   }, [systemMessages])
+
+  useEffect(() => {
+    priceNotificationsRef.current = priceNotifications
+  }, [priceNotifications])
+
+  // Price notifications come from background checks: reload on start, when
+  // the window regains focus and every few minutes while it is visible.
+  useEffect(() => {
+    if (!pricesAvailable) return
+    let cancelled = false
+    const load = async () => {
+      try {
+        const next = await requestPriceNotifications()
+        if (!cancelled) setPriceNotifications(next)
+      } catch {
+        // Keep the last list; the next focus or poll retries.
+      }
+    }
+    void load()
+    const onFocus = () => void load()
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void load()
+    }, PRICE_POLL_MS)
+    window.addEventListener('focus', onFocus)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [pricesAvailable])
 
   // System messages come from the server's background work (backups), so
   // reload them on start, when a backup ends and when the window regains focus.
@@ -211,6 +284,27 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  const actPrice = useCallback(async (action: PriceNotificationAction) => {
+    const previous = priceNotificationsRef.current
+    setPriceNotifications(
+      mergePriceNotificationUpdates(
+        previous,
+        applyPriceNotificationAction(previous, action, new Date()),
+      ),
+    )
+    try {
+      setPriceNotifications(
+        await requestPriceNotifications({
+          method: 'PATCH',
+          body: JSON.stringify(action),
+        }),
+      )
+    } catch (error) {
+      setPriceNotifications(previous)
+      throw error
+    }
+  }, [])
+
   const logCare = useCallback(async (knifeId: string, track: CareTrack) => {
     const input: MaintenanceEventInput = {
       type: track,
@@ -250,21 +344,36 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
       systemCounts[getSystemMessageBox(row)] += 1
       if (isSystemMessageUnread(row)) systemUnreadCount += 1
     }
+    const priceCounts: Record<PriceNotificationBox, number> = {
+      open: 0,
+      done: 0,
+    }
+    let priceUnreadCount = 0
+    for (const row of priceNotifications) {
+      priceCounts[getPriceNotificationBox(row)] += 1
+      if (isPriceNotificationUnread(row)) priceUnreadCount += 1
+    }
     if (!enabled) careUnreadCount = 0
     return {
       enabled,
-      visible: enabled || systemMessages.length > 0,
+      visible:
+        enabled || systemMessages.length > 0 || priceNotifications.length > 0,
+      pricesAvailable,
       isLoading: enabled && !hasSynced,
       notifications,
       systemMessages,
+      priceNotifications,
       now,
-      unreadCount: careUnreadCount + systemUnreadCount,
+      unreadCount: careUnreadCount + systemUnreadCount + priceUnreadCount,
       careUnreadCount,
       systemUnreadCount,
+      priceUnreadCount,
       counts,
       systemCounts,
+      priceCounts,
       act,
       actSystem,
+      actPrice,
       logCare,
     }
   }, [
@@ -272,9 +381,12 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
     hasSynced,
     notifications,
     systemMessages,
+    priceNotifications,
+    pricesAvailable,
     now,
     act,
     actSystem,
+    actPrice,
     logCare,
   ])
 
@@ -288,19 +400,26 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
 const DISABLED_INBOX: CareInboxContextValue = {
   enabled: false,
   visible: false,
+  pricesAvailable: false,
   isLoading: false,
   notifications: [],
   systemMessages: [],
+  priceNotifications: [],
   now: new Date(0),
   unreadCount: 0,
   careUnreadCount: 0,
   systemUnreadCount: 0,
+  priceUnreadCount: 0,
   counts: { open: 0, snoozed: 0, done: 0 },
   systemCounts: { open: 0, done: 0 },
+  priceCounts: { open: 0, done: 0 },
   act: async () => {
     throw new Error('The care inbox is unavailable here.')
   },
   actSystem: async () => {
+    throw new Error('The inbox is unavailable here.')
+  },
+  actPrice: async () => {
     throw new Error('The inbox is unavailable here.')
   },
   logCare: async () => {

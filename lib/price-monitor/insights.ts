@@ -203,6 +203,31 @@ function toEvent(row: EventRow, knives: Map<string, KnifeRow>): ChangeEvent {
   }
 }
 
+/**
+ * The stored events behind Inbox notifications, keyed like `ChangeEvent.id`
+ * (`price-<id>` or `stock-<id>`).
+ */
+export function readChangeEventsById(
+  database: Database.Database,
+  ids: { price: readonly number[]; stock: readonly number[] },
+): Map<string, ChangeEvent> {
+  if (!ids.price.length && !ids.stock.length) return new Map()
+  const rows = database
+    .prepare(
+      `SELECT * FROM (${EVENTS_SQL})
+       WHERE (type = 'price' AND id IN (SELECT value FROM json_each(?)))
+          OR (type = 'stock' AND id IN (SELECT value FROM json_each(?)))`,
+    )
+    .all(JSON.stringify(ids.price), JSON.stringify(ids.stock)) as EventRow[]
+  const knives = readKnives(database)
+  return new Map(
+    rows.map((row) => {
+      const event = toEvent(row, knives)
+      return [event.id, event]
+    }),
+  )
+}
+
 type SourceRow = {
   id: number
   knife_id: string

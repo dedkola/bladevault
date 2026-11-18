@@ -30,6 +30,16 @@ import {
   type PriceWatchView,
 } from '@/lib/price-monitor/shared'
 import type { LaneState } from '@/lib/price-monitor/lanes'
+import {
+  planPriceNotifications,
+  type PriceNotificationEvent,
+  type PriceNotificationSettings,
+} from '@/lib/price-monitor/notifications'
+import {
+  readPriceNotifications,
+  writePriceNotificationChanges,
+} from '@/lib/price-monitor/notification-store'
+import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
 import { assertVaultGeneration, withVaultWrite } from '@/lib/vault-access'
 
 export type SourceRow = {
@@ -465,6 +475,8 @@ export type CheckRecord = {
   host?: HostPatch
   /** Pause the source, e.g. after its page was missing three times. */
   disable?: boolean
+  /** Inbox categories and thresholds; the defaults when left out. */
+  notifications?: PriceNotificationSettings
 }
 
 export type CheckRecordResult = {
@@ -526,8 +538,8 @@ function upsertHostState(
 
 /**
  * Stores one finished check in a single transaction: the check log, the
- * snapshot (extended when nothing changed), price and stock events, the
- * source's cached state, the daily rollup and the store's lane state.
+ * snapshot (extended when nothing changed), price and stock events with
+ * their Inbox notifications, the source's cached state, the daily rollup and the store's lane state.
  * Nothing is written into a vault restored since the check started.
  */
 export async function recordCheck(
@@ -570,6 +582,7 @@ export async function recordCheck(
 
       let detection: DetectResult | null = null
       let snapshotId: number | null = null
+      const events: PriceNotificationEvent[] = []
       if (observation) {
         const latest = readLatestSnapshot(database, source.id)
         detection = detectChange(
@@ -612,57 +625,87 @@ export async function recordCheck(
         }
         const price = detection.priceChange
         if (price) {
-          database
-            .prepare(
-              `INSERT INTO price_change_events
-                (knife_id, source_id, direction, previous_price_minor,
-                 price_minor, currency, delta_minor, delta_pct, availability,
-                 from_snapshot_id, to_snapshot_id, source_url, store_name,
-                 extraction_method, occurred_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            )
-            .run(
-              source.knife_id,
-              source.id,
-              price.direction,
-              price.previousPriceMinor,
-              price.priceMinor,
-              price.currency,
-              price.deltaMinor,
-              price.deltaPct,
-              observation.availability,
-              price.fromSnapshotId,
-              snapshotId,
-              source.url,
-              source.store_name,
-              observation.extractionMethod,
-              now,
-            )
+          const eventId = Number(
+            database
+              .prepare(
+                `INSERT INTO price_change_events
+                  (knife_id, source_id, direction, previous_price_minor,
+                   price_minor, currency, delta_minor, delta_pct, availability,
+                   from_snapshot_id, to_snapshot_id, source_url, store_name,
+                   extraction_method, occurred_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              )
+              .run(
+                source.knife_id,
+                source.id,
+                price.direction,
+                price.previousPriceMinor,
+                price.priceMinor,
+                price.currency,
+                price.deltaMinor,
+                price.deltaPct,
+                observation.availability,
+                price.fromSnapshotId,
+                snapshotId,
+                source.url,
+                source.store_name,
+                observation.extractionMethod,
+                now,
+              ).lastInsertRowid,
+          )
+          events.push({
+            kind: price.direction,
+            eventId,
+            knifeId: source.knife_id,
+            sourceId: source.id,
+            currency: price.currency,
+            deltaMinor: price.deltaMinor,
+            deltaPct: price.deltaPct,
+          })
         }
         const stock = detection.stockChange
         if (stock) {
-          database
-            .prepare(
-              `INSERT INTO stock_events
-                (knife_id, source_id, kind, previous_availability, availability,
-                 price_minor, currency, from_snapshot_id, to_snapshot_id,
-                 source_url, store_name, occurred_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            )
-            .run(
-              source.knife_id,
-              source.id,
-              stock.kind,
-              stock.previousAvailability,
-              stock.availability,
-              observation.priceMinor,
-              observation.currency,
-              stock.fromSnapshotId,
-              snapshotId,
-              source.url,
-              source.store_name,
-              now,
-            )
+          const eventId = Number(
+            database
+              .prepare(
+                `INSERT INTO stock_events
+                  (knife_id, source_id, kind, previous_availability, availability,
+                   price_minor, currency, from_snapshot_id, to_snapshot_id,
+                   source_url, store_name, occurred_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              )
+              .run(
+                source.knife_id,
+                source.id,
+                stock.kind,
+                stock.previousAvailability,
+                stock.availability,
+                observation.priceMinor,
+                observation.currency,
+                stock.fromSnapshotId,
+                snapshotId,
+                source.url,
+                source.store_name,
+                now,
+              ).lastInsertRowid,
+          )
+          events.push({
+            kind: stock.kind,
+            eventId,
+            knifeId: source.knife_id,
+            sourceId: source.id,
+          })
+        }
+        if (events.length) {
+          writePriceNotificationChanges(
+            database,
+            planPriceNotifications(
+              events,
+              readPriceNotifications(database, { sourceId: source.id }),
+              record.notifications ?? DEFAULT_PRICE_MONITORING,
+              new Date(now),
+            ),
+          )
         }
       }
 
