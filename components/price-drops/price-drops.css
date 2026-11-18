@@ -1,0 +1,50 @@
+/* Price Drops colors: drops read as good news, increases as a warning, and
+   stock changes in their own tone so they never look like a price change. */
+:root {
+  --price-drop: #4f5821;
+  --price-drop-bg: color-mix(in srgb, #79824a 20%, transparent);
+  --price-up: var(--destructive);
+  --price-up-bg: color-mix(in srgb, var(--destructive) 14%, transparent);
+  --price-stock: #8a5f0f;
+  --price-stock-bg: color-mix(in srgb, #c89c3d 20%, transparent);
+}
+
+.dark {
+  --price-drop: #b7bd86;
+  --price-drop-bg: color-mix(in srgb, #79824a 26%, transparent);
+  --price-stock: #dfc78f;
+  --price-stock-bg: color-mix(in srgb, #c89c3d 18%, transparent);
+}
+
+[data-price-pill='drop'],
+[data-price-pill='back'] {
+  background: var(--price-drop-bg);
+  color: var(--price-drop);
+}
+
+[data-price-pill='increase'] {
+  background: var(--price-up-bg);
+  color: var(--price-up);
+}
+
+[data-price-pill='oos'] {
+  background: var(--price-stock-bg);
+  color: var(--price-stock);
+}
+
+[data-price-dot='ok'] {
+  background: var(--price-drop);
+}
+[data-price-dot='warn'] {
+  background: var(--bladevault-gold, #c89c3d);
+}
+[data-price-dot='bad'] {
+  background: var(--price-up);
+}
+[data-price-dot='idle'] {
+  background: var(--muted-foreground);
+}
+[data-price-dot='run'] {
+  background: var(--bladevault-gold, #c89c3d);
+  box-shadow: 0 0 0 3px var(--bv-chart-wash);
+}

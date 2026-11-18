@@ -86,10 +86,10 @@ export type PriceWatchUpdate = {
   remove?: number[]
 }
 
-export type PriceCheckRequest = {
-  scope: 'knife' | 'source'
-  id: string
-}
+export type PriceCheckRequest =
+  | { scope: 'knife' | 'source'; id: string }
+  /** Every source scheduled monitoring covers, due now at the normal pace. */
+  | { scope: 'all' }
 
 // Two-label public suffixes common for stores; a heuristic, not the full PSL.
 const TWO_LABEL_SUFFIXES = new Set([
@@ -277,8 +277,9 @@ export function parsePriceWatchUpdate(body: unknown): PriceWatchUpdate {
 /** Validates a POST body for /api/prices/check. */
 export function parsePriceCheckRequest(body: unknown): PriceCheckRequest {
   if (!isRecord(body)) throw new Error('Request body must be an object')
+  if (body.scope === 'all') return { scope: 'all' }
   if (body.scope !== 'knife' && body.scope !== 'source')
-    throw new Error('scope must be knife or source')
+    throw new Error('scope must be knife, source or all')
   const id =
     typeof body.id === 'number' && Number.isSafeInteger(body.id)
       ? String(body.id)

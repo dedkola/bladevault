@@ -1,3 +1,4 @@
+import { markStaticBrowserApp } from '@/lib/runtime-capabilities'
 import {
   DEFAULT_MAINTENANCE_REMINDERS,
   DEFAULT_SETTINGS,
@@ -732,6 +733,7 @@ function handle(request: Request, body: Record<string, unknown>) {
 }
 
 export function installBrowserApi() {
+  markStaticBrowserApp()
   const original = window.fetch
   const browserFetch: typeof fetch = async (input, init) => {
     const url = new URL(

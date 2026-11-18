@@ -178,7 +178,8 @@ describe('request parsing', () => {
       scope: 'knife',
       id: 'abc',
     })
-    expect(() => parsePriceCheckRequest({ scope: 'all' })).toThrow('scope')
+    expect(parsePriceCheckRequest({ scope: 'all' })).toEqual({ scope: 'all' })
+    expect(() => parsePriceCheckRequest({ scope: 'every' })).toThrow('scope')
     expect(() => parsePriceCheckRequest({ scope: 'source', id: 'x' })).toThrow(
       'numbers',
     )

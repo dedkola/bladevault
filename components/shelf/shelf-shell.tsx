@@ -16,6 +16,7 @@ import { KnifePhoto } from '@/components/lumen/knife-photo'
 import type { Knife } from '@/lib/data'
 import { matchesLumenSearch } from '@/lib/lumen-collection'
 import { CareInboxBell } from '@/components/care-inbox'
+import { hasServerRuntime } from '@/lib/runtime-capabilities'
 
 const navLinks = [
   { href: '/collection', label: 'Home' },
@@ -23,6 +24,7 @@ const navLinks = [
   { href: '/insights', label: 'Insights' },
   { href: '/studio', label: 'Studio' },
   { href: '/compare', label: 'Compare' },
+  { href: '/price-drops', label: 'Price Drops' },
   { href: '/maintenance', label: 'Maintenance' },
   { href: '/logs', label: 'History' },
 ] as const
@@ -114,28 +116,32 @@ export function ShelfShell({ children }: { children: React.ReactNode }) {
               </span>
             </Link>
             <nav aria-label="Main navigation" data-shelf-nav>
-              {navLinks.map(({ href, label }) => {
-                const selected =
-                  href === '/collection'
-                    ? pathname === '/collection' && !isAll
-                    : href === '/collection?all=1'
-                      ? isAll || pathname.startsWith('/collection/')
-                      : pathname === href || pathname.startsWith(href + '/')
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    aria-current={selected ? 'page' : undefined}
-                  >
-                    {label}
-                    {href === '/compare' && compareCount > 0 && (
-                      <small aria-label={`${compareCount} in comparison`}>
-                        {compareCount}
-                      </small>
-                    )}
-                  </Link>
+              {navLinks
+                .filter(
+                  ({ href }) => href !== '/price-drops' || hasServerRuntime(),
                 )
-              })}
+                .map(({ href, label }) => {
+                  const selected =
+                    href === '/collection'
+                      ? pathname === '/collection' && !isAll
+                      : href === '/collection?all=1'
+                        ? isAll || pathname.startsWith('/collection/')
+                        : pathname === href || pathname.startsWith(href + '/')
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      aria-current={selected ? 'page' : undefined}
+                    >
+                      {label}
+                      {href === '/compare' && compareCount > 0 && (
+                        <small aria-label={`${compareCount} in comparison`}>
+                          {compareCount}
+                        </small>
+                      )}
+                    </Link>
+                  )
+                })}
             </nav>
             <div data-shelf-mast-actions>
               {pathname === '/studio' && (

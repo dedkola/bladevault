@@ -3,11 +3,16 @@ import { requireAppUnlock } from '@/lib/app-lock'
 import { getLocalDb } from '@/lib/local-db'
 import { parsePriceCheckRequest } from '@/lib/price-monitor/shared'
 import {
+  markScheduledSourcesDue,
   readActiveSources,
   readSource,
   syncAutoSource,
 } from '@/lib/price-monitor/store'
-import { requestPriceChecks } from '@/lib/price-monitor/worker'
+import {
+  getPriceMonitorWorker,
+  requestPriceChecks,
+} from '@/lib/price-monitor/worker'
+import { getSettings } from '@/lib/settings'
 import { reportServerError } from '@/lib/sentry/server'
 import { getStorage } from '@/lib/storage'
 import { getVaultAccessState } from '@/lib/vault-access'
@@ -38,6 +43,23 @@ export async function POST(request: Request) {
           { error: 'The vault is read-only while a restore runs.' },
           { status: 423 },
         )
+      if (check.scope === 'all') {
+        const settings = getSettings().priceMonitoring
+        if (!settings.enabled)
+          return NextResponse.json(
+            {
+              error:
+                'Turn on automatic checks in Settings → Price monitoring to check every knife.',
+            },
+            { status: 409 },
+          )
+        const due = await markScheduledSourcesDue(settings)
+        getPriceMonitorWorker().wake(0)
+        return NextResponse.json(
+          { due },
+          { status: 202, headers: { 'Cache-Control': 'no-store' } },
+        )
+      }
       let sourceIds: number[]
       if (check.scope === 'knife') {
         const knife = await getStorage().getKnifeById(check.id)

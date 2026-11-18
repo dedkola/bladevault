@@ -474,7 +474,7 @@ export function PriceWatchEditor({
           htmlFor={inputId}
           className="text-[10px] xl:text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground"
         >
-          Add product URL
+          Add store URL
         </label>
         <div className="flex gap-2">
           <Input

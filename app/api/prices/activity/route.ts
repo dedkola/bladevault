@@ -18,7 +18,8 @@ export async function GET(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
   try {
-    const requested = Number(new URL(request.url).searchParams.get('days'))
+    const raw = new URL(request.url).searchParams.get('days')
+    const requested = raw === null ? NaN : Number(raw)
     const days = Number.isInteger(requested)
       ? Math.min(365, Math.max(1, requested))
       : 30
