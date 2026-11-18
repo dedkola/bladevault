@@ -1,0 +1,293 @@
+/**
+ * Client-safe price monitoring types, limits and URL helpers. Server modules
+ * (store, engine) and UI components both import from here.
+ */
+import type { OfferAvailability } from '@/lib/scrape-offer'
+
+export type Availability = OfferAvailability
+
+/** At most this many active sources per knife. */
+export const MAX_PRICE_SOURCES_PER_KNIFE = 10
+
+export const PRICE_WATCH_MODES = ['auto', 'on', 'off'] as const
+/** auto: monitored when a purchase price is stored; on/off: forced. */
+export type PriceWatchMode = (typeof PRICE_WATCH_MODES)[number]
+
+export const PRICE_SOURCE_STATUSES = [
+  'pending',
+  'checking',
+  'ok',
+  'price_unavailable',
+  'out_of_stock',
+  'failed',
+  'blocked',
+] as const
+export type PriceSourceStatus = (typeof PRICE_SOURCE_STATUSES)[number]
+
+export const FETCH_OVERRIDES = ['auto', 'browser', 'http'] as const
+/** Per-source override of the store's learned fetch strategy. */
+export type FetchOverride = (typeof FETCH_OVERRIDES)[number]
+
+export type PriceProvider = 'amazon' | 'shopify' | 'generic'
+export type PriceSourceOrigin = 'auto' | 'manual'
+
+export type PriceSourceView = {
+  id: number
+  url: string
+  storeName: string
+  laneKey: string
+  provider: PriceProvider
+  origin: PriceSourceOrigin
+  enabled: boolean
+  fetchOverride: FetchOverride
+  status: PriceSourceStatus
+  lastCheckedAt: string | null
+  lastSuccessAt: string | null
+  lastPriceMinor: number | null
+  lastCurrency: string | null
+  lastAvailability: Availability | null
+  lastError: string | null
+  consecutiveFailures: number
+  createdAt: string
+}
+
+export type EligibilityReason =
+  | 'monitored_auto'
+  | 'monitored_forced'
+  | 'off'
+  | 'no_price'
+  | 'sold'
+  | 'no_source'
+
+export type PriceWatchEligibility = {
+  monitored: boolean
+  reason: EligibilityReason
+}
+
+export type PriceWatchView = {
+  knifeId: string
+  mode: PriceWatchMode
+  eligibility: PriceWatchEligibility
+  sources: PriceSourceView[]
+  maxSources: number
+  /** Source ids waiting for, or running, a manual check. */
+  queuedSourceIds: number[]
+}
+
+export type PriceWatchUpdate = {
+  mode?: PriceWatchMode
+  add?: Array<{ url: string; storeName?: string }>
+  update?: Array<{
+    id: number
+    storeName?: string
+    enabled?: boolean
+    fetchOverride?: FetchOverride
+  }>
+  remove?: number[]
+}
+
+export type PriceCheckRequest =
+  | { scope: 'knife' | 'source'; id: string }
+  /** Every source scheduled monitoring covers, due now at the normal pace. */
+  | { scope: 'all' }
+
+// Two-label public suffixes common for stores; a heuristic, not the full PSL.
+const TWO_LABEL_SUFFIXES = new Set([
+  'co.uk',
+  'org.uk',
+  'ac.uk',
+  'com.au',
+  'net.au',
+  'co.nz',
+  'co.jp',
+  'ne.jp',
+  'or.jp',
+  'com.br',
+  'com.mx',
+  'com.ar',
+  'com.co',
+  'com.tr',
+  'co.za',
+  'com.sg',
+  'com.my',
+  'com.ph',
+  'com.hk',
+  'com.tw',
+  'com.cn',
+  'co.kr',
+  'co.in',
+  'com.be',
+])
+
+// Amazon links collapse to /dp/<ASIN>, so only cross-site trackers live here.
+const TRACKING_PARAMS =
+  /^(?:utm_.+|fbclid|gclid|gbraid|wbraid|msclkid|mc_cid|mc_eid|srsltid|_pos|_sid|_ss|_psq|ref)$/i
+
+export function parseHttpUrl(value: string): URL | null {
+  try {
+    const url = new URL(value.trim())
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url : null
+  } catch {
+    return null
+  }
+}
+
+function isAmazonHost(host: string): boolean {
+  return /(?:^|\.)amazon\.[a-z.]+$/i.test(host)
+}
+
+function amazonAsin(url: URL): string | null {
+  return (
+    url.pathname
+      .match(/\/(?:dp|gp\/product|gp\/aw\/d)\/([A-Z0-9]{10})(?:[/?]|$)/i)?.[1]
+      ?.toUpperCase() ?? null
+  )
+}
+
+/**
+ * Identity of a source URL for de-duplication: lower-case host, no hash, no
+ * tracking parameters; Amazon product links collapse to `/dp/<ASIN>`.
+ */
+export function normalizeSourceUrl(value: string): string | null {
+  const url = parseHttpUrl(value)
+  if (!url) return null
+  url.hostname = url.hostname.toLowerCase()
+  url.hash = ''
+  if (isAmazonHost(url.hostname)) {
+    const asin = amazonAsin(url)
+    if (asin) return `https://${url.hostname}/dp/${asin}`
+  }
+  for (const key of [...url.searchParams.keys()]) {
+    if (TRACKING_PARAMS.test(key)) url.searchParams.delete(key)
+  }
+  if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/+$/, '')
+  return url.href
+}
+
+/** Registrable domain, e.g. "shop.vosteed.com" → "vosteed.com". */
+export function registrableDomain(host: string): string {
+  const clean = host
+    .toLowerCase()
+    .replace(/^www\./, '')
+    .replace(/\.$/, '')
+  if (/^[\d.]+$/.test(clean) || clean.includes(':')) return clean
+  const labels = clean.split('.')
+  if (labels.length <= 2) return clean
+  const lastTwo = labels.slice(-2).join('.')
+  return TWO_LABEL_SUFFIXES.has(lastTwo) ? labels.slice(-3).join('.') : lastTwo
+}
+
+/**
+ * Scheduling lane of a URL: one per store, so a store never sees two parallel
+ * checks. All Amazon marketplaces share one lane and one bot protection.
+ */
+export function laneKeyForUrl(value: string): string {
+  const url = parseHttpUrl(value)
+  if (!url) return 'invalid'
+  if (isAmazonHost(url.hostname)) return 'amazon'
+  return registrableDomain(url.hostname)
+}
+
+export function storeNameForUrl(value: string): string {
+  const url = parseHttpUrl(value)
+  return url ? registrableDomain(url.hostname) : ''
+}
+
+export function providerForUrl(value: string): PriceProvider {
+  const url = parseHttpUrl(value)
+  return url && isAmazonHost(url.hostname) ? 'amazon' : 'generic'
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function optionalStoreName(value: unknown): string | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string') throw new Error('storeName must be text')
+  const name = value.trim().replace(/\s+/g, ' ')
+  if (name.length > 80) throw new Error('Store name is too long')
+  return name
+}
+
+/** Validates a PUT body for /api/knives/[id]/price-watch. */
+export function parsePriceWatchUpdate(body: unknown): PriceWatchUpdate {
+  if (!isRecord(body)) throw new Error('Request body must be an object')
+  const result: PriceWatchUpdate = {}
+  if (body.mode !== undefined) {
+    if (!(PRICE_WATCH_MODES as readonly unknown[]).includes(body.mode))
+      throw new Error('mode must be auto, on or off')
+    result.mode = body.mode as PriceWatchMode
+  }
+  if (body.add !== undefined) {
+    if (
+      !Array.isArray(body.add) ||
+      body.add.length > MAX_PRICE_SOURCES_PER_KNIFE
+    )
+      throw new Error('add must be a list of sources')
+    result.add = body.add.map((item) => {
+      if (!isRecord(item) || typeof item.url !== 'string')
+        throw new Error('Each new source needs a url')
+      if (!normalizeSourceUrl(item.url))
+        throw new Error(
+          'Enter a valid product URL starting with http:// or https://.',
+        )
+      const storeName = optionalStoreName(item.storeName)
+      return { url: item.url.trim(), ...(storeName ? { storeName } : {}) }
+    })
+  }
+  if (body.update !== undefined) {
+    if (!Array.isArray(body.update) || body.update.length > 50)
+      throw new Error('update must be a list of source changes')
+    result.update = body.update.map((item) => {
+      if (!isRecord(item) || !Number.isSafeInteger(item.id))
+        throw new Error('Each source change needs an id')
+      const change: NonNullable<PriceWatchUpdate['update']>[number] = {
+        id: item.id as number,
+      }
+      const storeName = optionalStoreName(item.storeName)
+      if (storeName !== undefined) change.storeName = storeName
+      if (item.enabled !== undefined) {
+        if (typeof item.enabled !== 'boolean')
+          throw new Error('enabled must be true or false')
+        change.enabled = item.enabled
+      }
+      if (item.fetchOverride !== undefined) {
+        if (
+          !(FETCH_OVERRIDES as readonly unknown[]).includes(item.fetchOverride)
+        )
+          throw new Error('fetchOverride must be auto, browser or http')
+        change.fetchOverride = item.fetchOverride as FetchOverride
+      }
+      return change
+    })
+  }
+  if (body.remove !== undefined) {
+    if (
+      !Array.isArray(body.remove) ||
+      body.remove.length > 50 ||
+      !body.remove.every((id) => Number.isSafeInteger(id))
+    )
+      throw new Error('remove must be a list of source ids')
+    result.remove = body.remove as number[]
+  }
+  return result
+}
+
+/** Validates a POST body for /api/prices/check. */
+export function parsePriceCheckRequest(body: unknown): PriceCheckRequest {
+  if (!isRecord(body)) throw new Error('Request body must be an object')
+  if (body.scope === 'all') return { scope: 'all' }
+  if (body.scope !== 'knife' && body.scope !== 'source')
+    throw new Error('scope must be knife, source or all')
+  const id =
+    typeof body.id === 'number' && Number.isSafeInteger(body.id)
+      ? String(body.id)
+      : typeof body.id === 'string' && body.id.trim()
+        ? body.id.trim()
+        : ''
+  if (!id) throw new Error('id is required')
+  if (body.scope === 'source' && !/^\d+$/.test(id))
+    throw new Error('Source ids are numbers')
+  return { scope: body.scope, id }
+}

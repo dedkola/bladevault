@@ -15,6 +15,7 @@
 | Build and run from source                                | [Run from source](installation/from-source.md)                             |
 | Learn the collection, comparison, and insights workflows | [Organize your collection](guides/collection.md)                           |
 | Log cleaning, sharpening, or other care                  | [Maintenance](guides/log-maintenance.md)                                   |
+| Watch store prices and get price-drop alerts             | [Price Drops](guides/price-drops.md)                                       |
 | Find gaps or inconsistent values in my records           | [Improve collection data quality](guides/improve-data-quality.md)          |
 | Back up the vault or restore a saved copy                | [Back up and restore your vault](guides/back-up-and-restore-your-vault.md) |
 | Connect an AI client to my collection                    | [MCP](reference/mcp.md)                                                    |
@@ -30,6 +31,7 @@
 - **Browse** — save filters as Smart Collections that update with your records, or browse variants together in Model families. Global search understands model names and `/model A4301` for model numbers.
 - **Showcase** — open Studio for a photo-first wall of your collection, filtered by folding, fixed, pinned, or any Smart Collection, with search, focus mode, and a self-playing split-flap showcase. Select any knife for a quick look with its full photo gallery.
 - **Compare** — create named shortlists, add a knife to several lists, show only the differences, and print or export comparisons as PDF.
+- **Watch prices** — monitor store prices for the knives you own, with price history per store, gentle per-store pacing, and Inbox alerts for price drops and restocks. Optional AI help reads prices the page parsers miss.
 - **Maintain** — log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes, and review it in History.
 - **Understand** — explore makers, materials, dimensions, completeness, and activity through collection insights, including a calendar activity map. Modern-layout styles add monthly additions for the last 12 months and blade, overall-length, weight, and thickness distributions.
 - **Personalize** — choose one of nine styles (Classic, Modern, Alloy, Forge, Titanium, Field, Lumen, Espresso, or Phosphor), light or dark color mode, metric, imperial, or both measurement units, time format, pinned ordering, and the page BladeVault opens on: Insights, Studio, or Collection.
@@ -51,6 +53,7 @@
 | Change card details, style, units, or time    | [Customize cards and collection appearance](guides/customize-appearance.md) |
 | Build and export a shortlist                  | [Compare knives](guides/compare.md)                                         |
 | Record cleaning, sharpening, and other care   | [Log maintenance and sharpening](guides/log-maintenance.md)                 |
+| Track store prices, drops, and restocks       | [Watch market prices with Price Drops](guides/price-drops.md)               |
 | Understand collection patterns                | [Collection insights](guides/insights.md)                                   |
 | Review missing data, measurements, and labels | [Improve collection data quality](guides/improve-data-quality.md)           |
 | See what changed and when                     | [Review collection activity in History](guides/review-collection-activity.md) |

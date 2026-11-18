@@ -24,7 +24,11 @@ export default async function KnifeDetailPage({
       key={knife.id}
       knife={knife}
       initialEditing={query.edit === '1'}
-      initialTab={query.tab === 'maintenance' ? 'maintenance' : 'details'}
+      initialTab={
+        query.tab === 'maintenance' || query.tab === 'market'
+          ? query.tab
+          : 'details'
+      }
     />
   )
 }

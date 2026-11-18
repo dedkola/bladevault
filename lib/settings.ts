@@ -15,6 +15,7 @@ import {
   normalizeMaintenanceReminders,
   normalizeCareDeferrals,
   normalizeCareIntervalOverrides,
+  normalizePriceMonitoring,
   type AppSettings,
   type AppTheme,
   type CardField,
@@ -51,6 +52,7 @@ const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
   maintenanceReminders: 'maintenance_reminders',
   careIntervalOverrides: 'care_interval_overrides',
   careDeferrals: 'care_deferrals',
+  priceMonitoring: 'price_monitoring',
 }
 
 function parseMaintenanceReminders(value: string | undefined) {
@@ -74,6 +76,14 @@ function parseCareDeferrals(value: string | undefined) {
     return normalizeCareDeferrals(value ? JSON.parse(value) : undefined)
   } catch {
     return {}
+  }
+}
+
+function parsePriceMonitoring(value: string | undefined) {
+  try {
+    return normalizePriceMonitoring(value ? JSON.parse(value) : undefined)
+  } catch {
+    return normalizePriceMonitoring(undefined)
   }
 }
 
@@ -207,6 +217,9 @@ export function getSettings(): AppSettings {
       map.get(SETTINGS_KEYS.careIntervalOverrides),
     ),
     careDeferrals: parseCareDeferrals(map.get(SETTINGS_KEYS.careDeferrals)),
+    priceMonitoring: parsePriceMonitoring(
+      map.get(SETTINGS_KEYS.priceMonitoring),
+    ),
   }
 }
 
@@ -253,6 +266,13 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
         settings.careDeferrals === undefined
           ? current.careDeferrals
           : normalizeCareDeferrals(settings.careDeferrals),
+      priceMonitoring:
+        settings.priceMonitoring === undefined
+          ? current.priceMonitoring
+          : normalizePriceMonitoring(
+              settings.priceMonitoring,
+              current.priceMonitoring,
+            ),
     }
 
     const insert = getDb().prepare(
@@ -276,6 +296,7 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
       ['maintenanceReminders', JSON.stringify(next.maintenanceReminders)],
       ['careIntervalOverrides', JSON.stringify(next.careIntervalOverrides)],
       ['careDeferrals', JSON.stringify(next.careDeferrals)],
+      ['priceMonitoring', JSON.stringify(next.priceMonitoring)],
     ]
 
     const transaction = getDb().transaction(() => {

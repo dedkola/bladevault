@@ -9,6 +9,12 @@ import { extractVosteedSpecs, isVosteedProductUrl } from './scrape-vosteed'
 import { extractSogProduct } from './scrape-sog'
 import { extractAmazonProduct } from './scrape-amazon'
 import {
+  extractActiveCurrency,
+  parseJsonLd,
+  selectJsonLdOffer,
+} from './scrape-offer'
+import { parseMoneyText } from './price-monitor/money'
+import {
   embedPoikiloGalleryImages,
   isPoikiloProductUrl,
 } from './scrape-poikilo'
@@ -90,20 +96,6 @@ function resolveUrl(
  */
 function resolveDocumentBase($: cheerio.CheerioAPI, pageUrl: string): string {
   return resolveUrl($('base[href]').first().attr('href'), pageUrl) ?? pageUrl
-}
-
-/**
- * Parse a JSON-LD script, tolerating the invalid `\'` escape that some
- * shop templates emit for apostrophes in descriptions.
- */
-function parseJsonLd(raw: string): unknown {
-  try {
-    return JSON.parse(raw)
-  } catch (error) {
-    const repaired = raw.replace(/(?<!\\)((?:\\\\)*)\\'/g, "$1'")
-    if (repaired === raw) throw error
-    return JSON.parse(repaired)
-  }
 }
 
 // Detect Cloudflare and other bot/security challenge interstitials so we can
@@ -327,18 +319,6 @@ function findMeta($: cheerio.CheerioAPI, names: string[]): string {
   return ''
 }
 
-function extractActiveCurrency($: cheerio.CheerioAPI): string {
-  const html = $.html()
-  return (
-    html.match(/Shopify\.currency\s*=\s*\{[^}]*"active":"([A-Z]{3})"/i)?.[1] ||
-    $('[data-currency]')
-      .filter((_, el) => /^[A-Z]{3}$/.test($(el).attr('data-currency') || ''))
-      .first()
-      .attr('data-currency') ||
-    findMeta($, ['product:price:currency', 'og:price:currency'])
-  ).toUpperCase()
-}
-
 function extractJsonLdBrandValue(node: Record<string, unknown>): string {
   const candidates: unknown[] = []
   for (const key of ['brand', 'manufacturer']) {
@@ -396,24 +376,7 @@ function extractJsonLdProduct(
               specs.modelNumber = normalizeModelNumber(node.sku)
             }
             const offers = node.offers ? [node.offers].flat() : []
-            const requestedVariant = sourceUrl
-              ? new URL(sourceUrl).searchParams.get('variant')
-              : null
-            const offer =
-              (requestedVariant
-                ? offers.find((candidate: { url?: string }) => {
-                    try {
-                      return (
-                        new URL(
-                          candidate.url || '',
-                          sourceUrl,
-                        ).searchParams.get('variant') === requestedVariant
-                      )
-                    } catch {
-                      return false
-                    }
-                  })
-                : undefined) || offers[0]
+            const offer = selectJsonLdOffer(offers, sourceUrl)
             if (offer && typeof offer === 'object') {
               if (!specs.modelNumber && typeof offer.sku === 'string') {
                 specs.modelNumber = normalizeModelNumber(offer.sku)
@@ -1334,34 +1297,10 @@ function normalizeDesigner(value: string): string {
 }
 
 function normalizePrice(value: string, currency = ''): string {
-  const cleaned = cleanText(value)
-  const match = cleaned.match(
-    /(?:[$€£¥]\s*)?((?:\d{1,3}(?:[ ,'\u00a0]\d{3})+|\d+)(?:[.,]\d{1,2})?)/,
-  )
-  if (!match) return ''
-  let normalized = match[1].replace(/[ '\u00a0]/g, '')
-  if (normalized.includes('.') && normalized.includes(',')) {
-    normalized = normalized.replace(/,/g, '')
-  } else if (/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(normalized)) {
-    normalized = normalized.replace(/,/g, '')
-  } else {
-    normalized = normalized.replace(',', '.')
-  }
-  const amount = Number(normalized)
-  if (!Number.isFinite(amount) || amount <= 0) return ''
-  const detectedCurrency =
-    cleanText(currency) ||
-    (cleaned.includes('$')
-      ? 'USD'
-      : cleaned.includes('€')
-        ? 'EUR'
-        : cleaned.includes('£')
-          ? 'GBP'
-          : cleaned.includes('¥')
-            ? 'JPY'
-            : cleaned.match(/\b[A-Z]{3}\b/)?.[0] || '')
-  const formatted = amount.toFixed(2)
-  return detectedCurrency ? `${formatted} ${detectedCurrency}` : formatted
+  const parsed = parseMoneyText(value, currency)
+  if (!parsed) return ''
+  const formatted = parsed.amount.toFixed(2)
+  return parsed.currency ? `${formatted} ${parsed.currency}` : formatted
 }
 
 function extractLabeledValue(text: string, labels: string[]): string {

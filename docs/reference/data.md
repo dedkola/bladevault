@@ -49,6 +49,23 @@ Saved comparisons are included in full-vault backups, but changing a comparison 
 
 For a manual filesystem backup, stop BladeVault and copy the whole data folder so the database and images stay together.
 
+## Price history
+
+Price monitoring stores its history in the same `bladevault.sqlite` file, so local and Google Drive backups include it:
+
+| Table                 | What it holds                                                                                          |
+| --------------------- | ------------------------------------------------------------------------------------------------------ |
+| `price_sources`       | The store pages monitored for each knife, with their current status. Removed sources keep their rows.  |
+| `price_snapshots`     | Observed prices and stock status. A new row starts only when the price or stock changes.               |
+| `price_change_events` | Every price drop and increase, with the old and new price, the store, and the product URL at the time. |
+| `stock_events`        | Every out-of-stock and back-in-stock change.                                                           |
+| `price_notifications` | The Inbox **Prices** notifications. Closed ones are deleted after 90 days.                             |
+| `price_check_log`     | Recent checks, including failures. Failures never enter the price history.                             |
+
+Prices are stored as whole numbers in the currency's smallest unit (cents for USD) together with the currency code. The change and snapshot tables are permanent; deleting a knife deletes its sources, history, and notifications.
+
+The optional AI API key for price monitoring is stored outside the database, in `price-ai-credentials.json` in the vault's private `._bladevault-control` folder, readable only by the BladeVault user. Backups never include it. Per-store cookies saved by price checks are kept there too. See [Watch market prices with Price Drops](../guides/price-drops.md).
+
 ## Related
 
 - [Cloud backup](cloud-backup.md) — the optional off-machine copy.

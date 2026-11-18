@@ -13,12 +13,14 @@ import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-act
 import { useKnives } from '@/components/providers/knives-provider'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import { CareInboxBell } from '@/components/care-inbox'
+import { hasServerRuntime } from '@/lib/runtime-capabilities'
 
 const tabs = [
   { href: '/insights', label: 'Insights' },
   { href: '/collection', label: 'Collection' },
   { href: '/studio', label: 'Studio' },
   { href: '/compare', label: 'Compare' },
+  { href: '/price-drops', label: 'Price Drops' },
   { href: '/maintenance', label: 'Maintenance' },
   { href: '/logs', label: 'History' },
 ] as const
@@ -87,25 +89,27 @@ export function LedgerShell({ children }: { children: React.ReactNode }) {
           </span>
         </Link>
         <nav aria-label="Main navigation" data-ledger-tabs>
-          {tabs.map(({ href, label }) => {
-            const selected =
-              pathname === href || pathname.startsWith(href + '/')
-            return (
-              <Link
-                key={href}
-                href={href}
-                aria-current={selected ? 'page' : undefined}
-              >
-                {label}
-                {href === '/compare' && compareCount > 0 && (
-                  <small>
-                    {compareCount}
-                    <span className="sr-only"> in comparison</span>
-                  </small>
-                )}
-              </Link>
-            )
-          })}
+          {tabs
+            .filter(({ href }) => href !== '/price-drops' || hasServerRuntime())
+            .map(({ href, label }) => {
+              const selected =
+                pathname === href || pathname.startsWith(href + '/')
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={selected ? 'page' : undefined}
+                >
+                  {label}
+                  {href === '/compare' && compareCount > 0 && (
+                    <small>
+                      {compareCount}
+                      <span className="sr-only"> in comparison</span>
+                    </small>
+                  )}
+                </Link>
+              )
+            })}
         </nav>
         <div data-ledger-head-right>
           {showSearch && (

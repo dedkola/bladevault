@@ -8,6 +8,7 @@ import {
   CloudOff,
   GalleryVertical,
   History,
+  TrendingDown,
   Wrench,
   LayoutDashboard,
   Library,
@@ -25,12 +26,14 @@ import { useKnives } from '@/components/providers/knives-provider'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import { useLumenCollection } from '@/components/lumen/use-lumen-collection'
 import { CareInboxBell } from '@/components/care-inbox'
+import { hasServerRuntime } from '@/lib/runtime-capabilities'
 
 const dockLinks = [
   { href: '/insights', label: 'Insights', icon: LayoutDashboard },
   { href: '/collection', label: 'Collection', icon: Library },
   { href: '/studio', label: 'Studio', icon: GalleryVertical },
   { href: '/compare', label: 'Compare', icon: CompareIcon },
+  { href: '/price-drops', label: 'Price Drops', icon: TrendingDown },
   { href: '/maintenance', label: 'Maintenance', icon: Wrench },
   { href: '/logs', label: 'History', icon: History },
 ] as const
@@ -176,27 +179,30 @@ export function AtriumShell({ children }: { children: React.ReactNode }) {
       </div>
       <WorkspaceFooter />
       <nav aria-label="Main navigation" data-atrium-dock>
-        {dockLinks.map(({ href, label, icon: Icon }) => {
-          const selected = pathname === href || pathname.startsWith(href + '/')
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-current={selected ? 'page' : undefined}
-            >
-              <Icon aria-hidden="true" />
-              <span>{label}</span>
-              {href === '/compare' && compareCount > 0 && (
-                <small
-                  data-atrium-dock-count
-                  aria-label={`${compareCount} in comparison`}
-                >
-                  {compareCount}
-                </small>
-              )}
-            </Link>
-          )
-        })}
+        {dockLinks
+          .filter(({ href }) => href !== '/price-drops' || hasServerRuntime())
+          .map(({ href, label, icon: Icon }) => {
+            const selected =
+              pathname === href || pathname.startsWith(href + '/')
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={selected ? 'page' : undefined}
+              >
+                <Icon aria-hidden="true" />
+                <span>{label}</span>
+                {href === '/compare' && compareCount > 0 && (
+                  <small
+                    data-atrium-dock-count
+                    aria-label={`${compareCount} in comparison`}
+                  >
+                    {compareCount}
+                  </small>
+                )}
+              </Link>
+            )
+          })}
         <span data-atrium-dock-divider aria-hidden="true" />
         <Link
           href="/add"

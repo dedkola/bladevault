@@ -98,7 +98,9 @@ readinessProbe:
   timeoutSeconds: 3
   failureThreshold: 6
 
-# Additional environment variables, for example optional auth/backup URLs.
+# Additional environment variables, for example optional auth/backup URLs,
+# TZ for price-check hours, BLADEVAULT_PRICE_MONITOR=off, or
+# BLADEVAULT_PRICE_AI_API_KEY from a Secret (see docs/installation/helm.md).
 env: []
 
 nodeSelector: {}

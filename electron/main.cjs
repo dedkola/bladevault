@@ -2,6 +2,8 @@ const {
   app,
   BrowserWindow,
   Menu,
+  nativeImage,
+  Tray,
   clipboard,
   dialog,
   ipcMain,
@@ -21,6 +23,7 @@ const {
   closeScrapeBrowser,
   registerScrapeBrowser,
 } = require('./scrape-browser.cjs')
+const backgroundMode = require('./background-mode.cjs')
 const errorReporting = require('./error-reporting.cjs')
 const claudeDesktopConfig = require('./claude-desktop-config.cjs')
 const whatsNew = require('./whats-new.cjs')
@@ -60,6 +63,19 @@ const pendingWhatsNew = whatsNew.getPendingWhatsNew({
   isPackaged: app.isPackaged,
   disabled: SMOKE_TEST_MODE || UPDATE_AUTO_TEST,
 })
+// Smoke runs keep the choice in memory so they never read or change the
+// developer's own user-data folder.
+let backgroundModeEnabled = SMOKE_TEST_MODE
+  ? false
+  : backgroundMode.readBackgroundMode(app.getPath('userData'))
+// With background mode on, BladeVault keeps running in the tray, so opening
+// it again (a Windows shortcut, say) must show that instance instead of
+// starting a second server on the same vault.
+const isSecondInstance =
+  backgroundModeEnabled && !app.requestSingleInstanceLock()
+if (isSecondInstance) {
+  app.quit()
+}
 let Sentry = null
 if (errorReportingState.enabled) {
   Sentry = require('@sentry/electron/main')
@@ -201,6 +217,7 @@ function getCloudAuthUrl() {
 }
 
 let mainWindow = null
+let tray = null
 let serverProcess = null
 let serverOrigin = null
 let isQuitting = false
@@ -1154,7 +1171,13 @@ async function startEmbeddedServer() {
         'BladeVault server stopped',
         `The embedded BladeVault server exited with code ${code ?? 'unknown'}.`,
       )
-      mainWindow.close()
+      // A hidden window would leave nothing to recover with: close it for
+      // real, so the tray's Open BladeVault starts a fresh server.
+      if (backgroundModeEnabled) {
+        mainWindow.destroy()
+      } else {
+        mainWindow.close()
+      }
     }
   })
 
@@ -1378,6 +1401,172 @@ function wireMainWindowSecurity(window) {
   })
 }
 
+// The tray icon exists only while background mode is on. macOS gets a
+// template image that follows the menu bar's appearance; the representations
+// are read with fs, which also works inside the packaged asar archive.
+function getTrayImage() {
+  const baseName = process.platform === 'darwin' ? 'trayTemplate' : 'tray'
+  const image = nativeImage.createEmpty()
+  for (const [scaleFactor, suffix] of [
+    [1, ''],
+    [2, '@2x'],
+  ]) {
+    image.addRepresentation({
+      scaleFactor,
+      buffer: fs.readFileSync(
+        path.join(__dirname, 'tray', `${baseName}${suffix}.png`),
+      ),
+    })
+  }
+  if (process.platform === 'darwin') {
+    image.setTemplateImage(true)
+  }
+  return image
+}
+
+// One window at a time, even when the tray, the dock and a second launch ask
+// for it while the server is still starting.
+let mainWindowCreation = null
+function ensureMainWindow(pathname) {
+  if (!mainWindowCreation) {
+    mainWindowCreation = createMainWindow(pathname).finally(() => {
+      mainWindowCreation = null
+    })
+  }
+  return mainWindowCreation
+}
+
+async function showMainWindow(pathname) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    await ensureMainWindow(pathname)
+    return
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore()
+  }
+  mainWindow.show()
+  mainWindow.focus()
+  if (pathname && serverOrigin) {
+    const target = new URL(pathname, serverOrigin)
+    const current = mainWindow.webContents.getURL()
+    if (!current || new URL(current).pathname !== target.pathname) {
+      await mainWindow.loadURL(target.toString()).catch(() => {
+        // The page may refuse to leave, e.g. to keep unsaved edits.
+      })
+    }
+  }
+}
+
+function showTrayError(title, error) {
+  const detail = error instanceof Error ? error.message : String(error)
+  const options = { type: 'warning', message: title, detail }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    void dialog.showMessageBox(mainWindow, options)
+  } else {
+    void dialog.showMessageBox(options)
+  }
+}
+
+async function getAppUnlockCookieHeader(window) {
+  const cookies = await window.webContents.session.cookies.get({
+    url: serverOrigin,
+    name: 'bladevault_unlock',
+  })
+  return cookies.map(({ name, value }) => `${name}=${value}`).join('; ')
+}
+
+// Opens Price Drops and queues every eligible source through the same route
+// as the page's Check all now button. The paced queue still decides when
+// each store is actually checked.
+async function checkPricesNow() {
+  try {
+    await showMainWindow('/price-drops')
+    if (!serverOrigin || !mainWindow || mainWindow.isDestroyed()) {
+      throw new Error('BladeVault local server is not ready.')
+    }
+    const response = await fetch(new URL('/api/prices/check', serverOrigin), {
+      method: 'POST',
+      cache: 'no-store',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: await getAppUnlockCookieHeader(mainWindow),
+      },
+      body: JSON.stringify({ scope: 'all' }),
+    })
+    if (!response.ok) {
+      let message = ''
+      try {
+        const data = await response.json()
+        message = typeof data?.error === 'string' ? data.error : ''
+      } catch {
+        // Use the status below.
+      }
+      throw new Error(
+        message || `Price check failed with HTTP ${response.status}.`,
+      )
+    }
+  } catch (error) {
+    showTrayError('Could not start price checks', error)
+  }
+}
+
+function buildTrayMenu() {
+  return Menu.buildFromTemplate([
+    {
+      label: 'Open BladeVault',
+      click: () => {
+        void showMainWindow().catch((error) =>
+          showTrayError('Could not open BladeVault', error),
+        )
+      },
+    },
+    {
+      label: 'Check prices now',
+      click: () => {
+        void checkPricesNow()
+      },
+    },
+    { type: 'separator' },
+    { label: 'Quit', click: () => app.quit() },
+  ])
+}
+
+function syncTray() {
+  if (backgroundModeEnabled && !tray) {
+    try {
+      tray = new Tray(getTrayImage())
+      tray.setToolTip('BladeVault')
+      tray.setContextMenu(buildTrayMenu())
+      // macOS opens the menu on click; Windows and Linux open the window.
+      if (process.platform !== 'darwin') {
+        tray.on('click', () => {
+          void showMainWindow().catch((error) =>
+            showTrayError('Could not open BladeVault', error),
+          )
+        })
+      }
+    } catch (error) {
+      tray = null
+      captureDesktopError(error, 'tray-create')
+    }
+    if (!SMOKE_TEST_MODE && !app.hasSingleInstanceLock()) {
+      app.requestSingleInstanceLock()
+    }
+  } else if (!backgroundModeEnabled && tray) {
+    tray.destroy()
+    tray = null
+    if (app.hasSingleInstanceLock()) {
+      app.releaseSingleInstanceLock()
+    }
+  }
+}
+
+// Closing hides the window only while the tray can bring it back.
+function keepsRunningInBackground() {
+  return backgroundModeEnabled && tray !== null && !isQuitting
+}
+
 ipcMain.handle('bladevault:connect-claude-desktop', () =>
   connectClaudeDesktop(),
 )
@@ -1418,19 +1607,11 @@ ipcMain.handle('bladevault:save-backup-file', async (_event, defaultName) => {
     throw new Error('BladeVault local server is not ready.')
   }
 
-  const unlockCookies = await mainWindow.webContents.session.cookies.get({
-    url: serverOrigin,
-    name: 'bladevault_unlock',
-  })
   const response = await fetch(
     new URL('/api/local-backup/archive', serverOrigin),
     {
       cache: 'no-store',
-      headers: {
-        Cookie: unlockCookies
-          .map(({ name, value }) => `${name}=${value}`)
-          .join('; '),
-      },
+      headers: { Cookie: await getAppUnlockCookieHeader(mainWindow) },
     },
   )
   if (!response.ok || !response.body) {
@@ -1487,11 +1668,23 @@ ipcMain.handle(
     return getErrorReportingStatus()
   },
 )
+ipcMain.handle('bladevault:get-background-mode', () => backgroundModeEnabled)
+ipcMain.handle('bladevault:set-background-mode', (_event, enabled) => {
+  if (typeof enabled !== 'boolean') {
+    throw new Error('Background mode choice must be true or false.')
+  }
+  if (!SMOKE_TEST_MODE) {
+    backgroundMode.writeBackgroundMode(app.getPath('userData'), enabled)
+  }
+  backgroundModeEnabled = enabled
+  syncTray()
+  return backgroundModeEnabled
+})
 ipcMain.handle('bladevault:restart-app', () => {
   app.relaunch()
   app.quit()
 })
-async function createMainWindow() {
+async function createMainWindow(pathname) {
   let startUrl = DEV_SERVER_URL
   if (isUsingEmbeddedServer()) {
     startUrl =
@@ -1525,6 +1718,15 @@ async function createMainWindow() {
 
   wireMainWindowSecurity(mainWindow)
   mainWindow.on('closed', closeScrapeBrowser)
+  const window = mainWindow
+  window.on('close', (event) => {
+    if (!keepsRunningInBackground()) {
+      return
+    }
+    event.preventDefault()
+    closeScrapeBrowser()
+    window.hide()
+  })
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
@@ -1544,7 +1746,9 @@ async function createMainWindow() {
     })
   }
 
-  await mainWindow.loadURL(startUrl)
+  await mainWindow.loadURL(
+    pathname ? new URL(pathname, startUrl).toString() : startUrl,
+  )
 }
 
 app.on('before-quit', () => {
@@ -1557,7 +1761,7 @@ app.on('browser-window-created', (_event, window) => {
 })
 
 app.on('window-all-closed', () => {
-  if (isInstallingUpdate) {
+  if (isInstallingUpdate || keepsRunningInBackground()) {
     return
   }
 
@@ -1566,10 +1770,18 @@ app.on('window-all-closed', () => {
   }
 })
 
+app.on('second-instance', () => {
+  void showMainWindow().catch((error) => showStartupError(error))
+})
+
 app.on('activate', async () => {
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+    mainWindow.show()
+    return
+  }
   if (BrowserWindow.getAllWindows().length === 0) {
     try {
-      await createMainWindow()
+      await ensureMainWindow()
     } catch (error) {
       showStartupError(error)
     }
@@ -1588,9 +1800,15 @@ app
       smokeTestMode: SMOKE_TEST_MODE,
     })
 
+    if (isSecondInstance) {
+      return
+    }
+
     if (await askForErrorReportingConsent()) {
       return
     }
+
+    syncTray()
 
     const runInitialUpdateFlow = () => {
       if (SKIP_UPDATE_CHECK) {
@@ -1617,7 +1835,7 @@ app
     runInitialUpdateFlow()
 
     try {
-      await createMainWindow()
+      await ensureMainWindow()
     } catch (error) {
       showStartupError(error)
     }

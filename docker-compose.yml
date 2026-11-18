@@ -24,6 +24,12 @@ services:
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
       # Set to "off" to never send reports and hide the in-app question.
       BLADEVAULT_ERROR_REPORTING: ${BLADEVAULT_ERROR_REPORTING:-}
+      # Time zone for price-check hours, e.g. Europe/Berlin (default UTC).
+      TZ: ${TZ:-UTC}
+      # Set to "off" to stop background price checks; Check now still works.
+      BLADEVAULT_PRICE_MONITOR: ${BLADEVAULT_PRICE_MONITOR:-}
+      # Optional API key for price-monitoring AI; overrides the saved key.
+      BLADEVAULT_PRICE_AI_API_KEY: ${BLADEVAULT_PRICE_AI_API_KEY:-}
 
 volumes:
   bladevault-data:

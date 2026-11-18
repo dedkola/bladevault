@@ -1091,7 +1091,14 @@ html[data-theme-style='alloy'] [data-compare-image] img {
     justify-content: space-between;
     gap: 6px;
     width: 100%;
+    min-width: 0;
     height: 45px;
+    /* Scroll the links instead of widening the page when they do not fit. */
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  [data-alloy-nav]::-webkit-scrollbar {
+    display: none;
   }
   [data-alloy-nav] a {
     font-size: 11px;

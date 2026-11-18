@@ -47,6 +47,7 @@ test('shows maintenance and logs last in the primary sidebar navigation', async 
     'Collection',
     'Studio',
     'Compare',
+    'Price Drops',
     'Maintenance',
     'History',
   ])

@@ -102,6 +102,12 @@ The default data folder is `~/BladeVault/data` on macOS and Linux, and `%USERPRO
 
 The desktop runtime serves MCP on `http://127.0.0.1:5501/mcp`; if port `5501` is busy, BladeVault uses a free local port and **Copy config** includes the active URL. See [MCP](../reference/mcp.md).
 
+## Keep checking prices in the background
+
+[Price Drops](../guides/price-drops.md) checks store prices while BladeVault is running. To keep checking after you close the window, turn on **Settings → Price monitoring → Desktop app → Keep running in the background**. Closing the window then leaves BladeVault in the macOS menu bar or the Windows and Linux system tray. Its menu offers **Open BladeVault**, **Check prices now**, and **Quit**. Select **Quit** to stop BladeVault completely.
+
+Some Linux desktops hide tray icons unless an AppIndicator extension is installed. If you cannot see the icon, leave the setting off and quit normally.
+
 ## What's new after an update
 
 The first time you open BladeVault after an update, it shows a short list of new features and fixes in that version. Select **See All Changes** to open the full release notes on GitHub. A fresh install skips the list, and each version shows it only once.

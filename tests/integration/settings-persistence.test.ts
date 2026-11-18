@@ -12,6 +12,101 @@ afterEach(async () => {
 })
 
 describe('settings persistence', () => {
+  it('stores price monitoring settings and keeps them across unrelated saves', async () => {
+    vault = await createTempVault('bladevault-settings-')
+
+    expect(getSettings().priceMonitoring).toMatchObject({
+      enabled: true,
+      schedule: { mode: 'daily' },
+    })
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        enabled: false,
+        schedule: { mode: 'custom', intervalHours: 6, activeHours: [22, 6] },
+        pacing: {
+          maxParallelStores: 2,
+          minGapSeconds: 90,
+          amazonMinGapSeconds: 600,
+        },
+        notify: {
+          drop: true,
+          increase: true,
+          outOfStock: true,
+          backInStock: false,
+        },
+        thresholds: { minPercent: 2.5, minAbsolute: 15 },
+        ai: {
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          model: 'llama3.2',
+          headers: { 'x-opencode-session': 'bladevault' },
+          extractionFallback: false,
+          advisor: true,
+        },
+      },
+    })
+    saveSettings({ startPage: 'studio' })
+    closeLocalDb()
+    expect(getSettings().priceMonitoring).toEqual({
+      enabled: false,
+      skipSoldKnives: true,
+      schedule: { mode: 'custom', intervalHours: 6, activeHours: [22, 6] },
+      pacing: {
+        maxParallelStores: 2,
+        minGapSeconds: 90,
+        amazonMinGapSeconds: 600,
+      },
+      notify: {
+        drop: true,
+        increase: true,
+        outOfStock: true,
+        backInStock: false,
+      },
+      thresholds: { minPercent: 2.5, minAbsolute: 15 },
+      ai: {
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        model: 'llama3.2',
+        headers: { 'x-opencode-session': 'bladevault' },
+        extractionFallback: false,
+        advisor: true,
+      },
+    })
+    // The AI key is never part of the settings table.
+    expect(
+      JSON.stringify(
+        getLocalDb()
+          .prepare('SELECT value FROM settings WHERE key = ?')
+          .get('price_monitoring'),
+      ),
+    ).not.toMatch(/apiKey|api_key/i)
+
+    // Settings saved before notifications existed get the defaults.
+    getLocalDb()
+      .prepare('UPDATE settings SET value = ? WHERE key = ?')
+      .run(
+        JSON.stringify({ enabled: false, skipSoldKnives: false }),
+        'price_monitoring',
+      )
+    expect(getSettings().priceMonitoring).toMatchObject({
+      enabled: false,
+      skipSoldKnives: false,
+      notify: {
+        drop: true,
+        increase: false,
+        outOfStock: false,
+        backInStock: true,
+      },
+      thresholds: { minPercent: 5, minAbsolute: 0 },
+    })
+
+    getLocalDb()
+      .prepare("UPDATE settings SET value = '{broken' WHERE key = ?")
+      .run('price_monitoring')
+    expect(getSettings().priceMonitoring.enabled).toBe(true)
+  })
+
   it('opens Insights for an existing vault without a start-page setting', async () => {
     vault = await createTempVault('bladevault-settings-')
 

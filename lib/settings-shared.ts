@@ -429,6 +429,394 @@ export function normalizeCareDeferrals(value: unknown): CareDeferrals {
   return deferrals
 }
 
+export const PRICE_SCHEDULE_MODES = [
+  'daily',
+  'twice_daily',
+  'every_12h',
+  'custom',
+] as const
+export type PriceScheduleMode = (typeof PRICE_SCHEDULE_MODES)[number]
+
+/** [startHour, endHour) in server local time; start > end wraps midnight. */
+export type ActiveHours = [number, number]
+
+export type PriceMonitoringSettings = {
+  /** Scheduled checks; Check now works either way. */
+  enabled: boolean
+  /** Auto mode skips sold knives; Always monitor still covers them. */
+  skipSoldKnives: boolean
+  /** Target frequency per source; the queue spreads checks across it. */
+  schedule: {
+    mode: PriceScheduleMode
+    /** Custom mode only, 1–168. */
+    intervalHours: number
+    /** Null: around the clock (Twice daily defaults to 8–22). */
+    activeHours: ActiveHours | null
+  }
+  pacing: {
+    /** Stores checked at the same time, 1–5. Never two at one store. */
+    maxParallelStores: number
+    /** Floor between two checks at one store; raised automatically. */
+    minGapSeconds: number
+    amazonMinGapSeconds: number
+  }
+  /** Which detected changes create an Inbox notification. */
+  notify: PriceNotifyCategories
+  /**
+   * Price changes notify when either enabled threshold is met. A threshold
+   * of 0 is off; with both off, every price change notifies. Stock changes
+   * ignore the thresholds.
+   */
+  thresholds: {
+    /** Percent of the previous price, 0–100. */
+    minPercent: number
+    /** Major units of the source's currency, e.g. 5 = 5.00 USD. */
+    minAbsolute: number
+  }
+  /** Optional OpenAI-compatible AI; monitoring works without it. */
+  ai: PriceAiSettings
+}
+
+/**
+ * The API key is not part of these settings: it lives in a private file in
+ * the vault's control folder (never in backups), see price-monitor/secrets.
+ */
+export type PriceAiSettings = {
+  enabled: boolean
+  /** OpenAI-compatible base URL, e.g. https://api.openai.com/v1 or a local Ollama. */
+  baseUrl: string
+  /** Model id from Discover models, or typed. */
+  model: string
+  /**
+   * Extra HTTP headers sent with every AI request, for gateways that route
+   * by header (e.g. OpenCode Go's `x-opencode-session`). Not a secret store:
+   * put keys in the API key field.
+   */
+  headers: Record<string, string>
+  /** Read the price with AI when the page parsers find none. */
+  extractionFallback: boolean
+  /** Let AI review store pacing (statistics and store host names only). */
+  advisor: boolean
+}
+
+export type PriceNotifyCategories = {
+  drop: boolean
+  increase: boolean
+  outOfStock: boolean
+  backInStock: boolean
+}
+
+export const PRICE_MONITORING_LIMITS = {
+  intervalHours: [1, 168],
+  maxParallelStores: [1, 5],
+  minGapSeconds: [30, 3600],
+  amazonMinGapSeconds: [60, 21_600],
+  minPercent: [0, 100],
+  minAbsolute: [0, 1_000_000],
+} as const
+
+export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
+  enabled: true,
+  skipSoldKnives: true,
+  schedule: { mode: 'daily', intervalHours: 24, activeHours: null },
+  pacing: { maxParallelStores: 3, minGapSeconds: 60, amazonMinGapSeconds: 300 },
+  notify: { drop: true, increase: false, outOfStock: false, backInStock: true },
+  thresholds: { minPercent: 5, minAbsolute: 0 },
+  ai: {
+    enabled: false,
+    baseUrl: '',
+    model: '',
+    headers: {},
+    extractionFallback: true,
+    advisor: true,
+  },
+}
+
+export const PRICE_AI_LIMITS = {
+  baseUrlLength: 500,
+  modelLength: 200,
+  headerCount: 20,
+  headerNameLength: 100,
+  headerValueLength: 1000,
+} as const
+
+/**
+ * Headers BladeVault sets itself or that HTTP manages; custom headers may not
+ * replace them (the key belongs in the API key field).
+ */
+const RESERVED_AI_HEADERS = new Set([
+  'authorization',
+  'proxy-authorization',
+  'host',
+  'content-length',
+  'content-type',
+  'connection',
+  'transfer-encoding',
+  'cookie',
+])
+
+/**
+ * Custom AI request headers from a JSON object of string values. Returns
+ * the cleaned headers, or an error message for the settings field.
+ */
+export function parseAiHeaders(
+  value: unknown,
+):
+  { ok: true; headers: Record<string, string> } | { ok: false; error: string } {
+  let record: unknown = value
+  if (typeof value === 'string') {
+    if (!value.trim()) return { ok: true, headers: {} }
+    try {
+      record = JSON.parse(value)
+    } catch {
+      return {
+        ok: false,
+        error: 'Enter a JSON object, e.g. {"X-Org": "acme"}.',
+      }
+    }
+  }
+  if (!record || typeof record !== 'object' || Array.isArray(record))
+    return { ok: false, error: 'Enter a JSON object, e.g. {"X-Org": "acme"}.' }
+  const entries = Object.entries(record as Record<string, unknown>)
+  if (entries.length > PRICE_AI_LIMITS.headerCount)
+    return {
+      ok: false,
+      error: `Use at most ${PRICE_AI_LIMITS.headerCount} headers.`,
+    }
+  const headers: Record<string, string> = {}
+  const seen = new Set<string>()
+  for (const [rawName, rawValue] of entries) {
+    const name = rawName.trim()
+    if (
+      !name ||
+      name.length > PRICE_AI_LIMITS.headerNameLength ||
+      !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name)
+    )
+      return { ok: false, error: `"${rawName}" is not a valid header name.` }
+    const lower = name.toLowerCase()
+    if (RESERVED_AI_HEADERS.has(lower))
+      return {
+        ok: false,
+        error:
+          lower === 'authorization'
+            ? 'Put the key in the API key field instead of an Authorization header.'
+            : `BladeVault sets ${name} itself.`,
+      }
+    if (seen.has(lower))
+      return { ok: false, error: `${name} appears more than once.` }
+    seen.add(lower)
+    if (typeof rawValue !== 'string')
+      return { ok: false, error: `The value of ${name} must be a string.` }
+    const text = rawValue.trim()
+    if (
+      text.length > PRICE_AI_LIMITS.headerValueLength ||
+      /[\u0000-\u001f\u007f]/.test(text) ||
+      // fetch only sends Latin-1 header values.
+      /[^\u0000-\u00ff]/.test(text)
+    )
+      return { ok: false, error: `The value of ${name} is not allowed.` }
+    headers[name] = text
+  }
+  return { ok: true, headers }
+}
+
+/** Headers as shown in the settings field: compact JSON, empty when none. */
+export function formatAiHeaders(headers: Record<string, string>): string {
+  return Object.keys(headers).length ? JSON.stringify(headers) : ''
+}
+
+/**
+ * An http(s) base URL without credentials, query or fragment, and without a
+ * trailing slash; null when it is not usable. Local addresses are allowed on
+ * purpose (Ollama, LM Studio).
+ */
+export function normalizeAiBaseUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.length > PRICE_AI_LIMITS.baseUrlLength) return null
+  let url: URL
+  try {
+    url = new URL(trimmed)
+  } catch {
+    return null
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+  if (url.username || url.password || url.search || url.hash) return null
+  return url.toString().replace(/\/+$/, '')
+}
+
+/** A model id: printable, without spaces at either end. */
+export function normalizeAiModel(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (trimmed.length > PRICE_AI_LIMITS.modelLength) return null
+  if (/[\u0000-\u001f\u007f]/.test(trimmed)) return null
+  return trimmed
+}
+
+function headersOrFallback(
+  value: unknown,
+  fallback: Record<string, string>,
+): Record<string, string> {
+  if (value === undefined) return { ...fallback }
+  const parsed = parseAiHeaders(value)
+  return parsed.ok ? parsed.headers : { ...fallback }
+}
+
+function normalizePriceAi(
+  value: unknown,
+  fallback: PriceAiSettings,
+): PriceAiSettings {
+  const record = plainObject(value)
+  const flag = (key: 'enabled' | 'extractionFallback' | 'advisor') =>
+    typeof record[key] === 'boolean' ? (record[key] as boolean) : fallback[key]
+  let baseUrl = fallback.baseUrl
+  if (typeof record.baseUrl === 'string')
+    baseUrl = record.baseUrl.trim()
+      ? (normalizeAiBaseUrl(record.baseUrl) ?? fallback.baseUrl)
+      : ''
+  return {
+    enabled: flag('enabled'),
+    baseUrl,
+    model: normalizeAiModel(record.model) ?? fallback.model,
+    headers: headersOrFallback(record.headers, fallback.headers),
+    extractionFallback: flag('extractionFallback'),
+    advisor: flag('advisor'),
+  }
+}
+
+const PRICE_NOTIFY_KEYS = [
+  'drop',
+  'increase',
+  'outOfStock',
+  'backInStock',
+] as const satisfies readonly (keyof PriceNotifyCategories)[]
+
+function boundedInteger(
+  value: unknown,
+  [min, max]: readonly [number, number],
+  fallback: number,
+): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(max, Math.max(min, Math.round(value)))
+    : fallback
+}
+
+/** Clamps to the range and rounds to `decimals` places. */
+function boundedDecimal(
+  value: unknown,
+  [min, max]: readonly [number, number],
+  decimals: number,
+  fallback: number,
+): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  const factor = 10 ** decimals
+  return Math.min(max, Math.max(min, Math.round(value * factor) / factor))
+}
+
+function plainObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function normalizeActiveHours(
+  value: unknown,
+  fallback: ActiveHours | null,
+): ActiveHours | null {
+  if (value === null) return null
+  if (!Array.isArray(value) || value.length !== 2) return fallback
+  const [start, end] = value
+  if (
+    !Number.isInteger(start) ||
+    !Number.isInteger(end) ||
+    start < 0 ||
+    start > 23 ||
+    end < 0 ||
+    end > 24 ||
+    start === end % 24
+  )
+    return fallback
+  return [start, end]
+}
+
+export function normalizePriceMonitoring(
+  value: unknown,
+  fallback: PriceMonitoringSettings = DEFAULT_PRICE_MONITORING,
+): PriceMonitoringSettings {
+  const record = plainObject(value)
+  const schedule = plainObject(record.schedule)
+  const pacing = plainObject(record.pacing)
+  const notify = plainObject(record.notify)
+  const thresholds = plainObject(record.thresholds)
+  const mode = (PRICE_SCHEDULE_MODES as readonly unknown[]).includes(
+    schedule.mode,
+  )
+    ? (schedule.mode as PriceScheduleMode)
+    : fallback.schedule.mode
+  return {
+    enabled:
+      typeof record.enabled === 'boolean' ? record.enabled : fallback.enabled,
+    skipSoldKnives:
+      typeof record.skipSoldKnives === 'boolean'
+        ? record.skipSoldKnives
+        : fallback.skipSoldKnives,
+    schedule: {
+      mode,
+      intervalHours: boundedInteger(
+        schedule.intervalHours,
+        PRICE_MONITORING_LIMITS.intervalHours,
+        fallback.schedule.intervalHours,
+      ),
+      activeHours:
+        'activeHours' in schedule
+          ? normalizeActiveHours(
+              schedule.activeHours,
+              fallback.schedule.activeHours,
+            )
+          : fallback.schedule.activeHours,
+    },
+    pacing: {
+      maxParallelStores: boundedInteger(
+        pacing.maxParallelStores,
+        PRICE_MONITORING_LIMITS.maxParallelStores,
+        fallback.pacing.maxParallelStores,
+      ),
+      minGapSeconds: boundedInteger(
+        pacing.minGapSeconds,
+        PRICE_MONITORING_LIMITS.minGapSeconds,
+        fallback.pacing.minGapSeconds,
+      ),
+      amazonMinGapSeconds: boundedInteger(
+        pacing.amazonMinGapSeconds,
+        PRICE_MONITORING_LIMITS.amazonMinGapSeconds,
+        fallback.pacing.amazonMinGapSeconds,
+      ),
+    },
+    notify: Object.fromEntries(
+      PRICE_NOTIFY_KEYS.map((key) => [
+        key,
+        typeof notify[key] === 'boolean' ? notify[key] : fallback.notify[key],
+      ]),
+    ) as PriceNotifyCategories,
+    thresholds: {
+      minPercent: boundedDecimal(
+        thresholds.minPercent,
+        PRICE_MONITORING_LIMITS.minPercent,
+        1,
+        fallback.thresholds.minPercent,
+      ),
+      minAbsolute: boundedDecimal(
+        thresholds.minAbsolute,
+        PRICE_MONITORING_LIMITS.minAbsolute,
+        2,
+        fallback.thresholds.minAbsolute,
+      ),
+    },
+    ai: normalizePriceAi(record.ai, fallback.ai),
+  }
+}
+
 export type AppSettings = {
   collectionDisplay: CollectionDisplay
   theme: AppTheme
@@ -446,6 +834,7 @@ export type AppSettings = {
   maintenanceReminders: MaintenanceReminderSettings
   careIntervalOverrides: CareIntervalOverrides
   careDeferrals: CareDeferrals
+  priceMonitoring: PriceMonitoringSettings
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -465,6 +854,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   maintenanceReminders: DEFAULT_MAINTENANCE_REMINDERS,
   careIntervalOverrides: {},
   careDeferrals: {},
+  priceMonitoring: DEFAULT_PRICE_MONITORING,
 }
 
 export function normalizeStartPage(
