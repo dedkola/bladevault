@@ -56,6 +56,7 @@ declare global {
       checkForUpdates: () => Promise<BladeVaultUpdateStatus>
       downloadUpdate: () => Promise<BladeVaultUpdateStatus>
       installUpdate: () => Promise<BladeVaultUpdateStatus>
+      reloadWindow?: () => Promise<void>
       // Keep running in the tray after the last window closes.
       getBackgroundMode?: () => Promise<boolean>
       setBackgroundMode?: (enabled: boolean) => Promise<boolean>

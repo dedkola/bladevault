@@ -688,14 +688,14 @@ html[data-theme-variant='ledger']
 html[data-theme-variant='ledger']
   [data-lumen-shell='ledger']
   [data-workspace-footer]
-  :is(button, [data-theme-cycle]):hover {
+  :is(button, [data-theme-cycle], [data-reload-data]):hover {
   color: var(--ledger-ink);
 }
 
 html[data-theme-variant='ledger']
   [data-lumen-shell='ledger']
   [data-workspace-footer]
-  [data-theme-cycle]:hover {
+  :is([data-theme-cycle], [data-reload-data]):hover {
   background: var(--ledger-hover);
 }
 

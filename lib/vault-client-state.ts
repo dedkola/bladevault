@@ -39,3 +39,6 @@ export function subscribeVaultClientState(listener: () => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
 }
+
+/** Fired after the open window reloads data written outside it (MCP, CLI). */
+export const VAULT_EXTERNAL_CHANGE_EVENT = 'bladevault-vault-external-change'

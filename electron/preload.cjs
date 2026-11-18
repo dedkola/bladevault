@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('bladevaultDesktop', {
   checkForUpdates: () => ipcRenderer.invoke('bladevault:check-for-updates'),
   downloadUpdate: () => ipcRenderer.invoke('bladevault:download-update'),
   installUpdate: () => ipcRenderer.invoke('bladevault:install-update'),
+  reloadWindow: () => ipcRenderer.invoke('bladevault:reload-window'),
   getBackgroundMode: () => ipcRenderer.invoke('bladevault:get-background-mode'),
   setBackgroundMode: (enabled) =>
     ipcRenderer.invoke('bladevault:set-background-mode', enabled === true),

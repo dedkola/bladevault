@@ -2444,7 +2444,7 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
 [data-workspace-footer] button:where(:not([data-footer-action])) svg {
   display: none;
 }
-[data-workspace-footer] [data-theme-cycle] {
+[data-workspace-footer] :is([data-theme-cycle], [data-reload-data]) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2456,15 +2456,18 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
     background-color 150ms,
     color 150ms;
 }
-[data-workspace-footer] [data-theme-cycle]:hover {
+[data-workspace-footer] :is([data-theme-cycle], [data-reload-data]):hover {
   background: var(--accent);
   color: var(--foreground);
 }
-[data-workspace-footer] [data-theme-cycle] svg {
+[data-workspace-footer] :is([data-theme-cycle], [data-reload-data]) svg {
   display: block;
   width: 15px;
   height: 15px;
   stroke-width: 1.6;
+}
+[data-workspace-footer] [data-reload-data]:disabled {
+  cursor: progress;
 }
 [data-workspace-footer] kbd {
   padding: 1px 4px;

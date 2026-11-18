@@ -59,7 +59,9 @@ import {
   getVaultClientState,
   INITIAL_VAULT_CLIENT_STATE,
   subscribeVaultClientState,
+  VAULT_EXTERNAL_CHANGE_EVENT,
 } from '@/lib/vault-client-state'
+import { MAINTENANCE_UPDATED_EVENT } from '@/lib/maintenance-due'
 
 type KnivesContextValue = {
   collectionDisplay: CollectionDisplay
@@ -103,6 +105,7 @@ type FeedbackTone = 'success' | 'error'
 const KnivesContext = createContext<KnivesContextValue | null>(null)
 const AUTO_BACKUP_DEBOUNCE_MS = 30_000
 const FEEDBACK_DURATION_MS = 3200
+const VAULT_CHANGE_CHECK_INTERVAL_MS = 5_000
 
 function toImageUrls(draft: KnifeDraft): string[] {
   return draft.images.filter(
@@ -622,6 +625,57 @@ export function KnivesProvider({
       Array.isArray(compareData.compareIds) ? compareData.compareIds : [],
     )
   }, [])
+
+  // MCP clients and the CLI write the vault without going through this
+  // window. Check a cheap change token while the window is visible and reload
+  // everything this window shows when it moves.
+  useEffect(() => {
+    let cancelled = false
+    let inFlight = false
+    let lastToken: string | null = null
+
+    const check = async () => {
+      if (cancelled || inFlight || document.visibilityState !== 'visible')
+        return
+      inFlight = true
+      try {
+        const response = await fetch('/api/vault/changes', {
+          cache: 'no-store',
+        })
+        if (!response.ok) return
+        const { token } = (await response.json()) as { token?: string }
+        if (cancelled || typeof token !== 'string') return
+        const previous = lastToken
+        lastToken = token
+        if (previous === null || previous === token) return
+        await refreshVault().catch(() => {
+          // The next change check or focus reload retries.
+        })
+        if (cancelled) return
+        window.dispatchEvent(new Event(MAINTENANCE_UPDATED_EVENT))
+        window.dispatchEvent(new Event(VAULT_EXTERNAL_CHANGE_EVENT))
+      } catch {
+        // Offline or the vault is switching; try again on the next check.
+      } finally {
+        inFlight = false
+      }
+    }
+
+    void check()
+    const timer = window.setInterval(
+      () => void check(),
+      VAULT_CHANGE_CHECK_INTERVAL_MS,
+    )
+    const onVisible = () => void check()
+    window.addEventListener('focus', onVisible)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      window.removeEventListener('focus', onVisible)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [refreshVault])
 
   useEffect(() => {
     if (!feedback) return
