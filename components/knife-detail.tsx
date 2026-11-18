@@ -18,9 +18,12 @@ import {
   FileText,
   ListPlus,
   ChevronDown,
+  TrendingDown,
   Wrench,
   type LucideIcon,
 } from 'lucide-react'
+import { KnifePricePanel } from '@/components/price-drops/knife-price-panel'
+import { hasServerRuntime } from '@/lib/runtime-capabilities'
 import { CompareIcon } from '@/components/icons/compare-icon'
 import { useKnives } from '@/components/providers/knives-provider'
 import { Knife, KnifeUpdates } from '@/lib/data'
@@ -225,7 +228,7 @@ export default function KnifeDetail({
 }: {
   knife: Knife
   initialEditing?: boolean
-  initialTab?: 'details' | 'maintenance'
+  initialTab?: 'details' | 'maintenance' | 'market'
 }) {
   const router = useRouter()
   const {
@@ -431,6 +434,7 @@ export default function KnifeDetail({
           isSaving={isSaving}
           saveError={error}
           screenshotKnife={knife}
+          priceWatchKnifeId={knife.id}
           onScreenshotCaptured={(updatedKnife) => {
             setDetailKnife(updatedKnife)
             scheduleVaultBackup()
@@ -685,7 +689,23 @@ export default function KnifeDetail({
                 />
               ) : null}
             </TabsTrigger>
+            {hasServerRuntime() ? (
+              <TabsTrigger value="market">
+                <TrendingDown aria-hidden="true" />
+                Market
+              </TabsTrigger>
+            ) : null}
           </TabsList>
+
+          {hasServerRuntime() ? (
+            <TabsContent value="market">
+              <Card size="sm" className="border border-border/65 ring-0">
+                <CardContent>
+                  <KnifePricePanel knifeId={knife.id} variant="tab" />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          ) : null}
 
           <TabsContent value="maintenance" keepMounted>
             <MaintenanceSection knifeId={knife.id} />

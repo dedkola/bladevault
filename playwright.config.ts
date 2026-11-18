@@ -24,6 +24,8 @@ export default defineConfig({
     command: 'node scripts/start-test-server.cjs',
     env: {
       BLADEVAULT_TEST_PORT: String(port),
+      // Browser tests must never fetch store pages in the background.
+      BLADEVAULT_PRICE_MONITOR: 'off',
     },
     gracefulShutdown: {
       signal: 'SIGTERM',

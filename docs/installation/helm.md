@@ -56,6 +56,33 @@ helm install bladevault bladevault/bladevault \
 
 The official image asks once in the app whether to send crash reports and anonymous usage data. To turn this off for good, add `BLADEVAULT_ERROR_REPORTING` with the value `off` to the chart's `env` list. See [Error reporting](../reference/error-reporting.md).
 
+## Price monitoring
+
+[Price Drops](../guides/price-drops.md) runs inside the BladeVault pod. Keep `replicaCount` at 1: the vault is a single SQLite database, and a second pod's price checks would stay idle anyway. To set the time zone used for checking hours, turn off background checks, or provide the optional AI key from a Secret, add entries to the chart's `env` list:
+
+```yaml
+env:
+  - name: TZ
+    value: Europe/Berlin
+  # - name: BLADEVAULT_PRICE_MONITOR
+  #   value: 'off'
+  - name: BLADEVAULT_PRICE_AI_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: bladevault-price-ai
+        key: api-key
+```
+
+Create the Secret before installing or upgrading with the AI key entry:
+
+```bash
+kubectl create secret generic bladevault-price-ai \
+  --namespace bladevault \
+  --from-literal=api-key='<your API key>'
+```
+
+Leave out the `BLADEVAULT_PRICE_AI_API_KEY` entry if you don't use AI assistance or prefer to save the key in **Settings**.
+
 ## Update BladeVault
 
 Each BladeVault release publishes a matching Helm chart and immutable container image. After the GitHub **Build & Push Docker Image** and **Publish Helm Repository** workflows complete, refresh the repository and upgrade the release:

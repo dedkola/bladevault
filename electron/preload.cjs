@@ -9,6 +9,9 @@ contextBridge.exposeInMainWorld('bladevaultDesktop', {
   downloadUpdate: () => ipcRenderer.invoke('bladevault:download-update'),
   installUpdate: () => ipcRenderer.invoke('bladevault:install-update'),
   reloadWindow: () => ipcRenderer.invoke('bladevault:reload-window'),
+  getBackgroundMode: () => ipcRenderer.invoke('bladevault:get-background-mode'),
+  setBackgroundMode: (enabled) =>
+    ipcRenderer.invoke('bladevault:set-background-mode', enabled === true),
   claudeDesktop: {
     connect: () => ipcRenderer.invoke('bladevault:connect-claude-desktop'),
   },

@@ -30,12 +30,14 @@ import { readJsonResponse } from '@/lib/api-response'
 import { matchesCollection } from '@/lib/smart-collections'
 import { SETTINGS_UPDATED_EVENT, type AppSettings } from '@/lib/settings-shared'
 import { CareInboxBell } from '@/components/care-inbox'
+import { hasServerRuntime } from '@/lib/runtime-capabilities'
 
 const links = [
   { href: '/collection', label: 'Collection' },
   { href: '/studio', label: 'Studio' },
   { href: '/insights', label: 'Insights' },
   { href: '/compare', label: 'Compare' },
+  { href: '/price-drops', label: 'Price Drops' },
   { href: '/maintenance', label: 'Maintenance' },
   { href: '/logs', label: 'History' },
 ] as const
@@ -108,24 +110,26 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
           <span>Alloy</span>
         </Link>
         <nav aria-label="Main navigation" data-alloy-nav>
-          {links.map(({ href, label }) => {
-            const selected =
-              pathname === href || pathname.startsWith(href + '/')
-            return (
-              <Link
-                key={href}
-                href={href}
-                aria-current={selected ? 'page' : undefined}
-              >
-                {label}
-                {href === '/compare' && Boolean(active?.ids.length) && (
-                  <span data-alloy-nav-count aria-hidden="true">
-                    {active?.ids.length}
-                  </span>
-                )}
-              </Link>
-            )
-          })}
+          {links
+            .filter(({ href }) => href !== '/price-drops' || hasServerRuntime())
+            .map(({ href, label }) => {
+              const selected =
+                pathname === href || pathname.startsWith(href + '/')
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={selected ? 'page' : undefined}
+                >
+                  {label}
+                  {href === '/compare' && Boolean(active?.ids.length) && (
+                    <span data-alloy-nav-count aria-hidden="true">
+                      {active?.ids.length}
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
         </nav>
         <div data-alloy-utilities>
           {showHeaderSearch && (

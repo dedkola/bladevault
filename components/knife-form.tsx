@@ -43,6 +43,7 @@ import { cn } from '@/lib/utils'
 import { useUnsavedChanges } from '@/hooks/use-unsaved-changes'
 import { useKnives } from '@/components/providers/knives-provider'
 import { DimensionInput } from '@/components/dimension-input'
+import { PriceWatchEditor } from '@/components/price-drops/price-watch-editor'
 
 export type KnifeFormData = {
   brand: string
@@ -214,6 +215,8 @@ type KnifeFormFieldsProps = {
   imageActions?: React.ReactNode
   wideLayout?: boolean
   showSold?: boolean
+  /** Edit-mode sections rendered after Ownership, e.g. price monitoring. */
+  extraSections?: React.ReactNode
 }
 
 function inputTypeForCustomField(type: CustomFieldType): string {
@@ -276,6 +279,7 @@ export function KnifeFormFields({
   imageActions,
   wideLayout = false,
   showSold = false,
+  extraSections,
 }: KnifeFormFieldsProps) {
   const { dimensionUnit } = useKnives()
   const imageInputRef = useRef<HTMLInputElement>(null)
@@ -440,6 +444,8 @@ export function KnifeFormFields({
           </label>
         </FormSection>
       )}
+
+      {extraSections}
 
       {customFieldDefinitions.length > 0 && (
         <FormSection
@@ -779,6 +785,8 @@ type KnifeScrapeEditorProps = {
   actions?: React.ReactNode
   screenshotKnife?: Knife
   onScreenshotCaptured?: (knife: Knife) => void
+  /** Shows the price monitoring section for this saved knife (edit mode). */
+  priceWatchKnifeId?: string
 }
 
 function getKnifeFormSnapshot(
@@ -805,7 +813,9 @@ export function KnifeScrapeEditor({
   actions,
   screenshotKnife,
   onScreenshotCaptured,
+  priceWatchKnifeId,
 }: KnifeScrapeEditorProps) {
+  const [priceWatchAvailable, setPriceWatchAvailable] = useState(true)
   const editorId = useId()
   const previewToggleRef = useRef<HTMLButtonElement>(null)
   const scrapeRequestRef = useRef<AbortController | null>(null)
@@ -1332,6 +1342,20 @@ export function KnifeScrapeEditor({
                     knife={screenshotKnife}
                     onCaptured={handleScreenshotCaptured}
                   />
+                ) : undefined
+              }
+              extraSections={
+                mode === 'edit' && priceWatchKnifeId && priceWatchAvailable ? (
+                  <FormSection
+                    title="Price monitoring"
+                    description="Watch store prices for this knife. Changes in this section save right away."
+                    className={!isPreviewVisible ? 'xl:col-span-2' : undefined}
+                  >
+                    <PriceWatchEditor
+                      knifeId={priceWatchKnifeId}
+                      onUnavailable={() => setPriceWatchAvailable(false)}
+                    />
+                  </FormSection>
                 ) : undefined
               }
             />

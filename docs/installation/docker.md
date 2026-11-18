@@ -59,6 +59,18 @@ If you already have a checkout, run the Compose command from its root directory.
 
 The first time you open BladeVault, it asks whether to send crash reports and anonymous usage data. Nothing is sent unless someone agrees. To turn this off for good, set `BLADEVAULT_ERROR_REPORTING=off`. See [Error reporting](../reference/error-reporting.md).
 
+## Price monitoring
+
+[Price Drops](../guides/price-drops.md) checks store prices in the background inside the same container; there is no extra process or service. These environment variables adjust it:
+
+| Variable                      | Effect                                                                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `TZ`                          | The time zone for **Only check between** hours, for example `Europe/Berlin`. Without it, the container uses UTC.               |
+| `BLADEVAULT_PRICE_MONITOR`    | Set to `off` to stop all background price checks. **Check now** in the app still works.                                        |
+| `BLADEVAULT_PRICE_AI_API_KEY` | The API key for the optional AI assistance. It overrides a key saved in Settings and is never written to the vault or backups. |
+
+Add them with `-e`, for example `-e TZ=Europe/Berlin`, or set them in the shell before `docker compose up`; the Compose file passes them through. When a store shows a bot check, the image retries once in a visible browser on its built-in virtual display.
+
 ## Build the image yourself
 
 ```bash

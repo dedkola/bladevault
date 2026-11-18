@@ -1,6 +1,6 @@
 import { getLocalDb } from '@/lib/local-db'
 import { tryCaptureWebpageScreenshot } from '@/lib/webpage-screenshot-capture'
-import { chromium } from 'playwright'
+import { chromium, type BrowserContextOptions } from 'playwright'
 import { installScrapeBrowserInitScript } from '@/lib/scrape-browser-context'
 import { createScrapeBrowserResources } from '@/lib/scrape-browser-resources'
 import {
@@ -17,7 +17,33 @@ export type RenderedPage = {
   finalUrl: string
   screenshot?: string
   screenshotWarning?: string
+  /** The main document as the server sent it, before scripts ran. */
+  serverHtml?: string
+  /** Cookies and storage after the page loaded, when requested. */
+  storageState?: BrowserStorageState
 }
+
+export type BrowserStorageState = Exclude<
+  BrowserContextOptions['storageState'],
+  string | undefined
+>
+
+export type RenderOptions = {
+  /** Capture the webpage screenshot (default true). Monitoring skips it. */
+  screenshot?: boolean
+  /** Also block images and fonts, not only media, to keep the load light. */
+  light?: boolean
+  /** Return the navigation response body as `serverHtml`. */
+  captureServerHtml?: boolean
+  /** Start from saved cookies and storage (price monitoring, per store). */
+  storageState?: BrowserStorageState
+  /** Return the context's cookies and storage after the page loaded. */
+  captureStorageState?: boolean
+  /** Launch with a window (default headless). Needs a display, e.g. Xvfb. */
+  headless?: boolean
+}
+
+const LIGHT_BLOCKED_RESOURCES = new Set(['media', 'image', 'font'])
 
 function userAgent(): string {
   return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
@@ -26,7 +52,11 @@ function userAgent(): string {
 export async function fetchRenderedHtml(
   url: string,
   parent?: ScrapeOperation,
+  options: RenderOptions = {},
 ): Promise<RenderedPage> {
+  const blockedResources = options.light
+    ? LIGHT_BLOCKED_RESOURCES
+    : new Set(['media'])
   // Leave part of the request's 60-second budget for HTTP fallback/enrichment.
   const operation = createScrapeOperation({
     signal: parent?.signal,
@@ -72,6 +102,7 @@ export async function fetchRenderedHtml(
           browser = await resources.acquireBrowser(() =>
             chromium.launch({
               ...launchOptions,
+              headless: options.headless ?? true,
               channel,
               timeout: Math.min(10_000, operation.remainingMs()),
             }),
@@ -96,6 +127,9 @@ export async function fetchRenderedHtml(
           timezoneId: 'America/New_York',
           serviceWorkers: 'block',
           extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
+          ...(options.storageState
+            ? { storageState: options.storageState }
+            : {}),
         }),
       )
       await installScrapeBrowserInitScript(context)
@@ -103,7 +137,7 @@ export async function fetchRenderedHtml(
       let navigationFailure: ScrapeError | undefined
       await page.route('**/*', async (route) => {
         try {
-          if (route.request().resourceType() === 'media') {
+          if (blockedResources.has(route.request().resourceType())) {
             await route.abort()
             return
           }
@@ -139,13 +173,26 @@ export async function fetchRenderedHtml(
         if (navigationFailure) throw navigationFailure
         throw error
       }
+      let serverHtml: string | undefined
+      if (options.captureServerHtml && response) {
+        serverHtml = await response.text().catch(() => undefined)
+      }
       const initialHtml = await page.content()
       if (isSecurityChallengePage(initialHtml))
         throw new ScrapeError('challenge')
       if (response && !response.ok()) {
-        throw new ScrapeError(
-          'http',
-          `The website returned HTTP ${response.status()}. Open the URL in your browser or try again later.`,
+        throw Object.assign(
+          new ScrapeError(
+            'http',
+            `The website returned HTTP ${response.status()}. Open the URL in your browser or try again later.`,
+          ),
+          // Price monitoring honors Retry-After when pacing a store.
+          {
+            retryAfter:
+              typeof response.headers === 'function'
+                ? (response.headers()['retry-after'] ?? null)
+                : null,
+          },
         )
       }
 
@@ -203,20 +250,27 @@ export async function fetchRenderedHtml(
           'The page returned an automation error; falling back to plain fetch.',
         )
       }
+      const storageState = options.captureStorageState
+        ? await context.storageState().catch(() => undefined)
+        : undefined
       if (getLocalDb() !== database) {
         return {
           html,
           finalUrl,
+          serverHtml,
           screenshotWarning:
             'The active vault changed during scraping. Please retry.',
         }
       }
+      if (options.screenshot === false)
+        return { html, finalUrl, serverHtml, storageState }
 
       const screenshotBudget = Math.min(25_000, operation.remainingMs() - 1000)
       if (screenshotBudget < 1000) {
         return {
           html,
           finalUrl,
+          serverHtml,
           screenshotWarning:
             'Product details were imported, but there was not enough time to capture the webpage screenshot. Retry the screenshot from the saved item.',
         }
@@ -231,13 +285,14 @@ export async function fetchRenderedHtml(
         )
         operation.remainingMs()
         // Screenshot scrolling can trigger overlays; retain the cleaned DOM.
-        return { html: await page.content(), finalUrl, ...capture }
+        return { html: await page.content(), finalUrl, serverHtml, ...capture }
       } catch (error) {
         operation.remainingMs()
         if (toScrapeError(error).code !== 'timeout') throw error
         return {
           html,
           finalUrl,
+          serverHtml,
           screenshotWarning:
             'Product details were imported, but the webpage screenshot took too long. Retry the screenshot from the saved item.',
         }

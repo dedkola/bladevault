@@ -2,7 +2,9 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { KnifePricePanel } from '@/components/price-drops/knife-price-panel'
 import { formatDimension, formatWeight } from '@/lib/measurements'
+import { hasServerRuntime } from '@/lib/runtime-capabilities'
 import { markdownToPlainText } from '@/lib/note-markdown'
 import { useVaultExternalChangeKey } from '@/lib/use-vault-external-change'
 import type { DimensionUnit } from '@/lib/settings-shared'
@@ -13,7 +15,8 @@ import {
   type MaintenanceEvent,
 } from '@/lib/data'
 
-type InspectorTab = 'overview' | 'specifications' | 'maintenance' | 'history'
+type InspectorTab =
+  'overview' | 'specifications' | 'maintenance' | 'history' | 'market'
 
 type MaintenanceState = {
   knifeId: string
@@ -269,9 +272,13 @@ export function InspectorTabs({
   dimensionUnit?: DimensionUnit
   maintenanceTab?: boolean
 }) {
-  const tabs: readonly InspectorTab[] = maintenanceTab
+  const baseTabs: InspectorTab[] = maintenanceTab
     ? ['overview', 'specifications', 'maintenance', 'history']
     : ['overview', 'specifications', 'history']
+  // Market needs the server (price monitoring); the static app has none.
+  const tabs: readonly InspectorTab[] = hasServerRuntime()
+    ? [...baseTabs, 'market']
+    : baseTabs
   const [tab, setTab] = useState<InspectorTab>('overview')
   const maintenance = useMaintenanceEvents(
     knife.id,
@@ -419,6 +426,11 @@ export function InspectorTabs({
                 <li role="status">No maintenance logged yet.</li>
               )}
           </ul>
+        )}
+        {tab === 'market' && (
+          <div data-inspector-market>
+            <KnifePricePanel knifeId={knife.id} variant="tab" />
+          </div>
         )}
         {tab === 'history' && (
           <HistoryList

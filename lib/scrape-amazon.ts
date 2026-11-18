@@ -1,4 +1,10 @@
 import * as cheerio from 'cheerio'
+import {
+  findCurrencyCodeInText,
+  normalizeCurrencyCode,
+  parseMoneyText,
+} from '@/lib/price-monitor/money'
+import type { ExtractedOffer, OfferAvailability } from '@/lib/scrape-offer'
 
 const clean = (value: string) =>
   value
@@ -137,6 +143,96 @@ function buyBoxPrice($: cheerio.CheerioAPI): string {
     if (/\d/.test(text)) return text
   }
   return ''
+}
+
+// Amazon shows prices in the marketplace currency by default; "$" alone is
+// ambiguous between amazon.com, .ca, .com.mx, .com.au and .sg.
+const MARKETPLACE_CURRENCIES: ReadonlyArray<[RegExp, string]> = [
+  [/\.amazon\.com$|^amazon\.com$/i, 'USD'],
+  [/\.ca$/i, 'CAD'],
+  [/\.com\.mx$/i, 'MXN'],
+  [/\.com\.br$/i, 'BRL'],
+  [/\.co\.uk$/i, 'GBP'],
+  [/\.(?:de|fr|it|es|nl|ie|com\.be)$/i, 'EUR'],
+  [/\.se$/i, 'SEK'],
+  [/\.pl$/i, 'PLN'],
+  [/\.co\.jp$/i, 'JPY'],
+  [/\.com\.au$/i, 'AUD'],
+  [/\.sg$/i, 'SGD'],
+  [/\.ae$/i, 'AED'],
+  [/\.sa$/i, 'SAR'],
+  [/\.in$/i, 'INR'],
+  [/\.com\.tr$/i, 'TRY'],
+]
+
+export function amazonMarketplaceCurrency(url: string): string {
+  try {
+    const host = new URL(url).hostname
+    return (
+      MARKETPLACE_CURRENCIES.find(([pattern]) => pattern.test(host))?.[1] ?? ''
+    )
+  } catch {
+    return ''
+  }
+}
+
+// Checked in order: "Only 3 left in stock" must not read as plain "in stock",
+// and "no disponible" / "indisponible" must not read as "disponible".
+const AVAILABILITY_PATTERNS: ReadonlyArray<[RegExp, OfferAvailability]> = [
+  [
+    /currently unavailable|temporarily out of stock|out of stock|derzeit nicht verfügbar|nicht (?:auf lager|verfügbar)|actuellement indisponible|rupture de stock|no disponible|non disponibile|在庫切れ/i,
+    'out_of_stock',
+  ],
+  [
+    /only \d+ left in stock|nur noch \d+|plus que \d+|solo (?:quedan|\d+)|只剩/i,
+    'limited',
+  ],
+  [/pre-?order|vorbestell|précommande|preventa|preordin|予約/i, 'preorder'],
+  [
+    /in stock|auf lager|en stock|disponible|disponibilità immediata|disponibile|usually ships|ships within|available to ship|在庫あり/i,
+    'in_stock',
+  ],
+]
+
+/** Stock status from the buy box (`#availability`, `#outOfStock`). */
+export function amazonAvailability($: cheerio.CheerioAPI): OfferAvailability {
+  if ($('#outOfStock').length) return 'out_of_stock'
+  const text = clean(
+    $('#availability').first().text() ||
+      $('#availability_feature_div').first().text(),
+  )
+  if (!text) return 'unknown'
+  return (
+    AVAILABILITY_PATTERNS.find(([pattern]) => pattern.test(text))?.[1] ??
+    'unknown'
+  )
+}
+
+/**
+ * Buy-box price and stock status of an Amazon product page. A currency code
+ * written in the price wins; otherwise the marketplace's currency; otherwise
+ * the symbol. Returns null when neither a price nor a stock status is shown.
+ */
+export function extractAmazonOffer(
+  $: cheerio.CheerioAPI,
+  url: string,
+): ExtractedOffer | null {
+  if (!isAmazonProductUrl(url) || !$('#productTitle').length) return null
+  const priceText = buyBoxPrice($)
+  const availability = amazonAvailability($)
+  const parsed = priceText
+    ? parseMoneyText(
+        priceText,
+        findCurrencyCodeInText(priceText) || amazonMarketplaceCurrency(url),
+      )
+    : null
+  if (!parsed && availability === 'unknown') return null
+  return {
+    amount: parsed?.amount ?? null,
+    currency: normalizeCurrencyCode(parsed?.currency),
+    availability,
+    method: 'amazon',
+  }
 }
 
 function titleSegment(title: string, word: RegExp): string {

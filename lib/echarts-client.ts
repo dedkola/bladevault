@@ -5,7 +5,12 @@ import {
   PieChart,
   ScatterChart,
 } from 'echarts/charts'
-import { GridComponent, TooltipComponent } from 'echarts/components'
+import {
+  GridComponent,
+  MarkAreaComponent,
+  MarkLineComponent,
+  TooltipComponent,
+} from 'echarts/components'
 import { LabelLayout } from 'echarts/features'
 import * as echarts from 'echarts/core'
 import { SVGRenderer } from 'echarts/renderers'
@@ -17,6 +22,8 @@ echarts.use([
   PieChart,
   ScatterChart,
   GridComponent,
+  MarkAreaComponent,
+  MarkLineComponent,
   TooltipComponent,
   LabelLayout,
   SVGRenderer,

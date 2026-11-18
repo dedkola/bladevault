@@ -21,7 +21,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 9
+export const LOCAL_DB_SCHEMA_VERSION = 10
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -706,7 +706,241 @@ function migrateSchema(database: Database.Database) {
     `)
   }
 
+  migratePriceMonitoringSchema(database, tables)
+
   normalizeKnifeRows(database)
+}
+
+/**
+ * Price monitoring (schema 10). History tables (snapshots, change and stock
+ * events, daily rollup) are permanent and only lose rows when their knife is
+ * deleted. Each table is created only when missing, so this is repeat-safe.
+ */
+function migratePriceMonitoringSchema(
+  database: Database.Database,
+  tables: Array<{ name: string }>,
+) {
+  const has = (name: string) => tables.some((t) => t.name === name)
+  const statements: Array<[string, string]> = [
+    [
+      'price_watch',
+      `CREATE TABLE price_watch (
+        knife_id TEXT PRIMARY KEY,
+        mode TEXT NOT NULL CHECK (mode IN ('auto', 'on', 'off')),
+        updated_at TEXT NOT NULL
+      );`,
+    ],
+    [
+      'price_sources',
+      `CREATE TABLE price_sources (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        knife_id TEXT NOT NULL,
+        url TEXT NOT NULL,
+        normalized_url TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        lane_key TEXT NOT NULL,
+        store_name TEXT NOT NULL,
+        origin TEXT NOT NULL CHECK (origin IN ('auto', 'manual')),
+        enabled INTEGER NOT NULL DEFAULT 1,
+        fetch_override TEXT NOT NULL DEFAULT 'auto',
+        status TEXT NOT NULL DEFAULT 'pending',
+        last_checked_at TEXT,
+        last_success_at TEXT,
+        last_price_minor INTEGER,
+        last_currency TEXT,
+        last_availability TEXT,
+        last_error_code TEXT,
+        last_error TEXT,
+        consecutive_failures INTEGER NOT NULL DEFAULT 0,
+        next_check_at TEXT,
+        last_ai_at TEXT,
+        priority INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        removed_at TEXT
+      );
+      CREATE INDEX price_sources_knife_idx ON price_sources (knife_id);
+      CREATE INDEX price_sources_due_idx
+        ON price_sources (lane_key, next_check_at) WHERE removed_at IS NULL;
+      CREATE UNIQUE INDEX price_sources_active_url
+        ON price_sources (knife_id, normalized_url) WHERE removed_at IS NULL;`,
+    ],
+    [
+      'price_snapshots',
+      `CREATE TABLE price_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        knife_id TEXT NOT NULL,
+        source_id INTEGER NOT NULL,
+        price_minor INTEGER,
+        currency TEXT,
+        availability TEXT NOT NULL,
+        extraction_status TEXT NOT NULL,
+        extraction_method TEXT NOT NULL,
+        observed_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        observations INTEGER NOT NULL DEFAULT 1,
+        check_log_id INTEGER
+      );
+      CREATE INDEX price_snapshots_source_time
+        ON price_snapshots (source_id, observed_at);
+      CREATE INDEX price_snapshots_knife_time
+        ON price_snapshots (knife_id, observed_at);`,
+    ],
+    [
+      'price_change_events',
+      `CREATE TABLE price_change_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        knife_id TEXT NOT NULL,
+        source_id INTEGER NOT NULL,
+        direction TEXT NOT NULL CHECK (direction IN ('drop', 'increase')),
+        previous_price_minor INTEGER NOT NULL,
+        price_minor INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        delta_minor INTEGER NOT NULL,
+        delta_pct REAL NOT NULL,
+        availability TEXT NOT NULL,
+        from_snapshot_id INTEGER NOT NULL,
+        to_snapshot_id INTEGER NOT NULL UNIQUE,
+        source_url TEXT NOT NULL,
+        store_name TEXT NOT NULL,
+        extraction_method TEXT NOT NULL,
+        occurred_at TEXT NOT NULL
+      );
+      CREATE INDEX price_change_events_time
+        ON price_change_events (occurred_at);
+      CREATE INDEX price_change_events_knife_time
+        ON price_change_events (knife_id, occurred_at);`,
+    ],
+    [
+      'stock_events',
+      `CREATE TABLE stock_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        knife_id TEXT NOT NULL,
+        source_id INTEGER NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('out_of_stock', 'back_in_stock')),
+        previous_availability TEXT NOT NULL,
+        availability TEXT NOT NULL,
+        price_minor INTEGER,
+        currency TEXT,
+        from_snapshot_id INTEGER NOT NULL,
+        to_snapshot_id INTEGER NOT NULL UNIQUE,
+        source_url TEXT NOT NULL,
+        store_name TEXT NOT NULL,
+        occurred_at TEXT NOT NULL
+      );
+      CREATE INDEX stock_events_time ON stock_events (occurred_at);
+      CREATE INDEX stock_events_knife_time
+        ON stock_events (knife_id, occurred_at);`,
+    ],
+    [
+      'price_notifications',
+      `CREATE TABLE price_notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        knife_id TEXT NOT NULL,
+        source_id INTEGER NOT NULL,
+        event_id INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        occurrences INTEGER NOT NULL DEFAULT 1,
+        occurred_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        read_at TEXT,
+        dismissed_at TEXT,
+        resolved_at TEXT
+      );
+      CREATE INDEX price_notifications_knife_idx
+        ON price_notifications (knife_id);
+      CREATE UNIQUE INDEX price_notifications_open
+        ON price_notifications (source_id, kind)
+        WHERE resolved_at IS NULL AND dismissed_at IS NULL;`,
+    ],
+    [
+      'price_worker_lease',
+      `CREATE TABLE price_worker_lease (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        owner TEXT NOT NULL,
+        heartbeat_at TEXT NOT NULL
+      );`,
+    ],
+    [
+      'price_host_state',
+      `CREATE TABLE price_host_state (
+        lane_key TEXT PRIMARY KEY,
+        min_gap_ms INTEGER NOT NULL,
+        ready_at TEXT NOT NULL,
+        circuit TEXT NOT NULL DEFAULT 'closed',
+        cooldown_until TEXT,
+        open_count INTEGER NOT NULL DEFAULT 0,
+        success_streak INTEGER NOT NULL DEFAULT 0,
+        failure_streak INTEGER NOT NULL DEFAULT 0,
+        http_match_streak INTEGER NOT NULL DEFAULT 0,
+        strategy TEXT NOT NULL DEFAULT 'auto',
+        strategy_until TEXT,
+        quiet_hours TEXT,
+        advice_id INTEGER,
+        advice_expires_at TEXT,
+        last_request_at TEXT,
+        last_outcome TEXT,
+        updated_at TEXT NOT NULL
+      );`,
+    ],
+    [
+      'price_monitor_daily',
+      `CREATE TABLE price_monitor_daily (
+        day TEXT NOT NULL,
+        lane_key TEXT NOT NULL,
+        checks INTEGER NOT NULL DEFAULT 0,
+        ok INTEGER NOT NULL DEFAULT 0,
+        no_price INTEGER NOT NULL DEFAULT 0,
+        failed INTEGER NOT NULL DEFAULT 0,
+        blocked INTEGER NOT NULL DEFAULT 0,
+        ai_used INTEGER NOT NULL DEFAULT 0,
+        total_ms INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (day, lane_key)
+      );`,
+    ],
+    [
+      'price_regulator_advice',
+      `CREATE TABLE price_regulator_advice (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT NOT NULL,
+        trigger TEXT NOT NULL,
+        model TEXT NOT NULL,
+        input TEXT NOT NULL,
+        output TEXT,
+        applied TEXT,
+        expires_at TEXT,
+        error TEXT
+      );`,
+    ],
+    [
+      'price_check_log',
+      `CREATE TABLE price_check_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lane_key TEXT NOT NULL,
+        trigger TEXT NOT NULL,
+        source_id INTEGER NOT NULL,
+        knife_id TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        duration_ms INTEGER NOT NULL,
+        outcome TEXT NOT NULL,
+        method TEXT,
+        attempt INTEGER NOT NULL DEFAULT 1,
+        http_status INTEGER,
+        error_code TEXT,
+        error_message TEXT
+      );
+      CREATE INDEX price_check_log_source
+        ON price_check_log (source_id, started_at);
+      CREATE INDEX price_check_log_lane
+        ON price_check_log (lane_key, started_at);`,
+    ],
+  ]
+  const missing = statements.filter(([name]) => !has(name))
+  if (!missing.length) return
+  database.transaction(() => {
+    for (const [, sql] of missing) database.exec(sql)
+  })()
 }
 
 function normalizeKnifeRows(database: Database.Database) {
