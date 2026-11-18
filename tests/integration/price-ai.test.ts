@@ -238,6 +238,7 @@ describe('AI settings routes', () => {
       model: 'm1',
       extractionFallback: true,
       advisor: true,
+      headers: {},
     })
     await settingsRoute.POST(
       json('http://localhost/api/settings', 'POST', {
