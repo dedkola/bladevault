@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { getLocalDataDirPath, getLocalDb } from '@/lib/local-db'
 import { getMcpActivity } from '@/lib/mcp/activity'
+import { publishMcpDiscovery } from '@/lib/mcp/discovery'
 import { getSettings, saveSettings } from '@/lib/settings'
 import { withVaultWriteSync } from '@/lib/vault-access'
 
@@ -70,14 +71,15 @@ function createPersistedMcpAuthToken(): string {
 
 export function getMcpAuthToken(): McpAuthToken {
   const environmentToken = process.env.MCP_AUTH_TOKEN?.trim()
-  if (environmentToken) {
-    return { token: environmentToken, managedByEnvironment: true }
-  }
-
-  return {
-    token: getPersistedMcpAuthToken() || createPersistedMcpAuthToken(),
-    managedByEnvironment: false,
-  }
+  const auth = environmentToken
+    ? { token: environmentToken, managedByEnvironment: true }
+    : {
+        token: getPersistedMcpAuthToken() || createPersistedMcpAuthToken(),
+        managedByEnvironment: false,
+      }
+  // Keep the stdio bridge's copy current after restores or data-folder changes.
+  publishMcpDiscovery(auth.token)
+  return auth
 }
 
 export class McpSettingManagedError extends Error {}

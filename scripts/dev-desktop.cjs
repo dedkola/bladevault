@@ -15,6 +15,12 @@ const nextBin = path.join(
 )
 const dataDir = path.join(os.homedir(), '.bladevault-desktop-dev', 'data')
 const devUrl = 'http://127.0.0.1:3000'
+// Keep the dev app's MCP endpoint file apart from the installed app's.
+const mcpDiscoveryFile = path.join(
+  os.homedir(),
+  '.bladevault-desktop-dev',
+  'mcp-endpoint.json',
+)
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -56,6 +62,8 @@ async function main() {
       ...process.env,
       BLADEVAULT_DATA_DIR: dataDir,
       BLADEVAULT_DESKTOP_RUNTIME: '1',
+      BLADEVAULT_MCP_DISCOVERY_FILE: mcpDiscoveryFile,
+      PORT: new URL(devUrl).port,
     },
     stdio: 'inherit',
   })
@@ -85,7 +93,7 @@ async function main() {
 
   electronProcess = spawn(electronBinary, ['.'], {
     cwd: projectRoot,
-    env: process.env,
+    env: { ...process.env, BLADEVAULT_MCP_DISCOVERY_FILE: mcpDiscoveryFile },
     stdio: 'inherit',
   })
 
