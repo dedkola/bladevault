@@ -35,7 +35,7 @@ describe('settings persistence', () => {
           outOfStock: true,
           backInStock: false,
         },
-        thresholds: { minPercent: 2.5, minAbsolute: 15 },
+        thresholds: { minPercent: 2.5 },
         ai: {
           enabled: true,
           baseUrl: 'http://localhost:11434/v1',
@@ -63,7 +63,7 @@ describe('settings persistence', () => {
         outOfStock: true,
         backInStock: false,
       },
-      thresholds: { minPercent: 2.5, minAbsolute: 15 },
+      thresholds: { minPercent: 2.5 },
       ai: {
         enabled: true,
         baseUrl: 'http://localhost:11434/v1',
@@ -98,7 +98,7 @@ describe('settings persistence', () => {
         outOfStock: false,
         backInStock: true,
       },
-      thresholds: { minPercent: 5, minAbsolute: 0 },
+      thresholds: { minPercent: 5 },
     })
 
     getLocalDb()

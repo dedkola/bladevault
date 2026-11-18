@@ -85,7 +85,7 @@ describe('normalizePriceMonitoring', () => {
         outOfStock: false,
         backInStock: true,
       },
-      thresholds: { minPercent: 5, minAbsolute: 0 },
+      thresholds: { minPercent: 5 },
     })
   })
 
@@ -117,14 +117,14 @@ describe('normalizePriceMonitoring', () => {
         outOfStock: true,
         backInStock: true,
       },
-      thresholds: { minPercent: 100, minAbsolute: 12.35 },
+      thresholds: { minPercent: 100 },
       ai: DEFAULT_PRICE_MONITORING.ai,
     })
     expect(
       normalizePriceMonitoring({
-        thresholds: { minPercent: -3, minAbsolute: Number.NaN },
+        thresholds: { minPercent: -3 },
       }).thresholds,
-    ).toEqual({ minPercent: 0, minAbsolute: 0 })
+    ).toEqual({ minPercent: 0 })
   })
 
   it('keeps unspecified parts of the current settings', () => {
@@ -138,17 +138,17 @@ describe('normalizePriceMonitoring', () => {
       pacing: { maxParallelStores: 2, minGapSeconds: 60 },
     })
     const alerts = normalizePriceMonitoring(
-      { notify: { increase: true }, thresholds: { minAbsolute: 10 } },
+      { notify: { increase: true }, thresholds: { minPercent: 10 } },
       current,
     )
     expect(alerts).toMatchObject({
       schedule: { mode: 'twice_daily', activeHours: [7, 23] },
       notify: { drop: true, increase: true, backInStock: true },
-      thresholds: { minPercent: 5, minAbsolute: 10 },
+      thresholds: { minPercent: 10 },
     })
     expect(
       normalizePriceMonitoring({ thresholds: { minPercent: 2.5 } }, alerts)
         .thresholds,
-    ).toEqual({ minPercent: 2.5, minAbsolute: 10 })
+    ).toEqual({ minPercent: 2.5 })
   })
 })

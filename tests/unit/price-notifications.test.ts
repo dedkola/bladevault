@@ -82,41 +82,18 @@ function stored(patch: Partial<PriceNotification> = {}): PriceNotification {
 const nowIso = NOW.toISOString()
 
 describe('meetsPriceThreshold', () => {
-  const change = (deltaMinor: number, deltaPct: number, currency = 'USD') => ({
-    currency,
-    deltaMinor,
-    deltaPct,
+  const change = (deltaPct: number) => ({ deltaPct })
+
+  it('notifies when the change reaches the percent in either direction', () => {
+    const thresholds = { minPercent: 5 }
+    expect(meetsPriceThreshold(change(-5), thresholds)).toBe(true)
+    expect(meetsPriceThreshold(change(-4.9), thresholds)).toBe(false)
+    expect(meetsPriceThreshold(change(1), thresholds)).toBe(false)
+    expect(meetsPriceThreshold(change(7), thresholds)).toBe(true)
   })
 
-  it('uses the percent threshold alone when the amount is off', () => {
-    const thresholds = { minPercent: 5, minAbsolute: 0 }
-    expect(meetsPriceThreshold(change(-500, -5), thresholds)).toBe(true)
-    expect(meetsPriceThreshold(change(-490, -4.9), thresholds)).toBe(false)
-    expect(meetsPriceThreshold(change(700, 7), thresholds)).toBe(true)
-  })
-
-  it('notifies when either threshold is met', () => {
-    const thresholds = { minPercent: 10, minAbsolute: 20 }
-    // 3% but 30.00 USD: the amount is enough.
-    expect(meetsPriceThreshold(change(-3000, -3), thresholds)).toBe(true)
-    // 12% of a cheap knife: the percent is enough.
-    expect(meetsPriceThreshold(change(-600, -12), thresholds)).toBe(true)
-    expect(meetsPriceThreshold(change(-1999, -9.99), thresholds)).toBe(false)
-  })
-
-  it('converts the amount with the currency’s minor unit', () => {
-    const thresholds = { minPercent: 0, minAbsolute: 500 }
-    expect(meetsPriceThreshold(change(-500, -2, 'JPY'), thresholds)).toBe(true)
-    expect(meetsPriceThreshold(change(-499, -2, 'JPY'), thresholds)).toBe(false)
-    expect(meetsPriceThreshold(change(-50_000, -2, 'USD'), thresholds)).toBe(
-      true,
-    )
-  })
-
-  it('lets every change through when both thresholds are off', () => {
-    expect(
-      meetsPriceThreshold(change(-1, -0.01), { minPercent: 0, minAbsolute: 0 }),
-    ).toBe(true)
+  it('lets every change through when the threshold is 0', () => {
+    expect(meetsPriceThreshold(change(-0.01), { minPercent: 0 })).toBe(true)
   })
 })
 
@@ -183,7 +160,7 @@ describe('planPriceNotifications', () => {
       [],
       settings({
         notify: { outOfStock: true },
-        thresholds: { minPercent: 100, minAbsolute: 1000 },
+        thresholds: { minPercent: 100 },
       }),
       NOW,
     )

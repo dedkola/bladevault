@@ -71,7 +71,7 @@ Choose which changes notify you in **Settings → Price monitoring → Notificat
 | **Out of stock**    | Off     |
 | **Back in stock**   | On      |
 
-**Minimum change** filters small price moves. A price change notifies when it reaches either the percentage or the amount in the store's currency. The default is 5% with no amount. Set a field to 0 to turn it off; with both at 0, every price change notifies. Stock changes always notify when their switch is on.
+**Minimum change** filters small price moves: a price change notifies only when it moves by at least this percentage of the previous price. The default is 5%. Set it to 0 to be notified about every price change. Stock changes always notify when their switch is on.
 
 Every price and stock change is still recorded and shown on the Price Drops page and Market tab, whatever the notification settings are.
 
