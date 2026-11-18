@@ -393,6 +393,26 @@ describe('Cloudflare deployment reporting', () => {
     )
   })
 
+  it('warns instead of failing when Cloudflare is still building after CI', async () => {
+    const { check, options, rest } = setup()
+    check.status = 'in_progress'
+    options.context.eventName = 'workflow_run'
+    delete options.context.payload.check_run
+    options.context.payload.workflow_run = {
+      head_sha: commit,
+      head_repository: { full_name: 'dedkola/bladevault' },
+    }
+
+    await reportCloudflareDeployments(options)
+
+    expect(options.sleep).toHaveBeenCalledTimes(9)
+    expect(options.core.warning).toHaveBeenCalledWith(
+      expect.stringContaining('has not finished reporting builds'),
+    )
+    expect(rest.repos.createDeployment).not.toHaveBeenCalled()
+    expect(rest.repos.createDeploymentStatus).not.toHaveBeenCalled()
+  })
+
   it('does not use the privileged Test fallback for a fork workflow', async () => {
     const { options, rest } = setup()
     options.context.eventName = 'workflow_run'

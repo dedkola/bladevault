@@ -13,14 +13,11 @@ import { resetVault } from './helpers'
  *      wide enough.
  */
 
+// One width per layout tier: wide desktop, tablet and phone. The layout
+// rules have no breakpoints between these that a further size would reach.
 const VIEWPORTS = [
-  { name: '4k', width: 2560, height: 1440 },
   { name: 'desktop', width: 1920, height: 1080 },
-  { name: 'laptop', width: 1600, height: 900 },
-  { name: 'small-laptop', width: 1280, height: 800 },
   { name: 'tablet', width: 1024, height: 768 },
-  { name: 'tablet-portrait', width: 820, height: 1180 },
-  { name: 'small', width: 640, height: 900 },
   { name: 'phone', width: 390, height: 844 },
 ] as const
 

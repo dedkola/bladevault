@@ -140,6 +140,14 @@ module.exports = async function reportCloudflareDeployments({
   }
 
   if (!runs.length) {
+    // The post-CI pass is only a fallback: Cloudflare's own check_run event
+    // reports the build when it finishes, so a slow build is not a failure.
+    if (context.eventName === 'workflow_run') {
+      core.warning(
+        `Cloudflare has not finished reporting builds for ${sha}; its check_run event will report the deployment`,
+      )
+      return
+    }
     throw new Error(
       `Cloudflare has not finished reporting builds for ${sha}; retry this workflow later`,
     )

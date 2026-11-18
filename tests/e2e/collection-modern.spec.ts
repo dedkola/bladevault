@@ -571,98 +571,98 @@ test('resizes column grips and remembers widths after reload and reorder', async
     .toBeUndefined()
 })
 
-for (const themeStyle of ['classic', 'modern', 'alloy']) {
-  for (const theme of ['light', 'dark']) {
-    test(`audit: sold visibility and dismissible columns in ${themeStyle} ${theme}`, async ({
-      page,
-      request,
-    }) => {
-      const { knife } = await seedKnife(request, {
-        name: 'Ownership audit knife',
-        sold: true,
-        pinned: true,
-      })
-      await request.post('/api/settings', {
-        data: {
-          themeStyle,
-          theme,
-          collectionDisplay: { view: 'list', density: 'table' },
-        },
-      })
-      await page.setViewportSize({ width: 1440, height: 1000 })
-      await page.goto('/collection')
-      if (themeStyle === 'alloy')
-        await page
-          .getByRole('button', { name: 'List view', exact: true })
-          .click()
-      const table = page.locator('[data-modern-collection-table]')
-      const sold = table
-        .locator('tbody tr')
-        .filter({ hasText: 'Ownership audit knife' })
-      await expect(sold.locator('[data-sold-badge]')).toHaveText('Sold')
-      await expect(sold).toContainText('Pinned')
-      await page.getByLabel('Choose columns', { exact: true }).click()
-      const popup = page.getByRole('dialog', { name: 'Collection columns' })
-      await expect(popup).toBeVisible()
-      await page.keyboard.press('Escape')
-      await expect(popup).not.toBeVisible()
-      await expect(
-        page.getByLabel('Choose columns', { exact: true }),
-      ).toBeFocused()
-      await page.getByLabel('Choose columns', { exact: true }).click()
-      await page.mouse.click(10, 500)
-      await expect(popup).not.toBeVisible()
-      await page.screenshot({
-        path: `output/playwright/audit-${themeStyle}-${theme}-table.png`,
-      })
-      await sold.click()
-      await expect(page.locator('#collection-inspector-title')).toBeVisible()
-      await expect(
-        page
-          .locator('#collection-inspector-title')
-          .locator('..')
-          .locator('[data-sold-badge]'),
-      ).toHaveText('Sold')
-      await page.getByRole('button', { name: 'Close selected knife' }).click()
-      await page
-        .getByRole('button', { name: 'Switch to gallery view', exact: true })
-        .click()
-      await expect(
-        page
-          .locator('[data-collection-grid]')
-          .getByText('Sold', { exact: true }),
-      ).toBeVisible()
-      await page.screenshot({
-        path: `output/playwright/audit-${themeStyle}-${theme}-gallery.png`,
-      })
-      await page.goto(`/collection/${knife.id}`)
-      await expect(
-        page.locator('[data-page-header] [data-sold-badge]'),
-      ).toHaveText('Sold')
-      await page.setViewportSize({ width: 390, height: 844 })
-      await expect(
-        page.locator('[data-page-header] [data-sold-badge]'),
-      ).toBeVisible()
-      await expect(
-        page.getByRole('heading', { name: /Ownership audit knife/ }),
-      ).toBeVisible()
-      await page.screenshot({
-        path: `output/playwright/audit-${themeStyle}-${theme}-phone.png`,
-      })
-      await page.goto('/studio')
-      await expect(page.getByText('No photo yet').first()).toBeVisible()
-      await page.screenshot({
-        path: `output/playwright/audit-${themeStyle}-${theme}-studio.png`,
-      })
-      await page.goto('/collection/no-such-audit-knife')
-      await expect(
-        page.getByRole('heading', { name: 'This page is unavailable' }),
-      ).toBeVisible()
-      await expect(
-        page.getByRole('link', { name: 'Back to collection' }),
-      ).toBeVisible()
+// Sold and column behavior depends on the layout, not the color mode, so each
+// layout runs once and the modes alternate between them.
+for (const [themeStyle, theme] of [
+  ['classic', 'light'],
+  ['modern', 'dark'],
+  ['alloy', 'light'],
+]) {
+  test(`audit: sold visibility and dismissible columns in ${themeStyle} ${theme}`, async ({
+    page,
+    request,
+  }) => {
+    const { knife } = await seedKnife(request, {
+      name: 'Ownership audit knife',
+      sold: true,
+      pinned: true,
     })
-  }
+    await request.post('/api/settings', {
+      data: {
+        themeStyle,
+        theme,
+        collectionDisplay: { view: 'list', density: 'table' },
+      },
+    })
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.goto('/collection')
+    if (themeStyle === 'alloy')
+      await page.getByRole('button', { name: 'List view', exact: true }).click()
+    const table = page.locator('[data-modern-collection-table]')
+    const sold = table
+      .locator('tbody tr')
+      .filter({ hasText: 'Ownership audit knife' })
+    await expect(sold.locator('[data-sold-badge]')).toHaveText('Sold')
+    await expect(sold).toContainText('Pinned')
+    await page.getByLabel('Choose columns', { exact: true }).click()
+    const popup = page.getByRole('dialog', { name: 'Collection columns' })
+    await expect(popup).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(popup).not.toBeVisible()
+    await expect(
+      page.getByLabel('Choose columns', { exact: true }),
+    ).toBeFocused()
+    await page.getByLabel('Choose columns', { exact: true }).click()
+    await page.mouse.click(10, 500)
+    await expect(popup).not.toBeVisible()
+    await page.screenshot({
+      path: `output/playwright/audit-${themeStyle}-${theme}-table.png`,
+    })
+    await sold.click()
+    await expect(page.locator('#collection-inspector-title')).toBeVisible()
+    await expect(
+      page
+        .locator('#collection-inspector-title')
+        .locator('..')
+        .locator('[data-sold-badge]'),
+    ).toHaveText('Sold')
+    await page.getByRole('button', { name: 'Close selected knife' }).click()
+    await page
+      .getByRole('button', { name: 'Switch to gallery view', exact: true })
+      .click()
+    await expect(
+      page.locator('[data-collection-grid]').getByText('Sold', { exact: true }),
+    ).toBeVisible()
+    await page.screenshot({
+      path: `output/playwright/audit-${themeStyle}-${theme}-gallery.png`,
+    })
+    await page.goto(`/collection/${knife.id}`)
+    await expect(
+      page.locator('[data-page-header] [data-sold-badge]'),
+    ).toHaveText('Sold')
+    await page.setViewportSize({ width: 390, height: 844 })
+    await expect(
+      page.locator('[data-page-header] [data-sold-badge]'),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: /Ownership audit knife/ }),
+    ).toBeVisible()
+    await page.screenshot({
+      path: `output/playwright/audit-${themeStyle}-${theme}-phone.png`,
+    })
+    await page.goto('/studio')
+    await expect(page.getByText('No photo yet').first()).toBeVisible()
+    await page.screenshot({
+      path: `output/playwright/audit-${themeStyle}-${theme}-studio.png`,
+    })
+    await page.goto('/collection/no-such-audit-knife')
+    await expect(
+      page.getByRole('heading', { name: 'This page is unavailable' }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('link', { name: 'Back to collection' }),
+    ).toBeVisible()
+  })
 }
 
 for (const theme of ['light', 'dark']) {
