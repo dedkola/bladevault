@@ -186,6 +186,79 @@ describe('price overview', () => {
   })
 })
 
+describe('monitoring status', () => {
+  it('gives each monitored source a result and counts checks per hour', async () => {
+    const raccoon = await createKnife('Raccoon', '129.00 USD', [
+      'https://shop.example/raccoon',
+      'https://amazon.example/raccoon',
+    ])
+    const bean = await createKnife('Bean', '45.00 USD', [
+      'https://other.example/bean',
+    ])
+    const [shop, amazon] = raccoon.sources
+    await checkAt(0, shop, offer(100))
+    await checkAt(0.01, amazon, offer(95))
+    await checkAt(1, shop, offer(80)) // drop
+    await checkAt(1.01, amazon, offer(null, 'out_of_stock'))
+    await checkAt(1.02, bean.sources[0], offer(null)) // no price on the page
+
+    const result = await overview()
+    const bySource = new Map(result.monitored.map((s) => [s.sourceId, s]))
+    expect(bySource.get(shop)).toMatchObject({
+      result: 'drop',
+      priceMinor: 8000,
+      previousPriceMinor: 10000,
+      deltaMinor: -2000,
+      paidMinor: 12900,
+      changedAt: new Date(START + DAY).toISOString(),
+    })
+    expect(bySource.get(shop)?.nextCheckAt).toEqual(expect.any(String))
+    expect(bySource.get(amazon)).toMatchObject({
+      result: 'out_of_stock',
+      previousPriceMinor: null,
+    })
+    expect(bySource.get(bean.sources[0])?.result).toBe('attention')
+
+    // The day-old baseline checks fall outside the 24 hourly buckets.
+    expect(result.checksByHour).toHaveLength(24)
+    expect(result.checksByHour.at(-1)).toMatchObject({
+      drop: 1,
+      out_of_stock: 1,
+      attention: 1,
+      same: 0,
+    })
+    const total = result.checksByHour.reduce(
+      (sum, hour) =>
+        sum +
+        hour.drop +
+        hour.increase +
+        hour.out_of_stock +
+        hour.same +
+        hour.attention,
+      0,
+    )
+    expect(total).toBe(3)
+    expect(result.round).toMatchObject({
+      failed24h: 0,
+      oldestCheckAt: new Date(START + DAY).toISOString(),
+    })
+    expect(result.round.intervalHours).toBeGreaterThan(0)
+  })
+
+  it('reports no change once a later check moves the price again', async () => {
+    const raccoon = await createKnife('Raccoon', '129.00 USD', [
+      'https://shop.example/raccoon',
+    ])
+    const [shop] = raccoon.sources
+    await checkAt(0, shop, offer(100))
+    await checkAt(1, shop, offer(80))
+    await checkAt(2, shop, offer(80))
+    expect(
+      (await overview()).monitored.find((s) => s.sourceId === shop)?.result,
+    ).toBe('drop')
+  })
+})
+
 describe('price history', () => {
   it('returns step lines per source for a range, starting at its left edge', async () => {
     const raccoon = await createKnife('Raccoon', '129.00 USD', [

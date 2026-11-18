@@ -4,26 +4,18 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
-import { useKnives } from '@/components/providers/knives-provider'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import type {
-  ChangeEvent,
+  MonitoredSource,
   PriceOverview,
   SourceSummary,
 } from '@/lib/price-monitor/insights'
-import { getHourCycle } from '@/lib/time-format'
 import { cn } from '@/lib/utils'
 import { KnifePricePanel } from './knife-price-panel'
-import {
-  money,
-  relativeTime,
-  shortDateTime,
-  STATUS_LABEL,
-  STATUS_TONE,
-  storeLabel,
-} from './price-format'
-import { ChangePill, KnifeThumb, StatusDot, useMinuteClock } from './price-ui'
+import { MonitoringStatus, ResultBadge } from './monitoring-status'
+import { money, relativeTime, storeLabel } from './price-format'
+import { KnifeThumb, StatusDot, useMinuteClock } from './price-ui'
 
 type QueueLane = {
   laneKey: string
@@ -38,7 +30,8 @@ type QueueSnapshot = {
   lanes: QueueLane[]
 }
 
-type Section = 'recent' | 'drops' | 'increases' | 'oos' | 'monitored'
+type Section =
+  'all' | 'changes' | 'drops' | 'increases' | 'oos' | 'attention' | 'recent'
 
 const OVERVIEW_REFRESH_MS = 60_000
 const QUEUE_REFRESH_MS = 10_000
@@ -109,82 +102,167 @@ function useQueue() {
   return queue
 }
 
-function Kpi({
-  label,
-  value,
-  note,
-}: {
-  label: string
-  value: string
-  note: string
-}) {
-  return (
-    <Card size="sm" data-price-kpi>
-      <CardContent>
-        <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-          {label}
-        </div>
-        <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
-        <div className="text-xs text-muted-foreground">{note}</div>
-      </CardContent>
-    </Card>
+const SECTION_LABEL: Record<Section, string> = {
+  all: 'All',
+  changes: 'Changes',
+  drops: 'Drops',
+  increases: 'Increases',
+  oos: 'Out of stock',
+  attention: 'Needs attention',
+  recent: 'Recently monitored',
+}
+
+const SECTION_FILTER: Record<Section, (source: MonitoredSource) => boolean> = {
+  all: () => true,
+  changes: (source) =>
+    source.result === 'drop' ||
+    source.result === 'increase' ||
+    source.result === 'out_of_stock',
+  drops: (source) => source.result === 'drop',
+  increases: (source) => source.result === 'increase',
+  oos: (source) => source.result === 'out_of_stock',
+  attention: (source) =>
+    source.result === 'attention' || source.result === 'pending',
+  recent: (source) => Boolean(source.lastCheckedAt),
+}
+
+const EMPTY_TEXT: Record<Section, string> = {
+  all: 'Nothing is monitored yet.',
+  changes: 'No price or stock changes in the last 30 days.',
+  drops: 'No price drops in the last 30 days.',
+  increases: 'No price increases in the last 30 days.',
+  oos: 'Nothing is out of stock.',
+  attention: 'Every store page was read on its last check.',
+  recent: 'Nothing has been checked yet.',
+}
+
+const RESULT_ORDER: Record<MonitoredSource['result'], number> = {
+  drop: 0,
+  increase: 1,
+  out_of_stock: 2,
+  attention: 3,
+  pending: 4,
+  same: 5,
+}
+
+function sortSources(section: Section, list: MonitoredSource[]) {
+  const sorted = [...list]
+  if (section === 'recent')
+    return sorted
+      .sort((a, b) => b.lastCheckedAt!.localeCompare(a.lastCheckedAt!))
+      .slice(0, 30)
+  return sorted.sort(
+    (a, b) =>
+      RESULT_ORDER[a.result] - RESULT_ORDER[b.result] ||
+      (b.changedAt ?? '').localeCompare(a.changedAt ?? '') ||
+      `${a.knife.brand} ${a.knife.name}`.localeCompare(
+        `${b.knife.brand} ${b.knife.name}`,
+      ),
   )
 }
 
-function EventRow({
-  event,
+function VsPaid({ source }: { source: MonitoredSource }) {
+  if (source.priceMinor === null || source.paidMinor === null)
+    return <span className="text-muted-foreground">—</span>
+  const delta = source.priceMinor - source.paidMinor
+  if (delta === 0) return <span className="text-muted-foreground">same</span>
+  return (
+    <span
+      className="tabular-nums"
+      data-result={delta < 0 ? 'drop' : 'increase'}
+      style={{
+        color: 'color-mix(in srgb, var(--pd-color) 80%, var(--foreground))',
+      }}
+    >
+      {delta < 0 ? '−' : '+'}
+      {money(Math.abs(delta), source.currency)}
+    </span>
+  )
+}
+
+function SourceTableRow({
+  source,
   selected,
-  hourCycle,
+  section,
+  lanes,
   now,
   onSelect,
 }: {
-  event: ChangeEvent
+  source: MonitoredSource
   selected: boolean
-  hourCycle: 'h12' | 'h23'
+  section: Section
+  lanes: Map<string, QueueLane>
   now: number
   onSelect: () => void
 }) {
+  const paused = laneNote(lanes, source)
+  const showNext = section === 'attention'
   return (
-    <li>
-      <button
-        type="button"
-        data-price-event={event.kind}
-        aria-pressed={selected}
-        onClick={onSelect}
-        className={cn(
-          'flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-b border-[var(--bladevault-line)]/60 px-1 py-2.5 text-left transition-colors hover:bg-[var(--bladevault-surface-soft)]',
-          selected && 'bg-[var(--bladevault-surface-soft)]',
-        )}
-      >
-        <KnifeThumb knife={event.knife} />
-        <span className="min-w-[9rem] flex-1">
-          <span className="block truncate font-medium">
-            {event.knife.brand} {event.knife.name}
-          </span>
-          <span className="block truncate text-xs text-muted-foreground">
-            {storeLabel(event.storeName)} ·{' '}
-            {shortDateTime(event.occurredAt, hourCycle, now)}
-          </span>
-        </span>
-        <span className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          {event.type === 'price' ? (
-            <>
-              <span className="text-xs text-muted-foreground line-through tabular-nums">
-                {money(event.previousPriceMinor, event.currency)}
-              </span>
-              <span className="font-semibold tabular-nums">
-                {money(event.priceMinor, event.currency)}
-              </span>
-            </>
-          ) : event.kind === 'back_in_stock' && event.priceMinor !== null ? (
-            <span className="font-semibold tabular-nums">
-              {money(event.priceMinor, event.currency)}
+    <tr
+      data-price-row={source.result}
+      aria-selected={selected}
+      onClick={onSelect}
+      className={cn(
+        'cursor-pointer border-b border-[var(--bladevault-line)]/60 transition-colors hover:bg-[var(--bladevault-surface-soft)]',
+        selected && 'bg-[var(--bladevault-surface-soft)]',
+      )}
+    >
+      <td className="py-2 pr-3 pl-1">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation()
+            onSelect()
+          }}
+          aria-pressed={selected}
+          className="flex min-w-0 items-center gap-2.5 text-left"
+        >
+          <KnifeThumb knife={source.knife} className="size-8" />
+          <span className="min-w-0">
+            <span className="block max-w-[16rem] truncate font-medium">
+              {source.knife.brand} {source.knife.name}
             </span>
-          ) : null}
-          <ChangePill event={event} />
+            <span className="block truncate text-xs text-muted-foreground">
+              {storeLabel(source.storeName)}
+            </span>
+          </span>
+        </button>
+      </td>
+      <td className="py-2 pr-3 text-right whitespace-nowrap">
+        <span className="font-semibold tabular-nums">
+          {money(source.priceMinor, source.currency)}
         </span>
-      </button>
-    </li>
+        {source.previousPriceMinor !== null ? (
+          <span className="block text-[11px] text-muted-foreground line-through tabular-nums">
+            {money(source.previousPriceMinor, source.currency)}
+          </span>
+        ) : null}
+      </td>
+      <td className="py-2 pr-3">
+        <ResultBadge source={source} />
+      </td>
+      <td className="py-2 pr-3 text-right whitespace-nowrap">
+        <VsPaid source={source} />
+      </td>
+      <td className="py-2 pr-1 text-xs whitespace-nowrap text-muted-foreground">
+        {paused ? (
+          <span className="flex items-center gap-1.5">
+            <StatusDot tone="bad" />
+            {paused}
+          </span>
+        ) : showNext ? (
+          source.nextCheckAt ? (
+            `next ${relativeTime(source.nextCheckAt, now)}`
+          ) : (
+            '—'
+          )
+        ) : source.lastCheckedAt ? (
+          relativeTime(source.lastCheckedAt, now)
+        ) : (
+          'not yet'
+        )}
+      </td>
+    </tr>
   )
 }
 
@@ -196,106 +274,27 @@ function laneNote(lanes: Map<string, QueueLane>, source: SourceSummary) {
     ).toLocaleTimeString(undefined, {
       hour: '2-digit',
       minute: '2-digit',
-    })} · bot check`
+    })}`
   return null
 }
 
-function SourceRow({
-  source,
-  selected,
-  lanes,
-  now,
-  onSelect,
-  detail,
-}: {
-  source: SourceSummary
-  selected: boolean
-  lanes: Map<string, QueueLane>
-  now: number
-  onSelect: () => void
-  detail: 'since' | 'checked'
-}) {
-  const paused = laneNote(lanes, source)
-  return (
-    <li>
-      <button
-        type="button"
-        aria-pressed={selected}
-        onClick={onSelect}
-        className={cn(
-          'flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-b border-[var(--bladevault-line)]/60 px-1 py-2.5 text-left transition-colors hover:bg-[var(--bladevault-surface-soft)]',
-          selected && 'bg-[var(--bladevault-surface-soft)]',
-        )}
-      >
-        <KnifeThumb knife={source.knife} />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">
-            {source.knife.brand} {source.knife.name}
-          </span>
-          <span className="block truncate text-xs text-muted-foreground">
-            {storeLabel(source.storeName)}
-            {detail === 'since' && source.since
-              ? ` · since ${new Date(source.since).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
-              : ''}
-          </span>
-        </span>
-        {detail === 'checked' ? (
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <StatusDot tone={paused ? 'bad' : STATUS_TONE[source.status]} />
-            {paused ??
-              (source.status === 'ok' || source.status === 'out_of_stock'
-                ? relativeTime(source.lastCheckedAt, now)
-                : STATUS_LABEL[source.status])}
-          </span>
-        ) : (
-          <span
-            data-price-pill="oos"
-            className="rounded-full px-2 py-0.5 text-[11.5px] font-semibold"
-          >
-            Out of stock
-          </span>
-        )}
-      </button>
-    </li>
-  )
-}
-
-const SECTION_LABEL: Record<Section, string> = {
-  recent: 'Recent changes',
-  drops: 'Price drops',
-  increases: 'Increases',
-  oos: 'Out of stock',
-  monitored: 'Recently monitored',
-}
-
-const EMPTY_TEXT: Record<Section, string> = {
-  recent:
-    'No price or stock changes yet. They appear here after the first checks.',
-  drops: 'No price drops in the last 30 days.',
-  increases: 'No price increases in the last 30 days.',
-  oos: 'Nothing is out of stock.',
-  monitored: 'Nothing has been checked yet.',
-}
-
 /**
- * Price Drops: KPI row, recent changes with section tabs, a side panel with
- * the selected knife's chart and sources, then out-of-stock and recently
- * monitored cards.
+ * Price Drops: a monitoring status timeline with checks per hour, then every
+ * monitored store listing in tabs beside the selected knife's chart and
+ * sources.
  */
 export function PriceDropsView() {
   const [version, setVersion] = useState(0)
   const { overview, error } = useOverview(version)
   const queue = useQueue()
-  const { timeFormat } = useKnives()
-  const hourCycle = getHourCycle(timeFormat)
   const now = useMinuteClock()
-  const [section, setSection] = useState<Section>('recent')
+  const [section, setSection] = useState<Section>('all')
   const [selected, setSelected] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
 
   const firstKnife =
-    overview?.recent[0]?.knife.id ??
+    (overview ? sortSources('all', overview.monitored)[0]?.knife.id : null) ??
     overview?.knives.find((knife) => knife.monitored)?.knife.id ??
     null
   const selectedKnife = selected ?? firstKnife
@@ -304,6 +303,8 @@ export function PriceDropsView() {
   )
   const checkingStores =
     queue?.lanes.filter((lane) => lane.checking).length ?? 0
+  const pausedStores =
+    queue?.lanes.filter((lane) => lane.circuit === 'open').length ?? 0
 
   const checkAll = async () => {
     setChecking(true)
@@ -390,14 +391,11 @@ export function PriceDropsView() {
     )
 
   const { kpis } = overview
-  const counts: Record<Section, number | null> = {
-    recent: null,
-    drops: overview.drops.length,
-    increases: overview.increases.length,
-    oos: overview.outOfStock.length,
-    monitored: null,
-  }
   const empty = kpis.monitoredKnives === 0 && overview.knives.length === 0
+  const rows = sortSources(
+    section,
+    overview.monitored.filter(SECTION_FILTER[section]),
+  )
 
   return (
     <div data-price-drops className="w-full">
@@ -416,48 +414,6 @@ export function PriceDropsView() {
           .
         </p>
       ) : null}
-
-      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <Kpi
-          label="Monitored"
-          value={String(kpis.monitoredKnives)}
-          note={`on ${kpis.stores} ${kpis.stores === 1 ? 'store' : 'stores'}`}
-        />
-        <Kpi
-          label="Price drops"
-          value={String(kpis.drops)}
-          note={`last ${overview.windowDays} days`}
-        />
-        <Kpi
-          label="Price increases"
-          value={String(kpis.increases)}
-          note={`last ${overview.windowDays} days`}
-        />
-        <Kpi
-          label="Out of stock"
-          value={String(kpis.outOfStock)}
-          note="right now"
-        />
-        <Kpi
-          label="Last successful check"
-          value={
-            kpis.lastSuccessAt
-              ? relativeTime(kpis.lastSuccessAt, now, 'short')
-              : '—'
-          }
-          note={
-            kpis.lastSuccessAt
-              ? new Date(kpis.lastSuccessAt).toLocaleString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  hourCycle,
-                })
-              : 'not yet'
-          }
-        />
-      </div>
 
       {empty ? (
         <Card>
@@ -478,15 +434,27 @@ export function PriceDropsView() {
         </Card>
       ) : (
         <>
-          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-            <Card className="gap-0 py-0">
-              <div className="border-b border-[var(--bladevault-line)]/60 p-3">
-                <div
-                  role="tablist"
-                  aria-label="Price sections"
-                  className="inline-flex max-w-full flex-wrap gap-0.5 rounded-lg border border-[var(--bladevault-line)] p-0.5"
-                >
-                  {(Object.keys(SECTION_LABEL) as Section[]).map((value) => (
+          <MonitoringStatus
+            overview={overview}
+            pausedStores={pausedStores}
+            selectedKnife={selectedKnife}
+            now={now}
+            onSelect={setSelected}
+          />
+
+          <Card data-price-table className="mt-4 gap-0 overflow-hidden py-0">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--bladevault-line)]/60 p-3">
+              <div
+                role="tablist"
+                aria-label="Price sections"
+                className="inline-flex max-w-full flex-wrap gap-0.5 rounded-lg border border-[var(--bladevault-line)] p-0.5"
+              >
+                {(Object.keys(SECTION_LABEL) as Section[]).map((value) => {
+                  const count =
+                    value === 'recent'
+                      ? null
+                      : overview.monitored.filter(SECTION_FILTER[value]).length
+                  return (
                     <button
                       key={value}
                       type="button"
@@ -501,75 +469,69 @@ export function PriceDropsView() {
                       )}
                     >
                       {SECTION_LABEL[value]}
-                      {counts[value] ? (
+                      {count ? (
                         <span className="ml-1 text-[11px] opacity-75">
-                          {counts[value]}
+                          {count}
                         </span>
                       ) : null}
                     </button>
-                  ))}
-                </div>
+                  )
+                })}
               </div>
-              <div role="tabpanel" className="px-3 pb-2">
-                {(() => {
-                  const events =
-                    section === 'recent'
-                      ? overview.recent
-                      : section === 'drops'
-                        ? overview.drops
-                        : section === 'increases'
-                          ? overview.increases
-                          : null
-                  const sources =
-                    section === 'oos'
-                      ? overview.outOfStock
-                      : section === 'monitored'
-                        ? overview.recentlyMonitored
-                        : null
-                  if (events)
-                    return events.length ? (
-                      <ul>
-                        {events.map((event) => (
-                          <EventRow
-                            key={event.id}
-                            event={event}
-                            selected={selectedKnife === event.knife.id}
-                            hourCycle={hourCycle}
-                            now={now}
-                            onSelect={() => setSelected(event.knife.id)}
-                          />
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="py-6 text-sm text-muted-foreground">
-                        {EMPTY_TEXT[section]}
-                      </p>
-                    )
-                  return sources && sources.length ? (
-                    <ul>
-                      {sources.map((source) => (
-                        <SourceRow
+              <Link
+                href="/settings?tab=prices"
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Monitoring settings ›
+              </Link>
+            </div>
+            <div className="grid items-start lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
+              <div
+                role="tabpanel"
+                aria-label={SECTION_LABEL[section]}
+                className="min-w-0 overflow-x-auto px-3 pb-2 lg:max-h-[720px] lg:overflow-y-auto"
+              >
+                {rows.length ? (
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b border-[var(--bladevault-line)] text-left text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
+                        <th className="py-2 pl-1 font-medium">Knife</th>
+                        <th className="py-2 pr-3 text-right font-medium">
+                          Price now
+                        </th>
+                        <th className="py-2 pr-3 font-medium">Change</th>
+                        <th className="py-2 pr-3 text-right font-medium">
+                          vs paid
+                        </th>
+                        <th className="py-2 pr-1 font-medium">
+                          {section === 'attention' ? 'Next check' : 'Checked'}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((source) => (
+                        <SourceTableRow
                           key={source.sourceId}
                           source={source}
+                          section={section}
                           selected={selectedKnife === source.knife.id}
                           lanes={lanes}
                           now={now}
-                          detail={section === 'oos' ? 'since' : 'checked'}
                           onSelect={() => setSelected(source.knife.id)}
                         />
                       ))}
-                    </ul>
-                  ) : (
-                    <p className="py-6 text-sm text-muted-foreground">
-                      {EMPTY_TEXT[section]}
-                    </p>
-                  )
-                })()}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="py-6 text-sm text-muted-foreground">
+                    {EMPTY_TEXT[section]}
+                  </p>
+                )}
               </div>
-            </Card>
-
-            <Card className="lg:sticky lg:top-4">
-              <CardContent>
+              <aside
+                aria-label="Selected knife"
+                className="border-t border-[var(--bladevault-line)]/60 p-4 lg:sticky lg:top-0 lg:border-t-0 lg:border-l"
+              >
                 {selectedKnife ? (
                   <KnifePricePanel
                     key={selectedKnife}
@@ -583,73 +545,9 @@ export function PriceDropsView() {
                     Select a knife to see its price history.
                   </p>
                 )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <Card className="gap-0 py-0">
-              <div className="flex items-center justify-between border-b border-[var(--bladevault-line)]/60 px-4 py-3">
-                <h2 className="text-sm font-semibold">Out of stock</h2>
-                <span className="text-xs text-muted-foreground">
-                  kept apart from price changes
-                </span>
-              </div>
-              <div className="px-3 pb-2">
-                {overview.outOfStock.length ? (
-                  <ul>
-                    {overview.outOfStock.slice(0, 5).map((source) => (
-                      <SourceRow
-                        key={source.sourceId}
-                        source={source}
-                        selected={selectedKnife === source.knife.id}
-                        lanes={lanes}
-                        now={now}
-                        detail="since"
-                        onSelect={() => setSelected(source.knife.id)}
-                      />
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="py-5 text-sm text-muted-foreground">
-                    {EMPTY_TEXT.oos}
-                  </p>
-                )}
-              </div>
-            </Card>
-            <Card className="gap-0 py-0">
-              <div className="flex items-center justify-between border-b border-[var(--bladevault-line)]/60 px-4 py-3">
-                <h2 className="text-sm font-semibold">Recently monitored</h2>
-                <Link
-                  href="/settings?tab=prices"
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Monitoring settings ›
-                </Link>
-              </div>
-              <div className="px-3 pb-2">
-                {overview.recentlyMonitored.length ? (
-                  <ul>
-                    {overview.recentlyMonitored.slice(0, 6).map((source) => (
-                      <SourceRow
-                        key={source.sourceId}
-                        source={source}
-                        selected={selectedKnife === source.knife.id}
-                        lanes={lanes}
-                        now={now}
-                        detail="checked"
-                        onSelect={() => setSelected(source.knife.id)}
-                      />
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="py-5 text-sm text-muted-foreground">
-                    {EMPTY_TEXT.monitored}
-                  </p>
-                )}
-              </div>
-            </Card>
-          </div>
+              </aside>
+            </div>
+          </Card>
         </>
       )}
     </div>

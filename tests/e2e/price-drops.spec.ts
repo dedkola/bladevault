@@ -29,11 +29,22 @@ test('shows monitored knives, their sources and the Market tab', async ({
   await request.get(`/api/knives/${knife.id}/price-watch`)
 
   await page.goto('/price-drops')
-  const monitored = page.locator('[data-price-kpi]').first()
-  await expect(monitored).toContainText('Monitored')
-  await expect(monitored).toContainText('1')
+  const status = page.locator('[data-price-status]')
+  await expect(status).toContainText('0/1 checked in 24 h')
   await expect(
-    page.getByText('No price or stock changes yet.', { exact: false }),
+    status.getByRole('region', { name: 'Needs attention' }),
+  ).toBeVisible()
+  const table = page.locator('[data-price-table]')
+  await expect(table.getByRole('tab', { name: /^All/ })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await expect(table.getByRole('tabpanel')).toContainText('Waiting')
+  await page.getByRole('tab', { name: 'Changes' }).click()
+  await expect(
+    page.getByRole('tabpanel').getByText('No price or stock changes', {
+      exact: false,
+    }),
   ).toBeVisible()
   await page.getByRole('tab', { name: 'Recently monitored' }).click()
   await expect(

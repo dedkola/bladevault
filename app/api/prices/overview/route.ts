@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { getLocalDb } from '@/lib/local-db'
 import { buildPriceOverview } from '@/lib/price-monitor/insights'
+import { frequencyMs } from '@/lib/price-monitor/schedule'
 import { reportServerError } from '@/lib/sentry/server'
 import { getSettings } from '@/lib/settings'
 import { vaultAccessErrorResponse } from '@/lib/vault-access'
@@ -16,13 +17,13 @@ export async function GET(request: Request) {
     const windowDays = Number.isInteger(requested)
       ? Math.min(365, Math.max(1, requested))
       : 30
+    const settings = getSettings().priceMonitoring
     return NextResponse.json(
       {
-        overview: buildPriceOverview(
-          getLocalDb(),
-          getSettings().priceMonitoring,
-          { windowDays },
-        ),
+        overview: buildPriceOverview(getLocalDb(), settings, {
+          windowDays,
+          frequencyMs: frequencyMs(settings.schedule),
+        }),
       },
       { headers: { 'Cache-Control': 'no-store' } },
     )

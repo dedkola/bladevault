@@ -18,7 +18,8 @@ import type {
 export const HISTORY_RANGES = ['7d', '1m', '3m', '6m', '1y', 'all'] as const
 export type HistoryRange = (typeof HISTORY_RANGES)[number]
 
-const DAY_MS = 24 * 60 * 60 * 1000
+const HOUR_MS = 60 * 60 * 1000
+const DAY_MS = 24 * HOUR_MS
 const RANGE_DAYS: Record<Exclude<HistoryRange, 'all'>, number> = {
   '7d': 7,
   '1m': 30,
@@ -78,6 +79,40 @@ export type SourceSummary = {
   since: string | null
 }
 
+/**
+ * Where a monitored source stands after its latest check: the last price
+ * change inside the window (if the price still sits there), stock, or a
+ * problem reading the page.
+ */
+export const SOURCE_RESULTS = [
+  'drop',
+  'increase',
+  'out_of_stock',
+  'same',
+  'attention',
+  'pending',
+] as const
+export type SourceResult = (typeof SOURCE_RESULTS)[number]
+
+/** One monitored store listing, as the status timeline and table show it. */
+export type MonitoredSource = SourceSummary & {
+  result: SourceResult
+  /** Price before the latest change in the window, when there was one. */
+  previousPriceMinor: number | null
+  deltaMinor: number | null
+  deltaPct: number | null
+  changedAt: string | null
+  /** Purchase price in this source's currency, when comparable. */
+  paidMinor: number | null
+  nextCheckAt: string | null
+}
+
+/** Checks started in one hour, counted by what they found. */
+export type CheckHour = {
+  /** Start of the hour (ISO). */
+  hour: string
+} & Record<Exclude<SourceResult, 'pending'>, number>
+
 export type KnifeSummary = {
   knife: KnifeRef
   monitored: boolean
@@ -109,6 +144,18 @@ export type PriceOverview = {
   outOfStock: SourceSummary[]
   recentlyMonitored: SourceSummary[]
   knives: KnifeSummary[]
+  /** Every enabled source of a monitored knife. */
+  monitored: MonitoredSource[]
+  /** The last 24 hours of checks, oldest first. */
+  checksByHour: CheckHour[]
+  round: {
+    /** How often each source is checked, or null when unknown. */
+    intervalHours: number | null
+    /** Checks in the last 24 hours that could not read a price. */
+    failed24h: number
+    /** The longest-ago latest check among monitored sources. */
+    oldestCheckAt: string | null
+  }
 }
 
 type KnifeRow = {
@@ -242,6 +289,7 @@ type SourceRow = {
   last_checked_at: string | null
   last_success_at: string | null
   last_error: string | null
+  next_check_at: string | null
 }
 
 function toSourceSummary(
@@ -277,7 +325,13 @@ function mostCommon(values: string[]): string | null {
 export function buildPriceOverview(
   database: Database.Database,
   settings: EligibilitySettings,
-  options: { now?: number; windowDays?: number; limit?: number } = {},
+  options: {
+    now?: number
+    windowDays?: number
+    limit?: number
+    /** Check frequency from the schedule, shown with the status timeline. */
+    frequencyMs?: number
+  } = {},
 ): PriceOverview {
   const now = options.now ?? Date.now()
   const windowDays = options.windowDays ?? 30
@@ -289,7 +343,7 @@ export function buildPriceOverview(
     .prepare(
       `SELECT id, knife_id, store_name, lane_key, url, enabled, status,
               last_price_minor, last_currency, last_availability,
-              last_checked_at, last_success_at, last_error
+              last_checked_at, last_success_at, last_error, next_check_at
        FROM price_sources WHERE removed_at IS NULL`,
     )
     .all() as SourceRow[]
@@ -399,6 +453,21 @@ export function buildPriceOverview(
     },
   )
 
+  const monitoredSources = buildMonitoredSources(
+    sources.filter(
+      (source) => source.enabled === 1 && monitored.has(source.knife_id),
+    ),
+    knives,
+    windowRows,
+  )
+  const dayAgo = new Date(now - DAY_MS).toISOString()
+  const checksByHour = readChecksByHour(database, now)
+  const oldestCheckAt =
+    monitoredSources
+      .map((source) => source.lastCheckedAt)
+      .filter((value): value is string => Boolean(value))
+      .sort()[0] ?? null
+
   const lastSuccess = sources
     .map((source) => source.last_success_at)
     .filter((value): value is string => Boolean(value))
@@ -431,7 +500,137 @@ export function buildPriceOverview(
           a.lastChange?.occurredAt ?? '',
         ) || a.knife.name.localeCompare(b.knife.name),
     ),
+    monitored: monitoredSources,
+    checksByHour,
+    round: {
+      intervalHours: options.frequencyMs
+        ? Math.round((options.frequencyMs / HOUR_MS) * 10) / 10
+        : null,
+      failed24h: (
+        database
+          .prepare(
+            `SELECT COUNT(*) AS n FROM price_check_log
+             WHERE started_at >= ? AND outcome IN ('failed', 'blocked')`,
+          )
+          .get(dayAgo) as { n: number }
+      ).n,
+      oldestCheckAt,
+    },
   }
+}
+
+function paidIn(knife: KnifeRow | undefined, currency: string | null) {
+  if (!knife || !currency) return null
+  const paid = parseStoredPrice(storedPrice(knife.specs))
+  return paid && (paid.currency === currency || !paid.currency)
+    ? toMinorUnits(paid.amount, currency)
+    : null
+}
+
+function sourceResult(
+  source: SourceRow,
+  change: EventRow | undefined,
+): SourceResult {
+  if (!source.last_checked_at) return 'pending'
+  if (source.last_availability === 'out_of_stock') return 'out_of_stock'
+  if (
+    source.status === 'failed' ||
+    source.status === 'blocked' ||
+    source.status === 'price_unavailable'
+  )
+    return 'attention'
+  // The latest change only counts while the price still sits there.
+  if (
+    change &&
+    change.price_minor === source.last_price_minor &&
+    (change.kind === 'drop' || change.kind === 'increase')
+  )
+    return change.kind
+  return 'same'
+}
+
+function buildMonitoredSources(
+  sources: SourceRow[],
+  knives: Map<string, KnifeRow>,
+  windowPriceEvents: EventRow[],
+): MonitoredSource[] {
+  // windowPriceEvents is newest first, so the first per source wins.
+  const latestChange = new Map<number, EventRow>()
+  for (const row of windowPriceEvents)
+    if (!latestChange.has(row.source_id)) latestChange.set(row.source_id, row)
+  return sources.map((source) => {
+    const change = latestChange.get(source.id)
+    const result = sourceResult(source, change)
+    const changed = result === 'drop' || result === 'increase'
+    return {
+      ...toSourceSummary(source, knives),
+      result,
+      previousPriceMinor: changed
+        ? (change?.previous_price_minor ?? null)
+        : null,
+      deltaMinor: changed ? (change?.delta_minor ?? null) : null,
+      deltaPct: changed ? (change?.delta_pct ?? null) : null,
+      changedAt: changed ? (change?.occurred_at ?? null) : null,
+      paidMinor: paidIn(knives.get(source.knife_id), source.last_currency),
+      nextCheckAt: source.next_check_at,
+    }
+  })
+}
+
+type CheckLogRow = {
+  started_at: string
+  outcome: string
+  change: 'drop' | 'increase' | null
+  stock: 'out_of_stock' | 'back_in_stock' | null
+  /** 1 when the page loaded but showed no price. */
+  missing: number | null
+}
+
+/** 24 hourly buckets ending with the current hour. */
+function readChecksByHour(database: Database.Database, now: number) {
+  const currentHour = Math.floor(now / HOUR_MS) * HOUR_MS
+  const first = currentHour - 23 * HOUR_MS
+  const hours: CheckHour[] = Array.from({ length: 24 }, (_, index) => ({
+    hour: new Date(first + index * HOUR_MS).toISOString(),
+    drop: 0,
+    increase: 0,
+    out_of_stock: 0,
+    same: 0,
+    attention: 0,
+  }))
+  // A check that stored a new snapshot links to it; the snapshot links to
+  // the price or stock event it produced. A check that only confirmed the
+  // previous reading extended that snapshot, so the earliest snapshot still
+  // seen at or after the check started is the one it read.
+  const rows = database
+    .prepare(
+      `SELECT l.started_at, l.outcome,
+              (SELECT e.direction FROM price_snapshots s
+                 JOIN price_change_events e ON e.to_snapshot_id = s.id
+               WHERE s.check_log_id = l.id LIMIT 1) AS change,
+              (SELECT e.kind FROM price_snapshots s
+                 JOIN stock_events e ON e.to_snapshot_id = s.id
+               WHERE s.check_log_id = l.id LIMIT 1) AS stock,
+              (SELECT s.price_minor IS NULL
+                      AND s.availability != 'out_of_stock'
+               FROM price_snapshots s
+               WHERE s.source_id = l.source_id
+                 AND s.last_seen_at >= l.started_at
+               ORDER BY s.id LIMIT 1) AS missing
+       FROM price_check_log l WHERE l.started_at >= ?`,
+    )
+    .all(new Date(first).toISOString()) as CheckLogRow[]
+  for (const row of rows) {
+    const index = Math.floor((Date.parse(row.started_at) - first) / HOUR_MS)
+    const bucket = hours[index]
+    if (!bucket) continue
+    if (row.outcome !== 'ok') bucket.attention += 1
+    else if (row.stock === 'out_of_stock') bucket.out_of_stock += 1
+    else if (row.missing === 1) bucket.attention += 1
+    else if (row.change) bucket[row.change] += 1
+    else bucket.same += 1
+  }
+  return hours
 }
 
 export type HistoryPoint = {
