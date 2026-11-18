@@ -453,9 +453,8 @@ export type PriceMonitoringSettings = {
     /** Null: around the clock (Twice daily defaults to 8–22). */
     activeHours: ActiveHours | null
   }
+  /** Per-store limits; different stores are checked in parallel. */
   pacing: {
-    /** Stores checked at the same time, 1–5. Never two at one store. */
-    maxParallelStores: number
     /** Floor between two checks at one store; raised automatically. */
     minGapSeconds: number
     amazonMinGapSeconds: number
@@ -508,7 +507,6 @@ export type PriceNotifyCategories = {
 
 export const PRICE_MONITORING_LIMITS = {
   intervalHours: [1, 168],
-  maxParallelStores: [1, 5],
   minGapSeconds: [30, 3600],
   amazonMinGapSeconds: [60, 21_600],
   minPercent: [0, 100],
@@ -519,7 +517,7 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
   enabled: true,
   skipSoldKnives: true,
   schedule: { mode: 'daily', intervalHours: 24, activeHours: null },
-  pacing: { maxParallelStores: 3, minGapSeconds: 60, amazonMinGapSeconds: 300 },
+  pacing: { minGapSeconds: 60, amazonMinGapSeconds: 300 },
   notify: { drop: true, increase: false, outOfStock: false, backInStock: true },
   thresholds: { minPercent: 5, minAbsolute: 0 },
   ai: {
@@ -777,11 +775,6 @@ export function normalizePriceMonitoring(
           : fallback.schedule.activeHours,
     },
     pacing: {
-      maxParallelStores: boundedInteger(
-        pacing.maxParallelStores,
-        PRICE_MONITORING_LIMITS.maxParallelStores,
-        fallback.pacing.maxParallelStores,
-      ),
       minGapSeconds: boundedInteger(
         pacing.minGapSeconds,
         PRICE_MONITORING_LIMITS.minGapSeconds,
