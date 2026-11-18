@@ -17,7 +17,20 @@ export type RenderedPage = {
   finalUrl: string
   screenshot?: string
   screenshotWarning?: string
+  /** The main document as the server sent it, before scripts ran. */
+  serverHtml?: string
 }
+
+export type RenderOptions = {
+  /** Capture the webpage screenshot (default true). Monitoring skips it. */
+  screenshot?: boolean
+  /** Also block images and fonts, not only media, to keep the load light. */
+  light?: boolean
+  /** Return the navigation response body as `serverHtml`. */
+  captureServerHtml?: boolean
+}
+
+const LIGHT_BLOCKED_RESOURCES = new Set(['media', 'image', 'font'])
 
 function userAgent(): string {
   return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
@@ -26,7 +39,11 @@ function userAgent(): string {
 export async function fetchRenderedHtml(
   url: string,
   parent?: ScrapeOperation,
+  options: RenderOptions = {},
 ): Promise<RenderedPage> {
+  const blockedResources = options.light
+    ? LIGHT_BLOCKED_RESOURCES
+    : new Set(['media'])
   // Leave part of the request's 60-second budget for HTTP fallback/enrichment.
   const operation = createScrapeOperation({
     signal: parent?.signal,
@@ -103,7 +120,7 @@ export async function fetchRenderedHtml(
       let navigationFailure: ScrapeError | undefined
       await page.route('**/*', async (route) => {
         try {
-          if (route.request().resourceType() === 'media') {
+          if (blockedResources.has(route.request().resourceType())) {
             await route.abort()
             return
           }
@@ -138,6 +155,10 @@ export async function fetchRenderedHtml(
       } catch (error) {
         if (navigationFailure) throw navigationFailure
         throw error
+      }
+      let serverHtml: string | undefined
+      if (options.captureServerHtml && response) {
+        serverHtml = await response.text().catch(() => undefined)
       }
       const initialHtml = await page.content()
       if (isSecurityChallengePage(initialHtml))
@@ -207,16 +228,19 @@ export async function fetchRenderedHtml(
         return {
           html,
           finalUrl,
+          serverHtml,
           screenshotWarning:
             'The active vault changed during scraping. Please retry.',
         }
       }
+      if (options.screenshot === false) return { html, finalUrl, serverHtml }
 
       const screenshotBudget = Math.min(25_000, operation.remainingMs() - 1000)
       if (screenshotBudget < 1000) {
         return {
           html,
           finalUrl,
+          serverHtml,
           screenshotWarning:
             'Product details were imported, but there was not enough time to capture the webpage screenshot. Retry the screenshot from the saved item.',
         }
@@ -231,13 +255,14 @@ export async function fetchRenderedHtml(
         )
         operation.remainingMs()
         // Screenshot scrolling can trigger overlays; retain the cleaned DOM.
-        return { html: await page.content(), finalUrl, ...capture }
+        return { html: await page.content(), finalUrl, serverHtml, ...capture }
       } catch (error) {
         operation.remainingMs()
         if (toScrapeError(error).code !== 'timeout') throw error
         return {
           html,
           finalUrl,
+          serverHtml,
           screenshotWarning:
             'Product details were imported, but the webpage screenshot took too long. Retry the screenshot from the saved item.',
         }

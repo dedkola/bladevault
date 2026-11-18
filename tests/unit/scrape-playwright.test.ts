@@ -193,6 +193,71 @@ describe('rendered scrape browser lifecycle', () => {
     expect(mocks.screenshot.mock.calls[0][1].aborted).toBe(true)
   })
 
+  it('skips the screenshot and returns server HTML for monitoring checks', async () => {
+    const { browser, page } = resources()
+    const serverHtml = '<html><script type="application/ld+json">{}</script>'
+    page.goto.mockResolvedValue({
+      ok: () => true,
+      text: vi.fn().mockResolvedValue(serverHtml),
+    })
+    const pending = fetchRenderedHtml(url, undefined, {
+      screenshot: false,
+      captureServerHtml: true,
+    })
+    await vi.advanceTimersByTimeAsync(2_000)
+    await expect(pending).resolves.toEqual({
+      html,
+      finalUrl: url,
+      serverHtml,
+    })
+    expect(mocks.screenshot).not.toHaveBeenCalled()
+    expect(browser.close).toHaveBeenCalledOnce()
+  })
+
+  it('does not read the response body unless asked', async () => {
+    const { page } = resources()
+    const text = vi.fn().mockResolvedValue('<html></html>')
+    page.goto.mockResolvedValue({ ok: () => true, text })
+    const pending = fetchRenderedHtml(url, undefined, { screenshot: false })
+    await vi.advanceTimersByTimeAsync(2_000)
+    await expect(pending).resolves.toMatchObject({ serverHtml: undefined })
+    expect(text).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [{}, ['media'], ['image', 'font', 'document', 'script']],
+    [{ light: true }, ['media', 'image', 'font'], ['document', 'script']],
+  ])(
+    'blocks resource types for options %j',
+    async (options, blocked, allowed) => {
+      const { page } = resources()
+      const pending = fetchRenderedHtml(url, undefined, {
+        ...options,
+        screenshot: false,
+      })
+      await vi.advanceTimersByTimeAsync(2_000)
+      await pending
+      const handler = page.route.mock.calls[0][1]
+      for (const type of [...blocked, ...allowed]) {
+        const route = {
+          request: () => ({
+            resourceType: () => type,
+            isNavigationRequest: () => type === 'document',
+            url: () => url,
+          }),
+          abort: vi.fn().mockResolvedValue(undefined),
+          continue: vi.fn().mockResolvedValue(undefined),
+        }
+        await handler(route)
+        if (blocked.includes(type)) {
+          expect(route.abort, type).toHaveBeenCalledOnce()
+        } else {
+          expect(route.continue, type).toHaveBeenCalledOnce()
+        }
+      }
+    },
+  )
+
   it('cleans up on caller cancellation', async () => {
     const { browser, page } = resources()
     page.goto.mockImplementation(async () => {
