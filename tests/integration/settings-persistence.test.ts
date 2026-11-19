@@ -44,6 +44,8 @@ describe('settings persistence', () => {
           advisor: true,
           resolveErrors: false,
           vision: false,
+          maxPageKb: 500,
+          maxAnswerTokens: 32_768,
         },
         otherStores: {
           enabled: true,
@@ -78,6 +80,8 @@ describe('settings persistence', () => {
         advisor: true,
         resolveErrors: false,
         vision: false,
+        maxPageKb: 500,
+        maxAnswerTokens: 32_768,
       },
       otherStores: {
         enabled: true,

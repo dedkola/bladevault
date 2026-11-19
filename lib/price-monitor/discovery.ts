@@ -204,6 +204,7 @@ export async function discoverKnife(
     baseUrl: settings.ai.baseUrl,
     apiKey: null,
     headers: settings.ai.headers,
+    maxAnswerTokens: settings.ai.maxAnswerTokens,
   }
 
   const finish = async (input: {

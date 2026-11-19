@@ -1,0 +1,154 @@
+import type Database from 'better-sqlite3'
+import { getLocalDb } from '@/lib/local-db'
+import {
+  setAiCallObserver,
+  type AiCallEvent,
+  type AiPurpose,
+} from '@/lib/price-monitor/ai-client'
+import { withVaultWriteSync } from '@/lib/vault-access'
+
+/**
+ * The AI call journal: one row per AI request price monitoring makes (what
+ * for, how long, tokens, outcome), without prompts, answers or keys. It
+ * shows whether AI actually works, which a disabled or failing endpoint
+ * otherwise hides behind ordinary check results.
+ */
+export const AI_JOURNAL_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+const DAY_MS = 24 * 60 * 60 * 1000
+
+export function insertAiCall(
+  database: Database.Database,
+  event: AiCallEvent,
+): void {
+  database
+    .prepare(
+      `INSERT INTO price_ai_calls
+        (started_at, purpose, model, duration_ms, attempts, ok, error_code,
+         error, prompt_tokens, completion_tokens, reasoning)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      new Date(event.startedAt).toISOString(),
+      event.purpose,
+      event.model.slice(0, 200),
+      Math.max(0, Math.round(event.durationMs)),
+      event.attempts,
+      event.ok ? 1 : 0,
+      event.errorCode,
+      event.error,
+      event.promptTokens,
+      event.completionTokens,
+      event.reasoning ? 1 : 0,
+    )
+}
+
+/** Records a call in the open vault; never throws (restore, lock, …). */
+export function recordAiCall(event: AiCallEvent): void {
+  try {
+    withVaultWriteSync(() => insertAiCall(getLocalDb(), event))
+  } catch {
+    // A journal row is not worth failing or delaying a check for.
+  }
+}
+
+/** Sends every AI call of this process to the journal. */
+export function installAiCallJournal(): void {
+  setAiCallObserver(recordAiCall)
+}
+
+export function pruneAiCalls(database: Database.Database, now = Date.now()) {
+  database
+    .prepare('DELETE FROM price_ai_calls WHERE started_at < ?')
+    .run(new Date(now - AI_JOURNAL_RETENTION_MS).toISOString())
+}
+
+export type AiPurposeStats = {
+  purpose: AiPurpose
+  calls: number
+  failed: number
+}
+
+export type AiCallSummary = {
+  /** The last 24 hours. */
+  calls: number
+  failed: number
+  /** Median duration of successful calls, ms. */
+  medianMs: number | null
+  promptTokens: number
+  completionTokens: number
+  byPurpose: AiPurposeStats[]
+  lastCallAt: string | null
+  lastError: { at: string; purpose: AiPurpose; message: string } | null
+  /** The latest call's model was known to reason before answering. */
+  reasoning: boolean
+}
+
+/** What AI did in the last 24 hours. */
+export function readAiCallSummary(
+  database: Database.Database,
+  now = Date.now(),
+): AiCallSummary {
+  const since = new Date(now - DAY_MS).toISOString()
+  const totals = database
+    .prepare(
+      `SELECT COUNT(*) AS calls,
+              COALESCE(SUM(ok = 0), 0) AS failed,
+              COALESCE(SUM(prompt_tokens), 0) AS promptTokens,
+              COALESCE(SUM(completion_tokens), 0) AS completionTokens
+       FROM price_ai_calls WHERE started_at >= ?`,
+    )
+    .get(since) as {
+    calls: number
+    failed: number
+    promptTokens: number
+    completionTokens: number
+  }
+  const durations = (
+    database
+      .prepare(
+        `SELECT duration_ms AS ms FROM price_ai_calls
+         WHERE started_at >= ? AND ok = 1 ORDER BY duration_ms`,
+      )
+      .all(since) as Array<{ ms: number }>
+  ).map((row) => row.ms)
+  const byPurpose = database
+    .prepare(
+      `SELECT purpose, COUNT(*) AS calls, COALESCE(SUM(ok = 0), 0) AS failed
+       FROM price_ai_calls WHERE started_at >= ?
+       GROUP BY purpose ORDER BY calls DESC, purpose`,
+    )
+    .all(since) as AiPurposeStats[]
+  const last = database
+    .prepare(
+      `SELECT started_at AS at, reasoning FROM price_ai_calls
+       ORDER BY started_at DESC, id DESC LIMIT 1`,
+    )
+    .get() as { at: string; reasoning: number } | undefined
+  const lastError = database
+    .prepare(
+      `SELECT started_at AS at, purpose, error AS message FROM price_ai_calls
+       WHERE ok = 0 AND started_at >= ?
+       ORDER BY started_at DESC, id DESC LIMIT 1`,
+    )
+    .get(since) as
+    { at: string; purpose: AiPurpose; message: string | null } | undefined
+  return {
+    calls: totals.calls,
+    failed: totals.failed,
+    medianMs: durations.length
+      ? durations[Math.floor((durations.length - 1) / 2)]
+      : null,
+    promptTokens: totals.promptTokens,
+    completionTokens: totals.completionTokens,
+    byPurpose,
+    lastCallAt: last?.at ?? null,
+    lastError: lastError
+      ? {
+          at: lastError.at,
+          purpose: lastError.purpose,
+          message: lastError.message ?? 'The AI request failed.',
+        }
+      : null,
+    reasoning: Boolean(last?.reasoning),
+  }
+}

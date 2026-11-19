@@ -21,6 +21,7 @@ import {
   normalizeAiBaseUrl,
   normalizeAiModel,
   parseAiHeaders,
+  PRICE_AI_LIMITS,
   type PriceAiSettings,
 } from '@/lib/settings-shared'
 
@@ -283,6 +284,116 @@ function ApiKeyControl({ disabled }: { disabled?: boolean }) {
   )
 }
 
+type AiCallSummary = {
+  calls: number
+  failed: number
+  medianMs: number | null
+  promptTokens: number
+  completionTokens: number
+  byPurpose: Array<{ purpose: string; calls: number; failed: number }>
+  lastCallAt: string | null
+  lastError: { at: string; purpose: string; message: string } | null
+  reasoning: boolean
+}
+
+const PURPOSE_LABELS: Record<string, string> = {
+  extraction: 'price reading',
+  solver: 'error solving',
+  vision: 'screenshot reading',
+  troubleshoot: 'recovery',
+  advisor: 'pacing review',
+  discovery_search: 'store search',
+  discovery_verify: 'listing check',
+  test: 'connection test',
+}
+
+/** A whole number within the range, from a typed value; null otherwise. */
+function integerInRange(
+  value: string,
+  [min, max]: readonly [number, number],
+): number | null {
+  const text = value.replace(/[\s,_]/g, '')
+  if (!/^\d+$/.test(text)) return null
+  const parsed = Number(text)
+  return parsed >= min && parsed <= max ? parsed : null
+}
+
+const formatCount = (value: number) =>
+  new Intl.NumberFormat(undefined, { notation: 'compact' }).format(value)
+
+/** What AI did in the last 24 hours, from the AI call journal. */
+function AiActivity({ version }: { version: number }) {
+  const [summary, setSummary] = useState<AiCallSummary | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    callJson<AiCallSummary>(
+      '/api/prices/ai-calls',
+      { method: 'GET' },
+      'Could not read the AI activity.',
+    )
+      .then((data) => {
+        if (cancelled) return
+        setSummary(data)
+        setError(null)
+      })
+      .catch((reason: unknown) => {
+        if (!cancelled)
+          setError(reason instanceof Error ? reason.message : String(reason))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [version])
+
+  if (error) return <p className="w-full text-xs text-destructive">{error}</p>
+  if (!summary) return null
+  if (!summary.calls)
+    return (
+      <p className="w-full text-xs text-muted-foreground">
+        No AI requests in the last 24 hours.
+      </p>
+    )
+  const tokens = summary.promptTokens + summary.completionTokens
+  const parts = [
+    `${summary.calls} ${summary.calls === 1 ? 'request' : 'requests'}`,
+    summary.failed ? `${summary.failed} failed` : 'none failed',
+    summary.medianMs !== null
+      ? `typically ${(summary.medianMs / 1000).toFixed(1)} s`
+      : null,
+    tokens ? `${formatCount(tokens)} tokens` : null,
+  ].filter(Boolean)
+  return (
+    <div className="flex w-full flex-col gap-1 text-xs text-muted-foreground">
+      <p className="tabular-nums text-foreground">{parts.join(' · ')}</p>
+      <p>
+        {summary.byPurpose
+          .map(
+            (entry) =>
+              `${PURPOSE_LABELS[entry.purpose] ?? entry.purpose} ${entry.calls}${entry.failed ? ` (${entry.failed} failed)` : ''}`,
+          )
+          .join(', ')}
+      </p>
+      {summary.reasoning ? (
+        <p>
+          The model reasons before it answers, so each request gets more time
+          and tokens.
+        </p>
+      ) : null}
+      {summary.lastError ? (
+        <p className="text-destructive">
+          Last error (
+          {PURPOSE_LABELS[summary.lastError.purpose] ??
+            summary.lastError.purpose}
+          , {new Date(summary.lastError.at).toLocaleTimeString()}):{' '}
+          {summary.lastError.message}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 export type AdvisorLaneAdvice = {
   minGapMs: number | null
   pauseUntil: string | null
@@ -312,6 +423,7 @@ export function PriceAiSettingsSection({
   const [modelNotice, setModelNotice] = useState<Notice>(null)
   const [testNotice, setTestNotice] = useState<Notice>(null)
   const [advisorNotice, setAdvisorNotice] = useState<Notice>(null)
+  const [activityVersion, setActivityVersion] = useState(0)
 
   const update = (patch: Partial<PriceAiSettings>) =>
     onChange({ ...settings, ...patch })
@@ -367,6 +479,7 @@ export function PriceAiSettingsSection({
       })
     } finally {
       setBusy(null)
+      setActivityVersion((value) => value + 1)
     }
   }
 
@@ -394,6 +507,7 @@ export function PriceAiSettingsSection({
       })
     } finally {
       setBusy(null)
+      setActivityVersion((value) => value + 1)
     }
   }
 
@@ -516,6 +630,47 @@ export function PriceAiSettingsSection({
         <NoticeText notice={modelNotice} />
       </SettingsRow>
       <SettingsRow
+        label="Page size AI reads (KB)"
+        description={`How much of a product page AI reads when it reads a price, ${PRICE_AI_LIMITS.maxPageKb[0]}–${PRICE_AI_LIMITS.maxPageKb[1]} KB of cleaned HTML. Price elements come first, then the rest of the page. Models with a large context window (1M tokens) handle 200–500 KB; small local models need about 8–16 KB.`}
+      >
+        <TextField
+          aria-label="Page size AI reads, in KB"
+          value={String(settings.maxPageKb)}
+          disabled={off}
+          validate={(value) =>
+            integerInRange(value, PRICE_AI_LIMITS.maxPageKb) === null
+              ? `Enter a whole number from ${PRICE_AI_LIMITS.maxPageKb[0]} to ${PRICE_AI_LIMITS.maxPageKb[1]}.`
+              : null
+          }
+          onCommit={(value) => {
+            const parsed = integerInRange(value, PRICE_AI_LIMITS.maxPageKb)
+            if (parsed !== null) update({ maxPageKb: parsed })
+          }}
+        />
+      </SettingsRow>
+      <SettingsRow
+        label="Answer limit for reasoning models (tokens)"
+        description={`The most a model that reasons before it answers may write per request, ${formatCount(PRICE_AI_LIMITS.maxAnswerTokens[0])}–${formatCount(PRICE_AI_LIMITS.maxAnswerTokens[1])} tokens. It limits the answer only, not the page sent. If the endpoint refuses it as above the model's own limit, BladeVault lowers it to 4,096 for that model.`}
+      >
+        <TextField
+          aria-label="Answer limit for reasoning models, in tokens"
+          value={String(settings.maxAnswerTokens)}
+          disabled={off}
+          validate={(value) =>
+            integerInRange(value, PRICE_AI_LIMITS.maxAnswerTokens) === null
+              ? `Enter a whole number from ${PRICE_AI_LIMITS.maxAnswerTokens[0]} to ${PRICE_AI_LIMITS.maxAnswerTokens[1]}.`
+              : null
+          }
+          onCommit={(value) => {
+            const parsed = integerInRange(
+              value,
+              PRICE_AI_LIMITS.maxAnswerTokens,
+            )
+            if (parsed !== null) update({ maxAnswerTokens: parsed })
+          }}
+        />
+      </SettingsRow>
+      <SettingsRow
         label="Test connection"
         description="Sends a made-up product page and checks that the model reads its price."
       >
@@ -531,9 +686,15 @@ export function PriceAiSettingsSection({
         <NoticeText notice={testNotice} />
       </SettingsRow>
       <SettingsRow
+        label="AI activity"
+        description="Requests in the last 24 hours, from a journal that keeps no page content, answers or keys."
+      >
+        <AiActivity version={activityVersion} />
+      </SettingsRow>
+      <SettingsRow
         inline
         label="Read prices the page parsers miss"
-        description="Sends a trimmed part of the product page (title, price and stock elements) at most once a day per product. The price must appear on the page as written, or it is ignored."
+        description="Sends the cleaned product page, up to the page size above, at most once a day per product. The price must appear on the page as written, or it is ignored."
       >
         <SettingsSwitch
           aria-label="Read prices with AI when the page parsers find none"

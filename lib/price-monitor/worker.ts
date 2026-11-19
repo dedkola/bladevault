@@ -132,6 +132,10 @@ type PassContext = {
   intervalMs: number
   windowMs: number
   laneCounts: Map<string, number>
+  /** Scheduled sources per store that were never checked. */
+  firstReadings: Map<string, number>
+  /** The never-checked sources themselves. */
+  firstReadingIds: ReadonlySet<number>
 }
 
 function isVaultError(error: unknown): boolean {
@@ -158,12 +162,41 @@ function effectiveLane(
   return applyAdviceToLane(normalizeLane(lane, pacing), advice, now)
 }
 
-function scheduledCounts(candidates: readonly CandidateRow[]) {
+function scheduledCounts(
+  candidates: readonly CandidateRow[],
+  include: (candidate: CandidateRow) => boolean = () => true,
+) {
   const counts = new Map<string, number>()
   for (const candidate of candidates)
-    if (candidate.scheduled)
+    if (candidate.scheduled && include(candidate))
       counts.set(candidate.laneKey, (counts.get(candidate.laneKey) ?? 0) + 1)
   return counts
+}
+
+/**
+ * The gap after a check: the store's even spread, or only its minimum gap
+ * while it still has sources that were never checked, so new sources get a
+ * first price within minutes instead of over the whole window. Retry-After,
+ * the circuit breaker and AI advice still apply on top (lanes, advisor).
+ */
+function gapAfterCheck(input: {
+  lane: LaneState
+  laneKey: string
+  floorMs: number
+  context: PassContext
+  /** The check that just ran was itself a first reading. */
+  firstReading: boolean
+}): number {
+  const { lane, laneKey, floorMs, context } = input
+  const waiting =
+    (context.firstReadings.get(laneKey) ?? 0) - (input.firstReading ? 1 : 0)
+  if (waiting > 0) return Math.max(lane.minGapMs, floorMs)
+  return laneGapMs({
+    minGapMs: lane.minGapMs,
+    floorMs,
+    activeWindowMs: context.windowMs,
+    sourceCount: context.laneCounts.get(laneKey) ?? 0,
+  })
 }
 
 export class PriceMonitorWorker {
@@ -304,6 +337,15 @@ export class PriceMonitorWorker {
         intervalMs: frequencyMs(settings.schedule),
         windowMs: activeWindowMs(settings.schedule),
         laneCounts: scheduledCounts(candidates),
+        firstReadings: scheduledCounts(
+          candidates,
+          (candidate) => candidate.priority === 1,
+        ),
+        firstReadingIds: new Set(
+          candidates
+            .filter((candidate) => candidate.priority === 1)
+            .map((candidate) => candidate.sourceId),
+        ),
       }
       for (const pick of pickNextChecks(input)) {
         const lane = lanes.get(pick.laneKey) ?? input.defaultLane(pick.laneKey)
@@ -433,11 +475,12 @@ export class PriceMonitorWorker {
       startedAt,
     })
     const floorMs = laneFloorMs(pick.laneKey, context.settings.pacing)
-    const gapMs = laneGapMs({
-      minGapMs: lane.minGapMs,
+    const gapMs = gapAfterCheck({
+      lane,
+      laneKey: pick.laneKey,
       floorMs,
-      activeWindowMs: context.windowMs,
-      sourceCount: context.laneCounts.get(pick.laneKey) ?? 0,
+      context,
+      firstReading: context.firstReadingIds.has(pick.sourceId),
     })
     const controller = new AbortController()
     this.controllers.add(controller)

@@ -3,6 +3,7 @@ import {
   AiClientError,
   requestJsonCompletion,
   type AiEndpoint,
+  type AiPurpose,
   type FetchLike,
 } from '@/lib/price-monitor/ai-client'
 import { MAX_PRICE_MAJOR } from '@/lib/price-monitor/detect'
@@ -27,6 +28,8 @@ import type { PriceAiSettings } from '@/lib/settings-shared'
  */
 export const AI_FRAGMENT_MAX_BYTES = 8 * 1024
 export const AI_EXTRACTION_TIMEOUT_MS = 20_000
+/** Extra time per 10 KB of page sent, for large-context models. */
+const AI_TIMEOUT_PER_10KB_MS = 2_000
 export const AI_MIN_CONFIDENCE = 0.7
 /** A source uses AI at most once per this period. */
 export const AI_SOURCE_COOLDOWN_MS = 24 * 60 * 60 * 1000
@@ -78,15 +81,27 @@ function hintAttributes(element: DomNode): boolean {
  * class, id or itemprop mention price, offer, availability, stock or cart
  * (with their parent for context). Scripts, styles and most attributes are
  * removed. At most `maxBytes` UTF-8 bytes.
+ *
+ * With a budget above AI_FRAGMENT_MAX_BYTES (large-context models) the
+ * price elements may be larger and come first, followed by the rest of the
+ * cleaned page (`Page:`) until the budget is used.
  */
 export function buildPriceFragment(
   html: string,
   maxBytes = AI_FRAGMENT_MAX_BYTES,
 ): string {
+  const large = maxBytes > AI_FRAGMENT_MAX_BYTES
+  const chunkMax = large
+    ? Math.max(CHUNK_MAX_BYTES, Math.floor(maxBytes / 16))
+    : CHUNK_MAX_BYTES
+  const jsonLdMax = large
+    ? Math.max(JSON_LD_MAX_BYTES, Math.floor(maxBytes / 8))
+    : JSON_LD_MAX_BYTES
+  const maxMatches = large ? MAX_MATCHES * 4 : MAX_MATCHES
   const $ = cheerio.load(html)
   const parts: string[] = []
   let used = 0
-  const push = (text: string, limit = CHUNK_MAX_BYTES) => {
+  const push = (text: string, limit = chunkMax) => {
     const chunk = truncateBytes(squash(text), limit)
     if (!chunk) return
     const cost = bytes(chunk) + 1
@@ -118,7 +133,7 @@ export function buildPriceFragment(
 
   $('script[type="application/ld+json"]').each((_, element) => {
     const text = $(element).text()
-    if (/offer|price/i.test(text)) push(`JSON-LD: ${text}`, JSON_LD_MAX_BYTES)
+    if (/offer|price/i.test(text)) push(`JSON-LD: ${text}`, jsonLdMax)
   })
 
   $('script, style, noscript, svg, iframe, template, link, meta').remove()
@@ -132,7 +147,7 @@ export function buildPriceFragment(
   }
   const matches = ($('body *').toArray() as unknown as DomNode[])
     .filter(hintAttributes)
-    .slice(0, MAX_MATCHES)
+    .slice(0, maxMatches)
   for (const element of matches) {
     if (chosen.includes(element) || isInside(element)) continue
     const parent = element.parent
@@ -142,7 +157,7 @@ export function buildPriceFragment(
       parent.type === 'tag' &&
       parent.name !== 'body' &&
       !isInside(parent) &&
-      bytes(html$(parent)) <= CHUNK_MAX_BYTES * 2
+      bytes(html$(parent)) <= chunkMax * 2
         ? parent
         : element
     if (chosen.includes(context)) continue
@@ -167,6 +182,26 @@ export function buildPriceFragment(
       })
     push(html$(element))
     if (used >= maxBytes) break
+  }
+
+  // Large budgets: the rest of the page, without comments and attributes
+  // that cannot hold a price.
+  if (large && used < maxBytes) {
+    $('*')
+      .contents()
+      .filter((_, node) => (node as unknown as DomNode).type === 'comment')
+      .remove()
+    $('body')
+      .find('*')
+      .each((_, node) => {
+        const attributes = (node as unknown as DomNode).attribs
+        if (!attributes) return
+        for (const name of Object.keys(attributes))
+          if (!KEPT_ATTRIBUTES.has(name) && !/^data-.*price/i.test(name))
+            delete attributes[name]
+      })
+    const body = $('body').html() ?? ''
+    push(`Page: ${body}`, maxBytes)
   }
   return parts.join('\n')
 }
@@ -318,8 +353,15 @@ export async function extractOfferWithAi(input: {
   signal?: AbortSignal
   fetchImpl?: FetchLike
   timeoutMs?: number
+  /** Recorded in the AI call journal; scheduled checks use 'extraction'. */
+  purpose?: AiPurpose
+  /** How much of the page to send (settings' maxPageKb); 8 KB by default. */
+  maxFragmentBytes?: number
 }): Promise<AiExtractionResult> {
-  const fragment = buildPriceFragment(input.html)
+  const fragment = buildPriceFragment(
+    input.html,
+    input.maxFragmentBytes ?? AI_FRAGMENT_MAX_BYTES,
+  )
   if (!fragment.trim()) return { status: 'skipped', reason: 'empty_page' }
   const answer = await requestJsonCompletion(
     input.endpoint,
@@ -328,11 +370,16 @@ export async function extractOfferWithAi(input: {
       system: SYSTEM_PROMPT,
       user: `Page fragment:\n${fragment}`,
       schemaName: 'product_offer',
+      purpose: input.purpose ?? 'extraction',
       schema: AI_OFFER_SCHEMA,
       maxTokens: 200,
     },
     {
-      timeoutMs: input.timeoutMs ?? AI_EXTRACTION_TIMEOUT_MS,
+      timeoutMs:
+        input.timeoutMs ??
+        AI_EXTRACTION_TIMEOUT_MS +
+          Math.ceil(Buffer.byteLength(fragment, 'utf8') / 10_240) *
+            AI_TIMEOUT_PER_10KB_MS,
       signal: input.signal,
       fetchImpl: input.fetchImpl,
     },

@@ -10,9 +10,16 @@ import {
 import {
   AiClientError,
   listAiModels,
+  isReasoningModel,
   parseJsonAnswer,
   REASONING_MAX_TOKENS,
+  REASONING_MIN_TIMEOUT_MS,
   requestJsonCompletion,
+  resetAiModelProfiles,
+  SAFE_ANSWER_TOKENS,
+  setAiCallObserver,
+  stripThinking,
+  type AiCallEvent,
 } from '@/lib/price-monitor/ai-client'
 import {
   redactSecrets,
@@ -55,6 +62,8 @@ function chatResponse(content: unknown, status = 200) {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  resetAiModelProfiles()
+  setAiCallObserver(null)
 })
 
 describe('buildPriceFragment', () => {
@@ -87,6 +96,32 @@ describe('buildPriceFragment', () => {
       AI_FRAGMENT_MAX_BYTES,
     )
     expect(fragment).not.toContain('�')
+  })
+
+  it('adds the rest of the cleaned page when the budget is large', () => {
+    const rows = Array.from(
+      { length: 2000 },
+      (_, index) => `<p data-x="${index}">Detail line ${index}</p>`,
+    ).join('')
+    const html = `<html><head><title>Big</title></head><body>
+      <!-- tracking comment -->
+      <div class="buy-box"><span class="price">$129.00</span></div>
+      <section style="color:red">${rows}<b>Final sale $99.00</b></section>
+      <script>var price = 1</script></body></html>`
+    const small = buildPriceFragment(html)
+    expect(small).not.toContain('Final sale')
+    const large = buildPriceFragment(html, 200 * 1024)
+    // Price elements first, then the page.
+    expect(large.indexOf('$129.00')).toBeLessThan(large.indexOf('Page:'))
+    expect(large).toContain('Final sale $99.00')
+    expect(large).toContain('Detail line 1999')
+    expect(large).not.toContain('tracking comment')
+    expect(large).not.toContain('var price')
+    expect(large).not.toContain('style=')
+    expect(large).not.toContain('data-x')
+    const capped = buildPriceFragment(html, 20 * 1024)
+    expect(Buffer.byteLength(capped, 'utf8')).toBeLessThanOrEqual(20 * 1024)
+    expect(capped).toContain('$129.00')
   })
 
   it('returns an empty fragment for an empty page', () => {
@@ -260,7 +295,20 @@ describe('AI settings normalization', () => {
       advisor: true,
       resolveErrors: true,
       vision: false,
+      maxPageKb: 200,
+      maxAnswerTokens: 16_384,
     })
+    // Page size and answer limit stay within their bounds.
+    expect(
+      normalizePriceMonitoring(
+        { ai: { maxPageKb: 5000, maxAnswerTokens: 10 } },
+        current,
+      ).ai,
+    ).toMatchObject({ maxPageKb: 1000, maxAnswerTokens: 1024 })
+    expect(
+      normalizePriceMonitoring({ ai: { maxPageKb: 'x' } }, current).ai
+        .maxPageKb,
+    ).toBe(200)
     const next = normalizePriceMonitoring(
       { ai: { advisor: false, baseUrl: 'not a url' } },
       current,
@@ -435,6 +483,10 @@ describe('AI client', () => {
     // Same response format; only the budget changes.
     expect(second.response_format).toEqual(first.response_format)
 
+    // A model learned as reasoning starts with the larger budget.
+    expect(isReasoningModel(endpoint, 'glm-5.3')).toBe(true)
+    resetAiModelProfiles()
+
     const always = vi
       .fn<typeof fetch>()
       .mockImplementation(async () => reasoningOnly())
@@ -445,6 +497,254 @@ describe('AI client', () => {
     expect(always).toHaveBeenCalledTimes(2)
     expect((error as AiClientError).code).toBe('invalid_response')
     expect((error as Error).message).toContain('reasoning')
+  })
+
+  it('starts later requests to a learned reasoning model with its budget', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: '{"ok":1}',
+                  reasoning_content: 'Thinking first.',
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(chatResponse('{"ok":2}'))
+    const request = {
+      model: 'thinker',
+      system: 's',
+      user: 'u',
+      schemaName: 'x',
+      schema: { type: 'object' },
+      maxTokens: 200,
+    }
+    expect(
+      await requestJsonCompletion(endpoint, request, {
+        timeoutMs: 1000,
+        fetchImpl,
+      }),
+    ).toEqual({ ok: 1 })
+    expect(
+      await requestJsonCompletion(endpoint, request, {
+        timeoutMs: 1000,
+        fetchImpl,
+      }),
+    ).toEqual({ ok: 2 })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    const first = JSON.parse(String(fetchImpl.mock.calls[0][1]?.body))
+    const second = JSON.parse(String(fetchImpl.mock.calls[1][1]?.body))
+    expect(first.max_tokens).toBe(200)
+    expect(second.max_tokens).toBe(REASONING_MAX_TOKENS)
+    // Another model at the same endpoint is not affected.
+    expect(isReasoningModel(endpoint, 'other')).toBe(false)
+  })
+
+  it('retries once with more time when a model times out', async () => {
+    const timeouts: number[] = []
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockImplementationOnce(
+        (_url, init) =>
+          new Promise((_resolve, reject) => {
+            const started = Date.now()
+            init?.signal?.addEventListener('abort', () => {
+              timeouts.push(Date.now() - started)
+              reject(new Error('aborted'))
+            })
+          }),
+      )
+      .mockResolvedValueOnce(chatResponse('{"ok":true}'))
+    const result = await requestJsonCompletion(
+      endpoint,
+      {
+        model: 'slow',
+        system: 's',
+        user: 'u',
+        schemaName: 'x',
+        schema: { type: 'object' },
+        maxTokens: 200,
+      },
+      { timeoutMs: 20, fetchImpl },
+    )
+    expect(result).toEqual({ ok: true })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(timeouts).toHaveLength(1)
+    expect(isReasoningModel(endpoint, 'slow')).toBe(true)
+    expect(REASONING_MIN_TIMEOUT_MS).toBeGreaterThanOrEqual(60_000)
+  })
+
+  it('does not retry a timeout when the caller cancelled', async () => {
+    const controller = new AbortController()
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(new Error('aborted')),
+          )
+          controller.abort()
+        }),
+    )
+    const error = await requestJsonCompletion(
+      endpoint,
+      { model: 'm', system: 's', user: 'u', schemaName: 'x', schema: {} },
+      { timeoutMs: 1000, signal: controller.signal, fetchImpl },
+    ).catch((caught: unknown) => caught)
+    expect((error as AiClientError).code).toBe('cancelled')
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries an answer cut off at the token limit', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                finish_reason: 'length',
+                message: { content: '{"price": "12' },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(chatResponse('{"price":"12.00"}'))
+    const result = await requestJsonCompletion(
+      endpoint,
+      {
+        model: 'm',
+        system: 's',
+        user: 'u',
+        schemaName: 'x',
+        schema: {},
+        maxTokens: 200,
+      },
+      { timeoutMs: 1000, fetchImpl },
+    )
+    expect(result).toEqual({ price: '12.00' })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses the endpoint answer limit and lowers it when the model refuses it', async () => {
+    const reasoningOnly = () =>
+      new Response(
+        JSON.stringify({
+          choices: [{ finish_reason: 'length', message: { content: '' } }],
+        }),
+        { status: 200 },
+      )
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(reasoningOnly())
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: {
+              message: 'max_tokens must be less than or equal to 8192',
+            },
+          }),
+          { status: 400 },
+        ),
+      )
+      .mockResolvedValueOnce(chatResponse('{"ok":1}'))
+      .mockResolvedValueOnce(chatResponse('{"ok":2}'))
+    const big = { ...endpoint, maxAnswerTokens: 32_768 }
+    const request = {
+      model: 'r1',
+      system: 's',
+      user: 'u',
+      schemaName: 'x',
+      schema: {},
+      maxTokens: 200,
+    }
+    expect(
+      await requestJsonCompletion(big, request, { timeoutMs: 1000, fetchImpl }),
+    ).toEqual({ ok: 1 })
+    expect(
+      await requestJsonCompletion(big, request, { timeoutMs: 1000, fetchImpl }),
+    ).toEqual({ ok: 2 })
+    const sent = fetchImpl.mock.calls.map(
+      (call) => JSON.parse(String(call[1]?.body)) as Record<string, unknown>,
+    )
+    expect(sent.map((body) => body.max_tokens)).toEqual([
+      200,
+      32_768,
+      SAFE_ANSWER_TOKENS,
+      SAFE_ANSWER_TOKENS,
+    ])
+    // The response format did not change while lowering the limit.
+    expect(sent[2].response_format).toEqual(sent[1].response_format)
+  })
+
+  it('removes inline thinking from answers', () => {
+    expect(stripThinking('<think>price is 5?</think>{"a":1}')).toBe('{"a":1}')
+    expect(stripThinking('<think>still going')).toBe('')
+    expect(parseJsonAnswer('<think>{"wrong":1}</think>\n{"a":2}')).toEqual({
+      a: 2,
+    })
+  })
+
+  it('reports each call to the journal observer without content', async () => {
+    const events: AiCallEvent[] = []
+    setAiCallObserver((event) => events.push(event))
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: '{"ok":true}' } }],
+            usage: { prompt_tokens: 120, completion_tokens: 8 },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(new Response('nope', { status: 500 }))
+    const request = {
+      model: 'm',
+      system: 's',
+      user: 'secret page text',
+      schemaName: 'x',
+      schema: {},
+      purpose: 'extraction' as const,
+    }
+    await requestJsonCompletion(endpoint, request, {
+      timeoutMs: 1000,
+      fetchImpl,
+    })
+    await requestJsonCompletion(endpoint, request, {
+      timeoutMs: 1000,
+      fetchImpl,
+    }).catch(() => null)
+    // Without a purpose nothing is reported.
+    await requestJsonCompletion(
+      endpoint,
+      { ...request, purpose: undefined },
+      {
+        timeoutMs: 1000,
+        fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(chatResponse('{}')),
+      },
+    )
+    expect(events).toHaveLength(2)
+    expect(events[0]).toMatchObject({
+      purpose: 'extraction',
+      model: 'm',
+      ok: true,
+      attempts: 1,
+      promptTokens: 120,
+      completionTokens: 8,
+      errorCode: null,
+    })
+    expect(events[1]).toMatchObject({ ok: false, errorCode: 'http' })
+    expect(JSON.stringify(events)).not.toContain('secret page text')
   })
 
   it('never puts the key into error messages', async () => {

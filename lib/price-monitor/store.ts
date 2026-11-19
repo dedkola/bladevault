@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3'
 import type { Knife } from '@/lib/data'
 import { getLocalDb } from '@/lib/local-db'
+import { pruneAiCalls } from '@/lib/price-monitor/ai-journal'
 import {
   detectChange,
   type DetectResult,
@@ -1206,6 +1207,7 @@ export async function pruneCheckLog(now = Date.now()): Promise<void> {
     db()
       .prepare('DELETE FROM price_check_log WHERE started_at < ?')
       .run(new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString())
+    pruneAiCalls(db(), now)
   })
 }
 

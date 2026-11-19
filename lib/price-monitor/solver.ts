@@ -51,6 +51,8 @@ export const VISION_MIN_CONFIDENCE = 0.9
 export const MAX_RECIPE_STEPS = 6
 const MAX_CANDIDATES = 40
 const FRAGMENT_BYTES = 6 * 1024
+/** Each solver step sends the page again, so it reads at most this much. */
+const SOLVER_MAX_FRAGMENT_BYTES = 64 * 1024
 
 /** Codes the solver may rescue: page-read problems and slow pages. */
 export const SOLVER_CODES: ReadonlySet<string> = new Set([
@@ -699,6 +701,7 @@ export async function solveOnPage(
         system: SOLVER_PROMPT,
         user,
         schemaName: 'page_step',
+        purpose: 'solver',
         schema: SOLVER_SCHEMA,
         maxTokens: 300,
       },
@@ -728,7 +731,18 @@ export async function solveOnPage(
         })
 
       const html = state.kind === 'html' ? state.html : ''
-      const fragment = html ? buildPriceFragment(html, FRAGMENT_BYTES) : ''
+      const fragment = html
+        ? buildPriceFragment(
+            html,
+            Math.max(
+              FRAGMENT_BYTES,
+              Math.min(
+                input.settings.maxPageKb * 1024,
+                SOLVER_MAX_FRAGMENT_BYTES,
+              ),
+            ),
+          )
+        : ''
       const candidates = html ? await readCandidates(page) : []
       const alternatives = html ? findAlternatives(html, state.url) : []
       const answer = readModelStep(
@@ -816,6 +830,7 @@ export async function solveOnPage(
               },
             ],
             schemaName: 'product_offer',
+            purpose: 'vision',
             schema: AI_OFFER_SCHEMA,
             maxTokens: 200,
           },

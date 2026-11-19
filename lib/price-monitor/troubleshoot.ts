@@ -223,6 +223,7 @@ export async function troubleshootCheck(input: {
       system: TROUBLESHOOT_PROMPT,
       user: JSON.stringify(input.failure),
       schemaName: 'check_recovery',
+      purpose: 'troubleshoot',
       schema: TROUBLESHOOT_SCHEMA,
       maxTokens: 300,
     },

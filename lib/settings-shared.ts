@@ -532,6 +532,17 @@ export type PriceAiSettings = {
   resolveErrors: boolean
   /** The model reads images: the solver may read a price from a screenshot. */
   vision: boolean
+  /**
+   * How much of a product page (KB of cleaned HTML) AI may read when it
+   * reads a price. Large-context models can take most of a page.
+   */
+  maxPageKb: number
+  /**
+   * Answer ceiling (max_tokens) for models that reason before they answer.
+   * It limits the answer only, not the page sent; a value above the model's
+   * own answer limit is lowered automatically when the endpoint refuses it.
+   */
+  maxAnswerTokens: number
 }
 
 export type PriceNotifyCategories = {
@@ -564,6 +575,8 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
     advisor: true,
     resolveErrors: true,
     vision: false,
+    maxPageKb: 200,
+    maxAnswerTokens: 16_384,
   },
   otherStores: {
     enabled: false,
@@ -578,6 +591,8 @@ export const PRICE_AI_LIMITS = {
   headerCount: 20,
   headerNameLength: 100,
   headerValueLength: 1000,
+  maxPageKb: [8, 1000],
+  maxAnswerTokens: [1024, 131_072],
 } as const
 
 /**
@@ -727,6 +742,16 @@ function normalizePriceAi(
     advisor: flag('advisor'),
     resolveErrors: flag('resolveErrors'),
     vision: flag('vision'),
+    maxPageKb: boundedInteger(
+      record.maxPageKb,
+      PRICE_AI_LIMITS.maxPageKb,
+      fallback.maxPageKb,
+    ),
+    maxAnswerTokens: boundedInteger(
+      record.maxAnswerTokens,
+      PRICE_AI_LIMITS.maxAnswerTokens,
+      fallback.maxAnswerTokens,
+    ),
   }
 }
 
