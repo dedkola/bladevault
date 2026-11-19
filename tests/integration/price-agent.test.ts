@@ -232,6 +232,63 @@ describe('AI supervisor', () => {
     expect(readAgentRuns(getLocalDb())).toHaveLength(2)
   })
 
+  it('serves knife labels, blocked stores and switches the mode', async () => {
+    enableAgent('observe')
+    const { id, source } = await createKnife(
+      'Drop Bear',
+      'https://kizer.example/drop',
+    )
+    getLocalDb()
+      .prepare(
+        `UPDATE price_sources SET status = 'blocked', store_name = 'Kizer',
+           last_checked_at = '2026-01-01T00:00:00.000Z', priority = 0
+         WHERE id = ?`,
+      )
+      .run(source.id)
+    aiFetch.mockResolvedValueOnce(
+      planResponse({
+        summary: 'Kizer is blocked.',
+        check: [{ sourceId: source.id, reason: 'stale' }],
+        retryWithAi: [],
+        fetchMode: [],
+        pause: [],
+        searchOtherStore: [],
+      }),
+    )
+    const ran = await agentRoute.POST(
+      new Request('http://localhost/api/prices/agent', { method: 'POST' }),
+    )
+    expect(ran.status).toBe(200)
+    const state = (await ran.json()) as {
+      blockedStores: string[]
+      labels: { sources: Record<string, { knifeId: string; knife: string }> }
+      runs: unknown[]
+      nextRunAt: string | null
+    }
+    expect(state.blockedStores).toEqual(['Kizer'])
+    expect(state.labels.sources[String(source.id)]).toEqual({
+      knifeId: id,
+      knife: 'Kizer Drop Bear',
+      store: 'Kizer',
+    })
+    expect(state.runs).toHaveLength(1)
+    expect(state.nextRunAt).toEqual(expect.any(String))
+
+    const patch = (mode: unknown) =>
+      agentRoute.PATCH(
+        new Request('http://localhost/api/prices/agent', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode }),
+        }),
+      )
+    expect((await patch('turbo')).status).toBe(400)
+    const switched = await patch('act')
+    expect(switched.status).toBe(200)
+    expect(((await switched.json()) as { mode: string }).mode).toBe('act')
+    expect(getSettings().priceMonitoring.ai.agentMode).toBe('act')
+  })
+
   it('serves runs and refuses Run now while off', async () => {
     const off = await agentRoute.POST(
       new Request('http://localhost/api/prices/agent', { method: 'POST' }),

@@ -785,6 +785,65 @@ function runningFlag(): { value: boolean } {
   return (scope[RUNNING] ??= { value: false })
 }
 
+/** A run is in progress in this process. */
+export function agentRunning(): boolean {
+  return runningFlag().value
+}
+
+export type AgentLabels = {
+  sources: Record<string, { knifeId: string; knife: string; store: string }>
+  knives: Record<string, string>
+}
+
+/** Knife and store names for the actions of these runs (for the UI). */
+export function readAgentLabels(
+  database: Database.Database,
+  runs: readonly AgentRun[],
+): AgentLabels {
+  const sourceIds = new Set<number>()
+  const knifeIds = new Set<string>()
+  for (const run of runs)
+    for (const action of run.actions) {
+      if (action.sourceId !== undefined) sourceIds.add(action.sourceId)
+      if (action.knifeId !== undefined) knifeIds.add(action.knifeId)
+    }
+  const labels: AgentLabels = { sources: {}, knives: {} }
+  const source = database.prepare(
+    `SELECT s.knife_id AS knifeId, k.brand, k.name, s.store_name AS store
+     FROM price_sources s JOIN knives k ON k.id = s.knife_id WHERE s.id = ?`,
+  )
+  for (const id of sourceIds) {
+    const row = source.get(id) as
+      | { knifeId: string; brand: string; name: string; store: string }
+      | undefined
+    if (row)
+      labels.sources[id] = {
+        knifeId: row.knifeId,
+        knife: [row.brand, row.name].filter(Boolean).join(' '),
+        store: row.store,
+      }
+  }
+  const knife = database.prepare('SELECT brand, name FROM knives WHERE id = ?')
+  for (const id of knifeIds) {
+    const row = knife.get(id) as { brand: string; name: string } | undefined
+    if (row) labels.knives[id] = [row.brand, row.name].filter(Boolean).join(' ')
+  }
+  return labels
+}
+
+/** Stores whose checks hit a bot check: only the user can pass it. */
+export function readBlockedStores(database: Database.Database): string[] {
+  return (
+    database
+      .prepare(
+        `SELECT DISTINCT store_name AS store FROM price_sources
+         WHERE status = 'blocked' AND enabled = 1 AND removed_at IS NULL
+         ORDER BY store_name`,
+      )
+      .all() as Array<{ store: string }>
+  ).map((row) => row.store)
+}
+
 /**
  * One supervisor run: snapshot, one model answer, validation, then the
  * actions applied (act) or only journalled (observe). AI failures are

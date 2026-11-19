@@ -52,7 +52,8 @@
 /* Monitoring status: lanes in the style of Maintenance > Coming up. Result
    colors match the care timeline pins; "no change" stays neutral. */
 [data-price-status],
-[data-price-table] {
+[data-price-table],
+[data-agent-strip] {
   --pd-drop: #15a36f;
   --pd-increase: #e5383b;
   --pd-oos: #e8960c;
@@ -60,7 +61,8 @@
   --pd-attention: #52525b;
 }
 .dark [data-price-status],
-.dark [data-price-table] {
+.dark [data-price-table],
+.dark [data-agent-strip] {
   --pd-same: #6b7280;
   --pd-attention: #a1a1aa;
 }
@@ -445,4 +447,27 @@
   .pd-tl-dates > [data-minor] {
     display: none;
   }
+}
+
+/* AI supervisor: coverage meter and the "needs you" note. */
+.pd-agent-meter {
+  display: flex;
+  height: 8px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bladevault-surface-soft);
+}
+.pd-agent-meter > i {
+  display: block;
+  height: 100%;
+}
+.pd-agent-attn {
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  background: var(--price-stock-bg);
+}
+.pd-agent-attn b {
+  color: var(--price-stock);
 }
