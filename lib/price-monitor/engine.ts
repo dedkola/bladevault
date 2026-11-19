@@ -387,6 +387,12 @@ function evaluate(
   }
 }
 
+/** The daily AI budget refused the request: the model was not asked. */
+const isBudgetRefusal = (error: unknown) =>
+  error instanceof Error &&
+  error.name === 'AiClientError' &&
+  (error as { code?: unknown }).code === 'budget'
+
 type AiReading = {
   /** The model was asked; starts the source's 24 h AI pause. */
   attempted: boolean
@@ -413,6 +419,7 @@ async function readWithAi(input: {
     !aiFallbackAllowed({
       settings: input.settings,
       lastAiAt: input.source.last_ai_at,
+      consecutiveFailures: input.source.consecutive_failures,
       now: Date.now(),
     })
   )
@@ -441,7 +448,12 @@ async function readWithAi(input: {
       error instanceof Error && error.name === 'AiClientError'
         ? error.message
         : 'The AI request failed.'
-    return { attempted: true, offer: null, note: `AI fallback: ${reason}` }
+    return {
+      // Refused by the daily budget: the model was not asked.
+      attempted: !isBudgetRefusal(error),
+      offer: null,
+      note: `AI fallback: ${reason}`,
+    }
   }
 }
 
@@ -479,6 +491,7 @@ async function recoverWithAi(input: {
       settings: input.settings,
       errorCode: input.errorCode,
       lastAiAt: input.source.last_ai_at,
+      consecutiveFailures: input.source.consecutive_failures,
       now,
     })
   )
@@ -519,7 +532,7 @@ async function recoverWithAi(input: {
         ? error.message
         : 'The AI request failed.'
     return {
-      attempted: true,
+      attempted: !isBudgetRefusal(error),
       plan: null,
       note: `AI troubleshooting: ${reason}`,
     }
@@ -734,6 +747,7 @@ export async function checkPriceSource(
           settings: aiSettings,
           errorCode: toScrapeError(error).code,
           lastAiAt: source.last_ai_at,
+          consecutiveFailures: source.consecutive_failures,
           now: Date.now(),
         })
       )
@@ -778,6 +792,7 @@ export async function checkPriceSource(
         settings: aiSettings,
         errorCode: evaluated.errorCode,
         lastAiAt: source.last_ai_at,
+        consecutiveFailures: source.consecutive_failures,
         now: Date.now(),
       })
     ) {
@@ -833,6 +848,7 @@ export async function checkPriceSource(
         settings: aiSettings,
         errorCode: 'wrong_currency',
         lastAiAt: source.last_ai_at,
+        consecutiveFailures: source.consecutive_failures,
         now: Date.now(),
       })
     ) {

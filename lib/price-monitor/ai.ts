@@ -31,8 +31,10 @@ export const AI_EXTRACTION_TIMEOUT_MS = 20_000
 /** Extra time per 10 KB of page sent, for large-context models. */
 const AI_TIMEOUT_PER_10KB_MS = 2_000
 export const AI_MIN_CONFIDENCE = 0.7
-/** A source uses AI at most once per this period. */
+/** Unlimited mode: the wait for a source that keeps failing. */
 export const AI_SOURCE_COOLDOWN_MS = 24 * 60 * 60 * 1000
+/** Unlimited mode: failed checks in a row before a source waits for AI. */
+export const AI_FAILURES_BEFORE_COOLDOWN = 3
 
 const HINT_PATTERN = /price|offer|availability|stock|cart/i
 const CHUNK_MAX_BYTES = 1500
@@ -395,17 +397,48 @@ export function aiConfigured(settings: PriceAiSettings): boolean {
   return Boolean(settings.enabled && settings.baseUrl && settings.model)
 }
 
+/**
+ * How long a source waits between AI attempts. Limited: the configured
+ * hours. Unlimited: no wait, unless the source failed several checks in a
+ * row (then a day, so AI does not spend itself on a page that is gone).
+ */
+export function aiSourceCooldownMs(
+  settings: PriceAiSettings,
+  consecutiveFailures = 0,
+): number {
+  if (settings.usage.mode === 'unlimited')
+    return consecutiveFailures >= AI_FAILURES_BEFORE_COOLDOWN
+      ? AI_SOURCE_COOLDOWN_MS
+      : 0
+  return settings.usage.sourceCooldownHours * 60 * 60 * 1000
+}
+
+/** Whether a source's wait since its last AI attempt is over. */
+export function aiSourceReady(input: {
+  settings: PriceAiSettings
+  lastAiAt: string | null
+  now: number
+  consecutiveFailures?: number
+}): boolean {
+  if (!input.lastAiAt) return true
+  const last = Date.parse(input.lastAiAt)
+  return (
+    !Number.isFinite(last) ||
+    input.now - last >=
+      aiSourceCooldownMs(input.settings, input.consecutiveFailures)
+  )
+}
+
 /** Whether a source may use the AI fallback now. */
 export function aiFallbackAllowed(input: {
   settings: PriceAiSettings
   lastAiAt: string | null
   now: number
+  consecutiveFailures?: number
 }): boolean {
   if (!aiConfigured(input.settings) || !input.settings.extractionFallback)
     return false
-  if (!input.lastAiAt) return true
-  const last = Date.parse(input.lastAiAt)
-  return !Number.isFinite(last) || input.now - last >= AI_SOURCE_COOLDOWN_MS
+  return aiSourceReady(input)
 }
 
 export { AiClientError }

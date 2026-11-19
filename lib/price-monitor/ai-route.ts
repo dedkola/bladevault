@@ -10,7 +10,10 @@ export function priceAiErrorResponse(error: unknown, route: string) {
   if (error instanceof AiClientError)
     return NextResponse.json(
       { error: error.message, code: error.code },
-      { status: error.code === 'config' ? 400 : 502 },
+      {
+        status:
+          error.code === 'config' ? 400 : error.code === 'budget' ? 429 : 502,
+      },
     )
   reportServerError(error, route)
   return NextResponse.json({ error: 'The AI request failed.' }, { status: 500 })

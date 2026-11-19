@@ -543,6 +543,25 @@ export type PriceAiSettings = {
    * own answer limit is lowered automatically when the endpoint refuses it.
    */
   maxAnswerTokens: number
+  /** How much AI may be used: a daily budget, or unlimited. */
+  usage: PriceAiUsage
+}
+
+export const PRICE_AI_USAGE_MODES = ['limited', 'unlimited'] as const
+export type PriceAiUsageMode = (typeof PRICE_AI_USAGE_MODES)[number]
+
+/**
+ * Limited: at most `dailyCalls` requests and `dailyTokens` tokens per day
+ * (0 = no cap for that one), and each source uses AI at most once per
+ * `sourceCooldownHours`. Unlimited: no daily caps and no per-source wait,
+ * for cheap or local models that can run all day; only a source failing
+ * several checks in a row waits a day before AI tries it again.
+ */
+export type PriceAiUsage = {
+  mode: PriceAiUsageMode
+  dailyCalls: number
+  dailyTokens: number
+  sourceCooldownHours: number
 }
 
 export type PriceNotifyCategories = {
@@ -577,6 +596,12 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
     vision: false,
     maxPageKb: 200,
     maxAnswerTokens: 16_384,
+    usage: {
+      mode: 'limited',
+      dailyCalls: 200,
+      dailyTokens: 2_000_000,
+      sourceCooldownHours: 24,
+    },
   },
   otherStores: {
     enabled: false,
@@ -593,6 +618,9 @@ export const PRICE_AI_LIMITS = {
   headerValueLength: 1000,
   maxPageKb: [8, 1000],
   maxAnswerTokens: [1024, 131_072],
+  dailyCalls: [0, 1_000_000],
+  dailyTokens: [0, 10_000_000_000],
+  sourceCooldownHours: [1, 168],
 } as const
 
 /**
@@ -751,6 +779,34 @@ function normalizePriceAi(
       record.maxAnswerTokens,
       PRICE_AI_LIMITS.maxAnswerTokens,
       fallback.maxAnswerTokens,
+    ),
+    usage: normalizePriceAiUsage(record.usage, fallback.usage),
+  }
+}
+
+function normalizePriceAiUsage(
+  value: unknown,
+  fallback: PriceAiUsage,
+): PriceAiUsage {
+  const record = plainObject(value)
+  return {
+    mode: (PRICE_AI_USAGE_MODES as readonly unknown[]).includes(record.mode)
+      ? (record.mode as PriceAiUsageMode)
+      : fallback.mode,
+    dailyCalls: boundedInteger(
+      record.dailyCalls,
+      PRICE_AI_LIMITS.dailyCalls,
+      fallback.dailyCalls,
+    ),
+    dailyTokens: boundedInteger(
+      record.dailyTokens,
+      PRICE_AI_LIMITS.dailyTokens,
+      fallback.dailyTokens,
+    ),
+    sourceCooldownHours: boundedInteger(
+      record.sourceCooldownHours,
+      PRICE_AI_LIMITS.sourceCooldownHours,
+      fallback.sourceCooldownHours,
     ),
   }
 }

@@ -21,7 +21,14 @@ export type AiEndpoint = {
 }
 
 export type AiErrorCode =
-  'config' | 'network' | 'timeout' | 'cancelled' | 'http' | 'invalid_response'
+  | 'config'
+  | 'network'
+  | 'timeout'
+  | 'cancelled'
+  | 'http'
+  | 'invalid_response'
+  /** The daily AI budget is used up (Limited mode); nothing was sent. */
+  | 'budget'
 
 export class AiClientError extends Error {
   constructor(
@@ -254,10 +261,18 @@ export type AiCallEvent = {
 export type AiCallObserver = (event: AiCallEvent) => void
 
 const OBSERVER = Symbol.for('bladevault.price-ai.call-observer')
+const GATE = Symbol.for('bladevault.price-ai.budget-gate')
+
+/**
+ * Decides whether a request may be sent: null to send it, or the reason it
+ * may not (the daily budget is used up). Connection tests always pass.
+ */
+export type AiBudgetGate = (purpose: AiPurpose) => string | null
 const PROFILES = Symbol.for('bladevault.price-ai.model-profiles')
 
 type Scope = typeof globalThis & {
   [OBSERVER]?: AiCallObserver | null
+  [GATE]?: AiBudgetGate | null
   [PROFILES]?: Map<string, ModelProfile>
 }
 
@@ -268,6 +283,26 @@ type ModelProfile = {
 }
 
 /** Receives every finished call (process-wide; null removes it). */
+export function setAiBudgetGate(gate: AiBudgetGate | null) {
+  ;(globalThis as Scope)[GATE] = gate
+}
+
+/**
+ * Why a request for this purpose may not be sent now (the daily budget is
+ * used up), or null. Connection tests always pass; without a gate, nothing
+ * is refused.
+ */
+export function aiBudgetRefusal(purpose: AiPurpose): string | null {
+  const gate = (globalThis as Scope)[GATE]
+  if (!gate || purpose === 'test') return null
+  try {
+    return gate(purpose)
+  } catch {
+    // A broken gate never blocks AI.
+    return null
+  }
+}
+
 export function setAiCallObserver(observer: AiCallObserver | null) {
   ;(globalThis as Scope)[OBSERVER] = observer
 }
@@ -390,6 +425,9 @@ export async function requestJsonCompletion(
 ): Promise<unknown> {
   if (!request.model.trim())
     throw new AiClientError('config', 'Choose an AI model first.')
+  // Limited mode: no request once the day's budget is used up.
+  const refusal = request.purpose ? aiBudgetRefusal(request.purpose) : null
+  if (refusal) throw new AiClientError('budget', refusal)
   const startedAt = Date.now()
   const usage = {
     prompt: null as number | null,

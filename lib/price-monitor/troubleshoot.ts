@@ -3,7 +3,7 @@ import {
   type AiEndpoint,
   type FetchLike,
 } from '@/lib/price-monitor/ai-client'
-import { aiConfigured, AI_SOURCE_COOLDOWN_MS } from '@/lib/price-monitor/ai'
+import { aiConfigured, aiSourceReady } from '@/lib/price-monitor/ai'
 import type { PriceAiSettings } from '@/lib/settings-shared'
 
 /**
@@ -165,13 +165,12 @@ export function troubleshootAllowed(input: {
   errorCode: string
   lastAiAt: string | null
   now: number
+  consecutiveFailures?: number
 }): boolean {
   if (!aiConfigured(input.settings) || !input.settings.resolveErrors)
     return false
   if (!TROUBLESHOOT_CODES.has(input.errorCode)) return false
-  if (!input.lastAiAt) return true
-  const last = Date.parse(input.lastAiAt)
-  return !Number.isFinite(last) || input.now - last >= AI_SOURCE_COOLDOWN_MS
+  return aiSourceReady(input)
 }
 
 export const TROUBLESHOOT_SCHEMA = {

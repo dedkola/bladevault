@@ -16,6 +16,11 @@ import {
 } from '@/lib/price-monitor/browser-state'
 import { readActiveAdvice } from '@/lib/price-monitor/advice-store'
 import { runPriceAdvisor } from '@/lib/price-monitor/advisor'
+import {
+  setAiBudgetGate,
+  setAiCallObserver,
+} from '@/lib/price-monitor/ai-client'
+import { installAiCallJournal } from '@/lib/price-monitor/ai-journal'
 import { checkPriceSource } from '@/lib/price-monitor/engine'
 import { extractOfferFromHtml } from '@/lib/price-monitor/fetch'
 import type { SolverPage } from '@/lib/price-monitor/solver'
@@ -260,6 +265,7 @@ describe('AI settings routes', () => {
       vision: false,
       maxPageKb: 200,
       maxAnswerTokens: 16_384,
+      usage: DEFAULT_PRICE_MONITORING.ai.usage,
       headers: {},
     })
     await settingsRoute.POST(
@@ -412,6 +418,72 @@ describe('AI extraction fallback in a check', () => {
       errorCode: 'not_found',
     })
     expect(aiFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks AI again on the next check in Unlimited mode', async () => {
+    enableAi({
+      usage: { ...DEFAULT_PRICE_MONITORING.ai.usage, mode: 'unlimited' },
+    })
+    const { source } = await createKnife()
+    const answer = {
+      price: '$118.50',
+      currency: 'USD',
+      availability: 'in_stock',
+      confidence: 0.9,
+    }
+    browserPage(null)
+    aiFetch.mockResolvedValueOnce(chat(answer))
+    await checkPriceSource(source.id, { trigger: 'manual' })
+    browserPage(null)
+    aiFetch.mockResolvedValueOnce(chat(answer))
+    const second = await checkPriceSource(source.id, { trigger: 'manual' })
+    expect(second).toMatchObject({ status: 'done', outcome: 'ok' })
+    expect(aiFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('stops at the Limited daily budget without counting a refusal as AI use', async () => {
+    installAiCallJournal()
+    try {
+      enableAi({
+        usage: { ...DEFAULT_PRICE_MONITORING.ai.usage, dailyCalls: 1 },
+      })
+      const { source } = await createKnife()
+      browserPage(null)
+      aiFetch.mockResolvedValueOnce(
+        chat({
+          price: '$118.50',
+          currency: 'USD',
+          availability: 'in_stock',
+          confidence: 0.9,
+        }),
+      )
+      await checkPriceSource(source.id, { trigger: 'manual' })
+      expect(aiFetch).toHaveBeenCalledTimes(1)
+      expect(rows('SELECT purpose, ok FROM price_ai_calls')).toEqual([
+        { purpose: 'extraction', ok: 1 },
+      ])
+
+      getLocalDb().prepare('UPDATE price_sources SET last_ai_at = NULL').run()
+      browserPage(null)
+      const refused = await checkPriceSource(source.id, { trigger: 'manual' })
+      expect(refused).toMatchObject({ outcome: 'no_price' })
+      expect(aiFetch).toHaveBeenCalledTimes(1)
+      // Nothing was sent: no AI use recorded, no journal row, no wait.
+      expect(
+        rows('SELECT last_ai_at FROM price_sources WHERE id = ?', source.id)[0]
+          .last_ai_at,
+      ).toBeNull()
+      expect(rows('SELECT COUNT(*) AS count FROM price_ai_calls')).toEqual([
+        { count: 1 },
+      ])
+      const log = rows(
+        'SELECT error_message FROM price_check_log ORDER BY id DESC LIMIT 1',
+      )[0].error_message as string
+      expect(log).toContain('daily AI budget is used up')
+    } finally {
+      setAiCallObserver(null)
+      setAiBudgetGate(null)
+    }
   })
 
   it('stores nothing from an untrusted answer and never asks AI when parsers work', async () => {

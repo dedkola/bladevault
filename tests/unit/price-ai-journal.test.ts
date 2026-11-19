@@ -3,10 +3,14 @@ import { getLocalDb } from '@/lib/local-db'
 import type { AiCallEvent } from '@/lib/price-monitor/ai-client'
 import {
   AI_JOURNAL_RETENTION_MS,
+  aiBudgetRefusal,
   pruneAiCalls,
   readAiCallSummary,
+  readAiUsageToday,
   recordAiCall,
+  startOfLocalDay,
 } from '@/lib/price-monitor/ai-journal'
+import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
 import { createTempVault, type TempVault } from '../helpers/temp-vault'
 
 const NOW = Date.UTC(2026, 10, 19, 12)
@@ -87,5 +91,44 @@ describe('AI call journal', () => {
       .prepare('SELECT COUNT(*) AS count FROM price_ai_calls')
       .get() as { count: number }
     expect(rows.count).toBe(1)
+  })
+
+  it('counts today since local midnight without connection tests', () => {
+    const midnight = startOfLocalDay(NOW)
+    recordAiCall(event({ startedAt: midnight + 1000 }))
+    recordAiCall(event({ startedAt: midnight + 2000, purpose: 'test' }))
+    recordAiCall(event({ startedAt: midnight - 1000 }))
+    expect(readAiUsageToday(getLocalDb(), NOW)).toEqual({
+      calls: 1,
+      tokens: 1050,
+    })
+  })
+})
+
+describe('AI budget', () => {
+  const usage = DEFAULT_PRICE_MONITORING.ai.usage
+  it('refuses once a Limited cap is reached; 0 means no cap', () => {
+    expect(aiBudgetRefusal(usage, { calls: 199, tokens: 0 })).toBeNull()
+    expect(aiBudgetRefusal(usage, { calls: 200, tokens: 0 })).toContain(
+      '200 requests',
+    )
+    expect(aiBudgetRefusal(usage, { calls: 0, tokens: 2_000_000 })).toContain(
+      '2,000,000 tokens',
+    )
+    expect(
+      aiBudgetRefusal(
+        { ...usage, dailyCalls: 0, dailyTokens: 0 },
+        { calls: 10_000, tokens: 10 ** 9 },
+      ),
+    ).toBeNull()
+  })
+
+  it('never refuses in Unlimited mode', () => {
+    expect(
+      aiBudgetRefusal(
+        { ...usage, mode: 'unlimited' },
+        { calls: 10 ** 6, tokens: 10 ** 10 },
+      ),
+    ).toBeNull()
   })
 })
