@@ -1148,11 +1148,12 @@ export async function checkPriceSource(
     const failures = source.consecutive_failures + 1
     const missing = status === 404 || status === 410
     const pause = missing && failures >= MISSING_PAGE_PAUSE_AFTER
-    let errorMessage = withSolverNote(
-      pause
-        ? 'The page was not found three times in a row, so this source is paused. Check the URL, then resume it.'
-        : messageFor(failure.code, failure),
-    )
+    // BladeVault's own text for the code: the solver note can carry page
+    // text (control labels, AI reasons) and never reaches the troubleshooter.
+    const ownMessage = pause
+      ? 'The page was not found three times in a row, so this source is paused. Check the URL, then resume it.'
+      : messageFor(failure.code, failure)
+    let errorMessage = withSolverNote(ownMessage)
     let nextCheckAt = nextCheckAfterFailure({
       failures,
       retryable: isRetryable(failure.code, status),
@@ -1167,7 +1168,7 @@ export async function checkPriceSource(
           settings: aiSettings,
           errorCode: failure.code,
           httpStatus: status,
-          errorMessage,
+          errorMessage: ownMessage,
           blocked: outcome === 'blocked',
           failures,
           trigger: options.trigger,

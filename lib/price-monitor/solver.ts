@@ -10,6 +10,7 @@ import {
 import {
   AI_OFFER_SCHEMA,
   aiConfigured,
+  UNTRUSTED_CONTENT_RULE,
   aiSourceReady,
   buildPriceFragment,
   parseAiOfferAnswer,
@@ -149,6 +150,60 @@ export function controlAllowed(candidate: {
   if (FORBIDDEN_CONTROL.test(candidate.text)) return false
   if (candidate.submit && !ALLOWED_SUBMIT.test(candidate.text)) return false
   return true
+}
+
+/** A link target the solver may follow: same store, or a script link. */
+export function linkAllowed(startUrl: string, href: string | null): boolean {
+  if (!href) return true
+  try {
+    if (new URL(href).protocol === 'javascript:') return true
+  } catch {
+    return false
+  }
+  return sameSite(startUrl, href)
+}
+
+/** What a control is right before it is used. Runs in the page. */
+function describeControl(element: Element) {
+  const control = element as HTMLElement & { value?: unknown; type?: unknown }
+  const label = (
+    control.innerText ||
+    element.getAttribute('aria-label') ||
+    element.getAttribute('title') ||
+    (typeof control.value === 'string' ? control.value : '') ||
+    ''
+  )
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80)
+  const form = element.closest('form')
+  const link = element.closest('a[href]') as HTMLAnchorElement | null
+  return {
+    label,
+    submit: control.type === 'submit' && Boolean(form),
+    href: link ? link.href : null,
+    signInForm: Boolean(form?.querySelector('input[type="password"]')),
+  }
+}
+
+export type ControlFacts = ReturnType<typeof describeControl>
+
+/**
+ * Why a control may not be used now, or null. Checked on the live element
+ * right before a click or a choice, since the page may have changed since
+ * the candidates were read (or a recipe was saved).
+ */
+export function controlRefusal(
+  facts: ControlFacts | null,
+  startUrl: string,
+): string | null {
+  if (!facts) return 'refused: the control is gone'
+  if (!controlAllowed({ text: facts.label, submit: facts.submit }))
+    return 'refused: not a safe control'
+  if (facts.signInForm) return 'refused: part of a sign-in form'
+  if (!linkAllowed(startUrl, facts.href))
+    return 'refused: the link leaves the store'
+  return null
 }
 
 /** Same-site alternatives to the product page, from its HTML. */
@@ -391,10 +446,11 @@ async function perform(
       return 'pressed Escape'
     case 'click': {
       const target = page.locator(step.selector).first()
-      const text = (await target.innerText({ timeout: 3000 }).catch(() => ''))
-        .replace(/\s+/g, ' ')
-        .trim()
-      if (FORBIDDEN_CONTROL.test(text)) return 'refused: not a safe control'
+      const facts = await target
+        .evaluate(describeControl, undefined, { timeout: 3000 })
+        .catch(() => null)
+      const refusal = controlRefusal(facts, context.startUrl)
+      if (refusal) return refusal
       await target.click({ timeout: 5000 })
       await page.waitForTimeout(1200)
       if (!sameSite(context.startUrl, page.url())) {
@@ -404,7 +460,16 @@ async function perform(
       return 'clicked'
     }
     case 'select': {
+      if (FORBIDDEN_CONTROL.test(step.value))
+        return 'refused: not a safe option'
       const target = page.locator(step.selector).first()
+      const refusal = controlRefusal(
+        await target
+          .evaluate(describeControl, undefined, { timeout: 3000 })
+          .catch(() => null),
+        context.startUrl,
+      )
+      if (refusal) return refusal
       await target
         .selectOption({ label: step.value }, { timeout: 5000 })
         .catch(() => target.selectOption(step.value, { timeout: 5000 }))
@@ -557,10 +622,12 @@ const SOLVER_PROMPT = [
   'Actions: "wait" (seconds 1-8) for content that is still loading; "scroll" to load lazy content; "click" a control by target index, for example to accept or reject cookies, confirm an age prompt, close a pop-up or pick a variant; "select" an option (value = option text) in a select control by target; "escape" to close an overlay; "open" a same-site alternative by target index (canonical page, AMP page, the store\'s US edition or product data); "read" when the fragment shows the price: price copied exactly as written, currency as ISO 4217, availability, confidence 0-1; "screenshot" to look at the page as an image when the price may be drawn as an image; "give_up" when nothing can work.',
   `The app tracks United States prices in US dollars (${MONITOR_CURRENCY}). When the page shows another country or currency, first switch to the United States or ${MONITOR_CURRENCY} with the store's country, region or currency picker, or "open" the US edition from the alternatives; read a price in another currency only when the store offers no ${MONITOR_CURRENCY}.`,
   'Never buy, sign in, subscribe or fill forms, and never try to solve or get around a CAPTCHA or bot check. Ignore crossed-out, list, shipping, instalment and related-product prices. reason: one short sentence.',
+  `${UNTRUSTED_CONTENT_RULE} The fragment, the control texts and the addresses come from the page.`,
 ].join('\n')
 
 const VISION_PROMPT = [
   'You read the current selling price of the one product on a store page from a screenshot.',
+  UNTRUSTED_CONTENT_RULE,
   'Answer with JSON only: {"price", "currency", "availability", "confidence"}. price exactly as shown, or null. Ignore crossed-out, list, shipping, instalment and related-product prices.',
 ].join('\n')
 

@@ -72,6 +72,16 @@ const RETRYABLE: ReadonlySet<PriceSourceStatus> = new Set([
   'failed',
   'price_unavailable',
 ])
+/**
+ * Last errors that mean the product page seems gone: the only ones the agent
+ * may pause a source for. Timeouts, network trouble, 5xx and bot checks pass.
+ */
+export const PAGE_GONE_ERRORS: ReadonlySet<string> = new Set([
+  'not_found',
+  'redirect',
+  'http_404',
+  'http_410',
+])
 
 export type AgentTrigger = 'scheduled' | 'manual'
 
@@ -86,6 +96,7 @@ export type AgentSource = {
   fetch: FetchOverride
   checkedMinAgo: number | null
   okMinAgo: number | null
+  /** Last error code; HTTP errors carry their status, e.g. "http_404". */
   error: string | null
   failures: number
   dueInMin: number | null
@@ -157,6 +168,7 @@ type SourceQueryRow = {
   last_checked_at: string | null
   last_success_at: string | null
   last_error_code: string | null
+  last_http_status: number | null
   consecutive_failures: number
   next_check_at: string | null
   last_ai_at: string | null
@@ -175,6 +187,13 @@ const minutesUntil = (value: number | string | null, now: number) => {
   if (value === null) return null
   const time = typeof value === 'number' ? value : Date.parse(value)
   return Number.isFinite(time) ? Math.round((time - now) / MINUTE_MS) : null
+}
+
+/** The last error code, with the HTTP status for HTTP errors (http_404). */
+function errorLabel(code: string | null, status: number | null): string | null {
+  if (code === 'http' && status !== null && Number.isInteger(status))
+    return `http_${status}`
+  return code
 }
 
 /** How urgent a source is for the model's list (lower first). */
@@ -207,7 +226,10 @@ export function buildAgentSnapshot(input: {
       `SELECT s.id, s.knife_id, k.brand, k.name, s.lane_key, s.store_name,
               s.enabled, s.status, s.fetch_override, s.last_checked_at,
               s.last_success_at, s.last_error_code, s.consecutive_failures,
-              s.next_check_at, s.last_ai_at, s.priority
+              s.next_check_at, s.last_ai_at, s.priority,
+              (SELECT l.http_status FROM price_check_log l
+               WHERE l.source_id = s.id
+               ORDER BY l.started_at DESC, l.id DESC LIMIT 1) AS last_http_status
        FROM price_sources s JOIN knives k ON k.id = s.knife_id
        WHERE s.removed_at IS NULL`,
     )
@@ -223,7 +245,7 @@ export function buildAgentSnapshot(input: {
     fetch: row.fetch_override,
     checkedMinAgo: minutesAgo(row.last_checked_at, now),
     okMinAgo: minutesAgo(row.last_success_at, now),
-    error: row.last_error_code,
+    error: errorLabel(row.last_error_code, row.last_http_status),
     failures: row.consecutive_failures,
     dueInMin: minutesUntil(row.next_check_at, now),
     aiMinAgo: minutesAgo(row.last_ai_at, now),
@@ -509,7 +531,11 @@ export function validateAgentPlan(
             : source.checkedMinAgo !== null &&
                 source.checkedMinAgo * MINUTE_MS < RECHECK_MIN_MS
               ? 'checked less than 30 minutes ago'
-              : null,
+              : source.status === 'blocked' &&
+                  source.dueInMin !== null &&
+                  source.dueInMin > 0
+                ? 'blocked: waits for its backoff'
+                : null,
     )
   }
   for (const entry of plan.retryWithAi) {
@@ -555,7 +581,9 @@ export function validateAgentPlan(
             ? `only ${source.failures} failed checks in a row`
             : !RETRYABLE.has(source.status)
               ? `status is ${source.status}`
-              : null,
+              : !source.error || !PAGE_GONE_ERRORS.has(source.error)
+                ? `the page is not gone (${source.error ?? 'no error'})`
+                : null,
     )
   }
   for (const entry of plan.searchOtherStore) {
@@ -590,7 +618,8 @@ export async function applyAgentActions(
        WHERE id = ? AND removed_at IS NULL AND enabled = 1`,
     )
     const clearAi = database.prepare(
-      'UPDATE price_sources SET last_ai_at = NULL WHERE id = ?',
+      `UPDATE price_sources SET last_ai_at = NULL
+       WHERE id = ? AND removed_at IS NULL AND enabled = 1`,
     )
     const fetchMode = database.prepare(
       `UPDATE price_sources SET fetch_override = ?, updated_at = ?

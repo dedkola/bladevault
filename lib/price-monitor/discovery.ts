@@ -26,7 +26,7 @@ import {
   recordDiscovery,
   type DiscoveryStatus,
 } from '@/lib/price-monitor/discovery-store'
-import type { LaneOutcomeKind } from '@/lib/price-monitor/engine'
+import { retryAfterMs, type LaneOutcomeKind } from '@/lib/price-monitor/engine'
 import { upstreamStatus } from '@/lib/price-monitor/fetch'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
 import { extractAmazonProduct } from '@/lib/scrape-amazon'
@@ -164,7 +164,8 @@ function pageFailure(error: unknown): {
       result: 'failed',
       laneOutcome: 'throttled',
       detail: 'Amazon asked BladeVault to slow down.',
-      retryAfterMs: null,
+      // The Amazon lane waits at least as long as Amazon asked.
+      retryAfterMs: retryAfterMs(error),
     }
   const neutral = ['browser', 'cancelled', 'invalid_url', 'blocked_url']
   return {
