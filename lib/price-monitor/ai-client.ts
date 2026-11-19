@@ -240,6 +240,7 @@ export type AiPurpose =
   | 'advisor'
   | 'discovery_search'
   | 'discovery_verify'
+  | 'agent'
   | 'test'
 
 /** One finished chat completion call (all its attempts), without content. */

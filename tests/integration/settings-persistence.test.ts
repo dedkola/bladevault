@@ -52,6 +52,7 @@ describe('settings persistence', () => {
             dailyTokens: 0,
             sourceCooldownHours: 6,
           },
+          agentMode: 'observe',
         },
         otherStores: {
           enabled: true,
@@ -94,6 +95,7 @@ describe('settings persistence', () => {
           dailyTokens: 0,
           sourceCooldownHours: 6,
         },
+        agentMode: 'observe',
       },
       otherStores: {
         enabled: true,

@@ -126,6 +126,26 @@ Three features use it:
 
 The API key is stored next to the vault in its private control folder, outside backups, and the settings page only shows its last four characters. Docker and Helm can provide it with `BLADEVAULT_PRICE_AI_API_KEY` instead.
 
+## Let AI supervise monitoring
+
+**Settings → Price monitoring → AI assistance → AI supervisor** lets AI look over all of price monitoring and decide what needs attention. It needs [AI assistance](#optional-ai-assistance) connected.
+
+| Mode        | What it does                                                         |
+| ----------- | -------------------------------------------------------------------- |
+| **Off**     | The default. AI does not supervise.                                  |
+| **Observe** | AI plans what it would do and records it, without changing anything. |
+| **Act**     | AI does what it planned, within fixed limits.                        |
+
+The supervisor runs every 10 minutes with **Unlimited** AI usage and every hour with **Limited**, and **Run now** starts a run at once. Each run, AI sees every monitored product (knife name, store, status, when it was last checked and how it failed), each store's pace and pauses, how many products are fresh, and the AI budget. It never sees product links, what you paid, notes, or keys. It can:
+
+- **Check first**: move up to 25 overdue, stale, or failing products to the front of their store's queue.
+- **Retry with AI**: let AI read or work the page of up to 10 failing products on their next check.
+- **Change how a page loads**: switch up to 5 products to the browser, plain HTTP, or back to automatic.
+- **Pause**: stop up to 3 products whose page failed at least 5 checks in a row and seems gone. Resume them in the knife's **Price monitoring** section.
+- **Look on other stores**: search again for up to 5 knives on other stores, when [Other stores](#find-knives-at-other-stores-with-ai) is on.
+
+Every action is checked before it runs, and actions that break the rules are refused and recorded with the reason. The supervisor can change the order of checks but not their pace: each store is still checked one product at a time, and store pauses, Retry-After, and bot-check pauses still apply. It never solves a bot check. The latest run and its summary appear under **AI supervisor**. Runs are kept for 30 days.
+
 ## Find knives at other stores with AI
 
 A knife's own store is often sold out. **Settings → Price monitoring → Other stores** lets AI look for every monitored knife at other stores and add the listings it finds as price sources. Amazon is the first store on the list. It needs [AI assistance](#optional-ai-assistance) connected: with **Use AI** off, or without a base URL and model, nothing is searched.
