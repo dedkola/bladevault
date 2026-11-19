@@ -107,29 +107,66 @@ describe('checkViaHttp', () => {
   })
 
   it('uses Shopify’s .js endpoint once a source is known as Shopify', async () => {
-    mocks.fetchExternalUrl.mockResolvedValue(
-      response(
-        JSON.stringify({
-          variants: [{ id: 1, price: 9900, available: false }],
-        }),
-      ),
-    )
+    mocks.fetchExternalUrl
+      .mockResolvedValueOnce(
+        response(
+          JSON.stringify({
+            variants: [{ id: 1, price: 9900, available: false }],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(response(JSON.stringify({ currency: 'USD' })))
     const operation = createScrapeOperation()
     const check = await checkViaHttp(
       'https://shop.example/products/knife?variant=1',
       operation,
-      { shopify: true, currencyHint: 'EUR' },
+      { shopify: true, currencyHint: 'UAH' },
     )
     operation.dispose()
     expect(mocks.fetchExternalUrl.mock.calls[0][0].href).toBe(
       'https://shop.example/products/knife.js',
     )
+    // The cart names the currency the amounts are in, not the last reading.
+    expect(mocks.fetchExternalUrl.mock.calls[1][0].href).toBe(
+      'https://shop.example/cart.js',
+    )
     expect(check.offer).toEqual({
       amount: 99,
-      currency: 'EUR',
+      currency: 'USD',
       availability: 'out_of_stock',
       method: 'shopify',
     })
+  })
+
+  it('asks every store for the US edition in USD', async () => {
+    mocks.fetchExternalUrl.mockResolvedValue(
+      response(productHtml('120.00'), 200, 'https://shop.example/p'),
+    )
+    const operation = createScrapeOperation()
+    await checkViaHttp('https://shop.example/p', operation, {
+      shopify: false,
+      currencyHint: '',
+    })
+    operation.dispose()
+    expect(mocks.fetchExternalUrl.mock.calls[0][1].headers.Cookie).toContain(
+      'localization=US; cart_currency=USD',
+    )
+  })
+
+  it('falls back to the currency hint when the cart cannot be read', async () => {
+    mocks.fetchExternalUrl
+      .mockResolvedValueOnce(
+        response(JSON.stringify({ variants: [{ id: 1, price: 9900 }] })),
+      )
+      .mockResolvedValueOnce(response('busy', 429))
+    const operation = createScrapeOperation()
+    const check = await checkViaHttp(
+      'https://shop.example/products/knife',
+      operation,
+      { shopify: true, currencyHint: 'EUR' },
+    )
+    operation.dispose()
+    expect(check.offer?.currency).toBe('EUR')
   })
 
   it('reports challenges and HTTP errors', async () => {
@@ -170,22 +207,56 @@ describe('checkViaBrowser', () => {
       storageState: { cookies: [], origins: [] },
     })
     const operation = createScrapeOperation()
+    const saved = {
+      name: 'localization',
+      value: 'UA',
+      domain: 'shop.example',
+      path: '/',
+      expires: -1,
+      httpOnly: false,
+      secure: true,
+      sameSite: 'Lax' as const,
+    }
+    const session = { ...saved, name: 'session', value: 'abc' }
+    // A saved cart keeps its currency, so it goes too.
+    const cart = { ...saved, name: 'cart', value: 'uah-cart' }
+    const shopifySession = { ...saved, name: '_shopify_essential', value: 'x' }
     const check = await checkViaBrowser('https://shop.example/p', operation, {
-      storageState: { cookies: [], origins: [] },
+      storageState: {
+        cookies: [saved, session, cart, shopifySession],
+        origins: [],
+      },
     })
     operation.dispose()
-    expect(mocks.fetchRenderedHtml).toHaveBeenCalledWith(
-      'https://shop.example/p',
-      operation,
-      {
-        screenshot: false,
-        light: true,
-        captureServerHtml: true,
-        captureStorageState: true,
-        storageState: { cookies: [], origins: [] },
-        headless: undefined,
-      },
+    const options = mocks.fetchRenderedHtml.mock.calls[0][2]
+    expect(options).toMatchObject({
+      screenshot: false,
+      light: true,
+      captureServerHtml: true,
+      captureStorageState: true,
+      headless: undefined,
+    })
+    // The country the store set from the IP is replaced by the US edition.
+    const cookies = Object.fromEntries(
+      options.storageState.cookies.map(
+        (cookie: { name: string; value: string; domain: string }) => [
+          cookie.name,
+          `${cookie.value}@${cookie.domain}`,
+        ],
+      ),
     )
+    expect(cookies).toMatchObject({
+      session: 'abc@shop.example',
+      localization: 'US@.shop.example',
+      cart_currency: 'USD@.shop.example',
+    })
+    expect(cookies).not.toHaveProperty('cart')
+    expect(cookies).not.toHaveProperty('_shopify_essential')
+    expect(
+      options.storageState.cookies.filter(
+        (cookie: { name: string }) => cookie.name === 'localization',
+      ),
+    ).toHaveLength(1)
     expect(check.offer).toMatchObject({
       amount: 80,
       availability: 'out_of_stock',
