@@ -201,6 +201,32 @@ export type UserContent =
 
 type ResponseFormat = 'json_schema' | 'json_object' | 'none'
 
+/**
+ * Reasoning models (GLM, DeepSeek R1, Qwen3, o-series, …) spend tokens on
+ * hidden thinking before the answer. A small budget is then used up by the
+ * thinking alone and the answer comes back empty, so an empty answer is
+ * retried once with this budget (a ceiling, not a cost) and more time.
+ */
+export const REASONING_MAX_TOKENS = 4096
+const REASONING_MIN_TIMEOUT_MS = 60_000
+
+type ChatChoice = {
+  finish_reason?: unknown
+  message?: {
+    content?: unknown
+    reasoning_content?: unknown
+    reasoning?: unknown
+  }
+}
+
+/** The model stopped at the token limit or spent the answer on reasoning. */
+function ranOutOnReasoning(choice: ChatChoice | undefined): boolean {
+  const reasoning =
+    messageText(choice?.message?.reasoning_content) ||
+    messageText(choice?.message?.reasoning)
+  return choice?.finish_reason === 'length' || reasoning.trim().length > 0
+}
+
 function messageText(content: unknown): string {
   if (typeof content === 'string') return content
   if (Array.isArray(content))
@@ -258,12 +284,16 @@ export async function requestJsonCompletion(
     throw new AiClientError('config', 'Choose an AI model first.')
   const url = endpointUrl(endpoint, '/chat/completions')
   const formats: ResponseFormat[] = ['json_schema', 'json_object', 'none']
+  const baseTokens = request.maxTokens ?? 400
+  let maxTokens = baseTokens
+  let timeoutMs = options.timeoutMs
   let lastError: unknown = null
-  for (const format of formats) {
+  for (let index = 0; index < formats.length; index++) {
+    const format = formats[index]
     const payload: Record<string, unknown> = {
       model: request.model,
       temperature: 0,
-      max_tokens: request.maxTokens ?? 400,
+      max_tokens: maxTokens,
       messages: [
         { role: 'system', content: request.system },
         { role: 'user', content: request.user },
@@ -289,7 +319,7 @@ export async function requestJsonCompletion(
           headers: headers(endpoint, true),
           body: JSON.stringify(payload),
         },
-        options,
+        { ...options, timeoutMs },
       )
     } catch (error) {
       // 400/422: most likely the response format is not supported.
@@ -304,7 +334,7 @@ export async function requestJsonCompletion(
       }
       throw error
     }
-    let parsed: { choices?: Array<{ message?: { content?: unknown } }> }
+    let parsed: { choices?: ChatChoice[] }
     try {
       parsed = JSON.parse(body)
     } catch {
@@ -313,9 +343,23 @@ export async function requestJsonCompletion(
         'The AI endpoint sent a response BladeVault could not read.',
       )
     }
-    const text = messageText(parsed?.choices?.[0]?.message?.content)
-    if (!text.trim())
-      throw new AiClientError('invalid_response', 'The AI answer was empty.')
+    const choice = parsed?.choices?.[0]
+    const text = messageText(choice?.message?.content)
+    if (!text.trim()) {
+      if (maxTokens < REASONING_MAX_TOKENS) {
+        // Same format again, with room for the model's reasoning.
+        maxTokens = Math.max(baseTokens, REASONING_MAX_TOKENS)
+        timeoutMs = Math.max(options.timeoutMs, REASONING_MIN_TIMEOUT_MS)
+        index--
+        continue
+      }
+      throw new AiClientError(
+        'invalid_response',
+        ranOutOnReasoning(choice)
+          ? 'The AI answer was empty: the model used its whole answer budget on reasoning. Choose a model without reasoning, or turn reasoning off for it.'
+          : 'The AI answer was empty.',
+      )
+    }
     return parseJsonAnswer(text)
   }
   throw lastError instanceof Error
