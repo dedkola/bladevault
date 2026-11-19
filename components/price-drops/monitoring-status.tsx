@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import type {
   CheckHour,
   MonitoredSource,
@@ -51,13 +52,40 @@ function waitLabel(ms: number) {
   return hours < 48 ? `${hours} h` : `${Math.round(hours / 24)} d`
 }
 
+/** "41 d", "today": how long ago an ISO time was, in whole days. */
+export function daysAgo(iso: string, now: number) {
+  const days = Math.floor((now - Date.parse(iso)) / (24 * HOUR_MS))
+  return days < 1 ? 'today' : `${days} d`
+}
+
 function shortName(source: MonitoredSource) {
   const name = source.knife.name || source.knife.brand
   return name.length > 14 ? name.split(' ')[0] : name
 }
 
-function pinLabel(source: MonitoredSource, upcoming: boolean) {
-  const name = shortName(source)
+/** Knife names that more than one monitored knife shares. */
+function sharedNames(sources: MonitoredSource[]) {
+  const ids = new Map<string, Set<string>>()
+  for (const source of sources) {
+    const key = shortName(source)
+    const set = ids.get(key) ?? new Set<string>()
+    set.add(source.knife.id)
+    ids.set(key, set)
+  }
+  return new Set([...ids].filter(([, set]) => set.size > 1).map(([k]) => k))
+}
+
+function pinLabel(
+  source: MonitoredSource,
+  upcoming: boolean,
+  shared: Set<string>,
+) {
+  const short = shortName(source)
+  // Three "Drop Bear" pins only differ by their model number or steel.
+  const variant = shared.has(short)
+    ? source.knife.subtitle?.split(' · ')[0]
+    : ''
+  const name = variant ? `${short} ${variant}` : short
   if (upcoming || source.deltaMinor === null) return name
   const arrow = source.deltaMinor < 0 ? '▼' : '▲'
   return `${name} ${arrow}${money(Math.abs(source.deltaMinor), source.currency)}`
@@ -71,6 +99,7 @@ function placePins(
   items: { position: number; source: MonitoredSource; due?: boolean }[],
   upcoming: boolean,
   width: number,
+  shared: Set<string>,
 ): { pins: PlacedPin[]; rows: number } {
   const sorted = [...items].sort(
     (a, b) =>
@@ -99,7 +128,7 @@ function placePins(
     merged.push({
       position: due ? 0 : item.position,
       sources: [item.source],
-      label: pinLabel(item.source, upcoming),
+      label: pinLabel(item.source, upcoming, shared),
       result: item.source.result,
       due,
     })
@@ -142,7 +171,12 @@ function useElementWidth<T extends HTMLElement>(fallback: number) {
 }
 
 function describe(source: MonitoredSource, now: number) {
-  const name = `${source.knife.brand} ${source.knife.name}`.trim()
+  const name = [
+    `${source.knife.brand} ${source.knife.name}`.trim(),
+    source.knife.subtitle,
+  ]
+    .filter(Boolean)
+    .join(', ')
   const checked = source.lastCheckedAt
     ? `checked ${relativeTime(source.lastCheckedAt, now)}`
     : 'not checked yet'
@@ -219,6 +253,7 @@ function lanesFor(group: Group, sources: MonitoredSource[]): Lane[] {
     const order: SourceResult[] = [
       'drop',
       'increase',
+      'restocked',
       'out_of_stock',
       'same',
       'attention',
@@ -333,6 +368,7 @@ function StatusTimeline({
   }, [cluster])
 
   const horizonMs = horizonHours * HOUR_MS
+  const shared = sharedNames(sources)
   const lanes = lanesFor(group, sources).map((lane) => {
     const past = placePins(
       lane.sources
@@ -349,6 +385,7 @@ function StatusTimeline({
         })),
       false,
       pastWidth,
+      shared,
     )
     const upcoming = placePins(
       lane.sources
@@ -366,6 +403,7 @@ function StatusTimeline({
         }),
       true,
       futureWidth,
+      shared,
     )
     return { ...lane, past, upcoming }
   })
@@ -395,7 +433,14 @@ function StatusTimeline({
         </div>
         <ul className="pd-legend" aria-label="Pin colours">
           {(
-            ['drop', 'increase', 'out_of_stock', 'same', 'attention'] as const
+            [
+              'drop',
+              'increase',
+              'restocked',
+              'out_of_stock',
+              'same',
+              'attention',
+            ] as const
           ).map((result) => (
             <li key={result} data-result={result}>
               {RESULT_LABEL[result]}
@@ -525,6 +570,9 @@ function StatusTimeline({
                   >
                     <span>
                       {source.knife.brand} {source.knife.name}
+                      {source.knife.subtitle ? (
+                        <small>{source.knife.subtitle}</small>
+                      ) : null}
                     </span>
                     <span>
                       {cluster.pin.due
@@ -547,6 +595,7 @@ const HOUR_ORDER = [
   'same',
   'attention',
   'out_of_stock',
+  'restocked',
   'increase',
   'drop',
 ] as const
@@ -645,12 +694,17 @@ export function MonitoringStatus({
   pausedStores,
   selectedKnife,
   now,
+  collapsed = false,
+  onCollapsedChange,
   onSelect,
 }: {
   overview: PriceOverview
   pausedStores: number
   selectedKnife: string | null
   now: number
+  /** Only the counts show; the timeline and hourly chart are hidden. */
+  collapsed?: boolean
+  onCollapsedChange?: (collapsed: boolean) => void
   onSelect: (knifeId: string) => void
 }) {
   const sources = overview.monitored
@@ -659,7 +713,7 @@ export function MonitoringStatus({
       source.lastCheckedAt && now - Date.parse(source.lastCheckedAt) <= PAST_MS,
   ).length
   const changed = sources.filter((source) =>
-    ['drop', 'increase', 'out_of_stock'].includes(source.result),
+    ['drop', 'increase', 'restocked', 'out_of_stock'].includes(source.result),
   ).length
   const attention = sources.filter(
     (source) => source.result === 'attention' || source.result === 'pending',
@@ -679,14 +733,34 @@ export function MonitoringStatus({
       className="pd-status rounded-xl border border-[var(--bladevault-line)] bg-card"
     >
       <header className="pd-status-head">
-        <h2 id="price-status-title">Monitoring status</h2>
-        <p>
-          What the next {horizonHours} hours will check, with the last 24 hours
-          in brief on the left. Knives already due wait at Now and are checked
-          one at a time per store. Select a pin to open the knife.
-        </p>
+        <div>
+          <h2 id="price-status-title">Monitoring status</h2>
+          {collapsed ? null : (
+            <p>
+              What the next {horizonHours} hours will check, with the last 24
+              hours in brief on the left. Knives already due wait at Now and are
+              checked one at a time per store. Select a pin to open the knife.
+            </p>
+          )}
+        </div>
+        {onCollapsedChange ? (
+          <button
+            type="button"
+            className="pd-status-toggle"
+            aria-expanded={!collapsed}
+            aria-controls="price-status-body"
+            onClick={() => onCollapsedChange(!collapsed)}
+          >
+            {collapsed ? 'Show timeline' : 'Hide timeline'}
+            <ChevronDown aria-hidden="true" />
+          </button>
+        ) : null}
       </header>
-      <div className="pd-status-body">
+      <div
+        className="pd-status-body"
+        id="price-status-body"
+        data-collapsed={collapsed || undefined}
+      >
         <p className="pd-counts">
           <span>
             <b>
@@ -710,7 +784,7 @@ export function MonitoringStatus({
             </span>
           ) : null}
         </p>
-        {sources.length ? (
+        {collapsed ? null : sources.length ? (
           <StatusTimeline
             sources={sources}
             horizonHours={horizonHours}
@@ -719,36 +793,38 @@ export function MonitoringStatus({
             onSelect={onSelect}
           />
         ) : null}
-        <div className="pd-status-foot">
-          <ChecksPerHour hours={overview.checksByHour} now={now} />
-          <dl className="pd-round">
-            <div className="pd-eyebrow">Round</div>
-            <div>
-              <dt>Check every</dt>
-              <dd>{interval ? `${interval} h` : '—'}</dd>
-            </div>
-            <div>
-              <dt>Stores</dt>
-              <dd>{overview.kpis.stores}</dd>
-            </div>
-            <div>
-              <dt>Stores paused</dt>
-              <dd>{pausedStores}</dd>
-            </div>
-            <div>
-              <dt>Failed in 24 h</dt>
-              <dd>{overview.round.failed24h}</dd>
-            </div>
-            <div>
-              <dt>Oldest result</dt>
-              <dd>
-                {overview.round.oldestCheckAt
-                  ? relativeTime(overview.round.oldestCheckAt, now)
-                  : '—'}
-              </dd>
-            </div>
-          </dl>
-        </div>
+        {collapsed ? null : (
+          <div className="pd-status-foot">
+            <ChecksPerHour hours={overview.checksByHour} now={now} />
+            <dl className="pd-round">
+              <div className="pd-eyebrow">Round</div>
+              <div>
+                <dt>Check every</dt>
+                <dd>{interval ? `${interval} h` : '—'}</dd>
+              </div>
+              <div>
+                <dt>Stores</dt>
+                <dd>{overview.kpis.stores}</dd>
+              </div>
+              <div>
+                <dt>Stores paused</dt>
+                <dd>{pausedStores}</dd>
+              </div>
+              <div>
+                <dt>Failed in 24 h</dt>
+                <dd>{overview.round.failed24h}</dd>
+              </div>
+              <div>
+                <dt>Oldest result</dt>
+                <dd>
+                  {overview.round.oldestCheckAt
+                    ? relativeTime(overview.round.oldestCheckAt, now)
+                    : '—'}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        )}
       </div>
     </section>
   )
@@ -761,9 +837,12 @@ export function MonitoringStatus({
  */
 export function ResultBadge({
   source,
+  now,
   onResolve,
 }: {
   source: MonitoredSource
+  /** With `now`, stock badges say how long ago they changed. */
+  now?: number
   onResolve?: () => void
 }) {
   if (
@@ -807,7 +886,11 @@ export function ResultBadge({
             : 'Failed'
       : source.result === 'pending'
         ? 'Waiting'
-        : RESULT_LABEL[source.result]
+        : source.result === 'restocked' && source.restockedAt && now
+          ? `Restocked · ${daysAgo(source.restockedAt, now).replace(/ d$/, ' d ago')}`
+          : source.result === 'out_of_stock' && source.since && now
+            ? `Out of stock · ${daysAgo(source.since, now)}`
+            : RESULT_LABEL[source.result]
   if (source.result === 'attention' && onResolve)
     return (
       <button
@@ -832,8 +915,22 @@ export function ResultBadge({
         </span>
       </button>
     )
+  const since =
+    source.result === 'out_of_stock' && source.since
+      ? source.since
+      : source.result === 'restocked'
+        ? source.restockedAt
+        : null
   return (
-    <span className="pd-badge" data-result={source.result}>
+    <span
+      className="pd-badge"
+      data-result={source.result}
+      title={
+        since
+          ? `Since ${new Date(since).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
+          : undefined
+      }
+    >
       {icon[source.result]} {text}
     </span>
   )
