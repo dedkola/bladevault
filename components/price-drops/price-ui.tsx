@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { getImageUrl } from '@/lib/data'
 import type { ChangeEvent, KnifeRef } from '@/lib/price-monitor/insights'
 import { cn } from '@/lib/utils'
@@ -84,4 +84,73 @@ export function useMinuteClock(): number {
     return () => clearInterval(timer)
   }, [])
   return now
+}
+
+/**
+ * Per-browser preferences (last tab, chart range, collapsed panels). Storage
+ * can be blocked or throw, so a value written this session is also kept in
+ * memory and the page works without it.
+ */
+const memory = new Map<string, string>()
+const storageListeners = new Set<() => void>()
+
+function readStored(key: string): string | null {
+  if (memory.has(key)) return memory.get(key)!
+  try {
+    return window.localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function subscribeStored(listener: () => void) {
+  storageListeners.add(listener)
+  window.addEventListener('storage', listener)
+  return () => {
+    storageListeners.delete(listener)
+    window.removeEventListener('storage', listener)
+  }
+}
+
+/**
+ * A string preference stored in localStorage under `key`. The server render
+ * and first paint use `fallback`, so hydration never mismatches.
+ */
+export function useStoredValue<T extends string>(
+  key: string,
+  fallback: T,
+  parse: (raw: string | null) => T | null,
+): [T, (value: T) => void] {
+  const raw = useSyncExternalStore(
+    subscribeStored,
+    () => readStored(key),
+    () => null,
+  )
+  const value = parse(raw) ?? fallback
+  const setValue = useCallback(
+    (next: T) => {
+      memory.set(key, next)
+      try {
+        window.localStorage.setItem(key, next)
+      } catch {
+        // Private windows and blocked storage keep it for this session only.
+      }
+      for (const listener of storageListeners) listener()
+    },
+    [key],
+  )
+  return [value, setValue]
+}
+
+/** True while a CSS media query matches; false on the server. */
+export function useMediaQuery(query: string): boolean {
+  return useSyncExternalStore(
+    (listener) => {
+      const list = window.matchMedia(query)
+      list.addEventListener('change', listener)
+      return () => list.removeEventListener('change', listener)
+    },
+    () => window.matchMedia(query).matches,
+    () => false,
+  )
 }
