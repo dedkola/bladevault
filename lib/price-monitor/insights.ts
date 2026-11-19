@@ -275,6 +275,21 @@ export function readChangeEventsById(
   )
 }
 
+/** Price and stock events since a moment, newest first (MCP price tools). */
+export function listChangeEvents(
+  database: Database.Database,
+  options: { since: string; limit?: number },
+): ChangeEvent[] {
+  const rows = database
+    .prepare(
+      `SELECT * FROM (${EVENTS_SQL}) WHERE occurred_at >= ?
+       ORDER BY occurred_at DESC, id DESC LIMIT ?`,
+    )
+    .all(options.since, options.limit ?? 100) as EventRow[]
+  const knives = readKnives(database)
+  return rows.map((row) => toEvent(row, knives))
+}
+
 type SourceRow = {
   id: number
   knife_id: string

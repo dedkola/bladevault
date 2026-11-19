@@ -47,7 +47,7 @@ const UNAUTHORIZED_MESSAGE =
   'BladeVault rejected the MCP token. Open BladeVault so it can refresh its connection details, then try again.'
 
 const INSTRUCTIONS =
-  'BladeVault manages one local knife collection. Read records before changing them. Use propose_changes for candidate metadata, then preview bulk_update_knives before applying it. Updates require the latest updatedAt value. Never infer that duplicate candidates should be deleted, and never claim propose_changes modifies data.'
+  'BladeVault manages one local knife collection. Read records before changing them. Use propose_changes for candidate metadata, then preview bulk_update_knives before applying it. Updates require the latest updatedAt value. Never infer that duplicate candidates should be deleted, and never claim propose_changes modifies data. For store price monitoring, read get_price_watch before preview-then-apply changes with update_price_watch; request_price_check only queues checks at each store’s normal pace.'
 
 function log(...args) {
   console.error('[bladevault-mcp-stdio]', ...args)

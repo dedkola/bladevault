@@ -175,8 +175,13 @@ In the desktop app, **Settings → Price monitoring → Desktop app → Keep run
 
 When BladeVault starts again after being closed, overdue products are checked at the normal pace, not all at once.
 
+## Use price data from an AI client
+
+BladeVault's [MCP tools](../reference/mcp.md#price-monitoring-tools) let an AI client such as Claude Desktop or Codex read monitored knives, recent drops and restocks, price history, and pages that need attention. With write access turned on in **Settings → AI / MCP**, the client can also change a knife's monitoring mode, add, pause, resume, or remove store URLs after a preview, and ask for **Check now**. Checks it requests wait for each store's normal pace, like the ones you start yourself.
+
 ## Related
 
+- [Model Context Protocol (MCP)](../reference/mcp.md) — connect an AI client and review what it can change.
 - [Your data](../reference/data.md) — where price history is stored and what backups include.
 - [Docker and Podman](../installation/docker.md) and [Kubernetes with Helm](../installation/helm.md) — time zone and price monitoring settings for servers.
 - [Desktop app](../installation/desktop.md) — the tray and background mode.

@@ -16,10 +16,32 @@ BladeVault exposes its existing local collection to MCP clients such as LM Studi
 | `bulk_update_knives`    | Preview and atomically apply explicit multi-knife updates            | Write mode |
 | `get_knife_maintenance` | Retrieve maintenance history for one knife                           | Read-only  |
 | `add_maintenance_event` | Log a maintenance event for one knife                                | Write mode |
+| `list_price_watches`    | List monitored knives with best price, state, and last change        | Read-only  |
+| `list_price_changes`    | List price drops, increases, restocks, and out-of-stock items        | Read-only  |
+| `get_price_history`     | Retrieve one knife's price history per store and its change events   | Read-only  |
+| `get_price_watch`       | Retrieve one knife's monitoring mode, eligibility, and store sources | Read-only  |
+| `get_price_attention`   | Summarize blocked, failed, and unavailable price checks              | Read-only  |
+| `update_price_watch`    | Preview and apply mode and store URL changes for one knife           | Write mode |
+| `request_price_check`   | Queue **Check now** for one knife at each store's normal pace        | Write mode |
 
 Open **Settings → AI / MCP** to review activity, copy the local client configuration, enable or disable HTTP access, and allow or deny write access. Write mode is off by default.
 
-Metadata updates require the expected record timestamp to prevent overwriting newer edits. They are recorded in the change log. Maintenance writes append dated events to a knife's history. MCP cannot replace knife IDs, record timestamps, images, or entire records.
+Metadata updates require the expected record timestamp to prevent overwriting newer edits. They are recorded in the change log. Maintenance writes append dated events to a knife's history. Price monitoring writes change only the knife's monitoring mode and store sources. MCP cannot replace knife IDs, record timestamps, images, or entire records.
+
+## Price monitoring tools
+
+The price tools use the same history as the [Price Drops](../guides/price-drops.md) page. Prices include a decimal `amount`, the `minor` units BladeVault stores, and the `currency`.
+
+- `list_price_watches` returns monitored knives by default. Set `monitored_only` to `false` to include knives with a store URL that are not monitored, or filter by `state`: `attention`, `drop`, `increase`, `out_of_stock`, `same`, `pending`, or `not_monitored`.
+- `list_price_changes` covers the last `days` (1–365, default 30) and can be limited to `drop`, `increase`, `back_in_stock`, or `out_of_stock` events. It also lists the store listings that are out of stock now.
+- `get_price_history` accepts the same ranges as the Market tab: `7d`, `1m`, `3m`, `6m`, `1y`, or `all`.
+- `get_price_watch` and `get_price_attention` describe problems with fixed text such as "bot check" or "no price found" rather than text read from store pages.
+
+`update_price_watch` sets the mode (`auto`, `on`, or `off`) and adds, pauses, resumes, or removes store URLs by source ID. A knife can have at most 10 sources, URLs are normalized like the ones you add in the app, and the source from the knife's product link can only be paused. The tool previews by default. To apply, repeat the same request with `apply: true` and the returned `preview_hash`. A change made in the app after the preview makes the hash stale.
+
+`request_price_check` marks every active source of one knife for **Check now**. The checks run at each store's next free slot, and stores paused after a bot check wait for their cooldown. Over stdio, the running BladeVault app or server performs the checks.
+
+MCP never returns the AI provider key, custom request headers, saved store cookies, or page content.
 
 ## Connect Claude Desktop
 
