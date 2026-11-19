@@ -244,6 +244,7 @@ export type AiPurpose =
   | 'verify'
   /** The daily Inbox summary. */
   | 'digest'
+  | 'agent'
   | 'test'
 
 /** One finished chat completion call (all its attempts), without content. */

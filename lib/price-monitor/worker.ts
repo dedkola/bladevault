@@ -11,6 +11,15 @@ import {
   type AdvisorRunResult,
   type AdvisorTrigger,
 } from '@/lib/price-monitor/advisor'
+import {
+  agentActive,
+  agentDue,
+  lastAgentRunAt,
+  pruneAgentRuns,
+  runPriceAgent,
+  type AgentRunResult,
+  type AgentTrigger,
+} from '@/lib/price-monitor/agent'
 import { aiConfigured } from '@/lib/price-monitor/ai'
 import { clearBrowserState } from '@/lib/price-monitor/browser-state'
 import {
@@ -62,7 +71,7 @@ import type {
   ActiveHours,
   PriceMonitoringSettings,
 } from '@/lib/settings-shared'
-import { getVaultAccessState } from '@/lib/vault-access'
+import { getVaultAccessState, withVaultWrite } from '@/lib/vault-access'
 
 /**
  * The paced monitoring queue. One worker per vault (a lease in SQLite), at
@@ -79,6 +88,8 @@ const SYNC_EVERY_MS = 10 * MINUTE_MS
 const PRUNE_EVERY_MS = 24 * 60 * MINUTE_MS
 /** How often the worker looks whether the AI advisor is due. */
 const ADVISOR_CHECK_EVERY_MS = 10 * MINUTE_MS
+/** How often the worker looks whether the AI supervisor is due. */
+const AGENT_CHECK_EVERY_MS = MINUTE_MS
 /** Nothing to look for on other stores: ask again after this. */
 const DISCOVERY_IDLE_MS = 10 * MINUTE_MS
 /** The AI endpoint failed during a search: wait before the next one. */
@@ -93,6 +104,8 @@ export type WorkerDeps = {
   random: () => number
   /** The AI pacing advisor; only runs when AI and the advisor are on. */
   advise?: (trigger: AdvisorTrigger) => Promise<AdvisorRunResult>
+  /** The AI supervisor; only runs when AI is set up and its mode is on. */
+  supervise?: (trigger: AgentTrigger) => Promise<AgentRunResult>
   /** Other stores: the next knife AI should look for, or null. */
   nextDiscovery?: (
     settings: PriceMonitoringSettings,
@@ -116,6 +129,7 @@ const realDeps: WorkerDeps = {
   check: (...args) => checkPriceSource(...args),
   random: () => Math.random(),
   advise: (trigger) => runPriceAdvisor({ trigger }),
+  supervise: (trigger) => runPriceAgent({ trigger }),
   nextDiscovery: (settings, now) => nextDiscoveryKnife(settings, now),
   discover: (knifeId, options) => discoverKnife(knifeId, options),
 }
@@ -133,7 +147,10 @@ type PassContext = {
   intervalMs: number
   windowMs: number
   laneCounts: Map<string, number>
-  /** Scheduled sources per store that were never checked. */
+  /**
+   * Scheduled sources per store waiting for an early check: never checked,
+   * or moved forward by the AI supervisor (priority 1).
+   */
   firstReadings: Map<string, number>
   /** The never-checked sources themselves. */
   firstReadingIds: ReadonlySet<number>
@@ -211,6 +228,8 @@ export class PriceMonitorWorker {
   private lastPrune = 0
   private lastAdvisorCheck = 0
   private advising: Promise<unknown> | null = null
+  private lastAgentCheck = 0
+  private supervising: Promise<unknown> | null = null
   /** Other stores: a search running on the Amazon lane. */
   discovering: Promise<unknown> | null = null
   private discoveryNotBefore = 0
@@ -294,6 +313,7 @@ export class PriceMonitorWorker {
       if (now - this.lastPrune >= PRUNE_EVERY_MS) {
         this.lastPrune = now
         await pruneCheckLog(now)
+        await withVaultWrite(async () => pruneAgentRuns(getLocalDb(), now))
       }
 
       const hours = effectiveActiveHours(settings.schedule)
@@ -317,7 +337,10 @@ export class PriceMonitorWorker {
           effectiveLane(lane, settings.pacing, advice.get(key), now),
         ]),
       )
-      if (scheduledActive) this.maybeAdvise(settings, stored.values(), now)
+      if (scheduledActive) {
+        this.maybeAdvise(settings, stored.values(), now)
+        this.maybeSupervise(settings, now)
+      }
       // The daily AI summary for the Inbox; runs in the background.
       if (this.scheduled && settings.enabled)
         startPriceDigestIfDue(settings, now)
@@ -470,6 +493,30 @@ export class PriceMonitorWorker {
       })
   }
 
+  /**
+   * Starts the AI supervisor in the background when it is due (every 10
+   * minutes with Unlimited AI, every hour with Limited). Its actions only
+   * reorder the paced queue, so the next pass picks them up.
+   */
+  private maybeSupervise(settings: PriceMonitoringSettings, now: number) {
+    if (this.supervising || !this.deps.supervise) return
+    if (!agentActive(settings)) return
+    if (now - this.lastAgentCheck < AGENT_CHECK_EVERY_MS) return
+    this.lastAgentCheck = now
+    if (!agentDue({ settings, lastRunAt: lastAgentRunAt(getLocalDb()), now }))
+      return
+    this.supervising = this.deps
+      .supervise('scheduled')
+      .catch((error) => {
+        if (!isVaultError(error))
+          reportServerError(error, 'price-monitor/agent')
+      })
+      .finally(() => {
+        this.supervising = null
+        this.wake(0)
+      })
+  }
+
   private launch(pick: QueuePick, lane: LaneState, context: PassContext) {
     const startedAt = this.deps.now()
     this.inFlight.set(pick.laneKey, {
@@ -528,11 +575,13 @@ export class PriceMonitorWorker {
       this.passing ||
       this.checks.size ||
       this.advising ||
+      this.supervising ||
       this.discovering
     ) {
       await Promise.all([
         this.passing,
         this.advising,
+        this.supervising,
         this.discovering,
         ...this.checks,
       ])

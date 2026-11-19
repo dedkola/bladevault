@@ -308,6 +308,7 @@ const PURPOSE_LABELS: Record<string, string> = {
   discovery_verify: 'listing check',
   verify: 'price check',
   digest: 'daily summary',
+  agent: 'supervisor',
   test: 'connection test',
 }
 
@@ -424,6 +425,68 @@ function AiActivity({
   )
 }
 
+type AgentRunView = {
+  id: number
+  startedAt: string
+  trigger: 'scheduled' | 'manual'
+  mode: 'observe' | 'act'
+  durationMs: number
+  ok: boolean
+  summary: string | null
+  actions: Array<{
+    kind: string
+    sourceId?: number
+    knifeId?: string
+    status: 'applied' | 'proposed' | 'refused'
+    note: string | null
+  }>
+  error: string | null
+}
+
+/** The supervisor's latest run, in one or two lines. */
+function AgentLastRun({ version }: { version: number }) {
+  const [run, setRun] = useState<AgentRunView | null | undefined>(undefined)
+  useEffect(() => {
+    let cancelled = false
+    callJson<{ runs: AgentRunView[] }>(
+      '/api/prices/agent',
+      { method: 'GET' },
+      'Could not read the AI supervisor runs.',
+    )
+      .then((data) => {
+        if (!cancelled) setRun(data.runs[0] ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setRun(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [version])
+  if (run === undefined) return null
+  if (run === null)
+    return <p className="w-full text-xs text-muted-foreground">No runs yet.</p>
+  const count = (status: string) =>
+    run.actions.filter((action) => action.status === status).length
+  const done = run.mode === 'act' ? count('applied') : count('proposed')
+  const refused = count('refused')
+  const when = new Date(run.startedAt).toLocaleString()
+  return (
+    <div className="flex w-full flex-col gap-1 text-xs text-muted-foreground">
+      <p className="tabular-nums text-foreground">
+        Last run {when}:{' '}
+        {run.ok
+          ? `${done} ${run.mode === 'act' ? 'actions applied' : 'actions proposed'}${refused ? `, ${refused} refused` : ''}`
+          : 'failed'}
+      </p>
+      {run.ok && run.summary ? <p>{run.summary}</p> : null}
+      {!run.ok && run.error ? (
+        <p className="text-destructive">{run.error}</p>
+      ) : null}
+    </div>
+  )
+}
+
 export type AdvisorLaneAdvice = {
   minGapMs: number | null
   pauseUntil: string | null
@@ -449,7 +512,11 @@ export function PriceAiSettingsSection({
   onAdviceApplied?: () => void
 }) {
   const [models, setModels] = useState<string[]>([])
-  const [busy, setBusy] = useState<'models' | 'test' | 'advisor' | null>(null)
+  const [busy, setBusy] = useState<
+    'models' | 'test' | 'advisor' | 'agent' | null
+  >(null)
+  const [agentNotice, setAgentNotice] = useState<Notice>(null)
+  const [agentVersion, setAgentVersion] = useState(0)
   const [modelNotice, setModelNotice] = useState<Notice>(null)
   const [testNotice, setTestNotice] = useState<Notice>(null)
   const [advisorNotice, setAdvisorNotice] = useState<Notice>(null)
@@ -511,6 +578,32 @@ export function PriceAiSettingsSection({
       })
     } finally {
       setBusy(null)
+      setActivityVersion((value) => value + 1)
+    }
+  }
+
+  const runAgent = async () => {
+    setBusy('agent')
+    setAgentNotice(null)
+    try {
+      const data = await callJson<{ run: AgentRunView }>(
+        '/api/prices/agent',
+        { method: 'POST' },
+        'The AI supervisor run failed.',
+      )
+      setAgentNotice(
+        data.run.ok
+          ? { tone: 'ok', text: data.run.summary || 'Done.' }
+          : { tone: 'error', text: data.run.error || 'The run failed.' },
+      )
+    } catch (error) {
+      setAgentNotice({
+        tone: 'error',
+        text: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setBusy(null)
+      setAgentVersion((value) => value + 1)
       setActivityVersion((value) => value + 1)
     }
   }
@@ -859,6 +952,53 @@ export function PriceAiSettingsSection({
           />
         </SettingsRow>
       ) : null}
+      <SettingsRow
+        label="AI supervisor"
+        description="AI looks over every monitored product and store and decides what needs attention: which products to check first, which failing pages to give to AI, when a page should load in the browser, which gone pages to pause, and which knives to look for on other stores. Observe only records what it would do; Act does it within fixed limits. It runs every 10 minutes with Unlimited AI and every hour with Limited. Checks still run one at a time per store at the store's safe pace."
+      >
+        <Select
+          value={settings.agentMode}
+          disabled={off}
+          onValueChange={(mode) => {
+            if (mode === 'off' || mode === 'observe' || mode === 'act')
+              update({ agentMode: mode })
+          }}
+        >
+          <SelectTrigger
+            size="sm"
+            aria-label="AI supervisor"
+            className="w-full min-w-0 sm:w-64"
+          >
+            <SelectValue>
+              {settings.agentMode === 'act'
+                ? 'Act'
+                : settings.agentMode === 'observe'
+                  ? 'Observe (record only)'
+                  : 'Off'}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="off">Off</SelectItem>
+            <SelectItem value="observe">Observe (record only)</SelectItem>
+            <SelectItem value="act">Act</SelectItem>
+          </SelectContent>
+        </Select>
+        {settings.agentMode !== 'off' ? (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              className={secondaryButton}
+              disabled={off || !ready || busy !== null}
+              onClick={() => void runAgent()}
+            >
+              {busy === 'agent' ? 'Running…' : 'Run now'}
+            </Button>
+            <NoticeText notice={agentNotice} />
+            <AgentLastRun version={agentVersion} />
+          </>
+        ) : null}
+      </SettingsRow>
       <SettingsRow
         inline
         label="Confirm price changes"

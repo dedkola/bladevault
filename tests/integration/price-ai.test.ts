@@ -269,6 +269,7 @@ describe('AI settings routes', () => {
       maxPageKb: 200,
       maxAnswerTokens: 16_384,
       usage: DEFAULT_PRICE_MONITORING.ai.usage,
+      agentMode: 'off',
       headers: {},
     })
     await settingsRoute.POST(

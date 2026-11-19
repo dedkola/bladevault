@@ -978,6 +978,26 @@ function migratePriceMonitoringSchema(
       CREATE INDEX price_ai_calls_time
         ON price_ai_calls (started_at);`,
     ],
+    [
+      // The AI supervisor's runs: what it saw (counts only), what it decided
+      // and what each action did. No page content or keys.
+      'price_agent_runs',
+      `CREATE TABLE price_agent_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        started_at TEXT NOT NULL,
+        trigger TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        model TEXT NOT NULL,
+        duration_ms INTEGER NOT NULL,
+        ok INTEGER NOT NULL,
+        summary TEXT,
+        coverage TEXT,
+        actions TEXT,
+        error TEXT
+      );
+      CREATE INDEX price_agent_runs_time
+        ON price_agent_runs (started_at);`,
+    ],
   ]
   const missing = statements.filter(([name]) => !has(name))
   if (missing.length)

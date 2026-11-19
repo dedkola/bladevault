@@ -352,7 +352,16 @@ describe('AI settings normalization', () => {
         dailyTokens: 2_000_000,
         sourceCooldownHours: 24,
       },
+      agentMode: 'off',
     })
+    expect(
+      normalizePriceMonitoring({ ai: { agentMode: 'act' } }, current).ai
+        .agentMode,
+    ).toBe('act')
+    expect(
+      normalizePriceMonitoring({ ai: { agentMode: 'yolo' } }, current).ai
+        .agentMode,
+    ).toBe('off')
     // Usage: a partial update keeps the rest; bad values fall back.
     expect(
       normalizePriceMonitoring(

@@ -398,6 +398,7 @@ describe('price monitor worker', () => {
           maxPageKb: 200,
           maxAnswerTokens: 16_384,
           usage: DEFAULT_PRICE_MONITORING.ai.usage,
+          agentMode: 'off',
         },
       },
     })
