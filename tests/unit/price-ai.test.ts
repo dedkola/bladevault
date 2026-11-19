@@ -11,6 +11,7 @@ import {
   AiClientError,
   listAiModels,
   parseJsonAnswer,
+  REASONING_MAX_TOKENS,
   requestJsonCompletion,
 } from '@/lib/price-monitor/ai-client'
 import {
@@ -394,6 +395,56 @@ describe('AI client', () => {
       response_format: { type: 'json_schema' },
     })
     expect(second.response_format).toEqual({ type: 'json_object' })
+  })
+
+  it('retries an empty answer from a reasoning model with a larger budget', async () => {
+    const reasoningOnly = () =>
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              finish_reason: 'length',
+              message: { content: '', reasoning_content: 'Let me think…' },
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(reasoningOnly())
+      .mockResolvedValueOnce(chatResponse('{"ok":true}'))
+    const request = {
+      model: 'glm-5.3',
+      system: 's',
+      user: 'u',
+      schemaName: 'x',
+      schema: { type: 'object' },
+      maxTokens: 200,
+    }
+    const result = await requestJsonCompletion(endpoint, request, {
+      timeoutMs: 1000,
+      fetchImpl,
+    })
+    expect(result).toEqual({ ok: true })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    const first = JSON.parse(String(fetchImpl.mock.calls[0][1]?.body))
+    const second = JSON.parse(String(fetchImpl.mock.calls[1][1]?.body))
+    expect(first.max_tokens).toBe(200)
+    expect(second.max_tokens).toBe(REASONING_MAX_TOKENS)
+    // Same response format; only the budget changes.
+    expect(second.response_format).toEqual(first.response_format)
+
+    const always = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () => reasoningOnly())
+    const error = await requestJsonCompletion(endpoint, request, {
+      timeoutMs: 1000,
+      fetchImpl: always,
+    }).catch((caught: unknown) => caught)
+    expect(always).toHaveBeenCalledTimes(2)
+    expect((error as AiClientError).code).toBe('invalid_response')
+    expect((error as Error).message).toContain('reasoning')
   })
 
   it('never puts the key into error messages', async () => {
