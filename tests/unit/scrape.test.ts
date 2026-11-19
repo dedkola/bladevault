@@ -88,6 +88,22 @@ describe('product scraping', () => {
     ).toBe(false)
   })
 
+  it('ignores challenge wording inside page scripts', () => {
+    // Civivi's review widget ships its captcha prompt as a translation string.
+    const html = `
+      <html><head>
+        <script>window.reviews = {"question_recaptcha_is_required":"Please complete the captcha to proceed","verify":"Verify you are human"}</script>
+        <style>.x::after{content:"Press and hold to confirm"}</style>
+      </head><body><h1>Baby Banter 2</h1><span class="price">$59.78</span></body></html>
+    `
+    expect(isSecurityChallengePage(html)).toBe(false)
+    expect(
+      isSecurityChallengePage(
+        '<html><script>var a=1</script><body><p>Please complete the captcha</p></body></html>',
+      ),
+    ).toBe(true)
+  })
+
   it('detects the Incapsula challenge iframe returned with HTTP 200', () => {
     const html = `
       <html><head>
