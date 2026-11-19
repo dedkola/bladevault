@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   aiFallbackAllowed,
+  AI_FAILURES_BEFORE_COOLDOWN,
   AI_FRAGMENT_MAX_BYTES,
   appearsLiterally,
   buildPriceFragment,
@@ -9,6 +10,7 @@ import {
 } from '@/lib/price-monitor/ai'
 import {
   AiClientError,
+  aiBudgetRefusal,
   listAiModels,
   isReasoningModel,
   parseJsonAnswer,
@@ -17,6 +19,7 @@ import {
   requestJsonCompletion,
   resetAiModelProfiles,
   SAFE_ANSWER_TOKENS,
+  setAiBudgetGate,
   setAiCallObserver,
   stripThinking,
   type AiCallEvent,
@@ -258,15 +261,58 @@ describe('aiFallbackAllowed', () => {
       }),
     ).toBe(false)
   })
-  it('uses AI at most once per source per 24 hours', () => {
-    const hoursAgo = (hours: number) =>
-      new Date(now - hours * 3_600_000).toISOString()
+  const hoursAgo = (hours: number) =>
+    new Date(now - hours * 3_600_000).toISOString()
+  it('Limited: uses AI at most once per source per configured hours', () => {
     expect(aiFallbackAllowed({ settings, lastAiAt: hoursAgo(23), now })).toBe(
       false,
     )
     expect(aiFallbackAllowed({ settings, lastAiAt: hoursAgo(24), now })).toBe(
       true,
     )
+    const sixHours = {
+      ...settings,
+      usage: { ...settings.usage, sourceCooldownHours: 6 },
+    }
+    expect(
+      aiFallbackAllowed({ settings: sixHours, lastAiAt: hoursAgo(6), now }),
+    ).toBe(true)
+    expect(
+      aiFallbackAllowed({ settings: sixHours, lastAiAt: hoursAgo(5), now }),
+    ).toBe(false)
+  })
+  it('Unlimited: no wait, except for a source that keeps failing', () => {
+    const unlimited = {
+      ...settings,
+      usage: { ...settings.usage, mode: 'unlimited' as const },
+    }
+    expect(
+      aiFallbackAllowed({ settings: unlimited, lastAiAt: hoursAgo(0), now }),
+    ).toBe(true)
+    expect(
+      aiFallbackAllowed({
+        settings: unlimited,
+        lastAiAt: hoursAgo(0),
+        now,
+        consecutiveFailures: AI_FAILURES_BEFORE_COOLDOWN - 1,
+      }),
+    ).toBe(true)
+    expect(
+      aiFallbackAllowed({
+        settings: unlimited,
+        lastAiAt: hoursAgo(23),
+        now,
+        consecutiveFailures: AI_FAILURES_BEFORE_COOLDOWN,
+      }),
+    ).toBe(false)
+    expect(
+      aiFallbackAllowed({
+        settings: unlimited,
+        lastAiAt: hoursAgo(24),
+        now,
+        consecutiveFailures: AI_FAILURES_BEFORE_COOLDOWN,
+      }),
+    ).toBe(true)
   })
 })
 
@@ -297,7 +343,29 @@ describe('AI settings normalization', () => {
       vision: false,
       maxPageKb: 200,
       maxAnswerTokens: 16_384,
+      usage: {
+        mode: 'limited',
+        dailyCalls: 200,
+        dailyTokens: 2_000_000,
+        sourceCooldownHours: 24,
+      },
     })
+    // Usage: a partial update keeps the rest; bad values fall back.
+    expect(
+      normalizePriceMonitoring(
+        { ai: { usage: { mode: 'unlimited', dailyCalls: -5 } } },
+        current,
+      ).ai.usage,
+    ).toEqual({
+      mode: 'unlimited',
+      dailyCalls: 0,
+      dailyTokens: 2_000_000,
+      sourceCooldownHours: 24,
+    })
+    expect(
+      normalizePriceMonitoring({ ai: { usage: { mode: 'turbo' } } }, current).ai
+        .usage.mode,
+    ).toBe('limited')
     // Page size and answer limit stay within their bounds.
     expect(
       normalizePriceMonitoring(
@@ -683,6 +751,44 @@ describe('AI client', () => {
     ])
     // The response format did not change while lowering the limit.
     expect(sent[2].response_format).toEqual(sent[1].response_format)
+  })
+
+  it('refuses requests the budget gate stops, without sending or reporting', async () => {
+    const events: AiCallEvent[] = []
+    setAiCallObserver((event) => events.push(event))
+    setAiBudgetGate(() => 'The daily AI budget is used up.')
+    try {
+      const fetchImpl = vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(chatResponse('{"ok":true}'))
+      const request = {
+        model: 'm',
+        system: 's',
+        user: 'u',
+        schemaName: 'x',
+        schema: {},
+      }
+      const error = await requestJsonCompletion(
+        endpoint,
+        { ...request, purpose: 'extraction' },
+        { timeoutMs: 1000, fetchImpl },
+      ).catch((caught: unknown) => caught)
+      expect((error as AiClientError).code).toBe('budget')
+      expect(fetchImpl).not.toHaveBeenCalled()
+      expect(events).toHaveLength(0)
+      expect(aiBudgetRefusal('solver')).toContain('budget')
+      // Connection tests always go through.
+      expect(aiBudgetRefusal('test')).toBeNull()
+      await requestJsonCompletion(
+        endpoint,
+        { ...request, purpose: 'test' },
+        { timeoutMs: 1000, fetchImpl },
+      )
+      expect(fetchImpl).toHaveBeenCalledTimes(1)
+    } finally {
+      setAiBudgetGate(null)
+    }
+    expect(aiBudgetRefusal('solver')).toBeNull()
   })
 
   it('removes inline thinking from answers', () => {

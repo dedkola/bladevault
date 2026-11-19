@@ -2,7 +2,11 @@ import * as cheerio from 'cheerio'
 import type { Knife } from '@/lib/data'
 import { getLocalDb } from '@/lib/local-db'
 import { aiConfigured } from '@/lib/price-monitor/ai'
-import { AiClientError, type AiEndpoint } from '@/lib/price-monitor/ai-client'
+import {
+  AiClientError,
+  aiBudgetRefusal,
+  type AiEndpoint,
+} from '@/lib/price-monitor/ai-client'
 import {
   loadBrowserState,
   saveBrowserState,
@@ -247,6 +251,10 @@ export async function discoverKnife(
         laneOutcome: 'neutral',
         detail: 'The knife has no name or brand to search for.',
       })
+
+    // No store request when AI may not answer today (daily budget).
+    const refusal = aiBudgetRefusal('discovery_search')
+    if (refusal) throw new AiClientError('budget', refusal)
 
     // 1. Find: the search results page, read by AI.
     let searchPage: DiscoveryPage

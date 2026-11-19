@@ -1,10 +1,13 @@
 import type Database from 'better-sqlite3'
 import { getLocalDb } from '@/lib/local-db'
 import {
+  setAiBudgetGate,
   setAiCallObserver,
   type AiCallEvent,
   type AiPurpose,
 } from '@/lib/price-monitor/ai-client'
+import { getSettings } from '@/lib/settings'
+import type { PriceAiUsage } from '@/lib/settings-shared'
 import { withVaultWriteSync } from '@/lib/vault-access'
 
 /**
@@ -54,6 +57,52 @@ export function recordAiCall(event: AiCallEvent): void {
 /** Sends every AI call of this process to the journal. */
 export function installAiCallJournal(): void {
   setAiCallObserver(recordAiCall)
+  setAiBudgetGate(() => checkAiBudget())
+}
+
+/** Midnight of the server's local day, epoch ms. */
+export function startOfLocalDay(now = Date.now()): number {
+  const date = new Date(now)
+  date.setHours(0, 0, 0, 0)
+  return date.getTime()
+}
+
+export type AiUsageToday = { calls: number; tokens: number }
+
+/** Requests and tokens since local midnight; connection tests do not count. */
+export function readAiUsageToday(
+  database: Database.Database,
+  now = Date.now(),
+): AiUsageToday {
+  const row = database
+    .prepare(
+      `SELECT COUNT(*) AS calls,
+              COALESCE(SUM(COALESCE(prompt_tokens, 0)
+                + COALESCE(completion_tokens, 0)), 0) AS tokens
+       FROM price_ai_calls WHERE started_at >= ? AND purpose <> 'test'`,
+    )
+    .get(new Date(startOfLocalDay(now)).toISOString()) as AiUsageToday
+  return { calls: row.calls, tokens: row.tokens }
+}
+
+/** Why no more AI may run today, or null. Pure; 0 means no cap. */
+export function aiBudgetRefusal(
+  usage: PriceAiUsage,
+  today: AiUsageToday,
+): string | null {
+  if (usage.mode === 'unlimited') return null
+  if (usage.dailyCalls > 0 && today.calls >= usage.dailyCalls)
+    return `The daily AI budget is used up (${usage.dailyCalls} requests). AI continues tomorrow, or choose Unlimited in Settings → Price monitoring → AI assistance.`
+  if (usage.dailyTokens > 0 && today.tokens >= usage.dailyTokens)
+    return `The daily AI budget is used up (${usage.dailyTokens.toLocaleString('en-US')} tokens). AI continues tomorrow, or choose Unlimited in Settings → Price monitoring → AI assistance.`
+  return null
+}
+
+/** The budget gate for the AI client, from the saved settings. */
+export function checkAiBudget(now = Date.now()): string | null {
+  const usage = getSettings().priceMonitoring.ai.usage
+  if (usage.mode === 'unlimited') return null
+  return aiBudgetRefusal(usage, readAiUsageToday(getLocalDb(), now))
 }
 
 export function pruneAiCalls(database: Database.Database, now = Date.now()) {
@@ -81,6 +130,8 @@ export type AiCallSummary = {
   lastError: { at: string; purpose: AiPurpose; message: string } | null
   /** The latest call's model was known to reason before answering. */
   reasoning: boolean
+  /** Since local midnight, connection tests excluded (the daily budget). */
+  today: AiUsageToday
 }
 
 /** What AI did in the last 24 hours. */
@@ -150,5 +201,6 @@ export function readAiCallSummary(
         }
       : null,
     reasoning: Boolean(last?.reasoning),
+    today: readAiUsageToday(database, now),
   }
 }

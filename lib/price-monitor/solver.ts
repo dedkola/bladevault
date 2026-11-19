@@ -1,14 +1,16 @@
 import * as cheerio from 'cheerio'
 import type { Page } from 'playwright'
 import {
+  AiClientError,
+  aiBudgetRefusal,
   requestJsonCompletion,
   type AiEndpoint,
   type FetchLike,
 } from '@/lib/price-monitor/ai-client'
 import {
   AI_OFFER_SCHEMA,
-  AI_SOURCE_COOLDOWN_MS,
   aiConfigured,
+  aiSourceReady,
   buildPriceFragment,
   parseAiOfferAnswer,
 } from '@/lib/price-monitor/ai'
@@ -230,13 +232,13 @@ export function solverAllowed(input: {
   errorCode: string
   lastAiAt: string | null
   now: number
+  consecutiveFailures?: number
 }): boolean {
   if (!aiConfigured(input.settings) || !input.settings.resolveErrors)
     return false
   if (!SOLVER_CODES.has(input.errorCode)) return false
-  if (!input.lastAiAt) return true
-  const last = Date.parse(input.lastAiAt)
-  return !Number.isFinite(last) || input.now - last >= AI_SOURCE_COOLDOWN_MS
+  // The solver opens a browser: not when the daily budget is used up.
+  return aiSourceReady(input) && !aiBudgetRefusal('solver')
 }
 
 // ----------------------------------------------------------- page access
@@ -693,6 +695,9 @@ export async function solveOnPage(
     ...extra,
   })
   const ask = (user: Parameters<typeof requestJsonCompletion>[1]['user']) => {
+    // A refused request (daily budget) does not count as asking the model.
+    const refusal = aiBudgetRefusal('solver')
+    if (refusal) throw new AiClientError('budget', refusal)
     aiCalls += 1
     return requestJsonCompletion(
       input.endpoint,
@@ -814,6 +819,8 @@ export async function solveOnPage(
           continue
         }
         const image = await page.screenshot({ type: 'jpeg', quality: 60 })
+        const refusal = aiBudgetRefusal('vision')
+        if (refusal) throw new AiClientError('budget', refusal)
         aiCalls += 1
         const vision = await requestJsonCompletion(
           input.endpoint,

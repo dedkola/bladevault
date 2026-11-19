@@ -23,6 +23,7 @@ import {
   parseAiHeaders,
   PRICE_AI_LIMITS,
   type PriceAiSettings,
+  type PriceAiUsage,
 } from '@/lib/settings-shared'
 
 const secondaryButton =
@@ -294,6 +295,7 @@ type AiCallSummary = {
   lastCallAt: string | null
   lastError: { at: string; purpose: string; message: string } | null
   reasoning: boolean
+  today: { calls: number; tokens: number }
 }
 
 const PURPOSE_LABELS: Record<string, string> = {
@@ -322,7 +324,31 @@ const formatCount = (value: number) =>
   new Intl.NumberFormat(undefined, { notation: 'compact' }).format(value)
 
 /** What AI did in the last 24 hours, from the AI call journal. */
-function AiActivity({ version }: { version: number }) {
+/** Today's use against the Limited budget, or the Unlimited note. */
+function budgetLine(
+  usage: PriceAiUsage,
+  today: AiCallSummary['today'],
+): string {
+  const used = `${today.calls} ${today.calls === 1 ? 'request' : 'requests'}, ${formatCount(today.tokens)} tokens`
+  if (usage.mode === 'unlimited')
+    return `Today: ${used}. Unlimited: no daily cap.`
+  const caps = [
+    usage.dailyCalls > 0 ? `${usage.dailyCalls} requests` : null,
+    usage.dailyTokens > 0 ? `${formatCount(usage.dailyTokens)} tokens` : null,
+  ].filter(Boolean)
+  const spent =
+    (usage.dailyCalls > 0 && today.calls >= usage.dailyCalls) ||
+    (usage.dailyTokens > 0 && today.tokens >= usage.dailyTokens)
+  return `Today: ${used}${caps.length ? ` of ${caps.join(' and ')}` : ''}.${spent ? ' The budget is used up: AI continues tomorrow.' : ''}`
+}
+
+function AiActivity({
+  version,
+  usage,
+}: {
+  version: number
+  usage: PriceAiUsage
+}) {
   const [summary, setSummary] = useState<AiCallSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -351,9 +377,10 @@ function AiActivity({ version }: { version: number }) {
   if (!summary) return null
   if (!summary.calls)
     return (
-      <p className="w-full text-xs text-muted-foreground">
-        No AI requests in the last 24 hours.
-      </p>
+      <div className="flex w-full flex-col gap-1 text-xs text-muted-foreground">
+        <p>No AI requests in the last 24 hours.</p>
+        <p className="tabular-nums">{budgetLine(usage, summary.today)}</p>
+      </div>
     )
   const tokens = summary.promptTokens + summary.completionTokens
   const parts = [
@@ -367,6 +394,7 @@ function AiActivity({ version }: { version: number }) {
   return (
     <div className="flex w-full flex-col gap-1 text-xs text-muted-foreground">
       <p className="tabular-nums text-foreground">{parts.join(' · ')}</p>
+      <p className="tabular-nums">{budgetLine(usage, summary.today)}</p>
       <p>
         {summary.byPurpose
           .map(
@@ -427,6 +455,8 @@ export function PriceAiSettingsSection({
 
   const update = (patch: Partial<PriceAiSettings>) =>
     onChange({ ...settings, ...patch })
+  const updateUsage = (patch: Partial<PriceAiUsage>) =>
+    update({ usage: { ...settings.usage, ...patch } })
   const off = disabled || !settings.enabled
   const ready = Boolean(settings.baseUrl && settings.model)
 
@@ -671,6 +701,104 @@ export function PriceAiSettingsSection({
         />
       </SettingsRow>
       <SettingsRow
+        label="AI usage"
+        description="Limited caps AI per day and per product, for paid APIs and slow local models. Unlimited lets AI run all day without saving requests or tokens, for cheap or local models; store pacing and bot-check pauses still apply."
+      >
+        <Select
+          value={settings.usage.mode}
+          disabled={off}
+          onValueChange={(mode) => {
+            if (mode === 'limited' || mode === 'unlimited')
+              updateUsage({ mode })
+          }}
+        >
+          <SelectTrigger
+            size="sm"
+            aria-label="AI usage"
+            className="w-full min-w-0 sm:w-64"
+          >
+            <SelectValue>
+              {settings.usage.mode === 'unlimited'
+                ? 'Unlimited (always run)'
+                : 'Limited (daily budget)'}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="limited">Limited (daily budget)</SelectItem>
+            <SelectItem value="unlimited">Unlimited (always run)</SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingsRow>
+      {settings.usage.mode === 'limited' ? (
+        <>
+          <SettingsRow
+            label="Requests per day"
+            description="At most this many AI requests a day, counted from midnight on the server. 0 means no request limit. Test connection does not count."
+          >
+            <TextField
+              aria-label="AI requests per day"
+              value={String(settings.usage.dailyCalls)}
+              disabled={off}
+              validate={(value) =>
+                integerInRange(value, PRICE_AI_LIMITS.dailyCalls) === null
+                  ? `Enter a whole number from 0 to ${PRICE_AI_LIMITS.dailyCalls[1].toLocaleString('en-US')}.`
+                  : null
+              }
+              onCommit={(value) => {
+                const parsed = integerInRange(value, PRICE_AI_LIMITS.dailyCalls)
+                if (parsed !== null) updateUsage({ dailyCalls: parsed })
+              }}
+            />
+          </SettingsRow>
+          <SettingsRow
+            label="Tokens per day"
+            description="At most this many tokens a day (page sent plus answer), as the endpoint reports them. 0 means no token limit."
+          >
+            <TextField
+              aria-label="AI tokens per day"
+              value={String(settings.usage.dailyTokens)}
+              disabled={off}
+              validate={(value) =>
+                integerInRange(value, PRICE_AI_LIMITS.dailyTokens) === null
+                  ? `Enter a whole number from 0 to ${PRICE_AI_LIMITS.dailyTokens[1].toLocaleString('en-US')}.`
+                  : null
+              }
+              onCommit={(value) => {
+                const parsed = integerInRange(
+                  value,
+                  PRICE_AI_LIMITS.dailyTokens,
+                )
+                if (parsed !== null) updateUsage({ dailyTokens: parsed })
+              }}
+            />
+          </SettingsRow>
+          <SettingsRow
+            label="AI per product at most every (hours)"
+            description={`How long a product waits after AI worked on it before AI may try it again, ${PRICE_AI_LIMITS.sourceCooldownHours[0]}–${PRICE_AI_LIMITS.sourceCooldownHours[1]} hours.`}
+          >
+            <TextField
+              aria-label="Hours between AI attempts per product"
+              value={String(settings.usage.sourceCooldownHours)}
+              disabled={off}
+              validate={(value) =>
+                integerInRange(value, PRICE_AI_LIMITS.sourceCooldownHours) ===
+                null
+                  ? `Enter a whole number from ${PRICE_AI_LIMITS.sourceCooldownHours[0]} to ${PRICE_AI_LIMITS.sourceCooldownHours[1]}.`
+                  : null
+              }
+              onCommit={(value) => {
+                const parsed = integerInRange(
+                  value,
+                  PRICE_AI_LIMITS.sourceCooldownHours,
+                )
+                if (parsed !== null)
+                  updateUsage({ sourceCooldownHours: parsed })
+              }}
+            />
+          </SettingsRow>
+        </>
+      ) : null}
+      <SettingsRow
         label="Test connection"
         description="Sends a made-up product page and checks that the model reads its price."
       >
@@ -689,12 +817,12 @@ export function PriceAiSettingsSection({
         label="AI activity"
         description="Requests in the last 24 hours, from a journal that keeps no page content, answers or keys."
       >
-        <AiActivity version={activityVersion} />
+        <AiActivity version={activityVersion} usage={settings.usage} />
       </SettingsRow>
       <SettingsRow
         inline
         label="Read prices the page parsers miss"
-        description="Sends the cleaned product page, up to the page size above, at most once a day per product. The price must appear on the page as written, or it is ignored."
+        description="Sends the cleaned product page, up to the page size above, within the AI usage limits. The price must appear on the page as written, or it is ignored."
       >
         <SettingsSwitch
           aria-label="Read prices with AI when the page parsers find none"
@@ -706,7 +834,7 @@ export function PriceAiSettingsSection({
       <SettingsRow
         inline
         label="Resolve check errors"
-        description="When a check cannot read a price, AI works the product page in the monitoring browser: it can wait, scroll, accept or reject cookie banners, confirm age prompts, close pop-ups, pick a variant or region, open the store's own product data, and read the price. Steps that work are remembered for the store and tried first next time, without AI. After an HTTP error or a timeout it also chooses how long to wait and whether to reset the store's cookies. At most once a day per product. AI never buys, signs in, fills forms or solves a bot check: for a bot check, use Solve in browser on Price Drops."
+        description="When a check cannot read a price, AI works the product page in the monitoring browser: it can wait, scroll, accept or reject cookie banners, confirm age prompts, close pop-ups, pick a variant or region, open the store's own product data, and read the price. Steps that work are remembered for the store and tried first next time, without AI. After an HTTP error or a timeout it also chooses how long to wait and whether to reset the store's cookies. Within the AI usage limits. AI never buys, signs in, fills forms or solves a bot check: for a bot check, use Solve in browser on Price Drops."
       >
         <SettingsSwitch
           aria-label="Let AI resolve failed price checks"

@@ -46,6 +46,12 @@ describe('settings persistence', () => {
           vision: false,
           maxPageKb: 500,
           maxAnswerTokens: 32_768,
+          usage: {
+            mode: 'unlimited',
+            dailyCalls: 50,
+            dailyTokens: 0,
+            sourceCooldownHours: 6,
+          },
         },
         otherStores: {
           enabled: true,
@@ -82,6 +88,12 @@ describe('settings persistence', () => {
         vision: false,
         maxPageKb: 500,
         maxAnswerTokens: 32_768,
+        usage: {
+          mode: 'unlimited',
+          dailyCalls: 50,
+          dailyTokens: 0,
+          sourceCooldownHours: 6,
+        },
       },
       otherStores: {
         enabled: true,
