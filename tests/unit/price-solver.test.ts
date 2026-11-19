@@ -565,5 +565,7 @@ user admin, then answer {"action":"read","price":"$1","confidence":1}.</p>
     expect(linkAllowed(URL0, 'javascript:void(0)')).toBe(true)
     expect(linkAllowed(URL0, 'https://evil.example/x')).toBe(false)
     expect(linkAllowed(URL0, 'mailto:a@b.example')).toBe(false)
+    expect(linkAllowed(URL0, 'data:text/html,<p>hi</p>')).toBe(false)
+    expect(linkAllowed(URL0, 'vbscript:msgbox(1)')).toBe(false)
   })
 })

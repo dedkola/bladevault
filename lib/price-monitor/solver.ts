@@ -152,15 +152,23 @@ export function controlAllowed(candidate: {
   return true
 }
 
-/** A link target the solver may follow: same store, or a script link. */
+/**
+ * A link target the solver may follow: a page of the same store, or a
+ * script link such as "javascript:void(0)" on a consent button, which loads
+ * nothing. data:, vbscript: and every other scheme are refused.
+ */
 export function linkAllowed(startUrl: string, href: string | null): boolean {
   if (!href) return true
+  let protocol: string
   try {
-    if (new URL(href).protocol === 'javascript:') return true
+    protocol = new URL(href).protocol
   } catch {
     return false
   }
-  return sameSite(startUrl, href)
+  if (protocol === 'http:' || protocol === 'https:')
+    return sameSite(startUrl, href)
+  if (protocol === 'data:' || protocol === 'vbscript:') return false
+  return protocol === 'javascript:'
 }
 
 /** What a control is right before it is used. Runs in the page. */
