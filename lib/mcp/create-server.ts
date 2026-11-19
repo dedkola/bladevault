@@ -18,6 +18,19 @@ import {
   getKnifeMaintenance,
   type AddMaintenanceInput,
 } from '@/lib/services/maintenance-service'
+import {
+  getPriceAttention,
+  getPriceHistory,
+  getPriceWatch,
+  listPriceChanges,
+  listPriceWatches,
+  PRICE_CHANGE_KINDS,
+  PRICE_WATCH_STATES,
+  requestKnifePriceCheck,
+  updatePriceWatch,
+} from '@/lib/services/price-service'
+import { HISTORY_RANGES } from '@/lib/price-monitor/insights'
+import { PRICE_WATCH_MODES } from '@/lib/price-monitor/shared'
 import { MAINTENANCE_TYPES } from '@/lib/data'
 import { recordMcpToolCall, recordMcpWrite } from '@/lib/mcp/activity'
 import { areMcpWritesEnabled } from '@/lib/mcp/config'
@@ -77,12 +90,32 @@ const writeAnnotations = {
   openWorldHint: false,
 } as const
 
-export function createBladeVaultMcpServer(transport: McpTransport): McpServer {
+const checkAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true,
+} as const
+
+export type BladeVaultMcpServerOptions = {
+  /**
+   * Starts Check now in this process (the in-app HTTP server). Without it,
+   * request_price_check only marks sources for the running app's queue.
+   */
+  requestPriceChecks?: (sourceIds: readonly number[]) => Promise<number[]>
+}
+
+export const BLADEVAULT_MCP_INSTRUCTIONS =
+  'BladeVault manages one local knife collection. Read records before changing them. Use propose_changes for candidate metadata, then preview bulk_update_knives before applying it. Updates require the latest updatedAt value. Never infer that duplicate candidates should be deleted, and never claim propose_changes modifies data. For store price monitoring, read get_price_watch before preview-then-apply changes with update_price_watch; request_price_check only queues checks at each store’s normal pace.'
+
+export function createBladeVaultMcpServer(
+  transport: McpTransport,
+  options: BladeVaultMcpServerOptions = {},
+): McpServer {
   const server = new McpServer(
     { name: 'bladevault', version: '1.0.2' },
     {
-      instructions:
-        'BladeVault manages one local knife collection. Read records before changing them. Use propose_changes for candidate metadata, then preview bulk_update_knives before applying it. Updates require the latest updatedAt value. Never infer that duplicate candidates should be deleted, and never claim propose_changes modifies data.',
+      instructions: BLADEVAULT_MCP_INSTRUCTIONS,
     },
   )
 
@@ -325,6 +358,161 @@ export function createBladeVaultMcpServer(transport: McpTransport): McpServer {
         const event = await addMaintenanceEvent(input)
         recordMcpWrite()
         return { event }
+      }),
+  )
+
+  const sourceIdsSchema = z
+    .array(z.number().int().positive())
+    .max(10)
+    .default([])
+
+  server.registerTool(
+    'list_price_watches',
+    {
+      title: 'List price-monitored knives',
+      description:
+        'List knives with store price monitoring: best current in-stock price, purchase price, state (attention, drop, increase, out_of_stock, same, pending, not_monitored), last change, and last check. Prices include decimal amount, minor units, and currency.',
+      inputSchema: z.object({
+        monitored_only: z.boolean().default(true),
+        state: z.enum(PRICE_WATCH_STATES).optional(),
+        limit: z.number().int().min(1).max(500).default(100),
+        offset: z.number().int().min(0).default(0),
+      }),
+      annotations: readOnlyAnnotations,
+    },
+    ({ monitored_only, state, limit, offset }) =>
+      runTool(transport, () =>
+        listPriceWatches({
+          monitoredOnly: monitored_only,
+          state,
+          limit,
+          offset,
+        }),
+      ),
+  )
+
+  server.registerTool(
+    'list_price_changes',
+    {
+      title: 'List recent price and stock changes',
+      description:
+        'List price drops, increases, restocks (back_in_stock), and out-of-stock events within the last N days, newest first, plus the store listings that are out of stock right now.',
+      inputSchema: z.object({
+        days: z.number().int().min(1).max(365).default(30),
+        kinds: z.array(z.enum(PRICE_CHANGE_KINDS)).max(4).default([]),
+        limit: z.number().int().min(1).max(500).default(50),
+      }),
+      annotations: readOnlyAnnotations,
+    },
+    ({ days, kinds, limit }) =>
+      runTool(transport, () => listPriceChanges({ days, kinds, limit })),
+  )
+
+  server.registerTool(
+    'get_price_history',
+    {
+      title: 'Get a knife’s price history',
+      description:
+        'Return one knife’s price history per store source for a range (7d, 1m, 3m, 6m, 1y, all): step points, latest/low/high price, and its price and stock change events.',
+      inputSchema: z.object({
+        knife_id: z.string().min(1),
+        range: z.enum(HISTORY_RANGES).default('3m'),
+      }),
+      annotations: readOnlyAnnotations,
+    },
+    ({ knife_id, range }) =>
+      runTool(transport, () => getPriceHistory({ knifeId: knife_id, range })),
+  )
+
+  server.registerTool(
+    'get_price_watch',
+    {
+      title: 'Get a knife’s price monitoring setup',
+      description:
+        'Return one knife’s monitoring mode (auto, on, off), whether it is monitored and why, and its store sources with status, last price, stock, problems, and queued checks. Use the source IDs with update_price_watch.',
+      inputSchema: z.object({ knife_id: z.string().min(1) }),
+      annotations: readOnlyAnnotations,
+    },
+    ({ knife_id }) => runTool(transport, () => getPriceWatch(knife_id)),
+  )
+
+  server.registerTool(
+    'get_price_attention',
+    {
+      title: 'Summarize price monitoring problems',
+      description:
+        'Summarize what needs attention in price monitoring: sources blocked by a bot check, failed checks, pages without a price, readings AI doubts, and stores paused after repeated blocks, with overall monitoring counts.',
+      inputSchema: z.object({}),
+      annotations: readOnlyAnnotations,
+    },
+    () => runTool(transport, () => getPriceAttention()),
+  )
+
+  server.registerTool(
+    'update_price_watch',
+    {
+      title: 'Preview or apply price monitoring changes',
+      description:
+        'Change one knife’s price monitoring: set mode (auto, on, off), add store product URLs (at most 10 sources per knife), and pause, resume, or remove sources by ID. The source from the knife’s product link can only be paused. Preview is the default; applying requires the exact fresh preview_hash.',
+      inputSchema: z.object({
+        knife_id: z.string().min(1),
+        mode: z.enum(PRICE_WATCH_MODES).optional(),
+        add: z
+          .array(
+            z.object({
+              url: z.string().min(1).max(2048),
+              store_name: z.string().max(80).optional(),
+            }),
+          )
+          .max(10)
+          .default([]),
+        pause: sourceIdsSchema,
+        resume: sourceIdsSchema,
+        remove: sourceIdsSchema,
+        apply: z.boolean().default(false),
+        preview_hash: z.string().optional(),
+      }),
+      annotations: writeAnnotations,
+    },
+    ({ knife_id, mode, add, pause, resume, remove, apply, preview_hash }) =>
+      runTool(transport, async () => {
+        if (apply) requireMcpWrites()
+        const result = await updatePriceWatch({
+          knifeId: knife_id,
+          mode,
+          add: add.map((item) => ({
+            url: item.url,
+            storeName: item.store_name,
+          })),
+          pause,
+          resume,
+          remove,
+          apply,
+          previewHash: preview_hash,
+        })
+        if (result.applied) recordMcpWrite()
+        return result
+      }),
+  )
+
+  server.registerTool(
+    'request_price_check',
+    {
+      title: 'Check a knife’s store prices now',
+      description:
+        'Queue Check now for every active store source of one knife. Checks run at each store’s normal pace and wait out bot-check pauses; this never fetches pages immediately. Read get_price_watch later for results.',
+      inputSchema: z.object({ knife_id: z.string().min(1) }),
+      annotations: checkAnnotations,
+    },
+    ({ knife_id }) =>
+      runTool(transport, async () => {
+        requireMcpWrites()
+        const result = await requestKnifePriceCheck({
+          knifeId: knife_id,
+          startChecks: options.requestPriceChecks,
+        })
+        recordMcpWrite()
+        return result
       }),
   )
 

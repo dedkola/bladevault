@@ -4,12 +4,16 @@ import { createBladeVaultMcpServer } from '@/lib/mcp/create-server'
 import { recordMcpHttpRequest } from '@/lib/mcp/activity'
 import { getMcpAuthToken, isMcpEnabled } from '@/lib/mcp/config'
 import { isAppLockEnabled } from '@/lib/app-lock'
+import { requestPriceChecks } from '@/lib/price-monitor/worker'
 
-const handler = createMcpHandler(() => createBladeVaultMcpServer('http'), {
-  onerror(error) {
-    console.error('[bladevault-mcp]', error)
+const handler = createMcpHandler(
+  () => createBladeVaultMcpServer('http', { requestPriceChecks }),
+  {
+    onerror(error) {
+      console.error('[bladevault-mcp]', error)
+    },
   },
-})
+)
 
 function unauthorized(): Response {
   return Response.json(
