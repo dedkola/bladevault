@@ -19,6 +19,10 @@ import { validateLocalDatabase } from '@/lib/local-data-restore'
 import { getSettings, saveSettings } from '@/lib/settings'
 import { LocalStorage } from '@/lib/storage/local'
 import type { CreateKnifeInput } from '@/lib/storage/types'
+import {
+  containsLegacyCloudSecret,
+  seedLegacyCloudSettings,
+} from '@/tests/helpers/legacy-settings'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 let vault: TempVault | null = null
@@ -284,6 +288,26 @@ describe('local backup archive route', () => {
     await expect(
       storage.getImage(restoredKnife?.images[0] ?? ''),
     ).resolves.toMatchObject({ contentType: 'image/png' })
+  })
+
+  it('leaves old Cloudflare credential rows out of the exported archive', async () => {
+    vault = await createTempVault('bladevault-local-backup-')
+    saveSettings({ theme: 'dark' })
+    seedLegacyCloudSettings(vault.dataDir)
+
+    const exported = await localBackupRoute.GET(
+      new Request('http://localhost/api/local-backup/archive'),
+    )
+    expect(exported.status).toBe(200)
+    // Entries are stored uncompressed, so the raw bytes show any leftover.
+    const archive = Buffer.from(await exported.arrayBuffer())
+    expect(containsLegacyCloudSecret(archive)).toBe(false)
+    const directory = await unzipper.Open.buffer(archive)
+    const databaseEntry = directory.files.find(
+      (entry) => entry.path === 'database.sqlite',
+    )
+    expect(containsLegacyCloudSecret(await databaseEntry!.buffer())).toBe(false)
+    expect(getSettings().theme).toBe('dark')
   })
 
   it('rejects non-ZIP and incomplete archives without replacing the vault', async () => {

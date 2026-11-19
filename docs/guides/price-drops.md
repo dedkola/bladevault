@@ -105,7 +105,7 @@ Prices are compared only within one currency. Implausible jumps are confirmed wi
 1. Turn on **Use AI**.
 2. Enter the **Base URL**, for example `https://api.openai.com/v1` or `http://localhost:11434/v1` for Ollama.
 3. Enter an **API key** if the endpoint needs one. Local servers usually do not.
-4. If the gateway needs extra headers, enter them as a JSON object in **Custom headers**. OpenCode Go, for example, rejects requests without a session header: `{"x-opencode-session": "bladevault"}`. Custom headers are saved with the other settings, so keep keys in the API key field.
+4. If the gateway needs extra headers, enter them as a JSON object in **Custom headers**. OpenCode Go, for example, rejects requests without a session header: `{"x-opencode-session": "bladevault"}`. Custom headers are saved with the other settings and included in backups, so keep keys and tokens in the API key field.
 5. Select **Discover models** and choose a model, or type a model ID.
 6. Select **Test connection** to confirm that the model reads a sample price.
 

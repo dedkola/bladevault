@@ -1,7 +1,17 @@
+import fs from 'fs/promises'
 import path from 'path'
 import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
-import { closeLocalDb, getLocalDb } from '@/lib/local-db'
+import {
+  closeLocalDb,
+  getLocalDb,
+  OBSOLETE_SETTINGS_KEYS,
+} from '@/lib/local-db'
+import { getSettings, saveSettings } from '@/lib/settings'
+import {
+  containsLegacyCloudSecret,
+  seedLegacyCloudSettings,
+} from '@/tests/helpers/legacy-settings'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 let vault: TempVault | null = null
@@ -383,5 +393,45 @@ describe('local database migrations', () => {
     expect(
       database.prepare('SELECT body, images FROM knife_notes').get(),
     ).toEqual({ body: 'Kept', images: '[]' })
+  })
+
+  it('removes the old Cloudflare credential rows, keeps current settings and repeats safely', async () => {
+    vault = await createTempVault()
+    saveSettings({ theme: 'dark', timeFormat: '24h' })
+    getLocalDb()
+      .prepare('INSERT INTO settings (key, value) VALUES (?, ?)')
+      .run('error_reporting_consent', 'granted')
+    seedLegacyCloudSettings(vault.dataDir)
+
+    const settingKeys = () =>
+      (
+        getLocalDb().prepare('SELECT key FROM settings').all() as Array<{
+          key: string
+        }>
+      ).map((row) => row.key)
+    const databaseBytes = async () => {
+      closeLocalDb()
+      return fs.readFile(path.join(vault!.dataDir, 'bladevault.sqlite'))
+    }
+
+    for (const key of OBSOLETE_SETTINGS_KEYS)
+      expect(settingKeys()).not.toContain(key)
+    expect(settingKeys()).toContain('error_reporting_consent')
+    expect(getSettings()).toMatchObject({ theme: 'dark', timeFormat: '24h' })
+    // Neither the current nor the earlier overwritten token survives in the
+    // file, which the local ZIP and full-folder archives copy as it is.
+    expect(containsLegacyCloudSecret(await databaseBytes())).toBe(false)
+
+    // Reopening a clean vault changes nothing.
+    expect(settingKeys()).toContain('error_reporting_consent')
+    expect(getSettings()).toMatchObject({ theme: 'dark', timeFormat: '24h' })
+
+    // A restored old backup brings the rows back; the next open removes them.
+    seedLegacyCloudSettings(vault.dataDir)
+    for (const key of OBSOLETE_SETTINGS_KEYS)
+      expect(settingKeys()).not.toContain(key)
+    expect(getLocalDb().pragma('integrity_check', { simple: true })).toBe('ok')
+    expect(getLocalDb().pragma('secure_delete', { simple: true })).toBe(0)
+    expect(containsLegacyCloudSecret(await databaseBytes())).toBe(false)
   })
 })

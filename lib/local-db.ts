@@ -1122,6 +1122,64 @@ function normalizeKnifeRows(database: Database.Database) {
   normalizeRows(rows)
 }
 
+/**
+ * Settings rows written by the Cloudflare D1/R2 remote storage that was
+ * removed in ca4411d. Nothing reads them any more, but saveSettings only
+ * upserts, so old vaults kept the account id, API token and R2 keys in plain
+ * text, and every backup carried them.
+ */
+export const OBSOLETE_SETTINGS_KEYS = [
+  'storage_mode',
+  'cloudflare_account_id',
+  'cloudflare_api_token',
+  'd1_database_id',
+  'd1_database_name',
+  'r2_bucket_name',
+  'r2_access_key_id',
+  'r2_secret_access_key',
+  'r2_endpoint',
+  'r2_bucket_url',
+] as const
+
+/**
+ * Deletes the obsolete credential rows. Repeat-safe: a vault without them
+ * costs one indexed lookup per open. secure_delete zeroes the deleted cells,
+ * and a one-time VACUUM drops older copies that earlier saves left in free
+ * pages, because backups copy database pages as they are.
+ */
+function removeObsoleteSettings(database: Database.Database) {
+  const placeholders = OBSOLETE_SETTINGS_KEYS.map(() => '?').join(', ')
+  const { count } = database
+    .prepare(
+      `SELECT COUNT(*) AS count FROM settings WHERE key IN (${placeholders})`,
+    )
+    .get(...OBSOLETE_SETTINGS_KEYS) as { count: number }
+  if (!count) return
+
+  const secureDelete = Number(
+    database.pragma('secure_delete', { simple: true }),
+  )
+  database.pragma('secure_delete = ON')
+  try {
+    database
+      .prepare(`DELETE FROM settings WHERE key IN (${placeholders})`)
+      .run(...OBSOLETE_SETTINGS_KEYS)
+  } finally {
+    database.pragma(`secure_delete = ${secureDelete}`)
+  }
+
+  try {
+    database.exec('VACUUM')
+    database.pragma('wal_checkpoint(TRUNCATE)')
+  } catch (error) {
+    // Another process may hold a read transaction. The rows are gone and
+    // their cells zeroed either way; only stale free-page copies remain.
+    console.warn('Could not compact the database after removing old settings', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
 function initSchema(database: Database.Database) {
   database.exec(`
     CREATE TABLE IF NOT EXISTS knives (
@@ -1151,6 +1209,7 @@ function initSchema(database: Database.Database) {
   `)
 
   migrateSchema(database)
+  removeObsoleteSettings(database)
 
   // Seed the legacy backlog only when this schema is first introduced, including
   // after restoring a pre-screenshot backup. New items never enter this queue.
