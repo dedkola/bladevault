@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { AppWindow } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import type {
   CheckHour,
   MonitoredSource,
@@ -753,10 +755,10 @@ export function MonitoringStatus({
   )
 }
 
-/** Change badge for a monitored source: icon plus words, never color alone. */
 /**
- * A source's result. With `onResolve`, a Needs attention badge is a button
- * that starts Solve in browser for that store page.
+ * A source's result: icon plus words, never color alone. With `onResolve`, a
+ * blocked, failed or unavailable store page also gets a Solve or Fix button
+ * that opens it in a browser window.
  */
 export function ResultBadge({
   source,
@@ -806,30 +808,39 @@ export function ResultBadge({
       : source.result === 'pending'
         ? 'Waiting'
         : RESULT_LABEL[source.result]
-  if (source.result === 'attention' && onResolve)
+  const solvable =
+    source.status === 'blocked' ||
+    source.status === 'failed' ||
+    source.status === 'price_unavailable'
+  if (source.result === 'attention' && solvable && onResolve) {
+    const blocked = source.status === 'blocked'
     return (
-      <button
-        type="button"
-        className="pd-badge cursor-pointer underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-        data-result={source.result}
-        title={
-          source.status === 'blocked'
-            ? 'Solve the bot check in a browser window'
-            : 'Open the store page in a browser window to fix it'
-        }
-        onClick={(event) => {
-          event.stopPropagation()
-          onResolve()
-        }}
-      >
-        {icon[source.result]} {text}
-        <span className="sr-only">
-          {' '}
-          —{' '}
-          {source.status === 'blocked' ? 'solve in browser' : 'fix in browser'}
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+        <span className="pd-badge" data-result={source.result}>
+          {icon[source.result]} {text}
         </span>
-      </button>
+        <Button
+          type="button"
+          variant="outline"
+          size="xs"
+          data-price-solve
+          title={
+            blocked
+              ? 'Solve the bot check in a browser window'
+              : 'Open the store page in a browser window to fix it'
+          }
+          aria-label={`${blocked ? 'Solve the bot check' : 'Fix the page'} at ${storeLabel(source.storeName)} in a browser`}
+          onClick={(event) => {
+            event.stopPropagation()
+            onResolve()
+          }}
+        >
+          <AppWindow className="size-3" aria-hidden="true" />
+          {blocked ? 'Solve' : 'Fix'}
+        </Button>
+      </span>
     )
+  }
   return (
     <span className="pd-badge" data-result={source.result}>
       {icon[source.result]} {text}

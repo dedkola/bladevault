@@ -82,6 +82,11 @@ html[data-theme-variant='forge'] {
   --sidebar-accent-foreground: #17150f;
   --sidebar-border: #e2dfd8;
   --sidebar-ring: #e5541b;
+  --price-drop: #2f7d46;
+  --price-rise: #c8102e;
+  --price-stock: #a15c07;
+  --price-attention: #57534e;
+  --price-neutral: #a19c94;
 }
 
 html[data-theme-variant='forge'].dark {
@@ -154,6 +159,11 @@ html[data-theme-variant='forge'].dark {
   --sidebar-accent-foreground: #f2f1ee;
   --sidebar-border: rgb(255 255 255 / 8%);
   --sidebar-ring: #ff6a2b;
+  --price-drop: #5fd38a;
+  --price-rise: #ff5c5c;
+  --price-stock: #f5b13d;
+  --price-attention: #a8a49c;
+  --price-neutral: #5d5a55;
 }
 
 /* ------------------------------------------------------------------ */
@@ -235,6 +245,11 @@ html[data-theme-variant='titanium'] {
   --sidebar-accent-foreground: #16141b;
   --sidebar-border: #e2dfe8;
   --sidebar-ring: #6e4ff0;
+  --price-drop: #12866f;
+  --price-rise: #d1123f;
+  --price-stock: #a86400;
+  --price-attention: #5b5866;
+  --price-neutral: #9d99a8;
 }
 
 html[data-theme-variant='titanium'].dark {
@@ -313,6 +328,11 @@ html[data-theme-variant='titanium'].dark {
   --sidebar-accent-foreground: #f1eff5;
   --sidebar-border: rgb(255 255 255 / 8%);
   --sidebar-ring: #a48bff;
+  --price-drop: #3dd9c1;
+  --price-rise: #ff5c7a;
+  --price-stock: #f2b252;
+  --price-attention: #a9a5b4;
+  --price-neutral: #5f5b6a;
 }
 
 /* ------------------------------------------------------------------ */
@@ -388,6 +408,11 @@ html[data-theme-variant='field'] {
   --sidebar-accent-foreground: #12130f;
   --sidebar-border: #d9d8cd;
   --sidebar-ring: #7fa80f;
+  --price-drop: #4e6b00;
+  --price-rise: #c8102e;
+  --price-stock: #a05a00;
+  --price-attention: #55564c;
+  --price-neutral: #9a9b90;
 }
 
 html[data-theme-variant='field'].dark {
@@ -460,6 +485,11 @@ html[data-theme-variant='field'].dark {
   --sidebar-accent-foreground: #efefe6;
   --sidebar-border: rgb(255 255 255 / 8%);
   --sidebar-ring: #c8f031;
+  --price-drop: #a8d64a;
+  --price-rise: #ff6b5c;
+  --price-stock: #f0a840;
+  --price-attention: #a3a498;
+  --price-neutral: #5d5e55;
 }
 
 /* Field uses Space Grotesk for titles. */
@@ -536,6 +566,11 @@ html[data-theme-palette='lumen'] {
   --sidebar-accent-foreground: #18181b;
   --sidebar-border: #ebebeb;
   --sidebar-ring: #f6821f;
+  --price-drop: #047857;
+  --price-rise: #dc2626;
+  --price-stock: #b45309;
+  --price-attention: #52525b;
+  --price-neutral: #a1a1aa;
 }
 
 /* ------------------------------------------------------------------ */
@@ -612,6 +647,11 @@ html[data-theme-variant='espresso'] {
   --sidebar-accent-foreground: #fcd34d;
   --sidebar-border: #1f1812;
   --sidebar-ring: #fbbf24;
+  --price-drop: #4d7c0f;
+  --price-rise: #b42318;
+  --price-stock: #9a5b0c;
+  --price-attention: #5c4f40;
+  --price-neutral: #a8987f;
 }
 
 /* ------------------------------------------------------------------ */
@@ -689,6 +729,11 @@ html[data-theme-variant='phosphor'][data-theme-variant] {
   --sidebar-accent-foreground: #f5c66b;
   --sidebar-border: #2a2218;
   --sidebar-ring: #ffb000;
+  --price-drop: #c9d66b;
+  --price-rise: #ff5f3d;
+  --price-stock: #e8a33c;
+  --price-attention: #a8875a;
+  --price-neutral: #6b5a40;
 }
 
 html[data-theme-variant='field'] :is(.page-title, [data-workspace-brand] b) {

@@ -141,13 +141,7 @@ const MODE_LABEL: Record<PriceAgentMode, string> = {
   act: 'Act',
 }
 
-function ModeSwitch({
-  controls,
-  compact,
-}: {
-  controls: AgentControls
-  compact?: boolean
-}) {
+function ModeSwitch({ controls }: { controls: AgentControls }) {
   const { state, busy, setMode } = controls
   if (!state) return null
   return (
@@ -167,8 +161,7 @@ function ModeSwitch({
             if (state.mode !== mode) void setMode(mode)
           }}
           className={cn(
-            'rounded-md px-2.5 py-0.5 text-xs transition-colors disabled:opacity-60',
-            compact ? '' : 'sm:text-[13px]',
+            'rounded-md px-2.5 py-0.5 text-xs transition-colors disabled:opacity-60 sm:text-[13px]',
             state.mode === mode
               ? 'bg-[var(--bladevault-nav-active-bg)] font-semibold text-[var(--bladevault-nav-active-fg)]'
               : 'text-muted-foreground hover:text-foreground',
@@ -209,8 +202,8 @@ function NeedsYou({ stores }: { stores: string[] }) {
   return (
     <p className="pd-agent-attn">
       <b>Needs you:</b> {listed} {stores.length === 1 ? 'shows' : 'show'} a bot
-      check. Select the Blocked mark in the table to solve it in a browser; AI
-      never solves bot checks.
+      check. Select Solve in the table to pass it in a browser; AI never solves
+      bot checks.
     </p>
   )
 }
@@ -227,24 +220,24 @@ function CoverageMeter({ coverage }: { coverage: AgentCoverage }) {
       coverage.outOfStock,
   )
   const parts = [
-    { key: 'fresh', label: 'read', value: fresh, color: 'var(--pd-drop)' },
+    { key: 'fresh', label: 'read', value: fresh, color: 'var(--price-drop)' },
     {
       key: 'oos',
       label: 'out of stock',
       value: coverage.outOfStock,
-      color: 'var(--pd-oos)',
+      color: 'var(--price-stock)',
     },
     {
       key: 'attention',
       label: 'need attention',
       value: attention,
-      color: 'var(--pd-increase)',
+      color: 'var(--price-attention)',
     },
     {
       key: 'never',
       label: 'never checked',
       value: coverage.neverChecked,
-      color: 'var(--pd-same)',
+      color: 'var(--price-neutral)',
     },
   ]
   return (
@@ -323,6 +316,59 @@ export function AgentStrip({
   const refused =
     last?.actions.filter((action) => action.status === 'refused').length ?? 0
 
+  // Off and never run: one line with a way to turn it on.
+  if (state.mode === 'off' && !last)
+    return (
+      <section
+        data-agent-strip="off"
+        aria-labelledby="agent-strip-title"
+        className="mb-4 rounded-xl border border-[var(--bladevault-line)] bg-card"
+      >
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5">
+          <h2
+            id="agent-strip-title"
+            className="flex items-center gap-2 text-sm font-semibold"
+          >
+            <StatusDot tone="idle" />
+            <Bot className="size-4 text-muted-foreground" aria-hidden="true" />
+            AI supervisor
+            <span className="rounded-full border border-[var(--bladevault-line)] px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
+              off
+            </span>
+          </h2>
+          <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+            AI can decide which checks go first.{' '}
+            <Link href="/settings?tab=prices" className="underline">
+              Learn more
+            </Link>
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7"
+            disabled={controls.busy !== null}
+            onClick={() => void controls.setMode('observe')}
+          >
+            {controls.busy === 'mode' ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : null}
+            Turn on
+          </Button>
+        </div>
+        {state.blockedStores.length || notice ? (
+          <div className="space-y-2 px-4 pb-3 text-sm">
+            <NeedsYou stores={state.blockedStores} />
+            {notice ? (
+              <p role="status" className="text-xs text-destructive">
+                {notice.text}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+    )
+
   return (
     <section
       data-agent-strip
@@ -367,17 +413,6 @@ export function AgentStrip({
         </div>
       </header>
       <div className="space-y-3 px-4 py-3 text-sm">
-        {state.mode === 'off' && !last ? (
-          <p className="text-muted-foreground">
-            Choose Observe to let AI plan what monitoring needs and record it,
-            or Act to let it do it within fixed limits. It can only change the
-            order of checks, never their pace.{' '}
-            <Link href="/settings?tab=prices" className="underline">
-              Learn more in Settings
-            </Link>
-            .
-          </p>
-        ) : null}
         {last ? (
           last.ok ? (
             <p>{last.summary || 'Nothing needed attention.'}</p>
@@ -588,7 +623,6 @@ export function AgentFeed({
           <Bot className="size-4 text-muted-foreground" aria-hidden="true" />
           Supervisor activity
         </h3>
-        <ModeSwitch controls={controls} compact />
       </div>
       <div
         role="tablist"

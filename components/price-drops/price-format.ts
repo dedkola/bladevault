@@ -1,4 +1,4 @@
-import { formatMoney } from '@/lib/price-monitor/money'
+import { formatMoney, toMinorUnits } from '@/lib/price-monitor/money'
 import type { ChangeEvent } from '@/lib/price-monitor/insights'
 import type { PriceSourceStatus } from '@/lib/price-monitor/shared'
 
@@ -6,6 +6,15 @@ import type { PriceSourceStatus } from '@/lib/price-monitor/shared'
 export function money(minor: number | null, currency: string | null): string {
   if (minor === null || !currency) return '—'
   return formatMoney(minor, currency)
+}
+
+/**
+ * Money in major units (a stored purchase price, a chart value), formatted
+ * the same way as `money`.
+ */
+export function moneyMajor(amount: number | null, currency: string | null) {
+  if (amount === null || !currency) return '—'
+  return money(toMinorUnits(amount, currency), currency)
 }
 
 export function relativeTime(

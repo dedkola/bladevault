@@ -69,6 +69,11 @@ html[data-theme-style='alloy'] {
   --alloy-gold: #d6b76a;
   --alloy-gutter: clamp(18px, 3vw, 40px);
   color-scheme: light;
+  --price-drop: #4f7a3a;
+  --price-rise: #a53728;
+  --price-stock: #9a6a14;
+  --price-attention: #57534b;
+  --price-neutral: #9a958b;
 }
 
 html[data-theme-style='alloy'].dark {
@@ -127,6 +132,11 @@ html[data-theme-style='alloy'].dark {
   --alloy-stage: #dedbd4;
   --alloy-panel: #080808;
   color-scheme: dark;
+  --price-drop: #8fca7a;
+  --price-rise: #f29480;
+  --price-stock: #e6b65c;
+  --price-attention: #b8b1a4;
+  --price-neutral: #6f6a60;
 }
 
 /* Porcelain surfaces keep the light appearance distinct from the dark shell. */
