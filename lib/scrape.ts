@@ -113,6 +113,12 @@ export function isSecurityChallengePage(html: string): boolean {
     )
   )
     return true
+  // Wording a person reads must be page text: review and form widgets embed
+  // the same phrases in script translation strings on normal product pages.
+  const pageText = normalized.replace(
+    /<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/g,
+    ' ',
+  )
   if (
     [
       'verify you are human',
@@ -121,6 +127,11 @@ export function isSecurityChallengePage(html: string): boolean {
       "confirm you're human",
       'please complete the captcha',
       'press and hold to confirm',
+    ].some((marker) => pageText.includes(marker))
+  )
+    return true
+  if (
+    [
       'id="px-captcha"',
       // Amazon's checkpoint ("unusual browser activity") and captcha pages.
       'action="/checkpoint/validate"',
