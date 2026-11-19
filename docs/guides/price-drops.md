@@ -143,10 +143,10 @@ The API key is stored next to the vault in its private control folder, outside b
 
 The supervisor runs every 10 minutes with **Unlimited** AI usage and every hour with **Limited**, and **Run now** starts a run at once. Each run, AI sees every monitored product (knife name, store, status, when it was last checked and how it failed), each store's pace and pauses, how many products are fresh, and the AI budget. It never sees product links, what you paid, notes, or keys. It can:
 
-- **Check first**: move up to 25 overdue, stale, or failing products to the front of their store's queue.
+- **Check first**: move up to 25 overdue, stale, or failing products to the front of their store's queue. A product blocked by a bot check still waits out its backoff.
 - **Retry with AI**: let AI read or work the page of up to 10 failing products on their next check.
 - **Change how a page loads**: switch up to 5 products to the browser, plain HTTP, or back to automatic.
-- **Pause**: stop up to 3 products whose page failed at least 5 checks in a row and seems gone. Resume them in the knife's **Price monitoring** section.
+- **Pause**: stop up to 3 products whose page failed at least 5 checks in a row and seems gone (not found, HTTP 404 or 410, or a redirect; never timeouts, server errors, or bot checks). Resume them in the knife's **Price monitoring** section.
 - **Look on other stores**: search again for up to 5 knives on other stores, when [Other stores](#find-knives-at-other-stores-with-ai) is on.
 
 Every action is checked before it runs, and actions that break the rules are refused and recorded with the reason. The supervisor can change the order of checks but not their pace: each store is still checked one product at a time, and store pauses, Retry-After, and bot-check pauses still apply. It never solves a bot check. The latest run and its summary appear under **AI supervisor**. Runs are kept for 30 days.

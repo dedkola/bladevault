@@ -10,6 +10,7 @@ import {
   AI_EXTRACTION_TIMEOUT_MS,
   appearsLiterally,
   buildPriceFragment,
+  UNTRUSTED_CONTENT_RULE,
 } from '@/lib/price-monitor/ai'
 import {
   formatMoney,
@@ -149,6 +150,7 @@ export const VERIFY_SCHEMA = {
 const SYSTEM_PROMPT = [
   'You check a price that a personal price-tracking app read from an online store page.',
   'You get the product the user tracks (brand, name, key specs), the store host, the new reading, the previous reading, and a trimmed fragment of the page.',
+  UNTRUSTED_CONTENT_RULE,
   'Decide whether the new reading is the current selling price of exactly this product: the same model and variant (blade length, steel, finish, handle), in the stated currency, for one item.',
   'Reject it when the page shows a different current price for the product, when the price belongs to another variant, another product, an accessory, a bundle or set, a per-unit or instalment price, a crossed-out or list price, or when it is in another currency.',
   'Answer with JSON only: {"verdict", "issue", "pagePrice", "confidence", "reason"}.',
@@ -195,6 +197,29 @@ const clean = (text: string) =>
     .replace(/[\u0000-\u001f\u007f]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+
+/** Price-like text: a number with a currency mark or code. */
+const QUOTED_PRICE =
+  /(?:[$€£¥₹]|\b(?:USD|EUR|GBP|CAD|AUD|JPY|CHF)\s?)\s?\d(?:[\d,.]*\d)?|\d(?:[\d,.]*\d)?\s?(?:[$€£¥₹]|\b(?:USD|EUR|GBP|CAD|AUD|JPY|CHF)\b)/gi
+
+/**
+ * The reason, or '' when it quotes a price that is not on the page as
+ * written (the reading under review aside): AI never supplies a price, not
+ * even in its explanation.
+ */
+export function reasonWithPagePrices(
+  reason: string,
+  fragment: string,
+  reading: VerifyReading,
+): string {
+  const own = priceText(reading.priceMinor, reading.currency)
+  for (const match of reason.matchAll(QUOTED_PRICE)) {
+    const quoted = match[0].trim()
+    if (quoted === own || appearsLiterally(quoted, fragment)) continue
+    return ''
+  }
+  return reason
+}
 
 /**
  * Validates the model's answer. Only a confident confirmation or rejection
@@ -249,7 +274,11 @@ export function parseVerifyAnswer(
   }
   const reason =
     typeof record.reason === 'string'
-      ? clean(record.reason).slice(0, REASON_MAX_LENGTH)
+      ? reasonWithPagePrices(
+          clean(record.reason).slice(0, REASON_MAX_LENGTH),
+          fragment,
+          reading,
+        )
       : ''
   return { status: 'rejected', issue, confidence, reason, pagePrice }
 }

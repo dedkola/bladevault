@@ -82,7 +82,13 @@ describe('validateAgentPlan', () => {
       source({ id: 4, monitored: false }),
       source({ id: 5, status: 'failed', failures: 2 }),
       source({ id: 6, status: 'blocked', failures: 9 }),
-      source({ id: 7, status: 'failed', failures: 6, fetch: 'browser' }),
+      source({
+        id: 7,
+        status: 'failed',
+        failures: 6,
+        fetch: 'browser',
+        error: 'http_404',
+      }),
     ]
     const actions = validateAgentPlan(
       {

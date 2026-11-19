@@ -4,6 +4,7 @@ import {
   type AiEndpoint,
   type FetchLike,
 } from '@/lib/price-monitor/ai-client'
+import { UNTRUSTED_CONTENT_RULE } from '@/lib/price-monitor/ai'
 import type { Knife } from '@/lib/data'
 import type { AmazonMarketplace } from '@/lib/settings-shared'
 
@@ -258,6 +259,7 @@ const MATCHING_RULES = [
   'A different blade steel, blade length, blade shape or lock is a different knife.',
   'A different handle colour or finish of the same model counts as the same knife only when the collection knife does not name its handle or finish.',
   'Never match sheaths, cases, sharpeners, replacement parts, scales, clips, lots of several knives, knock-offs, "compatible with" items, or a different model of the same maker.',
+  UNTRUSTED_CONTENT_RULE,
 ].join('\n')
 
 const MATCH_SYSTEM = [

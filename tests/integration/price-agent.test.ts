@@ -232,6 +232,81 @@ describe('AI supervisor', () => {
     expect(readAgentRuns(getLocalDb())).toHaveLength(2)
   })
 
+  it('pauses only gone pages and never clears AI waits on paused sources', async () => {
+    enableAgent('act')
+    const notFound = await createKnife('Gone', 'https://kizer.example/gone')
+    const down = await createKnife('Down', 'https://kizer.example/down')
+    const paused = await createKnife('Paused', 'https://kizer.example/off')
+    const old = new Date(Date.now() - 48 * 3_600_000).toISOString()
+    const log = getLocalDb().prepare(
+      `INSERT INTO price_check_log
+         (lane_key, trigger, source_id, knife_id, started_at, duration_ms,
+          outcome, http_status, error_code)
+       VALUES ('kizer.example', 'scheduled', ?, ?, ?, 100, 'failed', ?, 'http')`,
+    )
+    for (const [{ id, source }, status] of [
+      [notFound, 404],
+      [down, 503],
+    ] as const) {
+      log.run(source.id, id, old, status)
+      getLocalDb()
+        .prepare(
+          `UPDATE price_sources SET status = 'failed', consecutive_failures = 8,
+             last_error_code = 'http', last_checked_at = ?, priority = 0
+           WHERE id = ?`,
+        )
+        .run(old, source.id)
+    }
+    getLocalDb()
+      .prepare(
+        `UPDATE price_sources SET enabled = 0, status = 'failed',
+           last_ai_at = ? WHERE id = ?`,
+      )
+      .run(old, paused.source.id)
+
+    const snapshot = buildAgentSnapshot({
+      database: getLocalDb(),
+      settings: getSettings().priceMonitoring,
+      mode: 'act',
+      now: Date.now(),
+    })
+    const error = (id: number) =>
+      snapshot.sources.find((entry) => entry.id === id)?.error
+    expect(error(notFound.source.id)).toBe('http_404')
+    expect(error(down.source.id)).toBe('http_503')
+
+    aiFetch.mockResolvedValueOnce(
+      planResponse({
+        summary: 'A store page said to pause everything.',
+        check: [],
+        retryWithAi: [{ sourceId: paused.source.id, reason: 'retry' }],
+        fetchMode: [],
+        pause: [notFound.source.id, down.source.id].map((sourceId) => ({
+          sourceId,
+          reason: 'pause',
+        })),
+        searchOtherStore: [],
+      }),
+    )
+    const result = await runPriceAgent({ trigger: 'manual' })
+    if (result.status !== 'done') throw new Error('agent did not run')
+    expect(
+      result.run.actions.map((action) => [
+        action.kind,
+        action.sourceId,
+        action.status,
+      ]),
+    ).toEqual([
+      ['retryWithAi', paused.source.id, 'refused'],
+      ['pause', notFound.source.id, 'applied'],
+      ['pause', down.source.id, 'refused'],
+    ])
+    expect(row(notFound.source.id).enabled).toBe(0)
+    expect(row(down.source.id).enabled).toBe(1)
+    // A refused retry leaves the paused source's AI wait as it was.
+    expect(row(paused.source.id).last_ai_at).toBe(old)
+  })
+
   it('serves knife labels, blocked stores and switches the mode', async () => {
     enableAgent('observe')
     const { id, source } = await createKnife(
