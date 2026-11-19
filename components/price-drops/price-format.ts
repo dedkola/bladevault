@@ -64,6 +64,7 @@ export const STATUS_LABEL: Record<PriceSourceStatus, string> = {
   out_of_stock: 'Out of stock',
   failed: 'Failed',
   blocked: 'Blocked',
+  needs_review: 'AI doubts the price',
 }
 
 export type StatusTone = 'ok' | 'warn' | 'bad' | 'idle' | 'run'
@@ -76,4 +77,5 @@ export const STATUS_TONE: Record<PriceSourceStatus, StatusTone> = {
   out_of_stock: 'warn',
   failed: 'bad',
   blocked: 'bad',
+  needs_review: 'warn',
 }

@@ -20,6 +20,7 @@ import {
   nextDiscoveryKnife,
   type DiscoverySummary,
 } from '@/lib/price-monitor/discovery'
+import { startPriceDigestIfDue } from '@/lib/price-monitor/digest'
 import { checkPriceSource } from '@/lib/price-monitor/engine'
 import {
   applyLaneOutcome,
@@ -317,6 +318,9 @@ export class PriceMonitorWorker {
         ]),
       )
       if (scheduledActive) this.maybeAdvise(settings, stored.values(), now)
+      // The daily AI summary for the Inbox; runs in the background.
+      if (this.scheduled && settings.enabled)
+        startPriceDigestIfDue(settings, now)
       const input: QueueInput = {
         candidates,
         lanes,

@@ -306,6 +306,8 @@ const PURPOSE_LABELS: Record<string, string> = {
   advisor: 'pacing review',
   discovery_search: 'store search',
   discovery_verify: 'listing check',
+  verify: 'price check',
+  digest: 'daily summary',
   test: 'connection test',
 }
 
@@ -857,6 +859,46 @@ export function PriceAiSettingsSection({
           />
         </SettingsRow>
       ) : null}
+      <SettingsRow
+        inline
+        label="Confirm price changes"
+        description="Before a price change notifies you, or a price jumps far more than usual, AI checks it against the product page: the same variant and currency, for one item, not a bundle or accessory. A change AI rejects is kept as unconfirmed, does not notify, and the reason appears in the check history. When AI is unavailable or the daily budget is used up, changes notify as before. Sends the cleaned page, the old and new price, and the knife's brand, name and specs; never the purchase price or notes."
+      >
+        <SettingsSwitch
+          aria-label="Let AI confirm price changes before notifying"
+          checked={settings.confirmChanges}
+          disabled={off}
+          onCheckedChange={(checked) => update({ confirmChanges: checked })}
+        />
+      </SettingsRow>
+      <SettingsRow
+        inline
+        label="Spot-check page readings"
+        description={
+          settings.usage.mode === 'unlimited'
+            ? "AI also checks the page parsers' readings: every reading on a product's first check, and every reading where the price changed. When AI is sure the reading is wrong, the store page is marked AI doubts the price under Needs attention. The parser's price is kept."
+            : 'Works with AI usage set to Unlimited: AI then checks the page parsers’ readings on a product’s first check and whenever the price changes.'
+        }
+      >
+        <SettingsSwitch
+          aria-label="Let AI spot-check page readings"
+          checked={settings.spotCheck}
+          disabled={off || settings.usage.mode !== 'unlimited'}
+          onCheckedChange={(checked) => update({ spotCheck: checked })}
+        />
+      </SettingsRow>
+      <SettingsRow
+        inline
+        label="Daily summary in the Inbox"
+        description="Once a day, AI writes a short summary: the best current prices against what you paid, drops and restocks of the last 24 hours, store pages that broke, and what AI fixed. Each day's summary replaces the last. Only knife names, store names and prices are sent: no notes, photos or links."
+      >
+        <SettingsSwitch
+          aria-label="Let AI write a daily price summary in the Inbox"
+          checked={settings.dailyDigest}
+          disabled={off}
+          onCheckedChange={(checked) => update({ dailyDigest: checked })}
+        />
+      </SettingsRow>
       <SettingsRow
         inline
         label="Pacing advisor"

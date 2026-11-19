@@ -536,7 +536,8 @@ function sourceResult(
   if (
     source.status === 'failed' ||
     source.status === 'blocked' ||
-    source.status === 'price_unavailable'
+    source.status === 'price_unavailable' ||
+    source.status === 'needs_review'
   )
     return 'attention'
   // The latest change only counts while the price still sits there.

@@ -44,6 +44,9 @@ describe('settings persistence', () => {
           advisor: true,
           resolveErrors: false,
           vision: false,
+          confirmChanges: false,
+          spotCheck: true,
+          dailyDigest: false,
           maxPageKb: 500,
           maxAnswerTokens: 32_768,
           usage: {
@@ -86,6 +89,9 @@ describe('settings persistence', () => {
         advisor: true,
         resolveErrors: false,
         vision: false,
+        confirmChanges: false,
+        spotCheck: true,
+        dailyDigest: false,
         maxPageKb: 500,
         maxAnswerTokens: 32_768,
         usage: {

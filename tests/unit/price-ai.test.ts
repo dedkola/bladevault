@@ -341,6 +341,9 @@ describe('AI settings normalization', () => {
       advisor: true,
       resolveErrors: true,
       vision: false,
+      confirmChanges: true,
+      spotCheck: true,
+      dailyDigest: true,
       maxPageKb: 200,
       maxAnswerTokens: 16_384,
       usage: {

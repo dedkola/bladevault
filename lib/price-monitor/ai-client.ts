@@ -240,6 +240,10 @@ export type AiPurpose =
   | 'advisor'
   | 'discovery_search'
   | 'discovery_verify'
+  /** Checks a reading against its page before it is trusted. */
+  | 'verify'
+  /** The daily Inbox summary. */
+  | 'digest'
   | 'test'
 
 /** One finished chat completion call (all its attempts), without content. */

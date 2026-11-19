@@ -4,7 +4,11 @@
  * keeps at most one open message: a repeat of the same problem updates it
  * instead of piling up new ones.
  */
-export type SystemMessageKind = 'backup-failed' | 'price-attention'
+export type SystemMessageKind =
+  | 'backup-failed'
+  | 'price-attention'
+  /** The daily AI summary of price monitoring; each day replaces the last. */
+  | 'price-digest'
 export type SystemMessageBox = 'open' | 'done'
 
 export type SystemMessage = {
@@ -31,6 +35,7 @@ export type SystemMessageAction =
 export const SYSTEM_MESSAGE_KINDS: readonly SystemMessageKind[] = [
   'backup-failed',
   'price-attention',
+  'price-digest',
 ]
 export const SYSTEM_MESSAGE_RETENTION_DAYS = 90
 

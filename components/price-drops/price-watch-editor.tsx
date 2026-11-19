@@ -57,6 +57,7 @@ const STATUS_LABEL: Record<PriceSourceStatus, string> = {
   out_of_stock: 'Out of stock',
   failed: 'Failed',
   blocked: 'Blocked',
+  needs_review: 'AI doubts the price',
 }
 
 const STATUS_TONE: Record<PriceSourceStatus, string> = {
@@ -67,6 +68,7 @@ const STATUS_TONE: Record<PriceSourceStatus, string> = {
   out_of_stock: 'border-amber-500/40 text-amber-700 dark:text-amber-400',
   failed: 'border-destructive/40 text-destructive',
   blocked: 'border-destructive/40 text-destructive',
+  needs_review: 'border-amber-500/40 text-amber-700 dark:text-amber-400',
 }
 
 const FETCH_LABEL: Record<FetchOverride, string> = {
@@ -207,7 +209,8 @@ function SourceRow({
       {source.lastError &&
       (source.status === 'failed' ||
         source.status === 'blocked' ||
-        source.status === 'price_unavailable') ? (
+        source.status === 'price_unavailable' ||
+        source.status === 'needs_review') ? (
         <p className="flex items-start gap-1.5 text-xs text-destructive">
           <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
           {source.lastError}

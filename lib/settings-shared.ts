@@ -533,6 +533,20 @@ export type PriceAiSettings = {
   /** The model reads images: the solver may read a price from a screenshot. */
   vision: boolean
   /**
+   * Before a price change notifies (or an implausible jump is stored), AI
+   * checks it against the page; a confident rejection skips the
+   * notification (price-monitor/verify).
+   */
+  confirmChanges: boolean
+  /**
+   * Unlimited mode only: AI also checks the parser's readings on a source's
+   * first check and whenever the price changes; a confident mismatch marks
+   * the source as needing review.
+   */
+  spotCheck: boolean
+  /** Once a day, AI writes a short Inbox summary (price-monitor/digest). */
+  dailyDigest: boolean
+  /**
    * How much of a product page (KB of cleaned HTML) AI may read when it
    * reads a price. Large-context models can take most of a page.
    */
@@ -594,6 +608,9 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
     advisor: true,
     resolveErrors: true,
     vision: false,
+    confirmChanges: true,
+    spotCheck: true,
+    dailyDigest: true,
     maxPageKb: 200,
     maxAnswerTokens: 16_384,
     usage: {
@@ -753,7 +770,14 @@ function normalizePriceAi(
   const record = plainObject(value)
   const flag = (
     key:
-      'enabled' | 'extractionFallback' | 'advisor' | 'resolveErrors' | 'vision',
+      | 'enabled'
+      | 'extractionFallback'
+      | 'advisor'
+      | 'resolveErrors'
+      | 'vision'
+      | 'confirmChanges'
+      | 'spotCheck'
+      | 'dailyDigest',
   ) =>
     typeof record[key] === 'boolean' ? (record[key] as boolean) : fallback[key]
   let baseUrl = fallback.baseUrl
@@ -770,6 +794,9 @@ function normalizePriceAi(
     advisor: flag('advisor'),
     resolveErrors: flag('resolveErrors'),
     vision: flag('vision'),
+    confirmChanges: flag('confirmChanges'),
+    spotCheck: flag('spotCheck'),
+    dailyDigest: flag('dailyDigest'),
     maxPageKb: boundedInteger(
       record.maxPageKb,
       PRICE_AI_LIMITS.maxPageKb,
