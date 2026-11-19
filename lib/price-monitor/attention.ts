@@ -17,6 +17,7 @@ export const ATTENTION_STATUSES: ReadonlySet<PriceSourceStatus> = new Set([
   'failed',
   'blocked',
   'price_unavailable',
+  'needs_review',
 ])
 const LISTED = 3
 
@@ -34,7 +35,8 @@ export function readAttentionRows(database: Database.Database): AttentionRow[] {
               s.status AS status
        FROM price_sources s JOIN knives k ON k.id = s.knife_id
        WHERE s.removed_at IS NULL AND s.enabled = 1
-         AND s.status IN ('failed', 'blocked', 'price_unavailable')
+         AND s.status IN ('failed', 'blocked', 'price_unavailable',
+                          'needs_review')
        ORDER BY s.last_checked_at DESC, s.id DESC`,
     )
     .all() as AttentionRow[]
@@ -44,6 +46,7 @@ const PROBLEM: Record<string, string> = {
   blocked: 'bot check',
   failed: 'check failed',
   price_unavailable: 'no price found',
+  needs_review: 'AI doubts the price',
 }
 
 /** Title and detail for the Inbox message. Pure. */

@@ -21,6 +21,8 @@ export const PRICE_SOURCE_STATUSES = [
   'out_of_stock',
   'failed',
   'blocked',
+  /** AI doubts the page parser's price (spot check, Unlimited AI only). */
+  'needs_review',
 ] as const
 export type PriceSourceStatus = (typeof PRICE_SOURCE_STATUSES)[number]
 

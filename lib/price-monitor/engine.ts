@@ -12,6 +12,7 @@ import {
   saveBrowserState,
 } from '@/lib/price-monitor/browser-state'
 import {
+  detectChange,
   isPlausiblePrice,
   MAX_PRICE_MAJOR,
   type DetectResult,
@@ -29,6 +30,10 @@ import {
   parseStoredPrice,
   toMinorUnits,
 } from '@/lib/price-monitor/money'
+import {
+  shouldNotify,
+  type PriceNotificationSettings,
+} from '@/lib/price-monitor/notifications'
 import { MONITOR_CURRENCY } from '@/lib/price-monitor/region'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
 import {
@@ -44,8 +49,11 @@ import {
 } from '@/lib/price-monitor/solver'
 import type { PriceProvider } from '@/lib/price-monitor/shared'
 import {
+  hasAnySnapshot,
   markSourceChecking,
   readHostState,
+  readLatestPricedSnapshot,
+  readLatestSnapshot,
   readRecentPrices,
   readRecentSourceChecks,
   readSource,
@@ -62,6 +70,14 @@ import {
   troubleshootCheck,
   type TroubleshootPlan,
 } from '@/lib/price-monitor/troubleshoot'
+import {
+  confirmChangesActive,
+  describeRejection,
+  spotCheckActive,
+  verifyProduct,
+  verifyReadingWithAi,
+} from '@/lib/price-monitor/verify'
+import type { Knife } from '@/lib/data'
 import type { ExtractedOffer } from '@/lib/scrape-offer'
 import { ScrapeError, toScrapeError } from '@/lib/scrape-errors'
 import { createScrapeOperation } from '@/lib/scrape-operation'
@@ -539,6 +555,155 @@ async function recoverWithAi(input: {
   }
 }
 
+type AiReview = {
+  /** Stored on the snapshot; 'unconfirmed' keeps it out of the baseline. */
+  aiReview: 'confirmed' | 'unconfirmed' | null
+  /** The source needs review: AI doubts the parser's reading. */
+  needsReview: boolean
+  errorCode: string | null
+  /** For the check log and the source. */
+  message: string | null
+}
+
+const NO_REVIEW: AiReview = {
+  aiReview: null,
+  needsReview: false,
+  errorCode: null,
+  message: null,
+}
+
+/**
+ * AI quality control for a successful reading (see verify.ts). With
+ * Confirm price changes on, a change that would notify, or an implausible
+ * jump, is checked against the page first; a confident rejection keeps the
+ * reading as unconfirmed and skips the notification. In Unlimited mode
+ * with Spot-check readings on, a source's first reading and every changed
+ * price are checked too, and a confident mismatch marks the source as
+ * needing review, keeping the parser's price. Unavailable AI or a refused
+ * budget leaves the reading as it is.
+ */
+async function reviewWithAi(input: {
+  observation: RecordedObservation
+  html: string | undefined
+  source: SourceRow
+  knife: Knife
+  settings: PriceAiSettings
+  notifications: PriceNotificationSettings
+  implausible: boolean
+  /** Read by the page parsers (not by AI): spot checks apply. */
+  parserReading: boolean
+  signal: AbortSignal | undefined
+}): Promise<AiReview> {
+  const { observation, source, settings } = input
+  const { priceMinor, currency } = observation
+  if (priceMinor === null || !currency || !input.html || input.signal?.aborted)
+    return NO_REVIEW
+  const confirm = confirmChangesActive(settings)
+  const spot = input.parserReading && spotCheckActive(settings)
+  if (!confirm && !spot) return NO_REVIEW
+
+  const database = getLocalDb()
+  const latestPriced = readLatestPricedSnapshot(database, source.id)
+  const change = detectChange(
+    readLatestSnapshot(database, source.id),
+    latestPriced,
+    observation,
+  ).priceChange
+  const notifying = Boolean(
+    change &&
+    shouldNotify(
+      {
+        kind: change.direction,
+        eventId: 0,
+        knifeId: source.knife_id,
+        sourceId: source.id,
+        currency: change.currency,
+        deltaMinor: change.deltaMinor,
+        deltaPct: change.deltaPct,
+      },
+      input.notifications,
+    ),
+  )
+  const gate = confirm && (notifying || input.implausible)
+  const priceDiffers =
+    !latestPriced ||
+    latestPriced.priceMinor !== priceMinor ||
+    latestPriced.currency !== currency
+  const underReview = source.status === 'needs_review'
+  const spotDue =
+    spot &&
+    (underReview || priceDiffers || !hasAnySnapshot(database, source.id))
+  if (!gate && !spotDue) return NO_REVIEW
+  // Unclear: a source already under review stays there until AI is sure.
+  const keep: AiReview =
+    spotDue && underReview && !priceDiffers
+      ? {
+          ...NO_REVIEW,
+          needsReview: true,
+          errorCode: 'ai_review',
+          message: source.last_error,
+        }
+      : NO_REVIEW
+
+  let verdict
+  try {
+    const apiKey = await readPriceAiKey()
+    verdict = await verifyReadingWithAi({
+      html: input.html,
+      endpoint: {
+        baseUrl: settings.baseUrl,
+        apiKey,
+        headers: settings.headers,
+        maxAnswerTokens: settings.maxAnswerTokens,
+      },
+      model: settings.model,
+      maxFragmentBytes: settings.maxPageKb * 1024,
+      signal: input.signal,
+      product: verifyProduct(input.knife),
+      host: source.lane_key,
+      reading: {
+        priceMinor,
+        currency,
+        availability: observation.availability,
+      },
+      previous:
+        latestPriced?.priceMinor != null && latestPriced.currency
+          ? {
+              priceMinor: latestPriced.priceMinor,
+              currency: latestPriced.currency,
+            }
+          : null,
+      reason: gate
+        ? input.implausible && !notifying
+          ? 'implausible'
+          : 'notify'
+        : 'spot_check',
+    })
+  } catch (error) {
+    if (error instanceof Error && error.name === 'VaultAccessError') throw error
+    // Unavailable AI or a used-up budget: today's behaviour.
+    return keep
+  }
+  if (verdict.status === 'confirmed')
+    return { ...NO_REVIEW, aiReview: 'confirmed' }
+  if (verdict.status !== 'rejected') return keep
+
+  const why = describeRejection(verdict)
+  if (gate)
+    return {
+      aiReview: 'unconfirmed',
+      needsReview: spotDue,
+      errorCode: 'ai_unconfirmed',
+      message: `AI could not confirm this price: ${why}. The reading was kept as unconfirmed and did not notify.`,
+    }
+  return {
+    aiReview: null,
+    needsReview: true,
+    errorCode: 'ai_review',
+    message: `AI doubts the price the page parser read: ${why}. The parser's price was kept; check the page and the product link.`,
+  }
+}
+
 /** Page-read problems the AI extraction fallback may fix. */
 const AI_EXTRACTION_CODES = new Set([
   'not_found',
@@ -717,6 +882,7 @@ export async function checkPriceSource(
     }
   }
   const nextOk = () => new Date(Date.now() + intervalMs).toISOString()
+  let implausible = false
   let aiUsed = false
   let solverSteps: SolverLogStep[] | null = null
   let solverNote: string | null = null
@@ -912,6 +1078,7 @@ export async function checkPriceSource(
         evaluated.kind === 'observation' &&
         evaluated.observation.priceMinor === first.priceMinor &&
         evaluated.observation.currency === first.currency
+      implausible = confirmed
       if (!confirmed) {
         return done({
           outcome: 'failed',
@@ -947,14 +1114,28 @@ export async function checkPriceSource(
       })
     }
 
+    // A solver reading came from its own page; the fetched one is stale.
+    const review = await reviewWithAi({
+      observation: evaluated.observation,
+      html: method === 'solver' ? undefined : reading?.check.html,
+      source,
+      knife,
+      settings: aiSettings,
+      notifications: { notify, thresholds },
+      implausible,
+      parserReading: method !== 'ai' && method !== 'solver',
+      signal: options.signal,
+    })
     return done({
       outcome: 'ok',
       method,
       aiUsed,
       solverSteps,
       observation: evaluated.observation,
-      errorCode: null,
-      errorMessage: null,
+      aiReview: review.aiReview,
+      needsReview: review.needsReview,
+      errorCode: review.errorCode,
+      errorMessage: review.message,
       nextCheckAt: nextOk(),
     })
   } catch (error) {

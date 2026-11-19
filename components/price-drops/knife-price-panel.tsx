@@ -171,7 +171,9 @@ function SourceLine({
           )}
           title={source.lastError ?? undefined}
         >
-          {source.status === 'failed' || source.status === 'blocked'
+          {source.status === 'failed' ||
+          source.status === 'blocked' ||
+          source.status === 'needs_review'
             ? (source.lastError ?? statusText)
             : statusText}
         </div>

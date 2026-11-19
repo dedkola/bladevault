@@ -21,6 +21,7 @@ import {
   Loader2,
   RotateCcw,
   Settings,
+  Sparkles,
   UploadCloud,
   X,
 } from 'lucide-react'
@@ -469,6 +470,7 @@ function formatTime(value: string): string {
 const SYSTEM_MESSAGE_HREF: Record<SystemMessage['kind'], string> = {
   'backup-failed': '/settings?tab=backup',
   'price-attention': '/price-drops?section=attention',
+  'price-digest': '/price-drops',
 }
 
 function systemMessageDetail(message: SystemMessage, now: Date): string {
@@ -482,8 +484,14 @@ function systemMessageDetail(message: SystemMessage, now: Date): string {
       ? `A later backup worked on ${formatShortDate(message.resolvedAt, now)}, ${formatTime(message.resolvedAt)}`
       : message.kind === 'price-attention'
         ? `Every store page read fine again on ${formatShortDate(message.resolvedAt, now)}, ${formatTime(message.resolvedAt)}`
-        : `Resolved ${formatShortDate(message.resolvedAt, now)}`
+        : message.kind === 'price-digest'
+          ? `AI summary of ${formatShortDate(message.occurredAt, now)}, replaced by a newer one`
+          : `Resolved ${formatShortDate(message.resolvedAt, now)}`
   }
+  if (message.kind === 'price-digest')
+    return message.dismissedAt
+      ? `AI summary · ${when} · dismissed`
+      : `AI summary · ${when}`
   if (message.dismissedAt) return `${repeats} · dismissed`
   return repeats
 }
@@ -497,8 +505,10 @@ function SystemMessageIcon({
 }) {
   const resolved = Boolean(message.resolvedAt)
   const open = getSystemMessageBox(message) === 'open'
-  const Icon =
-    message.kind === 'price-attention'
+  const digest = message.kind === 'price-digest'
+  const Icon = digest
+    ? Sparkles
+    : message.kind === 'price-attention'
       ? resolved
         ? CircleCheck
         : CircleAlert
@@ -510,11 +520,13 @@ function SystemMessageIcon({
       className={cn(
         'grid shrink-0 place-items-center rounded-lg border border-[var(--bladevault-line)]/70',
         size === 'sm' ? 'size-9' : 'size-11',
-        open
-          ? 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400'
-          : resolved
-            ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
-            : 'bg-muted/30 text-muted-foreground',
+        open && digest
+          ? 'bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-400'
+          : open
+            ? 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400'
+            : resolved && !digest
+              ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
+              : 'bg-muted/30 text-muted-foreground',
       )}
     >
       <Icon className={size === 'sm' ? 'size-4' : 'size-5'} />
@@ -581,7 +593,9 @@ function SystemMessageRow({
             'text-xs font-medium',
             box === 'done'
               ? 'text-muted-foreground'
-              : 'text-red-600 dark:text-red-400',
+              : message.kind === 'price-digest'
+                ? 'text-foreground/80'
+                : 'text-red-600 dark:text-red-400',
             compact && 'truncate',
           )}
         >

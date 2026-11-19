@@ -800,7 +800,9 @@ export function ResultBadge({
         ? 'Unavailable'
         : source.status === 'blocked'
           ? 'Blocked'
-          : 'Failed'
+          : source.status === 'needs_review'
+            ? 'Review'
+            : 'Failed'
       : source.result === 'pending'
         ? 'Waiting'
         : RESULT_LABEL[source.result]

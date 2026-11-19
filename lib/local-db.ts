@@ -1015,6 +1015,9 @@ function migratePriceMonitoringSchema(
   }
   addColumn('price_host_state', 'solver_recipe', 'TEXT')
   addColumn('price_check_log', 'solver_steps', 'TEXT')
+  // Schema 12: AI quality control. 'confirmed' or 'unconfirmed' when AI
+  // checked a reading against its page (price-monitor/verify).
+  addColumn('price_snapshots', 'ai_review', 'TEXT')
 }
 
 function normalizeKnifeRows(database: Database.Database) {

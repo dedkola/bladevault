@@ -148,6 +148,14 @@ function toSnapshotState(row: SnapshotRow | undefined): SnapshotState | null {
   }
 }
 
+/**
+ * Readings AI could not confirm (ai_review = 'unconfirmed') are kept in the
+ * history but never become the baseline later readings are compared with:
+ * a repeat of the same doubtful price is checked again, and the true price
+ * coming back is not reported as a change.
+ */
+const TRUSTED = "(ai_review IS NULL OR ai_review <> 'unconfirmed')"
+
 export function readLatestSnapshot(
   database: Database.Database,
   sourceId: number,
@@ -156,9 +164,21 @@ export function readLatestSnapshot(
     database
       .prepare(
         `SELECT id, price_minor, currency, availability FROM price_snapshots
-         WHERE source_id = ? ORDER BY id DESC LIMIT 1`,
+         WHERE source_id = ? AND ${TRUSTED} ORDER BY id DESC LIMIT 1`,
       )
       .get(sourceId) as SnapshotRow | undefined,
+  )
+}
+
+/** Whether the source has any reading at all, trusted or not. */
+export function hasAnySnapshot(
+  database: Database.Database,
+  sourceId: number,
+): boolean {
+  return Boolean(
+    database
+      .prepare('SELECT 1 FROM price_snapshots WHERE source_id = ? LIMIT 1')
+      .get(sourceId),
   )
 }
 
@@ -170,7 +190,7 @@ export function readLatestPricedSnapshot(
     database
       .prepare(
         `SELECT id, price_minor, currency, availability FROM price_snapshots
-         WHERE source_id = ? AND price_minor IS NOT NULL
+         WHERE source_id = ? AND price_minor IS NOT NULL AND ${TRUSTED}
          ORDER BY id DESC LIMIT 1`,
       )
       .get(sourceId) as SnapshotRow | undefined,
@@ -189,6 +209,7 @@ export function readRecentPrices(
       .prepare(
         `SELECT price_minor FROM price_snapshots
          WHERE source_id = ? AND currency = ? AND price_minor IS NOT NULL
+           AND ${TRUSTED}
          ORDER BY id DESC LIMIT ?`,
       )
       .all(sourceId, currency, limit) as Array<{ price_minor: number }>
@@ -519,6 +540,15 @@ export type CheckRecord = {
   }> | null
   /** Inbox categories and thresholds; the defaults when left out. */
   notifications?: PriceNotificationSettings
+  /**
+   * What AI said when it checked the reading against the page
+   * (price-monitor/verify). An 'unconfirmed' reading is stored apart: no
+   * price or stock events, no notifications, the source keeps its last
+   * price, and later readings are not compared with it.
+   */
+  aiReview?: 'confirmed' | 'unconfirmed' | null
+  /** AI doubts the page parser's reading: the source needs review. */
+  needsReview?: boolean
 }
 
 export type CheckRecordResult = {
@@ -535,10 +565,13 @@ function localDay(iso: string): string {
 
 function sourceStatusFor(
   outcome: CheckOutcomeKind,
-  observation: RecordedObservation | null | undefined,
+  observation:
+    Pick<Observation, 'priceMinor' | 'availability'> | null | undefined,
+  needsReview = false,
 ): PriceSourceStatus {
   if (outcome === 'failed') return 'failed'
   if (outcome === 'blocked') return 'blocked'
+  if (needsReview) return 'needs_review'
   if (observation?.availability === 'out_of_stock') return 'out_of_stock'
   if (outcome === 'no_price' || observation?.priceMinor === null)
     return 'price_unavailable'
@@ -631,7 +664,59 @@ export async function recordCheck(
       let detection: DetectResult | null = null
       let snapshotId: number | null = null
       const events: PriceNotificationEvent[] = []
-      if (observation) {
+      const unconfirmed = Boolean(
+        observation && record.aiReview === 'unconfirmed',
+      )
+      if (observation && unconfirmed) {
+        // A repeat of the same doubtful reading extends its snapshot.
+        const last = database
+          .prepare(
+            `SELECT id, price_minor, currency, availability, ai_review
+             FROM price_snapshots WHERE source_id = ?
+             ORDER BY id DESC LIMIT 1`,
+          )
+          .get(source.id) as
+          (SnapshotRow & { ai_review: string | null }) | undefined
+        if (
+          last &&
+          last.ai_review === 'unconfirmed' &&
+          last.price_minor === observation.priceMinor &&
+          last.currency === observation.currency &&
+          last.availability === observation.availability
+        ) {
+          snapshotId = last.id
+          database
+            .prepare(
+              `UPDATE price_snapshots
+               SET last_seen_at = ?, observations = observations + 1
+               WHERE id = ?`,
+            )
+            .run(now, last.id)
+        } else {
+          snapshotId = Number(
+            database
+              .prepare(
+                `INSERT INTO price_snapshots
+                  (knife_id, source_id, price_minor, currency, availability,
+                   extraction_status, extraction_method, observed_at,
+                   last_seen_at, check_log_id, ai_review)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unconfirmed')`,
+              )
+              .run(
+                source.knife_id,
+                source.id,
+                observation.priceMinor,
+                observation.currency,
+                observation.availability,
+                observation.extractionStatus,
+                observation.extractionMethod,
+                now,
+                now,
+                logId,
+              ).lastInsertRowid,
+          )
+        }
+      } else if (observation) {
         const latest = readLatestSnapshot(database, source.id)
         detection = detectChange(
           latest,
@@ -654,8 +739,8 @@ export async function recordCheck(
                 `INSERT INTO price_snapshots
                   (knife_id, source_id, price_minor, currency, availability,
                    extraction_status, extraction_method, observed_at,
-                   last_seen_at, check_log_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                   last_seen_at, check_log_id, ai_review)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               )
               .run(
                 source.knife_id,
@@ -668,6 +753,7 @@ export async function recordCheck(
                 now,
                 now,
                 logId,
+                record.aiReview ?? null,
               ).lastInsertRowid,
           )
         }
@@ -758,6 +844,8 @@ export async function recordCheck(
       }
 
       const succeeded = record.outcome === 'ok' || record.outcome === 'no_price'
+      // The source keeps its last trusted price over a doubtful reading.
+      const cached = unconfirmed ? null : observation
       database
         .prepare(
           `UPDATE price_sources SET
@@ -779,17 +867,25 @@ export async function recordCheck(
            WHERE id = ?`,
         )
         .run(
-          sourceStatusFor(record.outcome, observation),
+          sourceStatusFor(
+            record.outcome,
+            unconfirmed
+              ? {
+                  priceMinor: source.last_price_minor,
+                  availability: source.last_availability ?? 'unknown',
+                }
+              : observation,
+            record.needsReview,
+          ),
           record.provider ?? source.provider,
           now,
           succeeded ? 1 : 0,
           now,
-          observation?.priceMinor ?? null,
-          observation?.priceMinor !== null &&
-            observation?.priceMinor !== undefined
-            ? observation.currency
+          cached?.priceMinor ?? null,
+          cached?.priceMinor !== null && cached?.priceMinor !== undefined
+            ? cached.currency
             : null,
-          observation?.availability ?? null,
+          cached?.availability ?? null,
           record.errorCode ?? null,
           record.errorMessage ?? null,
           succeeded ? 1 : 0,
