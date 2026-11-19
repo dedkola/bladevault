@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { gunzipSync } from 'node:zlib'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as jobRoute from '@/app/api/cloud-backup/job/route'
 import * as archiveRoute from '@/app/api/cloud-backup/archive/route'
@@ -14,6 +15,10 @@ import { getSystemMessages } from '@/lib/system-message-store'
 import { getSettings, saveSettings } from '@/lib/settings'
 import { LocalStorage } from '@/lib/storage/local'
 import type { CreateKnifeInput } from '@/lib/storage/types'
+import {
+  containsLegacyCloudSecret,
+  seedLegacyCloudSettings,
+} from '@/tests/helpers/legacy-settings'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 // Google Drive transport is covered by drive-backup.test.ts; these tests focus
@@ -198,6 +203,24 @@ describe('server-owned cloud backup job', () => {
     await expect(
       new LocalStorage().getImage(restoredKnife!.images[0]),
     ).resolves.toMatchObject({ contentType: 'image/png' })
+  })
+
+  it('leaves old Cloudflare credential rows out of the Drive snapshot', async () => {
+    await new LocalStorage().createKnife(input)
+    seedLegacyCloudSettings(vault.dataDir)
+    let uploaded: Buffer | null = null
+    stubDriveUpload(async (archive) => {
+      uploaded = archive
+    })
+
+    startCloudBackupJob()
+    await waitForJob('success')
+    expect(containsLegacyCloudSecret(gunzipSync(uploaded!))).toBe(false)
+    expect(
+      getLocalDb()
+        .prepare("SELECT 1 FROM settings WHERE key = 'cloudflare_api_token'")
+        .get(),
+    ).toBeUndefined()
   })
 
   it('cleans up a rejected upload and can retry', async () => {

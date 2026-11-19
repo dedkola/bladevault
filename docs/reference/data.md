@@ -49,6 +49,8 @@ Saved comparisons are included in full-vault backups, but changing a comparison 
 
 For a manual filesystem backup, stop BladeVault and copy the whole data folder so the database and images stay together.
 
+The Google Drive sign-in, the price AI key and store cookies live in the private `._bladevault-control` folder, which no archive includes. Vaults created by early versions that offered Cloudflare D1/R2 storage also kept that account's ID, API token and R2 access keys in the `settings` table. Nothing uses them any more, and BladeVault deletes those rows and compacts the database the next time it opens the vault, so backups taken after that no longer contain them. Backups made before the upgrade still do; delete old copies you no longer need and revoke those Cloudflare tokens if they are still active.
+
 ## Price history
 
 Price monitoring stores its history in the same `bladevault.sqlite` file, so local and Google Drive backups include it:
