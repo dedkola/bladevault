@@ -44,6 +44,11 @@ export type KnifeRef = {
   name: string
   brand: string
   image: string | null
+  /**
+   * Model number, steel and handle, so knives that share a name (three
+   * "Drop Bear" variants) can be told apart.
+   */
+  subtitle: string | null
 }
 
 export type ChangeEvent = {
@@ -75,7 +80,7 @@ export type SourceSummary = {
   availability: Availability | null
   lastCheckedAt: string | null
   lastError: string | null
-  /** When it went out of stock (out-of-stock list only). */
+  /** When it went out of stock, while it is out of stock. */
   since: string | null
 }
 
@@ -87,12 +92,16 @@ export type SourceSummary = {
 export const SOURCE_RESULTS = [
   'drop',
   'increase',
+  'restocked',
   'out_of_stock',
   'same',
   'attention',
   'pending',
 ] as const
 export type SourceResult = (typeof SOURCE_RESULTS)[number]
+
+/** A source back in stock within this many days reads as Restocked. */
+export const RESTOCK_DAYS = 7
 
 /** One monitored store listing, as the status timeline and table show it. */
 export type MonitoredSource = SourceSummary & {
@@ -105,6 +114,13 @@ export type MonitoredSource = SourceSummary & {
   /** Purchase price in this source's currency, when comparable. */
   paidMinor: number | null
   nextCheckAt: string | null
+  /** When it came back in stock, while that is the latest stock change. */
+  restockedAt: string | null
+  /**
+   * When the page last showed a trusted price. A failed or blocked check
+   * keeps the last price, so this says how old it is.
+   */
+  priceSeenAt: string | null
 }
 
 /** Checks started in one hour, counted by what they found. */
@@ -164,6 +180,7 @@ type KnifeRow = {
   brand: string
   images: string
   specs: string
+  handle_material: string | null
   sold: number
   mode: PriceWatchMode
 }
@@ -177,6 +194,21 @@ function firstImage(images: string): string | null {
   }
 }
 
+/** Model number, steel and handle, without repeats; null when none is set. */
+function knifeSubtitle(row: KnifeRow): string | null {
+  let specs: { modelNumber?: unknown; bladeMaterial?: unknown } = {}
+  try {
+    specs = (JSON.parse(row.specs) as typeof specs | null) ?? {}
+  } catch {
+    // Unreadable specs only lose the subtitle.
+  }
+  const parts = [specs.modelNumber, specs.bladeMaterial, row.handle_material]
+    .map((value) => (typeof value === 'string' ? value.trim() : ''))
+    .filter(Boolean)
+  const unique = [...new Set(parts)]
+  return unique.length ? unique.join(' · ') : null
+}
+
 function storedPrice(specs: string): string | undefined {
   try {
     return (JSON.parse(specs) as { price?: string }).price
@@ -188,8 +220,8 @@ function storedPrice(specs: string): string | undefined {
 function readKnives(database: Database.Database): Map<string, KnifeRow> {
   const rows = database
     .prepare(
-      `SELECT k.id, k.name, k.brand, k.images, k.specs, k.sold,
-              COALESCE(w.mode, 'auto') AS mode
+      `SELECT k.id, k.name, k.brand, k.images, k.specs, k.handle_material,
+              k.sold, COALESCE(w.mode, 'auto') AS mode
        FROM knives k LEFT JOIN price_watch w ON w.knife_id = k.id
        WHERE k.id IN (SELECT knife_id FROM price_sources WHERE removed_at IS NULL)
           OR k.id IN (SELECT knife_id FROM price_change_events)
@@ -204,6 +236,7 @@ const knifeRef = (row: KnifeRow | undefined, id: string): KnifeRef => ({
   name: row?.name ?? 'Deleted knife',
   brand: row?.brand ?? '',
   image: row ? firstImage(row.images) : null,
+  subtitle: row ? knifeSubtitle(row) : null,
 })
 
 type EventRow = {
@@ -474,6 +507,12 @@ export function buildPriceOverview(
     ),
     knives,
     windowRows,
+    {
+      outOfStockSince,
+      latestStock: readLatestStockEvents(database),
+      priceSeen: readPriceSeen(database),
+      now,
+    },
   )
   const dayAgo = new Date(now - DAY_MS).toISOString()
   const checksByHour = readChecksByHour(database, now)
@@ -542,9 +581,40 @@ function paidIn(knife: KnifeRow | undefined, currency: string | null) {
     : null
 }
 
+/** The latest stock change per source. */
+function readLatestStockEvents(database: Database.Database) {
+  // SQLite takes the bare columns from the row holding the MAX.
+  const rows = database
+    .prepare(
+      `SELECT source_id, kind, MAX(occurred_at) AS at
+       FROM stock_events GROUP BY source_id`,
+    )
+    .all() as Array<{
+    source_id: number
+    kind: 'out_of_stock' | 'back_in_stock'
+    at: string
+  }>
+  return new Map(rows.map((row) => [row.source_id, row]))
+}
+
+/** When each source last showed a trusted price. */
+function readPriceSeen(database: Database.Database) {
+  const rows = database
+    .prepare(
+      `SELECT source_id, MAX(last_seen_at) AS at FROM price_snapshots
+       WHERE price_minor IS NOT NULL
+         AND (ai_review IS NULL OR ai_review != 'unconfirmed')
+       GROUP BY source_id`,
+    )
+    .all() as Array<{ source_id: number; at: string }>
+  return new Map(rows.map((row) => [row.source_id, row.at]))
+}
+
 function sourceResult(
   source: SourceRow,
   change: EventRow | undefined,
+  restockedAt: string | null,
+  now: number,
 ): SourceResult {
   if (!source.last_checked_at) return 'pending'
   if (source.last_availability === 'out_of_stock') return 'out_of_stock'
@@ -562,6 +632,8 @@ function sourceResult(
     (change.kind === 'drop' || change.kind === 'increase')
   )
     return change.kind
+  if (restockedAt && Date.parse(restockedAt) >= now - RESTOCK_DAYS * DAY_MS)
+    return 'restocked'
   return 'same'
 }
 
@@ -569,6 +641,12 @@ function buildMonitoredSources(
   sources: SourceRow[],
   knives: Map<string, KnifeRow>,
   windowPriceEvents: EventRow[],
+  stock: {
+    outOfStockSince: Map<number, string>
+    latestStock: ReturnType<typeof readLatestStockEvents>
+    priceSeen: Map<number, string>
+    now: number
+  },
 ): MonitoredSource[] {
   // windowPriceEvents is newest first, so the first per source wins.
   const latestChange = new Map<number, EventRow>()
@@ -576,10 +654,20 @@ function buildMonitoredSources(
     if (!latestChange.has(row.source_id)) latestChange.set(row.source_id, row)
   return sources.map((source) => {
     const change = latestChange.get(source.id)
-    const result = sourceResult(source, change)
+    const outOfStock = source.last_availability === 'out_of_stock'
+    const latestStock = stock.latestStock.get(source.id)
+    const restockedAt =
+      !outOfStock && latestStock?.kind === 'back_in_stock'
+        ? latestStock.at
+        : null
+    const result = sourceResult(source, change, restockedAt, stock.now)
     const changed = result === 'drop' || result === 'increase'
     return {
-      ...toSourceSummary(source, knives),
+      ...toSourceSummary(
+        source,
+        knives,
+        outOfStock ? (stock.outOfStockSince.get(source.id) ?? null) : null,
+      ),
       result,
       previousPriceMinor: changed
         ? (change?.previous_price_minor ?? null)
@@ -589,6 +677,8 @@ function buildMonitoredSources(
       changedAt: changed ? (change?.occurred_at ?? null) : null,
       paidMinor: paidIn(knives.get(source.knife_id), source.last_currency),
       nextCheckAt: source.next_check_at,
+      restockedAt: result === 'restocked' ? restockedAt : null,
+      priceSeenAt: stock.priceSeen.get(source.id) ?? null,
     }
   })
 }
@@ -610,6 +700,7 @@ function readChecksByHour(database: Database.Database, now: number) {
     hour: new Date(first + index * HOUR_MS).toISOString(),
     drop: 0,
     increase: 0,
+    restocked: 0,
     out_of_stock: 0,
     same: 0,
     attention: 0,
@@ -644,6 +735,7 @@ function readChecksByHour(database: Database.Database, now: number) {
     else if (row.stock === 'out_of_stock') bucket.out_of_stock += 1
     else if (row.missing === 1) bucket.attention += 1
     else if (row.change) bucket[row.change] += 1
+    else if (row.stock === 'back_in_stock') bucket.restocked += 1
     else bucket.same += 1
   }
   return hours
@@ -690,8 +782,8 @@ export function buildKnifeHistory(
   const knives = readKnives(database)
   const knife = database
     .prepare(
-      `SELECT k.id, k.name, k.brand, k.images, k.specs, k.sold,
-              COALESCE(w.mode, 'auto') AS mode
+      `SELECT k.id, k.name, k.brand, k.images, k.specs, k.handle_material,
+              k.sold, COALESCE(w.mode, 'auto') AS mode
        FROM knives k LEFT JOIN price_watch w ON w.knife_id = k.id
        WHERE k.id = ?`,
     )

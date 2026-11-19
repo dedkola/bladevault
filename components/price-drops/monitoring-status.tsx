@@ -15,6 +15,7 @@ import './price-drops.css'
 export const RESULT_LABEL: Record<SourceResult, string> = {
   drop: 'Dropped',
   increase: 'Rose',
+  restocked: 'Restocked',
   out_of_stock: 'Out of stock',
   same: 'No change',
   attention: 'Needs attention',
@@ -789,6 +790,7 @@ export function ResultBadge({
   const icon: Record<SourceResult, string> = {
     drop: '▼',
     increase: '▲',
+    restocked: '↺',
     out_of_stock: '⊘',
     same: '=',
     attention: '!',

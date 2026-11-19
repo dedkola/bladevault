@@ -141,10 +141,11 @@ const EMPTY_TEXT: Record<Section, string> = {
 const RESULT_ORDER: Record<MonitoredSource['result'], number> = {
   drop: 0,
   increase: 1,
-  out_of_stock: 2,
-  attention: 3,
-  pending: 4,
-  same: 5,
+  restocked: 2,
+  out_of_stock: 3,
+  attention: 4,
+  pending: 5,
+  same: 6,
 }
 
 function sortSources(section: Section, list: MonitoredSource[]) {
