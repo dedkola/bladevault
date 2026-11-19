@@ -56,10 +56,13 @@ Market prices are information only. They never change the purchase price stored 
 
 ## Get notified in the Inbox
 
-New changes appear in the **Inbox** under **Prices** and in the header bell. Each notification shows the knife, the store, the old and new price, and the change in money and percent. Use **Market** to open the knife's Market tab, **Store page** to open the product page, **Mark read**, or **Dismiss**.
+New changes appear in the **Inbox** under **Prices** and in the header bell. Each notification shows the knife, the store, the old and new price, and the change in money and percent. When they can be compared in the same currency, it also shows how the price stands against what you paid and the lowest price seen at that store. Use **Market** to open the knife's Market tab, **Store page** to open the product page, **Mark read**, **Snooze**, or **Dismiss**.
 
 - One store keeps one notification per kind. A further drop at the same store updates that notification and marks it unread again instead of adding another.
 - A change the other way closes the notification on its own: a price increase closes an open drop, and a restock closes an open out-of-stock notice.
+- **Snooze** hides a notification until tomorrow, in 3 days, a week, or a month; it then comes back unread under **Open**, with the latest change if the store changed again meanwhile. **Show now** brings it back early from **Snoozed**.
+- The same menu can **mute this store** for the knife for a week, a month, or 3 months: checks continue, but that store sends no new notifications until then. A muted store shows in the knife's price monitoring editor and Market tab, where **Unmute** ends it early.
+- Under **Prices**, **Mark all read** and **Dismiss all** act on every open price notification at once. Dismissed notifications can be moved back to the inbox one by one from **Done**.
 - Dismissed and closed notifications stay under **Done** for 90 days.
 
 Choose which changes notify you in **Settings → Price monitoring → Notifications**:
@@ -72,6 +75,20 @@ Choose which changes notify you in **Settings → Price monitoring → Notificat
 | **Back in stock**   | On      |
 
 **Minimum change** filters small price moves: a price change notifies only when it moves by at least this percentage of the previous price. The default is 5%. Set it to 0 to be notified about every price change. Stock changes always notify when their switch is on.
+
+**Minimum amount** also ignores price changes smaller than this many units of the price's own currency, for example 3 to skip moves under $3, €3, or ₴3. A change must pass both the percentage and the amount. The default is 0 (off).
+
+**Always notify about a new lowest price** (off by default) lets a drop to the lowest price a store has shown for the knife notify even when it is below the minimum percentage. It still needs **Price drops** on, and the minimum amount still applies.
+
+### Alerts for one knife
+
+A knife's price monitoring editor (edit mode) and its **Market** tab have **Alerts for this knife**:
+
+- **Mute this knife** stops new notifications for it. Checks, history, and the Price Drops page carry on, and a later change the other way still closes an open notification.
+- **Target price** makes drops notify only at or below that price. A drop that reaches the target notifies even when it is smaller than the minimum change; later drops below the target follow the usual minimums. Stores that sell in another currency are not compared with the target.
+- **Only below what I paid** makes drops notify only when the new price is under the knife's purchase price. Without a purchase price in the same currency, drops notify as usual.
+
+These rules apply to price drops; stock and increase notifications follow the settings above. They are stored in the vault, so backups and restores keep them.
 
 Every price and stock change is still recorded and shown on the Price Drops page and Market tab, whatever the notification settings are.
 
@@ -174,6 +191,8 @@ The section lists recent results. A knife that is not found is searched again af
 In the desktop app, **Settings → Price monitoring → Desktop app → Keep running in the background** keeps BladeVault in the menu bar or system tray when you close its window, so scheduled checks continue. The tray menu offers **Open BladeVault**, **Check prices now**, and **Quit**. Use **Quit** to stop BladeVault completely.
 
 When BladeVault starts again after being closed, overdue products are checked at the normal pace, not all at once.
+
+**Desktop notifications for price drops** (off by default, in the same section) also shows price drops and restocks as system notifications while the BladeVault window is hidden, minimized, or closed to the tray. Only changes that reach the Inbox notify, after the window went away; several at once arrive as one summary. Clicking a notification opens the knife's Market tab, or the Inbox for a summary. Nothing is shown while App Lock is locked.
 
 ## Use price data from an AI client
 

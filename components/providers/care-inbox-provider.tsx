@@ -70,6 +70,8 @@ type CareInboxContextValue = {
   act: (action: CareNotificationAction) => Promise<void>
   actSystem: (action: SystemMessageAction) => Promise<void>
   actPrice: (action: PriceNotificationAction) => Promise<void>
+  /** Mutes one store's notifications for a knife for `days` (0 unmutes). */
+  muteSource: (knifeId: string, sourceId: number, days: number) => Promise<void>
   /** Logs the care for today, which resolves the message on the next sync. */
   logCare: (knifeId: string, track: CareTrack) => Promise<void>
 }
@@ -286,12 +288,14 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
 
   const actPrice = useCallback(async (action: PriceNotificationAction) => {
     const previous = priceNotificationsRef.current
+    const at = new Date()
     setPriceNotifications(
       mergePriceNotificationUpdates(
         previous,
-        applyPriceNotificationAction(previous, action, new Date()),
+        applyPriceNotificationAction(previous, action, at),
       ),
     )
+    setNow(at)
     try {
       setPriceNotifications(
         await requestPriceNotifications({
@@ -304,6 +308,26 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
       throw error
     }
   }, [])
+
+  const muteSource = useCallback(
+    async (knifeId: string, sourceId: number, days: number) => {
+      const response = await fetch(
+        `/api/knives/${encodeURIComponent(knifeId)}/price-watch`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ update: [{ id: sourceId, muteDays: days }] }),
+        },
+      )
+      if (!response.ok) {
+        const data = await readJsonResponse<{ error?: string }>(response)
+        throw new Error(data.error || 'Could not mute the store')
+      }
+      // The rows show the mute; reload them with their new context.
+      setPriceNotifications(await requestPriceNotifications())
+    },
+    [],
+  )
 
   const logCare = useCallback(async (knifeId: string, track: CareTrack) => {
     const input: MaintenanceEventInput = {
@@ -346,12 +370,13 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
     }
     const priceCounts: Record<PriceNotificationBox, number> = {
       open: 0,
+      snoozed: 0,
       done: 0,
     }
     let priceUnreadCount = 0
     for (const row of priceNotifications) {
-      priceCounts[getPriceNotificationBox(row)] += 1
-      if (isPriceNotificationUnread(row)) priceUnreadCount += 1
+      priceCounts[getPriceNotificationBox(row, now)] += 1
+      if (isPriceNotificationUnread(row, now)) priceUnreadCount += 1
     }
     if (!enabled) careUnreadCount = 0
     return {
@@ -374,6 +399,7 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
       act,
       actSystem,
       actPrice,
+      muteSource,
       logCare,
     }
   }, [
@@ -387,6 +413,7 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
     act,
     actSystem,
     actPrice,
+    muteSource,
     logCare,
   ])
 
@@ -412,7 +439,7 @@ const DISABLED_INBOX: CareInboxContextValue = {
   priceUnreadCount: 0,
   counts: { open: 0, snoozed: 0, done: 0 },
   systemCounts: { open: 0, done: 0 },
-  priceCounts: { open: 0, done: 0 },
+  priceCounts: { open: 0, snoozed: 0, done: 0 },
   act: async () => {
     throw new Error('The care inbox is unavailable here.')
   },
@@ -420,6 +447,9 @@ const DISABLED_INBOX: CareInboxContextValue = {
     throw new Error('The inbox is unavailable here.')
   },
   actPrice: async () => {
+    throw new Error('The inbox is unavailable here.')
+  },
+  muteSource: async () => {
     throw new Error('The inbox is unavailable here.')
   },
   logCare: async () => {

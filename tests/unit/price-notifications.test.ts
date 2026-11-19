@@ -8,8 +8,12 @@ import {
   mergePriceNotificationUpdates,
   parsePriceNotificationAction,
   planPriceNotifications,
+  selectDesktopPriceAlerts,
+  shouldNotify,
   sortPriceNotifications,
+  type PriceAlertContext,
   type PriceNotification,
+  type PriceNotificationView,
   type PriceNotificationEvent,
   type PriceNotificationSettings,
 } from '@/lib/price-monitor/notifications'
@@ -49,6 +53,7 @@ function priceEvent(
     currency: 'USD',
     deltaMinor,
     deltaPct,
+    priceMinor: 10_000 + deltaMinor,
     ...extra,
   }
 }
@@ -75,6 +80,7 @@ function stored(patch: Partial<PriceNotification> = {}): PriceNotification {
     readAt: null,
     dismissedAt: null,
     resolvedAt: null,
+    snoozedUntil: null,
     ...patch,
   }
 }
@@ -82,10 +88,19 @@ function stored(patch: Partial<PriceNotification> = {}): PriceNotification {
 const nowIso = NOW.toISOString()
 
 describe('meetsPriceThreshold', () => {
-  const change = (deltaPct: number) => ({ deltaPct })
+  const change = (deltaPct: number) => ({
+    deltaPct,
+    deltaMinor: deltaPct * 100,
+    currency: 'USD',
+  })
+  const percent = (minPercent: number) => ({
+    minPercent,
+    minAmount: 0,
+    allTimeLow: false,
+  })
 
   it('notifies when the change reaches the percent in either direction', () => {
-    const thresholds = { minPercent: 5 }
+    const thresholds = percent(5)
     expect(meetsPriceThreshold(change(-5), thresholds)).toBe(true)
     expect(meetsPriceThreshold(change(-4.9), thresholds)).toBe(false)
     expect(meetsPriceThreshold(change(1), thresholds)).toBe(false)
@@ -93,7 +108,7 @@ describe('meetsPriceThreshold', () => {
   })
 
   it('lets every change through when the threshold is 0', () => {
-    expect(meetsPriceThreshold(change(-0.01), { minPercent: 0 })).toBe(true)
+    expect(meetsPriceThreshold(change(-0.01), percent(0))).toBe(true)
   })
 })
 
@@ -126,6 +141,7 @@ describe('planPriceNotifications', () => {
         readAt: null,
         dismissedAt: null,
         resolvedAt: null,
+        snoozedUntil: null,
       },
     ])
     expect(plan.update).toEqual([])
@@ -359,13 +375,13 @@ describe('applyPriceNotificationAction', () => {
   })
 
   it('reports boxes, unread state and sorting', () => {
-    expect(all.map(getPriceNotificationBox)).toEqual([
+    expect(all.map((row) => getPriceNotificationBox(row, NOW))).toEqual([
       'open',
       'open',
       'done',
       'done',
     ])
-    expect(all.map(isPriceNotificationUnread)).toEqual([
+    expect(all.map((row) => isPriceNotificationUnread(row, NOW))).toEqual([
       true,
       false,
       false,
@@ -399,9 +415,312 @@ describe('parsePriceNotificationAction', () => {
     expect(() =>
       parsePriceNotificationAction({ action: 'read', ids: [1.5] }),
     ).toThrow(/ids/)
-    expect(() => parsePriceNotificationAction({ action: 'snooze' })).toThrow(
+    expect(() => parsePriceNotificationAction({ action: 'archive' })).toThrow(
       /Unknown/,
     )
     expect(() => parsePriceNotificationAction([])).toThrow(/object/)
+  })
+})
+
+function alertContext(
+  patch: Partial<Omit<PriceAlertContext, 'rules'>> & {
+    rules?: Partial<PriceAlertContext['rules']>
+  } = {},
+): PriceAlertContext {
+  return {
+    paidMinor: null,
+    sourceMutedUntil: null,
+    lowestBeforeMinor: null,
+    ...patch,
+    rules: {
+      muted: false,
+      targetPrice: null,
+      belowPaid: false,
+      ...patch.rules,
+    },
+  }
+}
+
+/** A drop from `from` to `to` (USD minor units). */
+function drop(from: number, to: number): PriceNotificationEvent {
+  return priceEvent(
+    to - from,
+    Math.round(((to - from) / from) * 10_000) / 100,
+    {
+      priceMinor: to,
+    },
+  )
+}
+
+describe('alert rules (shouldNotify)', () => {
+  it('mutes a knife and a source until its time, for every kind', () => {
+    const big = drop(10_000, 8_000)
+    expect(
+      shouldNotify(
+        big,
+        DEFAULTS,
+        alertContext({ rules: { muted: true } }),
+        NOW,
+      ),
+    ).toBe(false)
+    expect(
+      shouldNotify(
+        stockEvent('back_in_stock'),
+        DEFAULTS,
+        alertContext({ rules: { muted: true } }),
+        NOW,
+      ),
+    ).toBe(false)
+    const later = new Date(NOW.getTime() + DAY_MS).toISOString()
+    const past = new Date(NOW.getTime() - DAY_MS).toISOString()
+    expect(
+      shouldNotify(
+        big,
+        DEFAULTS,
+        alertContext({ sourceMutedUntil: later }),
+        NOW,
+      ),
+    ).toBe(false)
+    expect(
+      shouldNotify(
+        big,
+        DEFAULTS,
+        alertContext({ sourceMutedUntil: past }),
+        NOW,
+      ),
+    ).toBe(true)
+  })
+
+  it('needs a target price to be reached and notifies when crossing it', () => {
+    const target = alertContext({
+      rules: { targetPrice: { minor: 9_000, currency: 'USD' } },
+    })
+    // 100 → 92: above the target.
+    expect(shouldNotify(drop(10_000, 9_200), DEFAULTS, target, NOW)).toBe(false)
+    // 92 → 90 (-2%): under the 5% threshold, but it crosses the target.
+    expect(shouldNotify(drop(9_200, 9_000), DEFAULTS, target, NOW)).toBe(true)
+    // 90 → 89 (-1%): already below the target, so the threshold applies.
+    expect(shouldNotify(drop(9_000, 8_900), DEFAULTS, target, NOW)).toBe(false)
+    // A target in another currency is not compared.
+    const euro = alertContext({
+      rules: { targetPrice: { minor: 1_000, currency: 'EUR' } },
+    })
+    expect(shouldNotify(drop(10_000, 9_000), DEFAULTS, euro, NOW)).toBe(true)
+    // The drop switch still decides.
+    expect(
+      shouldNotify(
+        drop(9_200, 9_000),
+        settings({ notify: { drop: false } }),
+        target,
+        NOW,
+      ),
+    ).toBe(false)
+  })
+
+  it('only notifies below what was paid when asked, and when comparable', () => {
+    const paid = alertContext({ rules: { belowPaid: true }, paidMinor: 9_000 })
+    expect(shouldNotify(drop(10_000, 9_400), DEFAULTS, paid, NOW)).toBe(false)
+    expect(shouldNotify(drop(10_000, 9_000), DEFAULTS, paid, NOW)).toBe(false)
+    expect(shouldNotify(drop(10_000, 8_900), DEFAULTS, paid, NOW)).toBe(true)
+    const unknown = alertContext({ rules: { belowPaid: true } })
+    expect(shouldNotify(drop(10_000, 9_400), DEFAULTS, unknown, NOW)).toBe(true)
+    // Increases are not affected by drop rules.
+    expect(
+      shouldNotify(
+        priceEvent(1_000, 10),
+        settings({ notify: { increase: true } }),
+        paid,
+        NOW,
+      ),
+    ).toBe(true)
+  })
+
+  it('applies the minimum amount in the price currency', () => {
+    const amount = settings({ thresholds: { minPercent: 0, minAmount: 3 } })
+    expect(shouldNotify(drop(10_000, 9_750), amount, null, NOW)).toBe(false)
+    expect(shouldNotify(drop(10_000, 9_700), amount, null, NOW)).toBe(true)
+    // JPY has no minor unit: 3 means ¥3.
+    const yen = priceEvent(-2, -0.5, { currency: 'JPY', priceMinor: 398 })
+    expect(shouldNotify(yen, amount, null, NOW)).toBe(false)
+  })
+
+  it('notifies a new all-time low below the percent when the setting is on', () => {
+    const low = alertContext({ lowestBeforeMinor: 9_900 })
+    const small = drop(10_000, 9_800) // -2%, a new low
+    expect(shouldNotify(small, DEFAULTS, low, NOW)).toBe(false)
+    const on = settings({ thresholds: { allTimeLow: true } })
+    expect(shouldNotify(small, on, low, NOW)).toBe(true)
+    // Not a new low.
+    expect(shouldNotify(drop(10_000, 9_900), on, low, NOW)).toBe(false)
+    // No history yet.
+    expect(shouldNotify(small, on, alertContext(), NOW)).toBe(false)
+    // The minimum amount still applies.
+    expect(
+      shouldNotify(
+        small,
+        settings({ thresholds: { allTimeLow: true, minAmount: 5 } }),
+        low,
+        NOW,
+      ),
+    ).toBe(false)
+    // The drop switch still applies.
+    expect(
+      shouldNotify(
+        small,
+        settings({ notify: { drop: false }, thresholds: { allTimeLow: true } }),
+        low,
+        NOW,
+      ),
+    ).toBe(false)
+  })
+
+  it('lets the planner resolve an open message even while muted', () => {
+    const open = stored({ id: 3, kind: 'drop', sourceId: 1 })
+    const plan = planPriceNotifications(
+      [priceEvent(1_000, 10)],
+      [open],
+      settings({ notify: { increase: true } }),
+      NOW,
+      () => alertContext({ rules: { muted: true } }),
+    )
+    expect(plan.create).toEqual([])
+    expect(plan.update).toEqual([
+      { ...open, resolvedAt: nowIso, updatedAt: nowIso },
+    ])
+  })
+})
+
+describe('snooze and bulk actions', () => {
+  it('snoozes, keeps a repeat snoozed, and shows it again', () => {
+    const open = stored({ id: 1, readAt: EARLIER })
+    const [snoozed] = applyPriceNotificationAction(
+      [open],
+      { action: 'snooze', ids: [1], days: 3 },
+      NOW,
+    )
+    expect(snoozed.snoozedUntil).toBe(
+      new Date(NOW.getTime() + 3 * DAY_MS).toISOString(),
+    )
+    expect(snoozed.readAt).toBeNull()
+    expect(getPriceNotificationBox(snoozed, NOW)).toBe('snoozed')
+    expect(isPriceNotificationUnread(snoozed, NOW)).toBe(false)
+    const later = new Date(NOW.getTime() + 4 * DAY_MS)
+    expect(getPriceNotificationBox(snoozed, later)).toBe('open')
+    expect(isPriceNotificationUnread(snoozed, later)).toBe(true)
+
+    const repeat = planPriceNotifications(
+      [drop(10_000, 8_000)],
+      [snoozed],
+      DEFAULTS,
+      NOW,
+    )
+    expect(repeat.update[0].snoozedUntil).toBe(snoozed.snoozedUntil)
+    expect(repeat.update[0].occurrences).toBe(2)
+
+    const [shown] = applyPriceNotificationAction(
+      [snoozed],
+      { action: 'unsnooze', ids: [1] },
+      NOW,
+    )
+    expect(shown.snoozedUntil).toBeNull()
+    expect(getPriceNotificationBox(shown, NOW)).toBe('open')
+  })
+
+  it('dismisses every open message, not snoozed or closed ones', () => {
+    const rows = [
+      stored({ id: 1 }),
+      stored({ id: 2, readAt: EARLIER }),
+      stored({
+        id: 3,
+        snoozedUntil: new Date(NOW.getTime() + DAY_MS).toISOString(),
+      }),
+      stored({ id: 4, resolvedAt: EARLIER }),
+      stored({ id: 5, dismissedAt: EARLIER }),
+    ]
+    const changed = applyPriceNotificationAction(
+      rows,
+      { action: 'dismiss-all' },
+      NOW,
+    )
+    expect(changed.map((row) => row.id)).toEqual([1, 2])
+    expect(changed[0]).toMatchObject({ dismissedAt: nowIso, readAt: nowIso })
+    expect(changed[1]).toMatchObject({ dismissedAt: nowIso, readAt: EARLIER })
+  })
+
+  it('validates snooze and bulk requests', () => {
+    expect(parsePriceNotificationAction({ action: 'dismiss-all' })).toEqual({
+      action: 'dismiss-all',
+    })
+    expect(
+      parsePriceNotificationAction({ action: 'snooze', ids: [1], days: 7 }),
+    ).toEqual({ action: 'snooze', ids: [1], days: 7 })
+    expect(() =>
+      parsePriceNotificationAction({ action: 'snooze', ids: [1], days: 0 }),
+    ).toThrow(/days/)
+    expect(() =>
+      parsePriceNotificationAction({ action: 'unsnooze', ids: [] }),
+    ).toThrow(/ids/)
+  })
+})
+
+describe('selectDesktopPriceAlerts', () => {
+  const view = (
+    patch: Partial<PriceNotification>,
+    event: Partial<PriceNotificationView['event']> = {},
+  ): PriceNotificationView => ({
+    ...stored(patch),
+    event: {
+      id: 'price-1',
+      type: 'price',
+      kind: patch.kind ?? 'drop',
+      knife: { id: 'knife-1', name: 'Bugout', brand: 'Benchmade', image: null },
+      sourceId: 1,
+      storeName: 'example.com',
+      sourceUrl: 'https://example.com/p',
+      previousPriceMinor: 15_000,
+      priceMinor: 12_900,
+      currency: 'USD',
+      deltaMinor: -2_100,
+      deltaPct: -14,
+      occurredAt: nowIso,
+      ...event,
+    },
+    context: {
+      paidMinor: null,
+      lowestMinor: null,
+      sourceMutedUntil: null,
+      knifeMuted: false,
+    },
+  })
+
+  it('picks new unread drops and restocks, oldest first', () => {
+    const since = '2026-11-18T11:00:00.000Z'
+    const alerts = selectDesktopPriceAlerts(
+      [
+        view({ id: 1, occurredAt: nowIso }),
+        view(
+          {
+            id: 2,
+            kind: 'back_in_stock',
+            occurredAt: '2026-11-18T11:30:00.000Z',
+          },
+          { type: 'stock', previousPriceMinor: null },
+        ),
+        view({ id: 3, kind: 'increase', occurredAt: nowIso }),
+        view({ id: 4, occurredAt: '2026-11-18T10:00:00.000Z' }),
+        view({ id: 5, occurredAt: nowIso, readAt: nowIso }),
+        view({ id: 6, occurredAt: nowIso, dismissedAt: nowIso }),
+      ],
+      since,
+      NOW,
+    )
+    expect(alerts.map((alert) => alert.id)).toEqual([2, 1])
+    expect(alerts[1]).toMatchObject({
+      knifeId: 'knife-1',
+      title: 'Price dropped: Benchmade Bugout',
+      body: 'example.com · $150.00 → $129.00',
+    })
+    expect(alerts[0].title).toBe('Back in stock: Benchmade Bugout')
+    expect(alerts[0].body).toBe('example.com · $129.00')
   })
 })
