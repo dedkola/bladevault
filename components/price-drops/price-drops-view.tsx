@@ -12,6 +12,7 @@ import type {
   SourceSummary,
 } from '@/lib/price-monitor/insights'
 import { cn } from '@/lib/utils'
+import { AgentFeed, AgentStrip, useAgentState } from './agent-panel'
 import { KnifePricePanel } from './knife-price-panel'
 import { MonitoringStatus, ResultBadge } from './monitoring-status'
 import { money, relativeTime, storeLabel } from './price-format'
@@ -294,6 +295,7 @@ export function PriceDropsView({
   const [version, setVersion] = useState(0)
   const { overview, error } = useOverview(version)
   const queue = useQueue()
+  const agent = useAgentState(version)
   const now = useMinuteClock()
   const [section, setSection] = useState<Section>(
     initialSection in SECTION_LABEL ? (initialSection as Section) : 'all',
@@ -444,6 +446,7 @@ export function PriceDropsView({
         </Card>
       ) : (
         <>
+          <AgentStrip controls={agent} now={now} />
           <MonitoringStatus
             overview={overview}
             pausedStores={pausedStores}
@@ -564,6 +567,7 @@ export function PriceDropsView({
                     Select a knife to see its price history.
                   </p>
                 )}
+                <AgentFeed controls={agent} onSelect={setSelected} />
               </aside>
             </div>
           </Card>
