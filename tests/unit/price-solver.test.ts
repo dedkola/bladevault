@@ -133,6 +133,30 @@ describe('solver helpers', () => {
     expect(found.some((url) => url.includes('other.example'))).toBe(false)
   })
 
+  it('offers the store’s US edition first', () => {
+    const html = `<html><head>
+      <link rel="canonical" href="/en-ua/products/raccoon">
+      <link rel="alternate" hreflang="uk-UA" href="/uk-ua/products/raccoon">
+      <link rel="alternate" hreflang="en-US" href="/products/raccoon-us">
+      <link rel="alternate" hreflang="en-us" href="https://other.example/products/raccoon">
+    </head><body></body></html>`
+    expect(findAlternatives(html, URL0)).toEqual([
+      'https://shop.example/products/raccoon-us',
+      'https://shop.example/en-ua/products/raccoon',
+    ])
+  })
+
+  it('lets AI fix a page in another currency', () => {
+    expect(
+      solverAllowed({
+        settings: { ...settings, resolveErrors: true },
+        errorCode: 'wrong_currency',
+        lastAiAt: null,
+        now: Date.now(),
+      }),
+    ).toBe(true)
+  })
+
   it('reads stored recipes defensively', () => {
     expect(parseRecipe(null)).toBeNull()
     expect(parseRecipe('not json')).toBeNull()

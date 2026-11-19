@@ -29,6 +29,7 @@ import {
   parseStoredPrice,
   toMinorUnits,
 } from '@/lib/price-monitor/money'
+import { MONITOR_CURRENCY } from '@/lib/price-monitor/region'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
 import {
   parseRecipe,
@@ -95,6 +96,7 @@ const MESSAGES: Record<string, string> = {
   invalid_response: 'The store sent a response BladeVault could not read.',
   not_found: 'No price or stock status found on the page.',
   no_currency: 'A price was found, but not its currency.',
+  wrong_currency: 'The store shows prices in another currency than US dollars.',
   invalid_price: 'The price on the page is not a valid amount.',
   implausible:
     'The price changed too much to trust from one reading; it was not stored.',
@@ -816,6 +818,52 @@ export async function checkPriceSource(
                 .join(' ') || null
       }
     }
+    // Prices are tracked in US dollars: when the store still answered in
+    // another currency, AI may switch the page to its US edition.
+    if (
+      evaluated.kind === 'observation' &&
+      evaluated.observation.currency &&
+      evaluated.observation.currency !== MONITOR_CURRENCY &&
+      !aiUsed &&
+      solverAllowed({
+        settings: aiSettings,
+        errorCode: 'wrong_currency',
+        lastAiAt: source.last_ai_at,
+        now: Date.now(),
+      })
+    ) {
+      const solved = await flow.solve({
+        problem: {
+          code: 'wrong_currency',
+          message: `The page shows prices in ${evaluated.observation.currency}, not ${MONITOR_CURRENCY}. Switch the store to the United States or ${MONITOR_CURRENCY}.`,
+        },
+        settings: aiSettings,
+        accept: (offer) => {
+          const result = evaluate(offer, source, knife.specs.price)
+          return (
+            result.kind === 'observation' &&
+            result.observation.priceMinor !== null &&
+            result.observation.currency === MONITOR_CURRENCY
+          )
+        },
+        signal: options.signal,
+      })
+      aiUsed = solved.aiCalls > 0
+      if (solved.steps.length) solverSteps = solved.steps
+      // Without a US price, the reading in the store's currency stands.
+      if (solved.offer) {
+        evaluated = evaluate(solved.offer, source, knife.specs.price)
+        method = 'solver'
+        if (solved.recipe && !solved.readByAi) {
+          flow.recipe = solved.recipe
+          flow.host = {
+            ...flow.host,
+            solverRecipe: JSON.stringify(solved.recipe),
+          }
+        }
+      }
+    }
+
     // A recipe that stopped working is forgotten.
     if (
       flow.recipeUsed &&

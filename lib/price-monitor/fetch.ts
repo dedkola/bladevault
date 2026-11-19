@@ -14,6 +14,12 @@ import type {
   RenderedPage,
 } from '@/lib/scrape-playwright'
 import { fetchExternalUrl } from '@/lib/url-validation'
+import { normalizeCurrencyCode } from '@/lib/price-monitor/money'
+import {
+  getShopifyCartJsUrl,
+  regionCookieHeader,
+  withRegionCookies,
+} from '@/lib/price-monitor/region'
 
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
@@ -74,6 +80,8 @@ async function httpGet(
         'User-Agent': USER_AGENT,
         Accept: accept,
         'Accept-Language': 'en-US,en;q=0.9',
+        // Ask for the US edition in USD, whatever country the IP is in.
+        Cookie: regionCookieHeader(),
       },
     }),
   )
@@ -88,8 +96,28 @@ async function httpGet(
 }
 
 /**
+ * The currency Shopify presents prices in for our US cookies: `.js` product
+ * data carries amounts only. Null when the cart cannot be read.
+ */
+async function readShopifyCurrency(
+  url: string,
+  operation: ScrapeOperation,
+): Promise<string | null> {
+  const cartUrl = getShopifyCartJsUrl(url)
+  if (!cartUrl) return null
+  try {
+    const { body } = await httpGet(cartUrl, operation, 'application/json')
+    const cart = JSON.parse(body) as { currency?: unknown }
+    return normalizeCurrencyCode(cart?.currency) || null
+  } catch (error) {
+    if (operation.signal.aborted) throw error
+    return null
+  }
+}
+
+/**
  * One plain HTTP request: Shopify's `/products/<handle>.js` for known Shopify
- * sources, otherwise the product page itself.
+ * sources (plus its cart for the currency), otherwise the product page itself.
  */
 export async function checkViaHttp(
   url: string,
@@ -105,8 +133,9 @@ export async function checkViaHttp(
     } catch {
       throw new ScrapeError('invalid_response')
     }
+    const currency = await readShopifyCurrency(url, operation)
     return {
-      offer: extractShopifyOffer(json, url, options.currencyHint),
+      offer: extractShopifyOffer(json, url, currency ?? options.currencyHint),
       finalUrl: url,
       isShopify: true,
     }
@@ -141,7 +170,7 @@ export async function checkViaBrowser(
     light: true,
     captureServerHtml: true,
     captureStorageState: true,
-    storageState: options.storageState,
+    storageState: withRegionCookies(url, options.storageState),
     headless: options.headless,
     budgetMs: options.budgetMs,
     interact: options.interact,

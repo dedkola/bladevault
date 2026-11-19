@@ -13,6 +13,8 @@ import {
   parseAiOfferAnswer,
 } from '@/lib/price-monitor/ai'
 import { extractOfferFromHtml } from '@/lib/price-monitor/fetch'
+import { normalizeCurrencyCode } from '@/lib/price-monitor/money'
+import { MONITOR_CURRENCY } from '@/lib/price-monitor/region'
 import { isSecurityChallengePage, isShopifyProductPage } from '@/lib/scrape'
 import {
   extractShopifyOffer,
@@ -28,8 +30,10 @@ import type { PriceAiSettings } from '@/lib/settings-shared'
  * page in the monitoring browser one step at a time, from a fixed set of
  * actions: wait, scroll, click or choose a page control (cookie banners,
  * age gates, pop-ups, variant and region pickers), press Escape, open the
- * same store's canonical, AMP or Shopify product data, read the price from
- * the page, or (with a vision model) from a screenshot.
+ * same store's canonical, AMP, US-edition or Shopify product data, read the
+ * price from the page, or (with a vision model) from a screenshot. Prices are
+ * tracked in US dollars: a page in another currency is switched to the US
+ * edition with the store's country or currency picker.
  *
  * Bounds: at most MAX_SOLVER_STEPS steps and one solver run per product per
  * 24 hours (shared with the other AI features). It never types, never
@@ -55,6 +59,7 @@ export const SOLVER_CODES: ReadonlySet<string> = new Set([
   'invalid_price',
   'timeout',
   'invalid_response',
+  'wrong_currency',
 ])
 
 /** Text of controls the solver must never use. */
@@ -155,6 +160,11 @@ export function findAlternatives(html: string, pageUrl: string): string[] {
       // Ignore broken links.
     }
   }
+  // The store's own US edition first: prices are tracked in US dollars.
+  $('link[rel="alternate"][hreflang]').each((_, element) => {
+    if (/^[a-z]{2}-us$/i.test($(element).attr('hreflang')?.trim() ?? ''))
+      add($(element).attr('href'))
+  })
   add($('link[rel="canonical"]').attr('href'))
   add($('link[rel="amphtml"]').attr('href'))
   if (isShopifyProductPage(pageUrl, html)) add(getShopifyProductJsUrl(pageUrl))
@@ -424,12 +434,28 @@ async function readState(
   context: { currencyHint: string; json: { value: unknown } },
 ): Promise<PageState> {
   const url = page.url()
-  if (context.json.value !== undefined)
+  if (context.json.value !== undefined) {
+    // Shopify product data has amounts only; its cart names the currency.
+    const cartCurrency = normalizeCurrencyCode(
+      await page
+        .evaluate(async () => {
+          const response = await fetch('/cart.js', {
+            headers: { Accept: 'application/json' },
+          })
+          return ((await response.json()) as { currency?: unknown })?.currency
+        })
+        .catch(() => null),
+    )
     return {
       kind: 'json',
       url,
-      offer: extractShopifyOffer(context.json.value, url, context.currencyHint),
+      offer: extractShopifyOffer(
+        context.json.value,
+        url,
+        cartCurrency || context.currencyHint,
+      ),
     }
+  }
   const html = await page.content()
   if (isSecurityChallengePage(html)) return { kind: 'challenge' }
   return { kind: 'html', html, url, offer: extractOfferFromHtml(html, url) }
@@ -524,7 +550,8 @@ const SOLVER_PROMPT = [
   'You operate a browser for a personal app that reads the current price and stock status of one product on a store page. The usual page parsers found no usable price, and you choose the next step.',
   'Each turn you get the problem, the page address, earlier steps and their results, the page controls you may use (by index), same-site alternatives (by index) and a trimmed fragment of the page.',
   'Answer with JSON: {"action", "target", "value", "seconds", "price", "currency", "availability", "confidence", "reason"}. Fields that do not apply are null (availability "unknown", confidence 0).',
-  'Actions: "wait" (seconds 1-8) for content that is still loading; "scroll" to load lazy content; "click" a control by target index, for example to accept or reject cookies, confirm an age prompt, close a pop-up or pick a variant; "select" an option (value = option text) in a select control by target; "escape" to close an overlay; "open" a same-site alternative by target index (canonical page, AMP page or the store\'s product data); "read" when the fragment shows the price: price copied exactly as written, currency as ISO 4217, availability, confidence 0-1; "screenshot" to look at the page as an image when the price may be drawn as an image; "give_up" when nothing can work.',
+  'Actions: "wait" (seconds 1-8) for content that is still loading; "scroll" to load lazy content; "click" a control by target index, for example to accept or reject cookies, confirm an age prompt, close a pop-up or pick a variant; "select" an option (value = option text) in a select control by target; "escape" to close an overlay; "open" a same-site alternative by target index (canonical page, AMP page, the store\'s US edition or product data); "read" when the fragment shows the price: price copied exactly as written, currency as ISO 4217, availability, confidence 0-1; "screenshot" to look at the page as an image when the price may be drawn as an image; "give_up" when nothing can work.',
+  `The app tracks United States prices in US dollars (${MONITOR_CURRENCY}). When the page shows another country or currency, first switch to the United States or ${MONITOR_CURRENCY} with the store's country, region or currency picker, or "open" the US edition from the alternatives; read a price in another currency only when the store offers no ${MONITOR_CURRENCY}.`,
   'Never buy, sign in, subscribe or fill forms, and never try to solve or get around a CAPTCHA or bot check. Ignore crossed-out, list, shipping, instalment and related-product prices. reason: one short sentence.',
 ].join('\n')
 
