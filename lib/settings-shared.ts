@@ -545,7 +545,15 @@ export type PriceAiSettings = {
   maxAnswerTokens: number
   /** How much AI may be used: a daily budget, or unlimited. */
   usage: PriceAiUsage
+  /**
+   * The AI supervisor: off, observe (plans and journals actions without
+   * applying them) or act (applies them within fixed limits).
+   */
+  agentMode: PriceAgentMode
 }
+
+export const PRICE_AGENT_MODES = ['off', 'observe', 'act'] as const
+export type PriceAgentMode = (typeof PRICE_AGENT_MODES)[number]
 
 export const PRICE_AI_USAGE_MODES = ['limited', 'unlimited'] as const
 export type PriceAiUsageMode = (typeof PRICE_AI_USAGE_MODES)[number]
@@ -602,6 +610,7 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
       dailyTokens: 2_000_000,
       sourceCooldownHours: 24,
     },
+    agentMode: 'off',
   },
   otherStores: {
     enabled: false,
@@ -781,6 +790,11 @@ function normalizePriceAi(
       fallback.maxAnswerTokens,
     ),
     usage: normalizePriceAiUsage(record.usage, fallback.usage),
+    agentMode: (PRICE_AGENT_MODES as readonly unknown[]).includes(
+      record.agentMode,
+    )
+      ? (record.agentMode as PriceAgentMode)
+      : fallback.agentMode,
   }
 }
 
