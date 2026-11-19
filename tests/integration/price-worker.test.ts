@@ -188,21 +188,49 @@ describe('price monitor worker', () => {
       'https://kizer.example/c',
     ])
     const { worker, pending, finish, advance } = harness()
+    const gap = () => {
+      const lane = getLocalDb()
+        .prepare(
+          "SELECT ready_at, last_request_at FROM price_host_state WHERE lane_key = 'kizer.example'",
+        )
+        .get() as { ready_at: string; last_request_at: string }
+      return Date.parse(lane.ready_at) - Date.parse(lane.last_request_at)
+    }
     worker.start({ scheduled: true })
     await worker.pass()
     expect(pending).toHaveLength(1)
     await finish()
     expect(pending).toHaveLength(0)
 
-    // Three products a day: 24 h × 0.8 / 3 = 6.4 h, capped at 2 h.
-    const lane = getLocalDb()
+    // Never-checked products get their first price at the minimum gap.
+    expect(gap()).toBe(MIN)
+    advance(MIN)
+    await worker.pass()
+    expect(pending).toHaveLength(1)
+    await finish()
+    expect(gap()).toBe(MIN)
+    advance(MIN)
+    await worker.pass()
+    expect(pending).toHaveLength(1)
+    await finish()
+
+    // Then the store is spread: 24 h × 0.8 / 3 = 6.4 h, capped at 2 h.
+    expect(gap()).toBe(2 * 60 * MIN)
+  })
+
+  it('spreads a store over the day once every product was checked', async () => {
+    await knife(['https://kizer.example/a', 'https://kizer.example/b'])
+    // Both products already have a reading; one is due again.
+    getLocalDb()
       .prepare(
-        "SELECT ready_at, last_request_at FROM price_host_state WHERE lane_key = 'kizer.example'",
+        "UPDATE price_sources SET priority = 0, last_checked_at = '2026-11-17T12:00:00.000Z'",
       )
-      .get() as { ready_at: string; last_request_at: string }
-    expect(Date.parse(lane.ready_at) - Date.parse(lane.last_request_at)).toBe(
-      2 * 60 * MIN,
-    )
+      .run()
+    const { worker, pending, finish, advance } = harness()
+    worker.start({ scheduled: true })
+    await worker.pass()
+    expect(pending).toHaveLength(1)
+    await finish()
     advance(119 * MIN)
     await worker.pass()
     expect(pending).toHaveLength(0)
@@ -364,6 +392,8 @@ describe('price monitor worker', () => {
           advisor: true,
           resolveErrors: true,
           vision: false,
+          maxPageKb: 200,
+          maxAnswerTokens: 16_384,
         },
       },
     })

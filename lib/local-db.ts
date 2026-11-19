@@ -957,6 +957,27 @@ function migratePriceMonitoringSchema(
       CREATE INDEX price_discovery_time
         ON price_discovery (last_attempt_at);`,
     ],
+    [
+      // Every AI request price monitoring makes: what for, how long, how
+      // many tokens and how it ended. No prompts, answers or keys.
+      'price_ai_calls',
+      `CREATE TABLE price_ai_calls (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        started_at TEXT NOT NULL,
+        purpose TEXT NOT NULL,
+        model TEXT NOT NULL,
+        duration_ms INTEGER NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 1,
+        ok INTEGER NOT NULL,
+        error_code TEXT,
+        error TEXT,
+        prompt_tokens INTEGER,
+        completion_tokens INTEGER,
+        reasoning INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX price_ai_calls_time
+        ON price_ai_calls (started_at);`,
+    ],
   ]
   const missing = statements.filter(([name]) => !has(name))
   if (missing.length)

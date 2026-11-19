@@ -13,6 +13,11 @@ export type AiEndpoint = {
   apiKey: string | null
   /** Extra headers from settings (already validated by parseAiHeaders). */
   headers?: Record<string, string>
+  /**
+   * Answer ceiling for reasoning models (settings' maxAnswerTokens); limits
+   * the answer only. REASONING_MAX_TOKENS when unset.
+   */
+  maxAnswerTokens?: number
 }
 
 export type AiErrorCode =
@@ -206,9 +211,84 @@ type ResponseFormat = 'json_schema' | 'json_object' | 'none'
  * hidden thinking before the answer. A small budget is then used up by the
  * thinking alone and the answer comes back empty, so an empty answer is
  * retried once with this budget (a ceiling, not a cost) and more time.
+ * Settings can change it per endpoint (AiEndpoint.maxAnswerTokens).
  */
-export const REASONING_MAX_TOKENS = 4096
-const REASONING_MIN_TIMEOUT_MS = 60_000
+export const REASONING_MAX_TOKENS = 16_384
+/**
+ * The ceiling used once an endpoint refused a larger max_tokens (above the
+ * model's own answer limit); most models accept it.
+ */
+export const SAFE_ANSWER_TOKENS = 4096
+/** Endpoint errors that mean max_tokens is above what the model allows. */
+const TOKEN_LIMIT_ERROR =
+  /max_tokens|max_completion_tokens|max_output_tokens|maximum[^.]*tokens|tokens?[^.]*(?:limit|exceed|too large|at most)/i
+export const REASONING_MIN_TIMEOUT_MS = 60_000
+
+/** What a request is for; recorded in the AI call journal. */
+export type AiPurpose =
+  | 'extraction'
+  | 'solver'
+  | 'vision'
+  | 'troubleshoot'
+  | 'advisor'
+  | 'discovery_search'
+  | 'discovery_verify'
+  | 'test'
+
+/** One finished chat completion call (all its attempts), without content. */
+export type AiCallEvent = {
+  purpose: AiPurpose
+  model: string
+  startedAt: number
+  durationMs: number
+  attempts: number
+  ok: boolean
+  errorCode: AiErrorCode | null
+  error: string | null
+  promptTokens: number | null
+  completionTokens: number | null
+  /** The model is known to reason before it answers. */
+  reasoning: boolean
+}
+
+export type AiCallObserver = (event: AiCallEvent) => void
+
+const OBSERVER = Symbol.for('bladevault.price-ai.call-observer')
+const PROFILES = Symbol.for('bladevault.price-ai.model-profiles')
+
+type Scope = typeof globalThis & {
+  [OBSERVER]?: AiCallObserver | null
+  [PROFILES]?: Map<string, ModelProfile>
+}
+
+type ModelProfile = {
+  reasoning: boolean
+  /** The endpoint refused a larger answer ceiling for this model. */
+  answerCap?: number
+}
+
+/** Receives every finished call (process-wide; null removes it). */
+export function setAiCallObserver(observer: AiCallObserver | null) {
+  ;(globalThis as Scope)[OBSERVER] = observer
+}
+
+function modelProfiles(): Map<string, ModelProfile> {
+  return ((globalThis as Scope)[PROFILES] ??= new Map())
+}
+
+function profileKey(endpoint: AiEndpoint, model: string): string {
+  return `${normalizeAiBaseUrl(endpoint.baseUrl) ?? endpoint.baseUrl}\n${model}`
+}
+
+/** Whether this model is known (in this process) to reason before answering. */
+export function isReasoningModel(endpoint: AiEndpoint, model: string): boolean {
+  return modelProfiles().get(profileKey(endpoint, model))?.reasoning ?? false
+}
+
+/** Forgets what was learned about models; for tests. */
+export function resetAiModelProfiles() {
+  modelProfiles().clear()
+}
 
 type ChatChoice = {
   finish_reason?: unknown
@@ -219,12 +299,29 @@ type ChatChoice = {
   }
 }
 
-/** The model stopped at the token limit or spent the answer on reasoning. */
-function ranOutOnReasoning(choice: ChatChoice | undefined): boolean {
-  const reasoning =
+type ChatResponse = {
+  choices?: ChatChoice[]
+  usage?: { prompt_tokens?: unknown; completion_tokens?: unknown }
+}
+
+function reasoningText(choice: ChatChoice | undefined): string {
+  return (
     messageText(choice?.message?.reasoning_content) ||
     messageText(choice?.message?.reasoning)
-  return choice?.finish_reason === 'length' || reasoning.trim().length > 0
+  ).trim()
+}
+
+/** The model stopped at the token limit or spent the answer on reasoning. */
+function ranOutOnReasoning(choice: ChatChoice | undefined): boolean {
+  return choice?.finish_reason === 'length' || reasoningText(choice).length > 0
+}
+
+const THINK_BLOCK = /<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi
+const OPEN_THINK = /<think(?:ing)?>[\s\S]*$/i
+
+/** Answer text without inline `<think>` blocks (some gateways inline them). */
+export function stripThinking(text: string): string {
+  return text.replace(THINK_BLOCK, '').replace(OPEN_THINK, '').trim()
 }
 
 function messageText(content: unknown): string {
@@ -244,8 +341,7 @@ function messageText(content: unknown): string {
 
 /** The JSON object in a model answer, tolerating code fences and prose. */
 export function parseJsonAnswer(text: string): unknown {
-  const trimmed = text
-    .trim()
+  const trimmed = stripThinking(text)
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/, '')
   try {
@@ -263,10 +359,21 @@ export function parseJsonAnswer(text: string): unknown {
   }
 }
 
+const tokenCount = (value: unknown) =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? Math.round(value)
+    : null
+
 /**
  * One chat completion that must answer with JSON. Asks for a strict JSON
  * schema first and falls back to `json_object`, then to plain prompting,
  * for endpoints that reject the response format.
+ *
+ * Reasoning models are learned per base URL and model (in this process):
+ * an empty answer, an answer cut off at the token limit, a timeout, or
+ * reasoning text in the answer marks the model, and the request is retried
+ * once with REASONING_MAX_TOKENS and at least REASONING_MIN_TIMEOUT_MS. Later
+ * requests to that model start with that budget, so they need one request.
  */
 export async function requestJsonCompletion(
   endpoint: AiEndpoint,
@@ -277,19 +384,103 @@ export async function requestJsonCompletion(
     schemaName: string
     schema: JsonSchema
     maxTokens?: number
+    purpose?: AiPurpose
   },
   options: { timeoutMs: number; signal?: AbortSignal; fetchImpl?: FetchLike },
 ): Promise<unknown> {
   if (!request.model.trim())
     throw new AiClientError('config', 'Choose an AI model first.')
+  const startedAt = Date.now()
+  const usage = {
+    prompt: null as number | null,
+    completion: null as number | null,
+    attempts: 0,
+  }
+  const report = (error: unknown) => {
+    const observer = (globalThis as Scope)[OBSERVER]
+    if (!observer || !request.purpose) return
+    try {
+      observer({
+        purpose: request.purpose,
+        model: request.model,
+        startedAt,
+        durationMs: Date.now() - startedAt,
+        attempts: usage.attempts,
+        ok: error === null,
+        errorCode:
+          error === null
+            ? null
+            : error instanceof AiClientError
+              ? error.code
+              : 'invalid_response',
+        error:
+          error === null
+            ? null
+            : redactSecrets(
+                error instanceof Error ? error.message : String(error),
+              ).slice(0, 300),
+        promptTokens: usage.prompt,
+        completionTokens: usage.completion,
+        reasoning: isReasoningModel(endpoint, request.model),
+      })
+    } catch {
+      // The journal never breaks a request.
+    }
+  }
+  try {
+    const result = await completeJson(endpoint, request, options, usage)
+    report(null)
+    return result
+  } catch (error) {
+    report(error)
+    throw error
+  }
+}
+
+async function completeJson(
+  endpoint: AiEndpoint,
+  request: {
+    model: string
+    system: string
+    user: UserContent
+    schemaName: string
+    schema: JsonSchema
+    maxTokens?: number
+  },
+  options: { timeoutMs: number; signal?: AbortSignal; fetchImpl?: FetchLike },
+  usage: { prompt: number | null; completion: number | null; attempts: number },
+): Promise<unknown> {
   const url = endpointUrl(endpoint, '/chat/completions')
   const formats: ResponseFormat[] = ['json_schema', 'json_object', 'none']
+  const key = profileKey(endpoint, request.model)
   const baseTokens = request.maxTokens ?? 400
-  let maxTokens = baseTokens
-  let timeoutMs = options.timeoutMs
+  const profile = (): ModelProfile =>
+    modelProfiles().get(key) ?? { reasoning: false }
+  let retried = false
+  let capped = false
+  const learnReasoning = () => {
+    modelProfiles().set(key, { ...profile(), reasoning: true })
+  }
+  /** The answer ceiling for this model: settings, lowered if refused. */
+  const ceiling = () =>
+    Math.min(
+      endpoint.maxAnswerTokens ?? REASONING_MAX_TOKENS,
+      profile().answerCap ?? Infinity,
+    )
+  const budget = () =>
+    profile().reasoning
+      ? {
+          maxTokens: Math.max(baseTokens, ceiling()),
+          timeoutMs: Math.max(options.timeoutMs, REASONING_MIN_TIMEOUT_MS),
+        }
+      : { maxTokens: baseTokens, timeoutMs: options.timeoutMs }
+  /** One more try with the reasoning budget, if it would give more room. */
+  const canRetry = () =>
+    !retried && !options.signal?.aborted && budget().maxTokens < ceiling()
   let lastError: unknown = null
   for (let index = 0; index < formats.length; index++) {
     const format = formats[index]
+    const { maxTokens, timeoutMs } = budget()
     const payload: Record<string, unknown> = {
       model: request.model,
       temperature: 0,
@@ -311,6 +502,7 @@ export async function requestJsonCompletion(
     else if (format === 'json_object')
       payload.response_format = { type: 'json_object' }
     let body: string
+    usage.attempts++
     try {
       body = await send(
         url,
@@ -322,6 +514,24 @@ export async function requestJsonCompletion(
         { ...options, timeoutMs },
       )
     } catch (error) {
+      // The answer ceiling is above the model's own limit: lower it once
+      // and remember that for this model.
+      if (
+        error instanceof AiClientError &&
+        error.code === 'http' &&
+        (error.status === 400 || error.status === 422) &&
+        !capped &&
+        maxTokens > SAFE_ANSWER_TOKENS &&
+        TOKEN_LIMIT_ERROR.test(error.message)
+      ) {
+        capped = true
+        modelProfiles().set(key, {
+          ...profile(),
+          answerCap: Math.max(baseTokens, SAFE_ANSWER_TOKENS),
+        })
+        index--
+        continue
+      }
       // 400/422: most likely the response format is not supported.
       if (
         error instanceof AiClientError &&
@@ -332,9 +542,21 @@ export async function requestJsonCompletion(
         lastError = error
         continue
       }
+      // A model that thinks before answering may need more than the
+      // caller's short timeout: learn that and try once more.
+      if (
+        error instanceof AiClientError &&
+        error.code === 'timeout' &&
+        canRetry()
+      ) {
+        learnReasoning()
+        retried = true
+        index--
+        continue
+      }
       throw error
     }
-    let parsed: { choices?: ChatChoice[] }
+    let parsed: ChatResponse
     try {
       parsed = JSON.parse(body)
     } catch {
@@ -343,13 +565,19 @@ export async function requestJsonCompletion(
         'The AI endpoint sent a response BladeVault could not read.',
       )
     }
+    const prompt = tokenCount(parsed?.usage?.prompt_tokens)
+    const completion = tokenCount(parsed?.usage?.completion_tokens)
+    if (prompt !== null) usage.prompt = (usage.prompt ?? 0) + prompt
+    if (completion !== null)
+      usage.completion = (usage.completion ?? 0) + completion
     const choice = parsed?.choices?.[0]
-    const text = messageText(choice?.message?.content)
-    if (!text.trim()) {
-      if (maxTokens < REASONING_MAX_TOKENS) {
+    const text = stripThinking(messageText(choice?.message?.content))
+    const cutOff = choice?.finish_reason === 'length'
+    if (!text) {
+      if (canRetry()) {
         // Same format again, with room for the model's reasoning.
-        maxTokens = Math.max(baseTokens, REASONING_MAX_TOKENS)
-        timeoutMs = Math.max(options.timeoutMs, REASONING_MIN_TIMEOUT_MS)
+        learnReasoning()
+        retried = true
         index--
         continue
       }
@@ -360,7 +588,22 @@ export async function requestJsonCompletion(
           : 'The AI answer was empty.',
       )
     }
-    return parseJsonAnswer(text)
+    let answer: unknown
+    try {
+      answer = parseJsonAnswer(text)
+    } catch (error) {
+      // The answer was cut off at the token limit: give it more room once.
+      if (cutOff && canRetry()) {
+        learnReasoning()
+        retried = true
+        index--
+        continue
+      }
+      throw error
+    }
+    // It answered, but thought first: start its next requests with room.
+    if (!profile().reasoning && reasoningText(choice)) learnReasoning()
+    return answer
   }
   throw lastError instanceof Error
     ? lastError

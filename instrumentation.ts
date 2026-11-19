@@ -18,6 +18,18 @@ export async function register() {
       }
     }
 
+    // Every AI request price monitoring makes is recorded (no content).
+    try {
+      const { installAiCallJournal } =
+        await import('./lib/price-monitor/ai-journal')
+      installAiCallJournal()
+    } catch (error) {
+      console.error(
+        '[price-monitor] Could not start the AI call journal',
+        error,
+      )
+    }
+
     // Price monitoring runs in the server process, independent of any page.
     // Dev servers use the real vault, so they only schedule when asked to.
     if (

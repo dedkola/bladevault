@@ -258,6 +258,8 @@ describe('AI settings routes', () => {
       advisor: true,
       resolveErrors: true,
       vision: false,
+      maxPageKb: 200,
+      maxAnswerTokens: 16_384,
       headers: {},
     })
     await settingsRoute.POST(

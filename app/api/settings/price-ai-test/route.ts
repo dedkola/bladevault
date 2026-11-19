@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { extractOfferWithAi } from '@/lib/price-monitor/ai'
+import { isReasoningModel } from '@/lib/price-monitor/ai-client'
 import { NO_STORE, priceAiErrorResponse } from '@/lib/price-monitor/ai-route'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
 import { getSettings } from '@/lib/settings'
@@ -44,24 +45,32 @@ export async function POST(request: Request) {
         { status: 400 },
       )
     const started = Date.now()
+    const endpoint = {
+      baseUrl: settings.baseUrl,
+      apiKey: await readPriceAiKey(),
+      headers: settings.headers,
+      maxAnswerTokens: settings.maxAnswerTokens,
+    }
     const result = await extractOfferWithAi({
       html: SAMPLE_PAGE,
-      endpoint: {
-        baseUrl: settings.baseUrl,
-        apiKey: await readPriceAiKey(),
-        headers: settings.headers,
-      },
+      endpoint,
       model,
+      purpose: 'test',
+      maxFragmentBytes: settings.maxPageKb * 1024,
       signal: request.signal,
     })
     const latencyMs = Date.now() - started
+    const reasoning = isReasoningModel(endpoint, model)
+    const reasoningNote = reasoning
+      ? ' This model reasons before it answers, so BladeVault gives it more time and tokens per request.'
+      : ''
     if (result.status !== 'ok')
       return NextResponse.json(
         {
           ok: false,
           latencyMs,
-          message:
-            'The model answered, but not with the sample price. It may be too small for reading prices.',
+          reasoning,
+          message: `The model answered, but not with the sample price. It may be too small for reading prices.${reasoningNote}`,
         },
         { headers: NO_STORE },
       )
@@ -70,12 +79,15 @@ export async function POST(request: Request) {
       {
         ok: correct,
         latencyMs,
+        reasoning,
         model,
         price: result.offer.amount,
         currency: result.offer.currency,
-        message: correct
-          ? `Connected: the model read ${result.offer.amount} ${result.offer.currency} from the sample page.`
-          : `Connected, but the model read ${result.offer.amount} ${result.offer.currency} instead of the sale price ${EXPECTED_AMOUNT}.`,
+        message:
+          (correct
+            ? `Connected: the model read ${result.offer.amount} ${result.offer.currency} from the sample page.`
+            : `Connected, but the model read ${result.offer.amount} ${result.offer.currency} instead of the sale price ${EXPECTED_AMOUNT}.`) +
+          reasoningNote,
       },
       { headers: NO_STORE },
     )

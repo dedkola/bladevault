@@ -261,6 +261,7 @@ class CheckFlow {
               baseUrl: input.settings.baseUrl,
               apiKey,
               headers: input.settings.headers,
+              maxAnswerTokens: input.settings.maxAnswerTokens,
             },
             accept: input.accept,
             signal: operation.signal,
@@ -424,9 +425,11 @@ async function readWithAi(input: {
         baseUrl: input.settings.baseUrl,
         apiKey,
         headers: input.settings.headers,
+        maxAnswerTokens: input.settings.maxAnswerTokens,
       },
       model: input.settings.model,
       currencyHint: input.currencyHint,
+      maxFragmentBytes: input.settings.maxPageKb * 1024,
       signal: input.signal,
     })
     if (result.status === 'ok')
@@ -502,6 +505,7 @@ async function recoverWithAi(input: {
         baseUrl: input.settings.baseUrl,
         apiKey,
         headers: input.settings.headers,
+        maxAnswerTokens: input.settings.maxAnswerTokens,
       },
       model: input.settings.model,
       now,
