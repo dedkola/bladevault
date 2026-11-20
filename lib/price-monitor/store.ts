@@ -1172,6 +1172,8 @@ export type CandidateRow = {
   scheduled: boolean
   /** Start of the current out-of-stock run (epoch ms), or null. */
   outOfStockSince: number | null
+  /** Never checked yet: its first reading skips the store's spread. */
+  firstReading: boolean
 }
 
 /**
@@ -1185,7 +1187,7 @@ export function readQueueCandidates(
   const rows = database
     .prepare(
       `SELECT s.id, s.knife_id, s.lane_key, s.priority, s.next_check_at,
-              s.enabled, s.origin, s.last_availability,
+              s.enabled, s.origin, s.last_availability, s.last_checked_at,
               k.specs, k.sold, COALESCE(w.mode, 'auto') AS mode,
               h.paused_at IS NOT NULL AS store_paused
        FROM price_sources s
@@ -1203,6 +1205,7 @@ export function readQueueCandidates(
     enabled: number
     origin: PriceSourceOrigin
     last_availability: Availability | null
+    last_checked_at: string | null
     specs: string
     sold: number
     mode: PriceWatchMode
@@ -1246,6 +1249,7 @@ export function readQueueCandidates(
           settings,
         ),
       outOfStockSince: parseTime(outOfStockSince.get(row.id) ?? null),
+      firstReading: row.last_checked_at === null,
     }
   })
 }

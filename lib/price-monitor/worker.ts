@@ -398,6 +398,13 @@ export class PriceMonitorWorker {
             advice.get(laneKey),
             now,
           ),
+        pauses: new Map(
+          [...advice].flatMap(([key, item]) =>
+            item.expiresAt > now && item.pauseUntil !== null
+              ? [[key, item.pauseUntil] as const]
+              : [],
+          ),
+        ),
       }
       const context: PassContext = {
         settings,
