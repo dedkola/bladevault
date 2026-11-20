@@ -257,16 +257,19 @@ function SourceRow({
 }
 
 /**
- * Edit-mode price monitoring: Auto / Always / Never, and up to 10 product
- * URLs. Changes save immediately, separately from the knife form. Hides
+ * Price monitoring controls: Auto / Always / Never, and up to 10 product
+ * URLs. Used in edit mode and under Manage sources on the Market tab. Changes save immediately, separately from the knife form. Hides
  * itself where the server feature is unavailable (static web app: 501).
  */
 export function PriceWatchEditor({
   knifeId,
   onUnavailable,
+  onChanged,
 }: {
   knifeId: string
   onUnavailable?: () => void
+  /** After a saved change or a started check (the Market tab reloads). */
+  onChanged?: () => void
 }) {
   const inputId = useId()
   const [watch, setWatch] = useState<PriceWatchView | null>(null)
@@ -337,6 +340,7 @@ export function PriceWatchEditor({
       const data = (await response.json()) as { watch: PriceWatchView }
       setWatch(data.watch)
       announcePriceDataUpdated()
+      onChanged?.()
       return true
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save.')
@@ -356,6 +360,7 @@ export function PriceWatchEditor({
       })
       if (!response.ok) throw new Error(await readError(response))
       await refresh()
+      onChanged?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not start check.')
     }

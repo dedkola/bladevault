@@ -14,18 +14,20 @@ Every knife starts in **Auto** mode. In Auto, a knife is monitored when it has a
 | **Always monitor** | Monitors the knife even without a stored price, and even when it is marked as sold.                 |
 | **Never monitor**  | Leaves the knife out of scheduled checks. **Check now** still takes a single reading.               |
 
-Change the mode for one knife in edit mode:
+Change the mode for one knife without leaving its page:
 
-1. Open the knife and select **Edit**.
-2. Scroll to **Price monitoring**. It explains whether the knife is monitored and why.
+1. Open the knife and select the **Market** tab (or select the knife on **Price Drops**).
+2. Select **Manage sources**. It explains whether the knife is monitored and why.
 3. Choose **Auto**, **Always monitor**, or **Never monitor**.
+
+The same controls are under **Price monitoring** when you edit the knife.
 
 ## Add more stores for a knife
 
 A knife can have up to 10 store sources from any store, including Amazon. Each source keeps its own history and status.
 
-1. Open the knife and select **Edit**.
-2. In **Price monitoring**, enter a product page in **Add store URL** and select **Add**.
+1. Open the knife's **Market** tab and select **Manage sources** (or select **Edit** and scroll to **Price monitoring**).
+2. Enter a product page in **Add store URL** and select **Add**.
 3. Use **Pause** or **Resume** to stop or restart checks for one source, and **Remove** to stop monitoring it.
 
 A removed source keeps its recorded history, which still appears in charts as a removed source. Changing the knife's **Source URL** moves its automatic source to the new link.
@@ -49,7 +51,7 @@ Open **Price Drops** in the sidebar. From top to bottom the page shows:
   - **Below what I paid** — in-stock sources that cost less than your purchase price.
   - **Needs attention** — failed, blocked, unavailable, or doubtful readings. They keep their last known price, shown muted with its date (**as of Nov 3**), and show when each is checked next, such as **next in 3 hours**, **due now**, or **overdue 9 h**. Sources that have never been checked are not problems: they show as **Waiting** in **All** and in their own timeline lane until their first check.
   - **Recently monitored** — the 30 latest checks.
-- **Side panel** — the selected knife's best current price, price chart, and sources, each with **Check now**. With AI connected, **Supervisor activity** below it lists every action, with the day for anything older than today.
+- **Side panel** — the selected knife's price details, the same as its Market tab (see below), including **Latest changes**, **Check all sources**, **Manage sources**, and each store's **Check now** and check history. With AI connected, **Supervisor activity** below it lists every action, with the day for anything older than today.
 
 To find a knife, search by brand, name, model number, steel, or store, or pick a store. Select a column header (**Price now**, **Change**, **vs paid**, **Checked**) to sort by it, and select it again to reverse or reset the order. **vs paid** shows the difference in money and percent. Knives that share a name show their model number, steel, and handle so you can tell them apart. **Group by knife** shows one row per knife with its best price; expand it to see each store.
 
@@ -79,10 +81,15 @@ Every move is still recorded: the chart, the Market tab's latest changes, and no
 
 Open a knife and select the **Market** tab. It shows:
 
-- **Best price now** across its sources, next to **You paid** when a purchase price is stored. When the stores show another currency than the purchase price, a note such as **UAH price** under the best price says they are not compared.
-- A price chart for 7 days up to all history, with each store as its own line and out-of-stock periods marked.
-- **Sources** with each store's status: **Checked**, **Price unavailable**, **Out of stock**, **Failed**, **Blocked**, or **Not checked yet**.
+- **Best price now** across its sources, the store that has it, linked to its product page, and **You paid** when a purchase price is stored. When the stores show another currency than the purchase price, a note such as **UAH price** under the best price says they are not compared.
+- **Lowest seen** and **Highest seen** in-stock prices, **Tracking since** (the first reading), and **Now vs you paid**: the best current price minus the purchase price, in money and percent. These cover the whole history, whatever range the chart shows.
+- A price chart for 7 days up to all history, with each store as its own line and out-of-stock periods shaded. When the range reaches back before the first reading, the chart starts at that reading and says **Tracking since** that date. Markers show price drops and increases, stock changes, and the lowest price seen; hover over the chart for details. Stores that show a price in another currency than the chart are left out and noted below it, for example "1 store in EUR not shown".
+- **Sources** with each store's status: **Checked**, **Price unavailable**, **Out of stock**, **Failed**, **Blocked**, or **Not checked yet**, and **Low stock** or **Preorder** when the store says so. **Check all sources** checks every store of the knife now.
 - **Latest changes** for the knife.
+
+### Check history
+
+Select the history button next to a store to see its last 30 checks, newest first: when and why each check ran (scheduled, **Check now**, or a retry), whether it read a price, failed, or was blocked, how the page was loaded (HTTP, browser, or AI), the HTTP status, how long it took, the price and stock it read, and the error, if any. Checks where AI worked the page list the steps it took under **AI steps**. A price that AI could not confirm is marked **AI unconfirmed**: it is kept in the history but never becomes the store's price, and the chart shows it as a dashed hollow marker instead of part of the line.
 
 Market prices are information only. They never change the purchase price stored in the knife's specifications.
 

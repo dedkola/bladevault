@@ -1,6 +1,9 @@
 import { formatMoney, toMinorUnits } from '@/lib/price-monitor/money'
 import type { ChangeEvent } from '@/lib/price-monitor/insights'
-import type { PriceSourceStatus } from '@/lib/price-monitor/shared'
+import type {
+  Availability,
+  PriceSourceStatus,
+} from '@/lib/price-monitor/shared'
 
 /** Money in minor units, or an em dash when unknown. */
 export function money(minor: number | null, currency: string | null): string {
@@ -157,4 +160,10 @@ export const STATUS_TONE: Record<PriceSourceStatus, StatusTone> = {
   failed: 'bad',
   blocked: 'bad',
   needs_review: 'warn',
+}
+
+/** Availability worth a tag next to a price; in and out of stock have none. */
+export const AVAILABILITY_LABEL: Partial<Record<Availability, string>> = {
+  limited: 'Low stock',
+  preorder: 'Preorder',
 }

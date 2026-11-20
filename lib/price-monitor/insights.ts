@@ -981,7 +981,50 @@ export type SourceHistory = {
   url: string
   /** Removed sources keep their history and are labelled in the chart. */
   removed: boolean
+  /** Readings the line is drawn from: AI-unconfirmed ones are left out. */
   points: HistoryPoint[]
+  /**
+   * Readings AI could not confirm (`ai_review = 'unconfirmed'`) in the
+   * range. They never became the source's price, so they are marked apart.
+   */
+  unconfirmed: HistoryPoint[]
+}
+
+/** The lowest or highest price ever seen in one currency, in stock. */
+export type PriceExtreme = {
+  priceMinor: number
+  /** When the store first showed it. */
+  at: string
+  /** The last time it was still seen. */
+  until: string
+  sourceId: number
+  storeName: string
+}
+
+/**
+ * Figures over the knife's whole history, whatever the chart range: the
+ * stats row, the all-time low marker and the best current offer.
+ */
+export type KnifeHistoryStats = {
+  /** Currency of the figures: the one most current offers use. */
+  currency: string | null
+  lowest: PriceExtreme | null
+  highest: PriceExtreme | null
+  /** First recorded reading of any source, removed ones included. */
+  trackingSince: string | null
+  /** Lowest current in-stock price among active sources. */
+  bestNow: {
+    priceMinor: number
+    sourceId: number
+    storeName: string
+    url: string
+    availability: Availability | null
+  } | null
+  /** Purchase price in `currency`, when comparable. */
+  paidMinor: number | null
+  /** Best price now minus the purchase price, and that as a percentage. */
+  gapMinor: number | null
+  gapPct: number | null
 }
 
 export type KnifeHistory = {
@@ -989,8 +1032,134 @@ export type KnifeHistory = {
   paid: { amount: number; currency: string } | null
   range: HistoryRange
   rangeStart: string | null
+  /**
+   * Where the chart's time axis starts: the range start, or the first
+   * reading when the range reaches back before tracking began.
+   */
+  chartStart: string | null
   sources: SourceHistory[]
   events: ChangeEvent[]
+  stats: KnifeHistoryStats
+}
+
+const TRUSTED_SNAPSHOT = "(ai_review IS NULL OR ai_review <> 'unconfirmed')"
+
+type SnapshotPointRow = {
+  observed_at: string
+  last_seen_at: string
+  price_minor: number | null
+  currency: string | null
+  availability: Availability
+}
+
+function readExtreme(
+  database: Database.Database,
+  knifeId: string,
+  currency: string,
+  order: 'ASC' | 'DESC',
+): PriceExtreme | null {
+  const row = database
+    .prepare(
+      `SELECT s.price_minor, s.observed_at, s.last_seen_at, s.source_id,
+              p.store_name
+       FROM price_snapshots s JOIN price_sources p ON p.id = s.source_id
+       WHERE s.knife_id = ? AND s.currency = ? AND s.price_minor IS NOT NULL
+         AND s.availability <> 'out_of_stock'
+         AND (s.ai_review IS NULL OR s.ai_review <> 'unconfirmed')
+       ORDER BY s.price_minor ${order}, s.id DESC LIMIT 1`,
+    )
+    .get(knifeId, currency) as
+    | {
+        price_minor: number
+        observed_at: string
+        last_seen_at: string
+        source_id: number
+        store_name: string
+      }
+    | undefined
+  return row
+    ? {
+        priceMinor: row.price_minor,
+        at: row.observed_at,
+        until: row.last_seen_at,
+        sourceId: row.source_id,
+        storeName: row.store_name,
+      }
+    : null
+}
+
+function buildHistoryStats(
+  database: Database.Database,
+  knife: KnifeRow,
+): KnifeHistoryStats {
+  const current = database
+    .prepare(
+      `SELECT id, store_name, url, last_price_minor, last_currency,
+              last_availability
+       FROM price_sources
+       WHERE knife_id = ? AND removed_at IS NULL
+         AND last_price_minor IS NOT NULL AND last_currency IS NOT NULL
+         AND (last_availability IS NULL OR last_availability <> 'out_of_stock')
+       ORDER BY last_price_minor, id`,
+    )
+    .all(knife.id) as Array<{
+    id: number
+    store_name: string
+    url: string
+    last_price_minor: number
+    last_currency: string
+    last_availability: Availability | null
+  }>
+  const currency =
+    mostCommon(current.map((source) => source.last_currency)) ??
+    mostCommon(
+      (
+        database
+          .prepare(
+            `SELECT currency FROM price_snapshots
+             WHERE knife_id = ? AND currency IS NOT NULL
+               AND price_minor IS NOT NULL AND ${TRUSTED_SNAPSHOT}`,
+          )
+          .all(knife.id) as Array<{ currency: string }>
+      ).map((row) => row.currency),
+    )
+  const best = current.find((source) => source.last_currency === currency)
+  const trackingSince =
+    (
+      database
+        .prepare(
+          'SELECT MIN(observed_at) AS since FROM price_snapshots WHERE knife_id = ?',
+        )
+        .get(knife.id) as { since: string | null }
+    ).since ?? null
+  const paidMinor = paidIn(knife, currency)
+  const gapMinor =
+    best && paidMinor !== null && paidMinor > 0
+      ? best.last_price_minor - paidMinor
+      : null
+  return {
+    currency,
+    lowest: currency ? readExtreme(database, knife.id, currency, 'ASC') : null,
+    highest: currency
+      ? readExtreme(database, knife.id, currency, 'DESC')
+      : null,
+    trackingSince,
+    bestNow: best
+      ? {
+          priceMinor: best.last_price_minor,
+          sourceId: best.id,
+          storeName: best.store_name,
+          url: best.url,
+          availability: best.last_availability,
+        }
+      : null,
+    paidMinor,
+    gapMinor,
+    gapPct:
+      gapMinor !== null && paidMinor
+        ? Math.round((gapMinor / paidMinor) * 1000) / 10
+        : null,
+  }
 }
 
 /**
@@ -1034,11 +1203,27 @@ export function buildKnifeHistory(
   const pointsFor = database.prepare(
     `SELECT observed_at, last_seen_at, price_minor, currency, availability
      FROM price_snapshots
-     WHERE source_id = ? AND (? IS NULL OR last_seen_at >= ? OR id = (
-       SELECT id FROM price_snapshots
-       WHERE source_id = ? AND observed_at < ? ORDER BY id DESC LIMIT 1))
+     WHERE source_id = ? AND ${TRUSTED_SNAPSHOT}
+       AND (? IS NULL OR last_seen_at >= ? OR id = (
+         SELECT id FROM price_snapshots
+         WHERE source_id = ? AND observed_at < ? AND ${TRUSTED_SNAPSHOT}
+         ORDER BY id DESC LIMIT 1))
      ORDER BY id`,
   )
+  const unconfirmedFor = database.prepare(
+    `SELECT observed_at, last_seen_at, price_minor, currency, availability
+     FROM price_snapshots
+     WHERE source_id = ? AND ai_review = 'unconfirmed'
+       AND (? IS NULL OR last_seen_at >= ?)
+     ORDER BY id`,
+  )
+  const toPoint = (row: SnapshotPointRow): HistoryPoint => ({
+    from: startIso && row.observed_at < startIso ? startIso : row.observed_at,
+    to: row.last_seen_at,
+    priceMinor: row.price_minor,
+    currency: row.currency,
+    availability: row.availability,
+  })
   const history: SourceHistory[] = sources
     .map((source) => ({
       sourceId: source.id,
@@ -1052,23 +1237,16 @@ export function buildKnifeHistory(
           startIso,
           source.id,
           startIso,
-        ) as Array<{
-          observed_at: string
-          last_seen_at: string
-          price_minor: number | null
-          currency: string | null
-          availability: Availability
-        }>
-      ).map((row) => ({
-        from:
-          startIso && row.observed_at < startIso ? startIso : row.observed_at,
-        to: row.last_seen_at,
-        priceMinor: row.price_minor,
-        currency: row.currency,
-        availability: row.availability,
-      })),
+        ) as SnapshotPointRow[]
+      ).map(toPoint),
+      unconfirmed: (
+        unconfirmedFor.all(source.id, startIso, startIso) as SnapshotPointRow[]
+      ).map(toPoint),
     }))
-    .filter((source) => source.points.length || !source.removed)
+    .filter(
+      (source) =>
+        source.points.length || source.unconfirmed.length || !source.removed,
+    )
 
   const events = (
     database
@@ -1080,13 +1258,219 @@ export function buildKnifeHistory(
       .all(knifeId, startIso, startIso) as EventRow[]
   ).map((row) => toEvent(row, knives))
 
+  const stats = buildHistoryStats(database, knife)
+  const since = stats.trackingSince
   const paid = parseStoredPrice(storedPrice(knife.specs))
   return {
     knife: knifeRef(knife, knife.id),
     paid: paid && paid.currency ? paid : null,
     range,
     rangeStart: startIso,
+    chartStart: since && (!startIso || since > startIso) ? since : startIso,
     sources: history,
     events,
+    stats,
+  }
+}
+
+export type CheckOutcome = 'ok' | 'no_price' | 'failed' | 'blocked'
+
+export type SourceCheckStep = { action: string; detail: string; result: string }
+
+/** One finished check of a source, as the check history shows it. */
+export type SourceCheck = {
+  id: number
+  startedAt: string
+  /** scheduled | manual | retry | probe */
+  trigger: string
+  outcome: CheckOutcome
+  /** http | browser | headed | ai | solver, or null when nothing loaded. */
+  method: string | null
+  attempt: number
+  httpStatus: number | null
+  errorCode: string | null
+  errorMessage: string | null
+  durationMs: number
+  /** What the AI problem solver did on the page. */
+  solverSteps: SourceCheckStep[]
+  /** The reading the check stored or confirmed, when it read one. */
+  reading: {
+    priceMinor: number | null
+    currency: string | null
+    availability: Availability
+    aiReview: 'confirmed' | 'unconfirmed' | null
+  } | null
+}
+
+export type SourceCheckHistory = {
+  source: {
+    id: number
+    knifeId: string
+    storeName: string
+    url: string
+    removed: boolean
+  }
+  checks: SourceCheck[]
+}
+
+const clip = (value: unknown, max: number): string =>
+  typeof value === 'string' ? value.slice(0, max) : ''
+
+function parseSolverSteps(value: string | null): SourceCheckStep[] {
+  if (!value) return []
+  try {
+    const list = JSON.parse(value) as unknown
+    if (!Array.isArray(list)) return []
+    return list
+      .filter(
+        (step): step is Record<string, unknown> =>
+          Boolean(step) && typeof step === 'object',
+      )
+      .slice(0, 12)
+      .map((step) => ({
+        action: clip(step.action, 40),
+        detail: clip(step.detail, 200),
+        result: clip(step.result, 200),
+      }))
+      .filter((step) => step.action)
+  } catch {
+    return []
+  }
+}
+
+type CheckRow = {
+  id: number
+  started_at: string
+  trigger: string
+  outcome: CheckOutcome
+  method: string | null
+  attempt: number
+  http_status: number | null
+  error_code: string | null
+  error_message: string | null
+  duration_ms: number
+  solver_steps: string | null
+}
+
+type ReadingRow = {
+  id: number
+  check_log_id: number | null
+  observed_at: string
+  last_seen_at: string
+  price_minor: number | null
+  currency: string | null
+  availability: Availability
+  ai_review: string | null
+}
+
+/**
+ * The latest checks of one source (newest first) with the reading each one
+ * stored or confirmed. A check that only confirmed the previous reading
+ * extended that snapshot instead of linking one, so it is matched by time;
+ * an `ai_unconfirmed` check prefers the unconfirmed reading it repeated.
+ * No page content or keys are stored in the log, so none can leave here.
+ */
+export function readSourceChecks(
+  database: Database.Database,
+  sourceId: number,
+  limit = 30,
+): SourceCheckHistory | null {
+  const source = database
+    .prepare(
+      'SELECT id, knife_id, store_name, url, removed_at FROM price_sources WHERE id = ?',
+    )
+    .get(sourceId) as
+    | {
+        id: number
+        knife_id: string
+        store_name: string
+        url: string
+        removed_at: string | null
+      }
+    | undefined
+  if (!source) return null
+  const rows = database
+    .prepare(
+      `SELECT id, started_at, trigger, outcome, method, attempt, http_status,
+              error_code, error_message, duration_ms, solver_steps
+       FROM price_check_log WHERE source_id = ?
+       ORDER BY started_at DESC, id DESC LIMIT ?`,
+    )
+    .all(sourceId, limit) as CheckRow[]
+  const oldest = rows.at(-1)?.started_at
+  const readings = oldest
+    ? (database
+        .prepare(
+          `SELECT id, check_log_id, observed_at, last_seen_at, price_minor,
+                  currency, availability, ai_review
+           FROM price_snapshots
+           WHERE source_id = ? AND last_seen_at >= ?
+           ORDER BY id DESC`,
+        )
+        .all(sourceId, oldest) as ReadingRow[])
+    : []
+  const linked = new Map(
+    readings
+      .filter((row) => row.check_log_id !== null)
+      .map((row) => [row.check_log_id!, row]),
+  )
+  const readingFor = (row: CheckRow): ReadingRow | null => {
+    const own = linked.get(row.id)
+    if (own) return own
+    if (row.outcome !== 'ok' && row.outcome !== 'no_price') return null
+    const end = new Date(
+      Date.parse(row.started_at) + row.duration_ms,
+    ).toISOString()
+    const candidates = readings.filter(
+      (reading) =>
+        reading.observed_at <= end && reading.last_seen_at >= row.started_at,
+    )
+    const wantUnconfirmed = row.error_code === 'ai_unconfirmed'
+    return (
+      candidates.find(
+        (reading) => (reading.ai_review === 'unconfirmed') === wantUnconfirmed,
+      ) ??
+      candidates[0] ??
+      null
+    )
+  }
+  return {
+    source: {
+      id: source.id,
+      knifeId: source.knife_id,
+      storeName: source.store_name,
+      url: source.url,
+      removed: source.removed_at !== null,
+    },
+    checks: rows.map((row) => {
+      const reading = readingFor(row)
+      return {
+        id: row.id,
+        startedAt: row.started_at,
+        trigger: row.trigger,
+        outcome: row.outcome,
+        method: row.method,
+        attempt: row.attempt,
+        httpStatus: row.http_status,
+        errorCode: row.error_code,
+        errorMessage: row.error_message
+          ? row.error_message.slice(0, 500)
+          : null,
+        durationMs: row.duration_ms,
+        solverSteps: parseSolverSteps(row.solver_steps),
+        reading: reading
+          ? {
+              priceMinor: reading.price_minor,
+              currency: reading.currency,
+              availability: reading.availability,
+              aiReview:
+                reading.ai_review === 'confirmed' ||
+                reading.ai_review === 'unconfirmed'
+                  ? reading.ai_review
+                  : null,
+            }
+          : null,
+      }
+    }),
   }
 }
