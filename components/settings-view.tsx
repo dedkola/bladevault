@@ -79,6 +79,8 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { KnifeCardDetails } from '@/components/knife-card-details'
 import { CareBadgePill } from '@/components/care-badge'
+import { MarketBadgePill } from '@/components/market-badge'
+import { hasServerRuntime } from '@/lib/runtime-capabilities'
 import { MaintenanceSettings } from '@/components/maintenance-settings'
 import { PriceMonitoringSettings as PriceMonitoringSettingsPanel } from '@/components/price-drops/price-monitoring-settings'
 import { formatDimension, formatWeight } from '@/lib/measurements'
@@ -432,7 +434,10 @@ function CardFieldsPreview({
 }) {
   const exampleValues = getCardFieldExampleValues(dimensionUnit)
   const previewFields = fields
-    .filter((field) => field !== 'specs.modelNumber' && field !== 'care')
+    .filter(
+      (field) =>
+        field !== 'specs.modelNumber' && field !== 'care' && field !== 'market',
+    )
     .map((field) => ({
       key: field,
       label: getCardFieldLabel(field, customFields),
@@ -465,6 +470,11 @@ function CardFieldsPreview({
           careBadge={
             fields.includes('care') ? (
               <CareBadgePill level="overdue" label="Sharpen overdue · 4d" />
+            ) : undefined
+          }
+          marketBadge={
+            fields.includes('market') && hasServerRuntime() ? (
+              <MarketBadgePill tone="dropped" label="$89.00 · ↓ 12%" />
             ) : undefined
           }
           footerAction={
@@ -2207,13 +2217,15 @@ export default function SettingsView() {
                         onToggle={(field, checked) =>
                           void handleCardFieldToggle(field, checked)
                         }
-                        excludeFields={
-                          normalizeMaintenanceReminders(
+                        excludeFields={[
+                          ...(normalizeMaintenanceReminders(
                             settings.maintenanceReminders,
                           ).enabled
                             ? []
-                            : ['care']
-                        }
+                            : (['care'] as const)),
+                          // Market prices need the server's price monitoring.
+                          ...(hasServerRuntime() ? [] : (['market'] as const)),
+                        ]}
                       />
                     </div>
                   </SettingsSection>
@@ -2238,7 +2250,7 @@ export default function SettingsView() {
                           void handlePinnedCardFieldToggle(field, checked)
                         }
                         ariaLabelSuffix="pinned items"
-                        excludeFields={['care']}
+                        excludeFields={['care', 'market']}
                       />
                     </div>
                   </SettingsSection>

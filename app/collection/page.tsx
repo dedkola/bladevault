@@ -58,6 +58,17 @@ import { SearchField } from '@/components/search-field'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useCare } from '@/components/providers/care-provider'
 import {
+  useMarket,
+  useMarketFilter,
+} from '@/components/providers/market-provider'
+import {
+  isMarketFilterValue,
+  MARKET_FILTER_LABELS,
+  MARKET_FILTER_VALUES,
+  MARKET_PARAM,
+  type MarketFilterValue,
+} from '@/lib/market-status'
+import {
   CARE_FILTER_VALUES,
   CARE_KIND_PARAM,
   CARE_STATUS_LABELS,
@@ -152,6 +163,8 @@ function CollectionContent() {
   } = useKnives()
   const { reminders: careReminders, statusById: careStatusById } = useCare()
   const careStatusFilter = careReminders.enabled ? careStatusById : undefined
+  const marketFilter = useMarketFilter()
+  const { isLoading: marketLoading } = useMarket()
   const isAlloy = themeStyle === 'alloy'
   // Modern and its variants replace the search field and filter grid with
   // one chip bar: free-text search plus field filters picked as you type.
@@ -353,8 +366,9 @@ function CollectionContent() {
         customFieldDefinitions,
         dimensionUnit,
         careStatusFilter,
+        marketFilter,
       ),
-    [customFieldDefinitions, dimensionUnit, careStatusFilter],
+    [customFieldDefinitions, dimensionUnit, careStatusFilter, marketFilter],
   )
   const visibleColumns = collectionDisplay.columns.flatMap((key) => {
     const column = collectionColumns.find((item) => item.key === key)
@@ -470,9 +484,16 @@ function CollectionContent() {
             knives,
             customFieldDefinitions,
             careStatusFilter,
+            marketFilter,
           )
         : [],
-    [usesChipFilter, knives, customFieldDefinitions, careStatusFilter],
+    [
+      usesChipFilter,
+      knives,
+      customFieldDefinitions,
+      careStatusFilter,
+      marketFilter,
+    ],
   )
 
   const filteredKnives = useMemo(() => {
@@ -481,7 +502,7 @@ function CollectionContent() {
     params.set('q', debouncedQuery)
     const matches = knives.filter(
       (knife) =>
-        matchesCollection(knife, params, careStatusFilter) &&
+        matchesCollection(knife, params, careStatusFilter, marketFilter) &&
         (!isPinnedView || knife.pinned),
     )
     if (columnSort) {
@@ -510,7 +531,11 @@ function CollectionContent() {
     columnSort,
     collectionColumns,
     careStatusFilter,
+    marketFilter,
   ])
+  const selectedMarketValues = marketFilter
+    ? searchParams.getAll(MARKET_PARAM).filter(isMarketFilterValue)
+    : []
   const selectedCareValues = careStatusFilter
     ? searchParams.getAll('care').filter(isCareStatusLevel)
     : []
@@ -640,6 +665,7 @@ function CollectionContent() {
       params.delete('knifeType')
       params.delete('care')
       params.delete(CARE_KIND_PARAM)
+      params.delete(MARKET_PARAM)
       rangeDefinitions.forEach((field) => {
         params.delete(`${field.key}Min`)
         params.delete(`${field.key}Max`)
@@ -710,6 +736,17 @@ function CollectionContent() {
         ]
       : []),
     ...(selectedCareKind ? [selectedCareKind] : []),
+    // The chip bar shows market conditions as a field chip, like care.
+    ...(!usesChipFilter && selectedMarketValues.length > 0
+      ? [
+          {
+            key: MARKET_PARAM,
+            label: `Market: ${selectedMarketValues
+              .map((value) => MARKET_FILTER_LABELS[value])
+              .join(', ')}`,
+          },
+        ]
+      : []),
   ]
   const updateExtraFilter = (key: string, value: string) => {
     replaceParams((params) => {
@@ -722,7 +759,15 @@ function CollectionContent() {
     activeFilters.length > 0 ||
     extraFilters.length > 0 ||
     selectedCareValues.length > 0 ||
+    selectedMarketValues.length > 0 ||
     query.trim().length > 0
+  const setMarketValues = (values: string[]) => {
+    replaceParams((params) => {
+      params.delete(MARKET_PARAM)
+      for (const value of values) params.append(MARKET_PARAM, value)
+    })
+    setVisibleCount(PAGE_SIZE)
+  }
   const setCareValues = (values: string[]) => {
     replaceParams((params) => {
       params.delete('care')
@@ -1396,6 +1441,27 @@ function CollectionContent() {
                   }
                 />
               )}
+              {marketFilter && (
+                <FilterMultiSelect
+                  label="Market"
+                  options={[...MARKET_FILTER_VALUES]}
+                  selectedValues={selectedMarketValues}
+                  onToggleValue={(value) =>
+                    setMarketValues(
+                      selectedMarketValues.includes(value as MarketFilterValue)
+                        ? selectedMarketValues.filter((item) => item !== value)
+                        : [...selectedMarketValues, value],
+                    )
+                  }
+                  onSelectAll={() => setMarketValues([...MARKET_FILTER_VALUES])}
+                  onClear={() => setMarketValues([])}
+                  getOptionLabel={(value) =>
+                    isMarketFilterValue(value)
+                      ? MARKET_FILTER_LABELS[value]
+                      : value
+                  }
+                />
+              )}
               <CollectionRanges
                 params={new URLSearchParams(searchParamsKey)}
                 update={updateExtraFilter}
@@ -1483,7 +1549,10 @@ function CollectionContent() {
         </div>
 
         {filteredKnives.length === 0 &&
-        isLoading ? null : filteredKnives.length === 0 ? (
+        (isLoading ||
+          (marketLoading &&
+            selectedMarketValues.length > 0)) ? null : filteredKnives.length ===
+          0 ? (
           <EmptyState
             title={
               hasActiveFilters

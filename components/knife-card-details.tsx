@@ -17,6 +17,7 @@ export function KnifeCardDetails({
   sold = false,
   footerAction,
   careBadge,
+  marketBadge,
 }: {
   brand: string
   name: string
@@ -30,6 +31,8 @@ export function KnifeCardDetails({
   footerAction?: ReactNode
   /** Derived care pill; rendered under the fields when provided. */
   careBadge?: ReactNode
+  /** Market price pill; rendered beside the care pill when provided. */
+  marketBadge?: ReactNode
 }) {
   const lengthInFields =
     !variantLabel &&
@@ -94,7 +97,12 @@ export function KnifeCardDetails({
             ))}
           </dl>
         ) : null}
-        {careBadge ? <div className="mt-2.5">{careBadge}</div> : null}
+        {careBadge || marketBadge ? (
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {marketBadge}
+            {careBadge}
+          </div>
+        ) : null}
       </CardContent>
       <div
         data-card-footer

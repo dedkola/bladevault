@@ -53,7 +53,7 @@ This removes the saved view and its sidebar entry. All knife records remain in t
 
 ## What a Smart Collection saves
 
-Smart Collections save model-name search, built-in and custom-field filters, measurement ranges, and **Any missing specification**. They do not save the current sort order, Gallery/Compact layout, All knives/Model families/Pinned tab, or a selection of records.
+Smart Collections save model-name search, built-in and custom-field filters, measurement ranges, **Any missing specification**, care status, and market conditions such as **Price dropped recently** or **Below what I paid**. Market conditions follow the latest price checks, so the knives in such a view change as prices do; see [Watch market prices with Price Drops](price-drops.md#see-market-prices-in-your-collection). They do not save the current sort order, Gallery/Compact layout, All knives/Model families/Pinned tab, or a selection of records.
 
 Choose valid ranges before saving: each value must be non-negative, and the lower bound must be below the upper bound. If you remove every search term and filter, you cannot save that empty view.
 

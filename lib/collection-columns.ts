@@ -18,6 +18,12 @@ import {
   type KnifeCareStatus,
 } from '@/lib/maintenance-due'
 
+import {
+  marketLabel,
+  marketSortValue,
+  type MarketSummaryMap,
+} from '@/lib/market-status'
+
 type SortValue = string | number | undefined
 
 export type CollectionColumnDefinition = {
@@ -121,11 +127,26 @@ function careColumn(
   }
 }
 
+function marketColumn(
+  marketById: MarketSummaryMap,
+): CollectionColumnDefinition {
+  return {
+    key: 'market',
+    label: 'Market',
+    width: '150px',
+    getValue: (knife) => marketLabel(marketById.get(knife.id)),
+    // Drops, restocks and below-paid first when ascending, then by price.
+    getSortValue: (knife) => marketSortValue(marketById.get(knife.id)),
+  }
+}
+
 export function getCollectionColumns(
   customFields: CustomField[],
   dimensionUnit: DimensionUnit = 'in',
   /** Derived care status; when given, a Care column is offered. */
   careStatusById?: ReadonlyMap<string, KnifeCareStatus>,
+  /** Market summaries; when given, a Market column is offered. */
+  marketById?: MarketSummaryMap,
 ): CollectionColumnDefinition[] {
   const columns: CollectionColumnDefinition[] = [
     ...defaultColumns,
@@ -195,6 +216,7 @@ export function getCollectionColumns(
       getSortValue: (knife) => getKnifeImageCount(knife),
     },
     ...(careStatusById ? [careColumn(careStatusById)] : []),
+    ...(marketById ? [marketColumn(marketById)] : []),
     ...customFields.map((field) => ({
       key: `custom:${field.id}` as CollectionColumn,
       label: field.name,

@@ -54,6 +54,18 @@ Open a knife and select the **Market** tab. It shows:
 
 Market prices are information only. They never change the purchase price stored in the knife's specifications.
 
+## See market prices in your collection
+
+Your collection can show each knife's best current price and what happened to it, without opening the Market tab:
+
+- **Card detail** — open **Settings → Appearance → Card fields** and select **Market price** under **Market**. Cards then show a small pill such as `$89.00 · ↓ 12%`, `$150.00 · Back in stock`, `Out of stock`, or `$99.00 · Below paid`.
+- **Table column** — in the collection's table or list view, open **Columns** and select **Market**. Sort by it to bring recent drops, restocks, and prices below what you paid to the top. In Ledger, the **Market price** card field is its list column.
+- **Filter** — choose **Market** under **Filters** (or type `Market` in the search bar on Modern, Ledger, and Shelf) and pick **Price dropped recently**, **Back in stock recently**, **Out of stock**, **Below what I paid**, **Monitored**, or **Not monitored**. Picking several shows knives that match any of them. [Smart Collections](smart-collections.md) save these conditions, so a "Below what I paid" view stays current as prices change.
+
+A drop counts as recent for 30 days while the price still sits there; a restock counts for 7 days. **Below what I paid** compares the lowest in-stock price with the purchase price when both are in the same currency. Paused store links are left out. The collection picks up new prices after checks finish and every few minutes while BladeVault is open.
+
+Market prices need the BladeVault server, so the static web demo does not show them.
+
 ## Get notified in the Inbox
 
 New changes appear in the **Inbox** under **Prices** and in the header bell. Each notification shows the knife, the store, the old and new price, and the change in money and percent. Use **Market** to open the knife's Market tab, **Store page** to open the product page, **Mark read**, or **Dismiss**.

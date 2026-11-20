@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { KnifeCardDetails } from '@/components/knife-card-details'
 import { KnifeCareBadge } from '@/components/care-badge'
+import { KnifeMarketBadge } from '@/components/market-badge'
 import { useKnives } from '@/components/providers/knives-provider'
 import {
   activeKnifeActionStyle,
@@ -210,6 +211,7 @@ export const KnifeCard = memo(function KnifeCard({
           variantLabel={variantLabel}
           sold={knife.sold}
           careBadge={<KnifeCareBadge knifeId={knife.id} />}
+          marketBadge={<KnifeMarketBadge knifeId={knife.id} />}
         />
       </Card>
 

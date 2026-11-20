@@ -11,6 +11,12 @@ import {
   NOT_SET_FILTER_VALUE,
 } from '@/lib/collection-filters'
 import {
+  isMarketFilterValue,
+  MARKET_PARAM,
+  matchesMarketFilter,
+  type MarketSummaryMap,
+} from '@/lib/market-status'
+import {
   parseLengthToMillimeters,
   parseWeightToOunces,
 } from '@/lib/collection-stats'
@@ -34,6 +40,7 @@ export function collectionQuery(params: URLSearchParams): string {
         key === 'knifeType' ||
         key === 'care' ||
         key === CARE_KIND_PARAM ||
+        key === MARKET_PARAM ||
         key.startsWith('custom:') ||
         builtInFilterDefinitions.some((field) => field.key === key) ||
         rangeDefinitions.some(
@@ -71,6 +78,11 @@ export function matchesCollection(
    * so callers that cannot know care status keep their current results.
    */
   careStatusById?: ReadonlyMap<string, KnifeCareStatus>,
+  /**
+   * Market summary per knife; without it the `market` filter is ignored, so
+   * targets without price monitoring (the static app) keep their results.
+   */
+  marketById?: MarketSummaryMap,
 ): boolean {
   if (rangeError(params) || !matchesKnifeSearch(knife, params.get('q') ?? ''))
     return false
@@ -81,6 +93,11 @@ export function matchesCollection(
       (careValues.length > 0 || careKind) &&
       !matchesCareFilter(careStatusById.get(knife.id), careValues, careKind)
     )
+      return false
+  }
+  if (marketById) {
+    const marketValues = params.getAll(MARKET_PARAM).filter(isMarketFilterValue)
+    if (!matchesMarketFilter(marketById.get(knife.id), marketValues))
       return false
   }
   const knifeType = params.get('knifeType')
