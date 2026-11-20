@@ -1,73 +1,66 @@
-/* Price Drops colors: drops read as good news, increases as a warning, and
-   stock changes in their own tone so they never look like a price change. */
-:root {
-  --price-drop: #4f5821;
-  --price-drop-bg: color-mix(in srgb, #79824a 20%, transparent);
-  --price-up: var(--destructive);
-  --price-up-bg: color-mix(in srgb, var(--destructive) 14%, transparent);
-  --price-stock: #8a5f0f;
-  --price-stock-bg: color-mix(in srgb, #c89c3d 20%, transparent);
-}
-
-.dark {
-  --price-drop: #b7bd86;
-  --price-drop-bg: color-mix(in srgb, #79824a 26%, transparent);
-  --price-stock: #dfc78f;
-  --price-stock-bg: color-mix(in srgb, #c89c3d 18%, transparent);
-}
-
+/* Price Drops colors come from the --price-* tokens in the theme files, so
+   pills, badges, dots and the timeline share one meaning per color. Any
+   element sets --pd-color; tints and text derive from it. */
 [data-price-pill='drop'],
-[data-price-pill='back'] {
-  background: var(--price-drop-bg);
-  color: var(--price-drop);
+[data-result='drop'],
+[data-price-dot='ok'],
+[data-price-chip='ok'] {
+  --pd-color: var(--price-drop);
+}
+[data-price-pill='back'],
+[data-result='restocked'] {
+  --pd-color: var(--price-restock);
+}
+[data-price-pill='increase'],
+[data-result='increase'] {
+  --pd-color: var(--price-rise);
+}
+[data-price-pill='oos'],
+[data-result='out_of_stock'],
+[data-price-dot='warn'],
+[data-price-chip='warn'] {
+  --pd-color: var(--price-stock);
+}
+[data-result='attention'],
+[data-result='pending'],
+[data-price-dot='bad'],
+[data-price-chip='bad'] {
+  --pd-color: var(--price-attention);
+}
+[data-result='same'],
+[data-price-dot='idle'],
+[data-price-chip='idle'] {
+  --pd-color: var(--price-neutral);
 }
 
-[data-price-pill='increase'] {
-  background: var(--price-up-bg);
-  color: var(--price-up);
+[data-price-pill] {
+  background: color-mix(in srgb, var(--pd-color) 14%, transparent);
+  color: color-mix(in srgb, var(--pd-color) 78%, var(--foreground));
 }
 
-[data-price-pill='oos'] {
-  background: var(--price-stock-bg);
-  color: var(--price-stock);
-}
-
-[data-price-dot='ok'] {
-  background: var(--price-drop);
-}
-[data-price-dot='warn'] {
-  background: var(--bladevault-gold, #c89c3d);
-}
-[data-price-dot='bad'] {
-  background: var(--price-up);
-}
-[data-price-dot='idle'] {
-  background: var(--muted-foreground);
+[data-price-dot] {
+  background: var(--pd-color);
 }
 [data-price-dot='run'] {
-  background: var(--bladevault-gold, #c89c3d);
+  background: var(--bladevault-gold);
   box-shadow: 0 0 0 3px var(--bv-chart-wash);
 }
 
-/* Monitoring status: lanes in the style of Maintenance > Coming up. Result
-   colors match the care timeline pins; "no change" stays neutral. */
-[data-price-status],
-[data-price-table],
-[data-agent-strip] {
-  --pd-drop: #15a36f;
-  --pd-increase: #e5383b;
-  --pd-oos: #e8960c;
-  --pd-restock: #2f7ed8;
-  --pd-same: #8a94a6;
-  --pd-attention: #52525b;
+/* A source's status in edit mode: outlined, in the same colors. */
+[data-price-chip] {
+  border-color: color-mix(in srgb, var(--pd-color) 45%, transparent);
+  color: color-mix(in srgb, var(--pd-color) 78%, var(--foreground));
 }
-.dark [data-price-status],
-.dark [data-price-table],
-.dark [data-agent-strip] {
-  --pd-restock: #5b9ee8;
-  --pd-same: #6b7280;
-  --pd-attention: #a1a1aa;
+[data-price-chip='idle'] {
+  border-color: var(--bladevault-line);
+  color: var(--muted-foreground);
 }
+[data-price-chip='run'] {
+  border-color: var(--bladevault-line);
+  color: var(--foreground);
+}
+
+/* Monitoring status: lanes in the style of Maintenance > Coming up. */
 .pd-status-head {
   display: flex;
   align-items: flex-start;
@@ -203,25 +196,6 @@
   background: var(--card);
   border: 1px solid var(--muted-foreground);
 }
-[data-result='drop'] {
-  --pd-color: var(--pd-drop);
-}
-[data-result='increase'] {
-  --pd-color: var(--pd-increase);
-}
-[data-result='restocked'] {
-  --pd-color: var(--pd-restock);
-}
-[data-result='out_of_stock'] {
-  --pd-color: var(--pd-oos);
-}
-[data-result='same'] {
-  --pd-color: var(--pd-same);
-}
-[data-result='attention'],
-[data-result='pending'] {
-  --pd-color: var(--pd-attention);
-}
 .pd-tl-axis,
 .pd-tl-lane {
   display: grid;
@@ -317,7 +291,7 @@
   border: 0;
   border-radius: 999px;
   background: var(--pd-color);
-  color: #fff;
+  color: var(--price-on-solid);
   font: inherit;
   font-size: 10.5px;
   font-weight: 600;
@@ -327,10 +301,6 @@
   text-overflow: ellipsis;
   cursor: pointer;
   z-index: 1;
-}
-.dark .pd-pin[data-result='attention'],
-.dark .pd-pin[data-result='pending'] {
-  color: #18181b;
 }
 .pd-pin[data-align='start'] {
   transform: none;
@@ -516,13 +486,14 @@
   height: 100%;
 }
 .pd-agent-attn {
+  border: 1px solid color-mix(in srgb, var(--price-attention) 30%, transparent);
   border-radius: 10px;
   padding: 8px 12px;
   font-size: 13px;
-  background: var(--price-stock-bg);
+  background: color-mix(in srgb, var(--price-attention) 9%, transparent);
 }
 .pd-agent-attn b {
-  color: var(--price-stock);
+  color: var(--foreground);
 }
 
 /* Price table: the selected knife is marked by more than its background,

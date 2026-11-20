@@ -15,6 +15,7 @@ import type {
 import { cn } from '@/lib/utils'
 import {
   money,
+  moneyMajor,
   relativeTime,
   STATUS_LABEL,
   STATUS_TONE,
@@ -395,10 +396,7 @@ export function KnifePricePanel({
               {watch?.sources.length ?? 0}{' '}
               {watch?.sources.length === 1 ? 'source' : 'sources'}
               {history.paid
-                ? ` · You paid ${new Intl.NumberFormat(undefined, {
-                    style: 'currency',
-                    currency: history.paid.currency,
-                  }).format(history.paid.amount)}`
+                ? ` · You paid ${moneyMajor(history.paid.amount, history.paid.currency)}`
                 : ''}
             </div>
           </div>
@@ -440,12 +438,7 @@ export function KnifePricePanel({
                   You paid
                 </div>
                 <div className="text-base font-semibold tabular-nums">
-                  {paid
-                    ? new Intl.NumberFormat(undefined, {
-                        style: 'currency',
-                        currency: paid.currency,
-                      }).format(paid.amount)
-                    : '—'}
+                  {moneyMajor(paid?.amount ?? null, paid?.currency ?? null)}
                 </div>
               </div>
               {watch ? (
