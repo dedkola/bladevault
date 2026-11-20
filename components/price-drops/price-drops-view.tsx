@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { AgentFeed, AgentStrip, useAgentState } from './agent-panel'
 import { KnifePricePanel } from './knife-price-panel'
 import { MonitoringStatus, ResultBadge } from './monitoring-status'
+import { PriceExportButton } from './price-export-button'
 import { money, relativeTime, storeLabel } from './price-format'
 import { KnifeThumb, StatusDot, useMinuteClock } from './price-ui'
 import { SolveInBrowserDialog, type SolveTarget } from './solve-in-browser'
@@ -380,6 +381,7 @@ export function PriceDropsView({
             )}
             Check all now
           </Button>
+          <PriceExportButton label="Export all" />
         </div>
       }
     />
