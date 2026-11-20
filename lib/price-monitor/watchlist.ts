@@ -46,7 +46,7 @@ type WantedRow = {
   source_url: string
   added_at: string
   mode: PriceWatchMode
-  target_minor: number | null
+  target_price_minor: number | null
   target_currency: string | null
 }
 
@@ -72,11 +72,11 @@ function firstImage(images: string): string | null {
 }
 
 function toTarget(row: {
-  target_minor: number | null
+  target_price_minor: number | null
   target_currency: string | null
 }): TargetPrice | null {
-  return row.target_minor !== null && row.target_currency
-    ? { minor: row.target_minor, currency: row.target_currency }
+  return row.target_price_minor !== null && row.target_currency
+    ? { minor: row.target_price_minor, currency: row.target_currency }
     : null
 }
 
@@ -115,7 +115,7 @@ export function buildWatchlist(database: Database.Database): Watchlist {
   const knives = database
     .prepare(
       `SELECT k.id, k.name, k.brand, k.images, k.source_url, k.added_at,
-              COALESCE(w.mode, 'auto') AS mode, w.target_minor,
+              COALESCE(w.mode, 'auto') AS mode, w.target_price_minor,
               w.target_currency
        FROM knives k LEFT JOIN price_watch w ON w.knife_id = k.id
        WHERE k.wanted = 1
@@ -325,10 +325,10 @@ export async function setWatchTarget(
       database
         .prepare(
           `INSERT INTO price_watch
-             (knife_id, mode, updated_at, target_minor, target_currency)
+             (knife_id, mode, updated_at, target_price_minor, target_currency)
            VALUES (?, 'auto', ?, ?, ?)
            ON CONFLICT(knife_id) DO UPDATE SET
-             target_minor = excluded.target_minor,
+             target_price_minor = excluded.target_price_minor,
              target_currency = excluded.target_currency,
              updated_at = excluded.updated_at`,
         )

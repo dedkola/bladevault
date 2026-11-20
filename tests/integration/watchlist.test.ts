@@ -244,24 +244,21 @@ describe('watchlist', () => {
     await check(sourceId, WANTED_URL, offer(100))
     expect(notificationRows()).toEqual([])
 
-    // 100 → 85 meets the target (and is a drop over the 5% threshold).
+    // 100 → 85 meets the target; the target alert stands in for the drop.
     await check(sourceId, WANTED_URL, offer(85))
     expect(notificationRows()).toEqual([
-      { kind: 'drop', occurrences: 1, resolved: 0 },
       { kind: 'target_reached', occurrences: 1, resolved: 0 },
     ])
 
     // Staying at target does not notify again.
     await check(sourceId, WANTED_URL, offer(85), offer(84.5))
     expect(notificationRows()).toEqual([
-      { kind: 'drop', occurrences: 1, resolved: 0 },
       { kind: 'target_reached', occurrences: 1, resolved: 0 },
     ])
 
     // Selling out closes the target; coming back at target notifies both.
     await check(sourceId, WANTED_URL, offer(null, 'out_of_stock'), offer(84.5))
     expect(notificationRows()).toEqual([
-      { kind: 'drop', occurrences: 1, resolved: 0 },
       { kind: 'target_reached', occurrences: 1, resolved: 1 },
       { kind: 'back_in_stock', occurrences: 1, resolved: 0 },
       { kind: 'target_reached', occurrences: 1, resolved: 0 },
@@ -356,9 +353,8 @@ describe('watchlist', () => {
     expect((await watchFor(knifeId)).sources.map((s) => s.id)).toEqual([
       sourceId,
     ])
-    // The target alert is closed; the drop stays.
+    // The target alert is closed.
     expect(notificationRows()).toEqual([
-      { kind: 'drop', occurrences: 1, resolved: 0 },
       { kind: 'target_reached', occurrences: 1, resolved: 1 },
     ])
     expect(

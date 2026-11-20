@@ -33,15 +33,20 @@ import {
 import type { LaneState } from '@/lib/price-monitor/lanes'
 import {
   planPriceNotifications,
+  isPriceAlertMuted,
   planTargetNotification,
   type PriceNotificationEvent,
   type PriceNotificationSettings,
   type TargetPrice,
 } from '@/lib/price-monitor/notifications'
 import {
+  readKnifePaid,
+  readPriceAlertContext,
+  readPriceAlertRules,
   readPriceNotifications,
   writePriceNotificationChanges,
 } from '@/lib/price-monitor/notification-store'
+import { toMinorUnits } from '@/lib/price-monitor/money'
 import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
 import { assertVaultGeneration, withVaultWrite } from '@/lib/vault-access'
 
@@ -71,6 +76,7 @@ export type SourceRow = {
   created_at: string
   updated_at: string
   removed_at: string | null
+  notify_muted_until: string | null
 }
 
 type SnapshotRow = {
@@ -125,24 +131,24 @@ export function readWatchTarget(
 ): { wanted: boolean; target: TargetPrice | null } {
   const row = database
     .prepare(
-      `SELECT k.wanted, w.target_minor, w.target_currency
+      `SELECT k.wanted, w.target_price_minor, w.target_currency
        FROM knives k LEFT JOIN price_watch w ON w.knife_id = k.id
        WHERE k.id = ?`,
     )
     .get(knifeId) as
     | {
         wanted: number
-        target_minor: number | null
+        target_price_minor: number | null
         target_currency: string | null
       }
     | undefined
   return {
     wanted: row?.wanted === 1,
     target:
-      row?.target_minor !== null &&
-      row?.target_minor !== undefined &&
+      row?.target_price_minor !== null &&
+      row?.target_price_minor !== undefined &&
       row.target_currency
-        ? { minor: row.target_minor, currency: row.target_currency }
+        ? { minor: row.target_price_minor, currency: row.target_currency }
         : null,
   }
 }
@@ -289,6 +295,10 @@ export function toSourceView(row: SourceRow): PriceSourceView {
     lastError: row.last_error,
     consecutiveFailures: row.consecutive_failures,
     createdAt: row.created_at,
+    notifyMutedUntil:
+      row.notify_muted_until && Date.parse(row.notify_muted_until) > Date.now()
+        ? row.notify_muted_until
+        : null,
   }
 }
 
@@ -319,6 +329,8 @@ export function buildPriceWatchView(
     queuedSourceIds: sources
       .filter((source) => source.priority >= 2 || source.status === 'checking')
       .map((source) => source.id),
+    alerts: readPriceAlertRules(database, knife.id),
+    paid: readKnifePaid(database, knife.id),
   }
 }
 
@@ -446,6 +458,45 @@ export async function applyPriceWatchUpdate(
           .run(knife.id, update.mode, now)
       }
 
+      if (update.alerts) {
+        const current = readPriceAlertRules(database, knife.id)
+        const { alerts } = update
+        const target =
+          alerts.targetPrice === undefined
+            ? current.targetPrice
+            : alerts.targetPrice === null
+              ? null
+              : {
+                  minor: toMinorUnits(
+                    alerts.targetPrice.amount,
+                    alerts.targetPrice.currency,
+                  ),
+                  currency: alerts.targetPrice.currency,
+                }
+        // A row made only for alert rules keeps the default Auto mode.
+        database
+          .prepare(
+            `INSERT INTO price_watch
+               (knife_id, mode, updated_at, target_price_minor,
+                target_currency, notify_below_paid, notify_muted)
+             VALUES (?, 'auto', ?, ?, ?, ?, ?)
+             ON CONFLICT(knife_id) DO UPDATE SET
+               updated_at = excluded.updated_at,
+               target_price_minor = excluded.target_price_minor,
+               target_currency = excluded.target_currency,
+               notify_below_paid = excluded.notify_below_paid,
+               notify_muted = excluded.notify_muted`,
+          )
+          .run(
+            knife.id,
+            now,
+            target?.minor ?? null,
+            target?.currency ?? null,
+            (alerts.belowPaid ?? current.belowPaid) ? 1 : 0,
+            (alerts.muted ?? current.muted) ? 1 : 0,
+          )
+      }
+
       const byId = new Map(
         readActiveSources(database, knife.id).map((row) => [row.id, row]),
       )
@@ -470,7 +521,8 @@ export async function applyPriceWatchUpdate(
         database
           .prepare(
             `UPDATE price_sources
-             SET store_name = ?, enabled = ?, fetch_override = ?, updated_at = ?
+             SET store_name = ?, enabled = ?, fetch_override = ?,
+                 notify_muted_until = ?, updated_at = ?
              WHERE id = ?`,
           )
           .run(
@@ -481,6 +533,13 @@ export async function applyPriceWatchUpdate(
                 ? 1
                 : 0,
             change.fetchOverride ?? source.fetch_override,
+            change.muteDays === undefined
+              ? source.notify_muted_until
+              : change.muteDays === 0
+                ? null
+                : new Date(
+                    Date.parse(now) + change.muteDays * 86_400_000,
+                  ).toISOString(),
             now,
             change.id,
           )
@@ -827,6 +886,7 @@ export async function recordCheck(
             currency: price.currency,
             deltaMinor: price.deltaMinor,
             deltaPct: price.deltaPct,
+            priceMinor: price.priceMinor,
             wanted: watch.wanted,
           })
         }
@@ -865,6 +925,12 @@ export async function recordCheck(
           })
         }
         if (events.length) {
+          const alertContext = readPriceAlertContext(database, {
+            knifeId: source.knife_id,
+            sourceId: source.id,
+            currency: observation.currency,
+            excludeSnapshotId: snapshotId,
+          })
           writePriceNotificationChanges(
             database,
             planPriceNotifications(
@@ -872,6 +938,7 @@ export async function recordCheck(
               readPriceNotifications(database, { sourceId: source.id }),
               record.notifications ?? DEFAULT_PRICE_MONITORING,
               new Date(now),
+              () => alertContext,
             ),
           )
         }
@@ -886,6 +953,15 @@ export async function recordCheck(
                 snapshotId,
                 reading: observation,
                 target: watch.target,
+                muted: isPriceAlertMuted(
+                  readPriceAlertContext(database, {
+                    knifeId: source.knife_id,
+                    sourceId: source.id,
+                    currency: observation.currency,
+                    excludeSnapshotId: snapshotId,
+                  }),
+                  new Date(now),
+                ),
               },
               readPriceNotifications(database, { sourceId: source.id }),
               new Date(now),

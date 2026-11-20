@@ -1026,9 +1026,14 @@ function migratePriceMonitoringSchema(
   // Schema 12: AI quality control. 'confirmed' or 'unconfirmed' when AI
   // checked a reading against its page (price-monitor/verify).
   addColumn('price_snapshots', 'ai_review', 'TEXT')
-  // Watchlist: a wanted knife’s target price, in minor units of its currency.
-  addColumn('price_watch', 'target_minor', 'INTEGER')
+  // Schema 13: alert rules. Per knife: a target price (also a wanted
+  // knife's watchlist target), only below what was paid, mute; per source: muted for some days; per message: snoozed.
+  addColumn('price_watch', 'target_price_minor', 'INTEGER')
   addColumn('price_watch', 'target_currency', 'TEXT')
+  addColumn('price_watch', 'notify_below_paid', 'INTEGER NOT NULL DEFAULT 0')
+  addColumn('price_watch', 'notify_muted', 'INTEGER NOT NULL DEFAULT 0')
+  addColumn('price_sources', 'notify_muted_until', 'TEXT')
+  addColumn('price_notifications', 'snoozed_until', 'TEXT')
 }
 
 function normalizeKnifeRows(database: Database.Database) {

@@ -437,6 +437,10 @@
   color: var(--muted-foreground);
   font-weight: 500;
 }
+.pd-drift {
+  font-weight: 400;
+  opacity: 0.85;
+}
 @media (max-width: 760px) {
   .pd-status-foot {
     grid-template-columns: 1fr;

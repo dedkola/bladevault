@@ -36,20 +36,38 @@ Each source also offers **How to load this page**. **Auto (learned per store)** 
 
 ## Read the Price Drops page
 
-The page starts with counts of monitored knives, recent price drops and increases, sources that are out of stock, and the last successful check. Below them, switch between:
+Open **Price Drops** in the sidebar. From top to bottom the page shows:
 
-- **Recent changes** — every price and stock change, newest first.
-- **Price drops** and **Increases** — price changes in the last 30 days.
-- **Out of stock** — sources that currently show the knife as unavailable.
-- **Recently monitored** — the latest checks, including failures and blocked stores.
+- **Header** — whether automatic checks are running, waiting for the next check, or outside checking hours, with the time of the last successful check. **Check all now** queues every monitored source. It is unavailable while **Check prices automatically** is off; **Check now** on a knife or store still works then.
+- **AI supervisor** — appears when AI is connected (see [Let AI supervise monitoring](#let-ai-supervise-monitoring)): its mode, latest summary, coverage of monitored sources, what it did in its last run, and stores that need you to solve a bot check.
+- **Monitoring status** — counts of sources checked in the last 24 hours, drops, rises, out of stock, sources that need attention, and sources still waiting for their first check. Below the counts, a timeline pins each knife where it was last checked over the past 24 hours and again where its next check is due. Group the lanes **By result** or **By store**. Knives already due wait at **Now** and are checked one at a time per store. Select a pin to open the knife; a pin for several knives lists them.
+- **Checks per hour** and **Round** — checks started in each of the last 24 hours, colored by what they found, next to the check interval, number of stores, paused stores, failed checks in 24 hours, and the oldest result.
+- **The table** — every monitored store listing, with the price now, the latest change in money and percent, and the difference from what you paid. Switch between tabs:
+  - **All** — every monitored source.
+  - **Changes** — drops, increases, and out-of-stock sources together.
+  - **Drops** and **Increases** — sources whose latest price change in the last 30 days is still the current price.
+  - **Out of stock** — sources that currently show the knife as unavailable.
+  - **Needs attention** — failed, blocked, unavailable, or doubtful readings, with when each will be checked next, such as **next in 3 hours**, **due now**, or **overdue 9 h**. Sources that have never been checked are not problems: they show as **Waiting** in **All** and in their own timeline lane until their first check.
+  - **Recently monitored** — the 30 latest checks.
+- **Side panel** — the selected knife's best current price, price chart, and sources, each with **Check now**. With AI connected, **Supervisor activity** below it lists every action, with the day for anything older than today.
 
-Select a knife to see its best current price, price chart, and sources in the side panel. **Check all now** queues every monitored source; **Check now** on a source or knife checks just that one.
+Percent changes keep one decimal below 10%, so a 0.3% move does not read as 0%. Times follow **Settings → Time format** (12-hour or 24-hour) and add the date when they are not today.
+
+### Small moves and fluctuating prices
+
+Price Drops counts a price change only when it reaches the **Minimum change** from [notifications](#get-notified-in-the-inbox) (5% by default), so stores that convert prices from another currency do not fill the page with tiny moves:
+
+- A smaller move shows as **No change** with a muted hint such as **−0.3%**. It does not appear under drops or increases, in their counts, or in the Dropped and Rose lanes of the status timeline.
+- Small moves add up. Once the price has drifted by the Minimum change from where it started in the last 30 days, or from its last counted change, it counts as a drop or an increase.
+- When the price comes back to about a price it had earlier in the last 30 days (for example, it rose in the morning and fell back in the afternoon), the moves cancel out and the listing shows **Fluctuating** instead of a fresh drop or rise.
+
+Every move is still recorded: the chart, the Market tab's latest changes, and notifications are unaffected. Set the Minimum change to 0 to count every price change.
 
 ## Check one knife's market
 
 Open a knife and select the **Market** tab. It shows:
 
-- **Best price now** across its sources, next to **You paid** when a purchase price is stored.
+- **Best price now** across its sources, next to **You paid** when a purchase price is stored. When the stores show another currency than the purchase price, a note such as **UAH price** under the best price says they are not compared.
 - A price chart for 7 days up to all history, with each store as its own line and out-of-stock periods marked.
 - **Sources** with each store's status: **Checked**, **Price unavailable**, **Out of stock**, **Failed**, **Blocked**, or **Not checked yet**.
 - **Latest changes** for the knife.
@@ -58,10 +76,13 @@ Market prices are information only. They never change the purchase price stored 
 
 ## Get notified in the Inbox
 
-New changes appear in the **Inbox** under **Prices** and in the header bell. Each notification shows the knife, the store, the old and new price, and the change in money and percent. Use **Market** to open the knife's Market tab, **Store page** to open the product page, **Mark read**, or **Dismiss**.
+New changes appear in the **Inbox** under **Prices** and in the header bell. Each notification shows the knife, the store, the old and new price, and the change in money and percent. When they can be compared in the same currency, it also shows how the price stands against what you paid and the lowest price seen at that store. Use **Market** to open the knife's Market tab, **Store page** to open the product page, **Mark read**, **Snooze**, or **Dismiss**.
 
 - One store keeps one notification per kind. A further drop at the same store updates that notification and marks it unread again instead of adding another.
 - A change the other way closes the notification on its own: a price increase closes an open drop, and a restock closes an open out-of-stock notice.
+- **Snooze** hides a notification until tomorrow, in 3 days, a week, or a month; it then comes back unread under **Open**, with the latest change if the store changed again meanwhile. **Show now** brings it back early from **Snoozed**.
+- The same menu can **mute this store** for the knife for a week, a month, or 3 months: checks continue, but that store sends no new notifications until then. A muted store shows in the knife's price monitoring editor and Market tab, where **Unmute** ends it early.
+- Under **Prices**, **Mark all read** and **Dismiss all** act on every open price notification at once. Dismissed notifications can be moved back to the inbox one by one from **Done**.
 - Dismissed and closed notifications stay under **Done** for 90 days.
 
 Choose which changes notify you in **Settings → Price monitoring → Notifications**:
@@ -73,7 +94,21 @@ Choose which changes notify you in **Settings → Price monitoring → Notificat
 | **Out of stock**    | Off     |
 | **Back in stock**   | On      |
 
-**Minimum change** filters small price moves: a price change notifies only when it moves by at least this percentage of the previous price. The default is 5%. Set it to 0 to be notified about every price change. Stock changes always notify when their switch is on.
+**Minimum change** filters small price moves: a price change notifies only when it moves by at least this percentage of the previous price. The default is 5%. The same threshold decides which moves count as a change on the Price Drops page (see [Small moves and fluctuating prices](#small-moves-and-fluctuating-prices)). Set it to 0 to be notified about every price change. Stock changes always notify when their switch is on.
+
+**Minimum amount** also ignores price changes smaller than this many units of the price's own currency, for example 3 to skip moves under $3, €3, or ₴3. A change must pass both the percentage and the amount. The default is 0 (off).
+
+**Always notify about a new lowest price** (off by default) lets a drop to the lowest price a store has shown for the knife notify even when it is below the minimum percentage. It still needs **Price drops** on, and the minimum amount still applies.
+
+### Alerts for one knife
+
+A knife's price monitoring editor (edit mode) and its **Market** tab have **Alerts for this knife**:
+
+- **Mute this knife** stops new notifications for it. Checks, history, and the Price Drops page carry on, and a later change the other way still closes an open notification.
+- **Target price** makes drops notify only at or below that price. A drop that reaches the target notifies even when it is smaller than the minimum change; later drops below the target follow the usual minimums. Stores that sell in another currency are not compared with the target.
+- **Only below what I paid** makes drops notify only when the new price is under the knife's purchase price. Without a purchase price in the same currency, drops notify as usual.
+
+These rules apply to price drops; stock and increase notifications follow the settings above. They are stored in the vault, so backups and restores keep them.
 
 Every price and stock change is still recorded and shown on the Price Drops page and Market tab, whatever the notification settings are.
 
@@ -83,7 +118,7 @@ With AI connected, **Confirm price changes** (see [Optional AI assistance](#opti
 
 Checks that fail, are blocked by a bot check (CAPTCHA), or find no price, and store pages where AI doubts the price the page parser read (**Spot-check page readings**), show as **Needs attention** on **Price Drops**, and the Inbox gets one message that lists them when a product newly runs into a problem. The message closes on its own once every store page reads fine again.
 
-Select the **Blocked**, **Failed**, or **Unavailable** mark in the table (or the window button next to a store in the knife's sources) to open the store page in a visible browser window. Pass the bot check, or settle a cookie banner, age prompt, or region choice yourself, then select **Done**. BladeVault keeps that window's cookies for the store, so later checks get through, and checks the price again right away. The window opens on the computer that runs BladeVault, so this works with the desktop app or a local server, not with a server in Docker.
+Select the **Blocked**, **Failed**, or **Unavailable** mark in the table (or the window button next to a store in the knife's sources) to open the store page in a visible browser window. Pass the bot check, or settle a cookie banner, age prompt, or region choice yourself, then select **Done**. BladeVault keeps that window's cookies for the store, so later checks get through, and checks the price again right away. The window opens on the computer that runs BladeVault, so this works with the desktop app or BladeVault running on your computer. On a Docker or Helm server, the marks and window buttons say so instead of opening a window you cannot see.
 
 ## How checks are scheduled
 
@@ -176,6 +211,8 @@ The section lists recent results. A knife that is not found is searched again af
 In the desktop app, **Settings → Price monitoring → Desktop app → Keep running in the background** keeps BladeVault in the menu bar or system tray when you close its window, so scheduled checks continue. The tray menu offers **Open BladeVault**, **Check prices now**, and **Quit**. Use **Quit** to stop BladeVault completely.
 
 When BladeVault starts again after being closed, overdue products are checked at the normal pace, not all at once.
+
+**Desktop notifications for price drops** (off by default, in the same section) also shows price drops and restocks as system notifications while the BladeVault window is hidden, minimized, or closed to the tray. Only changes that reach the Inbox notify, after the window went away; several at once arrive as one summary. Clicking a notification opens the knife's Market tab, or the Inbox for a summary. Nothing is shown while App Lock is locked.
 
 ## Use price data from an AI client
 
