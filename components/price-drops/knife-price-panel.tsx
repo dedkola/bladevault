@@ -27,6 +27,7 @@ import {
   RangeButtons,
   usePriceHistory,
 } from './price-history-chart'
+import { PriceExportButton } from './price-export-button'
 import {
   ChangePill,
   CurrencyMismatch,
@@ -561,12 +562,15 @@ export function KnifePricePanel({
         ) : (
           <span />
         )}
-        <Link
-          href={`/collection/${encodeURIComponent(knifeId)}?edit=1`}
-          className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-        >
-          Edit monitoring
-        </Link>
+        <div className="flex flex-wrap items-center gap-1">
+          <PriceExportButton knifeId={knifeId} />
+          <Link
+            href={`/collection/${encodeURIComponent(knifeId)}?edit=1`}
+            className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+          >
+            Edit monitoring
+          </Link>
+        </div>
       </div>
       <SolveInBrowserDialog
         target={solveTarget}
