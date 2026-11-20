@@ -9,6 +9,7 @@ import type { HistoryRange } from '@/lib/price-monitor/insights'
 import type {
   EligibilityReason,
   PriceSourceView,
+  PriceWatchUpdate,
   PriceWatchView,
 } from '@/lib/price-monitor/shared'
 import { cn } from '@/lib/utils'
@@ -39,6 +40,7 @@ import {
   useSolveInBrowserAvailable,
   type SolveTarget,
 } from './solve-in-browser'
+import { PriceAlertRules } from './price-alert-rules'
 
 const MODE_LABEL = { auto: 'Auto', on: 'Always monitor', off: 'Never monitor' }
 
@@ -292,6 +294,35 @@ export function KnifePricePanel({
     }
   }
 
+  const [saving, setSaving] = useState(false)
+  const saveWatch = async (body: PriceWatchUpdate) => {
+    setError(null)
+    setSaving(true)
+    try {
+      const response = await fetch(
+        `/api/knives/${encodeURIComponent(knifeId)}/price-watch`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      )
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as {
+          error?: string
+        }
+        throw new Error(data.error ?? 'Could not save the alert rules.')
+      }
+      setVersion((value) => value + 1)
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Could not save the alert rules.',
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const currency =
     (history && chartCurrency(history)) ??
     watch?.sources.find((source) => source.lastCurrency)?.lastCurrency ??
@@ -483,6 +514,18 @@ export function KnifePricePanel({
             ))}
           </ul>
         </div>
+      ) : null}
+
+      {variant === 'tab' && watch ? (
+        <PriceAlertRules
+          watch={watch}
+          busy={saving}
+          onChange={(alerts) => void saveWatch({ alerts })}
+          onUnmuteSource={(id) =>
+            void saveWatch({ update: [{ id, muteDays: 0 }] })
+          }
+          className="border-t border-[var(--bladevault-line)]/60 pt-3"
+        />
       ) : null}
 
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
