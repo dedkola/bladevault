@@ -53,6 +53,8 @@ export type PriceSourceView = {
   createdAt: string
   /** Added by Other stores: AI found and confirmed this product. */
   foundByAi?: boolean
+  /** Out of stock on the knife's own link, ignored by the setting. */
+  stockIgnored?: boolean
 }
 
 export type EligibilityReason =

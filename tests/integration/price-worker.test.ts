@@ -428,7 +428,7 @@ describe('price monitor worker', () => {
         },
         otherStores: {
           enabled: true,
-          stores: { amazon: true },
+          stores: { amazon: true, bladehq: false, knifecenter: false },
           amazonMarketplace: 'amazon.com',
         },
       },
@@ -460,7 +460,7 @@ describe('price monitor worker', () => {
     expect(discover).toHaveBeenCalledTimes(1)
     expect(discover.mock.calls[0]).toEqual([
       lookFor,
-      { signal: expect.any(AbortSignal) },
+      { signal: expect.any(AbortSignal), store: 'amazon' },
     ])
     // The search holds the Amazon lane like a check would.
     expect(worker.discovering).not.toBeNull()

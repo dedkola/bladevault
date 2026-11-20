@@ -1,11 +1,13 @@
 import type Database from 'better-sqlite3'
 import {
   getEligibility,
+  isIgnoredOfficialOutOfStock,
   type EligibilitySettings,
 } from '@/lib/price-monitor/eligibility'
 import { parseStoredPrice, toMinorUnits } from '@/lib/price-monitor/money'
 import type {
   Availability,
+  PriceSourceOrigin,
   PriceSourceStatus,
   PriceWatchMode,
 } from '@/lib/price-monitor/shared'
@@ -77,6 +79,10 @@ export type SourceSummary = {
   lastError: string | null
   /** When it went out of stock (out-of-stock list only). */
   since: string | null
+  /** The knife's own product link (its official store). */
+  official: boolean
+  /** Out of stock on the official link, ignored by the setting. */
+  stockIgnored: boolean
 }
 
 /**
@@ -296,6 +302,7 @@ type SourceRow = {
   store_name: string
   lane_key: string
   url: string
+  origin: PriceSourceOrigin
   enabled: number
   status: PriceSourceStatus
   last_price_minor: number | null
@@ -311,6 +318,7 @@ function toSourceSummary(
   row: SourceRow,
   knives: Map<string, KnifeRow>,
   since: string | null = null,
+  ignored: (row: SourceRow) => boolean = () => false,
 ): SourceSummary {
   return {
     sourceId: row.id,
@@ -325,6 +333,8 @@ function toSourceSummary(
     lastCheckedAt: row.last_checked_at,
     lastError: row.last_error,
     since,
+    official: row.origin === 'auto',
+    stockIgnored: ignored(row),
   }
 }
 
@@ -356,12 +366,20 @@ export function buildPriceOverview(
 
   const sources = database
     .prepare(
-      `SELECT id, knife_id, store_name, lane_key, url, enabled, status,
+      `SELECT id, knife_id, store_name, lane_key, url, origin, enabled, status,
               last_price_minor, last_currency, last_availability,
               last_checked_at, last_success_at, last_error, next_check_at
        FROM price_sources WHERE removed_at IS NULL`,
     )
     .all() as SourceRow[]
+  const ignored = (source: SourceRow) =>
+    isIgnoredOfficialOutOfStock(
+      { origin: source.origin, availability: source.last_availability },
+      settings,
+    )
+  /** Out of stock that counts: ignored official links do not. */
+  const soldOut = (source: SourceRow) =>
+    source.last_availability === 'out_of_stock' && !ignored(source)
 
   const enabledByKnife = new Map<string, SourceRow[]>()
   for (const source of sources) {
@@ -408,15 +426,20 @@ export function buildPriceOverview(
     ).map((row) => [row.source_id, row.since]),
   )
   const outOfStock = sources
-    .filter((source) => source.last_availability === 'out_of_stock')
+    .filter(soldOut)
     .map((source) =>
-      toSourceSummary(source, knives, outOfStockSince.get(source.id) ?? null),
+      toSourceSummary(
+        source,
+        knives,
+        outOfStockSince.get(source.id) ?? null,
+        ignored,
+      ),
     )
   const recentlyMonitored = sources
     .filter((source) => source.last_checked_at)
     .sort((a, b) => b.last_checked_at!.localeCompare(a.last_checked_at!))
     .slice(0, 20)
-    .map((source) => toSourceSummary(source, knives))
+    .map((source) => toSourceSummary(source, knives, null, ignored))
 
   const lastChangeByKnife = new Map<string, ChangeEvent>()
   for (const row of database
@@ -459,9 +482,11 @@ export function buildPriceOverview(
           paid && currency && (paid.currency === currency || !paid.currency)
             ? toMinorUnits(paid.amount, currency)
             : null,
+        // Ignored official links neither count as out of stock nor as
+        // in stock: a knife sold out only there is not out of stock.
         outOfStock:
-          list.length > 0 &&
-          list.every((source) => source.last_availability === 'out_of_stock'),
+          list.some(soldOut) &&
+          list.every((source) => soldOut(source) || ignored(source)),
         lastChange: lastChangeByKnife.get(knifeId) ?? null,
         lastCheckedAt: checked.at(-1) ?? null,
       }
@@ -474,6 +499,7 @@ export function buildPriceOverview(
     ),
     knives,
     windowRows,
+    ignored,
   )
   const dayAgo = new Date(now - DAY_MS).toISOString()
   const checksByHour = readChecksByHour(database, now)
@@ -545,9 +571,12 @@ function paidIn(knife: KnifeRow | undefined, currency: string | null) {
 function sourceResult(
   source: SourceRow,
   change: EventRow | undefined,
+  ignored: boolean,
 ): SourceResult {
   if (!source.last_checked_at) return 'pending'
-  if (source.last_availability === 'out_of_stock') return 'out_of_stock'
+  // An ignored official link shows its last price without the stock alarm.
+  if (source.last_availability === 'out_of_stock' && !ignored)
+    return 'out_of_stock'
   if (
     source.status === 'failed' ||
     source.status === 'blocked' ||
@@ -569,6 +598,7 @@ function buildMonitoredSources(
   sources: SourceRow[],
   knives: Map<string, KnifeRow>,
   windowPriceEvents: EventRow[],
+  ignored: (row: SourceRow) => boolean,
 ): MonitoredSource[] {
   // windowPriceEvents is newest first, so the first per source wins.
   const latestChange = new Map<number, EventRow>()
@@ -576,10 +606,11 @@ function buildMonitoredSources(
     if (!latestChange.has(row.source_id)) latestChange.set(row.source_id, row)
   return sources.map((source) => {
     const change = latestChange.get(source.id)
-    const result = sourceResult(source, change)
+    const isIgnored = ignored(source)
+    const result = sourceResult(source, change, isIgnored)
     const changed = result === 'drop' || result === 'increase'
     return {
-      ...toSourceSummary(source, knives),
+      ...toSourceSummary(source, knives, null, ignored),
       result,
       previousPriceMinor: changed
         ? (change?.previous_price_minor ?? null)

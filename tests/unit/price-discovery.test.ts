@@ -132,7 +132,7 @@ describe('Other stores scheduling and settings', () => {
   it('is off by default and keeps only known marketplaces', () => {
     expect(DEFAULT_PRICE_MONITORING.otherStores).toEqual({
       enabled: false,
-      stores: { amazon: true },
+      stores: { amazon: true, bladehq: false, knifecenter: false },
       amazonMarketplace: 'amazon.com',
     })
     const next = normalizePriceMonitoring({
@@ -144,7 +144,7 @@ describe('Other stores scheduling and settings', () => {
     })
     expect(next.otherStores).toEqual({
       enabled: true,
-      stores: { amazon: false },
+      stores: { amazon: false, bladehq: false, knifecenter: false },
       amazonMarketplace: 'amazon.com',
     })
     expect(

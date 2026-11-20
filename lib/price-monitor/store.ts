@@ -11,6 +11,7 @@ import {
 import {
   DEFAULT_ELIGIBILITY_SETTINGS,
   getEligibility,
+  isIgnoredOfficialOutOfStock,
   planAutoSource,
   type EligibilitySettings,
 } from '@/lib/price-monitor/eligibility'
@@ -278,11 +279,18 @@ export function buildPriceWatchView(
       sources.filter((source) => source.enabled === 1).length,
       settings,
     ),
-    sources: sources.map((source) =>
-      found.has(source.id)
-        ? { ...toSourceView(source), foundByAi: true }
-        : toSourceView(source),
-    ),
+    sources: sources.map((source) => {
+      const view = toSourceView(source)
+      if (found.has(source.id)) view.foundByAi = true
+      if (
+        isIgnoredOfficialOutOfStock(
+          { origin: source.origin, availability: source.last_availability },
+          settings,
+        )
+      )
+        view.stockIgnored = true
+      return view
+    }),
     maxSources: MAX_PRICE_SOURCES_PER_KNIFE,
     // Check now waits as priority 2 until its store's next free slot.
     queuedSourceIds: sources
@@ -830,13 +838,23 @@ export async function recordCheck(
             sourceId: source.id,
           })
         }
-        if (events.length) {
+        const notifications = record.notifications ?? DEFAULT_PRICE_MONITORING
+        // Out of stock on an ignored official link stays in history only.
+        const notifiable = events.filter(
+          (event) =>
+            event.kind !== 'out_of_stock' ||
+            !isIgnoredOfficialOutOfStock(
+              { origin: source.origin, availability: 'out_of_stock' },
+              notifications,
+            ),
+        )
+        if (notifiable.length) {
           writePriceNotificationChanges(
             database,
             planPriceNotifications(
-              events,
+              notifiable,
               readPriceNotifications(database, { sourceId: source.id }),
-              record.notifications ?? DEFAULT_PRICE_MONITORING,
+              notifications,
               new Date(now),
             ),
           )
@@ -1045,7 +1063,8 @@ export function readQueueCandidates(
   const rows = database
     .prepare(
       `SELECT s.id, s.knife_id, s.lane_key, s.priority, s.next_check_at,
-              s.enabled, k.specs, k.sold, COALESCE(w.mode, 'auto') AS mode
+              s.enabled, s.origin, s.last_availability,
+              k.specs, k.sold, COALESCE(w.mode, 'auto') AS mode
        FROM price_sources s
        JOIN knives k ON k.id = s.knife_id
        LEFT JOIN price_watch w ON w.knife_id = s.knife_id
@@ -1058,6 +1077,8 @@ export function readQueueCandidates(
     priority: number
     next_check_at: string | null
     enabled: number
+    origin: PriceSourceOrigin
+    last_availability: Availability | null
     specs: string
     sold: number
     mode: PriceWatchMode
@@ -1086,7 +1107,13 @@ export function readQueueCandidates(
       laneKey: row.lane_key,
       priority: row.priority,
       nextCheckAt: parseTime(row.next_check_at),
-      scheduled: monitored && row.enabled === 1,
+      scheduled:
+        monitored &&
+        row.enabled === 1 &&
+        !isIgnoredOfficialOutOfStock(
+          { origin: row.origin, availability: row.last_availability },
+          settings,
+        ),
     }
   })
 }

@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { getLocalDb } from '@/lib/local-db'
-import { DISCOVERY_STORE, discoveryActive } from '@/lib/price-monitor/discovery'
+import { discoveryActive } from '@/lib/price-monitor/discovery'
 import {
   readDiscoveryOverview,
   retryDiscovery,
 } from '@/lib/price-monitor/discovery-store'
+import { DISCOVERY_STORES } from '@/lib/price-monitor/discovery-stores'
 import { getPriceMonitorWorker } from '@/lib/price-monitor/worker'
 import { reportServerError } from '@/lib/sentry/server'
 import { getSettings } from '@/lib/settings'
+import { OTHER_STORE_IDS } from '@/lib/settings-shared'
 import { vaultAccessErrorResponse } from '@/lib/vault-access'
 
 export const runtime = 'nodejs'
@@ -16,15 +18,28 @@ export const dynamic = 'force-dynamic'
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const
 
+/** Results per store; turned-off stores are listed too, without a search. */
 function overview() {
   const settings = getSettings().priceMonitoring
+  const worker = getPriceMonitorWorker()
+  const database = getLocalDb()
   return {
     active: discoveryActive(settings),
-    running: Boolean(getPriceMonitorWorker().discovering),
-    ...readDiscoveryOverview(getLocalDb(), {
-      settings,
-      store: DISCOVERY_STORE,
-      marketplace: settings.otherStores.amazonMarketplace,
+    running: Boolean(worker.discovering),
+    stores: OTHER_STORE_IDS.map((id) => {
+      const store = DISCOVERY_STORES[id]
+      return {
+        label: store.label,
+        active: discoveryActive(settings, id),
+        running:
+          Boolean(worker.discovering) && worker.discoveryLane === store.laneKey,
+        ...readDiscoveryOverview(database, {
+          settings,
+          store: id,
+          marketplace: store.marketplace(settings.otherStores),
+          laneKey: store.laneKey,
+        }),
+      }
     }),
   }
 }
@@ -37,7 +52,7 @@ function errorResponse(error: unknown) {
   return NextResponse.json({ error: message }, { status: 500 })
 }
 
-/** Other stores: what AI found on Amazon, and how many knives wait. */
+/** Other stores: what AI found at each store, and how many knives wait. */
 export async function GET(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
@@ -48,16 +63,20 @@ export async function GET(request: Request) {
   }
 }
 
-/** Search again for knives AI has not found yet. */
+/** Search again, at every turned-on store, for knives AI has not found. */
 export async function POST(request: Request) {
   const locked = requireAppUnlock(request)
   if (locked) return locked
   try {
     const settings = getSettings().priceMonitoring
-    const reset = await retryDiscovery({
-      store: DISCOVERY_STORE,
-      marketplace: settings.otherStores.amazonMarketplace,
-    })
+    let reset = 0
+    for (const id of OTHER_STORE_IDS) {
+      if (!settings.otherStores.stores[id]) continue
+      reset += await retryDiscovery({
+        store: id,
+        marketplace: DISCOVERY_STORES[id].marketplace(settings.otherStores),
+      })
+    }
     getPriceMonitorWorker().resetDiscoveryPause()
     return NextResponse.json(
       { reset, discovery: overview() },

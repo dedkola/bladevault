@@ -24,11 +24,12 @@ import { aiConfigured } from '@/lib/price-monitor/ai'
 import { clearBrowserState } from '@/lib/price-monitor/browser-state'
 import {
   discoverKnife,
-  DISCOVERY_LANE,
   discoveryActive,
+  enabledDiscoveryStores,
   nextDiscoveryKnife,
   type DiscoverySummary,
 } from '@/lib/price-monitor/discovery'
+import { DISCOVERY_STORES } from '@/lib/price-monitor/discovery-stores'
 import { startPriceDigestIfDue } from '@/lib/price-monitor/digest'
 import { checkPriceSource } from '@/lib/price-monitor/engine'
 import {
@@ -69,6 +70,7 @@ import { reportServerError } from '@/lib/sentry/server'
 import { getSettings } from '@/lib/settings'
 import type {
   ActiveHours,
+  OtherStoreId,
   PriceMonitoringSettings,
 } from '@/lib/settings-shared'
 import { getVaultAccessState, withVaultWrite } from '@/lib/vault-access'
@@ -106,15 +108,16 @@ export type WorkerDeps = {
   advise?: (trigger: AdvisorTrigger) => Promise<AdvisorRunResult>
   /** The AI supervisor; only runs when AI is set up and its mode is on. */
   supervise?: (trigger: AgentTrigger) => Promise<AgentRunResult>
-  /** Other stores: the next knife AI should look for, or null. */
+  /** Other stores: the next knife AI should look for at a store, or null. */
   nextDiscovery?: (
     settings: PriceMonitoringSettings,
     now: number,
+    store: OtherStoreId,
   ) => string | null
-  /** Other stores: AI looks for one knife on Amazon. */
+  /** Other stores: AI looks for one knife at a store. */
   discover?: (
     knifeId: string,
-    options: { signal: AbortSignal },
+    options: { signal: AbortSignal; store: OtherStoreId },
   ) => Promise<DiscoverySummary>
 }
 
@@ -130,7 +133,8 @@ const realDeps: WorkerDeps = {
   random: () => Math.random(),
   advise: (trigger) => runPriceAdvisor({ trigger }),
   supervise: (trigger) => runPriceAgent({ trigger }),
-  nextDiscovery: (settings, now) => nextDiscoveryKnife(settings, now),
+  nextDiscovery: (settings, now, store) =>
+    nextDiscoveryKnife(settings, now, store),
   discover: (knifeId, options) => discoverKnife(knifeId, options),
 }
 
@@ -232,7 +236,12 @@ export class PriceMonitorWorker {
   private supervising: Promise<unknown> | null = null
   /** Other stores: a search running on the Amazon lane. */
   discovering: Promise<unknown> | null = null
+  /** The store lane the running search uses. */
+  discoveryLane: string | null = null
+  /** AI endpoint trouble pauses every store. */
   private discoveryNotBefore = 0
+  /** A store with no knife due is asked again after a while. */
+  private discoveryIdleUntil = new Map<OtherStoreId, number>()
   private timer: unknown = null
   private passing: Promise<void> | null = null
   private passAgain = false
@@ -378,8 +387,8 @@ export class PriceMonitorWorker {
         const lane = lanes.get(pick.laneKey) ?? input.defaultLane(pick.laneKey)
         this.launch(pick, lane, context)
       }
-      // Searches on other stores only use the Amazon lane when no Amazon
-      // check is due: monitoring known sources comes first.
+      // Searches on other stores only use a store's lane when no check
+      // there is due: monitoring known sources comes first.
       if (scheduledActive) this.maybeDiscover(input, context, now)
       const wakeAt = nextWakeAt({
         ...input,
@@ -396,14 +405,14 @@ export class PriceMonitorWorker {
 
   private busyLanes(): Set<string> {
     const busy = new Set(this.inFlight.keys())
-    if (this.discovering) busy.add(DISCOVERY_LANE)
+    if (this.discovering && this.discoveryLane) busy.add(this.discoveryLane)
     return busy
   }
 
   /**
-   * Other stores: starts one AI search on the Amazon lane when the lane is
-   * free and ready and a knife is due. The search
-   * counts as an Amazon request for pacing and the circuit breaker.
+   * Other stores: starts one AI search at the first enabled store whose
+   * lane is free and ready and that has a knife due. The search counts as a
+   * request at that store for pacing and the circuit breaker.
    */
   private maybeDiscover(input: QueueInput, context: PassContext, now: number) {
     const { discover, nextDiscovery } = this.deps
@@ -411,31 +420,45 @@ export class PriceMonitorWorker {
     if (!discoveryActive(context.settings) || now < this.discoveryNotBefore)
       return
     const busy = this.busyLanes()
-    if (busy.has(DISCOVERY_LANE)) return
-    const lane =
-      input.lanes.get(DISCOVERY_LANE) ?? input.defaultLane(DISCOVERY_LANE)
-    if (laneAvailability(lane, now).state !== 'ready') return
-    const knifeId = nextDiscovery(context.settings, now)
-    if (!knifeId) {
-      this.discoveryNotBefore = now + DISCOVERY_IDLE_MS
-      return
+    let picked: { store: OtherStoreId; knifeId: string } | null = null
+    for (const store of enabledDiscoveryStores(context.settings)) {
+      if ((this.discoveryIdleUntil.get(store) ?? 0) > now) continue
+      const laneKey = DISCOVERY_STORES[store].laneKey
+      if (busy.has(laneKey)) continue
+      const lane = input.lanes.get(laneKey) ?? input.defaultLane(laneKey)
+      if (laneAvailability(lane, now).state !== 'ready') continue
+      const knifeId = nextDiscovery(context.settings, now, store)
+      if (!knifeId) {
+        this.discoveryIdleUntil.set(store, now + DISCOVERY_IDLE_MS)
+        continue
+      }
+      picked = { store, knifeId }
+      break
     }
+    if (!picked) return
+    const { store, knifeId } = picked
+    const laneKey = DISCOVERY_STORES[store].laneKey
+    const lane = input.lanes.get(laneKey) ?? input.defaultLane(laneKey)
     const controller = new AbortController()
     this.controllers.add(controller)
-    const floorMs = laneFloorMs(DISCOVERY_LANE, context.settings.pacing)
+    const floorMs = laneFloorMs(laneKey, context.settings.pacing)
     const gapMs = laneGapMs({
       minGapMs: lane.minGapMs,
       floorMs,
       activeWindowMs: context.windowMs,
-      sourceCount: context.laneCounts.get(DISCOVERY_LANE) ?? 0,
+      sourceCount: context.laneCounts.get(laneKey) ?? 0,
     })
+    this.discoveryLane = laneKey
     this.discovering = (async () => {
       try {
-        const summary = await discover(knifeId, { signal: controller.signal })
+        const summary = await discover(knifeId, {
+          signal: controller.signal,
+          store,
+        })
         if (summary.status !== 'done' || controller.signal.aborted) return
         if (summary.aiProblem)
           this.discoveryNotBefore = this.deps.now() + DISCOVERY_AI_PAUSE_MS
-        const current = readLaneStates(getLocalDb()).get(DISCOVERY_LANE) ?? lane
+        const current = readLaneStates(getLocalDb()).get(laneKey) ?? lane
         const update = applyLaneOutcome(
           normalizeLane(current, context.settings.pacing),
           {
@@ -447,7 +470,7 @@ export class PriceMonitorWorker {
         )
         await writeLaneState(update.lane, context.generation)
         if (update.clearCookies)
-          await clearBrowserState(DISCOVERY_LANE).catch(() => {})
+          await clearBrowserState(laneKey).catch(() => {})
       } catch (error) {
         this.discoveryNotBefore = this.deps.now() + DISCOVERY_AI_PAUSE_MS
         if (!isVaultError(error) && !controller.signal.aborted)
@@ -455,6 +478,7 @@ export class PriceMonitorWorker {
       } finally {
         this.controllers.delete(controller)
         this.discovering = null
+        this.discoveryLane = null
         this.wake(0)
       }
     })()
@@ -463,6 +487,7 @@ export class PriceMonitorWorker {
   /** Other stores: search again now (settings changed or Search again). */
   resetDiscoveryPause() {
     this.discoveryNotBefore = 0
+    this.discoveryIdleUntil.clear()
     this.wake(0)
   }
 
@@ -742,7 +767,7 @@ export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
       checking:
         worker.inFlight.has(laneKey) ||
         checkingLanes.has(laneKey) ||
-        (laneKey === DISCOVERY_LANE && Boolean(worker.discovering)),
+        (laneKey === worker.discoveryLane && Boolean(worker.discovering)),
       advice: laneAdvice
         ? {
             minGapMs: laneAdvice.minGapMs,

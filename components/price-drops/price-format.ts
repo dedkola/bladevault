@@ -44,8 +44,14 @@ export function shortDateTime(
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
+const STORE_LABELS: Record<string, string> = {
+  amazon: 'Amazon',
+  'bladehq.com': 'Blade HQ',
+  'knifecenter.com': 'KnifeCenter',
+}
+
 export function storeLabel(storeName: string): string {
-  return storeName === 'amazon' ? 'Amazon' : storeName
+  return STORE_LABELS[storeName] ?? storeName
 }
 
 export function deltaLabel(event: ChangeEvent): string {
