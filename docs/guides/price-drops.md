@@ -2,6 +2,8 @@
 
 Price Drops checks the stores that sell the knives in your collection and records every price and stock change. Open **Price Drops** in the main navigation to see what changed, open a knife's **Market** tab for its price history, and find new drops and restocks in the **Inbox** under **Prices**.
 
+To watch knives you don't own yet, with a target price, use the [Watchlist](watchlist.md).
+
 Price monitoring needs the BladeVault server: it works in the desktop app, Docker, Helm, and a source checkout, but not in the static web app.
 
 ## Which knives are monitored
@@ -181,6 +183,7 @@ BladeVault's [MCP tools](../reference/mcp.md#price-monitoring-tools) let an AI c
 
 ## Related
 
+- [Keep a watchlist of knives you want](watchlist.md) — target prices for knives you don't own yet.
 - [Model Context Protocol (MCP)](../reference/mcp.md) — connect an AI client and review what it can change.
 - [Your data](../reference/data.md) — where price history is stored and what backups include.
 - [Docker and Podman](../installation/docker.md) and [Kubernetes with Helm](../installation/helm.md) — time zone and price monitoring settings for servers.

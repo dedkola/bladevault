@@ -693,6 +693,7 @@ const PRICE_HEADLINE: Record<PriceNotificationView['kind'], string> = {
   increase: 'Price went up',
   out_of_stock: 'Out of stock',
   back_in_stock: 'Back in stock',
+  target_reached: 'Reached your target price',
 }
 
 const PRICE_REPEAT: Record<PriceNotificationView['kind'], string> = {
@@ -700,6 +701,7 @@ const PRICE_REPEAT: Record<PriceNotificationView['kind'], string> = {
   increase: 'Went up',
   out_of_stock: 'Sold out',
   back_in_stock: 'Restocked',
+  target_reached: 'Reached target',
 }
 
 const PRICE_RESOLVED: Record<PriceNotificationView['kind'], string> = {
@@ -707,6 +709,7 @@ const PRICE_RESOLVED: Record<PriceNotificationView['kind'], string> = {
   increase: 'The price dropped again',
   out_of_stock: 'Back in stock',
   back_in_stock: 'Out of stock again',
+  target_reached: 'No longer at your target price',
 }
 
 function priceKnifeLabel(row: PriceNotificationView): string {
@@ -756,7 +759,10 @@ function PriceNotificationRow({
   const unread = isPriceNotificationUnread(notification)
   const ids = [notification.id]
   const { event } = notification
-  const marketHref = `/collection/${encodeURIComponent(event.knife.id)}?tab=market`
+  // Wanted knives live on the watchlist, not in the collection.
+  const marketHref = event.knife.wanted
+    ? `/price-drops/watchlist?knife=${encodeURIComponent(event.knife.id)}`
+    : `/collection/${encodeURIComponent(event.knife.id)}?tab=market`
   const markRead = () => {
     if (unread) onAction({ action: 'read', ids })
   }

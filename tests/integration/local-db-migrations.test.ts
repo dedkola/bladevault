@@ -46,7 +46,7 @@ describe('local database migrations', () => {
       ).map((row) => row.name)
 
     expect(tableNames()).toEqual(expect.arrayContaining(priceTables))
-    expect(getLocalDb().pragma('user_version', { simple: true })).toBe(11)
+    expect(getLocalDb().pragma('user_version', { simple: true })).toBe(12)
     getLocalDb()
       .prepare(
         `INSERT INTO price_monitor_daily (day, lane_key, checks)
@@ -354,6 +354,77 @@ describe('local database migrations', () => {
     expect(
       database.prepare('SELECT sold FROM knives WHERE id = ?').get('legacy'),
     ).toEqual({ sold: 0 })
+  })
+
+  it('adds the watchlist columns to a schema 11 vault without changing its knives and repeats safely', async () => {
+    vault = await createTempVault()
+    const dbPath = path.join(vault.dataDir, 'bladevault.sqlite')
+    // A current vault, rolled back to schema 11 (before the watchlist).
+    getLocalDb()
+      .prepare(
+        `INSERT INTO knives (id, name, brand, blade_style, handle_material,
+           images, specs, description, added_at, updated_at, sold)
+         VALUES ('owned', 'Owned', 'Maker', '', '', '[]',
+           '{"price":"100 USD"}', '', '2025-01-01T00:00:00.000Z',
+           '2025-01-01T00:00:00.000Z', 1)`,
+      )
+      .run()
+    getLocalDb()
+      .prepare(
+        `INSERT INTO price_watch (knife_id, mode, updated_at)
+         VALUES ('owned', 'on', '2025-01-02T00:00:00.000Z')`,
+      )
+      .run()
+    closeLocalDb()
+    const old = new Database(dbPath)
+    old.exec(`
+      ALTER TABLE knives DROP COLUMN wanted;
+      ALTER TABLE price_watch DROP COLUMN target_minor;
+      ALTER TABLE price_watch DROP COLUMN target_currency;
+      PRAGMA user_version = 11;
+    `)
+    old.close()
+
+    const columns = (table: string) =>
+      (
+        getLocalDb()
+          .prepare(`SELECT name FROM pragma_table_info('${table}')`)
+          .all() as Array<{ name: string }>
+      ).map(({ name }) => name)
+    expect(columns('knives')).toContain('wanted')
+    expect(columns('price_watch')).toEqual(
+      expect.arrayContaining(['target_minor', 'target_currency']),
+    )
+    expect(getLocalDb().pragma('user_version', { simple: true })).toBe(12)
+    const read = () => ({
+      knife: getLocalDb()
+        .prepare('SELECT id, sold, wanted, specs FROM knives')
+        .all(),
+      watch: getLocalDb()
+        .prepare(
+          'SELECT knife_id, mode, target_minor, target_currency FROM price_watch',
+        )
+        .all(),
+    })
+    const expected = {
+      knife: [
+        { id: 'owned', sold: 1, wanted: 0, specs: '{"price":"100 USD"}' },
+      ],
+      watch: [
+        {
+          knife_id: 'owned',
+          mode: 'on',
+          target_minor: null,
+          target_currency: null,
+        },
+      ],
+    }
+    expect(read()).toEqual(expected)
+
+    // Running the migrations again changes nothing.
+    getLocalDb().pragma('user_version = 11')
+    closeLocalDb()
+    expect(read()).toEqual(expected)
   })
 
   it('adds the images column to notes saved before note photos existed', async () => {

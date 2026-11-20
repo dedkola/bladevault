@@ -29,6 +29,7 @@
 - [Compare knives](guides/compare.md)
 - [Log maintenance and sharpening](guides/log-maintenance.md)
 - [Watch market prices with Price Drops](guides/price-drops.md)
+- [Keep a watchlist of knives you want](guides/watchlist.md)
 - [Collection insights](guides/insights.md)
 - [Improve collection data quality](guides/improve-data-quality.md)
 - [Review collection activity in History](guides/review-collection-activity.md)

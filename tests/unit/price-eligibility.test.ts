@@ -14,6 +14,22 @@ import {
 const knife = (price: string, sold = false) => ({ sold, specs: { price } })
 
 describe('getEligibility', () => {
+  it('monitors a wanted knife in Auto without a purchase price', () => {
+    const wanted = { sold: false, wanted: true, specs: { price: '' } }
+    expect(getEligibility(wanted, 'auto', 1)).toEqual({
+      monitored: true,
+      reason: 'monitored_auto',
+    })
+    expect(getEligibility(wanted, 'auto', 0)).toEqual({
+      monitored: false,
+      reason: 'no_source',
+    })
+    expect(getEligibility(wanted, 'off', 1)).toEqual({
+      monitored: false,
+      reason: 'off',
+    })
+  })
+
   it('monitors Auto knives with a stored price above zero', () => {
     expect(getEligibility(knife('129.00 USD'), 'auto', 1)).toEqual({
       monitored: true,

@@ -11,6 +11,13 @@ export async function resetVault(request: APIRequestContext) {
   for (const knife of payload.knives ?? []) {
     await request.delete(`/api/knives/${knife.id}`)
   }
+  // Wanted knives are not in the collection list.
+  const watchlist = (await (await request.get('/api/watchlist')).json()) as {
+    watchlist?: { items: Array<{ knife: { id: string } }> }
+  }
+  for (const item of watchlist.watchlist?.items ?? []) {
+    await request.delete(`/api/knives/${item.knife.id}`)
+  }
 
   await request.delete('/api/compare')
   const comparisons = await (await request.get('/api/comparisons')).json()

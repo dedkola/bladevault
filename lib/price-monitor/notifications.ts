@@ -11,12 +11,20 @@
  * - An opposite event resolves it: an increase closes a drop and the other
  *   way round; back in stock closes out of stock and the other way round.
  * - Closed notifications are deleted after 90 days.
+ *
+ * Watchlist (wanted) knives add two rules:
+ * - `target_reached` opens when a trusted reading of an in-stock source sits
+ *   at or below the knife's target price, and resolves when the price rises
+ *   above it or the source goes out of stock. It is not a change event, so
+ *   it is keyed to the snapshot that first met the target.
+ * - Back in stock always notifies for a wanted knife, whatever the
+ *   back-in-stock setting says: watching it is the opt-in.
  */
 import type { ChangeEvent } from '@/lib/price-monitor/insights'
 import type { PriceMonitoringSettings } from '@/lib/settings-shared'
 
 export type PriceNotificationKind =
-  'drop' | 'increase' | 'out_of_stock' | 'back_in_stock'
+  'drop' | 'increase' | 'out_of_stock' | 'back_in_stock' | 'target_reached'
 export type PriceNotificationBox = 'open' | 'done'
 
 export const PRICE_NOTIFICATION_KINDS: readonly PriceNotificationKind[] = [
@@ -24,22 +32,22 @@ export const PRICE_NOTIFICATION_KINDS: readonly PriceNotificationKind[] = [
   'increase',
   'out_of_stock',
   'back_in_stock',
+  'target_reached',
 ]
 export const PRICE_NOTIFICATION_RETENTION_DAYS = 90
 
 const DAY_MS = 86_400_000
 
-const OPPOSITE: Record<PriceNotificationKind, PriceNotificationKind> = {
+type EventKind = PriceNotificationEvent['kind']
+
+const OPPOSITE: Record<EventKind, EventKind> = {
   drop: 'increase',
   increase: 'drop',
   out_of_stock: 'back_in_stock',
   back_in_stock: 'out_of_stock',
 }
 
-const CATEGORY: Record<
-  PriceNotificationKind,
-  keyof PriceMonitoringSettings['notify']
-> = {
+const CATEGORY: Record<EventKind, keyof PriceMonitoringSettings['notify']> = {
   drop: 'drop',
   increase: 'increase',
   out_of_stock: 'outOfStock',
@@ -50,7 +58,10 @@ export type PriceNotification = {
   id: number
   knifeId: string
   sourceId: number
-  /** price_change_events.id for price kinds, stock_events.id for stock kinds. */
+  /**
+   * price_change_events.id for price kinds, stock_events.id for stock kinds,
+   * price_snapshots.id for target_reached.
+   */
   eventId: number
   kind: PriceNotificationKind
   /** How many events of this kind arrived while it stayed unresolved. */
@@ -92,12 +103,16 @@ export type PriceNotificationEvent =
       deltaMinor: number
       /** Percent change; negative for a drop. */
       deltaPct: number
+      /** The knife is on the watchlist. */
+      wanted?: boolean
     }
   | {
       kind: 'out_of_stock' | 'back_in_stock'
       eventId: number
       knifeId: string
       sourceId: number
+      /** The knife is on the watchlist. */
+      wanted?: boolean
     }
 
 export type PriceNotificationSettings = Pick<
@@ -180,6 +195,7 @@ export function shouldNotify(
   event: PriceNotificationEvent,
   settings: PriceNotificationSettings,
 ): boolean {
+  if (event.kind === 'back_in_stock' && event.wanted) return true
   if (!settings.notify[CATEGORY[event.kind]]) return false
   if (event.kind === 'drop' || event.kind === 'increase')
     return meetsPriceThreshold(event, settings.thresholds)
@@ -275,6 +291,105 @@ export function planPriceNotifications(
     }
   }
   return { create, update, deleteIds }
+}
+
+/** A wanted knife's target, in minor units of its currency. */
+export type TargetPrice = { minor: number; currency: string }
+
+/** Whether a reading meets a target: in stock, same currency, at or below. */
+export function meetsTargetPrice(
+  reading: {
+    priceMinor: number | null
+    currency: string | null
+    availability: string
+  },
+  target: TargetPrice,
+): boolean {
+  return (
+    reading.priceMinor !== null &&
+    reading.currency === target.currency &&
+    reading.availability !== 'out_of_stock' &&
+    reading.priceMinor <= target.minor
+  )
+}
+
+/**
+ * Plans the target-price notification for one source after a trusted
+ * reading. `existing` holds the source's stored rows. An unresolved row
+ * means "this source is at target": it is opened once when the target is
+ * met, left alone (even dismissed) while it stays met, and resolved when the
+ * reading no longer meets it, so the next time it does a fresh one opens.
+ * A reading in another currency says nothing either way.
+ */
+export function planTargetNotification(
+  input: {
+    knifeId: string
+    sourceId: number
+    /** The snapshot holding the reading. */
+    snapshotId: number
+    reading: {
+      priceMinor: number | null
+      currency: string | null
+      availability: string
+    }
+    /** Null when the knife has no target or is no longer wanted. */
+    target: TargetPrice | null
+  },
+  existing: readonly PriceNotification[],
+  now: Date,
+): PriceNotificationChanges {
+  const nowIso = now.toISOString()
+  const open = existing.find(
+    (row) =>
+      row.sourceId === input.sourceId &&
+      row.kind === 'target_reached' &&
+      !row.resolvedAt,
+  )
+  const none: PriceNotificationChanges = {
+    create: [],
+    update: [],
+    deleteIds: [],
+  }
+  const { target, reading } = input
+  const comparable =
+    target !== null &&
+    (reading.availability === 'out_of_stock' ||
+      (reading.priceMinor !== null && reading.currency === target.currency))
+  if (!comparable) {
+    // No target any more: close what is open. Another currency: no change.
+    if (target === null && open)
+      return {
+        ...none,
+        update: [{ ...open, resolvedAt: nowIso, updatedAt: nowIso }],
+      }
+    return none
+  }
+  const met = meetsTargetPrice(reading, target)
+  if (met && !open)
+    return {
+      ...none,
+      create: [
+        {
+          knifeId: input.knifeId,
+          sourceId: input.sourceId,
+          eventId: input.snapshotId,
+          kind: 'target_reached',
+          occurrences: 1,
+          occurredAt: nowIso,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+          readAt: null,
+          dismissedAt: null,
+          resolvedAt: null,
+        },
+      ],
+    }
+  if (!met && open)
+    return {
+      ...none,
+      update: [{ ...open, resolvedAt: nowIso, updatedAt: nowIso }],
+    }
+  return none
 }
 
 /** Returns the notifications an Inbox action changes, already updated. */

@@ -87,7 +87,10 @@ export function mutateComparison(
           )
       }
       function checkKnives(ids: string[]) {
-        const query = db.prepare('SELECT 1 FROM knives WHERE id = ?')
+        // Wanted (watchlist) knives are not part of the collection.
+        const query = db.prepare(
+          'SELECT 1 FROM knives WHERE id = ? AND wanted = 0',
+        )
         if (ids.some((id) => !query.get(id)))
           throw new ComparisonError(
             'A selected knife no longer exists. Refresh your collection and try again.',

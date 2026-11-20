@@ -30,6 +30,12 @@ export type Knife = {
   sourceUrl: string
   pinned: boolean
   sold: boolean
+  /**
+   * On the watchlist: a knife the collector wants but does not own yet.
+   * Wanted knives are price-monitored but stay out of the collection, its
+   * counts, Insights, Studio and comparisons. Only set when true.
+   */
+  wanted?: boolean
 }
 
 export type KnifeListItem = Omit<Knife, 'description' | 'images'> & {
@@ -53,6 +59,7 @@ export function toKnifeListItem(knife: Knife): KnifeListItem {
     sourceUrl: knife.sourceUrl,
     pinned: knife.pinned,
     sold: knife.sold,
+    ...(knife.wanted ? { wanted: true } : {}),
   }
 }
 

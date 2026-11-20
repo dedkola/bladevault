@@ -44,13 +44,20 @@ export type KnifeRef = {
   name: string
   brand: string
   image: string | null
+  /** On the watchlist (not owned yet). Only set when true. */
+  wanted?: boolean
 }
 
 export type ChangeEvent = {
   id: string
-  type: 'price' | 'stock'
-  /** drop | increase for price; out_of_stock | back_in_stock for stock. */
-  kind: 'drop' | 'increase' | 'out_of_stock' | 'back_in_stock'
+  /** `target`: a watchlist reading that met the target price (a snapshot). */
+  type: 'price' | 'stock' | 'target'
+  /**
+   * drop | increase for price; out_of_stock | back_in_stock for stock;
+   * target_reached for target.
+   */
+  kind:
+    'drop' | 'increase' | 'out_of_stock' | 'back_in_stock' | 'target_reached'
   knife: KnifeRef
   sourceId: number
   storeName: string
@@ -165,6 +172,7 @@ type KnifeRow = {
   images: string
   specs: string
   sold: number
+  wanted: number
   mode: PriceWatchMode
 }
 
@@ -188,7 +196,7 @@ function storedPrice(specs: string): string | undefined {
 function readKnives(database: Database.Database): Map<string, KnifeRow> {
   const rows = database
     .prepare(
-      `SELECT k.id, k.name, k.brand, k.images, k.specs, k.sold,
+      `SELECT k.id, k.name, k.brand, k.images, k.specs, k.sold, k.wanted,
               COALESCE(w.mode, 'auto') AS mode
        FROM knives k LEFT JOIN price_watch w ON w.knife_id = k.id
        WHERE k.id IN (SELECT knife_id FROM price_sources WHERE removed_at IS NULL)
@@ -204,6 +212,7 @@ const knifeRef = (row: KnifeRow | undefined, id: string): KnifeRef => ({
   name: row?.name ?? 'Deleted knife',
   brand: row?.brand ?? '',
   image: row ? firstImage(row.images) : null,
+  ...(row?.wanted === 1 ? { wanted: true } : {}),
 })
 
 type EventRow = {
@@ -250,22 +259,44 @@ function toEvent(row: EventRow, knives: Map<string, KnifeRow>): ChangeEvent {
   }
 }
 
+/** Watchlist readings that met a target, shaped like events (`target-<id>`). */
+const TARGET_SQL = `
+  SELECT s.id, 'target' AS type, 'target_reached' AS kind, s.knife_id,
+         s.source_id, src.store_name, src.url AS source_url,
+         NULL AS previous_price_minor, s.price_minor, s.currency,
+         NULL AS delta_minor, NULL AS delta_pct, s.observed_at AS occurred_at
+  FROM price_snapshots s JOIN price_sources src ON src.id = s.source_id`
+
 /**
  * The stored events behind Inbox notifications, keyed like `ChangeEvent.id`
- * (`price-<id>` or `stock-<id>`).
+ * (`price-<id>`, `stock-<id>` or `target-<snapshot id>`).
  */
 export function readChangeEventsById(
   database: Database.Database,
-  ids: { price: readonly number[]; stock: readonly number[] },
+  ids: {
+    price: readonly number[]
+    stock: readonly number[]
+    target?: readonly number[]
+  },
 ): Map<string, ChangeEvent> {
-  if (!ids.price.length && !ids.stock.length) return new Map()
-  const rows = database
-    .prepare(
-      `SELECT * FROM (${EVENTS_SQL})
-       WHERE (type = 'price' AND id IN (SELECT value FROM json_each(?)))
-          OR (type = 'stock' AND id IN (SELECT value FROM json_each(?)))`,
-    )
-    .all(JSON.stringify(ids.price), JSON.stringify(ids.stock)) as EventRow[]
+  const target = ids.target ?? []
+  if (!ids.price.length && !ids.stock.length && !target.length) return new Map()
+  const rows = [
+    ...(database
+      .prepare(
+        `SELECT * FROM (${EVENTS_SQL})
+         WHERE (type = 'price' AND id IN (SELECT value FROM json_each(?)))
+            OR (type = 'stock' AND id IN (SELECT value FROM json_each(?)))`,
+      )
+      .all(JSON.stringify(ids.price), JSON.stringify(ids.stock)) as EventRow[]),
+    ...(target.length
+      ? (database
+          .prepare(
+            `${TARGET_SQL} WHERE s.id IN (SELECT value FROM json_each(?))`,
+          )
+          .all(JSON.stringify(target)) as EventRow[])
+      : []),
+  ]
   const knives = readKnives(database)
   return new Map(
     rows.map((row) => {
@@ -354,14 +385,19 @@ export function buildPriceOverview(
   const since = new Date(now - windowDays * DAY_MS).toISOString()
   const knives = readKnives(database)
 
-  const sources = database
-    .prepare(
-      `SELECT id, knife_id, store_name, lane_key, url, enabled, status,
-              last_price_minor, last_currency, last_availability,
-              last_checked_at, last_success_at, last_error, next_check_at
-       FROM price_sources WHERE removed_at IS NULL`,
-    )
-    .all() as SourceRow[]
+  // The overview covers the collection; watchlist knives have their own view.
+  const owned = (row: { knife_id: string }) =>
+    knives.get(row.knife_id)?.wanted !== 1
+  const sources = (
+    database
+      .prepare(
+        `SELECT id, knife_id, store_name, lane_key, url, enabled, status,
+                last_price_minor, last_currency, last_availability,
+                last_checked_at, last_success_at, last_error, next_check_at
+         FROM price_sources WHERE removed_at IS NULL`,
+      )
+      .all() as SourceRow[]
+  ).filter(owned)
 
   const enabledByKnife = new Map<string, SourceRow[]>()
   for (const source of sources) {
@@ -385,15 +421,23 @@ export function buildPriceOverview(
       monitored.add(knifeId)
   }
 
-  const recentRows = database
-    .prepare(`${EVENTS_SQL} ORDER BY occurred_at DESC, id DESC LIMIT ?`)
-    .all(limit) as EventRow[]
-  const windowRows = database
-    .prepare(
-      `SELECT * FROM (${EVENTS_SQL}) WHERE type = 'price' AND occurred_at >= ?
-       ORDER BY occurred_at DESC, id DESC`,
-    )
-    .all(since) as EventRow[]
+  const recentRows = (
+    database
+      .prepare(
+        `SELECT * FROM (${EVENTS_SQL})
+         WHERE knife_id NOT IN (SELECT id FROM knives WHERE wanted = 1)
+         ORDER BY occurred_at DESC, id DESC LIMIT ?`,
+      )
+      .all(limit) as EventRow[]
+  ).filter(owned)
+  const windowRows = (
+    database
+      .prepare(
+        `SELECT * FROM (${EVENTS_SQL}) WHERE type = 'price' AND occurred_at >= ?
+         ORDER BY occurred_at DESC, id DESC`,
+      )
+      .all(since) as EventRow[]
+  ).filter(owned)
   const drops = windowRows.filter((row) => row.kind === 'drop')
   const increases = windowRows.filter((row) => row.kind === 'increase')
 
@@ -690,7 +734,7 @@ export function buildKnifeHistory(
   const knives = readKnives(database)
   const knife = database
     .prepare(
-      `SELECT k.id, k.name, k.brand, k.images, k.specs, k.sold,
+      `SELECT k.id, k.name, k.brand, k.images, k.specs, k.sold, k.wanted,
               COALESCE(w.mode, 'auto') AS mode
        FROM knives k LEFT JOIN price_watch w ON w.knife_id = k.id
        WHERE k.id = ?`,

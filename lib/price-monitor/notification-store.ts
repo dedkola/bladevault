@@ -132,11 +132,18 @@ function readPriceNotificationViews(
         (row) => row.kind === 'out_of_stock' || row.kind === 'back_in_stock',
       )
       .map((row) => row.eventId),
+    target: rows
+      .filter((row) => row.kind === 'target_reached')
+      .map((row) => row.eventId),
   })
   return sortPriceNotifications(
     rows.flatMap((row) => {
       const type =
-        row.kind === 'drop' || row.kind === 'increase' ? 'price' : 'stock'
+        row.kind === 'target_reached'
+          ? 'target'
+          : row.kind === 'drop' || row.kind === 'increase'
+            ? 'price'
+            : 'stock'
       const event = events.get(`${type}-${row.eventId}`)
       return event ? [{ ...row, event }] : []
     }),

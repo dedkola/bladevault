@@ -368,6 +368,13 @@ export function PriceDropsView({
                 : ''}
             </span>
           ) : null}
+          <Link
+            href="/price-drops/watchlist"
+            data-watchlist-link
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+          >
+            Watchlist
+          </Link>
           <Button
             size="sm"
             onClick={() => void checkAll()}

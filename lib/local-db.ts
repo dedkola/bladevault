@@ -21,7 +21,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 11
+export const LOCAL_DB_SCHEMA_VERSION = 12
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -393,6 +393,14 @@ function migrateSchema(database: Database.Database) {
   if (!hasSold) {
     database.exec(
       `ALTER TABLE knives ADD COLUMN sold INTEGER NOT NULL DEFAULT 0`,
+    )
+  }
+  // Watchlist (schema version 12): wanted knives live in this table but
+  // stay out of the collection until the collector buys one.
+  const hasWanted = columns.some((col) => col.name === 'wanted')
+  if (!hasWanted) {
+    database.exec(
+      `ALTER TABLE knives ADD COLUMN wanted INTEGER NOT NULL DEFAULT 0`,
     )
   }
   const hasUpdatedAt = columns.some((col) => col.name === 'updated_at')
@@ -1018,6 +1026,9 @@ function migratePriceMonitoringSchema(
   // Schema 12: AI quality control. 'confirmed' or 'unconfirmed' when AI
   // checked a reading against its page (price-monitor/verify).
   addColumn('price_snapshots', 'ai_review', 'TEXT')
+  // Watchlist: a wanted knife’s target price, in minor units of its currency.
+  addColumn('price_watch', 'target_minor', 'INTEGER')
+  addColumn('price_watch', 'target_currency', 'TEXT')
 }
 
 function normalizeKnifeRows(database: Database.Database) {
@@ -1197,7 +1208,8 @@ function initSchema(database: Database.Database) {
       updated_at TEXT NOT NULL,
       source_url TEXT NOT NULL DEFAULT '',
       pinned INTEGER NOT NULL DEFAULT 0,
-      sold INTEGER NOT NULL DEFAULT 0
+      sold INTEGER NOT NULL DEFAULT 0,
+      wanted INTEGER NOT NULL DEFAULT 0
     );
   `)
 

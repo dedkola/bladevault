@@ -67,6 +67,7 @@ type QueueRow = {
   id: string
   specs: string
   sold: number
+  wanted: number
   mode: PriceWatchMode
   status: DiscoveryStatus | null
   next_attempt_at: string | null
@@ -101,7 +102,7 @@ export function readDiscoveryQueue(
 ): string[] {
   const rows = database
     .prepare(
-      `SELECT k.id, k.specs, k.sold, COALESCE(w.mode, 'auto') AS mode,
+      `SELECT k.id, k.specs, k.sold, k.wanted, COALESCE(w.mode, 'auto') AS mode,
               d.status, d.next_attempt_at,
               EXISTS (SELECT 1 FROM price_sources s
                       WHERE s.knife_id = k.id AND s.removed_at IS NULL
@@ -125,7 +126,11 @@ export function readDiscoveryQueue(
       if (Number.isFinite(at) && at > input.now) continue
     }
     const eligibility = getEligibility(
-      { sold: row.sold === 1, specs: { price: storedPrice(row.specs) } },
+      {
+        sold: row.sold === 1,
+        wanted: row.wanted === 1,
+        specs: { price: storedPrice(row.specs) },
+      },
       row.mode,
       // A knife without a product link is exactly what Other stores is for.
       1,

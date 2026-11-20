@@ -53,6 +53,12 @@ export function ChangePill({ event }: { event: ChangeEvent }) {
         Out of stock
       </span>
     )
+  if (event.kind === 'target_reached')
+    return (
+      <span data-price-pill="target" className={PILL}>
+        At your target
+      </span>
+    )
   if (event.kind === 'back_in_stock')
     return (
       <span data-price-pill="back" className={PILL}>

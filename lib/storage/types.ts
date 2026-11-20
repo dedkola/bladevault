@@ -63,7 +63,18 @@ export type BulkKnifeUpdateItem = {
 }
 
 export interface Storage {
+  /** The collection: every owned knife. Wanted (watchlist) knives are left out. */
   getAllKnives(): Promise<Knife[]>
+  /** Watchlist knives, newest first. */
+  getWantedKnives(): Promise<Knife[]>
+  /**
+   * "I bought it": the wanted knife joins the collection with its price
+   * history; `price` becomes its stored purchase price.
+   */
+  moveWantedKnifeToCollection(
+    id: string,
+    options?: { price?: string },
+  ): Promise<Knife>
   getKnifeActivity(): Promise<KnifeActivityEvent[]>
   getKnifeById(id: string): Promise<Knife | undefined>
   createKnife(input: CreateKnifeInput): Promise<Knife>

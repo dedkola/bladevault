@@ -144,6 +144,7 @@ export function rowToKnife(row: Record<string, unknown>): Knife {
     sourceUrl: String(row.source_url ?? ''),
     pinned: Boolean(row.pinned),
     sold: Boolean(row.sold),
+    ...(row.wanted ? { wanted: true } : {}),
   }
 }
 
@@ -524,9 +525,85 @@ function recordMutation(
 export class LocalStorage implements Storage {
   async getAllKnives(): Promise<Knife[]> {
     const rows = getDb()
-      .prepare('SELECT * FROM knives ORDER BY added_at DESC')
+      .prepare('SELECT * FROM knives WHERE wanted = 0 ORDER BY added_at DESC')
       .all()
     return rows.map((row) => rowToKnife(row as Record<string, unknown>))
+  }
+
+  async getWantedKnives(): Promise<Knife[]> {
+    const rows = getDb()
+      .prepare('SELECT * FROM knives WHERE wanted = 1 ORDER BY added_at DESC')
+      .all()
+    return rows.map((row) => rowToKnife(row as Record<string, unknown>))
+  }
+
+  async moveWantedKnifeToCollection(
+    id: string,
+    options: { price?: string } = {},
+  ): Promise<Knife> {
+    return withVaultWrite(async () => {
+      const database = getDb()
+      const existingRow = database
+        .prepare('SELECT * FROM knives WHERE id = ?')
+        .get(id) as Record<string, unknown> | undefined
+      if (!existingRow) throw new Error('Knife not found')
+      const existing = rowToKnife(existingRow)
+      if (!existing.wanted) throw new Error('This knife is already owned.')
+
+      const price = options.price?.trim()
+      const now = nextUpdatedAt(existing.updatedAt)
+      const moved: Knife = {
+        ...existing,
+        specs: price ? { ...existing.specs, price } : existing.specs,
+        addedAt: now,
+        updatedAt: now,
+      }
+      delete moved.wanted
+
+      database.transaction(() => {
+        database
+          .prepare(
+            `UPDATE knives
+             SET wanted = 0, specs = ?, added_at = ?, updated_at = ?
+             WHERE id = ? AND wanted = 1`,
+          )
+          .run(JSON.stringify(moved.specs), now, now, id)
+        // Activity starts the day it joins the collection; its price
+        // history keeps its own dates.
+        database
+          .prepare('DELETE FROM knife_activity WHERE knife_id = ?')
+          .run(id)
+        database
+          .prepare(
+            `INSERT INTO knife_activity (knife_id, event_type, occurred_at)
+             VALUES (?, 'created', ?)`,
+          )
+          .run(id, now)
+        recordAuditEvent(database, {
+          operationId: generateOperationId(),
+          type: 'updated',
+          knifeId: id,
+          subject: formatKnifeSubject(moved),
+          actor: 'You',
+          source: 'Watchlist',
+          summary: 'Moved from the watchlist into the collection.',
+          changes: [
+            { field: 'Status', before: 'Wanted', after: 'Owned' },
+            ...(price && price !== (existing.specs.price ?? '')
+              ? [
+                  {
+                    field: 'Price',
+                    before: existing.specs.price ?? '',
+                    after: price,
+                  },
+                ]
+              : []),
+          ],
+          occurredAt: now,
+        })
+      })()
+      return moved
+    })
   }
 
   async getKnifeActivity(): Promise<KnifeActivityEvent[]> {
@@ -540,6 +617,7 @@ export class LocalStorage implements Storage {
            SELECT id, 1 AS source_order, knife_id, 'maintained' AS event_type, occurred_at
            FROM maintenance_events
          )
+         WHERE knife_id NOT IN (SELECT id FROM knives WHERE wanted = 1)
          ORDER BY occurred_at ASC, source_order ASC, id ASC`,
       )
       .all() as Array<{
@@ -825,14 +903,15 @@ export class LocalStorage implements Storage {
         sourceUrl: normalizedInput.sourceUrl ?? '',
         pinned: normalizedInput.pinned ?? false,
         sold: normalizedInput.sold ?? false,
+        ...(normalizedInput.wanted ? { wanted: true } : {}),
       }
 
       const database = getDb()
       const create = database.transaction(() => {
         database
           .prepare(
-            `INSERT INTO knives (id, name, brand, steel, blade_style, handle_material, images, specs, custom_fields, description, added_at, updated_at, source_url, pinned, sold)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO knives (id, name, brand, steel, blade_style, handle_material, images, specs, custom_fields, description, added_at, updated_at, source_url, pinned, sold, wanted)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             newKnife.id,
@@ -850,21 +929,26 @@ export class LocalStorage implements Storage {
             newKnife.sourceUrl,
             newKnife.pinned ? 1 : 0,
             newKnife.sold ? 1 : 0,
+            newKnife.wanted ? 1 : 0,
           )
-        database
-          .prepare(
-            `INSERT INTO knife_activity (knife_id, event_type, occurred_at)
-           VALUES (?, 'created', ?)`,
-          )
-          .run(newKnife.id, newKnife.addedAt)
+        // A wanted knife joins the activity history when it is bought.
+        if (!newKnife.wanted)
+          database
+            .prepare(
+              `INSERT INTO knife_activity (knife_id, event_type, occurred_at)
+             VALUES (?, 'created', ?)`,
+            )
+            .run(newKnife.id, newKnife.addedAt)
         recordAuditEvent(database, {
           operationId: generateOperationId(),
           type: 'created',
           knifeId: newKnife.id,
           subject: formatKnifeSubject(newKnife),
           actor: 'You',
-          source: 'Manual entry',
-          summary: 'Created a new record with images and source URL.',
+          source: newKnife.wanted ? 'Watchlist' : 'Manual entry',
+          summary: newKnife.wanted
+            ? 'Added to the watchlist.'
+            : 'Created a new record with images and source URL.',
           changes: [
             { field: 'Record', before: 'Does not exist', after: 'Created' },
             {
@@ -1953,8 +2037,8 @@ export class LocalStorage implements Storage {
       const migrate = database.transaction(() => {
         database
           .prepare(
-            `INSERT OR REPLACE INTO knives (id, name, brand, steel, blade_style, handle_material, images, specs, custom_fields, description, added_at, updated_at, source_url, pinned, sold)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT OR REPLACE INTO knives (id, name, brand, steel, blade_style, handle_material, images, specs, custom_fields, description, added_at, updated_at, source_url, pinned, sold, wanted)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             normalizedKnife.id,
@@ -1972,6 +2056,7 @@ export class LocalStorage implements Storage {
             normalizedKnife.sourceUrl,
             normalizedKnife.pinned ? 1 : 0,
             normalizedKnife.sold ? 1 : 0,
+            normalizedKnife.wanted ? 1 : 0,
           )
         database
           .prepare(
@@ -2009,7 +2094,10 @@ export class LocalStorage implements Storage {
     compareIds: string[],
   ): Promise<void> {
     return withVaultWrite(async () => {
-      const current = await this.getAllKnives()
+      // Wanted knives too: the snapshot replaces the whole vault.
+      const current = getDb().prepare('SELECT id FROM knives').all() as Array<{
+        id: string
+      }>
 
       for (const knife of current) {
         await this.deleteKnife(knife.id)

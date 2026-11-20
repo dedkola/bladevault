@@ -5,9 +5,12 @@ import {
   getPriceNotificationBox,
   isPriceNotificationUnread,
   meetsPriceThreshold,
+  meetsTargetPrice,
   mergePriceNotificationUpdates,
   parsePriceNotificationAction,
   planPriceNotifications,
+  planTargetNotification,
+  shouldNotify,
   sortPriceNotifications,
   type PriceNotification,
   type PriceNotificationEvent,
@@ -403,5 +406,172 @@ describe('parsePriceNotificationAction', () => {
       /Unknown/,
     )
     expect(() => parsePriceNotificationAction([])).toThrow(/object/)
+  })
+})
+
+describe('watchlist notifications', () => {
+  const target = { minor: 9000, currency: 'USD' }
+  const input = (
+    reading: {
+      priceMinor: number | null
+      currency: string | null
+      availability: string
+    },
+    targetPrice: { minor: number; currency: string } | null = target,
+  ) => ({
+    knifeId: 'bugout',
+    sourceId: 7,
+    snapshotId: 42,
+    reading,
+    target: targetPrice,
+  })
+  const inStock = (priceMinor: number, currency = 'USD') => ({
+    priceMinor,
+    currency,
+    availability: 'in_stock',
+  })
+  const openRow = (patch: Partial<PriceNotification> = {}) =>
+    stored({
+      id: 3,
+      knifeId: 'bugout',
+      sourceId: 7,
+      eventId: 40,
+      kind: 'target_reached',
+      ...patch,
+    })
+
+  it('meets a target only in stock, in the same currency, at or below it', () => {
+    expect(meetsTargetPrice(inStock(9000), target)).toBe(true)
+    expect(meetsTargetPrice(inStock(9001), target)).toBe(false)
+    expect(meetsTargetPrice(inStock(8000, 'EUR'), target)).toBe(false)
+    expect(
+      meetsTargetPrice(
+        { priceMinor: 8000, currency: 'USD', availability: 'out_of_stock' },
+        target,
+      ),
+    ).toBe(false)
+    expect(
+      meetsTargetPrice(
+        { priceMinor: null, currency: 'USD', availability: 'in_stock' },
+        target,
+      ),
+    ).toBe(false)
+  })
+
+  it('opens one notification keyed to the snapshot when the target is met', () => {
+    expect(planTargetNotification(input(inStock(8500)), [], NOW)).toEqual({
+      create: [
+        {
+          knifeId: 'bugout',
+          sourceId: 7,
+          eventId: 42,
+          kind: 'target_reached',
+          occurrences: 1,
+          occurredAt: NOW.toISOString(),
+          createdAt: NOW.toISOString(),
+          updatedAt: NOW.toISOString(),
+          readAt: null,
+          dismissedAt: null,
+          resolvedAt: null,
+        },
+      ],
+      update: [],
+      deleteIds: [],
+    })
+  })
+
+  it('stays quiet while the target stays met, even after a dismiss', () => {
+    const none = { create: [], update: [], deleteIds: [] }
+    expect(
+      planTargetNotification(input(inStock(8000)), [openRow()], NOW),
+    ).toEqual(none)
+    expect(
+      planTargetNotification(
+        input(inStock(8000)),
+        [openRow({ dismissedAt: EARLIER })],
+        NOW,
+      ),
+    ).toEqual(none)
+    // A resolved row from an earlier round does not count as open.
+    expect(
+      planTargetNotification(
+        input(inStock(8000)),
+        [openRow({ resolvedAt: EARLIER })],
+        NOW,
+      ).create,
+    ).toHaveLength(1)
+  })
+
+  it('resolves when the price rises above the target, it sells out or the target is cleared', () => {
+    const resolved = {
+      create: [],
+      update: [
+        {
+          ...openRow(),
+          resolvedAt: NOW.toISOString(),
+          updatedAt: NOW.toISOString(),
+        },
+      ],
+      deleteIds: [],
+    }
+    expect(
+      planTargetNotification(input(inStock(9500)), [openRow()], NOW),
+    ).toEqual(resolved)
+    expect(
+      planTargetNotification(
+        input({
+          priceMinor: null,
+          currency: null,
+          availability: 'out_of_stock',
+        }),
+        [openRow()],
+        NOW,
+      ),
+    ).toEqual(resolved)
+    expect(
+      planTargetNotification(input(inStock(8000), null), [openRow()], NOW),
+    ).toEqual(resolved)
+  })
+
+  it('ignores readings in another currency and rows of other sources', () => {
+    const none = { create: [], update: [], deleteIds: [] }
+    expect(
+      planTargetNotification(input(inStock(100, 'EUR')), [openRow()], NOW),
+    ).toEqual(none)
+    expect(
+      planTargetNotification(
+        input(inStock(8000)),
+        [openRow({ sourceId: 8 })],
+        NOW,
+      ).create,
+    ).toHaveLength(1)
+  })
+
+  it('always notifies a wanted knife back in stock, whatever the setting', () => {
+    const restock: PriceNotificationEvent = {
+      kind: 'back_in_stock',
+      eventId: 1,
+      knifeId: 'bugout',
+      sourceId: 7,
+    }
+    const off = settings({ notify: { backInStock: false } })
+    expect(shouldNotify(restock, off)).toBe(false)
+    expect(shouldNotify({ ...restock, wanted: true }, off)).toBe(true)
+    // Price changes of wanted knives follow the usual settings.
+    expect(
+      shouldNotify(
+        {
+          kind: 'increase',
+          eventId: 2,
+          knifeId: 'bugout',
+          sourceId: 7,
+          currency: 'USD',
+          deltaMinor: 1000,
+          deltaPct: 10,
+          wanted: true,
+        },
+        DEFAULTS,
+      ),
+    ).toBe(false)
   })
 })

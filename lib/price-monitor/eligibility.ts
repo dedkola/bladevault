@@ -20,16 +20,17 @@ export const DEFAULT_ELIGIBILITY_SETTINGS: EligibilitySettings = {
  * - off: never.
  * - on: whenever it has an enabled source.
  * - auto: when its stored purchase price is above 0, it is not sold (unless
- *   the setting allows sold knives), and it has an enabled source.
+ *   the setting allows sold knives), and it has an enabled source. A wanted
+ *   (watchlist) knife has no purchase price yet, so only its source counts.
  */
 export function getEligibility(
-  knife: { sold: boolean; specs: { price?: string } },
+  knife: { sold: boolean; wanted?: boolean; specs: { price?: string } },
   mode: PriceWatchMode,
   enabledSourceCount: number,
   settings: EligibilitySettings = DEFAULT_ELIGIBILITY_SETTINGS,
 ): PriceWatchEligibility {
   if (mode === 'off') return { monitored: false, reason: 'off' }
-  if (mode === 'auto') {
+  if (mode === 'auto' && !knife.wanted) {
     if (!parseStoredPrice(knife.specs.price))
       return { monitored: false, reason: 'no_price' }
     if (settings.skipSoldKnives && knife.sold)

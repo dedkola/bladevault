@@ -110,7 +110,7 @@ export function updateMcpRuntimeSettings(updates: McpRuntimeSettingsUpdate) {
 function getMcpDataStats() {
   const database = getLocalDb()
   const collection = database
-    .prepare('SELECT COUNT(*) AS count FROM knives')
+    .prepare('SELECT COUNT(*) AS count FROM knives WHERE wanted = 0')
     .get() as { count: number }
   const changes = database
     .prepare(

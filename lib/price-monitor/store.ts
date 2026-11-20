@@ -33,8 +33,10 @@ import {
 import type { LaneState } from '@/lib/price-monitor/lanes'
 import {
   planPriceNotifications,
+  planTargetNotification,
   type PriceNotificationEvent,
   type PriceNotificationSettings,
+  type TargetPrice,
 } from '@/lib/price-monitor/notifications'
 import {
   readPriceNotifications,
@@ -114,6 +116,35 @@ export function readWatchMode(
     .prepare('SELECT mode FROM price_watch WHERE knife_id = ?')
     .get(knifeId) as { mode: PriceWatchMode } | undefined
   return row?.mode ?? 'auto'
+}
+
+/** Whether a knife is on the watchlist, and its target price if set. */
+export function readWatchTarget(
+  database: Database.Database,
+  knifeId: string,
+): { wanted: boolean; target: TargetPrice | null } {
+  const row = database
+    .prepare(
+      `SELECT k.wanted, w.target_minor, w.target_currency
+       FROM knives k LEFT JOIN price_watch w ON w.knife_id = k.id
+       WHERE k.id = ?`,
+    )
+    .get(knifeId) as
+    | {
+        wanted: number
+        target_minor: number | null
+        target_currency: string | null
+      }
+    | undefined
+  return {
+    wanted: row?.wanted === 1,
+    target:
+      row?.target_minor !== null &&
+      row?.target_minor !== undefined &&
+      row.target_currency
+        ? { minor: row.target_minor, currency: row.target_currency }
+        : null,
+  }
 }
 
 export function readActiveSources(
@@ -664,6 +695,7 @@ export async function recordCheck(
       let detection: DetectResult | null = null
       let snapshotId: number | null = null
       const events: PriceNotificationEvent[] = []
+      const watch = readWatchTarget(database, source.knife_id)
       const unconfirmed = Boolean(
         observation && record.aiReview === 'unconfirmed',
       )
@@ -795,6 +827,7 @@ export async function recordCheck(
             currency: price.currency,
             deltaMinor: price.deltaMinor,
             deltaPct: price.deltaPct,
+            wanted: watch.wanted,
           })
         }
         const stock = detection.stockChange
@@ -828,6 +861,7 @@ export async function recordCheck(
             eventId,
             knifeId: source.knife_id,
             sourceId: source.id,
+            wanted: watch.wanted,
           })
         }
         if (events.length) {
@@ -841,6 +875,22 @@ export async function recordCheck(
             ),
           )
         }
+        // Watchlist: a trusted reading at or below the target notifies once.
+        if (watch.wanted && snapshotId !== null)
+          writePriceNotificationChanges(
+            database,
+            planTargetNotification(
+              {
+                knifeId: source.knife_id,
+                sourceId: source.id,
+                snapshotId,
+                reading: observation,
+                target: watch.target,
+              },
+              readPriceNotifications(database, { sourceId: source.id }),
+              new Date(now),
+            ),
+          )
       }
 
       const succeeded = record.outcome === 'ok' || record.outcome === 'no_price'
@@ -1045,7 +1095,8 @@ export function readQueueCandidates(
   const rows = database
     .prepare(
       `SELECT s.id, s.knife_id, s.lane_key, s.priority, s.next_check_at,
-              s.enabled, k.specs, k.sold, COALESCE(w.mode, 'auto') AS mode
+              s.enabled, k.specs, k.sold, k.wanted,
+              COALESCE(w.mode, 'auto') AS mode
        FROM price_sources s
        JOIN knives k ON k.id = s.knife_id
        LEFT JOIN price_watch w ON w.knife_id = s.knife_id
@@ -1060,6 +1111,7 @@ export function readQueueCandidates(
     enabled: number
     specs: string
     sold: number
+    wanted: number
     mode: PriceWatchMode
   }>
   const eligible = new Map<string, boolean>()
@@ -1073,7 +1125,7 @@ export function readQueueCandidates(
         price = undefined
       }
       monitored = getEligibility(
-        { sold: row.sold === 1, specs: { price } },
+        { sold: row.sold === 1, wanted: row.wanted === 1, specs: { price } },
         row.mode,
         1,
         settings,

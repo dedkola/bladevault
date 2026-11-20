@@ -229,11 +229,14 @@ export function KnifePricePanel({
   variant,
   onClose,
   onChanged,
+  wanted = false,
 }: {
   knifeId: string
   variant: 'page' | 'tab'
   onClose?: () => void
   onChanged?: () => void
+  /** A watchlist knife: no purchase price, and its sources are edited inline. */
+  wanted?: boolean
 }) {
   const [range, setRange] = useState<HistoryRange>(
     variant === 'tab' ? '1m' : '3m',
@@ -330,7 +333,7 @@ export function KnifePricePanel({
           </div>
           {variant === 'tab' ? (
             <>
-              <div>
+              <div className={cn(wanted && 'hidden')}>
                 <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                   You paid
                 </div>
@@ -352,7 +355,9 @@ export function KnifePricePanel({
                     {MODE_LABEL[watch.mode]}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {REASON_TEXT[watch.eligibility.reason]}
+                    {wanted && watch.eligibility.reason === 'monitored_auto'
+                      ? 'on your watchlist'
+                      : REASON_TEXT[watch.eligibility.reason]}
                   </div>
                 </div>
               ) : null}
@@ -438,7 +443,12 @@ export function KnifePricePanel({
 
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div
+        className={cn(
+          'flex flex-wrap items-center justify-between gap-2',
+          wanted && 'hidden',
+        )}
+      >
         {variant === 'tab' ? (
           <span className="text-xs text-muted-foreground">
             Sources and Auto / Always / Never are set in edit mode.

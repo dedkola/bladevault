@@ -17,7 +17,8 @@
 }
 
 [data-price-pill='drop'],
-[data-price-pill='back'] {
+[data-price-pill='back'],
+[data-price-pill='target'] {
   background: var(--price-drop-bg);
   color: var(--price-drop);
 }
