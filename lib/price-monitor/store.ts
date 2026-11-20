@@ -4,9 +4,12 @@ import { getLocalDb } from '@/lib/local-db'
 import { pruneAiCalls } from '@/lib/price-monitor/ai-journal'
 import {
   detectChange,
+  detectStockChange,
+  STOCK_HISTORY_LIMIT,
   type DetectResult,
   type Observation,
   type SnapshotState,
+  type StockSnapshot,
 } from '@/lib/price-monitor/detect'
 import {
   DEFAULT_ELIGIBILITY_SETTINGS,
@@ -179,6 +182,19 @@ export function readLatestSnapshot(
       )
       .get(sourceId) as SnapshotRow | undefined,
   )
+}
+
+/** Trusted snapshots' stock status, newest first, for detectStockChange. */
+export function readStockHistory(
+  database: Database.Database,
+  sourceId: number,
+): StockSnapshot[] {
+  return database
+    .prepare(
+      `SELECT id, availability, observations FROM price_snapshots
+       WHERE source_id = ? AND ${TRUSTED} ORDER BY id DESC LIMIT ?`,
+    )
+    .all(sourceId, STOCK_HISTORY_LIMIT) as StockSnapshot[]
 }
 
 /** Whether the source has any reading at all, trusted or not. */
@@ -808,6 +824,10 @@ export async function recordCheck(
           readLatestPricedSnapshot(database, source.id),
           observation,
         )
+        const stock = detectStockChange(
+          readStockHistory(database, source.id),
+          observation.availability,
+        )
         if (detection.action === 'touch' && latest) {
           snapshotId = latest.id
           database
@@ -883,8 +903,14 @@ export async function recordCheck(
             priceMinor: price.priceMinor,
           })
         }
-        const stock = detection.stockChange
         if (stock) {
+          // Dated when the new status was first read, not when confirmed.
+          const changedAt =
+            (
+              database
+                .prepare('SELECT observed_at FROM price_snapshots WHERE id = ?')
+                .get(stock.toSnapshotId) as { observed_at: string } | undefined
+            )?.observed_at ?? now
           const eventId = Number(
             database
               .prepare(
@@ -903,10 +929,10 @@ export async function recordCheck(
                 observation.priceMinor,
                 observation.currency,
                 stock.fromSnapshotId,
-                snapshotId,
+                stock.toSnapshotId,
                 source.url,
                 source.store_name,
-                now,
+                changedAt,
               ).lastInsertRowid,
           )
           events.push({

@@ -221,9 +221,12 @@ describe('price checks', () => {
     browserReading(offer(100))
     browserReading(offer(100))
     browserReading(offer(80))
+    // Stock changes are recorded once a second reading agrees.
+    browserReading(offer(null, 'out_of_stock'))
     browserReading(offer(null, 'out_of_stock'))
     browserReading(offer(75, 'in_stock'))
-    for (let i = 0; i < 5; i += 1)
+    browserReading(offer(75, 'in_stock'))
+    for (let i = 0; i < 7; i += 1)
       await checkPriceSource(sourceId, { trigger: 'manual' })
 
     const snapshots = rows(
@@ -233,8 +236,8 @@ describe('price checks', () => {
     expect(snapshots).toEqual([
       { price_minor: 10000, availability: 'in_stock', observations: 2 },
       { price_minor: 8000, availability: 'in_stock', observations: 1 },
-      { price_minor: null, availability: 'out_of_stock', observations: 1 },
-      { price_minor: 7500, availability: 'in_stock', observations: 1 },
+      { price_minor: null, availability: 'out_of_stock', observations: 2 },
+      { price_minor: 7500, availability: 'in_stock', observations: 2 },
     ])
     expect(
       rows(
@@ -271,7 +274,7 @@ describe('price checks', () => {
       consecutiveFailures: 0,
     })
     expect(rows('SELECT checks, ok FROM price_monitor_daily')).toEqual([
-      { checks: 5, ok: 5 },
+      { checks: 7, ok: 7 },
     ])
     // The purchase price is never touched.
     const knife = await knifeRoute.GET(
