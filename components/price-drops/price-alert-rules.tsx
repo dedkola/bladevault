@@ -4,7 +4,6 @@ import { useId, useState } from 'react'
 import { BellOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { SettingsSwitch } from '@/components/settings-panels'
 import {
   formatMoney,
   fromMinorUnits,
@@ -23,6 +22,38 @@ function defaultCurrency(watch: PriceWatchView): string {
     watch.alerts.targetPrice?.currency ??
     watch.sources.find((source) => source.lastCurrency)?.lastCurrency ??
     (watch.paid?.currency || 'USD')
+  )
+}
+
+/**
+ * The settings switch, styled inline: its stylesheet only loads on the
+ * Settings page, and these rules also appear on knife pages.
+ */
+function RuleSwitch({
+  checked,
+  disabled,
+  onCheckedChange,
+  'aria-label': ariaLabel,
+}: {
+  checked: boolean
+  disabled?: boolean
+  onCheckedChange: (checked: boolean) => void
+  'aria-label': string
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={ariaLabel}
+      disabled={disabled}
+      onClick={() => onCheckedChange(!checked)}
+      className={cn(
+        'relative h-5 w-9 flex-none rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50',
+        "after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform after:content-['']",
+        checked ? 'bg-primary after:translate-x-4' : 'bg-foreground/20',
+      )}
+    />
   )
 }
 
@@ -101,7 +132,7 @@ export function PriceAlertRules({
         Alerts for this knife
       </span>
       <div className="flex items-start justify-between gap-3 text-sm">
-        <span className="space-y-0.5">
+        <span className="min-w-0 flex-1 space-y-0.5">
           <span className="block font-medium text-foreground">
             Mute this knife
           </span>
@@ -109,7 +140,7 @@ export function PriceAlertRules({
             Checks and history continue; no new Inbox or desktop messages.
           </span>
         </span>
-        <SettingsSwitch
+        <RuleSwitch
           aria-label="Mute this knife"
           checked={alerts.muted}
           disabled={busy}
@@ -177,7 +208,7 @@ export function PriceAlertRules({
           </p>
         </div>
         <div className="flex items-start justify-between gap-3 text-sm">
-          <span className="space-y-0.5">
+          <span className="min-w-0 flex-1 space-y-0.5">
             <span className="block font-medium text-foreground">
               Only below what I paid
             </span>
@@ -187,7 +218,7 @@ export function PriceAlertRules({
                 : 'Needs a purchase price on the knife; until then drops notify as usual.'}
             </span>
           </span>
-          <SettingsSwitch
+          <RuleSwitch
             aria-label="Only below what I paid"
             checked={alerts.belowPaid}
             disabled={busy || alerts.muted}
