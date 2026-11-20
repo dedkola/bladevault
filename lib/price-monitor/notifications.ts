@@ -173,7 +173,8 @@ export type PriceNotificationEvent =
 export type PriceNotificationSettings = Pick<
   PriceMonitoringSettings,
   'notify' | 'thresholds'
->
+> &
+  Partial<Pick<PriceMonitoringSettings, 'ignoreOfficialOutOfStock'>>
 
 export type PriceNotificationAction =
   | { action: 'read' | 'dismiss' | 'restore' | 'unsnooze'; ids: number[] }

@@ -23,7 +23,6 @@ import {
 import { PriceAlertRules } from '@/components/price-drops/price-alert-rules'
 import { getSafeExternalUrl } from '@/lib/external-url'
 import { announcePriceDataUpdated } from '@/lib/market-status'
-import { formatMoney } from '@/lib/price-monitor/money'
 import type {
   EligibilityReason,
   FetchOverride,
@@ -34,6 +33,14 @@ import type {
   PriceWatchView,
 } from '@/lib/price-monitor/shared'
 import { cn } from '@/lib/utils'
+import {
+  money,
+  relativeTime,
+  STATUS_LABEL,
+  STATUS_TONE,
+  storeLabel,
+} from './price-format'
+import './price-drops.css'
 
 const MODE_OPTIONS: Array<{ value: PriceWatchMode; label: string }> = [
   { value: 'auto', label: 'Auto' },
@@ -51,28 +58,6 @@ const ELIGIBILITY_TEXT: Record<EligibilityReason, string> = {
   no_source: 'Not monitored yet: add a product URL below.',
 }
 
-const STATUS_LABEL: Record<PriceSourceStatus, string> = {
-  pending: 'Not checked yet',
-  checking: 'Checking',
-  ok: 'Checked',
-  price_unavailable: 'Price unavailable',
-  out_of_stock: 'Out of stock',
-  failed: 'Failed',
-  blocked: 'Blocked',
-  needs_review: 'AI doubts the price',
-}
-
-const STATUS_TONE: Record<PriceSourceStatus, string> = {
-  pending: 'border-[var(--bladevault-line)] text-muted-foreground',
-  checking: 'border-[var(--bladevault-line)] text-foreground',
-  ok: 'border-emerald-500/40 text-emerald-700 dark:text-emerald-400',
-  price_unavailable: 'border-amber-500/40 text-amber-700 dark:text-amber-400',
-  out_of_stock: 'border-amber-500/40 text-amber-700 dark:text-amber-400',
-  failed: 'border-destructive/40 text-destructive',
-  blocked: 'border-destructive/40 text-destructive',
-  needs_review: 'border-amber-500/40 text-amber-700 dark:text-amber-400',
-}
-
 const FETCH_LABEL: Record<FetchOverride, string> = {
   auto: 'Fetch: auto',
   browser: 'Fetch: browser',
@@ -80,17 +65,6 @@ const FETCH_LABEL: Record<FetchOverride, string> = {
 }
 
 const POLL_MS = 2500
-
-function relativeTime(iso: string | null): string {
-  if (!iso) return ''
-  const seconds = Math.round((Date.parse(iso) - Date.now()) / 1000)
-  const format = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
-  const abs = Math.abs(seconds)
-  if (abs < 60) return format.format(seconds, 'second')
-  if (abs < 3600) return format.format(Math.round(seconds / 60), 'minute')
-  if (abs < 86_400) return format.format(Math.round(seconds / 3600), 'hour')
-  return format.format(Math.round(seconds / 86_400), 'day')
-}
 
 async function readError(response: Response): Promise<string> {
   try {
@@ -136,7 +110,7 @@ function SourceRow({
   const statusLabel = waiting ? 'Queued' : STATUS_LABEL[status]
   const price =
     source.lastPriceMinor !== null && source.lastCurrency
-      ? formatMoney(source.lastPriceMinor, source.lastCurrency)
+      ? money(source.lastPriceMinor, source.lastCurrency)
       : null
 
   return (
@@ -151,7 +125,7 @@ function SourceRow({
         <div className="min-w-0 flex-1 space-y-0.5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-medium text-foreground">
-              {source.storeName}
+              {storeLabel(source.storeName)}
             </span>
             {source.origin === 'auto' ? (
               <span className="rounded-full border border-[var(--bladevault-line)] px-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -186,10 +160,8 @@ function SourceRow({
           )}
         </div>
         <span
-          className={cn(
-            'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs',
-            STATUS_TONE[status],
-          )}
+          data-price-chip={STATUS_TONE[status]}
+          className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
           role="status"
         >
           {status === 'checking' ? (

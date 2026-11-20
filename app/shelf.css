@@ -129,6 +129,12 @@ html[data-theme-variant='shelf'] {
   --gl-lit: #a69c94;
   --gl-sel: #8c1d2e;
   --gl-text: #7d1a29;
+  --price-drop: #3c7a4e;
+  --price-rise: #b42318;
+  --price-stock: #a2650f;
+  --price-attention: #57504b;
+  --price-neutral: #a69c94;
+  --price-restock: #2f5f96;
 }
 
 html[data-theme-variant='shelf'].dark {
@@ -235,6 +241,12 @@ html[data-theme-variant='shelf'].dark {
   --gl-lit: #8b8079;
   --gl-sel: #e07c8a;
   --gl-text: #efa3ae;
+  --price-drop: #7cc596;
+  --price-rise: #f07167;
+  --price-stock: #e6b062;
+  --price-attention: #a3978e;
+  --price-neutral: #645b55;
+  --price-restock: #86b1dd;
 }
 
 /* Shell ------------------------------------------------------------- */

@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3'
 import {
   getEligibility,
+  isIgnoredOfficialOutOfStock,
   type EligibilitySettings,
 } from '@/lib/price-monitor/eligibility'
 import { parseStoredPrice, toMinorUnits } from '@/lib/price-monitor/money'
@@ -11,6 +12,7 @@ import {
 import { isStaleOutOfStock } from '@/lib/price-monitor/schedule'
 import type {
   Availability,
+  PriceSourceOrigin,
   PriceSourceStatus,
   PriceWatchMode,
   RetireHint,
@@ -156,6 +158,10 @@ export type SourceSummary = {
   lastError: string | null
   /** When it went out of stock (out-of-stock sources only). */
   since: string | null
+  /** The knife's own product link (its official store). */
+  official: boolean
+  /** Out of stock on the official link, ignored by the setting. */
+  stockIgnored: boolean
 }
 
 /**
@@ -411,6 +417,7 @@ type SourceRow = {
   store_name: string
   lane_key: string
   url: string
+  origin: PriceSourceOrigin
   enabled: number
   status: PriceSourceStatus
   last_price_minor: number | null
@@ -426,6 +433,7 @@ function toSourceSummary(
   row: SourceRow,
   knives: Map<string, KnifeRow>,
   since: string | null = null,
+  stockIgnored = false,
 ): SourceSummary {
   return {
     sourceId: row.id,
@@ -440,7 +448,26 @@ function toSourceSummary(
     lastCheckedAt: row.last_checked_at,
     lastError: row.last_error,
     since,
+    official: row.origin === 'auto',
+    stockIgnored,
   }
+}
+
+/**
+ * Out of stock that counts. With Ignore out of stock on the official site,
+ * the knife's own sold-out link is neither out of stock nor in stock.
+ */
+function stockRules(
+  settings: Pick<EligibilitySettings, 'ignoreOfficialOutOfStock'>,
+) {
+  const ignored = (source: SourceRow) =>
+    isIgnoredOfficialOutOfStock(
+      { origin: source.origin, availability: source.last_availability },
+      settings,
+    )
+  const soldOut = (source: SourceRow) =>
+    source.last_availability === 'out_of_stock' && !ignored(source)
+  return { ignored, soldOut }
 }
 
 /** Knives scheduled monitoring covers: eligible, with an enabled source. */
@@ -473,7 +500,7 @@ function monitoredKnifeIds(
   return monitored
 }
 
-const SOURCE_SQL = `SELECT id, knife_id, store_name, lane_key, url, enabled, status,
+const SOURCE_SQL = `SELECT id, knife_id, store_name, lane_key, url, origin, enabled, status,
          last_price_minor, last_currency, last_availability,
          last_checked_at, last_success_at, last_error, next_check_at
   FROM price_sources WHERE removed_at IS NULL`
@@ -513,6 +540,7 @@ export function buildKnifeSummaries(
   const knives = readKnives(database)
   const sources = database.prepare(SOURCE_SQL).all() as SourceRow[]
   const monitored = monitoredKnifeIds(sources, knives, settings)
+  const { ignored, soldOut } = stockRules(settings)
   const lastChangeByKnife = new Map(
     (
       database
@@ -558,8 +586,8 @@ export function buildKnifeSummaries(
         currency,
         paidMinor: paidIn(knife, currency),
         outOfStock:
-          list.length > 0 &&
-          list.every((source) => source.last_availability === 'out_of_stock'),
+          list.some(soldOut) &&
+          list.every((source) => soldOut(source) || ignored(source)),
         lastChange: lastChangeByKnife.get(knifeId) ?? null,
         lastCheckedAt: checked.at(-1) ?? null,
       }
@@ -575,11 +603,13 @@ export function buildKnifeSummaries(
 /** Every source currently out of stock, with when it went out of stock. */
 export function readOutOfStockSources(
   database: Database.Database,
+  settings: Pick<EligibilitySettings, 'ignoreOfficialOutOfStock'> = {},
 ): SourceSummary[] {
   const knives = readKnives(database, { activeOnly: true })
   const since = readOutOfStockSince(database)
+  const { soldOut } = stockRules(settings)
   return (database.prepare(SOURCE_SQL).all() as SourceRow[])
-    .filter((source) => source.last_availability === 'out_of_stock')
+    .filter(soldOut)
     .map((source) =>
       toSourceSummary(source, knives, since.get(source.id) ?? null),
     )
@@ -609,6 +639,7 @@ export function buildPriceOverview(
   const knives = readKnives(database, { activeOnly: true })
 
   const sources = database.prepare(SOURCE_SQL).all() as SourceRow[]
+  const { ignored, soldOut } = stockRules(settings)
 
   const monitored = monitoredKnifeIds(sources, knives, settings)
 
@@ -639,6 +670,7 @@ export function buildPriceOverview(
       latestStock: readLatestStockEvents(database),
       priceSeen: readPriceSeen(database),
       now,
+      ignored,
     },
   )
   const dayAgo = new Date(now - DAY_MS).toISOString()
@@ -674,9 +706,7 @@ export function buildPriceOverview(
       increases: windowRows.filter(
         (row) => row.kind === 'increase' && significant.has(row.id),
       ).length,
-      outOfStock: sources.filter(
-        (source) => source.last_availability === 'out_of_stock',
-      ).length,
+      outOfStock: sources.filter(soldOut).length,
       lastSuccessAt: lastSuccess ?? null,
     },
     monitored: monitoredSources,
@@ -788,9 +818,12 @@ function sourceResult(
   move: PriceMoveClass | undefined,
   restockedAt: string | null,
   now: number,
+  ignored: boolean,
 ): SourceResult {
   if (!source.last_checked_at) return 'pending'
-  if (source.last_availability === 'out_of_stock') return 'out_of_stock'
+  // An ignored official link shows its last price without the stock alarm.
+  if (source.last_availability === 'out_of_stock' && !ignored)
+    return 'out_of_stock'
   if (
     source.status === 'failed' ||
     source.status === 'blocked' ||
@@ -815,17 +848,25 @@ function buildMonitoredSources(
     latestStock: ReturnType<typeof readLatestStockEvents>
     priceSeen: ReadonlyMap<number, string>
     now: number
+    ignored: (row: SourceRow) => boolean
   },
 ): MonitoredSource[] {
   return sources.map((source) => {
     const move = moves.get(source.id)
+    const isIgnored = context.ignored(source)
     const latestStock = context.latestStock.get(source.id)
     const restockedAt =
       source.last_availability !== 'out_of_stock' &&
       latestStock?.kind === 'back_in_stock'
         ? latestStock.at
         : null
-    const result = sourceResult(source, move, restockedAt, context.now)
+    const result = sourceResult(
+      source,
+      move,
+      restockedAt,
+      context.now,
+      isIgnored,
+    )
     const changed = result === 'drop' || result === 'increase'
     const outOfStockSince =
       source.last_availability === 'out_of_stock'
@@ -833,7 +874,7 @@ function buildMonitoredSources(
         : null
     const knife = knives.get(source.knife_id)
     return {
-      ...toSourceSummary(source, knives, outOfStockSince),
+      ...toSourceSummary(source, knives, outOfStockSince, isIgnored),
       result,
       previousPriceMinor: changed ? (move?.previousPriceMinor ?? null) : null,
       deltaMinor: changed ? (move?.deltaMinor ?? null) : null,

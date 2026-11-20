@@ -34,6 +34,8 @@ function source(overrides: Partial<MonitoredSource> = {}): MonitoredSource {
     lastCheckedAt: '2026-11-19T10:00:00.000Z',
     lastError: null,
     since: null,
+    official: false,
+    stockIgnored: false,
     result: 'same',
     previousPriceMinor: null,
     deltaMinor: null,

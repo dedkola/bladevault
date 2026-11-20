@@ -13,7 +13,7 @@ import {
   type KnifeHistory,
 } from '@/lib/price-monitor/insights'
 import { cn } from '@/lib/utils'
-import { storeLabel } from './price-format'
+import { moneyMajor, storeLabel } from './price-format'
 import './price-drops.css'
 
 const RANGE_LABEL: Record<HistoryRange, string> = {
@@ -237,12 +237,7 @@ export function PriceHistoryChart({
           borderColor: palette.line,
           textStyle: { color: palette.foreground, fontSize: 12 },
           valueFormatter: (value) =>
-            typeof value === 'number' && currency
-              ? new Intl.NumberFormat(undefined, {
-                  style: 'currency',
-                  currency,
-                }).format(value)
-              : '—',
+            moneyMajor(typeof value === 'number' ? value : null, currency),
         },
         xAxis: {
           type: 'time',

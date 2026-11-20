@@ -16,6 +16,7 @@ import type {
 import { cn } from '@/lib/utils'
 import {
   money,
+  moneyMajor,
   relativeTime,
   STATUS_LABEL,
   STATUS_TONE,
@@ -112,16 +113,47 @@ function usePriceWatch(
   return { watch, pending }
 }
 
-function bestPrice(sources: PriceSourceView[], currency: string | null) {
-  const prices = sources
-    .filter(
-      (source) =>
-        source.lastPriceMinor !== null &&
-        source.lastCurrency === currency &&
-        source.lastAvailability !== 'out_of_stock',
+/** The in-stock source with the lowest price in the currency. */
+function bestSource(sources: PriceSourceView[], currency: string | null) {
+  let best: PriceSourceView | null = null
+  for (const source of sources) {
+    if (
+      source.lastPriceMinor === null ||
+      source.lastCurrency !== currency ||
+      source.lastAvailability === 'out_of_stock'
     )
-    .map((source) => source.lastPriceMinor!)
-  return prices.length ? Math.min(...prices) : null
+      continue
+    if (!best || source.lastPriceMinor < best.lastPriceMinor!) best = source
+  }
+  return best
+}
+
+/** A store name that opens the listing, when the link is safe. */
+function StoreLink({
+  url,
+  storeName,
+  className,
+}: {
+  url: string
+  storeName: string
+  className?: string
+}) {
+  const safeUrl = getSafeExternalUrl(url)
+  if (!safeUrl) return <>{storeLabel(storeName)}</>
+  return (
+    <a
+      href={safeUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        'inline-flex items-center gap-1 hover:underline',
+        className,
+      )}
+    >
+      {storeLabel(storeName)}
+      <ExternalLink className="size-3 shrink-0 text-muted-foreground" />
+    </a>
+  )
 }
 
 function SourceLine({
@@ -185,6 +217,14 @@ function SourceLine({
           ) : null}
           {!source.enabled ? (
             <span className="text-xs text-muted-foreground">· paused</span>
+          ) : null}
+          {source.stockIgnored ? (
+            <span
+              className="shrink-0 text-xs text-muted-foreground"
+              title="Out of stock on the official site is ignored (Settings → Price monitoring). Not checked on schedule until Check now finds it in stock."
+            >
+              · ignored
+            </span>
           ) : null}
         </div>
         <div
@@ -355,7 +395,20 @@ export function KnifePricePanel({
     (history && chartCurrency(history)) ??
     watch?.sources.find((source) => source.lastCurrency)?.lastCurrency ??
     null
-  const best = watch ? bestPrice(watch.sources, currency) : null
+  const bestAt = watch ? bestSource(watch.sources, currency) : null
+  const best = bestAt?.lastPriceMinor ?? null
+  // The latest drop while its price still holds at that store.
+  const latestDrop = history?.events.find(
+    (event) =>
+      event.type === 'price' &&
+      event.kind === 'drop' &&
+      watch?.sources.some(
+        (source) =>
+          source.id === event.sourceId &&
+          source.lastPriceMinor === event.priceMinor &&
+          source.lastAvailability !== 'out_of_stock',
+      ),
+  )
   // The purchase price is always shown; it is compared only in one currency.
   const paid = history?.paid ?? null
   // Stores priced only in other currencies than the purchase price.
@@ -397,10 +450,7 @@ export function KnifePricePanel({
               {watch?.sources.length ?? 0}{' '}
               {watch?.sources.length === 1 ? 'source' : 'sources'}
               {history.paid
-                ? ` · You paid ${new Intl.NumberFormat(undefined, {
-                    style: 'currency',
-                    currency: history.paid.currency,
-                  }).format(history.paid.amount)}`
+                ? ` · You paid ${moneyMajor(history.paid.amount, history.paid.currency)}`
                 : ''}
             </div>
           </div>
@@ -427,6 +477,16 @@ export function KnifePricePanel({
             <div className="text-2xl font-semibold tabular-nums">
               {money(best, currency)}
             </div>
+            {bestAt ? (
+              <div className="text-xs text-muted-foreground">
+                at{' '}
+                <StoreLink
+                  url={bestAt.url}
+                  storeName={bestAt.storeName}
+                  className="text-foreground"
+                />
+              </div>
+            ) : null}
             {otherCurrency && paid ? (
               <CurrencyMismatch
                 currency={otherCurrency}
@@ -442,12 +502,7 @@ export function KnifePricePanel({
                   You paid
                 </div>
                 <div className="text-base font-semibold tabular-nums">
-                  {paid
-                    ? new Intl.NumberFormat(undefined, {
-                        style: 'currency',
-                        currency: paid.currency,
-                      }).format(paid.amount)
-                    : '—'}
+                  {moneyMajor(paid?.amount ?? null, paid?.currency ?? null)}
                 </div>
               </div>
               {watch ? (
@@ -468,6 +523,33 @@ export function KnifePricePanel({
         </div>
         <RangeButtons value={range} onChange={setRange} />
       </div>
+
+      {latestDrop ? (
+        <div
+          data-price-drop-link
+          data-result="drop"
+          className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] px-3 py-2 text-sm"
+        >
+          <ChangePill event={latestDrop} />
+          <span>
+            Price dropped at{' '}
+            <StoreLink
+              url={latestDrop.sourceUrl}
+              storeName={latestDrop.storeName}
+              className="font-semibold"
+            />
+          </span>
+          <span className="tabular-nums text-muted-foreground">
+            {money(latestDrop.previousPriceMinor, latestDrop.currency)} →{' '}
+            <span className="font-semibold text-foreground">
+              {money(latestDrop.priceMinor, latestDrop.currency)}
+            </span>
+          </span>
+          <span className="ml-auto text-xs text-muted-foreground">
+            {relativeTime(latestDrop.occurredAt, now)}
+          </span>
+        </div>
+      ) : null}
 
       {historyState.status === 'error' ? (
         <p className="text-xs text-destructive">{historyState.message}</p>
@@ -530,7 +612,7 @@ export function KnifePricePanel({
         ) : null}
       </div>
 
-      {variant === 'tab' && history && history.events.length ? (
+      {history && history.events.length ? (
         <div>
           <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
             Latest changes
@@ -543,7 +625,10 @@ export function KnifePricePanel({
               >
                 <ChangePill event={event} />
                 <span className="min-w-0 flex-1 truncate">
-                  {storeLabel(event.storeName)}
+                  <StoreLink
+                    url={event.sourceUrl}
+                    storeName={event.storeName}
+                  />
                   {event.type === 'price'
                     ? ` · ${money(event.previousPriceMinor, event.currency)} → ${money(event.priceMinor, event.currency)}`
                     : ''}
