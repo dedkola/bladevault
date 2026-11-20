@@ -201,7 +201,7 @@ export function OtherStoresSettings({
       <SettingsRow
         inline
         label="Look for knives at other stores"
-        description="Covers every knife that price monitoring covers, also knives without a product link. Searches run in the background with scheduled checks, one knife at a time at each store’s normal pace. AI gets the knife’s brand, name and specs and the store’s listing titles; never what you paid, notes or photos."
+        description="Covers every knife that price monitoring covers, also knives without a product link. Searches run in the background with scheduled checks, one knife at a time at each store’s normal pace. AI gets the knife’s brand, name and specs and the store’s listing titles; never the regular price, notes or photos."
       >
         <SettingsSwitch
           aria-label="Look for knives at other stores"

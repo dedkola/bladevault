@@ -57,7 +57,7 @@ export type VerifyReading = {
 }
 
 export type VerifyInput = {
-  /** Brand, name and key specs; never the purchase price or notes. */
+  /** Brand, name and key specs; never the regular price or notes. */
   product: VerifyProduct
   /** The store's host name, e.g. "example-knives.com". */
   host: string

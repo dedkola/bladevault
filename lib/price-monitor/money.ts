@@ -151,7 +151,7 @@ export function formatMoney(
 }
 
 /**
- * Reads a knife's stored purchase price (`specs.price`, e.g. "129.00 USD").
+ * Reads a knife's stored regular price (`specs.price`, e.g. "129.00 USD").
  * Returns null for an empty or zero price; the currency is '' when unknown.
  */
 export function parseStoredPrice(

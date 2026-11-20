@@ -14,7 +14,7 @@ Choose the details you want to see while browsing and adjust BladeVault's theme,
 
 Changes save automatically. Brand and model stay visible. The model number has a dedicated place on the card, so selecting it does not create a second copy in the detail rows. Empty optional values are omitted on real cards.
 
-**Care status** and **Market price** are derived rather than typed in: Care status shows when maintenance is due (with care reminders on), and Market price shows the best current store price and whether it dropped, came back in stock, is out of stock, or is below what you paid. See [Watch market prices with Price Drops](price-drops.md#see-market-prices-in-your-collection). Neither is offered for pinned items.
+**Care status** and **Market price** are derived rather than typed in: Care status shows when maintenance is due (with care reminders on), and Market price shows the best current store price and whether it dropped, came back in stock, is out of stock, or is below regular price. See [Watch market prices with Price Drops](price-drops.md#see-market-prices-in-your-collection). Neither is offered for pinned items.
 
 For example, choose **Blade material**, **Handle material**, and **Weight** to see those specifications at a glance. Add a [custom field](custom-fields.md) first if you want to display a detail such as storage location.
 

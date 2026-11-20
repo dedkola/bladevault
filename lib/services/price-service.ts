@@ -106,10 +106,10 @@ function problemFor(
 }
 
 const ELIGIBILITY_TEXT: Record<EligibilityReason, string> = {
-  monitored_auto: 'Monitored: Auto mode, purchase price and a store URL.',
+  monitored_auto: 'Monitored: Auto mode, regular price and a store URL.',
   monitored_forced: 'Monitored: Always monitor is on.',
   off: 'Not monitored: monitoring is off for this knife.',
-  no_price: 'Not monitored: Auto mode needs a purchase price above 0.',
+  no_price: 'Not monitored: Auto mode needs a regular price above 0.',
   sold: 'Not monitored: the knife is sold and Auto mode skips sold knives.',
   no_source: 'Not monitored: no active store URL.',
 }

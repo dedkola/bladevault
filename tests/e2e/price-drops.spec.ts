@@ -107,7 +107,7 @@ test('adds a store URL and switches the mode in edit mode', async ({
   const editor = page.locator('[data-price-watch-editor]')
   await expect(editor.getByText('Sources 1 / 10')).toBeVisible()
   await expect(
-    editor.getByText('Monitored because a purchase price is stored.'),
+    editor.getByText('Monitored because a regular price is stored.'),
   ).toBeVisible()
 
   await editor

@@ -123,7 +123,7 @@ const at = (dayOffset: number) =>
   new Date(START + dayOffset * DAY).toISOString()
 
 describe('collection market summaries', () => {
-  it('summarizes price, drops, restocks, stock and purchase price per knife', async () => {
+  it('summarizes price, drops, restocks, stock and regular price per knife', async () => {
     const raccoon = await createKnife('Raccoon', '129.00 USD', [
       'https://shop.example/raccoon',
       'https://amazon.example/raccoon',

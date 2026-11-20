@@ -19,7 +19,7 @@ export type KnifeMarketSummary = {
   /** Lowest in-stock price in the most common currency among the stores. */
   bestPriceMinor: number | null
   currency: string | null
-  /** Purchase price in the same currency, when comparable. */
+  /** Regular price in the same currency, when comparable. */
   paidMinor: number | null
   /** Every store that was read lists the knife as out of stock. */
   outOfStock: boolean
@@ -51,7 +51,7 @@ export const MARKET_FILTER_LABELS: Record<MarketFilterValue, string> = {
   dropped: 'Price dropped recently',
   restocked: 'Back in stock recently',
   out_of_stock: 'Out of stock',
-  below_paid: 'Below what I paid',
+  below_paid: 'Below regular price',
   monitored: 'Monitored',
   not_monitored: 'Not monitored',
 }
@@ -139,7 +139,7 @@ function formatPct(value: number): string {
 
 /**
  * Short text for a card pill or table cell, e.g. "$89.00 · ↓ 12%",
- * "$89.00 · Back in stock", "Out of stock", or "$89.00 · Below paid".
+ * "$89.00 · Back in stock", "Out of stock", or "$89.00 · Below regular".
  * Empty when there is nothing to show.
  */
 export function marketLabel(summary: KnifeMarketSummary | undefined): string {
@@ -159,7 +159,7 @@ export function marketLabel(summary: KnifeMarketSummary | undefined): string {
           : `↓ ${formatPct(summary.dropPct)}`,
       )
     else if (summary.restockedAt) parts.push('Back in stock')
-    if (isBelowPaid(summary)) parts.push('Below paid')
+    if (isBelowPaid(summary)) parts.push('Below regular')
   }
   return parts.join(' · ')
 }
@@ -173,7 +173,9 @@ export function marketDescription(
   const notes: string[] = []
   if (label) notes.push(`Best market price: ${label}`)
   if (summary.paidMinor !== null && summary.currency)
-    notes.push(`You paid ${formatMoney(summary.paidMinor, summary.currency)}`)
+    notes.push(
+      `Regular price ${formatMoney(summary.paidMinor, summary.currency)}`,
+    )
   if (!summary.monitored) notes.push('Not monitored')
   return notes.join('. ') || 'No market price yet'
 }
@@ -188,7 +190,7 @@ const TONE_RANK: Record<MarketTone, number> = {
 }
 
 /**
- * Table sort: notable states first (drops, restocks, below paid), then the
+ * Table sort: notable states first (drops, restocks, below regular price), then the
  * rest by price; knives without a market reading stay last.
  */
 export function marketSortValue(

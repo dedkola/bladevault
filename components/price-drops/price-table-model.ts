@@ -31,12 +31,12 @@ export const SECTION_LABEL: Record<Section, string> = {
   increases: 'Increases',
   restocked: 'Restocked',
   oos: 'Out of stock',
-  below_paid: 'Below what I paid',
+  below_paid: 'Below regular price',
   attention: 'Needs attention',
   recent: 'Recently monitored',
 }
 
-/** In stock, read on its last check and cheaper than the purchase price. */
+/** In stock, read on its last check and cheaper than the regular price. */
 export function isBelowPaid(source: MonitoredSource): boolean {
   return (
     source.priceMinor !== null &&
@@ -75,7 +75,7 @@ export const EMPTY_TEXT: Record<Section, string> = {
   increases: 'No price increases in the last 30 days.',
   restocked: 'Nothing came back in stock in the last 7 days.',
   oos: 'Nothing is out of stock.',
-  below_paid: 'No store sells a knife for less than you paid.',
+  below_paid: 'No store sells a knife below its regular price.',
   attention: 'Every store page was read on its last check.',
   recent: 'Nothing has been checked yet.',
 }
@@ -90,7 +90,7 @@ const RESULT_ORDER: Record<MonitoredSource['result'], number> = {
   same: 6,
 }
 
-/** Price against the purchase price, in money and percent. */
+/** Price against the regular price, in money and percent. */
 export function vsPaid(
   source: Pick<MonitoredSource, 'priceMinor' | 'paidMinor'>,
 ): { deltaMinor: number; pct: number } | null {

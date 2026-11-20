@@ -195,7 +195,7 @@ describe('Confirm price changes before notifying', () => {
     expect(body).toContain('Raccoon')
     expect(body).toContain('Nitro-V')
     expect(body).toContain('shop.example')
-    // Never the purchase price or notes.
+    // Never the regular price or notes.
     expect(body).not.toContain('129')
     expect(body).not.toContain(NOTE)
 
@@ -443,7 +443,7 @@ describe('Daily Inbox digest', () => {
     return source
   }
 
-  it('reads aggregated data: deals against the purchase price and drops', async () => {
+  it('reads aggregated data: deals against the regular price and drops', async () => {
     await knifeWithHistory()
     const data = readDigestData(getLocalDb())
     expect(data.monitoredSources).toBe(1)
@@ -452,8 +452,8 @@ describe('Daily Inbox digest', () => {
         knife: 'Vosteed Raccoon',
         store: expect.any(String),
         price: '$100.00',
-        paid: '$129.00',
-        belowPaidPct: 22.5,
+        regularPrice: '$129.00',
+        belowRegularPct: 22.5,
       },
     ])
     expect(data.drops).toMatchObject([
@@ -468,7 +468,7 @@ describe('Daily Inbox digest', () => {
       chat({
         title: 'Raccoon dropped to $100.00',
         summary:
-          'Vosteed Raccoon is $100.00 at shop.example, 22.5% below what you paid ($129.00).',
+          'Vosteed Raccoon is $100.00 at shop.example, 22.5% below regular price ($129.00).',
       }),
     )
     const morning = new Date()

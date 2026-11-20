@@ -61,7 +61,7 @@ describe('market conditions', () => {
     expect(matchesMarketFilter(restocked, ['below_paid'])).toBe(false)
     expect(matchesMarketFilter(restocked, ['restocked'])).toBe(true)
     expect(matchesMarketFilter(soldOut, ['out_of_stock'])).toBe(true)
-    // Out of stock is never "below what I paid", even with an old price.
+    // Out of stock is never "below regular price", even with an old price.
     expect(
       matchesMarketFilter({ ...soldOut, bestPriceMinor: 100, paidMinor: 900 }, [
         'below_paid',
@@ -77,18 +77,18 @@ describe('market conditions', () => {
   })
 
   it('labels the leading state for cards and cells', () => {
-    expect(marketLabel(dropped)).toBe('$89.00 · ↓ 12% · Below paid')
+    expect(marketLabel(dropped)).toBe('$89.00 · ↓ 12% · Below regular')
     expect(marketTone(dropped)).toBe('dropped')
     expect(marketLabel(restocked)).toBe('$150.00 · Back in stock')
     expect(marketTone(restocked)).toBe('restocked')
     expect(marketLabel(soldOut)).toBe('Out of stock')
     expect(marketTone(soldOut)).toBe('out_of_stock')
-    expect(marketLabel(summary())).toBe('$99.00 · Below paid')
+    expect(marketLabel(summary())).toBe('$99.00 · Below regular')
     expect(marketTone(summary())).toBe('below_paid')
     expect(marketLabel(paused)).toBe('$99.00')
     expect(marketTone(paused)).toBe('steady')
     expect(marketLabel(summary({ dropPct: -5.25, droppedAt: 'x' }))).toBe(
-      '$99.00 · ↓ 5.3% · Below paid',
+      '$99.00 · ↓ 5.3% · Below regular',
     )
     expect(marketLabel(undefined)).toBe('')
     expect(marketTone(summary({ bestPriceMinor: null }))).toBe('none')
@@ -176,7 +176,7 @@ describe('market filters in collections', () => {
     expect(getCollectionColumns([]).some((c) => c.key === 'market')).toBe(false)
     const columns = getCollectionColumns([], 'in', undefined, map)
     const column = columns.find((item) => item.key === 'market')
-    expect(column?.getValue(knifeA)).toBe('$89.00 · ↓ 12% · Below paid')
+    expect(column?.getValue(knifeA)).toBe('$89.00 · ↓ 12% · Below regular')
     expect(column?.getValue(knifeC)).toBe('')
     expect(
       sortKnivesByColumn(

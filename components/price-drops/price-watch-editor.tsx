@@ -49,11 +49,11 @@ const MODE_OPTIONS: Array<{ value: PriceWatchMode; label: string }> = [
 ]
 
 const ELIGIBILITY_TEXT: Record<EligibilityReason, string> = {
-  monitored_auto: 'Monitored because a purchase price is stored.',
-  monitored_forced: 'Monitored even without a stored purchase price.',
+  monitored_auto: 'Monitored because a regular price is stored.',
+  monitored_forced: 'Monitored even without a stored regular price.',
   off: 'Not monitored. Check now still works for a single reading.',
   no_price:
-    'Not monitored: no purchase price is stored. Add a price or choose Always monitor.',
+    'Not monitored: no regular price is stored. Add a price or choose Always monitor.',
   sold: 'Not monitored: the knife is marked as sold. Choose Always monitor to keep watching it.',
   no_source: 'Not monitored yet: add a product URL below.',
 }

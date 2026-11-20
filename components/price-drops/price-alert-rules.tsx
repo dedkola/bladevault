@@ -210,16 +210,16 @@ export function PriceAlertRules({
         <div className="flex items-start justify-between gap-3 text-sm">
           <span className="min-w-0 flex-1 space-y-0.5">
             <span className="block font-medium text-foreground">
-              Only below what I paid
+              Only below regular price
             </span>
             <span className="block text-xs text-muted-foreground">
               {paid
                 ? `Drops notify only under ${paid.currency ? formatMoney(toMinorUnits(paid.amount, paid.currency), paid.currency) : paid.amount}. Stores in other currencies are not compared.`
-                : 'Needs a purchase price on the knife; until then drops notify as usual.'}
+                : 'Needs a regular price on the knife; until then drops notify as usual.'}
             </span>
           </span>
           <RuleSwitch
-            aria-label="Only below what I paid"
+            aria-label="Only below regular price"
             checked={alerts.belowPaid}
             disabled={busy || alerts.muted}
             onCheckedChange={(checked) => onChange({ belowPaid: checked })}

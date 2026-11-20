@@ -69,10 +69,10 @@ import { PriceAlertRules } from './price-alert-rules'
 const MODE_LABEL = { auto: 'Auto', on: 'Always monitor', off: 'Never monitor' }
 
 const REASON_TEXT: Record<EligibilityReason, string> = {
-  monitored_auto: 'a purchase price is stored',
+  monitored_auto: 'a regular price is stored',
   monitored_forced: 'monitored without a stored price',
   off: 'not checked automatically',
-  no_price: 'no purchase price stored, so not monitored',
+  no_price: 'no regular price stored, so not monitored',
   sold: 'sold, so not monitored',
   no_source: 'no product URL yet',
 }
@@ -372,7 +372,7 @@ function signedMoney(minor: number, currency: string | null): string {
   return `${minor < 0 ? '−' : '+'}${money(Math.abs(minor), currency)}`
 }
 
-/** Lowest and highest seen, tracking since and the gap to what you paid. */
+/** Lowest and highest seen, tracking since and the gap to the regular price. */
 function HistoryStats({ stats }: { stats: KnifeHistoryStats }) {
   const items: Array<{ label: string; value: string; note?: string }> = [
     {
@@ -398,7 +398,7 @@ function HistoryStats({ stats }: { stats: KnifeHistoryStats }) {
       value: stats.trackingSince ? shortDate(stats.trackingSince) : '—',
     },
     {
-      label: 'Now vs you paid',
+      label: 'Now vs regular price',
       value:
         stats.gapMinor !== null
           ? signedMoney(stats.gapMinor, stats.currency)
@@ -407,7 +407,7 @@ function HistoryStats({ stats }: { stats: KnifeHistoryStats }) {
         stats.gapPct !== null
           ? `${stats.gapPct > 0 ? '+' : stats.gapPct < 0 ? '−' : ''}${Math.abs(stats.gapPct).toFixed(1)}%`
           : stats.paidMinor === null
-            ? 'No comparable purchase price'
+            ? 'No comparable regular price'
             : undefined,
     },
   ]
@@ -472,7 +472,7 @@ function LatestChanges({
 /**
  * Best price, stats, history chart, sources and latest changes for one
  * knife. `page` is the Price Drops side panel; `tab` is the knife's Market
- * tab, which adds the purchase price and mode. Both can manage sources.
+ * tab, which adds the regular price and mode. Both can manage sources.
  */
 export function KnifePricePanel({
   knifeId,
@@ -587,9 +587,9 @@ export function KnifePricePanel({
           source.lastAvailability !== 'out_of_stock',
       ),
   )
-  // The purchase price is always shown; it is compared only in one currency.
+  // The regular price is always shown; it is compared only in one currency.
   const paid = history?.paid ?? null
-  // Stores priced only in other currencies than the purchase price.
+  // Stores priced only in other currencies than the regular price.
   const storeCurrencies = new Set(
     (watch?.sources ?? [])
       .filter((source) => source.lastPriceMinor !== null)
@@ -629,7 +629,7 @@ export function KnifePricePanel({
               {watch?.sources.length ?? 0}{' '}
               {watch?.sources.length === 1 ? 'source' : 'sources'}
               {history.paid
-                ? ` · You paid ${moneyMajor(history.paid.amount, history.paid.currency)}`
+                ? ` · Regular price ${moneyMajor(history.paid.amount, history.paid.currency)}`
                 : ''}
             </div>
           </div>
@@ -688,7 +688,7 @@ export function KnifePricePanel({
           {variant === 'tab' ? (
             <>
               <div>
-                <div className={LABEL}>You paid</div>
+                <div className={LABEL}>Regular price</div>
                 <div className="text-base font-semibold tabular-nums">
                   {paid
                     ? moneyMajor(paid.amount, paid.currency)

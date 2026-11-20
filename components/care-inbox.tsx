@@ -822,7 +822,7 @@ function priceNotificationDetail(
 }
 
 /**
- * “$10.00 below what you paid ($120.00) · Lowest seen $99.00”: how the new
+ * “$10.00 below regular price ($120.00) · Lowest seen $99.00”: how the new
  * price compares, in the event's currency only, plus any mute.
  */
 function priceContextParts(row: PriceNotificationView, now: Date): string[] {
@@ -833,8 +833,8 @@ function priceContextParts(row: PriceNotificationView, now: Date): string[] {
       const diff = event.priceMinor - context.paidMinor
       parts.push(
         diff === 0
-          ? `Same as you paid (${money(context.paidMinor, event.currency)})`
-          : `${money(Math.abs(diff), event.currency)} ${diff < 0 ? 'below' : 'above'} what you paid (${money(context.paidMinor, event.currency)})`,
+          ? `Same as regular price (${money(context.paidMinor, event.currency)})`
+          : `${money(Math.abs(diff), event.currency)} ${diff < 0 ? 'below' : 'above'} regular price (${money(context.paidMinor, event.currency)})`,
       )
     }
     if (context.lowestMinor !== null) {

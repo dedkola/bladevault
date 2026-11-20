@@ -1007,7 +1007,7 @@ export function PriceAiSettingsSection({
       <SettingsRow
         inline
         label="Confirm price changes"
-        description="Before a price change notifies you, or a price jumps far more than usual, AI checks it against the product page: the same variant and currency, for one item, not a bundle or accessory. A change AI rejects is kept as unconfirmed, does not notify, and the reason appears in the check history. When AI is unavailable or the daily budget is used up, changes notify as before. Sends the cleaned page, the old and new price, and the knife's brand, name and specs; never the purchase price or notes."
+        description="Before a price change notifies you, or a price jumps far more than usual, AI checks it against the product page: the same variant and currency, for one item, not a bundle or accessory. A change AI rejects is kept as unconfirmed, does not notify, and the reason appears in the check history. When AI is unavailable or the daily budget is used up, changes notify as before. Sends the cleaned page, the old and new price, and the knife's brand, name and specs; never the regular price or notes."
       >
         <SettingsSwitch
           aria-label="Let AI confirm price changes before notifying"
@@ -1035,7 +1035,7 @@ export function PriceAiSettingsSection({
       <SettingsRow
         inline
         label="Daily summary in the Inbox"
-        description="Once a day, AI writes a short summary: the best current prices against what you paid, drops and restocks of the last 24 hours, store pages that broke, and what AI fixed. Each day's summary replaces the last. Only knife names, store names and prices are sent: no notes, photos or links."
+        description="Once a day, AI writes a short summary: the best current prices against regular prices, drops and restocks of the last 24 hours, store pages that broke, and what AI fixed. Each day's summary replaces the last. Only knife names, store names and prices are sent: no notes, photos or links."
       >
         <SettingsSwitch
           aria-label="Let AI write a daily price summary in the Inbox"

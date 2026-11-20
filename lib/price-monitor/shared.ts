@@ -17,7 +17,7 @@ export const MAX_TARGET_PRICE = 10_000_000
 export const MAX_PRICE_SOURCES_PER_KNIFE = 10
 
 export const PRICE_WATCH_MODES = ['auto', 'on', 'off'] as const
-/** auto: monitored when a purchase price is stored; on/off: forced. */
+/** auto: monitored when a regular price is stored; on/off: forced. */
 export type PriceWatchMode = (typeof PRICE_WATCH_MODES)[number]
 
 export const PRICE_SOURCE_STATUSES = [
@@ -99,7 +99,7 @@ export type PriceWatchView = {
   queuedSourceIds: number[]
   /** The knife's alert rules. */
   alerts: PriceAlertRules
-  /** The stored purchase price, for "only below what I paid". */
+  /** The stored regular price, for "only below regular price". */
   paid: { amount: number; currency: string } | null
 }
 
