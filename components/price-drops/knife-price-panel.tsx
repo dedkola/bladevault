@@ -40,6 +40,7 @@ import {
   RangeButtons,
   usePriceHistory,
 } from './price-history-chart'
+import { PriceExportButton } from './price-export-button'
 import {
   CheckHistoryDialog,
   type CheckHistoryTarget,
@@ -765,6 +766,9 @@ export function KnifePricePanel({
 
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
+      <div className="flex justify-end">
+        <PriceExportButton knifeId={knifeId} />
+      </div>
       <SolveInBrowserDialog
         target={solveTarget}
         onClose={() => setSolveTarget(null)}

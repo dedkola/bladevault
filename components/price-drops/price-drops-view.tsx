@@ -17,6 +17,7 @@ import { KnifePricePanel } from './knife-price-panel'
 import { useKnives } from '@/components/providers/knives-provider'
 import { getHourCycle } from '@/lib/time-format'
 import { MonitoringStatus, ResultBadge } from './monitoring-status'
+import { PriceExportButton } from './price-export-button'
 import {
   clockTime,
   money,
@@ -435,6 +436,7 @@ export function PriceDropsView({
             )}
             Check all now
           </Button>
+          <PriceExportButton label="Export all" />
         </div>
       }
     />
