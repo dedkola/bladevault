@@ -100,6 +100,49 @@ function deps(overrides: Partial<DiscoveryDeps> = {}): Partial<DiscoveryDeps> {
 }
 
 describe('Other stores discovery', () => {
+  it('searches again without the model number when the first search finds nothing', async () => {
+    enableOtherStores()
+    const knifeId = await createKnife({
+      specs: { price: '$150', modelNumber: 'C223GP' },
+    })
+    const fetchPage = vi.fn(async (url: string) => ({
+      html: url.includes('C223GP')
+        ? '<div>No results</div>'
+        : url.includes('/s?')
+          ? SEARCH_HTML
+          : PRODUCT_HTML,
+      finalUrl: url,
+    }))
+    const run = deps({ fetchPage })
+    const summary = await discoverKnife(knifeId, { deps: run })
+
+    expect(summary).toMatchObject({ status: 'done', result: 'found' })
+    expect(fetchPage.mock.calls.map(([url]) => url)).toEqual([
+      'https://www.amazon.com/s?k=Spyderco+Para+3+C223GP',
+      'https://www.amazon.com/s?k=Spyderco+Para+3',
+      'https://www.amazon.com/dp/B07PARA003',
+    ])
+  })
+
+  it('ends a search whose page never loads when its time budget runs out', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      enableOtherStores()
+      const knifeId = await createKnife({ specs: { price: '$150' } })
+      const pending = discoverKnife(knifeId, {
+        deps: deps({ fetchPage: () => new Promise(() => {}) }),
+      })
+      await vi.advanceTimersByTimeAsync(240_000)
+      expect(await pending).toMatchObject({
+        status: 'done',
+        result: 'failed',
+        laneOutcome: 'neutral',
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does nothing until AI is connected and the store is on', async () => {
     const knifeId = await createKnife({ specs: { price: '$150' } })
     expect(nextDiscoveryKnife(getSettings().priceMonitoring)).toBeNull()

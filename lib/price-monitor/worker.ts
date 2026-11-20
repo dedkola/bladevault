@@ -454,7 +454,11 @@ export class PriceMonitorWorker {
       const laneKey = DISCOVERY_STORES[store].laneKey
       if (busy.has(laneKey)) continue
       const lane = input.lanes.get(laneKey) ?? input.defaultLane(laneKey)
-      if (laneAvailability(lane, now).state !== 'ready') continue
+      // After a cooldown the search is the store's probe: a store with no
+      // price sources there (often Amazon) has no check that could probe it,
+      // and its searches would otherwise stop for good.
+      const availability = laneAvailability(lane, now).state
+      if (availability !== 'ready' && availability !== 'probe') continue
       const knifeId = nextDiscovery(context.settings, now, store)
       if (!knifeId) {
         this.discoveryIdleUntil.set(store, now + DISCOVERY_IDLE_MS)
