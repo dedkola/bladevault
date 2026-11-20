@@ -51,7 +51,8 @@ Open **Price Drops** in the sidebar. From top to bottom the page shows:
   - **Below what I paid** — in-stock sources that cost less than your purchase price.
   - **Needs attention** — failed, blocked, unavailable, or doubtful readings. They keep their last known price, shown muted with its date (**as of Nov 3**), and show when each is checked next, such as **next in 3 hours**, **due now**, or **overdue 9 h**. Sources that have never been checked are not problems: they show as **Waiting** in **All** and in their own timeline lane until their first check.
   - **Recently monitored** — the 30 latest checks.
-- **Side panel** — the selected knife's price details, the same as its Market tab (see below), including **Latest changes**, **Check all sources**, **Manage sources**, and each store's **Check now** and check history. With AI connected, **Supervisor activity** below it lists every action, with the day for anything older than today.
+  - **Supervisor** — with AI connected, the supervisor's recent runs as a timeline, newest first. Select a run to see its summary, coverage, and every action in a table with the knife, store, reason, and result; repeated actions at one store collapse into one row you can expand. Select a knife name to open it in the table.
+- **Side panel** — the selected knife's price details, the same as its Market tab (see below), including **Latest changes**, **Check all sources**, **Manage sources**, and each store's **Check now** and check history.
 
 To find a knife, search by brand, name, model number, steel, or store, or pick a store. Select a column header (**Price now**, **Change**, **vs paid**, **Checked**) to sort by it, and select it again to reverse or reset the order. **vs paid** shows the difference in money and percent. Knives that share a name show their model number, steel, and handle so you can tell them apart. **Group by knife** shows one row per knife with its best price; expand it to see each store.
 
