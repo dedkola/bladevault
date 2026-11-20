@@ -67,3 +67,25 @@ it('reports a failed save and keeps the previous state', async () => {
   )
   expect(toggle).toBeChecked()
 })
+
+it('shows the price notification switch when the bridge has it', async () => {
+  let status = { enabled: false, supported: true }
+  const bridge = {
+    ...installBridge(false),
+    getPriceNotifications: vi.fn(async () => status),
+    setPriceNotifications: vi.fn(async (enabled: boolean) => {
+      status = { ...status, enabled }
+      return status
+    }),
+  }
+  window.bladevaultDesktop = bridge as unknown as Desktop
+  render(<DesktopBackgroundSettings />)
+
+  const toggle = await screen.findByRole('switch', {
+    name: 'Desktop notifications for price drops',
+  })
+  expect(toggle).not.toBeChecked()
+  await userEvent.click(toggle)
+  expect(bridge.setPriceNotifications).toHaveBeenCalledWith(true)
+  expect(toggle).toBeChecked()
+})

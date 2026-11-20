@@ -187,6 +187,21 @@ export async function checkViaBrowser(
   }
 }
 
+/**
+ * Whether Solve in browser can open a window the person can see. In Docker
+ * and Helm the window lands on the container's virtual display, and a Linux
+ * server without a display cannot open one at all. The desktop app and a
+ * source checkout on a desktop computer can.
+ */
+export function visibleBrowserWindowAvailable(
+  env: Record<string, string | undefined> = process.env,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (env.BLADEVAULT_DOCKER_RUNTIME === '1') return false
+  if (platform === 'linux') return Boolean(env.DISPLAY || env.WAYLAND_DISPLAY)
+  return true
+}
+
 /** Docker ships Xvfb: a headed retry can pass checks that block headless. */
 export function headedRetryAvailable(): boolean {
   return (
