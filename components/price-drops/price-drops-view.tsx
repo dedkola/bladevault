@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Bot,
   ChartLine,
   ChevronRight,
   ExternalLink,
@@ -44,7 +45,12 @@ import type { PriceWatchMode } from '@/lib/price-monitor/shared'
 import { cn } from '@/lib/utils'
 import { useKnives } from '@/components/providers/knives-provider'
 import { getHourCycle } from '@/lib/time-format'
-import { AgentFeed, AgentStrip, useAgentState } from './agent-panel'
+import {
+  AgentActivity,
+  AgentStrip,
+  hasAgentActivity,
+  useAgentState,
+} from './agent-panel'
 import { KnifePricePanel } from './knife-price-panel'
 import { MonitoringStatus, ResultBadge } from './monitoring-status'
 import { PriceExportButton } from './price-export-button'
@@ -835,6 +841,11 @@ export function PriceDropsView({
     () => parseSection(initialSection) ?? (initialKnife ? 'all' : null),
   )
   const section = sectionChoice ?? storedSection
+  // The Supervisor tab sits beside the sections but is not a table filter.
+  const [supervisorChoice, setSupervisorChoice] = useState(
+    initialSection === 'supervisor',
+  )
+  const showSupervisor = supervisorChoice && hasAgentActivity(agent.state)
   const [grouped, setGrouped] = useStoredValue(STORAGE.grouped, '0', parseFlag)
   const [statusCollapsed, setStatusCollapsed] = useStoredValue(
     STORAGE.statusCollapsed,
@@ -900,13 +911,14 @@ export function PriceDropsView({
   // Keep the tab and an explicit selection in the URL without new history.
   useEffect(() => {
     const url = new URL(window.location.href)
-    if (section === 'all') url.searchParams.delete('section')
+    if (supervisorChoice) url.searchParams.set('section', 'supervisor')
+    else if (section === 'all') url.searchParams.delete('section')
     else url.searchParams.set('section', section)
     if (selected) url.searchParams.set('knife', selected)
     else url.searchParams.delete('knife')
     if (url.href !== window.location.href)
       window.history.replaceState(null, '', url)
-  }, [section, selected])
+  }, [section, selected, supervisorChoice])
 
   // Bring a knife chosen outside the table (pin, deep link) into view.
   useEffect(() => {
@@ -919,6 +931,7 @@ export function PriceDropsView({
   }, [selectedKnife, overview])
 
   const changeSection = (value: Section) => {
+    setSupervisorChoice(false)
     setSectionChoice(value)
     storeSection(value)
   }
@@ -1280,11 +1293,11 @@ export function PriceDropsView({
                         key={value}
                         type="button"
                         role="tab"
-                        aria-selected={section === value}
+                        aria-selected={!showSupervisor && section === value}
                         onClick={() => changeSection(value)}
                         className={cn(
                           'rounded-md px-2.5 py-1 text-xs transition-colors sm:text-sm',
-                          section === value
+                          !showSupervisor && section === value
                             ? 'bg-[var(--bladevault-nav-active-bg)] font-semibold text-[var(--bladevault-nav-active-fg)]'
                             : 'text-muted-foreground hover:text-foreground',
                         )}
@@ -1298,6 +1311,29 @@ export function PriceDropsView({
                       </button>
                     )
                   })}
+                  {hasAgentActivity(agent.state) ? (
+                    <>
+                      <span
+                        aria-hidden="true"
+                        className="mx-1 my-1 w-px bg-[var(--bladevault-line)]"
+                      />
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={showSupervisor}
+                        onClick={() => setSupervisorChoice(true)}
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors sm:text-sm',
+                          showSupervisor
+                            ? 'bg-[var(--bladevault-nav-active-bg)] font-semibold text-[var(--bladevault-nav-active-fg)]'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        <Bot className="size-3.5" aria-hidden="true" />
+                        Supervisor
+                      </button>
+                    </>
+                  ) : null}
                 </div>
                 <Link
                   href="/settings?tab=prices"
@@ -1308,7 +1344,10 @@ export function PriceDropsView({
               </div>
               <div
                 data-price-toolbar
-                className="flex flex-wrap items-center gap-2"
+                className={cn(
+                  'flex flex-wrap items-center gap-2',
+                  showSupervisor && 'hidden',
+                )}
               >
                 <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
                   <Search
@@ -1401,7 +1440,7 @@ export function PriceDropsView({
                   </Button>
                 ) : null}
               </div>
-              {checkedSources.length ? (
+              {checkedSources.length && !showSupervisor ? (
                 <div
                   data-price-bulk
                   role="toolbar"
@@ -1470,140 +1509,153 @@ export function PriceDropsView({
                 </div>
               ) : null}
             </div>
-            <div className="grid items-start lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
-              <div
-                ref={listRef}
-                role="tabpanel"
-                aria-label={SECTION_LABEL[section]}
-                className="min-w-0 overflow-x-auto px-3 pb-2 lg:max-h-[720px] lg:overflow-y-auto"
-              >
-                {rows.length ? (
-                  <table
-                    data-price-grid
-                    className="w-full border-collapse text-sm"
-                  >
-                    <thead>
-                      <tr className="border-b border-[var(--bladevault-line)] text-left text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
-                        <th className="w-7 py-2 pr-2 pl-1 font-medium">
-                          <Checkbox
-                            aria-label="Select every listing shown"
-                            checked={allChecked}
-                            indeterminate={someChecked}
-                            onCheckedChange={() =>
-                              setChecked((current) => {
-                                const next = new Set(current)
-                                for (const id of visibleIds) {
-                                  if (allChecked) next.delete(id)
-                                  else next.add(id)
-                                }
-                                return next
-                              })
-                            }
-                          />
-                        </th>
-                        <th className="py-2 pr-3 font-medium">Knife</th>
-                        <SortHeader
-                          label="Price now"
-                          sortKey="price"
-                          sort={sort}
-                          onSort={(key) => setSort(nextSort(sort, key))}
-                        />
-                        <SortHeader
-                          label="Change"
-                          sortKey="change"
-                          sort={sort}
-                          align="left"
-                          onSort={(key) => setSort(nextSort(sort, key))}
-                        />
-                        <SortHeader
-                          label="vs regular"
-                          sortKey="paid"
-                          sort={sort}
-                          onSort={(key) => setSort(nextSort(sort, key))}
-                        />
-                        {section === 'attention' ? (
-                          <th className="py-2 pr-1 font-medium">Next check</th>
-                        ) : (
+            {showSupervisor ? (
+              <div role="tabpanel" aria-label="Supervisor">
+                <AgentActivity
+                  controls={agent}
+                  onSelect={(knifeId) => {
+                    setSupervisorChoice(false)
+                    selectFromOutside(knifeId)
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="grid items-start lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
+                <div
+                  ref={listRef}
+                  role="tabpanel"
+                  aria-label={SECTION_LABEL[section]}
+                  className="min-w-0 overflow-x-auto px-3 pb-2 lg:max-h-[720px] lg:overflow-y-auto"
+                >
+                  {rows.length ? (
+                    <table
+                      data-price-grid
+                      className="w-full border-collapse text-sm"
+                    >
+                      <thead>
+                        <tr className="border-b border-[var(--bladevault-line)] text-left text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
+                          <th className="w-7 py-2 pr-2 pl-1 font-medium">
+                            <Checkbox
+                              aria-label="Select every listing shown"
+                              checked={allChecked}
+                              indeterminate={someChecked}
+                              onCheckedChange={() =>
+                                setChecked((current) => {
+                                  const next = new Set(current)
+                                  for (const id of visibleIds) {
+                                    if (allChecked) next.delete(id)
+                                    else next.add(id)
+                                  }
+                                  return next
+                                })
+                              }
+                            />
+                          </th>
+                          <th className="py-2 pr-3 font-medium">Knife</th>
                           <SortHeader
-                            label="Checked"
-                            sortKey="checked"
+                            label="Price now"
+                            sortKey="price"
+                            sort={sort}
+                            onSort={(key) => setSort(nextSort(sort, key))}
+                          />
+                          <SortHeader
+                            label="Change"
+                            sortKey="change"
                             sort={sort}
                             align="left"
                             onSort={(key) => setSort(nextSort(sort, key))}
                           />
-                        )}
-                        <th className="py-2 pr-1 font-medium">
-                          <span className="sr-only">Actions</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {groups
-                        ? groups.map((group) => {
-                            const open = expanded.has(group.knifeId)
-                            return (
-                              <Fragment key={group.knifeId}>
-                                {renderRow(group.lead, {
-                                  ids: group.sources.map((s) => s.sourceId),
-                                  group: {
-                                    count: group.sources.length,
-                                    expanded: open,
-                                    onToggle: () =>
-                                      setExpanded((current) => {
-                                        const next = new Set(current)
-                                        if (next.has(group.knifeId))
-                                          next.delete(group.knifeId)
-                                        else next.add(group.knifeId)
-                                        return next
-                                      }),
-                                  },
-                                })}
-                                {open && group.sources.length > 1
-                                  ? group.sources.map((source) =>
-                                      renderRow(source, { child: true }),
-                                    )
-                                  : null}
-                              </Fragment>
-                            )
-                          })
-                        : rows.flatMap((source) => [
-                            renderRow(source),
-                            section === 'attention' && source.retireHint ? (
-                              <RetireRow
-                                key={`${source.sourceId}-retire`}
-                                source={source}
-                                selected={selectedKnife === source.knife.id}
-                                now={now}
-                                onPaused={() =>
-                                  setVersion((value) => value + 1)
-                                }
-                              />
-                            ) : null,
-                          ])}
-                    </tbody>
-                  </table>
-                ) : (
-                  <p className="py-6 text-sm text-muted-foreground">
-                    {filtering
-                      ? 'Nothing here matches the search or store filter.'
-                      : EMPTY_TEXT[section]}
-                  </p>
+                          <SortHeader
+                            label="vs regular"
+                            sortKey="paid"
+                            sort={sort}
+                            onSort={(key) => setSort(nextSort(sort, key))}
+                          />
+                          {section === 'attention' ? (
+                            <th className="py-2 pr-1 font-medium">
+                              Next check
+                            </th>
+                          ) : (
+                            <SortHeader
+                              label="Checked"
+                              sortKey="checked"
+                              sort={sort}
+                              align="left"
+                              onSort={(key) => setSort(nextSort(sort, key))}
+                            />
+                          )}
+                          <th className="py-2 pr-1 font-medium">
+                            <span className="sr-only">Actions</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groups
+                          ? groups.map((group) => {
+                              const open = expanded.has(group.knifeId)
+                              return (
+                                <Fragment key={group.knifeId}>
+                                  {renderRow(group.lead, {
+                                    ids: group.sources.map((s) => s.sourceId),
+                                    group: {
+                                      count: group.sources.length,
+                                      expanded: open,
+                                      onToggle: () =>
+                                        setExpanded((current) => {
+                                          const next = new Set(current)
+                                          if (next.has(group.knifeId))
+                                            next.delete(group.knifeId)
+                                          else next.add(group.knifeId)
+                                          return next
+                                        }),
+                                    },
+                                  })}
+                                  {open && group.sources.length > 1
+                                    ? group.sources.map((source) =>
+                                        renderRow(source, { child: true }),
+                                      )
+                                    : null}
+                                </Fragment>
+                              )
+                            })
+                          : rows.flatMap((source) => [
+                              renderRow(source),
+                              section === 'attention' && source.retireHint ? (
+                                <RetireRow
+                                  key={`${source.sourceId}-retire`}
+                                  source={source}
+                                  selected={selectedKnife === source.knife.id}
+                                  now={now}
+                                  onPaused={() =>
+                                    setVersion((value) => value + 1)
+                                  }
+                                />
+                              ) : null,
+                            ])}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <p className="py-6 text-sm text-muted-foreground">
+                      {filtering
+                        ? 'Nothing here matches the search or store filter.'
+                        : EMPTY_TEXT[section]}
+                    </p>
+                  )}
+                </div>
+                {narrow ? null : (
+                  <aside
+                    aria-label="Selected knife"
+                    className="border-t border-[var(--bladevault-line)]/60 p-4 lg:sticky lg:top-0 lg:border-t-0 lg:border-l"
+                  >
+                    {panel ?? (
+                      <p className="py-6 text-sm text-muted-foreground">
+                        Select a knife to see its price history.
+                      </p>
+                    )}
+                  </aside>
                 )}
               </div>
-              <aside
-                aria-label="Selected knife"
-                className="border-t border-[var(--bladevault-line)]/60 p-4 lg:sticky lg:top-0 lg:border-t-0 lg:border-l"
-              >
-                {narrow ? null : panel ? (
-                  panel
-                ) : (
-                  <p className="py-6 text-sm text-muted-foreground">
-                    Select a knife to see its price history.
-                  </p>
-                )}
-                <AgentFeed controls={agent} onSelect={selectFromOutside} />
-              </aside>
-            </div>
+            )}
           </Card>
         </>
       )}

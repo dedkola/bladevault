@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { Bot, Loader2 } from 'lucide-react'
+import { Bot, ChevronRight, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type {
   AgentAction,
@@ -19,8 +19,9 @@ import { StatusDot, useMinuteClock } from './price-ui'
 
 /**
  * The AI supervisor on Price Drops: a status strip above Monitoring status
- * (mode, latest summary, coverage, what it did, what needs the user) and an
- * activity feed under the selected knife (every action, newest first).
+ * (mode, latest summary, coverage, what it did, what needs the user) and a
+ * Supervisor tab beside the price sections (a run timeline and each run's
+ * actions).
  */
 export type AgentState = {
   mode: PriceAgentMode
@@ -469,17 +470,9 @@ export function AgentStrip({
   )
 }
 
-type FeedItem = {
-  key: string
-  at: string
-  status: AgentAction['status'] | 'failed'
-  what: React.ReactNode
-  why: string
-}
+type Filter = 'all' | 'done' | 'refused'
 
-type Filter = 'all' | 'applied' | 'refused' | 'failed'
-
-const STATUS_RESULT: Record<FeedItem['status'], string> = {
+const STATUS_RESULT: Record<AgentAction['status'] | 'failed', string> = {
   applied: 'drop',
   proposed: 'pending',
   refused: 'same',
@@ -494,195 +487,439 @@ const ACTION_LABEL: Record<AgentAction['kind'], string> = {
   searchOtherStore: 'Other stores',
 }
 
-function feedItems(
-  state: AgentState,
-  onSelect: (knifeId: string) => void,
-): FeedItem[] {
-  const items: FeedItem[] = []
-  const knifeLink = (knifeId: string | undefined, label: string) =>
-    knifeId ? (
-      <button
-        type="button"
-        className="underline decoration-[var(--bladevault-line)] underline-offset-2 hover:decoration-current"
-        onClick={() => onSelect(knifeId)}
-      >
-        {label}
-      </button>
-    ) : (
-      label
-    )
-  for (const run of state.runs) {
-    if (!run.ok) {
-      items.push({
-        key: `${run.id}:failed`,
-        at: run.startedAt,
-        status: 'failed',
-        what: 'Run failed',
-        why: run.error ?? '',
-      })
-      continue
-    }
-    // Applied or proposed checks of one run read as one line.
-    const done = run.mode === 'act' ? 'applied' : 'proposed'
-    const checks = run.actions.filter(
-      (action) => action.kind === 'check' && action.status === done,
-    )
-    if (checks.length > 1) {
-      const stores = new Set(
-        checks.map(
-          (action) => state.labels.sources[String(action.sourceId)]?.store,
-        ),
-      )
-      items.push({
-        key: `${run.id}:checks`,
-        at: run.startedAt,
-        status: done,
-        what: (
-          <>
-            {done === 'applied' ? 'Moved' : 'Would move'}{' '}
-            <b>{checks.length} checks</b> forward at {stores.size}{' '}
-            {stores.size === 1 ? 'store' : 'stores'}
-          </>
-        ),
-        why: checks[0].reason,
-      })
-    }
-    run.actions.forEach((action, index) => {
-      if (checks.length > 1 && checks.includes(action)) return
-      const source =
-        action.sourceId !== undefined
-          ? state.labels.sources[String(action.sourceId)]
-          : undefined
-      const knifeName =
-        source?.knife ??
-        (action.knifeId ? state.labels.knives[action.knifeId] : undefined) ??
-        (action.sourceId !== undefined
-          ? `source ${action.sourceId}`
-          : 'a knife')
-      items.push({
-        key: `${run.id}:${index}`,
-        at: run.startedAt,
-        status: action.status,
-        what: (
-          <>
-            {ACTION_LABEL[action.kind]}
-            {action.mode ? ` (${action.mode})` : ''} ·{' '}
-            {knifeLink(source?.knifeId ?? action.knifeId, knifeName)}
-            {source ? (
-              <span className="text-muted-foreground">
-                {' '}
-                · {storeLabel(source.store)}
-              </span>
-            ) : null}
-          </>
-        ),
-        why: [action.reason, action.note].filter(Boolean).join(' · '),
-      })
-    })
-  }
-  return items
+/** Groups of this size or more collapse into one expandable row. */
+const GROUP_MIN = 3
+
+/** True when the Supervisor tab has something to show. */
+export function hasAgentActivity(state: AgentState | null): boolean {
+  return Boolean(
+    state && state.aiConfigured && (state.mode !== 'off' || state.runs.length),
+  )
 }
 
-const FILTERS: Filter[] = ['all', 'applied', 'refused', 'failed']
-const MAX_FEED = 60
+function runCounts(run: AgentRun) {
+  let done = 0
+  let refused = 0
+  for (const action of run.actions)
+    if (action.status === 'refused') refused += 1
+    else done += 1
+  return { done, refused }
+}
 
-/** C: the activity feed under the selected knife. */
-export function AgentFeed({
+/** One run in the timeline: time, done/refused bar, counts. */
+function RunTile({
+  run,
+  selected,
+  label,
+  onSelect,
+}: {
+  run: AgentRun
+  selected: boolean
+  label: string
+  onSelect: () => void
+}) {
+  const { done, refused } = runCounts(run)
+  const total = Math.max(1, done + refused)
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={cn(
+        'w-[8.5rem] shrink-0 snap-start rounded-lg border px-2.5 py-2 text-left transition-colors',
+        selected
+          ? 'border-[var(--bladevault-nav-active-fg)] bg-[var(--bladevault-nav-active-bg)]'
+          : 'border-[var(--bladevault-line)] hover:bg-[var(--bladevault-surface-soft)]',
+      )}
+    >
+      <span className="block text-[13px] font-semibold whitespace-nowrap tabular-nums">
+        {label}
+      </span>
+      <span
+        aria-hidden="true"
+        className="my-1.5 flex h-1.5 overflow-hidden rounded-full bg-[var(--bladevault-surface-soft)]"
+      >
+        {run.ok ? (
+          <>
+            <i
+              className="block"
+              style={{
+                width: `${(done / total) * 100}%`,
+                background: 'var(--price-drop)',
+              }}
+            />
+            <i
+              className="block"
+              style={{
+                width: `${(refused / total) * 100}%`,
+                background: 'var(--price-neutral)',
+              }}
+            />
+          </>
+        ) : (
+          <i className="block w-full bg-destructive" />
+        )}
+      </span>
+      <span className="block text-[11px] text-muted-foreground tabular-nums">
+        {run.ok
+          ? `${done} ${run.mode === 'act' ? 'applied' : 'proposed'} · ${refused} refused`
+          : 'Run failed'}
+      </span>
+      <span className="block text-[11px] text-muted-foreground">
+        {run.trigger} · {(run.durationMs / 1000).toFixed(1)} s
+      </span>
+    </button>
+  )
+}
+
+type ActionRow = {
+  key: string
+  action: AgentAction
+  knifeId: string | undefined
+  knife: string
+  store: string | undefined
+}
+
+/** The selected run's actions, repeated kind + result + store collapsed. */
+function RunActions({
+  run,
+  labels,
+  filter,
+  onSelect,
+}: {
+  run: AgentRun
+  labels: AgentLabels
+  filter: Filter
+  onSelect: (knifeId: string) => void
+}) {
+  const [open, setOpen] = useState<Set<string>>(() => new Set())
+  const groups = new Map<string, ActionRow[]>()
+  run.actions.forEach((action, index) => {
+    if (filter === 'refused' && action.status !== 'refused') return
+    if (filter === 'done' && action.status === 'refused') return
+    const source =
+      action.sourceId !== undefined
+        ? labels.sources[String(action.sourceId)]
+        : undefined
+    const row: ActionRow = {
+      key: `${run.id}:${index}`,
+      action,
+      knifeId: source?.knifeId ?? action.knifeId,
+      knife:
+        source?.knife ??
+        (action.knifeId ? labels.knives[action.knifeId] : undefined) ??
+        (action.sourceId !== undefined
+          ? `source ${action.sourceId}`
+          : 'a knife'),
+      store: source?.store,
+    }
+    const key = `${action.kind}|${action.status}|${source?.store ?? ''}`
+    groups.set(key, [...(groups.get(key) ?? []), row])
+  })
+
+  const knifeCell = (row: ActionRow) =>
+    row.knifeId ? (
+      <button
+        type="button"
+        className="text-left underline decoration-[var(--bladevault-line)] underline-offset-2 hover:decoration-current"
+        onClick={() => onSelect(row.knifeId!)}
+      >
+        {row.knife}
+      </button>
+    ) : (
+      row.knife
+    )
+  const why = (action: AgentAction) =>
+    [action.reason, action.note].filter(Boolean).join(' · ')
+  const badge = (status: AgentAction['status']) => (
+    <span className="pd-badge" data-result={STATUS_RESULT[status]}>
+      {status}
+    </span>
+  )
+  const cell = 'border-b border-[var(--bladevault-line)]/60 px-3 py-2 align-top'
+
+  const body: React.ReactNode[] = []
+  for (const [key, rows] of groups) {
+    const first = rows[0].action
+    if (rows.length < GROUP_MIN) {
+      for (const row of rows)
+        body.push(
+          <tr key={row.key}>
+            <td className={cn(cell, 'whitespace-nowrap')}>
+              {ACTION_LABEL[row.action.kind]}
+              {row.action.mode ? (
+                <span className="text-muted-foreground">
+                  {' '}
+                  ({row.action.mode})
+                </span>
+              ) : null}
+            </td>
+            <td className={cell}>{knifeCell(row)}</td>
+            <td
+              className={cn(cell, 'hidden text-muted-foreground sm:table-cell')}
+            >
+              {row.store ? storeLabel(row.store) : '—'}
+            </td>
+            <td className={cn(cell, 'text-xs text-muted-foreground')}>
+              {why(row.action)}
+            </td>
+            <td className={cell}>{badge(row.action.status)}</td>
+          </tr>,
+        )
+      continue
+    }
+    const expanded = open.has(key)
+    body.push(
+      <tr key={key} className="bg-[var(--bladevault-surface-soft)]/60">
+        <td className={cn(cell, 'whitespace-nowrap')}>
+          <button
+            type="button"
+            aria-expanded={expanded}
+            className="inline-flex items-center gap-1"
+            onClick={() =>
+              setOpen((current) => {
+                const next = new Set(current)
+                if (next.has(key)) next.delete(key)
+                else next.add(key)
+                return next
+              })
+            }
+          >
+            <ChevronRight
+              aria-hidden="true"
+              className={cn(
+                'size-3.5 text-muted-foreground transition-transform',
+                expanded && 'rotate-90',
+              )}
+            />
+            {ACTION_LABEL[first.kind]}
+          </button>
+        </td>
+        <td className={cn(cell, 'font-semibold')}>{rows.length} knives</td>
+        <td className={cn(cell, 'hidden text-muted-foreground sm:table-cell')}>
+          {rows[0].store ? storeLabel(rows[0].store) : '—'}
+        </td>
+        <td className={cn(cell, 'text-xs text-muted-foreground')}>
+          {why(first)}
+          {expanded ? null : ' …'}
+        </td>
+        <td className={cell}>{badge(first.status)}</td>
+      </tr>,
+    )
+    if (expanded)
+      for (const row of rows)
+        body.push(
+          <tr key={row.key}>
+            <td className={cell} />
+            <td className={cell}>{knifeCell(row)}</td>
+            <td className={cn(cell, 'hidden sm:table-cell')} />
+            <td className={cn(cell, 'text-xs text-muted-foreground')}>
+              {why(row.action)}
+            </td>
+            <td className={cell} />
+          </tr>,
+        )
+  }
+
+  if (!body.length)
+    return (
+      <p className="px-3 py-6 text-sm text-muted-foreground">
+        Nothing here in this run.
+      </p>
+    )
+  return (
+    <table className="w-full border-collapse text-[13px]">
+      <thead>
+        <tr className="text-left text-xs text-muted-foreground">
+          {['Action', 'Knife', 'Store', 'Why', 'Result'].map((title) => (
+            <th
+              key={title}
+              scope="col"
+              className={cn(
+                'sticky top-0 border-b border-[var(--bladevault-line)] bg-card px-3 py-2 font-medium',
+                title === 'Store' && 'hidden sm:table-cell',
+              )}
+            >
+              {title}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>{body}</tbody>
+    </table>
+  )
+}
+
+/**
+ * C: the Supervisor tab. Runs read left to right as a timeline; the selected
+ * run's actions fill a wide table beside its summary and coverage.
+ */
+export function AgentActivity({
   controls,
   onSelect,
 }: {
   controls: AgentControls
   onSelect: (knifeId: string) => void
 }) {
+  const [selectedRun, setSelectedRun] = useState<number | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
   const hourCycle = getHourCycle(useKnives().timeFormat)
   const now = useMinuteClock()
   const { state } = controls
-  if (
-    !state ||
-    !state.aiConfigured ||
-    (state.mode === 'off' && !state.runs.length)
+  if (!state || !hasAgentActivity(state)) return null
+
+  const runs = state.runs
+  const run = runs.find((item) => item.id === selectedRun) ?? runs[0]
+  const totals = runs.reduce(
+    (sum, item) => {
+      const counts = runCounts(item)
+      return {
+        done: sum.done + (item.ok ? counts.done : 0),
+        refused: sum.refused + (item.ok ? counts.refused : 0),
+        failed: sum.failed + (item.ok ? 0 : 1),
+      }
+    },
+    { done: 0, refused: 0, failed: 0 },
   )
-    return null
-  const all = feedItems(state, onSelect)
-  const shown = all
-    .filter(
-      (item) =>
-        filter === 'all' ||
-        item.status === filter ||
-        (filter === 'applied' && item.status === 'proposed'),
-    )
-    .slice(0, MAX_FEED)
+  const counts = run ? runCounts(run) : { done: 0, refused: 0 }
+  const doneLabel = run?.mode === 'observe' ? 'Proposed' : 'Applied'
+  const filters: { value: Filter; label: string; count: number }[] = [
+    { value: 'all', label: 'All', count: run?.actions.length ?? 0 },
+    { value: 'done', label: doneLabel, count: counts.done },
+    { value: 'refused', label: 'Refused', count: counts.refused },
+  ]
+
   return (
-    <section
-      data-agent-feed
-      aria-labelledby="agent-feed-title"
-      className="mt-5 border-t border-[var(--bladevault-line)]/60 pt-4"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3
-          id="agent-feed-title"
-          className="flex items-center gap-2 text-sm font-semibold"
-        >
-          <Bot className="size-4 text-muted-foreground" aria-hidden="true" />
-          Supervisor activity
-        </h3>
-      </div>
-      <div
-        role="tablist"
-        aria-label="Filter supervisor activity"
-        className="mt-2 inline-flex flex-wrap gap-0.5 rounded-lg border border-[var(--bladevault-line)] p-0.5"
-      >
-        {FILTERS.map((value) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            aria-selected={filter === value}
-            onClick={() => setFilter(value)}
-            className={cn(
-              'rounded-md px-2 py-0.5 text-xs capitalize transition-colors',
-              filter === value
-                ? 'bg-[var(--bladevault-nav-active-bg)] font-semibold text-[var(--bladevault-nav-active-fg)]'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {value === 'failed' ? 'Failed runs' : value}
-          </button>
-        ))}
-      </div>
-      {shown.length ? (
-        <ol className="mt-2 divide-y divide-[var(--bladevault-line)]/60">
-          {shown.map((item) => (
-            <li
-              key={item.key}
-              className="grid grid-cols-[5.5rem_minmax(0,1fr)_auto] gap-2 py-2"
+    <section data-agent-activity aria-label="Supervisor activity">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--bladevault-line)]/60 px-4 py-2.5 text-xs text-muted-foreground">
+        <span>
+          Mode{' '}
+          <b className="font-semibold text-foreground">
+            {MODE_LABEL[state.mode]}
+          </b>
+          {state.mode !== 'off' ? ` · every ${state.intervalMinutes} min` : ''}
+          {state.mode !== 'off' && state.nextRunAt
+            ? ` · next ${Date.parse(state.nextRunAt) <= now ? 'soon' : clockTime(state.nextRunAt, hourCycle, now)}`
+            : ''}
+        </span>
+        {runs.length ? (
+          <span className="tabular-nums">
+            Last {runs.length} {runs.length === 1 ? 'run' : 'runs'}:{' '}
+            <b className="font-semibold text-foreground">{totals.done}</b> done
+            · <b className="font-semibold text-foreground">{totals.refused}</b>{' '}
+            refused ·{' '}
+            <b
+              className={cn(
+                'font-semibold',
+                totals.failed ? 'text-destructive' : 'text-foreground',
+              )}
             >
-              <time
-                dateTime={item.at}
-                className="pt-0.5 text-xs whitespace-nowrap text-muted-foreground tabular-nums"
-              >
-                {clockTime(item.at, hourCycle, now)}
-              </time>
-              <div className="min-w-0">
-                <p className="text-[13px] break-words">{item.what}</p>
-                {item.why ? (
-                  <p className="text-xs break-words text-muted-foreground">
-                    {item.why}
-                  </p>
+              {totals.failed}
+            </b>{' '}
+            failed
+          </span>
+        ) : null}
+        {state.blockedStores.map((store) => (
+          <span key={store} className="pd-badge" data-result="attention">
+            {storeLabel(store)} blocked
+          </span>
+        ))}
+        <span className="ml-auto">
+          <RunButton controls={controls} />
+        </span>
+      </div>
+
+      {run ? (
+        <>
+          <div
+            role="group"
+            aria-label="Supervisor runs, newest first"
+            className="flex snap-x gap-2 overflow-x-auto border-b border-[var(--bladevault-line)]/60 px-4 py-3"
+          >
+            {runs.map((item) => (
+              <RunTile
+                key={item.id}
+                run={item}
+                selected={item.id === run.id}
+                label={clockTime(item.startedAt, hourCycle, now)}
+                onSelect={() => setSelectedRun(item.id)}
+              />
+            ))}
+          </div>
+          <div className="grid items-start lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3 px-3 pt-3 pb-1">
+                <h3 className="text-sm font-semibold">
+                  Run at {clockTime(run.startedAt, hourCycle, now)}
+                </h3>
+                {run.ok ? (
+                  <div
+                    role="tablist"
+                    aria-label="Filter the run's actions"
+                    className="inline-flex gap-0.5 rounded-lg border border-[var(--bladevault-line)] p-0.5"
+                  >
+                    {filters.map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        role="tab"
+                        aria-selected={filter === item.value}
+                        onClick={() => setFilter(item.value)}
+                        className={cn(
+                          'rounded-md px-2 py-0.5 text-xs transition-colors',
+                          filter === item.value
+                            ? 'bg-[var(--bladevault-nav-active-bg)] font-semibold text-[var(--bladevault-nav-active-fg)]'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        {item.label}
+                        <span className="ml-1 text-[11px] opacity-75 tabular-nums">
+                          {item.count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 ) : null}
               </div>
-              <span
-                className="pd-badge self-start"
-                data-result={STATUS_RESULT[item.status]}
-              >
-                {item.status}
-              </span>
-            </li>
-          ))}
-        </ol>
+              <div className="overflow-x-auto lg:max-h-[560px] lg:overflow-y-auto">
+                {run.ok ? (
+                  <RunActions
+                    key={run.id}
+                    run={run}
+                    labels={state.labels}
+                    filter={filter}
+                    onSelect={onSelect}
+                  />
+                ) : (
+                  <p className="px-3 py-6 text-sm text-destructive">
+                    The run failed: {run.error}
+                  </p>
+                )}
+              </div>
+            </div>
+            <aside
+              aria-label="Run summary"
+              className="space-y-3 border-t border-[var(--bladevault-line)]/60 p-4 text-sm lg:border-t-0 lg:border-l"
+            >
+              <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                Supervisor summary
+              </h4>
+              <p>
+                {run.ok
+                  ? run.summary || 'Nothing needed attention.'
+                  : 'No summary: the run failed.'}
+              </p>
+              {run.coverage ? <CoverageMeter coverage={run.coverage} /> : null}
+              <p className="text-xs text-muted-foreground">
+                {run.mode === 'act' ? 'Act' : 'Observe'} · {run.model}
+              </p>
+            </aside>
+          </div>
+        </>
       ) : (
-        <p className="mt-3 text-xs text-muted-foreground">Nothing here yet.</p>
+        <p className="px-4 py-6 text-sm text-muted-foreground">
+          No runs yet. The first one starts within a minute, or select Run now.
+        </p>
       )}
     </section>
   )
