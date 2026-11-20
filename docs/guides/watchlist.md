@@ -33,7 +33,7 @@ Select a row to see its price history chart, stores, and latest changes, and to 
 Wanted knives use the regular **Inbox** price notifications, plus two of their own:
 
 - **Reached your target price** arrives when a store's trusted reading is in stock, in the target's currency, and at or below your target. It stays open while the price stays there, and closes on its own when the price rises above the target or the store sells out, so the next time the price reaches it you are told again. A new or changed target is compared with the latest reading right away.
-- **Back in stock** always notifies for a wanted knife, even when **Back in stock** is turned off in **Settings → Price monitoring**. Price drops and increases follow your usual notification settings.
+- **Back in stock** always notifies for a wanted knife, even when **Back in stock** is turned off in **Settings → Price monitoring**. Price drops and increases follow your usual notification settings. With a target set, only drops to the target notify, as **Reached your target price**. Muting the knife or a store in its alert rules also silences target alerts.
 
 Select **Market** on a wanted knife's notification to open it on the watchlist.
 
