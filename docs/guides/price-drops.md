@@ -245,7 +245,8 @@ The supervisor runs when something changes: a price drop or increase, a product 
 - each store's pace and pauses, how many products are fresh, the AI budget, and the local date and time, so it can plan around sales;
 - its last three runs, with why an action was refused or what the next check or search found;
 - which knives it is watching closely, how often, and for how long;
-- its notes and questions of the last weeks: read or not, and how you answered.
+- its notes and questions of the last weeks: read or not, and how you answered;
+- the notes it keeps for itself (see **Remember** below).
 
 It never sees product links, notes, or keys. It can:
 
@@ -258,6 +259,7 @@ It never sees product links, notes, or keys. It can:
 - **Cross-check**: read all other stores of up to 5 knives now, for example after a price moved at one store, so you see the whole market. Products checked in the last 30 minutes, already queued, or blocked by a bot check are left out.
 - **Advice**: leave a short note in the Inbox when something is worth acting on: a deal (a price at or below your target or regular price, a new 90-day low), a restock, or a trend to watch. Up to 6 notes a day, never for a muted knife, and not again for the same knife and topic within 3 days. A note that quotes a price AI was not shown is refused. **Open market** opens the knife's **Market** tab.
 - **Questions**: ask you a yes/no question in the Inbox when your answer changes what it does: whether to set a target price it suggests, whether to watch a knife closely, or whether a listing **Other stores** found is the right knife. At most 3 questions wait at once, one per knife, and the same question is not asked again for 30 days. Your answer acts like the knife's own controls: the target price is set, the watch starts, or **Pause listing** pauses that listing (resume it in **Manage sources**). Questions you don't answer close after a week, and the supervisor sees every answer.
+- **Remember**: keep up to 30 short notes for its later runs, about one knife or in general, for at most 30 days: what it is waiting for, a pattern it noticed (a store that restocks on Mondays), or what your answers told it. It forgets notes that are done. A note that quotes a price AI was not shown is refused. The **Supervisor** tab lists the notes under **Notes for later runs**, and **Forget** removes one.
 
 Notes and questions appear only in **Act**, in the Inbox under **System**. Every action is checked before it runs, and actions that break the rules are refused and recorded with the reason. The supervisor can change the order of checks but not their pace: each store is still checked one product at a time, and store pauses, Retry-After, and bot-check pauses still apply. It never solves a bot check. The latest run and its summary appear under **AI supervisor** on **Price Drops**; while the supervisor is off and has never run, that strip is a single line with **Turn on**, which starts it in **Observe**. Runs are kept for 30 days.
 

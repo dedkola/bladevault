@@ -70,7 +70,8 @@ import {
  * - watchClosely: check a knife's sources more often for a while,
  * - crossCheck: read a knife's other stores now,
  * - advise: leave the collector a note in the Inbox,
- * - ask: ask the collector a yes/no question in the Inbox.
+ * - ask: ask the collector a yes/no question in the Inbox,
+ * - remember / forget: keep short notes for its later runs.
  *
  * Every action is validated and capped here, never trusted. Checks still run
  * through the paced queue: one product at a time per store, with store gaps,
@@ -112,7 +113,13 @@ export const AGENT_LIMITS = {
   crossCheck: 5,
   advise: 3,
   ask: 2,
+  remember: 3,
+  forget: 5,
 } as const
+/** Notes the supervisor keeps at once, how long, and how long each is. */
+export const MAX_AGENT_NOTES = 30
+export const NOTE_MAX_DAYS = 30
+export const NOTE_MAX_LENGTH = 200
 /** Advice notes per day, and how long one knife's topic then stays quiet. */
 export const ADVICE_PER_DAY = 6
 export const ADVICE_REPEAT_DAYS = 3
@@ -336,6 +343,17 @@ export type AgentInbox = {
 
 const EMPTY_INBOX: AgentInbox = { advice: [], questions: [] }
 
+/** A note the supervisor keeps for its later runs. */
+export type AgentNote = {
+  id: number
+  /** The knife it is about; absent for a general note. */
+  knifeId?: string
+  knife?: string
+  note: string
+  createdAt: string
+  expiresAt: string
+}
+
 export type AgentSnapshot = {
   now: string
   /** Why this run started. */
@@ -367,6 +385,13 @@ export type AgentSnapshot = {
   omitted: number
   recentRuns: AgentRecentRun[]
   inbox: AgentInbox
+  /** Your notes from earlier runs, oldest first. */
+  notes: Array<
+    Omit<AgentNote, 'createdAt' | 'expiresAt'> & {
+      daysAgo: number
+      expiresInDays: number
+    }
+  >
 }
 
 type SourceQueryRow = {
@@ -656,7 +681,63 @@ export function buildAgentSnapshot(input: {
     omitted: Math.max(0, sorted.length - MAX_SNAPSHOT_SOURCES),
     recentRuns: readRecentRuns(database, 3),
     inbox: readAgentInbox(database, now),
+    notes: readAgentNotes(database, now).map(
+      ({ createdAt, expiresAt, ...note }) => ({
+        ...note,
+        daysAgo: Math.floor((now - Date.parse(createdAt)) / DAY_MS),
+        expiresInDays: Math.max(
+          0,
+          Math.ceil((Date.parse(expiresAt) - now) / DAY_MS),
+        ),
+      }),
+    ),
   }
+}
+
+/** The supervisor's notes that have not expired, oldest first. */
+export function readAgentNotes(
+  database: Database.Database,
+  now = Date.now(),
+): AgentNote[] {
+  return (
+    database
+      .prepare(
+        `SELECT n.id, n.knife_id, k.brand, k.name, n.note, n.created_at,
+                n.expires_at
+         FROM price_agent_notes n LEFT JOIN knives k ON k.id = n.knife_id
+         WHERE n.expires_at > ? AND (n.knife_id IS NULL OR k.id IS NOT NULL)
+         ORDER BY n.created_at, n.id`,
+      )
+      .all(new Date(now).toISOString()) as Array<{
+      id: number
+      knife_id: string | null
+      brand: string | null
+      name: string | null
+      note: string
+      created_at: string
+      expires_at: string
+    }>
+  ).map((row) => ({
+    id: row.id,
+    ...(row.knife_id
+      ? {
+          knifeId: row.knife_id,
+          knife: [row.brand, row.name].filter(Boolean).join(' '),
+        }
+      : {}),
+    note: row.note,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+  }))
+}
+
+/** Forgets one note (the collector's Forget). Returns whether it existed. */
+export async function forgetAgentNote(id: number): Promise<boolean> {
+  return withVaultWrite(
+    async () =>
+      getLocalDb().prepare('DELETE FROM price_agent_notes WHERE id = ?').run(id)
+        .changes > 0,
+  )
 }
 
 /**
@@ -1153,8 +1234,18 @@ function readRecentRuns(
         : errorLabel(check.error_code, check.http_status)
     return `${check.outcome}${error ? ` (${error})` : ''}`
   }
+  const noteKept = database.prepare(
+    'SELECT expires_at FROM price_agent_notes WHERE id = ?',
+  )
   const outcome = (run: AgentRun, action: AgentAction): string | undefined => {
     if (action.status === 'refused') return undefined
+    if (action.kind === 'forget') return undefined
+    if (action.kind === 'remember')
+      return action.noteId !== undefined && noteKept.get(action.noteId)
+        ? `kept as note ${action.noteId}`
+        : action.noteId === undefined
+          ? undefined
+          : 'forgotten or expired'
     if (action.kind === 'advise' || action.kind === 'ask') {
       if (!action.message?.key) return undefined
       const row = message.get(
@@ -1224,7 +1315,11 @@ function readRecentRuns(
       target:
         action.sourceId !== undefined
           ? `source ${action.sourceId}`
-          : `knife ${action.knifeId}`,
+          : action.knifeId !== undefined
+            ? `knife ${action.knifeId}`
+            : action.noteId !== undefined
+              ? `note ${action.noteId}`
+              : 'general',
       status: action.status,
       note: action.note ?? undefined,
       outcome: outcome(run, action),
@@ -1271,8 +1366,17 @@ export type AgentPlan = {
   crossCheck: KnifeItem[]
   advise: AdviceItem[]
   ask: AskItem[]
+  remember: RememberItem[]
+  forget: Array<{ noteId: number; reason: string }>
 }
 type KnifeItem = { knifeId: string; reason: string }
+type RememberItem = {
+  /** The knife it is about, or null for a general note. */
+  knifeId: string | null
+  note: string
+  /** How long to keep it (days, at most NOTE_MAX_DAYS). */
+  days: number
+}
 type AdviceItem = {
   knifeId: string
   topic: PriceAdviceTopic
@@ -1334,6 +1438,8 @@ export const AGENT_SCHEMA = {
     'crossCheck',
     'advise',
     'ask',
+    'remember',
+    'forget',
   ],
   properties: {
     summary: { type: 'string' },
@@ -1386,6 +1492,31 @@ export const AGENT_SCHEMA = {
         },
       },
     },
+    remember: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['knifeId', 'note', 'days'],
+        properties: {
+          knifeId: { type: ['string', 'null'] },
+          note: { type: 'string' },
+          days: { type: 'number' },
+        },
+      },
+    },
+    forget: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['noteId', 'reason'],
+        properties: {
+          noteId: { type: 'integer' },
+          reason: { type: 'string' },
+        },
+      },
+    },
   },
 } as const
 
@@ -1393,7 +1524,7 @@ export const AGENT_PROMPT = [
   'You supervise price monitoring for a knife collector. Each source is one store product page that BladeVault checks for price and stock. Keep every monitored source fresh and readable, and spend checks where they matter most to the collector right now.',
   "trigger says why you run: event (events woke you: react to them), scheduled (your regular look over everything) or manual (the collector asked). events lists what changed since your last run, newest first: drop and increase (from, to, pct), out_of_stock and back_in_stock, failing (a source's failures in a row reached 3 or 5), bot_check (a store showed a bot check), found_listing (Other stores found the knife at a store). After a move at one store, crossCheck the knife's other stores; after a drop near the target or a restock, consider watchClosely or advise.",
   "The input lists knives, most urgent first. Each knife has its market: regular (the knife's stored regular price), target (the collector's alert price), best (the cheapest in-stock price now) and bestStore, low (lowest in-stock price ever), low90d and high90d, lastPriceChange, lastStockChange, muted, and search (Other stores searches). Under it are its sources: status, price, stock, outOfStockDays, timing in minutes, failures, error, queued and ahead. The input also has each store's pace, coverage, the AI budget, localTime and your recent runs, each action with its note (why it was refused) or outcome (what its next check or search found). Missing fields are unknown.",
-  'Answer with JSON only: {"summary", "check", "retryWithAi", "fetchMode", "pause", "searchOtherStore", "watchClosely", "crossCheck", "advise", "ask"}. Leave a list empty when nothing is needed: often nothing is.',
+  'Answer with JSON only: {"summary", "check", "retryWithAi", "fetchMode", "pause", "searchOtherStore", "watchClosely", "crossCheck", "advise", "ask", "remember", "forget"}. Leave a list empty when nothing is needed: often nothing is.',
   `check (at most ${AGENT_LIMITS.check}): move sources to the front of their store's line. Each store already checks its most overdue source first, so a due source with ahead 0 is next anyway and a check changes nothing. Use check to put a source that matters more ahead of others (ahead above 0), or to read a source that is not due yet now: a knife near or below its target or regular price, a price that just moved at another store, a restock to confirm, a sale period (look at localTime, e.g. Black Friday and holiday sales). Skip sources marked queued, checked in the last 30 minutes, or not monitored.`,
   'A store checks one product at a time at its own safe pace (minGapSec, fullPassHours), and paused stores (circuit open) wait out their pause. You cannot speed a store up: many checks at one store simply wait in line, so do not ask for more than the stores can do before your next run.',
   `retryWithAi (at most ${AGENT_LIMITS.retryWithAi}): failed or price_unavailable sources where AI reading or working the page may get the price on the next check. Never for blocked sources: a bot check needs the user.`,
@@ -1404,7 +1535,8 @@ export const AGENT_PROMPT = [
   `crossCheck (at most ${AGENT_LIMITS.crossCheck}): read all other sources of a knife now, for example after its price moved or it came back in stock at one store, so the collector sees the whole market. Sources checked in the last 30 minutes, queued or blocked are left out.`,
   `advise (at most ${AGENT_LIMITS.advise}, ${ADVICE_PER_DAY} a day): a short note in the collector's Inbox when something is worth acting on: topic "deal" (a price at or below the target or regular price, a new 90-day low, a big drop), "restock" (back in stock after a long time, or the only store in stock), "watch" (a trend to keep an eye on). title: one line naming the knife; detail: one or two plain sentences. Quote only prices that appear in the input, exactly as written there, never computed amounts (say "23% below regular" for differences). Never for muted knives, and not again for the same knife and topic within ${ADVICE_REPEAT_DAYS} days (see inbox.advice). Fewer, better notes: the collector already gets an alert for every drop.`,
   `ask (at most ${AGENT_LIMITS.ask}, ${MAX_OPEN_QUESTIONS} open at once, one per knife): a yes/no question in the Inbox when the collector's answer changes what you do. "set_target" proposes an alert target price (price, e.g. "95.00 USD", in the currency of the knife's prices) for a knife without a fitting target. "watch_closely" asks to watch a knife closely (hours, everyHours, as for watchClosely) when you are not sure it is wanted. "keep_listing" asks whether a listing Other stores found (sourceId of a source with foundByAi) is the right knife, when its price or stock looks off; No pauses it. question: one plain sentence. Never repeat a question from inbox.questions within ${QUESTION_REPEAT_DAYS} days, and respect its answer. Use null for fields an ask does not use.`,
-  'Learn from your recent runs and inbox: do not repeat actions that were refused or did not help.',
+  `remember (at most ${AGENT_LIMITS.remember}, ${MAX_AGENT_NOTES} kept at once): a short note (at most ${NOTE_MAX_LENGTH} characters) for your later runs, about one knife (knifeId) or in general (knifeId null), kept for days (at most ${NOTE_MAX_DAYS}): what you are waiting for, a pattern you noticed (a store that restocks on Mondays, a knife whose price moves before sales), what the collector's answers told you. Not facts the input already shows. Your notes are in notes; forget (at most ${AGENT_LIMITS.forget}) notes that are done or wrong, by noteId.`,
+  'Learn from your recent runs, inbox and notes: do not repeat actions that were refused or did not help.',
   'Every item needs a short reason. summary: one to three plain sentences for the collector: notable market news (drops, prices at or below target or regular price, restocks) and what you did. If nothing changed since your last run, say so in one short sentence.',
 ].join('\n')
 
@@ -1504,6 +1636,23 @@ export function readAgentPlan(answer: unknown): AgentPlan {
           }
         : null
     }),
+    remember: readItems(record.remember, AGENT_LIMITS.remember, (entry) => {
+      const note = text(entry.note, NOTE_MAX_LENGTH)
+      const days =
+        typeof entry.days === 'number' && Number.isFinite(entry.days)
+          ? Math.min(NOTE_MAX_DAYS, Math.max(1, Math.round(entry.days)))
+          : NOTE_MAX_DAYS
+      return note
+        ? { knifeId: text(entry.knifeId, 100) || null, note, days }
+        : null
+    }),
+    forget: readItems(record.forget, AGENT_LIMITS.forget, (entry) =>
+      typeof entry.noteId === 'number' &&
+      Number.isInteger(entry.noteId) &&
+      entry.noteId > 0
+        ? { noteId: entry.noteId, reason: text(entry.reason, REASON_MAX) }
+        : null,
+    ),
     ask: readItems(record.ask, AGENT_LIMITS.ask, (entry) => {
       const knifeId = text(entry.knifeId, 100)
       const question = text(entry.question, DETAIL_MAX)
@@ -1553,6 +1702,8 @@ export type AgentActionKind =
   | 'crossCheck'
   | 'advise'
   | 'ask'
+  | 'remember'
+  | 'forget'
 
 /** The Inbox message an advise or ask action leaves. */
 export type AgentMessage = {
@@ -1575,6 +1726,10 @@ export type AgentAction = {
   everyHours?: number
   /** advise and ask: the Inbox message. */
   message?: AgentMessage
+  /** remember: the note and for how many days; forget: which note. */
+  memory?: string
+  days?: number
+  noteId?: number
   reason: string
   /** applied (act), proposed (observe), refused (failed validation). */
   status: 'applied' | 'proposed' | 'refused'
@@ -1608,9 +1763,13 @@ export function validateAgentPlan(
   snapshot: Pick<
     AgentSnapshot,
     'sources' | 'knives' | 'ai' | 'otherStores' | 'checkIntervalHours'
-  > & { inbox?: AgentInbox },
+  > & {
+    inbox?: AgentInbox
+    notes?: Pick<AgentSnapshot['notes'][number], 'id' | 'knifeId' | 'note'>[]
+  },
 ): AgentAction[] {
   const inbox = snapshot.inbox ?? EMPTY_INBOX
+  const notes = snapshot.notes ?? []
   const byId = new Map(snapshot.sources.map((source) => [source.id, source]))
   const knives = new Map(snapshot.knives.map((knife) => [knife.knifeId, knife]))
   const seen = new Set<string>()
@@ -1619,7 +1778,12 @@ export function validateAgentPlan(
     action: Omit<AgentAction, 'status' | 'note'>,
     refusal: string | null,
   ) => {
-    const key = `${action.kind}:${action.sourceId ?? action.knifeId}`
+    const key = [
+      action.kind,
+      action.sourceId ?? action.knifeId ?? '',
+      action.noteId ?? '',
+      action.kind === 'remember' ? action.memory : '',
+    ].join(':')
     if (seen.has(key)) refusal = 'asked twice'
     seen.add(key)
     actions.push({
@@ -1833,6 +1997,53 @@ export function validateAgentPlan(
     )
     if (actions.at(-1)?.status !== 'refused') waiting.add(entry.knifeId)
   }
+
+  // Forgetting first frees room for new notes.
+  let kept = notes.length
+  for (const entry of plan.forget) {
+    push(
+      { kind: 'forget', noteId: entry.noteId, reason: entry.reason },
+      notes.some((note) => note.id === entry.noteId) ? null : 'unknown note',
+    )
+    if (actions.at(-1)?.status !== 'refused') kept -= 1
+  }
+  const allAmounts = new Set(
+    snapshot.knives.flatMap((knife) => [
+      ...knownAmounts(knife, snapshot.sources),
+    ]),
+  )
+  for (const entry of plan.remember) {
+    const knife = entry.knifeId ? knives.get(entry.knifeId) : undefined
+    const invented = inventedAmount(
+      entry.note,
+      knife ? knownAmounts(knife, snapshot.sources) : allAmounts,
+    )
+    push(
+      {
+        kind: 'remember',
+        ...(entry.knifeId ? { knifeId: entry.knifeId } : {}),
+        memory: entry.note,
+        days: entry.days,
+        reason: entry.note,
+      },
+      entry.knifeId && !knife
+        ? 'unknown knife'
+        : LINK.test(entry.note)
+          ? 'links are not allowed'
+          : invented
+            ? `quotes a price not in the data (${invented})`
+            : notes.some(
+                  (note) =>
+                    note.note === entry.note &&
+                    (note.knifeId ?? null) === entry.knifeId,
+                )
+              ? 'already noted'
+              : kept >= MAX_AGENT_NOTES
+                ? `already ${MAX_AGENT_NOTES} notes: forget one first`
+                : null,
+    )
+    if (actions.at(-1)?.status !== 'refused') kept += 1
+  }
   return actions
 }
 
@@ -2017,6 +2228,13 @@ export async function applyAgentActions(
       `UPDATE price_discovery SET next_attempt_at = ?
        WHERE knife_id = ? AND status <> 'found'`,
     )
+    const remember = database.prepare(
+      `INSERT INTO price_agent_notes (knife_id, note, created_at, expires_at)
+       VALUES (?, ?, ?, ?)`,
+    )
+    const forget = database.prepare(
+      'DELETE FROM price_agent_notes WHERE id = ?',
+    )
     // Questions nobody answered close after a week.
     const expireQuestions = database.prepare(
       `UPDATE system_messages SET resolved_at = ?, updated_at = ?
@@ -2073,6 +2291,24 @@ export async function applyAgentActions(
               status: 'applied',
               note: changes ? null : 'already due, or already found',
             }
+          case 'forget':
+            changes = forget.run(action.noteId).changes
+            if (!changes)
+              return { ...action, status: 'refused', note: 'already gone' }
+            return { ...action, status: 'applied', note: null }
+          case 'remember': {
+            const noteId = Number(
+              remember.run(
+                action.knifeId ?? null,
+                action.memory ?? '',
+                now,
+                new Date(
+                  context.now + (action.days ?? NOTE_MAX_DAYS) * DAY_MS,
+                ).toISOString(),
+              ).lastInsertRowid,
+            )
+            return { ...action, status: 'applied', note: null, noteId }
+          }
           case 'advise':
           case 'ask': {
             if (!action.message)
@@ -2200,10 +2436,19 @@ export function lastAgentRunAt(database: Database.Database): number | null {
   return row.at ? Date.parse(row.at) : null
 }
 
+/** Drops old runs, expired notes and notes about deleted knives. */
 export function pruneAgentRuns(database: Database.Database, now = Date.now()) {
   database
     .prepare('DELETE FROM price_agent_runs WHERE started_at < ?')
     .run(new Date(now - AGENT_RETENTION_MS).toISOString())
+  database
+    .prepare(
+      `DELETE FROM price_agent_notes
+       WHERE expires_at <= ?
+          OR (knife_id IS NOT NULL
+              AND knife_id NOT IN (SELECT id FROM knives))`,
+    )
+    .run(new Date(now).toISOString())
 }
 
 async function recordAgentRun(

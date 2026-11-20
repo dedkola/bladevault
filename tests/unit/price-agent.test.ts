@@ -126,6 +126,8 @@ describe('validateAgentPlan', () => {
     const actions = validateAgentPlan(
       {
         summary: '',
+        remember: [],
+        forget: [],
         advise: [],
         ask: [],
         watchClosely: [],
@@ -183,6 +185,8 @@ describe('validateAgentPlan', () => {
     const off = validateAgentPlan(
       {
         summary: '',
+        remember: [],
+        forget: [],
         advise: [],
         ask: [],
         watchClosely: [],
@@ -211,6 +215,8 @@ describe('validateAgentPlan', () => {
     const actions = validateAgentPlan(
       {
         summary: '',
+        remember: [],
+        forget: [],
         advise: [],
         ask: [],
         watchClosely: [],
@@ -272,6 +278,8 @@ describe('watchClosely and crossCheck', () => {
   it('clamps a watch to 72 hours and at least hourly checks', () => {
     const plan = readAgentPlan({
       summary: '',
+      remember: [],
+      forget: [],
       advise: [],
       ask: [],
       watchClosely: [
@@ -290,6 +298,8 @@ describe('watchClosely and crossCheck', () => {
   it('refuses watches that change nothing or go too far', () => {
     const empty = {
       summary: '',
+      remember: [],
+      forget: [],
       advise: [],
       ask: [],
       check: [],
@@ -373,6 +383,8 @@ describe('watchClosely and crossCheck', () => {
     const actions = validateAgentPlan(
       {
         summary: '',
+        remember: [],
+        forget: [],
         advise: [],
         ask: [],
         check: [],
@@ -419,6 +431,8 @@ describe('watchClosely and crossCheck', () => {
 describe('advise and ask', () => {
   const empty: AgentPlan = {
     summary: '',
+    remember: [],
+    forget: [],
     check: [],
     retryWithAi: [],
     fetchMode: [],
@@ -697,6 +711,110 @@ describe('advise and ask', () => {
         everyHours: 1,
       },
     ])
+  })
+})
+
+describe('remember and forget', () => {
+  const plan = (patch: Partial<AgentPlan>): AgentPlan => ({
+    summary: '',
+    check: [],
+    retryWithAi: [],
+    fetchMode: [],
+    pause: [],
+    searchOtherStore: [],
+    watchClosely: [],
+    crossCheck: [],
+    advise: [],
+    ask: [],
+    remember: [],
+    forget: [],
+    ...patch,
+  })
+  const base = {
+    sources: [source({ id: 1, knifeId: 'k1', price: '99.00 USD' })],
+    knives: [knife({ knifeId: 'k1' })],
+    ai,
+    otherStores: false,
+    checkIntervalHours: 6,
+  }
+  const note = (id: number, text: string, knifeId?: string) => ({
+    id,
+    note: text,
+    ...(knifeId ? { knifeId } : {}),
+  })
+
+  it('reads notes, clamping how long they are kept', () => {
+    const read = readAgentPlan({
+      remember: [
+        { knifeId: 'k1', note: '  Waits for Black Friday. ', days: 90 },
+        { knifeId: null, note: 'Kizer restocks on Mondays.', days: 0.2 },
+        { knifeId: null, note: '', days: 3 },
+      ],
+      forget: [{ noteId: 4, reason: 'done' }, { noteId: 'x' }],
+    })
+    expect(read.remember).toEqual([
+      { knifeId: 'k1', note: 'Waits for Black Friday.', days: 30 },
+      { knifeId: null, note: 'Kizer restocks on Mondays.', days: 1 },
+    ])
+    expect(read.forget).toEqual([{ noteId: 4, reason: 'done' }])
+  })
+
+  it('keeps useful notes within the limit and forgets known ones', () => {
+    const remember = (knifeId: string | null, text: string) => ({
+      knifeId,
+      note: text,
+      days: 10,
+    })
+    const actions = validateAgentPlan(
+      plan({
+        forget: [
+          { noteId: 1, reason: 'restocked' },
+          { noteId: 9, reason: '' },
+        ],
+        remember: [
+          remember('k1', 'Below target at 99.00 USD: watch for 90.00 USD.'),
+          remember('nope', 'Unknown.'),
+          remember(null, 'Kizer restocks on Mondays.'),
+        ],
+      }),
+      {
+        ...base,
+        notes: [
+          note(1, 'Waits for the restock.', 'k1'),
+          note(2, 'Kizer restocks on Mondays.'),
+        ],
+      },
+    )
+    expect(actions.map((action) => [action.kind, action.note])).toEqual([
+      ['forget', null],
+      ['forget', 'unknown note'],
+      ['remember', 'quotes a price not in the data (90)'],
+      ['remember', 'unknown knife'],
+      ['remember', 'already noted'],
+    ])
+
+    const full = Array.from({ length: 30 }, (_, index) =>
+      note(index + 1, `Note ${index + 1}`),
+    )
+    const capped = validateAgentPlan(
+      plan({ remember: [remember(null, 'One more.')] }),
+      { ...base, notes: full },
+    )
+    expect(capped[0].note).toBe('already 30 notes: forget one first')
+    // Forgetting one in the same run makes room.
+    const room = validateAgentPlan(
+      plan({
+        forget: [{ noteId: 3, reason: 'old' }],
+        remember: [remember('k1', 'Sold at 99.00 USD for a week.')],
+      }),
+      { ...base, notes: full },
+    )
+    expect(room.map((action) => action.note)).toEqual([null, null])
+    expect(room[1]).toMatchObject({
+      knifeId: 'k1',
+      memory: 'Sold at 99.00 USD for a week.',
+      days: 10,
+    })
   })
 })
 

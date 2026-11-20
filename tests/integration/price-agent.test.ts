@@ -7,7 +7,9 @@ import { getLocalDb } from '@/lib/local-db'
 import {
   agentModelInput,
   buildAgentSnapshot,
+  pruneAgentRuns,
   readAgentEvents,
+  readAgentNotes,
   readAgentRuns,
   runPriceAgent,
 } from '@/lib/price-monitor/agent'
@@ -949,6 +951,114 @@ describe('AI supervisor', () => {
     expect(
       readAgentEvents(db, Date.parse(readAgentRuns(db, 1)[0].startedAt)).total,
     ).toBe(0)
+  })
+
+  it('keeps notes for later runs until they expire or are forgotten', async () => {
+    enableAgent('act')
+    const drop = await createKnife('Drop Bear', 'https://kizer.example/drop')
+    const mini = await createKnife('Mini', 'https://kizer.example/mini')
+    const db = getLocalDb()
+    const empty = {
+      summary: '',
+      check: [],
+      retryWithAi: [],
+      fetchMode: [],
+      pause: [],
+      searchOtherStore: [],
+      watchClosely: [],
+      crossCheck: [],
+      advise: [],
+      ask: [],
+      forget: [],
+    }
+    aiFetch.mockResolvedValueOnce(
+      planResponse({
+        ...empty,
+        remember: [
+          { knifeId: drop.id, note: 'Waits for a sale.', days: 30 },
+          { knifeId: mini.id, note: 'Mini sells out fast.', days: 2 },
+          { knifeId: null, note: 'Kizer restocks on Mondays.', days: 10 },
+        ],
+      }),
+    )
+    const first = await runPriceAgent({ trigger: 'manual' })
+    expect(
+      first.status === 'done' &&
+        first.run.actions.map((action) => [action.status, action.noteId]),
+    ).toEqual([
+      ['applied', expect.any(Number)],
+      ['applied', expect.any(Number)],
+      ['applied', expect.any(Number)],
+    ])
+    const notes = readAgentNotes(db)
+    expect(notes.map((note) => [note.knife ?? null, note.note])).toEqual([
+      ['Kizer Drop Bear', 'Waits for a sale.'],
+      ['Kizer Mini', 'Mini sells out fast.'],
+      [null, 'Kizer restocks on Mondays.'],
+    ])
+
+    // The next run reads them, and can forget one.
+    aiFetch.mockResolvedValueOnce(
+      planResponse({
+        ...empty,
+        remember: [],
+        forget: [{ noteId: notes[0].id, reason: 'The sale came.' }],
+      }),
+    )
+    await runPriceAgent({ trigger: 'manual' })
+    const sent = JSON.parse(String(aiFetch.mock.calls.at(-1)?.[1]?.body))
+    expect(JSON.parse(sent.messages[1].content).notes).toEqual([
+      expect.objectContaining({
+        id: notes[0].id,
+        knifeId: drop.id,
+        note: 'Waits for a sale.',
+        daysAgo: 0,
+        expiresInDays: 30,
+      }),
+      expect.objectContaining({ note: 'Mini sells out fast.' }),
+      expect.objectContaining({ note: 'Kizer restocks on Mondays.' }),
+    ])
+    expect(readAgentNotes(db)).toHaveLength(2)
+    expect(
+      buildAgentSnapshot({
+        database: db,
+        settings: getSettings().priceMonitoring,
+        mode: 'act',
+        now: Date.now(),
+      }).recentRuns[1].actions[0].outcome,
+    ).toBe('forgotten or expired')
+
+    // The collector forgets one from the Supervisor tab.
+    const forget = (noteId: unknown) =>
+      agentRoute.DELETE(
+        new Request('http://localhost/api/prices/agent', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ noteId }),
+        }),
+      )
+    expect((await forget('x')).status).toBe(400)
+    const forgotten = await forget(notes[2].id)
+    expect(forgotten.status).toBe(200)
+    expect(
+      ((await forgotten.json()) as { notes: Array<{ note: string }> }).notes,
+    ).toEqual([expect.objectContaining({ note: 'Mini sells out fast.' })])
+    expect((await forget(notes[2].id)).status).toBe(404)
+
+    // Expired notes drop out; so do notes about deleted knives.
+    expect(readAgentNotes(db, Date.now() + 3 * 86_400_000)).toEqual([])
+    db.prepare(
+      `INSERT INTO price_agent_notes (knife_id, note, created_at, expires_at)
+       VALUES ('gone', 'About a deleted knife.', ?, ?)`,
+    ).run(
+      new Date().toISOString(),
+      new Date(Date.now() + 86_400_000).toISOString(),
+    )
+    expect(readAgentNotes(db)).toHaveLength(1)
+    pruneAgentRuns(db, Date.now() + 3 * 86_400_000)
+    expect(
+      db.prepare('SELECT COUNT(*) AS count FROM price_agent_notes').get(),
+    ).toEqual({ count: 0 })
   })
 
   it('serves knife labels, blocked stores and switches the mode', async () => {

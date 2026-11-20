@@ -9,6 +9,7 @@ import type {
   AgentCoverage,
   AgentEvent,
   AgentLabels,
+  AgentNote,
   AgentRun,
 } from '@/lib/price-monitor/agent'
 import type { PriceAgentMode } from '@/lib/settings-shared'
@@ -40,6 +41,8 @@ export type AgentState = {
   blockedStores: string[]
   runs: AgentRun[]
   labels: AgentLabels
+  /** Notes the supervisor keeps for its later runs. */
+  notes: AgentNote[]
 }
 
 const REFRESH_MS = 60_000
@@ -55,7 +58,7 @@ async function readJson<T>(response: Response, fallback: string): Promise<T> {
 /** The supervisor's state, refreshed every minute and after changes. */
 export function useAgentState(version: number) {
   const [state, setState] = useState<AgentState | null>(null)
-  const [busy, setBusy] = useState<'run' | 'mode' | null>(null)
+  const [busy, setBusy] = useState<'run' | 'mode' | 'note' | null>(null)
   const [notice, setNotice] = useState<{
     tone: 'ok' | 'error'
     text: string
@@ -139,7 +142,31 @@ export function useAgentState(version: number) {
     }
   }
 
-  return { state, busy, notice, run, setMode }
+  const forgetNote = async (noteId: number) => {
+    setBusy('note')
+    setNotice(null)
+    try {
+      setState(
+        await readJson<AgentState>(
+          await fetch('/api/prices/agent', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ noteId }),
+          }),
+          'Could not forget the note.',
+        ),
+      )
+    } catch (error) {
+      setNotice({
+        tone: 'error',
+        text: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return { state, busy, notice, run, setMode, forgetNote }
 }
 
 type AgentControls = ReturnType<typeof useAgentState>
@@ -308,6 +335,8 @@ const KIND_SUMMARY: Record<AgentAction['kind'], [string, string]> = {
   crossCheck: ['knife cross-checked', 'knives cross-checked'],
   advise: ['note to the Inbox', 'notes to the Inbox'],
   ask: ['question in the Inbox', 'questions in the Inbox'],
+  remember: ['note kept', 'notes kept'],
+  forget: ['note forgotten', 'notes forgotten'],
 }
 
 /** A: the strip above Monitoring status. */
@@ -499,6 +528,8 @@ const ACTION_LABEL: Record<AgentAction['kind'], string> = {
   crossCheck: 'Cross-check',
   advise: 'Advice',
   ask: 'Question',
+  remember: 'Remember',
+  forget: 'Forget',
 }
 
 /** Groups of this size or more collapse into one expandable row. */
@@ -592,6 +623,63 @@ function RunEvents({ run }: { run: AgentRun }) {
           <p className="text-xs text-muted-foreground">and {more} more</p>
         )
       ) : null}
+    </div>
+  )
+}
+
+/** The supervisor's notes for its later runs; each can be forgotten. */
+function AgentNotes({
+  controls,
+  onSelect,
+}: {
+  controls: AgentControls
+  onSelect: (knifeId: string) => void
+}) {
+  const now = useMinuteClock()
+  const notes = controls.state?.notes ?? []
+  if (!notes.length) return null
+  return (
+    <div
+      data-agent-notes
+      className="space-y-2 border-t border-[var(--bladevault-line)]/60 px-4 py-3"
+    >
+      <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+        Notes for later runs ({notes.length})
+      </h3>
+      <ul className="space-y-1.5 text-sm">
+        {notes.map((note) => (
+          <li key={note.id} className="flex flex-wrap items-start gap-x-2">
+            <span className="min-w-0 flex-1">
+              {note.knifeId ? (
+                <button
+                  type="button"
+                  className="mr-1 font-medium underline decoration-[var(--bladevault-line)] underline-offset-2 hover:decoration-current"
+                  onClick={() => onSelect(note.knifeId!)}
+                >
+                  {note.knife}:
+                </button>
+              ) : null}
+              {note.note}
+              <span className="block text-xs text-muted-foreground">
+                Noted {relativeTime(note.createdAt, now, 'short')} · kept until{' '}
+                {new Date(note.expiresAt).toLocaleDateString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </span>
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              disabled={controls.busy === 'note'}
+              onClick={() => void controls.forgetNote(note.id)}
+            >
+              Forget
+            </Button>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -1026,6 +1114,7 @@ export function AgentActivity({
           No runs yet. The first one starts within a minute, or select Run now.
         </p>
       )}
+      <AgentNotes controls={controls} onSelect={onSelect} />
     </section>
   )
 }

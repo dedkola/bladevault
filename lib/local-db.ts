@@ -1038,6 +1038,20 @@ function migratePriceMonitoringSchema(
       CREATE INDEX price_agent_runs_time
         ON price_agent_runs (started_at);`,
     ],
+    [
+      // The AI supervisor's short memory: notes it keeps for later runs,
+      // about one knife or in general. They expire; the user can forget them.
+      'price_agent_notes',
+      `CREATE TABLE price_agent_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        knife_id TEXT,
+        note TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      );
+      CREATE INDEX price_agent_notes_expiry
+        ON price_agent_notes (expires_at);`,
+    ],
   ]
   const missing = statements.filter(([name]) => !has(name))
   if (missing.length)

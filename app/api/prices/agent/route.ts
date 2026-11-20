@@ -7,9 +7,11 @@ import {
   agentHeartbeatMs,
   agentNextRunAt,
   agentRunning,
+  forgetAgentNote,
   lastAgentRunAt,
   readAgentEvents,
   readAgentLabels,
+  readAgentNotes,
   readAgentRuns,
   readBlockedStores,
   runPriceAgent,
@@ -69,6 +71,7 @@ function state() {
     blockedStores: readBlockedStores(database),
     runs,
     labels: readAgentLabels(database, runs),
+    notes: readAgentNotes(database, now),
   }
 }
 
@@ -118,6 +121,43 @@ export async function PATCH(request: Request) {
       reportServerError(error, '/api/prices/agent')
       return NextResponse.json(
         { error: 'Could not change the AI supervisor.' },
+        { status: 500 },
+      )
+    }
+  })
+}
+
+/** Forget one of the supervisor's notes. Body: { noteId: number }. */
+export async function DELETE(request: Request) {
+  return withVaultMutationRequest(request, async () => {
+    const locked = requireAppUnlock(request)
+    if (locked) return locked
+    const body = (await request.json().catch(() => null)) as {
+      noteId?: unknown
+    } | null
+    const noteId = body?.noteId
+    if (
+      typeof noteId !== 'number' ||
+      !Number.isSafeInteger(noteId) ||
+      noteId <= 0
+    )
+      return NextResponse.json(
+        { error: 'noteId must be a note id.' },
+        { status: 400 },
+      )
+    try {
+      if (!(await forgetAgentNote(noteId)))
+        return NextResponse.json(
+          { error: 'This note is already gone.' },
+          { status: 404 },
+        )
+      return NextResponse.json(state(), { headers: NO_STORE })
+    } catch (error) {
+      const vaultResponse = vaultAccessErrorResponse(error)
+      if (vaultResponse) return vaultResponse
+      reportServerError(error, '/api/prices/agent')
+      return NextResponse.json(
+        { error: 'Could not forget the note.' },
         { status: 500 },
       )
     }
