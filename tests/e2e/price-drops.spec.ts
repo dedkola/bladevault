@@ -50,6 +50,31 @@ test('shows monitored knives, their sources and the Market tab', async ({
   await expect(
     page.getByRole('tabpanel').getByText('Nothing has been checked yet.'),
   ).toBeVisible()
+  await expect(page).toHaveURL(/section=recent/)
+
+  // Search narrows the listings; the tab survives a reload.
+  await page.getByRole('tab', { name: /^All/ }).click()
+  const search = page.getByLabel('Search monitored knives')
+  await search.fill('no such knife')
+  await expect(
+    page.getByRole('tabpanel').getByText('Nothing here matches', {
+      exact: false,
+    }),
+  ).toBeVisible()
+  await search.fill('')
+  await expect(
+    page.getByRole('columnheader', { name: 'Price now' }),
+  ).toHaveAttribute('aria-sort', 'none')
+  await page.getByRole('button', { name: 'Price now' }).click()
+  await expect(
+    page.getByRole('columnheader', { name: 'Price now' }),
+  ).toHaveAttribute('aria-sort', 'ascending')
+  await page.getByRole('tab', { name: 'Restocked' }).click()
+  await page.goto('/price-drops')
+  await expect(page.getByRole('tab', { name: 'Restocked' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
 
   await page.goto(`/collection/${knife.id}?tab=market`)
   const market = page.locator('[data-knife-price-panel="tab"]')
