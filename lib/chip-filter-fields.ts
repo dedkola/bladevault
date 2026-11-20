@@ -13,6 +13,13 @@ import {
   countCareStatuses,
   type KnifeCareStatus,
 } from '@/lib/maintenance-due'
+import {
+  countMarketConditions,
+  MARKET_FILTER_LABELS,
+  MARKET_FILTER_VALUES,
+  MARKET_PARAM,
+  type MarketSummaryMap,
+} from '@/lib/market-status'
 
 /** Shows a custom date value in the reader's locale; other types as stored. */
 export function formatCustomFilterValue(
@@ -57,6 +64,8 @@ export function buildChipFilterFields(
   customFields: CustomField[],
   /** Derived care status; when given, a "Care" field with status options is appended. */
   careStatusById?: ReadonlyMap<string, KnifeCareStatus>,
+  /** Market summaries; when given, a "Market" field with price conditions is appended. */
+  marketById?: MarketSummaryMap,
 ): ChipFilterField[] {
   const definitions = [
     ...builtInFilterDefinitions.map((definition) => ({
@@ -116,6 +125,24 @@ export function buildChipFilterFields(
       options: CARE_FILTER_VALUES.map((value) => ({
         value,
         label: CARE_STATUS_LABELS[value],
+        count: counts[value],
+      })),
+    })
+  }
+
+  if (marketById) {
+    const counts = countMarketConditions(
+      knives.map((knife) => knife.id),
+      marketById,
+    )
+    fields.push({
+      key: MARKET_PARAM,
+      label: 'Market',
+      custom: false,
+      rangeUnit: undefined,
+      options: MARKET_FILTER_VALUES.map((value) => ({
+        value,
+        label: MARKET_FILTER_LABELS[value],
         count: counts[value],
       })),
     })

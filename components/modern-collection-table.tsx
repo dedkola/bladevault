@@ -16,6 +16,12 @@ import type { CollectionColumnSort, DimensionUnit } from '@/lib/settings-shared'
 import { useCollectionItemNavigation } from '@/hooks/use-collection-item-navigation'
 import { getVisibleCardFields } from '@/lib/card-fields'
 import { KnifeCareBadge, careToneTextClass } from '@/components/care-badge'
+import {
+  KnifeMarketBadge,
+  marketToneTextClass,
+} from '@/components/market-badge'
+import { useMarket } from '@/components/providers/market-provider'
+import { marketTone } from '@/lib/market-status'
 import { useCare } from '@/components/providers/care-provider'
 import { useKnives } from '@/components/providers/knives-provider'
 
@@ -177,6 +183,7 @@ export function ModernCollectionTable({
 }) {
   const navigation = useCollectionItemNavigation(onOpen, onOpenDetail)
   const { statusById: careStatusById } = useCare()
+  const { byId: marketById } = useMarket()
   const [previewWidths, setPreviewWidths] = useState<Record<string, number>>({})
   const widths = { ...columnWidths, ...previewWidths }
   const resizeGrip = (key: string, label: string) => {
@@ -469,6 +476,10 @@ export function ModernCollectionTable({
                             careToneTextClass(
                               careStatusById.get(knife.id)?.level ?? null,
                             ),
+                          column.key === 'market' &&
+                            marketToneTextClass(
+                              marketTone(marketById.get(knife.id)),
+                            ),
                         )}
                         title={value || undefined}
                       >
@@ -605,6 +616,7 @@ export function ModernCollectionGallery({
                 ))}
               </span>
             )}
+            <KnifeMarketBadge knifeId={knife.id} className="self-start" />
             <KnifeCareBadge knifeId={knife.id} className="self-start" />
           </button>
         )

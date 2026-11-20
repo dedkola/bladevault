@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useCare } from '@/components/providers/care-provider'
+import { useMarketFilter } from '@/components/providers/market-provider'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import type { Knife } from '@/lib/data'
 import type { CollectionDisplay } from '@/lib/settings-shared'
@@ -26,6 +27,7 @@ export function useLumenCollection() {
   } = useKnives()
   const { reminders: careReminders, statusById: careStatusById } = useCare()
   const careStatusFilter = careReminders.enabled ? careStatusById : undefined
+  const marketFilter = useMarketFilter()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -69,7 +71,7 @@ export function useLumenCollection() {
     const params = new URLSearchParams(paramsKey)
     params.set('q', debouncedQuery)
     return sortLumenKnives(
-      filterLumenKnives(knives, params, careStatusFilter),
+      filterLumenKnives(knives, params, careStatusFilter, marketFilter),
       collectionDisplay.sort,
       pinnedItemsFirst && params.get('view') !== 'pinned',
     )
@@ -80,6 +82,7 @@ export function useLumenCollection() {
     collectionDisplay.sort,
     pinnedItemsFirst,
     careStatusFilter,
+    marketFilter,
   ])
 
   const getValues = useCallback(

@@ -41,6 +41,7 @@ import { getKnifeFamilyKey, groupKnifeFamilies } from '@/lib/knife-families'
 import { getPinnedDetailLine } from '@/lib/card-fields'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useCare } from '@/components/providers/care-provider'
+import { useMarketFilter } from '@/components/providers/market-provider'
 import { useCareInbox } from '@/components/providers/care-inbox-provider'
 import { CareInboxCount } from '@/components/care-inbox'
 import { Button } from '@/components/ui/button'
@@ -98,6 +99,7 @@ export function Sidebar() {
   } = useKnives()
   const { reminders: careReminders, statusById: careStatusById } = useCare()
   const careStatusFilter = careReminders.enabled ? careStatusById : undefined
+  const marketFilter = useMarketFilter()
   const { visible: inboxEnabled, unreadCount: inboxUnread } = useCareInbox()
   const priceUnread = usePriceDropsUnread()
   const { update, downloadUpdate } = useDesktopUpdates()
@@ -413,7 +415,12 @@ export function Sidebar() {
                       searchParams.get('smart') === collection.id
                     const rules = new URLSearchParams(collection.query)
                     const count = knives.filter((knife) =>
-                      matchesCollection(knife, rules, careStatusFilter),
+                      matchesCollection(
+                        knife,
+                        rules,
+                        careStatusFilter,
+                        marketFilter,
+                      ),
                     ).length
                     return (
                       <Link

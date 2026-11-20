@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useCare } from '@/components/providers/care-provider'
+import { useMarketFilter } from '@/components/providers/market-provider'
 import { KnifePhoto } from '@/components/lumen/knife-photo'
 import {
   useLumenCollection,
@@ -510,6 +511,7 @@ function ShelfAllKnives({
   const { knives, filtered, getValues } = collection
   const { customFieldDefinitions, dimensionUnit } = useKnives()
   const { reminders: careReminders, statusById: careStatusById } = useCare()
+  const marketFilter = useMarketFilter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -520,8 +522,15 @@ function ShelfAllKnives({
         knives,
         customFieldDefinitions,
         careReminders.enabled ? careStatusById : undefined,
+        marketFilter,
       ),
-    [knives, customFieldDefinitions, careReminders.enabled, careStatusById],
+    [
+      knives,
+      customFieldDefinitions,
+      careReminders.enabled,
+      careStatusById,
+      marketFilter,
+    ],
   )
   const styles = useMemo(
     () => countFacet(knives, (knife) => knife.bladeStyle).slice(0, 8),

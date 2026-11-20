@@ -30,7 +30,13 @@ import type {
 } from '@/lib/settings-shared'
 import { getCardFieldDisplayValue, getCardFieldLabel } from '@/lib/card-fields'
 import { useCare } from '@/components/providers/care-provider'
+import {
+  useMarket,
+  useMarketFilter,
+} from '@/components/providers/market-provider'
 import { careToneTextClass } from '@/components/care-badge'
+import { marketToneTextClass } from '@/components/market-badge'
+import { marketDescription, marketLabel, marketTone } from '@/lib/market-status'
 import {
   CARE_KIND_PARAM,
   careDueSummary,
@@ -67,6 +73,7 @@ const NEXT_SORT: Record<CollectionDisplay['sort'], CollectionDisplay['sort']> =
 /** Shorter column heads for the card fields, so they fit narrow columns. */
 const SHORT_LABELS: Partial<Record<CardField, string>> = {
   care: 'Care',
+  market: 'Market',
   'specs.modelNumber': 'Model',
   'specs.bladeMaterial': 'Steel',
   'specs.bladeCoating': 'Finish',
@@ -208,13 +215,16 @@ export function LedgerCollection() {
   const searchParams = useSearchParams()
   const { dimensionUnit, cardFields, customFieldDefinitions } = useKnives()
   const { reminders, statusById: careStatusById } = useCare()
+  const marketFilter = useMarketFilter()
   const [paneWidth, setPaneWidth] = useState<number | null>(null)
   const columnFields = useMemo(
     () =>
-      reminders.enabled
-        ? cardFields
-        : cardFields.filter((field) => field !== 'care'),
-    [cardFields, reminders.enabled],
+      cardFields.filter(
+        (field) =>
+          (field !== 'care' || reminders.enabled) &&
+          (field !== 'market' || marketFilter),
+      ),
+    [cardFields, reminders.enabled, marketFilter],
   )
   const ledgerColumns = useLedgerColumns(
     columnFields,
@@ -317,8 +327,15 @@ export function LedgerCollection() {
         knives,
         customFieldDefinitions,
         reminders.enabled ? careStatusById : undefined,
+        marketFilter,
       ),
-    [knives, customFieldDefinitions, reminders.enabled, careStatusById],
+    [
+      knives,
+      customFieldDefinitions,
+      reminders.enabled,
+      careStatusById,
+      marketFilter,
+    ],
   )
   const knifeType = getValues('knifeType')[0]
   const careKind = reminders.enabled
@@ -639,6 +656,7 @@ function LedgerRow({
   onSelect: () => void
 }) {
   const { statusById: careStatusById } = useCare()
+  const { byId: marketById } = useMarket()
   // The line under the name skips what the group or a column already shows.
   const shown = new Set<CardField>(columns.map((column) => column.key))
   if (groupBy === 'style') shown.add('bladeStyle')
@@ -683,6 +701,25 @@ function LedgerRow({
               data-empty={text === '—' || undefined}
               title={text === '—' ? undefined : text}
               className={status ? careToneTextClass(status.level) : undefined}
+            >
+              {text}
+            </span>
+          )
+        }
+        if (column.key === 'market') {
+          const summary = marketById.get(knife.id)
+          const text = marketLabel(summary) || '—'
+          return (
+            <span
+              key={column.key}
+              data-ledger-cell
+              data-empty={text === '—' || undefined}
+              title={text === '—' ? undefined : marketDescription(summary)}
+              className={
+                text === '—'
+                  ? undefined
+                  : marketToneTextClass(marketTone(summary))
+              }
             >
               {text}
             </span>

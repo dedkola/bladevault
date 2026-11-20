@@ -9,6 +9,7 @@ import { useComparisons } from '@/components/providers/comparisons-provider'
 import { useKnives } from '@/components/providers/knives-provider'
 import { getVisibleCardFields } from '@/lib/card-fields'
 import { KnifeCareBadge } from '@/components/care-badge'
+import { KnifeMarketBadge } from '@/components/market-badge'
 import { getImageUrl, type Knife } from '@/lib/data'
 import { useCollectionItemNavigation } from '@/hooks/use-collection-item-navigation'
 import './alloy-collection.css'
@@ -165,6 +166,7 @@ export const AlloyCollectionCard = memo(function AlloyCollectionCard({
               ? metadata.join(' · ')
               : 'Specifications not recorded'}
           </p>
+          <KnifeMarketBadge knifeId={knife.id} className="mr-1.5 mt-1.5" />
           <KnifeCareBadge knifeId={knife.id} className="mt-1.5" />
         </div>
         {!selectionMode && (

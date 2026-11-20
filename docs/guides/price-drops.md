@@ -93,6 +93,18 @@ Select the history button next to a store to see its last 30 checks, newest firs
 
 Market prices are information only. They never change the purchase price stored in the knife's specifications.
 
+## See market prices in your collection
+
+Your collection can show each knife's best current price and what happened to it, without opening the Market tab:
+
+- **Card detail** — open **Settings → Appearance → Card fields** and select **Market price** under **Market**. Cards then show a small pill such as `$89.00 · ↓ 12%`, `$150.00 · Back in stock`, `Out of stock`, or `$99.00 · Below paid`.
+- **Table column** — in the collection's table or list view, open **Columns** and select **Market**. Sort by it to bring recent drops, restocks, and prices below what you paid to the top. In Ledger, the **Market price** card field is its list column.
+- **Filter** — choose **Market** under **Filters** (or type `Market` in the search bar on Modern, Ledger, and Shelf) and pick **Price dropped recently**, **Back in stock recently**, **Out of stock**, **Below what I paid**, **Monitored**, or **Not monitored**. Picking several shows knives that match any of them. [Smart Collections](smart-collections.md) save these conditions, so a "Below what I paid" view stays current as prices change.
+
+A drop counts as recent for 30 days while the price still sits there, using the same **Minimum change** as the Price Drops page, so small wobbles and prices that bounce back are left out; a restock counts for 7 days. **Below what I paid** compares the lowest in-stock price with the purchase price when both are in the same currency. Paused store links are left out. The collection picks up new prices after checks finish and every few minutes while BladeVault is open.
+
+Market prices need the BladeVault server, so the static web demo does not show them.
+
 ## Export price history to CSV
 
 Select **Export CSV** on a knife's **Market** tab or in the Price Drops side panel to download that knife's full price history. **Export all** in the Price Drops header downloads the history of every knife with recorded prices. In the desktop app, a save dialog asks where to put the file.

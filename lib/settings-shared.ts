@@ -96,6 +96,7 @@ export const CARD_FIELDS = [
   'specs.handleLength',
   'specs.weight',
   'care',
+  'market',
 ] as const
 
 export type BuiltInCardField = (typeof CARD_FIELDS)[number]
@@ -148,6 +149,7 @@ export const COLLECTION_COLUMNS = [
   'updatedAt',
   'images',
   'care',
+  'market',
 ] as const
 export type CollectionColumn =
   (typeof COLLECTION_COLUMNS)[number] | `custom:${string}`

@@ -28,6 +28,8 @@ Collection search checks the model name. To find a brand, model number, material
 
 Within one field, a knife can match any selected value. Across different fields, it must match every field. For example, selecting two blade materials and one handle material finds either steel with that handle material.
 
+**Market** filters by price monitoring: price dropped recently, back in stock recently, out of stock, below what you paid, monitored, or not monitored. See [Watch market prices with Price Drops](price-drops.md#see-market-prices-in-your-collection).
+
 **Not set** appears when at least one record has no value for that field. Select it to find those records. Filter menus list values already saved in the vault; they do not create new values.
 
 ## Use measurement ranges

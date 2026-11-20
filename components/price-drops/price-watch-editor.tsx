@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useEffectEvent, useId, useState } from 'react'
+import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import {
   AlertCircle,
   ExternalLink,
@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select'
 import { PriceAlertRules } from '@/components/price-drops/price-alert-rules'
 import { getSafeExternalUrl } from '@/lib/external-url'
+import { announcePriceDataUpdated } from '@/lib/market-status'
 import type {
   EligibilityReason,
   FetchOverride,
@@ -310,6 +311,12 @@ export function PriceWatchEditor({
     (watch.queuedSourceIds.length > 0 ||
       watch.sources.some((source) => source.status === 'checking')),
   )
+  // Finished checks change the collection's market prices.
+  const wasPending = useRef(false)
+  useEffect(() => {
+    if (wasPending.current && !pending) announcePriceDataUpdated()
+    wasPending.current = pending
+  }, [pending])
   useEffect(() => {
     if (!pending) return
     const timer = setInterval(() => {
@@ -332,6 +339,7 @@ export function PriceWatchEditor({
       if (!response.ok) throw new Error(await readError(response))
       const data = (await response.json()) as { watch: PriceWatchView }
       setWatch(data.watch)
+      announcePriceDataUpdated()
       onChanged?.()
       return true
     } catch (err) {

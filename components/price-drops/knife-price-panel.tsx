@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getSafeExternalUrl } from '@/lib/external-url'
+import { announcePriceDataUpdated } from '@/lib/market-status'
 import {
   HISTORY_RANGES,
   type ChangeEvent,
@@ -505,6 +506,7 @@ export function KnifePricePanel({
   const [historyVersion, setHistoryVersion] = useState(0)
   const { watch, pending } = usePriceWatch(knifeId, version, () => {
     setHistoryVersion((value) => value + 1)
+    announcePriceDataUpdated()
     onChanged?.()
   })
   const historyState = usePriceHistory(knifeId, range, historyVersion)

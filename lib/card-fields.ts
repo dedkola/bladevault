@@ -43,6 +43,10 @@ export const BUILT_IN_CARD_FIELD_GROUPS = [
     fields: [{ key: 'care', label: 'Care status' }],
   },
   {
+    label: 'Market',
+    fields: [{ key: 'market', label: 'Market price' }],
+  },
+  {
     label: 'Dimensions',
     fields: [
       { key: 'specs.overallLength', label: 'Overall length' },
@@ -105,9 +109,9 @@ export function getCardFieldValue(knife: Knife, field: CardField): string {
 
   if (field === 'bladeStyle') return knife.bladeStyle
   if (field === 'handleMaterial') return knife.handleMaterial
-  // Care status is derived outside the knife record; cards render it as a
-  // dedicated badge instead of a generic field value.
-  if (field === 'care') return ''
+  // Care status and market price are derived outside the knife record;
+  // cards render them as dedicated badges instead of generic field values.
+  if (field === 'care' || field === 'market') return ''
 
   const specKey = field.slice('specs.'.length) as keyof Knife['specs']
   return knife.specs[specKey] ?? ''
