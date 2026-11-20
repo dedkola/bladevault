@@ -53,6 +53,7 @@ import {
   useMinuteClock,
 } from './price-ui'
 import { PriceWatchEditor } from './price-watch-editor'
+import { RetireHintNotice } from './retire-hint'
 import {
   SOLVE_UNAVAILABLE_TEXT,
   SolveInBrowserDialog,
@@ -154,21 +155,26 @@ function bestOffer(
 
 function SourceLine({
   source,
+  knifeId,
   queued,
   now,
   canSolve,
   onCheck,
   onSolve,
   onHistory,
+  onPaused,
 }: {
   source: PriceSourceView
+  knifeId: string
   queued: boolean
   now: number
   canSolve: boolean | null
   onCheck: () => void
   onSolve: () => void
   onHistory: () => void
+  onPaused: () => void
 }) {
+  const retire = source.enabled ? (source.retireHint ?? null) : null
   const needsHelp =
     source.status === 'blocked' ||
     source.status === 'failed' ||
@@ -185,7 +191,7 @@ function SourceLine({
   return (
     <li
       data-price-source-line
-      className="flex items-center gap-2.5 border-t border-[var(--bladevault-line)]/60 py-2 first:border-t-0"
+      className="flex flex-wrap items-center gap-2.5 border-t border-[var(--bladevault-line)]/60 py-2 first:border-t-0"
     >
       <StatusDot tone={STATUS_TONE[status]} />
       <div className="min-w-0 flex-1">
@@ -291,6 +297,18 @@ function SourceLine({
           <RefreshCw className="size-3" />
         )}
       </Button>
+      {retire ? (
+        <RetireHintNotice
+          hint={retire}
+          knifeId={knifeId}
+          sourceId={source.id}
+          storeName={source.storeName}
+          outOfStockSince={source.outOfStockSince ?? null}
+          now={now}
+          onPaused={onPaused}
+          className="basis-full pl-5"
+        />
+      ) : null}
     </li>
   )
 }
@@ -710,6 +728,7 @@ export function KnifePricePanel({
               <SourceLine
                 key={source.id}
                 source={source}
+                knifeId={knifeId}
                 queued={queued.has(source.id)}
                 now={now}
                 canSolve={canSolve}
@@ -730,6 +749,10 @@ export function KnifePricePanel({
                     storeName: source.storeName,
                   })
                 }
+                onPaused={() => {
+                  setVersion((value) => value + 1)
+                  onChanged?.()
+                }}
               />
             ))}
           </ul>
