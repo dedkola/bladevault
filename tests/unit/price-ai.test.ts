@@ -765,6 +765,77 @@ describe('AI client', () => {
     expect(sent[2].response_format).toEqual(sent[1].response_format)
   })
 
+  it('asks OpenCode models to answer without thinking, and drops the field if refused', async () => {
+    const opencode = {
+      baseUrl: 'https://opencode.ai/zen/go/v1',
+      apiKey: KEY,
+    }
+    const request = {
+      model: 'glm-5.1',
+      system: 's',
+      user: 'u',
+      schemaName: 'x',
+      schema: { type: 'object' },
+    }
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(chatResponse('{"ok":1}'))
+      .mockResolvedValueOnce(
+        new Response('{"error":{"message":"Unknown field: thinking"}}', {
+          status: 400,
+        }),
+      )
+      .mockResolvedValueOnce(chatResponse('{"ok":2}'))
+      .mockResolvedValueOnce(chatResponse('{"ok":3}'))
+    expect(
+      await requestJsonCompletion(opencode, request, {
+        timeoutMs: 1000,
+        fetchImpl,
+      }),
+    ).toEqual({ ok: 1 })
+    const other = { ...request, model: 'kimi-k2.6' }
+    expect(
+      await requestJsonCompletion(opencode, other, {
+        timeoutMs: 1000,
+        fetchImpl,
+      }),
+    ).toEqual({ ok: 2 })
+    expect(
+      await requestJsonCompletion(opencode, other, {
+        timeoutMs: 1000,
+        fetchImpl,
+      }),
+    ).toEqual({ ok: 3 })
+    const sent = fetchImpl.mock.calls.map(
+      (call) => JSON.parse(String(call[1]?.body)) as Record<string, unknown>,
+    )
+    expect(sent[0].thinking).toEqual({ type: 'disabled' })
+    expect(sent[1].thinking).toEqual({ type: 'disabled' })
+    // Same format again, without the refused field, and not sent later.
+    expect(sent[2].thinking).toBeUndefined()
+    expect(sent[2].response_format).toEqual(sent[1].response_format)
+    expect(sent[3].thinking).toBeUndefined()
+  })
+
+  it('does not send the thinking field to other endpoints', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(chatResponse('{"ok":true}'))
+    await requestJsonCompletion(
+      endpoint,
+      {
+        model: 'llama3.2',
+        system: 's',
+        user: 'u',
+        schemaName: 'x',
+        schema: { type: 'object' },
+      },
+      { timeoutMs: 1000, fetchImpl },
+    )
+    const body = JSON.parse(String(fetchImpl.mock.calls[0][1]?.body))
+    expect(body.thinking).toBeUndefined()
+  })
+
   it('refuses requests the budget gate stops, without sending or reporting', async () => {
     const events: AiCallEvent[] = []
     setAiCallObserver((event) => events.push(event))
