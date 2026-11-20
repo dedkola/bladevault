@@ -409,7 +409,9 @@ export function KnifePricePanel({
           </ul>
         ) : (
           <p className="text-xs text-muted-foreground">
-            No product URLs yet. Add them in edit mode.
+            {wanted
+              ? 'No product URLs yet. Add them under Stores and monitoring.'
+              : 'No product URLs yet. Add them in edit mode.'}
           </p>
         )}
       </div>
