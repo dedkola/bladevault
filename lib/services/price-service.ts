@@ -4,8 +4,10 @@ import type { Knife } from '@/lib/data'
 import { getLocalDb } from '@/lib/local-db'
 import {
   buildKnifeHistory,
+  buildKnifeSummaries,
   buildPriceOverview,
   listChangeEvents,
+  readOutOfStockSources,
   type ChangeEvent,
   type HistoryRange,
   type MonitoredSource,
@@ -171,7 +173,7 @@ export async function listPriceWatches(input: {
     sourcesByKnife.set(source.knife.id, list)
   }
 
-  const knives = overview.knives
+  const knives = buildKnifeSummaries(getLocalDb(), settings)
     .filter((summary) => !(input.monitoredOnly ?? true) || summary.monitored)
     .map((summary) => {
       const state = knifeState(
@@ -242,16 +244,12 @@ export async function listPriceChanges(input: {
   const events = windowEvents
     .filter((event) => !kinds || kinds.has(event.kind))
     .slice(0, input.limit ?? 50)
-  const overview = buildPriceOverview(database, priceSettings(), {
-    now,
-    windowDays: days,
-  })
   return {
     days,
     since,
     counts,
     events: events.map(toEventOutput),
-    outOfStockNow: overview.outOfStock.map((source) => ({
+    outOfStockNow: readOutOfStockSources(database).map((source) => ({
       knifeId: source.knife.id,
       knife: knifeLabel(source.knife),
       sourceId: source.sourceId,
