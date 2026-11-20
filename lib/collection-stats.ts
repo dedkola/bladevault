@@ -465,6 +465,17 @@ function buildMeasurementStats(
   }
 }
 
+/** How many of the catalogue-coverage fields a knife has filled in. */
+export function countImportantFields(knife: Knife): {
+  filled: number
+  total: number
+} {
+  const filled = IMPORTANT_FIELDS.filter((definition) =>
+    definition.getValue(knife)?.trim(),
+  ).length
+  return { filled, total: IMPORTANT_FIELDS.length }
+}
+
 function buildCompleteness(knives: Knife[]) {
   if (knives.length === 0) {
     return { completeness: 0, missingFields: [] as MissingFieldStat[] }

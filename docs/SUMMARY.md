@@ -30,6 +30,7 @@
 - [Log maintenance and sharpening](guides/log-maintenance.md)
 - [Watch market prices with Price Drops](guides/price-drops.md)
 - [Collection insights](guides/insights.md)
+- [Earn achievements](guides/achievements.md)
 - [Improve collection data quality](guides/improve-data-quality.md)
 - [Review collection activity in History](guides/review-collection-activity.md)
 - [Capture source pages](guides/capture-sources.md)

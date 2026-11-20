@@ -9,6 +9,7 @@ BladeVault exposes its existing local collection to MCP clients such as LM Studi
 | `search_knives`         | Search text and exact BladeVault fields                              | Read-only  |
 | `get_knife`             | Retrieve one complete knife record                                   | Read-only  |
 | `get_collection_stats`  | Summarize completeness, categories, measurements, and recent records | Read-only  |
+| `get_achievements`      | Report rank, score, unlocked badges, and progress on the rest        | Read-only  |
 | `find_missing_fields`   | Find knives with missing built-in or custom fields                   | Read-only  |
 | `find_duplicates`       | Score possible duplicate records without merging or deleting         | Read-only  |
 | `propose_changes`       | Validate suggested values without modifying the collection           | Read-only  |
@@ -27,6 +28,10 @@ BladeVault exposes its existing local collection to MCP clients such as LM Studi
 Open **Settings → AI / MCP** to review activity, copy the local client configuration, enable or disable HTTP access, and allow or deny write access. Write mode is off by default.
 
 Metadata updates require the expected record timestamp to prevent overwriting newer edits. They are recorded in the change log. Maintenance writes append dated events to a knife's history. Price monitoring writes change only the knife's monitoring mode and store sources. MCP cannot replace knife IDs, record timestamps, images, or entire records.
+
+## Achievements
+
+`get_achievements` reports the collector rank, score, and each badge with its unlock date or its progress (`current`, `target`, and readable `text` such as `6.4 / 10 kg`). Filter with `status` (`all`, `unlocked`, or `locked`) and `category`. Locked secret badges are only counted in `hiddenSecretCount`. The tool never records unlocks; the app does that as the collection changes. When achievements are off in Settings it says so and returns no badges.
 
 ## Price monitoring tools
 

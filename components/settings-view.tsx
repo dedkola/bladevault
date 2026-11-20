@@ -31,6 +31,7 @@ import {
   Trash2,
   Upload,
   TrendingDown,
+  Trophy,
   Wrench,
 } from 'lucide-react'
 import { CompareIcon } from '@/components/icons/compare-icon'
@@ -50,6 +51,7 @@ import {
   DIMENSION_UNITS,
   normalizeMaintenanceReminders,
   normalizePriceMonitoring,
+  normalizeAchievementSettings,
   type AppSettings,
   type AppTheme,
   type CardField,
@@ -61,6 +63,7 @@ import {
   type StartPage,
   type MaintenanceReminderSettings,
   type PriceMonitoringSettings,
+  type AchievementSettings as AchievementSettingsValue,
 } from '@/lib/settings-shared'
 import { getHourCycle } from '@/lib/time-format'
 import { getCardFieldGroups, getCardFieldLabel } from '@/lib/card-fields'
@@ -82,6 +85,7 @@ import { CareBadgePill } from '@/components/care-badge'
 import { MarketBadgePill } from '@/components/market-badge'
 import { hasServerRuntime } from '@/lib/runtime-capabilities'
 import { MaintenanceSettings } from '@/components/maintenance-settings'
+import { AchievementSettings } from '@/components/achievement-settings'
 import { PriceMonitoringSettings as PriceMonitoringSettingsPanel } from '@/components/price-drops/price-monitoring-settings'
 import { formatDimension, formatWeight } from '@/lib/measurements'
 import {
@@ -131,6 +135,7 @@ type SettingsTab =
   | 'fields'
   | 'maintenance'
   | 'prices'
+  | 'achievements'
   | 'mcp'
   | 'about'
 
@@ -641,6 +646,7 @@ export default function SettingsView() {
     'fields',
     'maintenance',
     'prices',
+    'achievements',
     'mcp',
     'about',
   ].includes(normalizedTabParam || '')
@@ -720,6 +726,7 @@ export default function SettingsView() {
   const [isSavingCardFields, setIsSavingCardFields] = useState(false)
   const [isSavingMaintenance, setIsSavingMaintenance] = useState(false)
   const [isSavingPriceMonitoring, setIsSavingPriceMonitoring] = useState(false)
+  const [isSavingAchievements, setIsSavingAchievements] = useState(false)
   const [isSavingPinnedCardFields, setIsSavingPinnedCardFields] =
     useState(false)
   const [mcpStatus, setMcpStatus] = useState<McpRuntimeStatus | null>(null)
@@ -861,6 +868,12 @@ export default function SettingsView() {
         label: 'Price monitoring',
         icon: TrendingDown,
         blurb: 'How often store prices are checked and how gently.',
+      },
+      {
+        id: 'achievements' as const,
+        label: 'Achievements',
+        icon: Trophy,
+        blurb: 'Badges for milestones, how unlocks are celebrated, and reset.',
       },
       {
         id: 'mcp' as const,
@@ -1387,6 +1400,23 @@ export default function SettingsView() {
       )
     } finally {
       setIsSavingMaintenance(false)
+    }
+  }
+
+  const handleAchievementSettingsChange = async (
+    next: AchievementSettingsValue,
+  ) => {
+    if (!settings) return
+
+    try {
+      setIsSavingAchievements(true)
+      await saveSettings({ achievements: next })
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : 'Failed to save settings',
+      )
+    } finally {
+      setIsSavingAchievements(false)
     }
   }
 
@@ -2278,6 +2308,16 @@ export default function SettingsView() {
                   settings={normalizePriceMonitoring(settings.priceMonitoring)}
                   disabled={isSavingPriceMonitoring}
                   onChange={(next) => void handlePriceMonitoringChange(next)}
+                />
+              )}
+
+              {activeTab === 'achievements' && (
+                <AchievementSettings
+                  settings={normalizeAchievementSettings(settings.achievements)}
+                  disabled={isSavingAchievements || isVaultReadOnly}
+                  onChange={(next) =>
+                    void handleAchievementSettingsChange(next)
+                  }
                 />
               )}
 

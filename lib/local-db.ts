@@ -21,7 +21,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 11
+export const LOCAL_DB_SCHEMA_VERSION = 12
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -707,8 +707,48 @@ function migrateSchema(database: Database.Database) {
   }
 
   migratePriceMonitoringSchema(database, tables)
+  migrateAchievementSchema(database, tables)
 
   normalizeKnifeRows(database)
+}
+
+/**
+ * Achievements (schema 12). Unlocks are permanent and keep no foreign key, so
+ * deleting a knife never removes a badge. `achievement_meta` records when the
+ * vault was first evaluated, which decides silent backfill. Additive and
+ * repeat-safe.
+ */
+function migrateAchievementSchema(
+  database: Database.Database,
+  tables: Array<{ name: string }>,
+) {
+  const has = (name: string) => tables.some((t) => t.name === name)
+  if (!has('achievement_unlocks')) {
+    database.exec(`
+      CREATE TABLE achievement_unlocks (
+        id TEXT PRIMARY KEY,
+        unlocked_at TEXT NOT NULL,
+        knife_id TEXT,
+        backfilled INTEGER NOT NULL DEFAULT 0,
+        seen_at TEXT
+      );
+    `)
+  }
+  // Per-message keys let each achievement keep its own Inbox message.
+  const messageColumns = database
+    .prepare("SELECT name FROM pragma_table_info('system_messages')")
+    .all() as Array<{ name: string }>
+  if (!messageColumns.some((column) => column.name === 'dedupe_key')) {
+    database.exec('ALTER TABLE system_messages ADD COLUMN dedupe_key TEXT')
+  }
+  if (!has('achievement_meta')) {
+    database.exec(`
+      CREATE TABLE achievement_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `)
+  }
 }
 
 /**

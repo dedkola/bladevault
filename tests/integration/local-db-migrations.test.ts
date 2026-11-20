@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   closeLocalDb,
   getLocalDb,
+  LOCAL_DB_SCHEMA_VERSION,
   OBSOLETE_SETTINGS_KEYS,
 } from '@/lib/local-db'
 import { getSettings, saveSettings } from '@/lib/settings'
@@ -46,7 +47,9 @@ describe('local database migrations', () => {
       ).map((row) => row.name)
 
     expect(tableNames()).toEqual(expect.arrayContaining(priceTables))
-    expect(getLocalDb().pragma('user_version', { simple: true })).toBe(11)
+    expect(getLocalDb().pragma('user_version', { simple: true })).toBe(
+      LOCAL_DB_SCHEMA_VERSION,
+    )
     getLocalDb()
       .prepare(
         `INSERT INTO price_monitor_daily (day, lane_key, checks)

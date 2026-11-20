@@ -16,6 +16,7 @@ import {
 type SystemMessageRow = {
   id: number
   kind: string
+  dedupe_key: string | null
   title: string
   detail: string
   occurrences: number
@@ -37,6 +38,7 @@ function readSystemMessages(database: Database.Database): SystemMessage[] {
           {
             id: row.id,
             kind: row.kind,
+            key: row.dedupe_key,
             title: row.title,
             detail: row.detail,
             occurrences: row.occurrences,
@@ -67,9 +69,9 @@ function writeSystemMessageChanges(
 ) {
   const insert = database.prepare(
     `INSERT INTO system_messages
-       (kind, title, detail, occurrences, occurred_at, created_at, updated_at,
-        read_at, dismissed_at, resolved_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (kind, dedupe_key, title, detail, occurrences, occurred_at, created_at,
+        updated_at, read_at, dismissed_at, resolved_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
   const update = database.prepare(
     `UPDATE system_messages
@@ -81,6 +83,7 @@ function writeSystemMessageChanges(
   for (const row of changes.create) {
     insert.run(
       row.kind,
+      row.key,
       row.title,
       row.detail,
       row.occurrences,

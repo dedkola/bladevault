@@ -1,6 +1,8 @@
 import { markStaticBrowserApp } from '@/lib/runtime-capabilities'
 import {
+  DEFAULT_ACHIEVEMENTS,
   DEFAULT_MAINTENANCE_REMINDERS,
+  normalizeAchievementSettings,
   DEFAULT_SETTINGS,
   normalizeCareDeferrals,
   normalizeCareIntervalOverrides,
@@ -34,11 +36,24 @@ import {
 } from '@/lib/maintenance-due'
 import {
   applyCareNotificationAction,
+  getCareNotificationBox,
   mergeCareNotificationChanges,
   parseCareNotificationAction,
   reconcileCareNotifications,
   type CareNotification,
 } from '@/lib/care-notifications'
+import {
+  evaluateAchievements,
+  summarizeAchievements,
+} from '@/lib/achievements/catalog'
+import {
+  latestTouchedKnifeId,
+  parseAchievementAction,
+  recordAchievementUnlocks,
+  type AchievementState,
+  type AchievementUnlock,
+} from '@/lib/achievements/unlocks'
+import type { AchievementInput } from '@/lib/achievements/snapshot'
 import { IDLE_CLOUD_BACKUP_JOB } from '@/lib/cloud-backup-shared'
 import { DRIVE_BACKUP_UNAVAILABLE } from '@/lib/drive-backup-shared'
 import { IDLE_CLOUD_RESTORE_JOB } from '@/lib/cloud-restore-shared'
@@ -61,6 +76,8 @@ type State = {
   maintenance: Record<string, MaintenanceEvent[]>
   notes: Record<string, KnifeNote[]>
   careNotifications: CareNotification[]
+  /** Unlocks for this session; initializedAt is set by the first evaluation. */
+  achievements: { unlocks: AchievementUnlock[]; initializedAt: string | null }
 }
 
 function emptyState(): State {
@@ -70,6 +87,8 @@ function emptyState(): State {
       ...DEFAULT_SETTINGS,
       mcpEnabled: false,
       mcpWriteEnabled: false,
+      // The browser has no system messages, so unlocks skip the Inbox.
+      achievements: { ...DEFAULT_ACHIEVEMENTS, inbox: false },
     },
     lists: [
       {
@@ -88,6 +107,7 @@ function emptyState(): State {
     maintenance: {},
     notes: {},
     careNotifications: [],
+    achievements: { unlocks: [], initializedAt: null },
   }
 }
 
@@ -121,8 +141,19 @@ function getState(): State {
           ? parsed.careNotifications
           : [],
         knives: parsed.knives.map(normalizeKnife),
+        // Sessions saved before achievements had them forced off; start fresh.
+        achievements: parsed.achievements ?? {
+          unlocks: [],
+          initializedAt: null,
+        },
         settings: {
           ...parsed.settings,
+          achievements: {
+            ...(parsed.achievements
+              ? normalizeAchievementSettings(parsed.settings.achievements)
+              : DEFAULT_ACHIEVEMENTS),
+            inbox: false,
+          },
           dimensionUnit: normalizeDimensionUnit(parsed.settings.dimensionUnit),
           pinnedCardFields: normalizeCardFields(
             parsed.settings.pinnedCardFields,
@@ -226,6 +257,112 @@ function latestMaintenance(db: State): MaintenanceLatestEntry[] {
   return latest
 }
 
+function achievementInput(db: State, now: Date): AchievementInput {
+  const remindersOn = normalizeMaintenanceReminders(
+    db.settings.maintenanceReminders,
+    DEFAULT_MAINTENANCE_REMINDERS,
+  ).enabled
+  const boxes = db.careNotifications.map((notification) =>
+    getCareNotificationBox(notification, now),
+  )
+  return {
+    knives: db.knives,
+    activity: db.activity,
+    maintenance: Object.values(db.maintenance).flat(),
+    noteCount: Object.values(db.notes).reduce(
+      (sum, notes) => sum + notes.length,
+      0,
+    ),
+    comparisons: db.lists.map((list) => ({ knifeIds: list.ids })),
+    openCareReminders: remindersOn
+      ? boxes.filter((box) => box === 'open').length
+      : null,
+    clearedCareReminders: remindersOn
+      ? boxes.filter((box) => box === 'done').length
+      : 0,
+    // The browser runs no price checks.
+    priceMonitoring: null,
+    now,
+  }
+}
+
+function achievementState(
+  db: State,
+  progress: AchievementState['progress'],
+): AchievementState {
+  const enabled = db.settings.achievements?.enabled === true
+  return {
+    enabled,
+    unlocks: db.achievements.unlocks,
+    progress: enabled ? progress : [],
+    summary: summarizeAchievements(db.achievements.unlocks.map((u) => u.id)),
+  }
+}
+
+function handleAchievements(
+  db: State,
+  method: string,
+  body: Record<string, unknown>,
+) {
+  const now = new Date()
+  const enabled = db.settings.achievements?.enabled === true
+  if (method === 'PATCH') {
+    let action
+    try {
+      action = parseAchievementAction(body)
+    } catch (error) {
+      return json(
+        { error: error instanceof Error ? error.message : 'Invalid body' },
+        400,
+      )
+    }
+    if (action.action === 'reset') {
+      db.achievements = { unlocks: [], initializedAt: null }
+    } else {
+      const seen = new Set(action.ids)
+      db.achievements.unlocks = db.achievements.unlocks.map((unlock) =>
+        seen.has(unlock.id) && !unlock.seenAt
+          ? { ...unlock, seenAt: now.toISOString() }
+          : unlock,
+      )
+    }
+    save()
+  }
+  const input = achievementInput(db, now)
+  const progress = enabled ? evaluateAchievements(input) : []
+  if (method !== 'POST' || !enabled) {
+    return json(
+      method === 'POST'
+        ? {
+            ...achievementState(db, progress),
+            newlyUnlocked: [],
+            backfilledCount: 0,
+          }
+        : achievementState(db, progress),
+    )
+  }
+  const initialized = db.achievements.initializedAt !== null
+  const knifeId = latestTouchedKnifeId(input)
+  const { unlocks, inserted } = recordAchievementUnlocks(
+    db.achievements.unlocks,
+    progress
+      .filter((entry) => entry.done)
+      .map((entry) => ({ id: entry.id, knifeId })),
+    initialized,
+    now,
+  )
+  db.achievements = {
+    unlocks,
+    initializedAt: db.achievements.initializedAt ?? now.toISOString(),
+  }
+  save()
+  return json({
+    ...achievementState(db, progress),
+    newlyUnlocked: initialized ? inserted : [],
+    backfilledCount: initialized ? 0 : inserted.length,
+  })
+}
+
 function handle(request: Request, body: Record<string, unknown>) {
   const db = getState(),
     path = new URL(request.url).pathname,
@@ -255,6 +392,7 @@ function handle(request: Request, body: Record<string, unknown>) {
             right.id - left.id,
         ),
     })
+  if (path === '/api/achievements') return handleAchievements(db, method, body)
   // The static build runs no backups, so it has no system messages.
   if (path === '/api/system-messages') return json({ messages: [] })
   if (path === '/api/care-inbox') {
@@ -356,9 +494,17 @@ function handle(request: Request, body: Record<string, unknown>) {
     })
   if (path === '/api/settings') {
     if (method === 'POST') {
+      const wasTracking = db.settings.achievements?.enabled === true
       db.settings = {
         ...db.settings,
         ...body,
+        achievements: {
+          ...normalizeAchievementSettings(
+            body.achievements,
+            db.settings.achievements,
+          ),
+          inbox: false,
+        },
         dimensionUnit: normalizeDimensionUnit(
           body.dimensionUnit,
           db.settings.dimensionUnit,
@@ -366,6 +512,10 @@ function handle(request: Request, body: Record<string, unknown>) {
         driveAutoBackupEnabled: false,
         mcpEnabled: false,
         mcpWriteEnabled: false,
+      }
+      // Turning achievements back on starts a quiet baseline, as in the app.
+      if (!wasTracking && db.settings.achievements.enabled) {
+        db.achievements.initializedAt = null
       }
       save()
     }

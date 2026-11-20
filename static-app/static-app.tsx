@@ -11,6 +11,8 @@ import { ComparisonsProvider } from '@/components/providers/comparisons-provider
 import { SmartCollectionsProvider } from '@/components/providers/smart-collections-provider'
 import { CareProvider } from '@/components/providers/care-provider'
 import { CareInboxProvider } from '@/components/providers/care-inbox-provider'
+import { AchievementsProvider } from '@/components/providers/achievements-provider'
+import { AchievementCelebration } from '@/components/achievement-celebration'
 import { KnifeFamilyPanelProvider } from '@/components/providers/knife-family-panel-provider'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { VaultRestoreProvider } from '@/components/providers/vault-restore-provider'
@@ -41,6 +43,7 @@ const Logs = lazy(() => import('@/app/logs/page'))
 const Maintenance = lazy(() => import('@/app/maintenance/page'))
 const InboxPage = lazy(() => import('@/app/inbox/page'))
 const KnifeDetail = lazy(() => import('@/components/knife-detail'))
+const Achievements = lazy(() => import('@/app/insights/achievements/page'))
 const InsightPage = lazy(() =>
   import('./insight-page').then((module) => ({ default: module.InsightPage })),
 )
@@ -89,6 +92,7 @@ function Route() {
         />
       )
   }
+  if (pathname === '/insights/achievements') return <Achievements />
   const insight = pathname.match(/^\/insights\/([^/]+)$/)
   if (insight) return <InsightPage slug={insight[1]} />
   return (
@@ -128,55 +132,60 @@ export function StaticApp() {
       <VaultRestoreProvider initialStatus={STATIC_VAULT_STATUS}>
         <KnivesProvider>
           <CareProvider>
-            <CareInboxProvider>
-              <SmartCollectionsProvider>
-                <TooltipProvider>
-                  <ComparisonsProvider>
-                    <KnifeFamilyPanelProvider>
-                      <ThemeColorSync />
-                      <div className="flex min-h-dvh flex-col">
-                        <div className="sticky top-0 z-40 flex h-8 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4 text-xs text-muted-foreground print:hidden">
-                          <span>Browser preview · Data stays in this tab</span>
-                          <button
-                            className="shrink-0 underline underline-offset-2"
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  'Clear this tab’s collection and settings?',
-                                )
-                              ) {
-                                resetSession()
-                                navigate('/', true)
-                                window.location.reload()
-                              }
-                            }}
-                          >
-                            Clear session
-                          </button>
-                        </div>
-                        <div className="static-preview-layout flex flex-1 flex-col md:flex-row">
-                          <AppShell>
-                            <Suspense
-                              fallback={
-                                <div
-                                  role="status"
-                                  className="p-8 text-sm text-muted-foreground"
-                                >
-                                  Loading BladeVault…
-                                </div>
-                              }
+            <AchievementsProvider>
+              <CareInboxProvider>
+                <SmartCollectionsProvider>
+                  <TooltipProvider>
+                    <ComparisonsProvider>
+                      <KnifeFamilyPanelProvider>
+                        <ThemeColorSync />
+                        <div className="flex min-h-dvh flex-col">
+                          <div className="sticky top-0 z-40 flex h-8 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4 text-xs text-muted-foreground print:hidden">
+                            <span>
+                              Browser preview · Data stays in this tab
+                            </span>
+                            <button
+                              className="shrink-0 underline underline-offset-2"
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    'Clear this tab’s collection and settings?',
+                                  )
+                                ) {
+                                  resetSession()
+                                  navigate('/', true)
+                                  window.location.reload()
+                                }
+                              }}
                             >
-                              <Route />
-                            </Suspense>
-                          </AppShell>
+                              Clear session
+                            </button>
+                          </div>
+                          <div className="static-preview-layout flex flex-1 flex-col md:flex-row">
+                            <AppShell>
+                              <Suspense
+                                fallback={
+                                  <div
+                                    role="status"
+                                    className="p-8 text-sm text-muted-foreground"
+                                  >
+                                    Loading BladeVault…
+                                  </div>
+                                }
+                              >
+                                <Route />
+                              </Suspense>
+                            </AppShell>
+                          </div>
                         </div>
-                      </div>
-                      <GlobalKnifeSearch />
-                    </KnifeFamilyPanelProvider>
-                  </ComparisonsProvider>
-                </TooltipProvider>
-              </SmartCollectionsProvider>
-            </CareInboxProvider>
+                        <GlobalKnifeSearch />
+                        <AchievementCelebration />
+                      </KnifeFamilyPanelProvider>
+                    </ComparisonsProvider>
+                  </TooltipProvider>
+                </SmartCollectionsProvider>
+              </CareInboxProvider>
+            </AchievementsProvider>
           </CareProvider>
         </KnivesProvider>
       </VaultRestoreProvider>

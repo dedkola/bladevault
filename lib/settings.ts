@@ -1,5 +1,6 @@
 import { withVaultWriteSync } from '@/lib/vault-access'
 import { getLocalDb } from './local-db'
+import { forgetAchievementBaseline } from '@/lib/achievements/store'
 import {
   APP_THEMES,
   normalizeCollectionDisplay,
@@ -16,6 +17,7 @@ import {
   normalizeCareDeferrals,
   normalizeCareIntervalOverrides,
   normalizePriceMonitoring,
+  normalizeAchievementSettings,
   type AppSettings,
   type AppTheme,
   type CardField,
@@ -53,6 +55,7 @@ const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
   careIntervalOverrides: 'care_interval_overrides',
   careDeferrals: 'care_deferrals',
   priceMonitoring: 'price_monitoring',
+  achievements: 'achievements',
 }
 
 function parseMaintenanceReminders(value: string | undefined) {
@@ -60,6 +63,14 @@ function parseMaintenanceReminders(value: string | undefined) {
     return normalizeMaintenanceReminders(value ? JSON.parse(value) : undefined)
   } catch {
     return normalizeMaintenanceReminders(undefined)
+  }
+}
+
+function parseAchievementSettings(value: string | undefined) {
+  try {
+    return normalizeAchievementSettings(value ? JSON.parse(value) : undefined)
+  } catch {
+    return normalizeAchievementSettings(undefined)
   }
 }
 
@@ -220,6 +231,7 @@ export function getSettings(): AppSettings {
     priceMonitoring: parsePriceMonitoring(
       map.get(SETTINGS_KEYS.priceMonitoring),
     ),
+    achievements: parseAchievementSettings(map.get(SETTINGS_KEYS.achievements)),
   }
 }
 
@@ -273,6 +285,13 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
               settings.priceMonitoring,
               current.priceMonitoring,
             ),
+      achievements:
+        settings.achievements === undefined
+          ? current.achievements
+          : normalizeAchievementSettings(
+              settings.achievements,
+              current.achievements,
+            ),
     }
 
     const insert = getDb().prepare(
@@ -297,11 +316,15 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
       ['careIntervalOverrides', JSON.stringify(next.careIntervalOverrides)],
       ['careDeferrals', JSON.stringify(next.careDeferrals)],
       ['priceMonitoring', JSON.stringify(next.priceMonitoring)],
+      ['achievements', JSON.stringify(next.achievements)],
     ]
 
     const transaction = getDb().transaction(() => {
       for (const [key, value] of entries) {
         insert.run(SETTINGS_KEYS[key], value)
+      }
+      if (!current.achievements.enabled && next.achievements.enabled) {
+        forgetAchievementBaseline(getDb())
       }
     })
 

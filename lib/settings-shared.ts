@@ -1107,6 +1107,40 @@ export function normalizePriceMonitoring(
   }
 }
 
+export type AchievementSettings = {
+  /** Master switch: tracking, the Insights trophy case and the Inbox tab. */
+  enabled: boolean
+  /** On-screen toast (with confetti for Gold and Platinum) on each unlock. */
+  celebrate: boolean
+  /** Keep a note of each unlock in the Inbox. */
+  inbox: boolean
+  /** List secret achievements as "???" until unlocked instead of hiding them. */
+  showSecret: boolean
+}
+
+export const DEFAULT_ACHIEVEMENTS: AchievementSettings = {
+  enabled: true,
+  celebrate: true,
+  inbox: true,
+  showSecret: true,
+}
+
+export function normalizeAchievementSettings(
+  value: unknown,
+  fallback: AchievementSettings = DEFAULT_ACHIEVEMENTS,
+): AchievementSettings {
+  const record =
+    value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  const flag = (key: keyof AchievementSettings) =>
+    typeof record[key] === 'boolean' ? (record[key] as boolean) : fallback[key]
+  return {
+    enabled: flag('enabled'),
+    celebrate: flag('celebrate'),
+    inbox: flag('inbox'),
+    showSecret: flag('showSecret'),
+  }
+}
+
 export type AppSettings = {
   collectionDisplay: CollectionDisplay
   theme: AppTheme
@@ -1125,6 +1159,7 @@ export type AppSettings = {
   careIntervalOverrides: CareIntervalOverrides
   careDeferrals: CareDeferrals
   priceMonitoring: PriceMonitoringSettings
+  achievements: AchievementSettings
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -1145,6 +1180,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   careIntervalOverrides: {},
   careDeferrals: {},
   priceMonitoring: DEFAULT_PRICE_MONITORING,
+  achievements: DEFAULT_ACHIEVEMENTS,
 }
 
 export function normalizeStartPage(
