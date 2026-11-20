@@ -41,7 +41,9 @@ test('shows maintenance and logs last in the primary sidebar navigation', async 
   const primaryLinks = page.locator(
     'aside:visible nav > a, aside:visible nav > div > div:first-child > a',
   )
-  await expect(primaryLinks).toHaveText([
+  // Links may carry a count badge (e.g. Inbox unread notes from achievements
+  // unlocked by earlier specs), so match the label and allow a trailing count.
+  const labels = [
     'Insights',
     'Inbox',
     'Collection',
@@ -50,7 +52,10 @@ test('shows maintenance and logs last in the primary sidebar navigation', async 
     'Price Drops',
     'Maintenance',
     'History',
-  ])
+  ]
+  await expect(primaryLinks).toHaveText(
+    labels.map((label) => new RegExp(`^${label}(\\d.*)?$`)),
+  )
 })
 
 test('records and displays create, update, and delete events', async ({
