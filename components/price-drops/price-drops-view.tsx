@@ -996,13 +996,8 @@ export function PriceDropsView({
       key={selectedKnife}
       knifeId={selectedKnife}
       variant="page"
-      onClose={
-        narrow
-          ? () => setSheetOpen(false)
-          : selected
-            ? () => setSelected(null)
-            : undefined
-      }
+      // On a phone the sheet has its own close button.
+      onClose={!narrow && selected ? () => setSelected(null) : undefined}
       onChanged={() => setVersion((value) => value + 1)}
     />
   ) : null
@@ -1413,8 +1408,7 @@ export function PriceDropsView({
       >
         <DialogContent
           data-price-sheet
-          showCloseButton={false}
-          className="top-auto bottom-0 max-h-[88dvh] max-w-full translate-y-0 overflow-y-auto rounded-b-none sm:max-w-full"
+          className="top-auto bottom-0 max-h-[88dvh] max-w-full translate-y-0 overflow-y-auto rounded-b-none pt-10 sm:max-w-full"
         >
           <DialogTitle className="sr-only">Knife prices</DialogTitle>
           {panel}
