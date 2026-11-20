@@ -618,8 +618,19 @@ function ChecksPerHour({ hours, now }: { hours: CheckHour[]; now: number }) {
   const all = totals.reduce((sum, value) => sum + value, 0)
   return (
     <figure className="pd-hours">
-      <figcaption className="pd-eyebrow">
-        Checks per hour · last 24 h
+      <figcaption className="pd-hours-head">
+        <span className="pd-eyebrow">Checks per hour · last 24 h</span>
+        {all === 0 ? null : (
+          <ul className="pd-legend" aria-label="Bar colours">
+            {[...HOUR_ORDER].reverse().map((key) => (
+              <li key={key} data-result={key}>
+                {key === 'attention'
+                  ? 'Unavailable or failed'
+                  : RESULT_LABEL[key]}
+              </li>
+            ))}
+          </ul>
+        )}
       </figcaption>
       {all === 0 ? (
         <p className="pd-hours-empty">No checks in the last 24 hours.</p>
