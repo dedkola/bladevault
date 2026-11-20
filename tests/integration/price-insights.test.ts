@@ -191,6 +191,8 @@ describe('price overview', () => {
       result.monitored.some((source) => source.knife.id === corgi.id),
     ).toBe(false)
 
+    expect(result.monitored[0].knife.subtitle).toBeNull()
+
     // MCP reads per-knife summaries and out-of-stock sources on demand.
     const { getSettings } = await import('@/lib/settings')
     const summaries = buildKnifeSummaries(
@@ -370,6 +372,7 @@ describe('monitoring status', () => {
         sum +
         hour.drop +
         hour.increase +
+        hour.restocked +
         hour.out_of_stock +
         hour.same +
         hour.attention,
@@ -381,6 +384,88 @@ describe('monitoring status', () => {
       oldestCheckAt: new Date(START + DAY).toISOString(),
     })
     expect(result.round.intervalHours).toBeGreaterThan(0)
+  })
+
+  it('marks recent restocks, out-of-stock age and the last price date', async () => {
+    const raccoon = await createKnife('Raccoon', '129.00 USD', [
+      'https://shop.example/raccoon',
+    ])
+    const bean = await createKnife('Bean', '45.00 USD', [
+      'https://other.example/bean',
+    ])
+    const [shop] = raccoon.sources
+    const [other] = bean.sources
+    await checkAt(0, shop, offer(100))
+    await checkAt(1, shop, offer(100, 'out_of_stock'))
+    await checkAt(3, shop, offer(100)) // back in stock, same price
+    await checkAt(0, other, offer(50))
+    await checkAt(2, other, offer(50, 'out_of_stock'))
+
+    let result = await overview()
+    let bySource = new Map(result.monitored.map((s) => [s.sourceId, s]))
+    expect(bySource.get(shop)).toMatchObject({
+      result: 'restocked',
+      restockedAt: new Date(START + 3 * DAY).toISOString(),
+      since: null,
+      priceSeenAt: new Date(START + 3 * DAY).toISOString(),
+    })
+    expect(bySource.get(other)).toMatchObject({
+      result: 'out_of_stock',
+      since: new Date(START + 2 * DAY).toISOString(),
+      restockedAt: null,
+    })
+    expect(result.checksByHour.reduce((n, h) => n + h.restocked, 0)).toBe(0)
+
+    // After a week the restock is old news.
+    vi.setSystemTime(START + 11 * DAY)
+    result = await overview()
+    bySource = new Map(result.monitored.map((s) => [s.sourceId, s]))
+    expect(bySource.get(shop)).toMatchObject({
+      result: 'same',
+      restockedAt: null,
+    })
+  })
+
+  it('counts a restock check in its hour and keeps the price date on failure', async () => {
+    const raccoon = await createKnife('Raccoon', '129.00 USD', [
+      'https://shop.example/raccoon',
+    ])
+    const [shop] = raccoon.sources
+    await checkAt(0, shop, offer(100, 'out_of_stock'))
+    await checkAt(1, shop, offer(100))
+    const result = await overview()
+    expect(result.checksByHour.at(-1)?.restocked).toBe(1)
+
+    // A page without a price keeps the last price and its date.
+    await checkAt(2, shop, offer(null))
+    const later = (await overview()).monitored[0]
+    expect(later).toMatchObject({
+      result: 'attention',
+      priceMinor: 10000,
+      priceSeenAt: new Date(START + DAY).toISOString(),
+    })
+  })
+
+  it('gives knives a subtitle from model number, steel and handle', async () => {
+    const response = await knivesRoute.POST(
+      json('http://localhost/api/knives', 'POST', {
+        name: 'Drop Bear',
+        brand: 'Kizer',
+        handleMaterial: 'Micarta',
+        specs: {
+          price: '80 USD',
+          modelNumber: '1101A2',
+          bladeMaterial: '14C28N',
+        },
+        sourceUrl: 'https://shop.example/drop-bear',
+      }),
+    )
+    const id = ((await response.json()) as { knife: { id: string } }).knife.id
+    await priceWatchRoute.GET(new Request('http://localhost/x'), {
+      params: Promise.resolve({ id }),
+    })
+    const source = (await overview()).monitored.find((s) => s.knife.id === id)
+    expect(source?.knife.subtitle).toBe('1101A2 · 14C28N · Micarta')
   })
 
   it('reports no change once a later check moves the price again', async () => {
