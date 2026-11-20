@@ -82,8 +82,20 @@ import {
 const MINUTE_MS = 60 * 1000
 const HOUR_MS = 60 * MINUTE_MS
 const DAY_MS = 24 * HOUR_MS
-export const AGENT_INTERVAL_UNLIMITED_MS = 10 * MINUTE_MS
-export const AGENT_INTERVAL_LIMITED_MS = 60 * MINUTE_MS
+/** A run at least this often, with or without events (the heartbeat). */
+export const AGENT_HEARTBEAT_UNLIMITED_MS = 60 * MINUTE_MS
+export const AGENT_HEARTBEAT_LIMITED_MS = 6 * 60 * MINUTE_MS
+/** Events wake the supervisor, but no sooner than this after its last run. */
+export const AGENT_EVENT_GAP_UNLIMITED_MS = 10 * MINUTE_MS
+export const AGENT_EVENT_GAP_LIMITED_MS = 60 * MINUTE_MS
+/** The first event waits this long, so a burst of changes is seen at once. */
+export const AGENT_EVENT_BATCH_MS = 2 * MINUTE_MS
+/** Events shown per run, newest first. */
+export const MAX_AGENT_EVENTS = 40
+/** A first run looks back this far for events. */
+const FIRST_RUN_EVENTS_MS = 24 * 60 * MINUTE_MS
+/** Failed checks in a row that count as an event (the streak crossing). */
+const FAILING_EVENT_STREAKS = [3, 5] as const
 export const AGENT_RETENTION_MS = 30 * 24 * HOUR_MS
 /** The market window for a knife's recent low and high. */
 export const MARKET_WINDOW_DAYS = 90
@@ -143,7 +155,45 @@ const MISSING_PAGE_ERRORS: ReadonlySet<string> = new Set([
   'http_410',
 ])
 
-export type AgentTrigger = 'scheduled' | 'manual'
+/** scheduled: the heartbeat; event: changes since the last run woke it. */
+export type AgentTrigger = 'scheduled' | 'manual' | 'event'
+
+export type AgentEventType =
+  | 'drop'
+  | 'increase'
+  | 'out_of_stock'
+  | 'back_in_stock'
+  | 'failing'
+  | 'bot_check'
+  | 'found_listing'
+
+/** Something that changed since the supervisor's last run. */
+export type AgentEvent = {
+  type: AgentEventType
+  /** When it happened (ISO). */
+  at: string
+  store: string
+  knifeId?: string
+  knife?: string
+  sourceId?: number
+  /** drop and increase: "129.00 USD" to "99.00 USD", and by how much. */
+  from?: string
+  to?: string
+  pct?: number
+  /** Stock changes: the price shown, if any. */
+  price?: string
+  /** failing: failed checks in a row and the last error. */
+  failures?: number
+  error?: string
+}
+
+/** The events since a moment, newest first and capped, with the total. */
+export type AgentEvents = {
+  list: AgentEvent[]
+  total: number
+  /** Epoch ms of the oldest event; null without events. */
+  oldestAt: number | null
+}
 
 export type AgentSource = {
   id: number
@@ -288,6 +338,12 @@ const EMPTY_INBOX: AgentInbox = { advice: [], questions: [] }
 
 export type AgentSnapshot = {
   now: string
+  /** Why this run started. */
+  trigger: AgentTrigger
+  /** What changed since your last run, newest first. */
+  events: Array<AgentEvent & { minutesAgo: number }>
+  /** Events left out of `events` (only over MAX_AGENT_EVENTS). */
+  eventsOmitted: number
   /** The server's local date and time, e.g. "Fri, 27 Nov 2026, 09:00". */
   localTime: string
   mode: Exclude<PriceAgentMode, 'off'>
@@ -413,8 +469,14 @@ export function buildAgentSnapshot(input: {
   settings: PriceMonitoringSettings
   mode: Exclude<PriceAgentMode, 'off'>
   now: number
+  trigger?: AgentTrigger
 }): AgentSnapshot {
   const { database, settings, now } = input
+  const lastRunAt = lastAgentRunAt(database)
+  const events = readAgentEvents(
+    database,
+    lastRunAt ?? now - FIRST_RUN_EVENTS_MS,
+  )
   const intervalMs = frequencyMs(settings.schedule)
   const monitored = new Set(
     readQueueCandidates(database, settings, now)
@@ -554,6 +616,15 @@ export function buildAgentSnapshot(input: {
   const shown = sorted.slice(0, MAX_SNAPSHOT_SOURCES)
   return {
     now: new Date(now).toISOString(),
+    trigger: input.trigger ?? 'manual',
+    events: events.list.map((event) => ({
+      ...event,
+      minutesAgo: Math.max(
+        0,
+        Math.round((now - Date.parse(event.at)) / MINUTE_MS),
+      ),
+    })),
+    eventsOmitted: events.total - events.list.length,
     localTime: new Intl.DateTimeFormat('en-GB', {
       weekday: 'short',
       day: 'numeric',
@@ -585,6 +656,158 @@ export function buildAgentSnapshot(input: {
     omitted: Math.max(0, sorted.length - MAX_SNAPSHOT_SOURCES),
     recentRuns: readRecentRuns(database, 3),
     inbox: readAgentInbox(database, now),
+  }
+}
+
+/**
+ * What changed since `since` (epoch ms): price and stock changes, sources
+ * whose failure streak just reached 3 or 5, first bot checks, and listings
+ * Other stores found. Read from the tables the checks already write.
+ */
+export function readAgentEvents(
+  database: Database.Database,
+  since: number,
+  limit = MAX_AGENT_EVENTS,
+): AgentEvents {
+  const after = new Date(since).toISOString()
+  const label = (brand: string, name: string) =>
+    [brand, name].filter(Boolean).join(' ').slice(0, 120)
+  const events: AgentEvent[] = []
+  for (const row of database
+    .prepare(
+      `SELECT e.knife_id, k.brand, k.name, e.source_id, e.store_name,
+              e.direction, e.previous_price_minor, e.price_minor, e.currency,
+              e.delta_pct, e.occurred_at
+       FROM price_change_events e JOIN knives k ON k.id = e.knife_id
+       WHERE e.occurred_at > ?`,
+    )
+    .all(after) as Array<{
+    knife_id: string
+    brand: string
+    name: string
+    source_id: number
+    store_name: string
+    direction: 'drop' | 'increase'
+    previous_price_minor: number
+    price_minor: number
+    currency: string
+    delta_pct: number
+    occurred_at: string
+  }>)
+    events.push({
+      type: row.direction,
+      at: row.occurred_at,
+      store: row.store_name,
+      knifeId: row.knife_id,
+      knife: label(row.brand, row.name),
+      sourceId: row.source_id,
+      from: moneyText(row.previous_price_minor, row.currency),
+      to: moneyText(row.price_minor, row.currency),
+      pct: Math.round(row.delta_pct * 10) / 10,
+    })
+  for (const row of database
+    .prepare(
+      `SELECT e.knife_id, k.brand, k.name, e.source_id, e.store_name, e.kind,
+              e.price_minor, e.currency, e.occurred_at
+       FROM stock_events e JOIN knives k ON k.id = e.knife_id
+       WHERE e.occurred_at > ?`,
+    )
+    .all(after) as Array<{
+    knife_id: string
+    brand: string
+    name: string
+    source_id: number
+    store_name: string
+    kind: 'out_of_stock' | 'back_in_stock'
+    price_minor: number | null
+    currency: string | null
+    occurred_at: string
+  }>)
+    events.push({
+      type: row.kind,
+      at: row.occurred_at,
+      store: row.store_name,
+      knifeId: row.knife_id,
+      knife: label(row.brand, row.name),
+      sourceId: row.source_id,
+      ...(row.price_minor !== null && row.currency
+        ? { price: moneyText(row.price_minor, row.currency) }
+        : {}),
+    })
+  // A failure streak crossing 3 or 5, or a first bot check, since then.
+  for (const row of database
+    .prepare(
+      `SELECT s.id, s.knife_id, k.brand, k.name, s.store_name, s.lane_key,
+              s.status, s.consecutive_failures, s.last_error_code,
+              s.last_checked_at
+       FROM price_sources s JOIN knives k ON k.id = s.knife_id
+       WHERE s.removed_at IS NULL AND s.enabled = 1 AND s.last_checked_at > ?
+         AND ((s.status IN ('failed', 'price_unavailable')
+               AND s.consecutive_failures IN (${FAILING_EVENT_STREAKS.join(', ')}))
+           OR (s.status = 'blocked' AND s.consecutive_failures = 1))`,
+    )
+    .all(after) as Array<{
+    id: number
+    knife_id: string
+    brand: string
+    name: string
+    store_name: string
+    lane_key: string
+    status: PriceSourceStatus
+    consecutive_failures: number
+    last_error_code: string | null
+    last_checked_at: string
+  }>)
+    events.push(
+      row.status === 'blocked'
+        ? {
+            type: 'bot_check',
+            at: row.last_checked_at,
+            store: row.store_name || row.lane_key,
+            knifeId: row.knife_id,
+            knife: label(row.brand, row.name),
+            sourceId: row.id,
+          }
+        : {
+            type: 'failing',
+            at: row.last_checked_at,
+            store: row.store_name || row.lane_key,
+            knifeId: row.knife_id,
+            knife: label(row.brand, row.name),
+            sourceId: row.id,
+            failures: row.consecutive_failures,
+            ...(row.last_error_code ? { error: row.last_error_code } : {}),
+          },
+    )
+  for (const row of database
+    .prepare(
+      `SELECT d.knife_id, k.brand, k.name, d.store, d.source_id,
+              d.last_attempt_at
+       FROM price_discovery d JOIN knives k ON k.id = d.knife_id
+       WHERE d.status = 'found' AND d.last_attempt_at > ?`,
+    )
+    .all(after) as Array<{
+    knife_id: string
+    brand: string
+    name: string
+    store: string
+    source_id: number | null
+    last_attempt_at: string
+  }>)
+    events.push({
+      type: 'found_listing',
+      at: row.last_attempt_at,
+      store: row.store,
+      knifeId: row.knife_id,
+      knife: label(row.brand, row.name),
+      ...(row.source_id !== null ? { sourceId: row.source_id } : {}),
+    })
+  events.sort((a, b) => b.at.localeCompare(a.at))
+  const oldest = events.at(-1)
+  return {
+    list: events.slice(0, limit),
+    total: events.length,
+    oldestAt: oldest ? Date.parse(oldest.at) : null,
   }
 }
 
@@ -1020,10 +1243,11 @@ export function agentModelInput(snapshot: AgentSnapshot): string {
     list.push(source)
     sourcesOf.set(knifeId, list)
   }
-  const { sources: _sources, knives, ...rest } = snapshot
+  const { sources: _sources, knives, events, ...rest } = snapshot
   return JSON.stringify(
     {
       ...rest,
+      events: events.map(({ at: _at, ...event }) => event),
       knives: knives.map((knife) => ({
         ...knife,
         sources: sourcesOf.get(knife.knifeId) ?? [],
@@ -1167,6 +1391,7 @@ export const AGENT_SCHEMA = {
 
 export const AGENT_PROMPT = [
   'You supervise price monitoring for a knife collector. Each source is one store product page that BladeVault checks for price and stock. Keep every monitored source fresh and readable, and spend checks where they matter most to the collector right now.',
+  "trigger says why you run: event (events woke you: react to them), scheduled (your regular look over everything) or manual (the collector asked). events lists what changed since your last run, newest first: drop and increase (from, to, pct), out_of_stock and back_in_stock, failing (a source's failures in a row reached 3 or 5), bot_check (a store showed a bot check), found_listing (Other stores found the knife at a store). After a move at one store, crossCheck the knife's other stores; after a drop near the target or a restock, consider watchClosely or advise.",
   "The input lists knives, most urgent first. Each knife has its market: regular (the knife's stored regular price), target (the collector's alert price), best (the cheapest in-stock price now) and bestStore, low (lowest in-stock price ever), low90d and high90d, lastPriceChange, lastStockChange, muted, and search (Other stores searches). Under it are its sources: status, price, stock, outOfStockDays, timing in minutes, failures, error, queued and ahead. The input also has each store's pace, coverage, the AI budget, localTime and your recent runs, each action with its note (why it was refused) or outcome (what its next check or search found). Missing fields are unknown.",
   'Answer with JSON only: {"summary", "check", "retryWithAi", "fetchMode", "pause", "searchOtherStore", "watchClosely", "crossCheck", "advise", "ask"}. Leave a list empty when nothing is needed: often nothing is.',
   `check (at most ${AGENT_LIMITS.check}): move sources to the front of their store's line. Each store already checks its most overdue source first, so a due source with ahead 0 is next anyway and a check changes nothing. Use check to put a source that matters more ahead of others (ahead above 0), or to read a source that is not due yet now: a knife near or below its target or regular price, a price that just moved at another store, a restock to confirm, a sale period (look at localTime, e.g. Black Friday and holiday sales). Skip sources marked queued, checked in the last 30 minutes, or not monitored.`,
@@ -1886,6 +2111,10 @@ export type AgentRun = {
   id: number
   startedAt: string
   trigger: AgentTrigger
+  /** What changed since the run before (newest first, capped). */
+  events: AgentEvent[]
+  /** All events since the run before, shown or not. */
+  eventTotal: number
   mode: Exclude<PriceAgentMode, 'off'>
   model: string
   durationMs: number
@@ -1908,6 +2137,7 @@ type RunRow = {
   coverage: string | null
   actions: string | null
   error: string | null
+  events: string | null
 }
 
 function parseJson<T>(value: string | null, fallback: T): T {
@@ -1941,7 +2171,26 @@ export function readAgentRuns(
     coverage: parseJson<AgentCoverage | null>(row.coverage, null),
     actions: parseJson<AgentAction[]>(row.actions, []),
     error: row.error,
+    ...readRunEvents(row.events),
   }))
+}
+
+function readRunEvents(value: string | null): {
+  events: AgentEvent[]
+  eventTotal: number
+} {
+  const stored = parseJson<{ list?: unknown; total?: unknown } | null>(
+    value,
+    null,
+  )
+  const events = Array.isArray(stored?.list)
+    ? (stored.list as AgentEvent[])
+    : []
+  return {
+    events,
+    eventTotal:
+      typeof stored?.total === 'number' ? stored.total : events.length,
+  }
 }
 
 export function lastAgentRunAt(database: Database.Database): number | null {
@@ -1968,8 +2217,8 @@ async function recordAgentRun(
         .prepare(
           `INSERT INTO price_agent_runs
             (started_at, trigger, mode, model, duration_ms, ok, summary,
-             coverage, actions, error)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             coverage, actions, error, events)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           run.startedAt,
@@ -1982,6 +2231,7 @@ async function recordAgentRun(
           run.coverage ? JSON.stringify(run.coverage) : null,
           JSON.stringify(run.actions),
           run.error,
+          JSON.stringify({ list: run.events, total: run.eventTotal }),
         ).lastInsertRowid,
     )
   })
@@ -1989,27 +2239,68 @@ async function recordAgentRun(
 
 // ----------------------------------------------------------------- runner
 
-/** How often the supervisor runs: often when AI is unlimited. */
-export function agentIntervalMs(settings: PriceMonitoringSettings): number {
+/** The heartbeat: how long the supervisor goes at most without a run. */
+export function agentHeartbeatMs(settings: PriceMonitoringSettings): number {
   return settings.ai.usage.mode === 'unlimited'
-    ? AGENT_INTERVAL_UNLIMITED_MS
-    : AGENT_INTERVAL_LIMITED_MS
+    ? AGENT_HEARTBEAT_UNLIMITED_MS
+    : AGENT_HEARTBEAT_LIMITED_MS
+}
+
+/** How soon after a run events may wake the supervisor again. */
+export function agentEventGapMs(settings: PriceMonitoringSettings): number {
+  return settings.ai.usage.mode === 'unlimited'
+    ? AGENT_EVENT_GAP_UNLIMITED_MS
+    : AGENT_EVENT_GAP_LIMITED_MS
 }
 
 export function agentActive(settings: PriceMonitoringSettings): boolean {
   return settings.ai.agentMode !== 'off' && aiConfigured(settings.ai)
 }
 
-/** Whether a scheduled run is due. Pure. */
+/**
+ * Whether a run is due, and why: the heartbeat, or events waiting since the
+ * last run (once the first is AGENT_EVENT_BATCH_MS old and the event gap
+ * has passed). Null when no run is due. Pure.
+ */
 export function agentDue(input: {
   settings: PriceMonitoringSettings
   lastRunAt: number | null
   now: number
-}): boolean {
-  if (!agentActive(input.settings)) return false
-  return (
-    input.lastRunAt === null ||
-    input.now - input.lastRunAt >= agentIntervalMs(input.settings)
+  /** Events since the last run; omitted when not read. */
+  events?: Pick<AgentEvents, 'total' | 'oldestAt'>
+}): Exclude<AgentTrigger, 'manual'> | null {
+  const { settings, lastRunAt, now, events } = input
+  if (!agentActive(settings)) return null
+  if (lastRunAt === null || now - lastRunAt >= agentHeartbeatMs(settings))
+    return 'scheduled'
+  if (
+    events &&
+    events.total > 0 &&
+    events.oldestAt !== null &&
+    now - events.oldestAt >= AGENT_EVENT_BATCH_MS &&
+    now - lastRunAt >= agentEventGapMs(settings)
+  )
+    return 'event'
+  return null
+}
+
+/** When the next run starts at the latest: the heartbeat, or sooner for events. */
+export function agentNextRunAt(input: {
+  settings: PriceMonitoringSettings
+  lastRunAt: number | null
+  now: number
+  events: Pick<AgentEvents, 'total' | 'oldestAt'>
+}): number {
+  const { settings, lastRunAt, now, events } = input
+  if (lastRunAt === null) return now
+  const heartbeat = lastRunAt + agentHeartbeatMs(settings)
+  if (!events.total || events.oldestAt === null) return heartbeat
+  return Math.min(
+    heartbeat,
+    Math.max(
+      lastRunAt + agentEventGapMs(settings),
+      events.oldestAt + AGENT_EVENT_BATCH_MS,
+    ),
   )
 }
 
@@ -2112,10 +2403,15 @@ export async function runPriceAgent(options: {
       settings,
       mode,
       now: started,
+      trigger: options.trigger,
     })
     const base = {
       startedAt: new Date(started).toISOString(),
       trigger: options.trigger,
+      events: snapshot.events.map(
+        ({ minutesAgo: _minutes, ...event }) => event,
+      ),
+      eventTotal: snapshot.events.length + snapshot.eventsOmitted,
       mode,
       model: settings.ai.model,
       coverage: snapshot.coverage,

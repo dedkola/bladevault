@@ -14,8 +14,10 @@ import {
 import {
   agentActive,
   agentDue,
+  agentEventGapMs,
   lastAgentRunAt,
   pruneAgentRuns,
+  readAgentEvents,
   runPriceAgent,
   type AgentRunResult,
   type AgentTrigger,
@@ -573,19 +575,28 @@ export class PriceMonitorWorker {
   }
 
   /**
-   * Starts the AI supervisor in the background when it is due (every 10
-   * minutes with Unlimited AI, every hour with Limited). Its actions only
-   * reorder the paced queue, so the next pass picks them up.
+   * Starts the AI supervisor in the background when it is due: when price,
+   * stock or page changes wait since its last run (at most every 10 minutes
+   * with Unlimited AI, every hour with Limited), and otherwise on its
+   * heartbeat (hourly with Unlimited, every 6 hours with Limited). Its
+   * actions only reorder the paced queue, so the next pass picks them up.
    */
   private maybeSupervise(settings: PriceMonitoringSettings, now: number) {
     if (this.supervising || !this.deps.supervise) return
     if (!agentActive(settings)) return
     if (now - this.lastAgentCheck < AGENT_CHECK_EVERY_MS) return
     this.lastAgentCheck = now
-    if (!agentDue({ settings, lastRunAt: lastAgentRunAt(getLocalDb()), now }))
-      return
+    const database = getLocalDb()
+    const lastRunAt = lastAgentRunAt(database)
+    // Events matter only once the gap since the last run has passed.
+    const events =
+      lastRunAt !== null && now - lastRunAt >= agentEventGapMs(settings)
+        ? readAgentEvents(database, lastRunAt, 0)
+        : undefined
+    const trigger = agentDue({ settings, lastRunAt, now, events })
+    if (!trigger) return
     this.supervising = this.deps
-      .supervise('scheduled')
+      .supervise(trigger)
       .catch((error) => {
         if (!isVaultError(error))
           reportServerError(error, 'price-monitor/agent')

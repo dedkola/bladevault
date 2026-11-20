@@ -1078,6 +1078,8 @@ function migratePriceMonitoringSchema(
   // about (JSON) and the collector's Yes or No.
   addColumn('system_messages', 'payload', 'TEXT')
   addColumn('system_messages', 'answer', 'TEXT')
+  // What changed since the supervisor's run before (JSON), shown per run.
+  addColumn('price_agent_runs', 'events', 'TEXT')
 }
 
 function normalizeKnifeRows(database: Database.Database) {

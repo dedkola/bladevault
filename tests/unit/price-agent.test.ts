@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
-  AGENT_INTERVAL_LIMITED_MS,
-  AGENT_INTERVAL_UNLIMITED_MS,
+  AGENT_EVENT_BATCH_MS,
+  AGENT_EVENT_GAP_LIMITED_MS,
+  AGENT_EVENT_GAP_UNLIMITED_MS,
+  AGENT_HEARTBEAT_LIMITED_MS,
+  AGENT_HEARTBEAT_UNLIMITED_MS,
   AGENT_LIMITS,
   agentDue,
+  agentNextRunAt,
   quotedAmounts,
   readAgentPlan,
   validateAgentPlan,
@@ -707,32 +711,94 @@ describe('agentDue', () => {
       agentMode: 'act' as const,
     },
   }
-  it('runs hourly with Limited AI and every 10 minutes with Unlimited', () => {
+  const unlimited = {
+    ...configured,
+    ai: {
+      ...configured.ai,
+      usage: { ...configured.ai.usage, mode: 'unlimited' as const },
+    },
+  }
+  const MIN = 60_000
+
+  it('beats every 6 hours with Limited AI and hourly with Unlimited', () => {
     expect(agentDue({ settings: configured, lastRunAt: null, now: NOW })).toBe(
-      true,
+      'scheduled',
     )
     expect(
       agentDue({
         settings: configured,
-        lastRunAt: NOW - AGENT_INTERVAL_LIMITED_MS + 1,
+        lastRunAt: NOW - AGENT_HEARTBEAT_LIMITED_MS + 1,
         now: NOW,
       }),
-    ).toBe(false)
-    const unlimited = {
-      ...configured,
-      ai: {
-        ...configured.ai,
-        usage: { ...configured.ai.usage, mode: 'unlimited' as const },
-      },
-    }
+    ).toBeNull()
+    expect(
+      agentDue({
+        settings: configured,
+        lastRunAt: NOW - AGENT_HEARTBEAT_LIMITED_MS,
+        now: NOW,
+      }),
+    ).toBe('scheduled')
     expect(
       agentDue({
         settings: unlimited,
-        lastRunAt: NOW - AGENT_INTERVAL_UNLIMITED_MS,
+        lastRunAt: NOW - AGENT_HEARTBEAT_UNLIMITED_MS,
         now: NOW,
       }),
-    ).toBe(true)
+    ).toBe('scheduled')
   })
+
+  it('wakes for changes after a short batch and the gap since the last run', () => {
+    const due = (lastAgo: number, oldestAgo: number | null, total = 1) =>
+      agentDue({
+        settings: unlimited,
+        lastRunAt: NOW - lastAgo,
+        now: NOW,
+        events: {
+          total,
+          oldestAt: oldestAgo === null ? null : NOW - oldestAgo,
+        },
+      })
+    expect(due(30 * MIN, 5 * MIN)).toBe('event')
+    // The first change is not 2 minutes old yet: more may follow.
+    expect(due(30 * MIN, AGENT_EVENT_BATCH_MS - 1)).toBeNull()
+    // Too soon after the last run (10 minutes with Unlimited).
+    expect(due(AGENT_EVENT_GAP_UNLIMITED_MS - 1, 5 * MIN)).toBeNull()
+    expect(due(30 * MIN, null, 0)).toBeNull()
+    // Limited waits an hour between runs, even for changes.
+    expect(
+      agentDue({
+        settings: configured,
+        lastRunAt: NOW - 30 * MIN,
+        now: NOW,
+        events: { total: 3, oldestAt: NOW - 20 * MIN },
+      }),
+    ).toBeNull()
+    expect(
+      agentDue({
+        settings: configured,
+        lastRunAt: NOW - AGENT_EVENT_GAP_LIMITED_MS,
+        now: NOW,
+        events: { total: 3, oldestAt: NOW - 20 * MIN },
+      }),
+    ).toBe('event')
+  })
+
+  it('knows when the next run starts at the latest', () => {
+    const next = (oldestAgo: number | null) =>
+      agentNextRunAt({
+        settings: unlimited,
+        lastRunAt: NOW - 5 * MIN,
+        now: NOW,
+        events: {
+          total: oldestAgo === null ? 0 : 1,
+          oldestAt: oldestAgo === null ? null : NOW - oldestAgo,
+        },
+      })
+    expect(next(null)).toBe(NOW - 5 * MIN + AGENT_HEARTBEAT_UNLIMITED_MS)
+    // The gap ends 5 minutes from now; the batch already passed.
+    expect(next(4 * MIN)).toBe(NOW + 5 * MIN)
+  })
+
   it('never runs when off or without AI', () => {
     expect(
       agentDue({
@@ -740,13 +806,13 @@ describe('agentDue', () => {
         lastRunAt: null,
         now: NOW,
       }),
-    ).toBe(false)
+    ).toBeNull()
     expect(
       agentDue({
         settings: { ...configured, ai: { ...configured.ai, model: '' } },
         lastRunAt: null,
         now: NOW,
       }),
-    ).toBe(false)
+    ).toBeNull()
   })
 })

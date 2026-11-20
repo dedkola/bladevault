@@ -7,6 +7,7 @@ import { getLocalDb } from '@/lib/local-db'
 import {
   agentModelInput,
   buildAgentSnapshot,
+  readAgentEvents,
   readAgentRuns,
   runPriceAgent,
 } from '@/lib/price-monitor/agent'
@@ -852,6 +853,102 @@ describe('AI supervisor', () => {
       expect.objectContaining({ kind: 'advise', status: 'proposed' }),
     ])
     expect(await listMessages()).toHaveLength(3)
+  })
+
+  it('wakes for what changed since the last run and journals it', async () => {
+    enableAgent('act')
+    const drop = await createKnife('Drop Bear', 'https://kizer.example/drop')
+    const mini = await createKnife('Mini', 'https://shop.example/mini')
+    const db = getLocalDb()
+    aiFetch.mockResolvedValue(planResponse({ summary: 'Quiet.' }))
+    await runPriceAgent({ trigger: 'manual' })
+    const lastRunAt = Date.parse(readAgentRuns(db, 1)[0].startedAt)
+    expect(readAgentEvents(db, lastRunAt).total).toBe(0)
+
+    const at = (offsetMs: number) =>
+      new Date(lastRunAt + offsetMs).toISOString()
+    db.prepare(
+      `INSERT INTO price_change_events
+         (knife_id, source_id, direction, previous_price_minor, price_minor,
+          currency, delta_minor, delta_pct, availability, from_snapshot_id,
+          to_snapshot_id, source_url, store_name, extraction_method,
+          occurred_at)
+       VALUES (?, ?, 'drop', 12900, 9900, 'USD', -3000, -23.26, 'in_stock',
+               1, 1002, 'https://kizer.example/drop', 'Kizer', 'json_ld', ?)`,
+    ).run(drop.id, drop.source.id, at(1000))
+    db.prepare(
+      `INSERT INTO stock_events
+         (knife_id, source_id, kind, previous_availability, availability,
+          price_minor, currency, from_snapshot_id, to_snapshot_id, source_url,
+          store_name, occurred_at)
+       VALUES (?, ?, 'back_in_stock', 'out_of_stock', 'in_stock', 5000, 'USD',
+               1, 1003, 'https://shop.example/mini', 'Shop', ?)`,
+    ).run(mini.id, mini.source.id, at(2000))
+    // Before the last run: already seen.
+    db.prepare(
+      `INSERT INTO stock_events
+         (knife_id, source_id, kind, previous_availability, availability,
+          from_snapshot_id, to_snapshot_id, source_url, store_name,
+          occurred_at)
+       VALUES (?, ?, 'out_of_stock', 'in_stock', 'out_of_stock', 1, 1004,
+               'https://shop.example/mini', 'Shop', ?)`,
+    ).run(mini.id, mini.source.id, at(-60_000))
+    db.prepare(
+      `UPDATE price_sources SET status = 'failed', consecutive_failures = 3,
+         last_error_code = 'timeout', last_checked_at = ? WHERE id = ?`,
+    ).run(at(3000), drop.source.id)
+    db.prepare(
+      `UPDATE price_sources SET status = 'blocked', consecutive_failures = 1,
+         last_checked_at = ? WHERE id = ?`,
+    ).run(at(4000), mini.source.id)
+    db.prepare(
+      `INSERT INTO price_discovery
+         (knife_id, store, marketplace, status, attempts, last_attempt_at)
+       VALUES (?, 'amazon', 'amazon.com', 'found', 1, ?)`,
+    ).run(drop.id, at(5000))
+
+    const events = readAgentEvents(db, lastRunAt)
+    expect(events.total).toBe(5)
+    expect(events.oldestAt).toBe(lastRunAt + 1000)
+    expect(events.list.map((event) => event.type)).toEqual([
+      'found_listing',
+      'bot_check',
+      'failing',
+      'back_in_stock',
+      'drop',
+    ])
+    expect(events.list[4]).toMatchObject({
+      knife: 'Kizer Drop Bear',
+      store: 'Kizer',
+      from: '129.00 USD',
+      to: '99.00 USD',
+      pct: -23.3,
+    })
+    expect(events.list[2]).toMatchObject({ failures: 3, error: 'timeout' })
+
+    const state = (await (
+      await agentRoute.GET(new Request('http://localhost/api/prices/agent'))
+    ).json()) as { pendingEvents: number; intervalMinutes: number }
+    expect(state).toMatchObject({ pendingEvents: 5, intervalMinutes: 360 })
+
+    const result = await runPriceAgent({
+      trigger: 'event',
+      now: () => lastRunAt + 10_000,
+    })
+    expect(result.status === 'done' && result.run).toMatchObject({
+      trigger: 'event',
+      eventTotal: 5,
+    })
+    const sent = JSON.parse(String(aiFetch.mock.calls.at(-1)?.[1]?.body))
+    const input = JSON.parse(sent.messages[1].content)
+    expect(input.trigger).toBe('event')
+    expect(input.events).toHaveLength(5)
+    expect(input.events[0]).not.toHaveProperty('at')
+    expect(readAgentRuns(db, 1)[0].events).toHaveLength(5)
+    // The next run starts from here: nothing waits.
+    expect(
+      readAgentEvents(db, Date.parse(readAgentRuns(db, 1)[0].startedAt)).total,
+    ).toBe(0)
   })
 
   it('serves knife labels, blocked stores and switches the mode', async () => {

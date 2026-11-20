@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import type {
   AgentAction,
   AgentCoverage,
+  AgentEvent,
   AgentLabels,
   AgentRun,
 } from '@/lib/price-monitor/agent'
@@ -29,7 +30,12 @@ export type AgentState = {
   usage: 'limited' | 'unlimited'
   active: boolean
   running: boolean
+  /** The heartbeat: a run at least this often. */
   intervalMinutes: number
+  /** Changes wake it, at most this often. */
+  eventGapMinutes: number
+  /** Changes since the last run that will wake it. */
+  pendingEvents: number
   nextRunAt: string | null
   blockedStores: string[]
   runs: AgentRun[]
@@ -403,7 +409,7 @@ export function AgentStrip({
           <span className="rounded-full border border-[var(--bladevault-line)] px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
             {state.mode === 'off'
               ? 'off'
-              : `${MODE_LABEL[state.mode]} · every ${state.intervalMinutes} min · ${state.usage === 'unlimited' ? 'Unlimited' : 'Limited'}`}
+              : `${MODE_LABEL[state.mode]} · ${scheduleText(state)} · ${state.usage === 'unlimited' ? 'Unlimited' : 'Limited'}`}
           </span>
         </h2>
         <div className="flex flex-wrap items-center gap-2">
@@ -514,6 +520,82 @@ function runCounts(run: AgentRun) {
   return { done, refused }
 }
 
+function minutesText(minutes: number): string {
+  return minutes % 60 === 0 ? `${minutes / 60} h` : `${minutes} min`
+}
+
+/** "on changes, at least every 1 h": how the supervisor is woken. */
+function scheduleText(state: AgentState): string {
+  return `on changes, at least every ${minutesText(state.intervalMinutes)}`
+}
+
+/** Why a run started, in a few words. */
+function triggerText(run: AgentRun): string {
+  if (run.trigger === 'event')
+    return `${run.eventTotal} ${run.eventTotal === 1 ? 'change' : 'changes'}`
+  return run.trigger === 'manual' ? 'Run now' : 'scheduled'
+}
+
+const EVENT_LABEL: Record<AgentEvent['type'], string> = {
+  drop: 'Price drop',
+  increase: 'Price up',
+  out_of_stock: 'Sold out',
+  back_in_stock: 'Back in stock',
+  failing: 'Failing',
+  bot_check: 'Bot check',
+  found_listing: 'Found by Other stores',
+}
+
+/** "Kizer Drop Bear at Kizer: 129.00 USD → 99.00 USD (−23.3%)". */
+function eventText(event: AgentEvent): string {
+  const where = event.knife
+    ? `${event.knife} at ${storeLabel(event.store)}`
+    : storeLabel(event.store)
+  if (event.from && event.to)
+    return `${where}: ${event.from} → ${event.to}${event.pct !== undefined ? ` (${event.pct > 0 ? '+' : ''}${event.pct}%)` : ''}`
+  if (event.type === 'failing')
+    return `${where}: ${event.failures} checks in a row${event.error ? ` (${event.error})` : ''}`
+  return event.price ? `${where}: ${event.price}` : where
+}
+
+const EVENTS_SHOWN = 8
+
+/** What changed since the run before, newest first. */
+function RunEvents({ run }: { run: AgentRun }) {
+  const [all, setAll] = useState(false)
+  if (!run.events?.length) return null
+  const shown = all ? run.events : run.events.slice(0, EVENTS_SHOWN)
+  const more = (run.eventTotal ?? run.events.length) - shown.length
+  return (
+    <div className="space-y-1.5">
+      <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+        {run.trigger === 'event' ? 'Woken by' : 'Changes since the run before'}
+      </h4>
+      <ul className="space-y-1 text-xs">
+        {shown.map((event, index) => (
+          <li key={`${event.type}:${event.at}:${index}`}>
+            <span className="font-medium">{EVENT_LABEL[event.type]}</span>{' '}
+            <span className="text-muted-foreground">{eventText(event)}</span>
+          </li>
+        ))}
+      </ul>
+      {more > 0 ? (
+        run.events.length > shown.length ? (
+          <button
+            type="button"
+            className="text-xs underline underline-offset-2"
+            onClick={() => setAll(true)}
+          >
+            {more} more
+          </button>
+        ) : (
+          <p className="text-xs text-muted-foreground">and {more} more</p>
+        )
+      ) : null}
+    </div>
+  )
+}
+
 /** One run in the timeline: time, done/refused bar, counts. */
 function RunTile({
   run,
@@ -574,7 +656,7 @@ function RunTile({
           : 'Run failed'}
       </span>
       <span className="block text-[11px] text-muted-foreground">
-        {run.trigger} · {(run.durationMs / 1000).toFixed(1)} s
+        {triggerText(run)} · {(run.durationMs / 1000).toFixed(1)} s
       </span>
     </button>
   )
@@ -816,7 +898,10 @@ export function AgentActivity({
           <b className="font-semibold text-foreground">
             {MODE_LABEL[state.mode]}
           </b>
-          {state.mode !== 'off' ? ` · every ${state.intervalMinutes} min` : ''}
+          {state.mode !== 'off' ? ` · ${scheduleText(state)}` : ''}
+          {state.mode !== 'off' && state.pendingEvents
+            ? ` · ${state.pendingEvents} ${state.pendingEvents === 1 ? 'change' : 'changes'} waiting`
+            : ''}
           {state.mode !== 'off' && state.nextRunAt
             ? ` · next ${Date.parse(state.nextRunAt) <= now ? 'soon' : clockTime(state.nextRunAt, hourCycle, now)}`
             : ''}
@@ -929,6 +1014,7 @@ export function AgentActivity({
                   : 'No summary: the run failed.'}
               </p>
               {run.coverage ? <CoverageMeter coverage={run.coverage} /> : null}
+              <RunEvents key={run.id} run={run} />
               <p className="text-xs text-muted-foreground">
                 {run.mode === 'act' ? 'Act' : 'Observe'} · {run.model}
               </p>

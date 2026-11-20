@@ -51,7 +51,7 @@ Open **Price Drops** in the sidebar. From top to bottom the page shows:
   - **Below regular price** — in-stock sources that cost less than the regular price.
   - **Needs attention** — failed, blocked, unavailable, or doubtful readings. They keep their last known price, shown muted with its date (**as of Nov 3**), and show when each is checked next, such as **next in 3 hours**, **due now**, or **overdue 9 h**. Sources that have never been checked are not problems: they show as **Waiting** in **All** and in their own timeline lane until their first check.
   - **Recently monitored** — the 30 latest checks.
-  - **Supervisor** — with AI connected, the supervisor's recent runs as a timeline, newest first. Select a run to see its summary, coverage, and every action in a table with the knife, store, reason, and result; repeated actions at one store collapse into one row you can expand. Select a knife name to open it in the table.
+  - **Supervisor** — with AI connected, the supervisor's recent runs as a timeline, newest first, each with what started it (changes, the schedule, or **Run now**). Select a run to see its summary, coverage, the changes since the run before, and every action in a table with the knife, store, reason, and result; repeated actions at one store collapse into one row you can expand. Select a knife name to open it in the table.
 - **Side panel** — the selected knife's price details, the same as its Market tab (see below), including **Latest changes**, **Check all sources**, **Manage sources**, and each store's **Check now** and check history.
 
 To find a knife, search by brand, name, model number, steel, or store, or pick a store. Select a column header (**Price now**, **Change**, **vs regular**, **Checked**) to sort by it, and select it again to reverse or reset the order. **vs regular** shows the difference in money and percent. Knives that share a name show their model number, steel, and handle so you can tell them apart. **Group by knife** shows one row per knife with its best price; expand it to see each store.
@@ -236,7 +236,9 @@ The API key is stored next to the vault in its private control folder, outside b
 | **Observe** | AI plans what it would do and records it, without changing anything. |
 | **Act**     | AI does what it planned, within fixed limits.                        |
 
-The supervisor runs every 10 minutes with **Unlimited** AI usage and every hour with **Limited**, and **Run now** starts a run at once. Each run, AI sees:
+The supervisor runs when something changes: a price drop or increase, a product selling out or coming back in stock, a product failing 3 or 5 checks in a row, a store showing a bot check, or **Other stores** finding a listing. It waits 2 minutes after the first change so a burst of changes is handled in one run, and runs at most every 10 minutes with **Unlimited** AI usage or every hour with **Limited**. Without changes it still looks over everything every hour with **Unlimited** and every 6 hours with **Limited**. **Run now** starts a run at once. Each run, AI sees:
+
+- what changed since its last run, and why it runs now;
 
 - every knife's market: its regular price, your target price, the best in-stock price now and its store, the lowest price ever and the lowest and highest of the last 90 days, the last price and stock change, and its **Other stores** searches;
 - every monitored product under its knife: store, price, stock, how long it has been out of stock, status, when it was last checked and how it failed, and how many checks wait before it at its store;

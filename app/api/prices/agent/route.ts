@@ -3,8 +3,12 @@ import { requireAppUnlock } from '@/lib/app-lock'
 import { getLocalDb } from '@/lib/local-db'
 import {
   agentActive,
-  agentIntervalMs,
+  agentEventGapMs,
+  agentHeartbeatMs,
+  agentNextRunAt,
   agentRunning,
+  lastAgentRunAt,
+  readAgentEvents,
   readAgentLabels,
   readAgentRuns,
   readBlockedStores,
@@ -39,19 +43,28 @@ function state() {
   const settings = getSettings().priceMonitoring
   const database = getLocalDb()
   const runs = readAgentRuns(database, 20)
-  const intervalMs = agentIntervalMs(settings)
   const active = agentActive(settings)
-  const last = runs[0] ? Date.parse(runs[0].startedAt) : null
+  const now = Date.now()
+  const last = lastAgentRunAt(database)
+  const events =
+    last === null
+      ? { total: 0, oldestAt: null }
+      : readAgentEvents(database, last, 0)
   return {
     mode: settings.ai.agentMode,
     aiConfigured: aiConfigured(settings.ai),
     usage: settings.ai.usage.mode,
     active,
     running: agentRunning(),
-    intervalMinutes: Math.round(intervalMs / 60_000),
+    intervalMinutes: Math.round(agentHeartbeatMs(settings) / 60_000),
+    eventGapMinutes: Math.round(agentEventGapMs(settings) / 60_000),
+    /** Changes since the last run that will wake the supervisor. */
+    pendingEvents: events.total,
     nextRunAt:
       active && settings.enabled
-        ? new Date(last === null ? Date.now() : last + intervalMs).toISOString()
+        ? new Date(
+            agentNextRunAt({ settings, lastRunAt: last, now, events }),
+          ).toISOString()
         : null,
     blockedStores: readBlockedStores(database),
     runs,
