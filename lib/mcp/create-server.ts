@@ -371,7 +371,7 @@ export function createBladeVaultMcpServer(
     {
       title: 'List price-monitored knives',
       description:
-        'List knives with store price monitoring: best current in-stock price, purchase price, state (attention, drop, increase, out_of_stock, same, pending, not_monitored), last change, and last check. Prices include decimal amount, minor units, and currency.',
+        'List knives with store price monitoring: best current in-stock price, regular price, state (attention, drop, increase, out_of_stock, same, pending, not_monitored), last change, and last check. Prices include decimal amount, minor units, and currency.',
       inputSchema: z.object({
         monitored_only: z.boolean().default(true),
         state: z.enum(PRICE_WATCH_STATES).optional(),

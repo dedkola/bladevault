@@ -165,7 +165,7 @@ export function hiddenCurrencyNote(
 
 const isNumber = (value: number | null): value is number => value !== null
 
-/** A snug axis around the prices (and the purchase price), with headroom. */
+/** A snug axis around the prices (and the regular price), with headroom. */
 function valueRange(values: number[], paid: number | null) {
   const all = paid === null ? values : [...values, paid]
   if (!all.length) return {}
@@ -324,7 +324,7 @@ function buildMarkers(
 
 /**
  * Step lines per source, out-of-stock periods shaded, a dashed line at the
- * purchase price when it is in the same currency, and markers for price
+ * regular price when it is in the same currency, and markers for price
  * and stock changes, the all-time low and AI-unconfirmed readings.
  */
 export function PriceHistoryChart({
@@ -402,7 +402,7 @@ export function PriceHistoryChart({
                         silent: true,
                         symbol: 'none',
                         label: {
-                          formatter: 'You paid',
+                          formatter: 'Regular price',
                           color: palette.muted,
                           fontSize: 10,
                           position: 'insideEndTop' as const,
@@ -673,7 +673,7 @@ export function ChartLegend({ history }: { history: KnifeHistory }) {
               aria-hidden="true"
               className="inline-block w-3.5 border-t-2 border-dashed border-muted-foreground"
             />
-            You paid
+            Regular price
           </span>
         ) : null}
         {kinds.has('drop') ? <MarkerSwatch kind="drop" label="Drop" /> : null}

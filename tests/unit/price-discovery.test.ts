@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   amazonSearchUrl,
+  buildSearchQueries,
   buildSearchQuery,
   parseAmazonSearchResults,
   parseMatchAnswer,
@@ -52,6 +53,26 @@ describe('Other stores search parsing', () => {
     ])
   })
 
+  it('reads the product title when Amazon shows the brand in its own heading', () => {
+    const html = `
+      <div data-component-type="s-search-result" data-asin="B0KIZERDB1">
+        <div data-cy="title-recipe">
+          <div class="a-row"><h2 class="a-size-mini"><span>KIZER</span></h2></div>
+          <a href="/dp/B0KIZERDB1"><h2 aria-label="Drop Bear Pocket Knife, 154CM Blade, Micarta Handle"><span>Drop Bear Pocket Knife, 154CM Blade, Micarta Handle</span></h2></a>
+        </div>
+      </div>
+      <div data-component-type="s-search-result" data-asin="B0CIVIVIJ1">
+        <h2><span>CIVIVI</span></h2>
+        <h2><span>CIVIVI Jencks Folding Knife, Nitro-V Blade</span></h2>
+      </div>`
+    expect(
+      parseAmazonSearchResults(html).map((result) => result.title),
+    ).toEqual([
+      'KIZER Drop Bear Pocket Knife, 154CM Blade, Micarta Handle',
+      'CIVIVI Jencks Folding Knife, Nitro-V Blade',
+    ])
+  })
+
   it('falls back to product links for other layouts', () => {
     const html = `<a href="/Spyderco-Para/dp/B07PARA003/ref=sr_1_1">Spyderco Para 3 Folding Knife</a>
       <a href="/dp/B07PARA003">Spyderco Para 3 again</a><a href="/dp/B0SHORT001">Buy</a>`
@@ -63,6 +84,19 @@ describe('Other stores search parsing', () => {
         price: null,
         sponsored: false,
       },
+    ])
+  })
+
+  it('tries the search with and then without the model number', () => {
+    expect(
+      buildSearchQueries({
+        brand: 'Kizer',
+        name: 'Drop Bear',
+        modelNumber: 'V3619.2PR3',
+      }),
+    ).toEqual(['Kizer Drop Bear V3619.2PR3', 'Kizer Drop Bear'])
+    expect(buildSearchQueries({ brand: 'Kizer', name: 'Drop Bear' })).toEqual([
+      'Kizer Drop Bear',
     ])
   })
 

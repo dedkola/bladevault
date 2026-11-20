@@ -276,7 +276,7 @@ describe('price checks', () => {
     expect(rows('SELECT checks, ok FROM price_monitor_daily')).toEqual([
       { checks: 7, ok: 7 },
     ])
-    // The purchase price is never touched.
+    // The regular price is never touched.
     const knife = await knifeRoute.GET(
       new Request(`http://localhost/api/knives/${knifeId}`),
       params(knifeId),

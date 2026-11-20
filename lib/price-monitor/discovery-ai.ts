@@ -15,7 +15,7 @@ import type { AmazonMarketplace } from '@/lib/settings-shared'
  */
 export const DISCOVERY_MIN_CONFIDENCE = 0.75
 export const DISCOVERY_AI_TIMEOUT_MS = 30_000
-export const MAX_SEARCH_CANDIDATES = 12
+export const MAX_SEARCH_CANDIDATES = 20
 
 const TITLE_MAX = 250
 const PRODUCT_DETAILS_MAX = 2500
@@ -66,10 +66,15 @@ export function knifeIdentity(knife: Knife): KnifeIdentity {
  * The search words: brand, name and model number without repeated words,
  * e.g. "Spyderco Para 3 C223GP" for name "Para 3" and brand "Spyderco".
  */
-export function buildSearchQuery(identity: KnifeIdentity): string {
+export function buildSearchQuery(
+  identity: KnifeIdentity,
+  options: { modelNumber?: boolean } = {},
+): string {
   const words: string[] = []
   const seen = new Set<string>()
-  for (const part of [identity.brand, identity.name, identity.modelNumber]) {
+  const parts = [identity.brand, identity.name]
+  if (options.modelNumber !== false) parts.push(identity.modelNumber ?? '')
+  for (const part of parts) {
     for (const word of clean(part ?? '').split(' ')) {
       const key = word.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
       if (!word || (key && seen.has(key))) continue
@@ -78,6 +83,18 @@ export function buildSearchQuery(identity: KnifeIdentity): string {
     }
   }
   return truncate(words.join(' '), 150)
+}
+
+/**
+ * The searches to try in order: with the model number first, then brand and
+ * name only, because store listings often leave the maker's model number out.
+ */
+export function buildSearchQueries(identity: KnifeIdentity): string[] {
+  const queries = [
+    buildSearchQuery(identity),
+    buildSearchQuery(identity, { modelNumber: false }),
+  ].filter(Boolean)
+  return [...new Set(queries)]
 }
 
 export function amazonSearchUrl(
@@ -110,6 +127,41 @@ export type SearchCandidate = MatchCandidate & { asin: string }
 const ASIN = /^[A-Z0-9]{10}$/
 
 /**
+ * A search result's title. Amazon often shows the brand in its own heading
+ * ("KIZER") above the product title heading, so every heading is read: the
+ * longest one is the title, and the brand goes in front when it is missing.
+ */
+function amazonResultTitle(
+  $: cheerio.CheerioAPI,
+  block: ReturnType<cheerio.CheerioAPI>,
+): string {
+  const headings = block
+    .find('h2')
+    .toArray()
+    .map((el) => clean($(el).attr('aria-label') || $(el).text()))
+    .filter(Boolean)
+  const title = headings.reduce(
+    (longest, text) => (text.length > longest.length ? text : longest),
+    '',
+  )
+  if (!title) {
+    return clean(
+      block.find('[data-cy="title-recipe"]').first().text() ||
+        block.find('img.s-image').first().attr('alt') ||
+        '',
+    )
+  }
+  const lower = title.toLowerCase()
+  const brand = headings.find(
+    (text) =>
+      text !== title &&
+      text.length <= 40 &&
+      !lower.includes(text.toLowerCase()),
+  )
+  return brand ? `${brand} ${title}` : title
+}
+
+/**
  * Products on an Amazon search results page: ASIN, title, shown price and
  * whether it is an ad. Falls back to product links when the result blocks
  * are missing (other layouts).
@@ -122,10 +174,7 @@ export function parseAmazonSearchResults(html: string): SearchCandidate[] {
     const block = $(el)
     const asin = (block.attr('data-asin') ?? '').trim().toUpperCase()
     if (!ASIN.test(asin) || seen.has(asin)) return
-    const title = clean(
-      block.find('h2').first().text() ||
-        block.find('[data-cy="title-recipe"]').first().text(),
-    )
+    const title = amazonResultTitle($, block)
     if (!title) return
     const price = clean(
       block.find('.a-price:not(.a-text-price) .a-offscreen').first().text(),
@@ -260,6 +309,7 @@ const MATCHING_RULES = [
   'The same knife means the same maker and the same model.',
   'A different blade steel, blade length, blade shape or lock is a different knife.',
   'A different handle colour or finish of the same model counts as the same knife only when the collection knife does not name its handle or finish.',
+  'Store titles often leave out the maker’s model number and some specs: a title with the same maker and model name is a match unless it names a different steel, size, lock or version.',
   'Never match sheaths, cases, sharpeners, replacement parts, scales, clips, lots of several knives, knock-offs, "compatible with" items, or a different model of the same maker.',
   UNTRUSTED_CONTENT_RULE,
 ].join('\n')

@@ -6,13 +6,13 @@ Price monitoring needs the BladeVault server: it works in the desktop app, Docke
 
 ## Which knives are monitored
 
-Every knife starts in **Auto** mode. In Auto, a knife is monitored when it has a stored purchase price above 0 and a product link (**Source URL**). Its product link becomes its first store source automatically.
+Every knife starts in **Auto** mode. In Auto, a knife is monitored when it has a stored regular price above 0 and a product link (**Source URL**). Its product link becomes its first store source automatically.
 
-| Mode               | What it does                                                                                        |
-| ------------------ | --------------------------------------------------------------------------------------------------- |
-| **Auto**           | Monitors the knife when a purchase price is stored. Sold knives are skipped unless you change that. |
-| **Always monitor** | Monitors the knife even without a stored price, and even when it is marked as sold.                 |
-| **Never monitor**  | Leaves the knife out of scheduled checks. **Check now** still takes a single reading.               |
+| Mode               | What it does                                                                                       |
+| ------------------ | -------------------------------------------------------------------------------------------------- |
+| **Auto**           | Monitors the knife when a regular price is stored. Sold knives are skipped unless you change that. |
+| **Always monitor** | Monitors the knife even without a stored price, and even when it is marked as sold.                |
+| **Never monitor**  | Leaves the knife out of scheduled checks. **Check now** still takes a single reading.              |
 
 Change the mode for one knife without leaving its page:
 
@@ -42,19 +42,19 @@ Open **Price Drops** in the sidebar. From top to bottom the page shows:
 - **AI supervisor** — appears when AI is connected (see [Let AI supervise monitoring](#let-ai-supervise-monitoring)): its mode, latest summary, coverage of monitored sources, what it did in its last run, and stores that need you to solve a bot check.
 - **Monitoring status** — counts of sources checked in the last 24 hours, drops, rises, out of stock, sources that need attention, and sources still waiting for their first check. Below the counts, a timeline pins each knife where it was last checked over the past 24 hours and again where its next check is due. Group the lanes **By result** or **By store**. Knives already due wait at **Now** and are checked one at a time per store. Select a pin to open the knife; a pin for several knives lists them. Select **Hide timeline** to keep only the counts; the page remembers the choice.
 - **Checks per hour** and **Round** — checks started in each of the last 24 hours, colored by what they found, next to the check interval, number of stores, paused stores, failed checks in 24 hours, and the oldest result.
-- **The table** — every monitored store listing, with the price now, the latest change in money and percent, and the difference from what you paid. Switch between tabs:
+- **The table** — every monitored store listing, with the price now, the latest change in money and percent, and the difference from the regular price. Switch between tabs:
   - **All** — every monitored source.
   - **Changes** — drops, increases, and out-of-stock sources together.
   - **Drops** and **Increases** — sources whose latest price change in the last 30 days is still the current price.
   - **Restocked** — sources that came back in stock in the last 7 days, marked like **Restocked · 2 d ago**.
   - **Out of stock** — sources that currently show the knife as unavailable, with how long, like **Out of stock · 41 d**.
-  - **Below what I paid** — in-stock sources that cost less than your purchase price.
+  - **Below regular price** — in-stock sources that cost less than the regular price.
   - **Needs attention** — failed, blocked, unavailable, or doubtful readings. They keep their last known price, shown muted with its date (**as of Nov 3**), and show when each is checked next, such as **next in 3 hours**, **due now**, or **overdue 9 h**. Sources that have never been checked are not problems: they show as **Waiting** in **All** and in their own timeline lane until their first check.
   - **Recently monitored** — the 30 latest checks.
   - **Supervisor** — with AI connected, the supervisor's recent runs as a timeline, newest first. Select a run to see its summary, coverage, and every action in a table with the knife, store, reason, and result; repeated actions at one store collapse into one row you can expand. Select a knife name to open it in the table.
 - **Side panel** — the selected knife's price details, the same as its Market tab (see below), including **Latest changes**, **Check all sources**, **Manage sources**, and each store's **Check now** and check history.
 
-To find a knife, search by brand, name, model number, steel, or store, or pick a store. Select a column header (**Price now**, **Change**, **vs paid**, **Checked**) to sort by it, and select it again to reverse or reset the order. **vs paid** shows the difference in money and percent. Knives that share a name show their model number, steel, and handle so you can tell them apart. **Group by knife** shows one row per knife with its best price; expand it to see each store.
+To find a knife, search by brand, name, model number, steel, or store, or pick a store. Select a column header (**Price now**, **Change**, **vs regular**, **Checked**) to sort by it, and select it again to reverse or reset the order. **vs regular** shows the difference in money and percent. Knives that share a name show their model number, steel, and handle so you can tell them apart. **Group by knife** shows one row per knife with its best price; expand it to see each store.
 
 The open tab and selected knife stay in the address (`?section=` and `?knife=`), so a link opens the same view; the page also remembers the last tab and the chart range in this browser.
 
@@ -82,8 +82,8 @@ Every move is still recorded: the chart, the Market tab's latest changes, and no
 
 Open a knife and select the **Market** tab. It shows:
 
-- **Best price now** across its sources, the store that has it, linked to its product page, and **You paid** when a purchase price is stored. When the stores show another currency than the purchase price, a note such as **UAH price** under the best price says they are not compared.
-- **Lowest seen** and **Highest seen** in-stock prices, **Tracking since** (the first reading), and **Now vs you paid**: the best current price minus the purchase price, in money and percent. These cover the whole history, whatever range the chart shows.
+- **Best price now** across its sources, the store that has it, linked to its product page, and **Regular price** when a regular price is stored. When the stores show another currency than the regular price, a note such as **UAH price** under the best price says they are not compared.
+- **Lowest seen** and **Highest seen** in-stock prices, **Tracking since** (the first reading), and **Now vs regular price**: the best current price minus the regular price, in money and percent. These cover the whole history, whatever range the chart shows.
 - A price chart for 7 days up to all history, with each store as its own line and out-of-stock periods shaded. When the range reaches back before the first reading, the chart starts at that reading and says **Tracking since** that date. Markers show price drops and increases, stock changes, and the lowest price seen; hover over the chart for details. Stores that show a price in another currency than the chart are left out and noted below it, for example "1 store in EUR not shown".
 - **Sources** with each store's status: **Checked**, **Price unavailable**, **Out of stock**, **Failed**, **Blocked**, or **Not checked yet**, and **Low stock** or **Preorder** when the store says so. **Check all sources** checks every store of the knife now.
 - **Latest changes** for the knife.
@@ -92,17 +92,17 @@ Open a knife and select the **Market** tab. It shows:
 
 Select the history button next to a store to see its last 30 checks, newest first: when and why each check ran (scheduled, **Check now**, or a retry), whether it read a price, failed, or was blocked, how the page was loaded (HTTP, browser, or AI), the HTTP status, how long it took, the price and stock it read, and the error, if any. Checks where AI worked the page list the steps it took under **AI steps**. A price that AI could not confirm is marked **AI unconfirmed**: it is kept in the history but never becomes the store's price, and the chart shows it as a dashed hollow marker instead of part of the line.
 
-Market prices are information only. They never change the purchase price stored in the knife's specifications.
+Market prices are information only. They never change the regular price stored in the knife's specifications.
 
 ## See market prices in your collection
 
 Your collection can show each knife's best current price and what happened to it, without opening the Market tab:
 
-- **Card detail** — open **Settings → Appearance → Card fields** and select **Market price** under **Market**. Cards then show a small pill such as `$89.00 · ↓ 12%`, `$150.00 · Back in stock`, `Out of stock`, or `$99.00 · Below paid`.
-- **Table column** — in the collection's table or list view, open **Columns** and select **Market**. Sort by it to bring recent drops, restocks, and prices below what you paid to the top. In Ledger, the **Market price** card field is its list column.
-- **Filter** — choose **Market** under **Filters** (or type `Market` in the search bar on Modern, Ledger, and Shelf) and pick **Price dropped recently**, **Back in stock recently**, **Out of stock**, **Below what I paid**, **Monitored**, or **Not monitored**. Picking several shows knives that match any of them. [Smart Collections](smart-collections.md) save these conditions, so a "Below what I paid" view stays current as prices change.
+- **Card detail** — open **Settings → Appearance → Card fields** and select **Market price** under **Market**. Cards then show a small pill such as `$89.00 · ↓ 12%`, `$150.00 · Back in stock`, `Out of stock`, or `$99.00 · Below regular`.
+- **Table column** — in the collection's table or list view, open **Columns** and select **Market**. Sort by it to bring recent drops, restocks, and prices below regular price to the top. In Ledger, the **Market price** card field is its list column.
+- **Filter** — choose **Market** under **Filters** (or type `Market` in the search bar on Modern, Ledger, and Shelf) and pick **Price dropped recently**, **Back in stock recently**, **Out of stock**, **Below regular price**, **Monitored**, or **Not monitored**. Picking several shows knives that match any of them. [Smart Collections](smart-collections.md) save these conditions, so a "Below regular price" view stays current as prices change.
 
-A drop counts as recent for 30 days while the price still sits there, using the same **Minimum change** as the Price Drops page, so small wobbles and prices that bounce back are left out; a restock counts for 7 days. **Below what I paid** compares the lowest in-stock price with the purchase price when both are in the same currency. Paused store links are left out. The collection picks up new prices after checks finish and every few minutes while BladeVault is open.
+A drop counts as recent for 30 days while the price still sits there, using the same **Minimum change** as the Price Drops page, so small wobbles and prices that bounce back are left out; a restock counts for 7 days. **Below regular price** compares the lowest in-stock price with the regular price when both are in the same currency. Paused store links are left out. The collection picks up new prices after checks finish and every few minutes while BladeVault is open.
 
 Market prices need the BladeVault server, so the static web demo does not show them.
 
@@ -112,7 +112,7 @@ Select **Export CSV** on a knife's **Market** tab or in the Price Drops side pan
 
 Each row is one price state at one store: when it was first seen (`observed_at`), when a check last confirmed it (`last_seen_at`), how many checks saw it, the knife's brand, name and ID, the store and product URL, the price in normal units (for example `129.99`), currency, availability, how the price was read (`extraction_method`), and the AI review (`confirmed` or `unconfirmed`) when AI checked the reading.
 
-The file contains only what stores published. The purchase price, notes, and other collection details are left out, so you can share it. Text that a spreadsheet could run as a formula starts with an apostrophe. The file is UTF-8, so Excel shows names such as Böker correctly.
+The file contains only what stores published. The regular price, notes, and other collection details are left out, so you can share it. Text that a spreadsheet could run as a formula starts with an apostrophe. The file is UTF-8, so Excel shows names such as Böker correctly.
 
 The export is also available from `/api/prices/export` while the app is unlocked:
 
@@ -124,7 +124,7 @@ The static web app has no price monitoring, so it has no export.
 
 ## Get notified in the Inbox
 
-New changes appear in the **Inbox** under **Prices** and in the header bell. Each notification shows the knife, the store, the old and new price, and the change in money and percent. When they can be compared in the same currency, it also shows how the price stands against what you paid and the lowest price seen at that store. Use **Market** to open the knife's Market tab, **Store page** to open the product page, **Mark read**, **Snooze**, or **Dismiss**.
+New changes appear in the **Inbox** under **Prices** and in the header bell. Each notification shows the knife, the store, the old and new price, and the change in money and percent. When they can be compared in the same currency, it also shows how the price stands against the regular price and the lowest price seen at that store. Use **Market** to open the knife's Market tab, **Store page** to open the product page, **Mark read**, **Snooze**, or **Dismiss**.
 
 - One store keeps one notification per kind. A further drop at the same store updates that notification and marks it unread again instead of adding another.
 - A change the other way closes the notification on its own: a price increase closes an open drop, and a restock closes an open out-of-stock notice.
@@ -154,7 +154,7 @@ A knife's price monitoring editor (edit mode) and its **Market** tab have **Aler
 
 - **Mute this knife** stops new notifications for it. Checks, history, and the Price Drops page carry on, and a later change the other way still closes an open notification.
 - **Target price** makes drops notify only at or below that price. A drop that reaches the target notifies even when it is smaller than the minimum change; later drops below the target follow the usual minimums. Stores that sell in another currency are not compared with the target.
-- **Only below what I paid** makes drops notify only when the new price is under the knife's purchase price. Without a purchase price in the same currency, drops notify as usual.
+- **Only below regular price** makes drops notify only when the new price is under the knife's regular price. Without a regular price in the same currency, drops notify as usual.
 
 These rules apply to price drops; stock and increase notifications follow the settings above. They are stored in the vault, so backups and restores keep them.
 
@@ -217,9 +217,9 @@ Six features use it:
 
 - **Read prices the page parsers miss** sends the cleaned product page, up to **Page size AI reads**, within the **AI usage** limits. It also runs when the parsers found a price without a currency or with an unusable amount. A price the model returns is used only if it appears on the page as written.
 - **Resolve check errors** steps in when a check cannot read a price (no price, no currency, an unusable amount, or a slow page). AI works the product page in the monitoring browser, one step at a time and at most six steps: it can wait for content, scroll, accept or reject a cookie banner, confirm an age prompt, close a pop-up, pick a variant or region, open the store's own canonical, AMP, or Shopify product data, and read the price. With **The model reads images** on, it can also read a price from a screenshot of the page. A price read by AI must appear on the page as written (or, from a screenshot, be read with very high confidence) and then passes the usual checks. Steps that let the page parsers find the price are remembered for the store and replayed first on later checks, without AI; a remembered recipe that stops working is forgotten. After an HTTP error, a timeout, a network error, or a redirect, AI also chooses how to recover within fixed limits: reset the store's saved cookies after a block, load the store in the browser instead of plain HTTP for 7 days, wait longer before checking the product again, or pause a product whose page is gone after repeated failures. The steps it took and its explanation appear in the check history. Price reading and resolving share the per-product wait of **AI usage**. It never buys, signs in, fills forms, leaves the store's site, or solves a bot check, and never retries a blocked store sooner than the normal backoff.
-- **Confirm price changes** checks a price change against the product page before it notifies you, and also checks a price that jumped far more than usual (below half or above three times the recent price) even when that change would not notify. AI gets the cleaned page (up to **Page size AI reads**), the old and new price, the knife's brand, name, and key specs (such as blade length, steel, and model number), and the store's host name; never the purchase price or notes. It answers whether the new price is the current price of exactly this product: the same variant and currency, for one item, and not a bundle, an accessory, a per-unit price, or a crossed-out price. When AI rejects the price with high confidence, the reading is kept in the history as unconfirmed, nothing notifies, the store keeps its last price, and the reason appears in the check history. A repeat of that price is checked again on later checks, and the old price coming back is not reported as a change. When AI is unavailable, unsure, or the daily budget is used up, changes notify as before. A price AI quotes in its reason must appear on the page as written; AI never sets a price. Confirming a change does not wait for the per-product wait of **AI usage**, but counts toward the daily caps.
+- **Confirm price changes** checks a price change against the product page before it notifies you, and also checks a price that jumped far more than usual (below half or above three times the recent price) even when that change would not notify. AI gets the cleaned page (up to **Page size AI reads**), the old and new price, the knife's brand, name, and key specs (such as blade length, steel, and model number), and the store's host name; never the regular price or notes. It answers whether the new price is the current price of exactly this product: the same variant and currency, for one item, and not a bundle, an accessory, a per-unit price, or a crossed-out price. When AI rejects the price with high confidence, the reading is kept in the history as unconfirmed, nothing notifies, the store keeps its last price, and the reason appears in the check history. A repeat of that price is checked again on later checks, and the old price coming back is not reported as a change. When AI is unavailable, unsure, or the daily budget is used up, changes notify as before. A price AI quotes in its reason must appear on the page as written; AI never sets a price. Confirming a change does not wait for the per-product wait of **AI usage**, but counts toward the daily caps.
 - **Spot-check page readings** works with **AI usage** set to **Unlimited**. AI also checks the page parsers' readings: every reading on a product's first check, and every reading where the price changed. When AI is sure a reading is wrong, the store page is marked **AI doubts the price** under **Needs attention**, with AI's reason. The parser's price is kept, and the mark stays, with the page checked again on every check, until AI confirms the price, the price changes, or spot checks are turned off.
-- **Daily summary in the Inbox** has AI write a short summary once a day, from 6:00 on, server time: the best current prices against what you paid, the last 24 hours' drops and restocks, store pages that need attention, and what AI did (prices it read, checks it worked through, readings it doubted). It appears in the Inbox under **System**, and each day's summary replaces the previous one, which moves to **Done**. Only knife names, store names, and prices are sent: no notes, photos, links, or keys. A summary that quotes a price not in that data is discarded. Nothing is written on a day without news, and a failed attempt is retried an hour later (the next day when the daily budget is used up).
+- **Daily summary in the Inbox** has AI write a short summary once a day, from 6:00 on, server time: the best current prices against regular prices, the last 24 hours' drops and restocks, store pages that need attention, and what AI did (prices it read, checks it worked through, readings it doubted). It appears in the Inbox under **System**, and each day's summary replaces the previous one, which moves to **Done**. Only knife names, store names, and prices are sent: no notes, photos, links, or keys. A summary that quotes a price not in that data is discarded. Nothing is written on a day without news, and a failed attempt is retried an hour later (the next day when the daily budget is used up).
 - **Pacing advisor** reviews each store's check statistics once a day, or after a store blocked checks twice, and may slow a store down, pause it, or set quiet hours within fixed limits. Only store host names and statistics are sent. AI can never speed a store up or shorten a pause after a bot check, and its advice lasts 48 hours. **Review pacing now** runs a review on demand.
 
 The API key is stored next to the vault in its private control folder, outside backups, and the settings page only shows its last four characters. Docker and Helm can provide it with `BLADEVAULT_PRICE_AI_API_KEY` instead.
@@ -234,7 +234,7 @@ The API key is stored next to the vault in its private control folder, outside b
 | **Observe** | AI plans what it would do and records it, without changing anything. |
 | **Act**     | AI does what it planned, within fixed limits.                        |
 
-The supervisor runs every 10 minutes with **Unlimited** AI usage and every hour with **Limited**, and **Run now** starts a run at once. Each run, AI sees every monitored product (knife name, store, status, when it was last checked and how it failed), each store's pace and pauses, how many products are fresh, and the AI budget. It never sees product links, what you paid, notes, or keys. It can:
+The supervisor runs every 10 minutes with **Unlimited** AI usage and every hour with **Limited**, and **Run now** starts a run at once. Each run, AI sees every monitored product (knife name, store, status, when it was last checked and how it failed), each store's pace and pauses, how many products are fresh, and the AI budget. It never sees product links, the regular price, notes, or keys. It can:
 
 - **Check first**: move up to 25 overdue, stale, or failing products to the front of their store's queue. A product blocked by a bot check still waits out its backoff.
 - **Retry with AI**: let AI read or work the page of up to 10 failing products on their next check.
@@ -258,7 +258,7 @@ For each knife, AI does the work in three steps:
 - **Check** — BladeVault opens that product page, and AI confirms it is the same knife. A different steel, blade length, or lock is a different knife.
 - **Parse** — the product becomes a source marked **Found by AI** and is checked like any other source. The Amazon parser reads the price, and AI reads it or resolves the check when the parser cannot (with **Read prices the page parsers miss** and **Resolve check errors** on).
 
-Searches cover every knife that price monitoring covers, including knives without a product link, and skip knives that already have an Amazon source. They run with scheduled checks, one knife at a time, and share Amazon's pace: a due Amazon price check always goes first, and a bot check pauses both. AI receives the knife's brand, name, and specs and the store's listing titles, never what you paid, notes, or photos.
+Searches cover every knife that price monitoring covers, including knives without a product link, and skip knives that already have an Amazon source. They run with scheduled checks, one knife at a time, and share Amazon's pace: a due Amazon price check always goes first, and a bot check pauses both. AI receives the knife's brand, name, and specs and the store's listing titles, never the regular price, notes, or photos.
 
 The section lists recent results. A knife that is not found is searched again after 30 days, and a failed search after a few hours. **Search again for missing** searches those knives at the next free slot. A found listing is never replaced: remove its source to stop monitoring it, and it is not added again.
 

@@ -11,13 +11,14 @@ import {
   saveBrowserState,
 } from '@/lib/price-monitor/browser-state'
 import {
-  buildSearchQuery,
+  buildSearchQueries,
   knifeIdentity,
   matchSearchResults,
   verifyProductPage,
 } from '@/lib/price-monitor/discovery-ai'
 import {
   DISCOVERY_STORES,
+  type DiscoveryCandidate,
   type DiscoveryStore,
 } from '@/lib/price-monitor/discovery-stores'
 import {
@@ -29,7 +30,7 @@ import { retryAfterMs, type LaneOutcomeKind } from '@/lib/price-monitor/engine'
 import { upstreamStatus } from '@/lib/price-monitor/fetch'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
 import { toScrapeError } from '@/lib/scrape-errors'
-import { createScrapeOperation } from '@/lib/scrape-operation'
+import { createScrapeOperation, runWithSignal } from '@/lib/scrape-operation'
 import type { BrowserStorageState } from '@/lib/scrape-playwright'
 import { getSettings } from '@/lib/settings'
 import {
@@ -50,7 +51,8 @@ import { getVaultAccessState } from '@/lib/vault-access'
  */
 export const DISCOVERY_STORE = 'amazon' as const
 export const DISCOVERY_LANE = 'amazon'
-const DISCOVERY_BUDGET_MS = 120_000
+/** Two searches, a product page and three AI answers fit in this. */
+const DISCOVERY_BUDGET_MS = 240_000
 
 export type DiscoveryPage = { html: string; finalUrl: string }
 
@@ -259,8 +261,8 @@ export async function discoverKnife(
 
   try {
     endpoint.apiKey = await deps.readKey()
-    const query = buildSearchQuery(identity)
-    if (!query)
+    const queries = buildSearchQueries(identity)
+    if (!queries.length)
       return await finish({
         result: 'skipped',
         laneOutcome: 'neutral',
@@ -271,42 +273,57 @@ export async function discoverKnife(
     const refusal = aiBudgetRefusal('discovery_search')
     if (refusal) throw new AiClientError('budget', refusal)
 
-    // 1. Find: the search results page, read by AI.
-    let searchPage: DiscoveryPage
-    try {
-      searchPage = await deps.fetchPage(
-        store.searchUrl(settings.otherStores, query),
-        signal,
-        store.laneKey,
+    /** A page load that always ends when the search's time budget does. */
+    const load = (url: string) =>
+      runWithSignal(signal, () => deps.fetchPage(url, signal, store.laneKey))
+    const loadFailure = (error: unknown) =>
+      controller.signal.aborted
+        ? {
+            result: 'failed' as const,
+            laneOutcome: 'neutral' as const,
+            detail: 'The search took too long.',
+            retryAfterMs: null,
+          }
+        : pageFailure(error, store)
+
+    // 1. Find: the search results page, read by AI. With the model number
+    // first, then brand and name only when that finds nothing.
+    let candidates: DiscoveryCandidate[] = []
+    let match: Awaited<ReturnType<DiscoveryDeps['match']>> | null = null
+    let notFound = ''
+    for (const query of queries) {
+      let searchPage: DiscoveryPage
+      try {
+        searchPage = await load(store.searchUrl(settings.otherStores, query))
+      } catch (error) {
+        if (signal.aborted && options.signal?.aborted) throw error
+        return await finish(loadFailure(error))
+      }
+      candidates = store.parseResults(
+        searchPage.html,
+        searchPage.finalUrl,
+        settings.otherStores,
       )
-    } catch (error) {
-      if (signal.aborted && options.signal?.aborted) throw error
-      return await finish(pageFailure(error, store))
-    }
-    const candidates = store.parseResults(
-      searchPage.html,
-      searchPage.finalUrl,
-      settings.otherStores,
-    )
-    if (!candidates.length)
-      return await finish({
-        result: 'not_found',
-        laneOutcome: 'success',
-        detail: `${store.label} had no results for “${query}”.`,
+      if (!candidates.length) {
+        notFound ||= `${store.label} had no results for “${query}”.`
+        continue
+      }
+      match = await deps.match({
+        endpoint,
+        model: settings.ai.model,
+        knife: identity,
+        candidates,
+        signal,
       })
-    const match = await deps.match({
-      endpoint,
-      model: settings.ai.model,
-      knife: identity,
-      candidates,
-      signal,
-    })
-    if (!match.candidate)
+      if (match.candidate) break
+      notFound = match.reason || 'AI found no listing of this knife.'
+    }
+    if (!match?.candidate)
       return await finish({
         result: 'not_found',
         laneOutcome: 'success',
-        confidence: match.confidence,
-        detail: match.reason || 'AI found no listing of this knife.',
+        confidence: match?.confidence ?? null,
+        detail: notFound || 'AI found no listing of this knife.',
       })
 
     // 2. Check: the product page, confirmed by AI.
@@ -321,10 +338,10 @@ export async function discoverKnife(
       })
     let productPage: DiscoveryPage
     try {
-      productPage = await deps.fetchPage(url, signal, store.laneKey)
+      productPage = await load(url)
     } catch (error) {
       if (signal.aborted && options.signal?.aborted) throw error
-      return await finish({ ...pageFailure(error, store), url })
+      return await finish({ ...loadFailure(error), url })
     }
     const details = store.productDetails(productPage.html, url)
     if (!details)

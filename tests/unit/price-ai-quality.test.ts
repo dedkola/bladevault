@@ -182,15 +182,15 @@ describe('verify inputs', () => {
 })
 
 describe('digest', () => {
-  const DATA = JSON.stringify({ price: '$100.00', paid: '$1,299.00' })
+  const DATA = JSON.stringify({ price: '$100.00', regularPrice: '$1,299.00' })
 
   it('accepts a summary that only quotes prices from the data', () => {
     expect(
       parseDigestAnswer(
-        { title: '**Deal**', summary: 'Now $100.00, you paid $1,299.' },
+        { title: '**Deal**', summary: 'Now $100.00, regular price $1,299.' },
         DATA,
       ),
-    ).toEqual({ title: 'Deal', summary: 'Now $100.00, you paid $1,299.' })
+    ).toEqual({ title: 'Deal', summary: 'Now $100.00, regular price $1,299.' })
     expect(
       parseDigestAnswer({ title: 'Deal', summary: 'Now $99.00.' }, DATA),
     ).toBeNull()

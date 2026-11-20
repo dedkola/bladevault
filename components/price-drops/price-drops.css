@@ -394,6 +394,17 @@
   margin: 0;
   min-width: 0;
 }
+.pd-hours-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+/* Square swatches, matching the bars rather than the timeline's pins. */
+.pd-hours-head .pd-legend li::before {
+  border-radius: 2px;
+}
 .pd-hours svg {
   display: block;
   width: 100%;

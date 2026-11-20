@@ -80,7 +80,7 @@ describe('minor units', () => {
 })
 
 describe('parseStoredPrice', () => {
-  it('reads the stored purchase price format', () => {
+  it('reads the stored regular price format', () => {
     expect(parseStoredPrice('129.00 USD')).toEqual({
       amount: 129,
       currency: 'USD',
