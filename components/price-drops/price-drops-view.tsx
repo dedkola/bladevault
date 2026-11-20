@@ -16,7 +16,12 @@ import { AgentFeed, AgentStrip, useAgentState } from './agent-panel'
 import { KnifePricePanel } from './knife-price-panel'
 import { MonitoringStatus, ResultBadge } from './monitoring-status'
 import { money, relativeTime, storeLabel } from './price-format'
-import { KnifeThumb, StatusDot, useMinuteClock } from './price-ui'
+import {
+  CurrencyMismatch,
+  KnifeThumb,
+  StatusDot,
+  useMinuteClock,
+} from './price-ui'
 import { SolveInBrowserDialog, type SolveTarget } from './solve-in-browser'
 
 type QueueLane = {
@@ -164,6 +169,19 @@ function sortSources(section: Section, list: MonitoredSource[]) {
 }
 
 function VsPaid({ source }: { source: MonitoredSource }) {
+  if (
+    source.priceMinor !== null &&
+    source.paidMinor === null &&
+    source.currency &&
+    source.paidCurrency &&
+    source.paidCurrency !== source.currency
+  )
+    return (
+      <CurrencyMismatch
+        currency={source.currency}
+        paidCurrency={source.paidCurrency}
+      />
+    )
   if (source.priceMinor === null || source.paidMinor === null)
     return <span className="text-muted-foreground">—</span>
   const delta = source.priceMinor - source.paidMinor

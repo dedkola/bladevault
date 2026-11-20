@@ -21,6 +21,13 @@ export const RESULT_LABEL: Record<SourceResult, string> = {
   pending: 'Waiting for first check',
 }
 
+/** "−0.3%", "+1.2%", "<0.1%": a small move under the Minimum change. */
+export function driftLabel(pct: number) {
+  const sign = pct < 0 ? '−' : '+'
+  const abs = Math.abs(pct)
+  return abs < 0.1 ? `${sign}<0.1%` : `${sign}${abs.toFixed(1)}%`
+}
+
 const PAST_MS = 24 * 60 * 60 * 1000
 const HOUR_MS = 60 * 60 * 1000
 const MAX_STORE_LANES = 6
@@ -775,7 +782,7 @@ export function ResultBadge({
         data-result={source.result}
         title={
           source.changedAt
-            ? `${RESULT_LABEL[source.result]} ${new Date(source.changedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+            ? `${RESULT_LABEL[source.result]} ${new Date(source.changedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}${source.fluctuating ? '; the price has also gone back and forth' : ''}`
             : undefined
         }
       >
@@ -829,6 +836,24 @@ export function ResultBadge({
           {source.status === 'blocked' ? 'solve in browser' : 'fix in browser'}
         </span>
       </button>
+    )
+  if (source.result === 'same' && (source.fluctuating || source.driftPct))
+    return (
+      <span
+        className="pd-badge"
+        data-result="same"
+        data-fluctuating={source.fluctuating || undefined}
+        title={
+          source.fluctuating
+            ? 'The price moved and came back to an earlier level in the last 30 days, so it counts as no change.'
+            : 'The price moved by less than the Minimum change in Settings, so it counts as no change.'
+        }
+      >
+        {source.fluctuating ? '~ Fluctuating' : `${icon.same} ${text}`}
+        {source.driftPct ? (
+          <span className="pd-drift"> · {driftLabel(source.driftPct)}</span>
+        ) : null}
+      </span>
     )
   return (
     <span className="pd-badge" data-result={source.result}>

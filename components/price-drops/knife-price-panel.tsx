@@ -26,7 +26,13 @@ import {
   RangeButtons,
   usePriceHistory,
 } from './price-history-chart'
-import { ChangePill, KnifeThumb, StatusDot, useMinuteClock } from './price-ui'
+import {
+  ChangePill,
+  CurrencyMismatch,
+  KnifeThumb,
+  StatusDot,
+  useMinuteClock,
+} from './price-ui'
 import { SolveInBrowserDialog, type SolveTarget } from './solve-in-browser'
 
 const MODE_LABEL = { auto: 'Auto', on: 'Always monitor', off: 'Never monitor' }
@@ -277,8 +283,21 @@ export function KnifePricePanel({
     watch?.sources.find((source) => source.lastCurrency)?.lastCurrency ??
     null
   const best = watch ? bestPrice(watch.sources, currency) : null
-  const paid =
-    history?.paid && history.paid.currency === currency ? history.paid : null
+  // The purchase price is always shown; it is compared only in one currency.
+  const paid = history?.paid ?? null
+  // Stores priced only in other currencies than the purchase price.
+  const storeCurrencies = new Set(
+    (watch?.sources ?? [])
+      .filter((source) => source.lastPriceMinor !== null)
+      .map((source) => source.lastCurrency)
+      .filter((value): value is string => Boolean(value)),
+  )
+  const otherCurrency =
+    paid && storeCurrencies.size && !storeCurrencies.has(paid.currency)
+      ? currency && storeCurrencies.has(currency)
+        ? currency
+        : [...storeCurrencies][0]
+      : null
   const queued = new Set(watch?.queuedSourceIds ?? [])
 
   return (
@@ -327,6 +346,13 @@ export function KnifePricePanel({
             <div className="text-2xl font-semibold tabular-nums">
               {money(best, currency)}
             </div>
+            {otherCurrency && paid ? (
+              <CurrencyMismatch
+                currency={otherCurrency}
+                paidCurrency={paid.currency}
+                className="block"
+              />
+            ) : null}
           </div>
           {variant === 'tab' ? (
             <>

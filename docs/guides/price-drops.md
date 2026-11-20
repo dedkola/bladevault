@@ -41,13 +41,25 @@ The page starts with counts of monitored knives, recent price drops and increase
 - **Out of stock** — sources that currently show the knife as unavailable.
 - **Recently monitored** — the latest checks, including failures and blocked stores.
 
+### Small moves and fluctuating prices
+
+Price Drops counts a price change only when it reaches the **Minimum change** from [notifications](#get-notified-in-the-inbox) (5% by default), so stores that convert prices from another currency do not fill the page with tiny moves:
+
+- A smaller move shows as **No change** with a muted hint such as **−0.3%**. It does not appear under drops or increases, in their counts, or in the Dropped and Rose lanes of the status timeline.
+- Small moves add up. Once the price has drifted by the Minimum change from where it started in the last 30 days, or from its last counted change, it counts as a drop or an increase.
+- When the price comes back to about a price it had earlier in the last 30 days (for example, it rose in the morning and fell back in the afternoon), the moves cancel out and the listing shows **Fluctuating** instead of a fresh drop or rise.
+
+Every move is still recorded: the chart, the Market tab's latest changes, and notifications are unaffected. Set the Minimum change to 0 to count every price change.
+
+When a store shows prices in another currency than the purchase price, **vs paid** shows that currency (for example **UAH price**) instead of a comparison. Hover it for details.
+
 Select a knife to see its best current price, price chart, and sources in the side panel. **Check all now** queues every monitored source; **Check now** on a source or knife checks just that one.
 
 ## Check one knife's market
 
 Open a knife and select the **Market** tab. It shows:
 
-- **Best price now** across its sources, next to **You paid** when a purchase price is stored.
+- **Best price now** across its sources, next to **You paid** when a purchase price is stored. When the stores show another currency than the purchase price, a note such as **UAH price** under the best price says they are not compared.
 - A price chart for 7 days up to all history, with each store as its own line and out-of-stock periods marked.
 - **Sources** with each store's status: **Checked**, **Price unavailable**, **Out of stock**, **Failed**, **Blocked**, or **Not checked yet**.
 - **Latest changes** for the knife.
@@ -71,7 +83,7 @@ Choose which changes notify you in **Settings → Price monitoring → Notificat
 | **Out of stock**    | Off     |
 | **Back in stock**   | On      |
 
-**Minimum change** filters small price moves: a price change notifies only when it moves by at least this percentage of the previous price. The default is 5%. Set it to 0 to be notified about every price change. Stock changes always notify when their switch is on.
+**Minimum change** filters small price moves: a price change notifies only when it moves by at least this percentage of the previous price. The default is 5%. The same threshold decides which moves count as a change on the Price Drops page (see [Small moves and fluctuating prices](#small-moves-and-fluctuating-prices)). Set it to 0 to be notified about every price change. Stock changes always notify when their switch is on.
 
 Every price and stock change is still recorded and shown on the Price Drops page and Market tab, whatever the notification settings are.
 

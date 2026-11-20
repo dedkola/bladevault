@@ -4,6 +4,10 @@ import {
   type EligibilitySettings,
 } from '@/lib/price-monitor/eligibility'
 import { parseStoredPrice, toMinorUnits } from '@/lib/price-monitor/money'
+import {
+  classifyPriceMoves,
+  type PriceMoveClass,
+} from '@/lib/price-monitor/price-moves'
 import type {
   Availability,
   PriceSourceStatus,
@@ -102,8 +106,17 @@ export type MonitoredSource = SourceSummary & {
   deltaMinor: number | null
   deltaPct: number | null
   changedAt: string | null
+  /**
+   * No change only: how far the price moved in the window, in percent, when
+   * it stayed under the Minimum change (shown as a muted hint).
+   */
+  driftPct: number | null
+  /** The price moved and came back to an earlier level in the window. */
+  fluctuating: boolean
   /** Purchase price in this source's currency, when comparable. */
   paidMinor: number | null
+  /** Currency of the stored purchase price, when it names one. */
+  paidCurrency: string | null
   nextCheckAt: string | null
 }
 
@@ -337,9 +350,17 @@ function mostCommon(values: string[]): string | null {
   return best
 }
 
+/**
+ * Eligibility plus the notification Minimum change, which also decides which
+ * price moves count as a change on the page (0 or missing: every move).
+ */
+export type OverviewSettings = EligibilitySettings & {
+  thresholds?: { minPercent: number }
+}
+
 export function buildPriceOverview(
   database: Database.Database,
-  settings: EligibilitySettings,
+  settings: OverviewSettings,
   options: {
     now?: number
     windowDays?: number
@@ -394,8 +415,22 @@ export function buildPriceOverview(
        ORDER BY occurred_at DESC, id DESC`,
     )
     .all(since) as EventRow[]
-  const drops = windowRows.filter((row) => row.kind === 'drop')
-  const increases = windowRows.filter((row) => row.kind === 'increase')
+  const moves = classifyWindowMoves(
+    sources,
+    windowRows,
+    settings.thresholds?.minPercent ?? 0,
+  )
+  const significant = new Set(
+    [...moves.values()].flatMap((move) => move.significantIds),
+  )
+  // Moves under the Minimum change are noise: they stay in history and
+  // Recent, but not in the drop and increase lists or their counts.
+  const drops = windowRows.filter(
+    (row) => row.kind === 'drop' && significant.has(row.id),
+  )
+  const increases = windowRows.filter(
+    (row) => row.kind === 'increase' && significant.has(row.id),
+  )
 
   const outOfStockSince = new Map(
     (
@@ -473,10 +508,10 @@ export function buildPriceOverview(
       (source) => source.enabled === 1 && monitored.has(source.knife_id),
     ),
     knives,
-    windowRows,
+    moves,
   )
   const dayAgo = new Date(now - DAY_MS).toISOString()
-  const checksByHour = readChecksByHour(database, now)
+  const checksByHour = readChecksByHour(database, now, significant)
   const oldestCheckAt =
     monitoredSources
       .map((source) => source.lastCheckedAt)
@@ -534,6 +569,11 @@ export function buildPriceOverview(
   }
 }
 
+function paidCurrency(knife: KnifeRow | undefined) {
+  if (!knife) return null
+  return parseStoredPrice(storedPrice(knife.specs))?.currency || null
+}
+
 function paidIn(knife: KnifeRow | undefined, currency: string | null) {
   if (!knife || !currency) return null
   const paid = parseStoredPrice(storedPrice(knife.specs))
@@ -542,9 +582,52 @@ function paidIn(knife: KnifeRow | undefined, currency: string | null) {
     : null
 }
 
+/** Classifies each source's price events in the window (newest first in). */
+function classifyWindowMoves(
+  sources: SourceRow[],
+  windowPriceEvents: EventRow[],
+  minPercent: number,
+): Map<number, PriceMoveClass> {
+  const bySource = new Map<number, EventRow[]>()
+  for (const row of windowPriceEvents) {
+    const list = bySource.get(row.source_id) ?? []
+    list.push(row)
+    bySource.set(row.source_id, list)
+  }
+  const current = new Map(sources.map((source) => [source.id, source]))
+  const moves = new Map<number, PriceMoveClass>()
+  for (const [sourceId, rows] of bySource) {
+    const source = current.get(sourceId)
+    moves.set(
+      sourceId,
+      classifyPriceMoves(
+        rows
+          .filter(
+            (row) =>
+              row.previous_price_minor !== null && row.price_minor !== null,
+          )
+          .reverse()
+          .map((row) => ({
+            id: row.id,
+            previousPriceMinor: row.previous_price_minor!,
+            priceMinor: row.price_minor!,
+            currency: row.currency,
+            occurredAt: row.occurred_at,
+          })),
+        {
+          priceMinor: source?.last_price_minor ?? null,
+          currency: source?.last_currency ?? null,
+        },
+        minPercent,
+      ),
+    )
+  }
+  return moves
+}
+
 function sourceResult(
   source: SourceRow,
-  change: EventRow | undefined,
+  move: PriceMoveClass | undefined,
 ): SourceResult {
   if (!source.last_checked_at) return 'pending'
   if (source.last_availability === 'out_of_stock') return 'out_of_stock'
@@ -555,39 +638,31 @@ function sourceResult(
     source.status === 'needs_review'
   )
     return 'attention'
-  // The latest change only counts while the price still sits there.
-  if (
-    change &&
-    change.price_minor === source.last_price_minor &&
-    (change.kind === 'drop' || change.kind === 'increase')
-  )
-    return change.kind
-  return 'same'
+  // Only a counted change that still stands; noise and bounces are no change.
+  return move?.result ?? 'same'
 }
 
 function buildMonitoredSources(
   sources: SourceRow[],
   knives: Map<string, KnifeRow>,
-  windowPriceEvents: EventRow[],
+  moves: Map<number, PriceMoveClass>,
 ): MonitoredSource[] {
-  // windowPriceEvents is newest first, so the first per source wins.
-  const latestChange = new Map<number, EventRow>()
-  for (const row of windowPriceEvents)
-    if (!latestChange.has(row.source_id)) latestChange.set(row.source_id, row)
   return sources.map((source) => {
-    const change = latestChange.get(source.id)
-    const result = sourceResult(source, change)
+    const move = moves.get(source.id)
+    const result = sourceResult(source, move)
     const changed = result === 'drop' || result === 'increase'
+    const knife = knives.get(source.knife_id)
     return {
       ...toSourceSummary(source, knives),
       result,
-      previousPriceMinor: changed
-        ? (change?.previous_price_minor ?? null)
-        : null,
-      deltaMinor: changed ? (change?.delta_minor ?? null) : null,
-      deltaPct: changed ? (change?.delta_pct ?? null) : null,
-      changedAt: changed ? (change?.occurred_at ?? null) : null,
-      paidMinor: paidIn(knives.get(source.knife_id), source.last_currency),
+      previousPriceMinor: changed ? (move?.previousPriceMinor ?? null) : null,
+      deltaMinor: changed ? (move?.deltaMinor ?? null) : null,
+      deltaPct: changed ? (move?.deltaPct ?? null) : null,
+      changedAt: changed ? (move?.changedAt ?? null) : null,
+      driftPct: result === 'same' ? (move?.driftPct ?? null) : null,
+      fluctuating: (changed || result === 'same') && Boolean(move?.fluctuating),
+      paidMinor: paidIn(knife, source.last_currency),
+      paidCurrency: paidCurrency(knife),
       nextCheckAt: source.next_check_at,
     }
   })
@@ -597,13 +672,19 @@ type CheckLogRow = {
   started_at: string
   outcome: string
   change: 'drop' | 'increase' | null
+  /** The price event behind `change`. */
+  change_id: number | null
   stock: 'out_of_stock' | 'back_in_stock' | null
   /** 1 when the page loaded but showed no price. */
   missing: number | null
 }
 
 /** 24 hourly buckets ending with the current hour. */
-function readChecksByHour(database: Database.Database, now: number) {
+function readChecksByHour(
+  database: Database.Database,
+  now: number,
+  significant: ReadonlySet<number>,
+) {
   const currentHour = Math.floor(now / HOUR_MS) * HOUR_MS
   const first = currentHour - 23 * HOUR_MS
   const hours: CheckHour[] = Array.from({ length: 24 }, (_, index) => ({
@@ -624,6 +705,9 @@ function readChecksByHour(database: Database.Database, now: number) {
               (SELECT e.direction FROM price_snapshots s
                  JOIN price_change_events e ON e.to_snapshot_id = s.id
                WHERE s.check_log_id = l.id LIMIT 1) AS change,
+              (SELECT e.id FROM price_snapshots s
+                 JOIN price_change_events e ON e.to_snapshot_id = s.id
+               WHERE s.check_log_id = l.id LIMIT 1) AS change_id,
               (SELECT e.kind FROM price_snapshots s
                  JOIN stock_events e ON e.to_snapshot_id = s.id
                WHERE s.check_log_id = l.id LIMIT 1) AS stock,
@@ -643,7 +727,9 @@ function readChecksByHour(database: Database.Database, now: number) {
     if (row.outcome !== 'ok') bucket.attention += 1
     else if (row.stock === 'out_of_stock') bucket.out_of_stock += 1
     else if (row.missing === 1) bucket.attention += 1
-    else if (row.change) bucket[row.change] += 1
+    // A move under the Minimum change found no change worth showing.
+    else if (row.change && significant.has(row.change_id ?? -1))
+      bucket[row.change] += 1
     else bucket.same += 1
   }
   return hours
