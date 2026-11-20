@@ -174,7 +174,9 @@ describe('price history CSV export', () => {
     await checkAt(0, raccoon.sourceId, offer(120))
     await checkAt(5, raccoon.sourceId, offer(80))
     await checkAt(6, raccoon.sourceId, offer(null, 'out_of_stock'))
+    await checkAt(6.5, raccoon.sourceId, offer(null, 'out_of_stock')) // confirms it
     await checkAt(7, raccoon.sourceId, offer(90))
+    await checkAt(7.5, raccoon.sourceId, offer(90)) // confirms it
 
     const events = await exportCsv('?kind=events')
     expect(events.response.headers.get('Content-Disposition')).toContain(

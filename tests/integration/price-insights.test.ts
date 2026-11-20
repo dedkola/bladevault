@@ -402,9 +402,12 @@ describe('monitoring status', () => {
     const [other] = bean.sources
     await checkAt(0, shop, offer(100))
     await checkAt(1, shop, offer(100, 'out_of_stock'))
+    await checkAt(1.5, shop, offer(100, 'out_of_stock')) // confirms it
     await checkAt(3, shop, offer(100)) // back in stock, same price
+    await checkAt(3.01, shop, offer(100)) // confirms it
     await checkAt(0, other, offer(50))
     await checkAt(2, other, offer(50, 'out_of_stock'))
+    await checkAt(2.5, other, offer(50, 'out_of_stock')) // confirms it
 
     let result = await overview()
     let bySource = new Map(result.monitored.map((s) => [s.sourceId, s]))
@@ -412,7 +415,7 @@ describe('monitoring status', () => {
       result: 'restocked',
       restockedAt: new Date(START + 3 * DAY).toISOString(),
       since: null,
-      priceSeenAt: new Date(START + 3 * DAY).toISOString(),
+      priceSeenAt: new Date(START + 3.01 * DAY).toISOString(),
     })
     expect(bySource.get(other)).toMatchObject({
       result: 'out_of_stock',
@@ -437,7 +440,9 @@ describe('monitoring status', () => {
     ])
     const [shop] = raccoon.sources
     await checkAt(0, shop, offer(100, 'out_of_stock'))
+    await checkAt(0.5, shop, offer(100, 'out_of_stock')) // confirms it
     await checkAt(1, shop, offer(100))
+    await checkAt(1.01, shop, offer(100)) // confirms it, same hour
     const result = await overview()
     expect(result.checksByHour.at(-1)?.restocked).toBe(1)
 
@@ -447,7 +452,7 @@ describe('monitoring status', () => {
     expect(later).toMatchObject({
       result: 'attention',
       priceMinor: 10000,
-      priceSeenAt: new Date(START + DAY).toISOString(),
+      priceSeenAt: new Date(START + 1.01 * DAY).toISOString(),
     })
   })
 
@@ -646,7 +651,9 @@ describe('price history', () => {
     await checkAt(0, main, offer(100))
     await checkAt(2, main, offer(140)) // increase: highest
     await checkAt(4, main, offer(null, 'out_of_stock'))
+    await checkAt(4.5, main, offer(null, 'out_of_stock')) // confirms it
     await checkAt(6, main, offer(90, 'limited')) // back, lowest
+    await checkAt(6.5, main, offer(90, 'limited')) // confirms it
     await checkAt(8, main, offer(110))
     await checkAt(8.5, second, offer(95, 'preorder'))
     vi.setSystemTime(START + 10 * DAY)

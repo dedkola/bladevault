@@ -141,9 +141,11 @@ describe('collection market summaries', () => {
     await checkAt(1, raccoon.sources[1], offer(95))
     await checkAt(40, kiwi.sources[0], offer(55))
     await checkAt(41, kiwi.sources[0], offer(null, 'out_of_stock'))
+    await checkAt(41.5, kiwi.sources[0], offer(null, 'out_of_stock')) // confirms it
     await checkAt(44, mutt.sources[0], offer(null, 'out_of_stock'))
     await checkAt(45, raccoon.sources[0], offer(80)) // drop of 20%
     await checkAt(45, kiwi.sources[0], offer(60)) // back in stock
+    await checkAt(45.5, kiwi.sources[0], offer(60)) // confirms it
     await checkAt(46, raccoon.sources[1], offer(null, 'out_of_stock'))
     await checkAt(47, corgi.sources[0], offer(40))
 
