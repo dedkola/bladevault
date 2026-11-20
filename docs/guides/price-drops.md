@@ -34,14 +34,26 @@ Each source also offers **How to load this page**. **Auto (learned per store)** 
 
 ## Read the Price Drops page
 
-The page starts with counts of monitored knives, recent price drops and increases, sources that are out of stock, and the last successful check. Below them, switch between:
+**Monitoring status** at the top shows where each knife was last checked over the past 24 hours and when its next check is due, colored by what the check found. Select **Hide timeline** to keep only its counts; the page remembers the choice.
 
-- **Recent changes** — every price and stock change, newest first.
-- **Price drops** and **Increases** — price changes in the last 30 days.
-- **Out of stock** — sources that currently show the knife as unavailable.
-- **Recently monitored** — the latest checks, including failures and blocked stores.
+Below it, the table lists every monitored store listing. Switch between:
 
-Select a knife to see its best current price, price chart, and sources in the side panel. **Check all now** queues every monitored source; **Check now** on a source or knife checks just that one.
+- **All**, **Changes**, **Drops**, and **Increases** — price and stock changes in the last 30 days.
+- **Restocked** — listings that came back in stock in the last 7 days, marked like **Restocked · 2 d ago**.
+- **Out of stock** — listings that show the knife as unavailable, with how long, like **Out of stock · 41 d**.
+- **Below what I paid** — in-stock listings that cost less than your purchase price.
+- **Needs attention** — listings whose last check failed, was blocked, or found no price. They keep their last known price, shown muted with its date.
+- **Recently monitored** — the latest checks.
+
+The open tab and selected knife stay in the address (`?section=` and `?knife=`), so a link opens the same view; the page also remembers the last tab and the chart range in this browser.
+
+To find a knife, search by brand, name, model number, steel, or store, or pick a store. Select a column header (**Price now**, **Change**, **vs paid**, **Checked**) to sort by it, and select it again to reverse or reset the order. **vs paid** shows the difference in money and percent. Knives that share a name show their model number, steel, and handle so you can tell them apart. **Group by knife** shows one row per knife with its best price; expand it to see each store.
+
+Select a row to see its best current price, price chart, and sources in the side panel; on a phone it opens as a sheet. Each row also has **Check now**, **Store page**, **Market tab**, and, for listings that need attention, **Solve in browser**. **Check all now** queues every monitored source.
+
+Tick rows to act on several at once: **Check now**, **Pause** (paused listings stop being checked; resume them in the knife's edit mode), or **Set mode** to Auto, Always monitor, or Never monitor. BladeVault asks first before changing five or more.
+
+The **Price Drops** link in the navigation shows how many price notifications are unread. If the page cannot refresh, it says how old the shown data is and offers **Retry**.
 
 ## Check one knife's market
 
