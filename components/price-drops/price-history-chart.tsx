@@ -13,7 +13,7 @@ import {
   type KnifeHistory,
 } from '@/lib/price-monitor/insights'
 import { cn } from '@/lib/utils'
-import { storeLabel } from './price-format'
+import { moneyMajor, storeLabel } from './price-format'
 import './price-drops.css'
 
 const RANGE_LABEL: Record<HistoryRange, string> = {
@@ -341,12 +341,7 @@ export function PriceHistoryChart({
       const toValue = (minor: number) =>
         currency ? fromMinorUnits(minor, currency) : minor
       const formatValue = (value: number) =>
-        currency
-          ? new Intl.NumberFormat(undefined, {
-              style: 'currency',
-              currency,
-            }).format(value)
-          : String(value)
+        currency ? moneyMajor(value, currency) : String(value)
       const formatPrice = (minor: number) => formatValue(toValue(minor))
       const xMin = history.chartStart ? Date.parse(history.chartStart) : null
       // Readings too short to show as a line segment get a dot instead.

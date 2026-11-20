@@ -1,4 +1,3 @@
-import * as cheerio from 'cheerio'
 import type { Knife } from '@/lib/data'
 import { getLocalDb } from '@/lib/local-db'
 import { aiConfigured } from '@/lib/price-monitor/ai'
@@ -12,15 +11,15 @@ import {
   saveBrowserState,
 } from '@/lib/price-monitor/browser-state'
 import {
-  amazonProductUrl,
-  amazonSearchUrl,
   buildSearchQuery,
   knifeIdentity,
   matchSearchResults,
-  parseAmazonSearchResults,
   verifyProductPage,
-  type ProductPageDetails,
 } from '@/lib/price-monitor/discovery-ai'
+import {
+  DISCOVERY_STORES,
+  type DiscoveryStore,
+} from '@/lib/price-monitor/discovery-stores'
 import {
   readDiscoveryQueue,
   recordDiscovery,
@@ -29,24 +28,25 @@ import {
 import { retryAfterMs, type LaneOutcomeKind } from '@/lib/price-monitor/engine'
 import { upstreamStatus } from '@/lib/price-monitor/fetch'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
-import { extractAmazonProduct } from '@/lib/scrape-amazon'
 import { toScrapeError } from '@/lib/scrape-errors'
 import { createScrapeOperation } from '@/lib/scrape-operation'
 import type { BrowserStorageState } from '@/lib/scrape-playwright'
 import { getSettings } from '@/lib/settings'
-import type {
-  AmazonMarketplace,
-  PriceMonitoringSettings,
+import {
+  OTHER_STORE_IDS,
+  type OtherStoreId,
+  type PriceMonitoringSettings,
 } from '@/lib/settings-shared'
 import { getStorage } from '@/lib/storage'
 import { getVaultAccessState } from '@/lib/vault-access'
 
 /**
- * Other stores: AI looks for a monitored knife on Amazon. It reads the
- * search results and picks the knife, then reads the product page and
- * confirms it; only then does the product become a price source, checked
- * and parsed like every other source from then on. All Amazon traffic
- * shares the Amazon lane (one request at a time, its pace and its pauses).
+ * Other stores: AI looks for a monitored knife on Amazon, Blade HQ or
+ * KnifeCenter. It reads the store's search results and picks the knife,
+ * then reads the product page and confirms it; only then does the product
+ * become a price source, checked and parsed like every other source from
+ * then on. A store's searches share its lane with its price checks (one
+ * request at a time, its pace and its pauses).
  */
 export const DISCOVERY_STORE = 'amazon' as const
 export const DISCOVERY_LANE = 'amazon'
@@ -56,7 +56,11 @@ export type DiscoveryPage = { html: string; finalUrl: string }
 
 export type DiscoveryDeps = {
   /** Renders a store page with the lane's cookies (Playwright by default). */
-  fetchPage: (url: string, signal: AbortSignal) => Promise<DiscoveryPage>
+  fetchPage: (
+    url: string,
+    signal: AbortSignal,
+    laneKey: string,
+  ) => Promise<DiscoveryPage>
   match: typeof matchSearchResults
   verify: typeof verifyProductPage
   readKey: () => Promise<string | null>
@@ -66,12 +70,13 @@ export type DiscoveryDeps = {
 async function renderWithLaneCookies(
   url: string,
   signal: AbortSignal,
+  laneKey: string,
 ): Promise<DiscoveryPage> {
   const { fetchRenderedHtml } = await import('@/lib/scrape-playwright')
   const operation = createScrapeOperation({ signal, timeoutMs: 60_000 })
   try {
     const storageState: BrowserStorageState | undefined =
-      await loadBrowserState(DISCOVERY_LANE)
+      await loadBrowserState(laneKey)
     const page = await fetchRenderedHtml(url, operation, {
       screenshot: false,
       light: true,
@@ -79,7 +84,7 @@ async function renderWithLaneCookies(
       storageState,
     })
     if (page.storageState)
-      await saveBrowserState(DISCOVERY_LANE, page.storageState).catch(() => {})
+      await saveBrowserState(laneKey, page.storageState).catch(() => {})
     return { html: page.html, finalUrl: page.finalUrl }
   } finally {
     operation.dispose()
@@ -99,7 +104,7 @@ export type DiscoverySummary =
   | {
       status: 'done'
       result: DiscoveryStatus
-      /** For the Amazon lane's pacing and circuit breaker. */
+      /** For the store lane's pacing and circuit breaker. */
       laneOutcome: LaneOutcomeKind
       /** The AI endpoint itself failed: pause discovery for a while. */
       aiProblem: boolean
@@ -108,43 +113,46 @@ export type DiscoverySummary =
       sourceId: number | null
     }
 
-export function discoveryActive(settings: PriceMonitoringSettings): boolean {
-  return (
-    settings.otherStores.enabled &&
-    settings.otherStores.stores.amazon &&
-    aiConfigured(settings.ai)
-  )
+/** Stores turned on in Other stores, in search order. */
+export function enabledDiscoveryStores(
+  settings: PriceMonitoringSettings,
+): OtherStoreId[] {
+  if (!settings.otherStores.enabled || !aiConfigured(settings.ai)) return []
+  return OTHER_STORE_IDS.filter((id) => settings.otherStores.stores[id])
 }
 
-/** The next knife to look for, or null when none is due. */
+/** Other stores runs for this store (or for any store when left out). */
+export function discoveryActive(
+  settings: PriceMonitoringSettings,
+  store?: OtherStoreId,
+): boolean {
+  const stores = enabledDiscoveryStores(settings)
+  return store ? stores.includes(store) : stores.length > 0
+}
+
+/** The next knife to look for at a store, or null when none is due. */
 export function nextDiscoveryKnife(
   settings: PriceMonitoringSettings,
   now = Date.now(),
+  store: OtherStoreId = DISCOVERY_STORE,
 ): string | null {
-  if (!discoveryActive(settings)) return null
+  if (!discoveryActive(settings, store)) return null
+  const config = DISCOVERY_STORES[store]
   return (
     readDiscoveryQueue(getLocalDb(), {
       settings,
-      store: DISCOVERY_STORE,
-      marketplace: settings.otherStores.amazonMarketplace,
+      store,
+      marketplace: config.marketplace(settings.otherStores),
+      laneKey: config.laneKey,
       now,
     })[0] ?? null
   )
 }
 
-function productDetails(html: string, url: string): ProductPageDetails | null {
-  const product = extractAmazonProduct(cheerio.load(html), url)
-  if (!product?.title) return null
-  const attributes = [...product.attributes]
-    .map(([label, value]) => `${label}: ${value}`)
-    .join('\n')
-  return {
-    title: product.title,
-    details: [attributes, product.description].filter(Boolean).join('\n\n'),
-  }
-}
-
-function pageFailure(error: unknown): {
+function pageFailure(
+  error: unknown,
+  store: DiscoveryStore,
+): {
   result: DiscoveryStatus
   laneOutcome: LaneOutcomeKind
   detail: string
@@ -156,15 +164,15 @@ function pageFailure(error: unknown): {
     return {
       result: 'blocked',
       laneOutcome: 'blocked',
-      detail: 'Amazon showed a bot check. BladeVault will try again later.',
+      detail: `${store.label} showed a bot check. BladeVault will try again later.`,
       retryAfterMs: null,
     }
   if (status === 429 || status === 503)
     return {
       result: 'failed',
       laneOutcome: 'throttled',
-      detail: 'Amazon asked BladeVault to slow down.',
-      // The Amazon lane waits at least as long as Amazon asked.
+      detail: `${store.label} asked BladeVault to slow down.`,
+      // The lane waits at least as long as the store asked.
       retryAfterMs: retryAfterMs(error),
     }
   const neutral = ['browser', 'cancelled', 'invalid_url', 'blocked_url']
@@ -174,30 +182,36 @@ function pageFailure(error: unknown): {
     detail:
       failure.code === 'browser'
         ? 'The monitoring browser could not start.'
-        : 'Amazon could not be loaded.',
+        : `${store.label} could not be loaded.`,
     retryAfterMs: null,
   }
 }
 
 /**
- * Looks for one knife on the configured Amazon marketplace and records the
- * result. AI endpoint problems are not the knife's fault: nothing is
- * recorded for it, and the caller pauses discovery instead.
+ * Looks for one knife at a store (Amazon: the configured marketplace) and
+ * records the result. AI endpoint problems are not the knife's fault:
+ * nothing is recorded for it, and the caller pauses discovery instead.
  */
 export async function discoverKnife(
   knifeId: string,
-  options: { signal?: AbortSignal; deps?: Partial<DiscoveryDeps> } = {},
+  options: {
+    signal?: AbortSignal
+    deps?: Partial<DiscoveryDeps>
+    store?: OtherStoreId
+  } = {},
 ): Promise<DiscoverySummary> {
   const deps = { ...realDeps, ...options.deps }
+  const storeId = options.store ?? DISCOVERY_STORE
+  const store = DISCOVERY_STORES[storeId]
   const access = getVaultAccessState()
   if (access.readOnly) return { status: 'skipped', reason: 'read_only' }
   const settings = getSettings().priceMonitoring
-  if (!discoveryActive(settings))
+  if (!discoveryActive(settings, storeId))
     return { status: 'skipped', reason: 'disabled' }
   const knife = await deps.getKnife(knifeId)
   if (!knife) return { status: 'skipped', reason: 'missing' }
 
-  const marketplace: AmazonMarketplace = settings.otherStores.amazonMarketplace
+  const marketplace = store.marketplace(settings.otherStores)
   const startedAt = Date.now()
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), DISCOVERY_BUDGET_MS)
@@ -224,7 +238,7 @@ export async function discoverKnife(
     const recorded = await recordDiscovery({
       generation: access.generation,
       knifeId,
-      store: DISCOVERY_STORE,
+      store: storeId,
       marketplace,
       status: input.result,
       url: input.url,
@@ -261,19 +275,24 @@ export async function discoverKnife(
     let searchPage: DiscoveryPage
     try {
       searchPage = await deps.fetchPage(
-        amazonSearchUrl(marketplace, query),
+        store.searchUrl(settings.otherStores, query),
         signal,
+        store.laneKey,
       )
     } catch (error) {
       if (signal.aborted && options.signal?.aborted) throw error
-      return await finish(pageFailure(error))
+      return await finish(pageFailure(error, store))
     }
-    const candidates = parseAmazonSearchResults(searchPage.html)
+    const candidates = store.parseResults(
+      searchPage.html,
+      searchPage.finalUrl,
+      settings.otherStores,
+    )
     if (!candidates.length)
       return await finish({
         result: 'not_found',
         laneOutcome: 'success',
-        detail: `Amazon had no results for “${query}”.`,
+        detail: `${store.label} had no results for “${query}”.`,
       })
     const match = await deps.match({
       endpoint,
@@ -291,22 +310,30 @@ export async function discoverKnife(
       })
 
     // 2. Check: the product page, confirmed by AI.
-    const url = amazonProductUrl(marketplace, match.candidate.asin)
+    const chosen = match.candidate
+    const url = candidates.find((item) => item.id === chosen.id)?.url
+    if (!url)
+      return await finish({
+        result: 'failed',
+        laneOutcome: 'success',
+        title: chosen.title,
+        detail: 'AI returned no usable product link.',
+      })
     let productPage: DiscoveryPage
     try {
-      productPage = await deps.fetchPage(url, signal)
+      productPage = await deps.fetchPage(url, signal, store.laneKey)
     } catch (error) {
       if (signal.aborted && options.signal?.aborted) throw error
-      return await finish({ ...pageFailure(error), url })
+      return await finish({ ...pageFailure(error, store), url })
     }
-    const details = productDetails(productPage.html, url)
+    const details = store.productDetails(productPage.html, url)
     if (!details)
       return await finish({
         result: 'failed',
         laneOutcome: 'success',
         url,
         title: match.candidate.title,
-        detail: 'The Amazon product page could not be read.',
+        detail: `The ${store.label} product page could not be read.`,
       })
     const verdict = await deps.verify({
       endpoint,
@@ -327,7 +354,7 @@ export async function discoverKnife(
       })
 
     // 3. Parse: from now on the source is checked like any other, with the
-    // Amazon parser first and AI reading the price when it fails.
+    // page parsers first and AI reading the price when they fail.
     return await finish({
       result: 'found',
       laneOutcome: 'success',

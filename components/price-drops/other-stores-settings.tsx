@@ -18,12 +18,16 @@ import {
 import { relativeTime } from '@/components/price-drops/price-format'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
 import type {
+  DiscoveryItemView,
   DiscoveryOverview,
   DiscoveryStatus,
 } from '@/lib/price-monitor/discovery-store'
 import {
   AMAZON_MARKETPLACES,
+  OTHER_STORE_IDS,
+  OTHER_STORE_LABELS,
   type AmazonMarketplace,
+  type OtherStoreId,
   type PriceOtherStoresSettings,
 } from '@/lib/settings-shared'
 import { getSafeExternalUrl } from '@/lib/external-url'
@@ -34,7 +38,21 @@ const secondaryButton =
 
 const POLL_MS = 15_000
 
-type Overview = DiscoveryOverview & { active: boolean; running: boolean }
+type StoreOverview = DiscoveryOverview & {
+  label: string
+  active: boolean
+  running: boolean
+}
+type Overview = { active: boolean; running: boolean; stores: StoreOverview[] }
+
+const STORE_DESCRIPTION: Record<OtherStoreId, string> = {
+  amazon:
+    'Searches the marketplace you choose. A knife that already has an Amazon source is skipped. Amazon checks and searches share one pace and pause together after a bot check.',
+  bladehq:
+    'Searches bladehq.com (US prices). A knife that already has a Blade HQ source is skipped. Searches share Blade HQ’s pace with its price checks.',
+  knifecenter:
+    'Searches knifecenter.com (US prices). A knife that already has a KnifeCenter source is skipped. Searches share KnifeCenter’s pace with its price checks.',
+}
 
 const STATUS_LABEL: Record<DiscoveryStatus, string> = {
   found: 'Found',
@@ -54,7 +72,7 @@ const STATUS_CLASS: Record<DiscoveryStatus, string> = {
   skipped: 'text-muted-foreground',
 }
 
-function summary(overview: Overview): string {
+function summary(overview: StoreOverview): string {
   const { counts, waiting } = overview
   const parts = [`${counts.found} found`]
   const missing = counts.not_found + counts.rejected
@@ -115,7 +133,7 @@ export function OtherStoresSettings({
       cancelled = true
       clearInterval(timer)
     }
-  }, [load, settings.amazonMarketplace, settings.enabled])
+  }, [load, settings.amazonMarketplace, settings.enabled, settings.stores])
 
   const update = (patch: Partial<PriceOtherStoresSettings>) =>
     onChange({ ...settings, ...patch })
@@ -140,7 +158,7 @@ export function OtherStoresSettings({
       setNotice({
         tone: 'ok',
         text: data.reset
-          ? `${data.reset} ${data.reset === 1 ? 'knife' : 'knives'} will be searched again at Amazon’s normal pace.`
+          ? `${data.reset} ${data.reset === 1 ? 'search' : 'searches'} will run again at each store’s normal pace.`
           : 'Every knife searched so far was found.',
       })
     } catch (error) {
@@ -153,20 +171,32 @@ export function OtherStoresSettings({
     }
   }
 
+  const runningStore = overview?.stores.find((store) => store.running)
   const status = !settings.enabled
     ? null
     : !aiReady
       ? 'Waiting for AI: turn on Use AI in AI assistance and choose a base URL and model. Nothing is searched until then.'
-      : !settings.stores.amazon
+      : !OTHER_STORE_IDS.some((id) => settings.stores[id])
         ? 'Turn on at least one store below.'
-        : overview?.running
-          ? 'Searching Amazon now…'
+        : runningStore
+          ? `Searching ${runningStore.label} now…`
           : null
+  const shown =
+    overview?.stores.filter(
+      (store) =>
+        store.recent.length || (settings.stores[store.store] && store.waiting),
+    ) ?? []
+  const recent: Array<DiscoveryItemView & { storeLabel: string }> = shown
+    .flatMap((store) =>
+      store.recent.map((item) => ({ ...item, storeLabel: store.label })),
+    )
+    .sort((a, b) => b.lastAttemptAt.localeCompare(a.lastAttemptAt))
+    .slice(0, 20)
 
   return (
     <SettingsSection
       title="Other stores"
-      description="A knife’s own store is often sold out. AI looks for every monitored knife at other stores, checks that the listing is the same knife, and adds it as a price source. From then on it is checked like any other source, and AI reads the price when the page parsers cannot."
+      description="A knife’s own store is often sold out. AI looks for every monitored knife at Amazon, Blade HQ or KnifeCenter, checks that the listing is the same knife, and adds it as a price source. From then on it is checked like any other source, and AI reads the price when the page parsers cannot."
     >
       <SettingsRow
         inline
@@ -185,46 +215,53 @@ export function OtherStoresSettings({
           {status}
         </p>
       ) : null}
-      <SettingsRow
-        label="Amazon"
-        description="Searches the marketplace you choose. A knife that already has an Amazon source is skipped. Amazon checks and searches share one pace and pause together after a bot check."
-      >
-        <SettingsSwitch
-          aria-label="Look for knives on Amazon"
-          checked={settings.stores.amazon}
-          disabled={off}
-          onCheckedChange={(checked) =>
-            update({ stores: { ...settings.stores, amazon: checked } })
-          }
-        />
-        <Select
-          value={settings.amazonMarketplace}
-          disabled={off || !settings.stores.amazon}
-          onValueChange={(value) => {
-            if (value) update({ amazonMarketplace: value as AmazonMarketplace })
-          }}
-        >
-          <SelectTrigger
-            size="sm"
-            aria-label="Amazon marketplace"
-            className="w-40"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {AMAZON_MARKETPLACES.map((marketplace) => (
-              <SelectItem key={marketplace} value={marketplace}>
-                {marketplace}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </SettingsRow>
-      {overview &&
-      (overview.recent.length || (settings.enabled && overview.waiting)) ? (
+      {OTHER_STORE_IDS.map((id) => (
         <SettingsRow
-          label={`Results on ${overview.marketplace}`}
-          description={summary(overview)}
+          key={id}
+          label={OTHER_STORE_LABELS[id]}
+          description={STORE_DESCRIPTION[id]}
+        >
+          <SettingsSwitch
+            aria-label={`Look for knives on ${OTHER_STORE_LABELS[id]}`}
+            checked={settings.stores[id]}
+            disabled={off}
+            onCheckedChange={(checked) =>
+              update({ stores: { ...settings.stores, [id]: checked } })
+            }
+          />
+          {id === 'amazon' ? (
+            <Select
+              value={settings.amazonMarketplace}
+              disabled={off || !settings.stores.amazon}
+              onValueChange={(value) => {
+                if (value)
+                  update({ amazonMarketplace: value as AmazonMarketplace })
+              }}
+            >
+              <SelectTrigger
+                size="sm"
+                aria-label="Amazon marketplace"
+                className="w-40"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AMAZON_MARKETPLACES.map((marketplace) => (
+                  <SelectItem key={marketplace} value={marketplace}>
+                    {marketplace}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+        </SettingsRow>
+      ))}
+      {shown.length ? (
+        <SettingsRow
+          label="Results"
+          description={shown
+            .map((store) => `${store.label}: ${summary(store)}`)
+            .join(' · ')}
         >
           <Button
             type="button"
@@ -250,17 +287,20 @@ export function OtherStoresSettings({
           ) : null}
         </SettingsRow>
       ) : null}
-      {overview?.recent.length ? (
+      {recent.length ? (
         <ul className="divide-y divide-[var(--bladevault-line)] py-1 text-xs">
-          {overview.recent.map((item) => {
+          {recent.map((item) => {
             const safeUrl = item.url ? getSafeExternalUrl(item.url) : null
             return (
               <li
-                key={item.knifeId}
+                key={`${item.storeLabel}-${item.knifeId}`}
                 className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2"
               >
                 <span className="min-w-0 flex-1 font-medium text-foreground">
                   {[item.brand, item.knifeName].filter(Boolean).join(' ')}
+                </span>
+                <span className="shrink-0 text-muted-foreground">
+                  {item.storeLabel}
                 </span>
                 <span className={cn('shrink-0', STATUS_CLASS[item.status])}>
                   {STATUS_LABEL[item.status]}

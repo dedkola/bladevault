@@ -249,15 +249,17 @@ export async function listPriceChanges(input: {
     since,
     counts,
     events: events.map(toEventOutput),
-    outOfStockNow: readOutOfStockSources(database).map((source) => ({
-      knifeId: source.knife.id,
-      knife: knifeLabel(source.knife),
-      sourceId: source.sourceId,
-      storeName: source.storeName,
-      url: source.url,
-      since: source.since,
-      lastCheckedAt: source.lastCheckedAt,
-    })),
+    outOfStockNow: readOutOfStockSources(database, priceSettings()).map(
+      (source) => ({
+        knifeId: source.knife.id,
+        knife: knifeLabel(source.knife),
+        sourceId: source.sourceId,
+        storeName: source.storeName,
+        url: source.url,
+        since: source.since,
+        lastCheckedAt: source.lastCheckedAt,
+      }),
+    ),
   }
 }
 

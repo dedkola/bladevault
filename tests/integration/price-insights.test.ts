@@ -15,7 +15,10 @@ import {
   type SourceCheckHistory,
 } from '@/lib/price-monitor/insights'
 import type { PriceWatchView } from '@/lib/price-monitor/shared'
+import { readQueueCandidates } from '@/lib/price-monitor/store'
 import type { ExtractedOffer } from '@/lib/scrape-offer'
+import { getSettings, saveSettings } from '@/lib/settings'
+import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 const mocks = vi.hoisted(() => ({ browser: vi.fn() }))
@@ -822,5 +825,57 @@ describe('source check history', () => {
   it('validates the source id', async () => {
     expect((await checks('abc')).status).toBe(400)
     expect((await checks(9999)).status).toBe(404)
+  })
+})
+
+describe('ignore out of stock on the official site', () => {
+  it('drops the knife’s own sold-out link from stock counts and the schedule', async () => {
+    const knife = await createKnife('Raccoon', '129.00 USD', [
+      'https://shop.example/raccoon',
+      'https://amazon.example/raccoon',
+    ])
+    const [official, other] = knife.sources
+    await checkAt(0, official, offer(129, 'out_of_stock'))
+    await checkAt(0, other, offer(119))
+
+    const before = await overview()
+    expect(before.kpis.outOfStock).toBe(1)
+    expect(
+      before.monitored.find((source) => source.sourceId === official)?.result,
+    ).toBe('out_of_stock')
+
+    saveSettings({
+      priceMonitoring: {
+        ...DEFAULT_PRICE_MONITORING,
+        ignoreOfficialOutOfStock: true,
+      },
+    })
+    const after = await overview()
+    expect(after.kpis.outOfStock).toBe(0)
+    const settings = getSettings().priceMonitoring
+    expect(readOutOfStockSources(getLocalDb(), settings)).toEqual([])
+    const officialRow = after.monitored.find(
+      (source) => source.sourceId === official,
+    )
+    expect(officialRow).toMatchObject({ official: true, stockIgnored: true })
+    expect(officialRow?.result).not.toBe('out_of_stock')
+    expect(
+      buildKnifeSummaries(getLocalDb(), settings).find(
+        (row) => row.knife.id === knife.id,
+      )?.outOfStock,
+    ).toBe(false)
+
+    // Not checked on schedule; the other store still is.
+    const scheduled = new Map(
+      readQueueCandidates(getLocalDb(), getSettings().priceMonitoring).map(
+        (row) => [row.sourceId, row.scheduled],
+      ),
+    )
+    expect(scheduled.get(official)).toBe(false)
+    expect(scheduled.get(other)).toBe(true)
+
+    // A manually added store selling out still counts.
+    await checkAt(1, other, offer(119, 'out_of_stock'))
+    expect((await overview()).kpis.outOfStock).toBe(1)
   })
 })

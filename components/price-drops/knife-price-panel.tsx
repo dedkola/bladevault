@@ -29,6 +29,7 @@ import { cn } from '@/lib/utils'
 import {
   AVAILABILITY_LABEL,
   money,
+  moneyMajor,
   relativeTime,
   STATUS_LABEL,
   STATUS_TONE,
@@ -155,6 +156,34 @@ function bestOffer(
     : null
 }
 
+/** A store name that opens the listing, when the link is safe. */
+function StoreLink({
+  url,
+  storeName,
+  className,
+}: {
+  url: string
+  storeName: string
+  className?: string
+}) {
+  const safeUrl = getSafeExternalUrl(url)
+  if (!safeUrl) return <>{storeLabel(storeName)}</>
+  return (
+    <a
+      href={safeUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        'inline-flex items-center gap-1 hover:underline',
+        className,
+      )}
+    >
+      {storeLabel(storeName)}
+      <ExternalLink className="size-3 shrink-0 text-muted-foreground" />
+    </a>
+  )
+}
+
 function SourceLine({
   source,
   knifeId,
@@ -218,6 +247,14 @@ function SourceLine({
           ) : null}
           {!source.enabled ? (
             <span className="text-xs text-muted-foreground">· paused</span>
+          ) : null}
+          {source.stockIgnored ? (
+            <span
+              className="shrink-0 text-xs text-muted-foreground"
+              title="Out of stock on the official site is ignored (Settings → Price monitoring). Not checked on schedule until Check now finds it in stock."
+            >
+              · ignored
+            </span>
           ) : null}
         </div>
         <div
@@ -411,7 +448,9 @@ function LatestChanges({
           >
             <ChangePill event={event} />
             <div className="min-w-0 flex-1">
-              <div className="truncate">{storeLabel(event.storeName)}</div>
+              <div className="truncate">
+                <StoreLink url={event.sourceUrl} storeName={event.storeName} />
+              </div>
               {event.type === 'price' ? (
                 <div className="text-xs text-muted-foreground tabular-nums">
                   {money(event.previousPriceMinor, event.currency)} →{' '}
@@ -534,7 +573,19 @@ export function KnifePricePanel({
     null
   const best =
     stats?.bestNow ?? (watch ? bestOffer(watch.sources, currency) : null)
-  const bestUrl = best ? getSafeExternalUrl(best.url) : null
+  // The latest drop while its price still holds at that store.
+  const latestDrop = history?.events.find(
+    (event) =>
+      event.type === 'price' &&
+      event.kind === 'drop' &&
+      watch?.sources.some(
+        (source) =>
+          source.id === event.sourceId &&
+          source.lastPriceMinor === event.priceMinor &&
+          source.lastAvailability !== 'out_of_stock',
+      ),
+  )
+  // The purchase price is always shown; it is compared only in one currency.
   const paid = history?.paid ?? null
   // Stores priced only in other currencies than the purchase price.
   const storeCurrencies = new Set(
@@ -576,10 +627,7 @@ export function KnifePricePanel({
               {watch?.sources.length ?? 0}{' '}
               {watch?.sources.length === 1 ? 'source' : 'sources'}
               {history.paid
-                ? ` · You paid ${new Intl.NumberFormat(undefined, {
-                    style: 'currency',
-                    currency: history.paid.currency,
-                  }).format(history.paid.amount)}`
+                ? ` · You paid ${moneyMajor(history.paid.amount, history.paid.currency)}`
                 : ''}
             </div>
           </div>
@@ -609,7 +657,14 @@ export function KnifePricePanel({
                 data-price-best-store
                 className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground"
               >
-                <span>at {storeLabel(best.storeName)}</span>
+                <span>
+                  at{' '}
+                  <StoreLink
+                    url={best.url}
+                    storeName={best.storeName}
+                    className="text-foreground"
+                  />
+                </span>
                 {best.availability && AVAILABILITY_LABEL[best.availability] ? (
                   <span
                     data-price-availability
@@ -617,17 +672,6 @@ export function KnifePricePanel({
                   >
                     {AVAILABILITY_LABEL[best.availability]}
                   </span>
-                ) : null}
-                {bestUrl ? (
-                  <a
-                    href={bestUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-0.5 text-foreground hover:underline"
-                  >
-                    Store page
-                    <ExternalLink className="size-3" />
-                  </a>
                 ) : null}
               </div>
             ) : null}
@@ -645,10 +689,7 @@ export function KnifePricePanel({
                 <div className={LABEL}>You paid</div>
                 <div className="text-base font-semibold tabular-nums">
                   {paid
-                    ? new Intl.NumberFormat(undefined, {
-                        style: 'currency',
-                        currency: paid.currency,
-                      }).format(paid.amount)
+                    ? moneyMajor(paid.amount, paid.currency)
                     : stats?.paidMinor != null
                       ? money(stats.paidMinor, stats.currency)
                       : '—'}
@@ -671,6 +712,32 @@ export function KnifePricePanel({
         <RangeButtons value={range} onChange={setRange} />
       </div>
 
+      {latestDrop ? (
+        <div
+          data-price-drop-link
+          data-result="drop"
+          className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] px-3 py-2 text-sm"
+        >
+          <ChangePill event={latestDrop} />
+          <span>
+            Price dropped at{' '}
+            <StoreLink
+              url={latestDrop.sourceUrl}
+              storeName={latestDrop.storeName}
+              className="font-semibold"
+            />
+          </span>
+          <span className="tabular-nums text-muted-foreground">
+            {money(latestDrop.previousPriceMinor, latestDrop.currency)} →{' '}
+            <span className="font-semibold text-foreground">
+              {money(latestDrop.priceMinor, latestDrop.currency)}
+            </span>
+          </span>
+          <span className="ml-auto text-xs text-muted-foreground">
+            {relativeTime(latestDrop.occurredAt, now)}
+          </span>
+        </div>
+      ) : null}
       {stats ? <HistoryStats stats={stats} /> : null}
 
       {historyState.status === 'error' ? (

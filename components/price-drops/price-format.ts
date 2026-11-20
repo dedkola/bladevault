@@ -1,4 +1,4 @@
-import { formatMoney } from '@/lib/price-monitor/money'
+import { formatMoney, toMinorUnits } from '@/lib/price-monitor/money'
 import type { ChangeEvent } from '@/lib/price-monitor/insights'
 import type {
   Availability,
@@ -9,6 +9,15 @@ import type {
 export function money(minor: number | null, currency: string | null): string {
   if (minor === null || !currency) return '—'
   return formatMoney(minor, currency)
+}
+
+/**
+ * Money in major units (a stored purchase price, a chart value), formatted
+ * the same way as `money`.
+ */
+export function moneyMajor(amount: number | null, currency: string | null) {
+  if (amount === null || !currency) return '—'
+  return money(toMinorUnits(amount, currency), currency)
 }
 
 export function relativeTime(
@@ -111,8 +120,14 @@ export function percentLabel(pct: number): string {
   return `${abs < 9.95 ? abs.toFixed(1) : abs.toFixed(0)}%`
 }
 
+const STORE_LABELS: Record<string, string> = {
+  amazon: 'Amazon',
+  'bladehq.com': 'Blade HQ',
+  'knifecenter.com': 'KnifeCenter',
+}
+
 export function storeLabel(storeName: string): string {
-  return storeName === 'amazon' ? 'Amazon' : storeName
+  return STORE_LABELS[storeName] ?? storeName
 }
 
 export function deltaLabel(event: ChangeEvent): string {

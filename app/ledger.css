@@ -134,6 +134,12 @@ html[data-theme-variant='ledger'] {
   --gl-lit: #8fa58f;
   --gl-sel: #1d6b47;
   --gl-text: #17573a;
+  --price-drop: #2f7d4f;
+  --price-rise: #b4362c;
+  --price-stock: #9a6410;
+  --price-attention: #4f5c54;
+  --price-neutral: #97a39a;
+  --price-restock: #2f6a9a;
 }
 
 html[data-theme-variant='ledger'].dark {
@@ -245,6 +251,12 @@ html[data-theme-variant='ledger'].dark {
   --gl-lit: #6f8a78;
   --gl-sel: #4fbf88;
   --gl-text: #7fd7a8;
+  --price-drop: #4fbf88;
+  --price-rise: #e5786c;
+  --price-stock: #e3b25e;
+  --price-attention: #8d9d92;
+  --price-neutral: #56635a;
+  --price-restock: #7fb3dc;
 }
 
 /* Shell ------------------------------------------------------------- */
