@@ -14,6 +14,7 @@ import {
   CloudCheck,
   CircleAlert,
   CircleCheck,
+  CheckCheck,
   ExternalLink,
   ImageIcon,
   Inbox,
@@ -52,6 +53,8 @@ import {
 import {
   getPriceNotificationBox,
   isPriceNotificationUnread,
+  PRICE_SNOOZE_OPTIONS,
+  PRICE_SOURCE_MUTE_OPTIONS,
   priceNotificationTime,
   sortPriceNotifications,
   type PriceNotificationAction,
@@ -215,7 +218,7 @@ function useInboxKnives() {
 
 /** Runs an inbox action and reports failures through the app's feedback toast. */
 function useInboxAction() {
-  const { act, actSystem, actPrice, logCare } = useCareInbox()
+  const { act, actSystem, actPrice, muteSource, logCare } = useCareInbox()
   const { showFeedback } = useKnives()
   const [busyId, setBusyId] = useState<number | null>(null)
   const report = (error: unknown) =>
@@ -244,6 +247,23 @@ function useInboxAction() {
       report(error)
     }
   }
+  const mutePriceSource = async (row: PriceNotificationView, days: number) => {
+    try {
+      await muteSource(row.event.knife.id, row.sourceId, days)
+      const until = formatShortDate(
+        new Date(Date.now() + days * 86_400_000),
+        new Date(),
+      )
+      showFeedback(
+        days
+          ? `${storeLabel(row.event.storeName)} muted for this knife until ${until}.`
+          : `${storeLabel(row.event.storeName)} notifies again.`,
+        'success',
+      )
+    } catch (error) {
+      report(error)
+    }
+  }
   const log = async (notification: CareNotification) => {
     setBusyId(notification.id)
     try {
@@ -261,7 +281,7 @@ function useInboxAction() {
       setBusyId(null)
     }
   }
-  return { run, runSystem, runPrice, log, busyId }
+  return { run, runSystem, runPrice, mutePriceSource, log, busyId }
 }
 
 function SnoozeMenu({
@@ -301,6 +321,66 @@ function SnoozeMenu({
                 {option.label}
               </Menu.Item>
             ))}
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
+  )
+}
+
+const MENU_ITEM_CLASS =
+  'flex cursor-default items-center rounded-md px-2 py-1.5 outline-none data-highlighted:bg-accent data-highlighted:text-accent-foreground'
+const MENU_LABEL_CLASS =
+  'px-2 pt-1 pb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground'
+
+/** Snooze one price message, or mute its store for this knife for a while. */
+function PriceSnoozeMenu({
+  onSnooze,
+  onMute,
+}: {
+  onSnooze: (days: number) => void
+  onMute: (days: number) => void
+}) {
+  return (
+    <Menu.Root>
+      <Menu.Trigger
+        render={<Button type="button" variant="outline" size="xs" />}
+      >
+        Snooze
+        <ChevronDown className="size-3" />
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner align="end" sideOffset={4} className="isolate z-50">
+          <Menu.Popup className="w-48 origin-(--transform-origin) rounded-lg bg-popover p-1 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
+            <Menu.Group>
+              <Menu.GroupLabel className={MENU_LABEL_CLASS}>
+                Snooze message until
+              </Menu.GroupLabel>
+              {PRICE_SNOOZE_OPTIONS.map((option) => (
+                <Menu.Item
+                  key={option.days}
+                  onClick={() => onSnooze(option.days)}
+                  className={MENU_ITEM_CLASS}
+                >
+                  {option.label}
+                </Menu.Item>
+              ))}
+            </Menu.Group>
+            <Menu.Separator className="mx-1 my-1 h-px bg-border" />
+            <Menu.Group>
+              <Menu.GroupLabel className={MENU_LABEL_CLASS}>
+                Mute this store for
+              </Menu.GroupLabel>
+              {PRICE_SOURCE_MUTE_OPTIONS.map((option) => (
+                <Menu.Item
+                  key={option.days}
+                  onClick={() => onMute(option.days)}
+                  className={MENU_ITEM_CLASS}
+                >
+                  {option.label}
+                </Menu.Item>
+              ))}
+            </Menu.Group>
           </Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>
@@ -736,7 +816,44 @@ function priceNotificationDetail(
   if (row.resolvedAt)
     return `${PRICE_RESOLVED[row.kind]} on ${formatShortDate(row.resolvedAt, now)}, ${formatTime(row.resolvedAt)}`
   if (row.dismissedAt) return `${repeats} · dismissed`
+  if (row.snoozedUntil && Date.parse(row.snoozedUntil) > now.getTime())
+    return `${repeats} · snoozed until ${formatShortDate(row.snoozedUntil, now)}`
   return repeats
+}
+
+/**
+ * “$10.00 below what you paid ($120.00) · Lowest seen $99.00”: how the new
+ * price compares, in the event's currency only, plus any mute.
+ */
+function priceContextParts(row: PriceNotificationView, now: Date): string[] {
+  const { event, context } = row
+  const parts: string[] = []
+  if (event.currency && event.priceMinor !== null) {
+    if (context.paidMinor !== null) {
+      const diff = event.priceMinor - context.paidMinor
+      parts.push(
+        diff === 0
+          ? `Same as you paid (${money(context.paidMinor, event.currency)})`
+          : `${money(Math.abs(diff), event.currency)} ${diff < 0 ? 'below' : 'above'} what you paid (${money(context.paidMinor, event.currency)})`,
+      )
+    }
+    if (context.lowestMinor !== null) {
+      parts.push(
+        event.priceMinor <= context.lowestMinor
+          ? 'Lowest price seen at this store'
+          : `Lowest seen ${money(context.lowestMinor, event.currency)}`,
+      )
+    }
+  }
+  if (context.knifeMuted) parts.push('Knife muted')
+  else if (
+    context.sourceMutedUntil &&
+    Date.parse(context.sourceMutedUntil) > now.getTime()
+  )
+    parts.push(
+      `Store muted until ${formatShortDate(context.sourceMutedUntil, now)}`,
+    )
+  return parts
 }
 
 function PriceNotificationRow({
@@ -744,16 +861,19 @@ function PriceNotificationRow({
   now,
   compact = false,
   onAction,
+  onMuteSource,
   onNavigate,
 }: {
   notification: PriceNotificationView
   now: Date
   compact?: boolean
   onAction: (action: PriceNotificationAction) => void
+  onMuteSource?: (days: number) => void
   onNavigate?: () => void
 }) {
-  const box = getPriceNotificationBox(notification)
-  const unread = isPriceNotificationUnread(notification)
+  const box = getPriceNotificationBox(notification, now)
+  const unread = isPriceNotificationUnread(notification, now)
+  const contextParts = compact ? [] : priceContextParts(notification, now)
   const ids = [notification.id]
   const { event } = notification
   const marketHref = `/collection/${encodeURIComponent(event.knife.id)}?tab=market`
@@ -823,6 +943,14 @@ function PriceNotificationRow({
             {priceNotificationDetail(notification, now)}
           </p>
         )}
+        {contextParts.length > 0 && (
+          <p
+            data-price-context
+            className="mt-0.5 text-xs text-muted-foreground"
+          >
+            {contextParts.join(' · ')}
+          </p>
+        )}
         {!compact && (
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <Button
@@ -864,7 +992,24 @@ function PriceNotificationRow({
                 Mark read
               </Button>
             )}
-            {box === 'open' && (
+            {box === 'open' && onMuteSource && (
+              <PriceSnoozeMenu
+                onSnooze={(days) => onAction({ action: 'snooze', ids, days })}
+                onMute={onMuteSource}
+              />
+            )}
+            {box === 'snoozed' && (
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={() => onAction({ action: 'unsnooze', ids })}
+              >
+                <Bell className="size-3" />
+                Show now
+              </Button>
+            )}
+            {box !== 'done' && (
               <Button
                 type="button"
                 variant="ghost"
@@ -964,7 +1109,7 @@ export function CareInboxBell({
       ).map((row) => ({ type: 'system' as const, at: row.occurredAt, row })),
       ...sortPriceNotifications(
         priceNotifications.filter(
-          (row) => getPriceNotificationBox(row) === 'open',
+          (row) => getPriceNotificationBox(row, now) === 'open',
         ),
       ).map((row) => ({ type: 'price' as const, at: row.occurredAt, row })),
       ...(enabled
@@ -1139,7 +1284,7 @@ const EMPTY_TEXT: Record<InboxFilter, Record<CareNotificationBox, string>> = {
   },
   prices: {
     open: 'No price changes. Drops and restocks found by price monitoring show up here.',
-    snoozed: 'Price messages can’t be snoozed.',
+    snoozed: 'No snoozed price messages.',
     done: 'Resolved and dismissed price messages show up here for 90 days.',
   },
   system: {
@@ -1154,7 +1299,7 @@ const FOOTNOTE: Record<InboxFilter, string> = {
   maintenance:
     'A reminder arrives when a knife turns due soon or overdue, and resolves itself once that care is logged.',
   prices:
-    'A message arrives when a monitored store changes a price or its stock. A later change the other way closes it. Choose which changes notify in Settings → Price monitoring.',
+    'A message arrives when a monitored store changes a price or its stock. A later change the other way closes it. Choose which changes notify in Settings → Price monitoring, and set a target price or mute a knife in its Price monitoring editor.',
   system:
     'A failed Google Drive backup stays here until a later backup works. Successful backups only show a short notice.',
 }
@@ -1190,7 +1335,8 @@ export function CareInboxView() {
     priceCounts,
   } = useCareInbox()
   const knivesById = useInboxKnives()
-  const { run, runSystem, runPrice, log, busyId } = useInboxAction()
+  const { run, runSystem, runPrice, mutePriceSource, log, busyId } =
+    useInboxAction()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -1216,8 +1362,8 @@ export function CareInboxView() {
   const showSystem = filter === 'all' || filter === 'system'
   const showPrices =
     pricesAvailable && (filter === 'all' || filter === 'prices')
-  // System and price messages have no snoozed box.
-  const unsnoozable = filter === 'system' || filter === 'prices'
+  // System messages have no snoozed box.
+  const unsnoozable = filter === 'system'
   const activeBox = unsnoozable && box === 'snoozed' ? 'open' : box
 
   const visible = useMemo<InboxItem[]>(() => {
@@ -1243,16 +1389,15 @@ export function CareInboxView() {
               row,
             }))
         : []
-    const prices =
-      showPrices && activeBox !== 'snoozed'
-        ? priceNotifications
-            .filter((row) => getPriceNotificationBox(row) === activeBox)
-            .map((row) => ({
-              type: 'price' as const,
-              at: priceNotificationTime(row),
-              row,
-            }))
-        : []
+    const prices = showPrices
+      ? priceNotifications
+          .filter((row) => getPriceNotificationBox(row, now) === activeBox)
+          .map((row) => ({
+            type: 'price' as const,
+            at: priceNotificationTime(row),
+            row,
+          }))
+      : []
     // Maintenance alone keeps its deadline order: most overdue first.
     if (filter === 'maintenance') {
       const sorted = sortCareNotifications(
@@ -1277,7 +1422,7 @@ export function CareInboxView() {
   const boxCount = (target: CareNotificationBox) =>
     (showCare ? counts[target] : 0) +
     (showSystem && target !== 'snoozed' ? systemCounts[target] : 0) +
-    (showPrices && target !== 'snoozed' ? priceCounts[target] : 0)
+    (showPrices ? priceCounts[target] : 0)
   const filterUnread: Record<InboxFilter, number> = {
     all: careUnreadCount + systemUnreadCount + priceUnreadCount,
     maintenance: careUnreadCount,
@@ -1361,18 +1506,33 @@ export function CareInboxView() {
             </button>
           ))}
         </div>
-        {unread > 0 && (
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            className="ml-auto"
-            onClick={markAllRead}
-          >
-            <Check className="size-3" />
-            Mark all read
-          </Button>
-        )}
+        <div className="ml-auto flex flex-wrap gap-1.5">
+          {unread > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              onClick={markAllRead}
+            >
+              <Check className="size-3" />
+              Mark all read
+            </Button>
+          )}
+          {filter === 'prices' &&
+            activeBox === 'open' &&
+            priceCounts.open > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                data-price-dismiss-all
+                onClick={() => void runPrice({ action: 'dismiss-all' })}
+              >
+                <CheckCheck className="size-3" />
+                Dismiss all
+              </Button>
+            )}
+        </div>
       </div>
       {filter === 'maintenance' && !enabled ? (
         <p className="rounded-xl border border-[var(--bladevault-line)]/70 bg-card px-4 py-10 text-center text-sm text-muted-foreground">
@@ -1407,6 +1567,9 @@ export function CareInboxView() {
                     notification={item.row}
                     now={now}
                     onAction={(action) => void runPrice(action)}
+                    onMuteSource={(days) =>
+                      void mutePriceSource(item.row, days)
+                    }
                   />
                 ) : (
                   <CareMessageRow

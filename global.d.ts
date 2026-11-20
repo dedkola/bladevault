@@ -29,6 +29,11 @@ declare global {
     restartRequired: boolean
   }
 
+  type BladeVaultPriceNotificationStatus = {
+    enabled: boolean
+    supported: boolean
+  }
+
   interface Window {
     bladevaultDesktop?: {
       claudeDesktop?: {
@@ -60,6 +65,11 @@ declare global {
       // Keep running in the tray after the last window closes.
       getBackgroundMode?: () => Promise<boolean>
       setBackgroundMode?: (enabled: boolean) => Promise<boolean>
+      // Native notifications for price drops and restocks while hidden.
+      getPriceNotifications?: () => Promise<BladeVaultPriceNotificationStatus>
+      setPriceNotifications?: (
+        enabled: boolean,
+      ) => Promise<BladeVaultPriceNotificationStatus>
       scrapeBrowser?: {
         open: (
           url: string,
