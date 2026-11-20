@@ -9,6 +9,7 @@ import { HISTORY_RANGES, type HistoryRange } from '@/lib/price-monitor/insights'
 import type {
   EligibilityReason,
   PriceSourceView,
+  PriceWatchUpdate,
   PriceWatchView,
 } from '@/lib/price-monitor/shared'
 import { cn } from '@/lib/utils'
@@ -26,14 +27,23 @@ import {
   RangeButtons,
   usePriceHistory,
 } from './price-history-chart'
+import { PriceExportButton } from './price-export-button'
 import {
   ChangePill,
+  CurrencyMismatch,
   KnifeThumb,
   StatusDot,
   useMinuteClock,
   useStoredValue,
 } from './price-ui'
-import { SolveInBrowserDialog, type SolveTarget } from './solve-in-browser'
+import { RetireHintNotice } from './retire-hint'
+import {
+  SOLVE_UNAVAILABLE_TEXT,
+  SolveInBrowserDialog,
+  useSolveInBrowserAvailable,
+  type SolveTarget,
+} from './solve-in-browser'
+import { PriceAlertRules } from './price-alert-rules'
 
 const MODE_LABEL = { auto: 'Auto', on: 'Always monitor', off: 'Never monitor' }
 
@@ -115,17 +125,24 @@ function bestPrice(sources: PriceSourceView[], currency: string | null) {
 
 function SourceLine({
   source,
+  knifeId,
   queued,
   now,
+  canSolve,
   onCheck,
   onSolve,
+  onPaused,
 }: {
   source: PriceSourceView
+  knifeId: string
   queued: boolean
   now: number
+  canSolve: boolean | null
   onCheck: () => void
   onSolve: () => void
+  onPaused: () => void
 }) {
+  const retire = source.enabled ? (source.retireHint ?? null) : null
   const needsHelp =
     source.status === 'blocked' ||
     source.status === 'failed' ||
@@ -142,7 +159,7 @@ function SourceLine({
   return (
     <li
       data-price-source-line
-      className="flex items-center gap-2.5 border-t border-[var(--bladevault-line)]/60 py-2 first:border-t-0"
+      className="flex flex-wrap items-center gap-2.5 border-t border-[var(--bladevault-line)]/60 py-2 first:border-t-0"
     >
       <StatusDot tone={STATUS_TONE[status]} />
       <div className="min-w-0 flex-1">
@@ -189,18 +206,24 @@ function SourceLine({
           ? '—'
           : money(source.lastPriceMinor, source.lastCurrency)}
       </span>
-      {needsHelp ? (
+      {needsHelp && canSolve !== null ? (
         <Button
           type="button"
           variant="ghost"
           size="icon-xs"
-          aria-label={`${source.status === 'blocked' ? 'Solve the bot check' : 'Fix the page'} at ${storeLabel(source.storeName)} in a browser`}
-          title={
-            source.status === 'blocked'
-              ? 'Solve in browser'
-              : 'Open in a browser to fix'
+          aria-label={
+            canSolve
+              ? `${source.status === 'blocked' ? 'Solve the bot check' : 'Fix the page'} at ${storeLabel(source.storeName)} in a browser`
+              : `Solve in browser is unavailable here. ${SOLVE_UNAVAILABLE_TEXT}`
           }
-          disabled={queued}
+          title={
+            !canSolve
+              ? SOLVE_UNAVAILABLE_TEXT
+              : source.status === 'blocked'
+                ? 'Solve in browser'
+                : 'Open in a browser to fix'
+          }
+          disabled={queued || !canSolve}
           onClick={onSolve}
         >
           <AppWindow className="size-3" />
@@ -221,6 +244,18 @@ function SourceLine({
           <RefreshCw className="size-3" />
         )}
       </Button>
+      {retire ? (
+        <RetireHintNotice
+          hint={retire}
+          knifeId={knifeId}
+          sourceId={source.id}
+          storeName={source.storeName}
+          outOfStockSince={source.outOfStockSince ?? null}
+          now={now}
+          onPaused={onPaused}
+          className="basis-full pl-5"
+        />
+      ) : null}
     </li>
   )
 }
@@ -254,6 +289,7 @@ export function KnifePricePanel({
   const [error, setError] = useState<string | null>(null)
   const [solveTarget, setSolveTarget] = useState<SolveTarget | null>(null)
   const now = useMinuteClock()
+  const canSolve = useSolveInBrowserAvailable()
   const [historyVersion, setHistoryVersion] = useState(0)
   const { watch } = usePriceWatch(knifeId, version, () => {
     setHistoryVersion((value) => value + 1)
@@ -284,13 +320,55 @@ export function KnifePricePanel({
     }
   }
 
+  const [saving, setSaving] = useState(false)
+  const saveWatch = async (body: PriceWatchUpdate) => {
+    setError(null)
+    setSaving(true)
+    try {
+      const response = await fetch(
+        `/api/knives/${encodeURIComponent(knifeId)}/price-watch`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      )
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as {
+          error?: string
+        }
+        throw new Error(data.error ?? 'Could not save the alert rules.')
+      }
+      setVersion((value) => value + 1)
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Could not save the alert rules.',
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const currency =
     (history && chartCurrency(history)) ??
     watch?.sources.find((source) => source.lastCurrency)?.lastCurrency ??
     null
   const best = watch ? bestPrice(watch.sources, currency) : null
-  const paid =
-    history?.paid && history.paid.currency === currency ? history.paid : null
+  // The purchase price is always shown; it is compared only in one currency.
+  const paid = history?.paid ?? null
+  // Stores priced only in other currencies than the purchase price.
+  const storeCurrencies = new Set(
+    (watch?.sources ?? [])
+      .filter((source) => source.lastPriceMinor !== null)
+      .map((source) => source.lastCurrency)
+      .filter((value): value is string => Boolean(value)),
+  )
+  const otherCurrency =
+    paid && storeCurrencies.size && !storeCurrencies.has(paid.currency)
+      ? currency && storeCurrencies.has(currency)
+        ? currency
+        : [...storeCurrencies][0]
+      : null
   const queued = new Set(watch?.queuedSourceIds ?? [])
 
   return (
@@ -347,6 +425,13 @@ export function KnifePricePanel({
             <div className="text-2xl font-semibold tabular-nums">
               {money(best, currency)}
             </div>
+            {otherCurrency && paid ? (
+              <CurrencyMismatch
+                currency={otherCurrency}
+                paidCurrency={paid.currency}
+                className="block"
+              />
+            ) : null}
           </div>
           {variant === 'tab' ? (
             <>
@@ -408,8 +493,10 @@ export function KnifePricePanel({
               <SourceLine
                 key={source.id}
                 source={source}
+                knifeId={knifeId}
                 queued={queued.has(source.id)}
                 now={now}
+                canSolve={canSolve}
                 onCheck={() => void check(source.id)}
                 onSolve={() =>
                   setSolveTarget({
@@ -419,6 +506,10 @@ export function KnifePricePanel({
                     status: source.status,
                   })
                 }
+                onPaused={() => {
+                  setVersion((value) => value + 1)
+                  onChanged?.()
+                }}
               />
             ))}
           </ul>
@@ -427,6 +518,14 @@ export function KnifePricePanel({
             No product URLs yet. Add them in edit mode.
           </p>
         )}
+        {canSolve === false &&
+        watch?.sources.some((source) =>
+          ['blocked', 'failed', 'price_unavailable'].includes(source.status),
+        ) ? (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {SOLVE_UNAVAILABLE_TEXT}
+          </p>
+        ) : null}
       </div>
 
       {variant === 'tab' && history && history.events.length ? (
@@ -456,6 +555,18 @@ export function KnifePricePanel({
         </div>
       ) : null}
 
+      {variant === 'tab' && watch ? (
+        <PriceAlertRules
+          watch={watch}
+          busy={saving}
+          onChange={(alerts) => void saveWatch({ alerts })}
+          onUnmuteSource={(id) =>
+            void saveWatch({ update: [{ id, muteDays: 0 }] })
+          }
+          className="border-t border-[var(--bladevault-line)]/60 pt-3"
+        />
+      ) : null}
+
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -466,12 +577,15 @@ export function KnifePricePanel({
         ) : (
           <span />
         )}
-        <Link
-          href={`/collection/${encodeURIComponent(knifeId)}?edit=1`}
-          className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-        >
-          Edit monitoring
-        </Link>
+        <div className="flex flex-wrap items-center gap-1">
+          <PriceExportButton knifeId={knifeId} />
+          <Link
+            href={`/collection/${encodeURIComponent(knifeId)}?edit=1`}
+            className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+          >
+            Edit monitoring
+          </Link>
+        </div>
       </div>
       <SolveInBrowserDialog
         target={solveTarget}

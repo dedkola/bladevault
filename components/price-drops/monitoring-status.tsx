@@ -9,7 +9,14 @@ import type {
   SourceResult,
 } from '@/lib/price-monitor/insights'
 import { cn } from '@/lib/utils'
-import { money, relativeTime, storeLabel } from './price-format'
+import {
+  durationLabel,
+  money,
+  nextCheckLabel,
+  percentLabel,
+  relativeTime,
+  storeLabel,
+} from './price-format'
 import './price-drops.css'
 
 /** Lane names and legend labels, in display order. */
@@ -21,6 +28,13 @@ export const RESULT_LABEL: Record<SourceResult, string> = {
   same: 'No change',
   attention: 'Needs attention',
   pending: 'Waiting for first check',
+}
+
+/** "−0.3%", "+1.2%", "<0.1%": a small move under the Minimum change. */
+export function driftLabel(pct: number) {
+  const sign = pct < 0 ? '−' : '+'
+  const abs = Math.abs(pct)
+  return abs < 0.1 ? `${sign}<0.1%` : `${sign}${abs.toFixed(1)}%`
 }
 
 const PAST_MS = 24 * 60 * 60 * 1000
@@ -43,14 +57,6 @@ type Pin = {
 }
 
 type PlacedPin = Pin & { row: number; align: 'start' | 'mid' | 'end' }
-
-/** "26 min", "3 h", "2 d": how long a due knife has been waiting. */
-function waitLabel(ms: number) {
-  const minutes = Math.max(1, Math.round(ms / 60_000))
-  if (minutes < 60) return `${minutes} min`
-  const hours = Math.round(minutes / 60)
-  return hours < 48 ? `${hours} h` : `${Math.round(hours / 24)} d`
-}
 
 /** "41 d", "today": how long ago an ISO time was, in whole days. */
 export function daysAgo(iso: string, now: number) {
@@ -181,7 +187,7 @@ function describe(source: MonitoredSource, now: number) {
     ? `checked ${relativeTime(source.lastCheckedAt, now)}`
     : 'not checked yet'
   const next = source.nextCheckAt
-    ? `, next ${relativeTime(source.nextCheckAt, now)}`
+    ? `, ${nextCheckLabel(source.nextCheckAt, now)}`
     : ''
   return `${name} · ${RESULT_LABEL[source.result]} · ${money(
     source.priceMinor,
@@ -250,6 +256,7 @@ type Lane = {
 
 function lanesFor(group: Group, sources: MonitoredSource[]): Lane[] {
   if (group === 'result') {
+    // Never-checked sources get their own lane: waiting is not a problem.
     const order: SourceResult[] = [
       'drop',
       'increase',
@@ -257,17 +264,14 @@ function lanesFor(group: Group, sources: MonitoredSource[]): Lane[] {
       'out_of_stock',
       'same',
       'attention',
+      'pending',
     ]
     return order
       .map((result) => ({
         key: result,
         label: RESULT_LABEL[result],
         result,
-        sources: sources.filter((source) =>
-          result === 'attention'
-            ? source.result === 'attention' || source.result === 'pending'
-            : source.result === result,
-        ),
+        sources: sources.filter((source) => source.result === result),
       }))
       .filter((lane) => lane.sources.length > 0)
   }
@@ -440,6 +444,7 @@ function StatusTimeline({
               'out_of_stock',
               'same',
               'attention',
+              'pending',
             ] as const
           ).map((result) => (
             <li key={result} data-result={result}>
@@ -576,7 +581,7 @@ function StatusTimeline({
                     </span>
                     <span>
                       {cluster.pin.due
-                        ? `waiting ${waitLabel(now - Date.parse(source.nextCheckAt!))}`
+                        ? `waiting ${durationLabel(now - Date.parse(source.nextCheckAt!))}`
                         : cluster.upcoming
                           ? relativeTime(source.nextCheckAt, now)
                           : relativeTime(source.lastCheckedAt, now)}
@@ -712,12 +717,14 @@ export function MonitoringStatus({
     (source) =>
       source.lastCheckedAt && now - Date.parse(source.lastCheckedAt) <= PAST_MS,
   ).length
-  const changed = sources.filter((source) =>
-    ['drop', 'increase', 'restocked', 'out_of_stock'].includes(source.result),
-  ).length
-  const attention = sources.filter(
-    (source) => source.result === 'attention' || source.result === 'pending',
-  ).length
+  const count = (result: SourceResult) =>
+    sources.filter((source) => source.result === result).length
+  const drops = count('drop')
+  const rises = count('increase')
+  const restocked = count('restocked')
+  const outOfStock = count('out_of_stock')
+  const attention = count('attention')
+  const waiting = count('pending')
   const nextChecks = sources
     .map((source) => source.nextCheckAt)
     .filter((value): value is string => Boolean(value))
@@ -769,11 +776,27 @@ export function MonitoringStatus({
             checked in 24 h
           </span>
           <span>
-            <b>{changed}</b> changed
+            <b>{drops}</b> {drops === 1 ? 'drop' : 'drops'}
           </span>
           <span>
-            <b>{attention}</b> need attention
+            <b>{rises}</b> {rises === 1 ? 'rise' : 'rises'}
           </span>
+          {restocked ? (
+            <span>
+              <b>{restocked}</b> restocked
+            </span>
+          ) : null}
+          <span>
+            <b>{outOfStock}</b> out of stock
+          </span>
+          <span>
+            <b>{attention}</b> {attention === 1 ? 'needs' : 'need'} attention
+          </span>
+          {waiting ? (
+            <span>
+              <b>{waiting}</b> waiting for first check
+            </span>
+          ) : null}
           {queued ? (
             <span>
               <b>{queued}</b> waiting in the queue
@@ -833,17 +856,20 @@ export function MonitoringStatus({
 /** Change badge for a monitored source: icon plus words, never color alone. */
 /**
  * A source's result. With `onResolve`, a Needs attention badge is a button
- * that starts Solve in browser for that store page.
+ * that starts Solve in browser for that store page; `solveUnavailable`
+ * explains instead, where this server cannot open a visible window.
  */
 export function ResultBadge({
   source,
   now,
   onResolve,
+  solveUnavailable,
 }: {
   source: MonitoredSource
   /** With `now`, stock badges say how long ago they changed. */
   now?: number
   onResolve?: () => void
+  solveUnavailable?: string
 }) {
   if (
     (source.result === 'drop' || source.result === 'increase') &&
@@ -855,15 +881,13 @@ export function ResultBadge({
         data-result={source.result}
         title={
           source.changedAt
-            ? `${RESULT_LABEL[source.result]} ${new Date(source.changedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+            ? `${RESULT_LABEL[source.result]} ${new Date(source.changedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}${source.fluctuating ? '; the price has also gone back and forth' : ''}`
             : undefined
         }
       >
         {source.deltaMinor < 0 ? '▼' : '▲'}{' '}
         {money(Math.abs(source.deltaMinor), source.currency)}
-        {source.deltaPct !== null
-          ? ` · ${Math.abs(source.deltaPct).toFixed(0)}%`
-          : ''}
+        {source.deltaPct !== null ? ` · ${percentLabel(source.deltaPct)}` : ''}
       </span>
     )
   const icon: Record<SourceResult, string> = {
@@ -891,6 +915,16 @@ export function ResultBadge({
           : source.result === 'out_of_stock' && source.since && now
             ? `Out of stock · ${daysAgo(source.since, now)}`
             : RESULT_LABEL[source.result]
+  if (source.result === 'attention' && solveUnavailable)
+    return (
+      <span
+        className="pd-badge"
+        data-result={source.result}
+        title={solveUnavailable}
+      >
+        {icon[source.result]} {text}
+      </span>
+    )
   if (source.result === 'attention' && onResolve)
     return (
       <button
@@ -914,6 +948,24 @@ export function ResultBadge({
           {source.status === 'blocked' ? 'solve in browser' : 'fix in browser'}
         </span>
       </button>
+    )
+  if (source.result === 'same' && (source.fluctuating || source.driftPct))
+    return (
+      <span
+        className="pd-badge"
+        data-result="same"
+        data-fluctuating={source.fluctuating || undefined}
+        title={
+          source.fluctuating
+            ? 'The price moved and came back to an earlier level in the last 30 days, so it counts as no change.'
+            : 'The price moved by less than the Minimum change in Settings, so it counts as no change.'
+        }
+      >
+        {source.fluctuating ? '~ Fluctuating' : `${icon.same} ${text}`}
+        {source.driftPct ? (
+          <span className="pd-drift"> · {driftLabel(source.driftPct)}</span>
+        ) : null}
+      </span>
     )
   const since =
     source.result === 'out_of_stock' && source.since

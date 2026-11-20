@@ -3,8 +3,15 @@
  * (store, engine) and UI components both import from here.
  */
 import type { OfferAvailability } from '@/lib/scrape-offer'
+import { isIsoCurrencyCode } from '@/lib/price-monitor/money'
+import type { PriceAlertRules } from '@/lib/price-monitor/notifications'
 
 export type Availability = OfferAvailability
+
+/** A source can be muted for at most this many days. */
+export const MAX_SOURCE_MUTE_DAYS = 365
+/** Largest target price, in major units. */
+export const MAX_TARGET_PRICE = 10_000_000
 
 /** At most this many active sources per knife. */
 export const MAX_PRICE_SOURCES_PER_KNIFE = 10
@@ -51,9 +58,21 @@ export type PriceSourceView = {
   lastError: string | null
   consecutiveFailures: number
   createdAt: string
+  /** Notifications from this source are muted until then. */
+  notifyMutedUntil: string | null
   /** Added by Other stores: AI found and confirmed this product. */
   foundByAi?: boolean
+  /** Start of the current out-of-stock run, when out of stock. */
+  outOfStockSince?: string | null
+  /** The listing may be gone for good: suggest Pause or another store. */
+  retireHint?: RetireHint | null
 }
+
+/**
+ * Why a listing may be gone for good: out of stock for 60 days or more, or
+ * its page no longer exists (HTTP 404/410).
+ */
+export type RetireHint = 'long_out_of_stock' | 'page_gone'
 
 export type EligibilityReason =
   | 'monitored_auto'
@@ -76,6 +95,17 @@ export type PriceWatchView = {
   maxSources: number
   /** Source ids waiting for, or running, a manual check. */
   queuedSourceIds: number[]
+  /** The knife's alert rules. */
+  alerts: PriceAlertRules
+  /** The stored purchase price, for "only below what I paid". */
+  paid: { amount: number; currency: string } | null
+}
+
+/** Alert rule changes; a null target price clears it. */
+export type PriceAlertRulesUpdate = {
+  muted?: boolean
+  belowPaid?: boolean
+  targetPrice?: { amount: number; currency: string } | null
 }
 
 export type PriceWatchUpdate = {
@@ -86,8 +116,11 @@ export type PriceWatchUpdate = {
     storeName?: string
     enabled?: boolean
     fetchOverride?: FetchOverride
+    /** Mute the source's notifications for this many days; 0 unmutes. */
+    muteDays?: number
   }>
   remove?: number[]
+  alerts?: PriceAlertRulesUpdate
 }
 
 export type PriceCheckRequest =
@@ -214,6 +247,35 @@ function optionalStoreName(value: unknown): string | undefined {
   return name
 }
 
+function parseAlertRules(value: unknown): PriceAlertRulesUpdate {
+  if (!isRecord(value)) throw new Error('alerts must be an object')
+  const rules: PriceAlertRulesUpdate = {}
+  for (const key of ['muted', 'belowPaid'] as const) {
+    if (value[key] === undefined) continue
+    if (typeof value[key] !== 'boolean')
+      throw new Error(`${key} must be true or false`)
+    rules[key] = value[key]
+  }
+  if (value.targetPrice === null) rules.targetPrice = null
+  else if (value.targetPrice !== undefined) {
+    const target = value.targetPrice
+    if (
+      !isRecord(target) ||
+      typeof target.amount !== 'number' ||
+      !Number.isFinite(target.amount) ||
+      target.amount <= 0 ||
+      target.amount > MAX_TARGET_PRICE
+    )
+      throw new Error('Enter a target price above 0.')
+    const currency =
+      typeof target.currency === 'string' ? target.currency.toUpperCase() : ''
+    if (!isIsoCurrencyCode(currency))
+      throw new Error('Choose the target price currency.')
+    rules.targetPrice = { amount: target.amount, currency }
+  }
+  return rules
+}
+
 /** Validates a PUT body for /api/knives/[id]/price-watch. */
 export function parsePriceWatchUpdate(body: unknown): PriceWatchUpdate {
   if (!isRecord(body)) throw new Error('Request body must be an object')
@@ -263,9 +325,21 @@ export function parsePriceWatchUpdate(body: unknown): PriceWatchUpdate {
           throw new Error('fetchOverride must be auto, browser or http')
         change.fetchOverride = item.fetchOverride as FetchOverride
       }
+      if (item.muteDays !== undefined) {
+        if (
+          !Number.isSafeInteger(item.muteDays) ||
+          (item.muteDays as number) < 0 ||
+          (item.muteDays as number) > MAX_SOURCE_MUTE_DAYS
+        )
+          throw new Error(
+            `muteDays must be a whole number from 0 to ${MAX_SOURCE_MUTE_DAYS}`,
+          )
+        change.muteDays = item.muteDays as number
+      }
       return change
     })
   }
+  if (body.alerts !== undefined) result.alerts = parseAlertRules(body.alerts)
   if (body.remove !== undefined) {
     if (
       !Array.isArray(body.remove) ||

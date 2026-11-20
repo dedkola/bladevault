@@ -12,6 +12,10 @@ contextBridge.exposeInMainWorld('bladevaultDesktop', {
   getBackgroundMode: () => ipcRenderer.invoke('bladevault:get-background-mode'),
   setBackgroundMode: (enabled) =>
     ipcRenderer.invoke('bladevault:set-background-mode', enabled === true),
+  getPriceNotifications: () =>
+    ipcRenderer.invoke('bladevault:get-price-notifications'),
+  setPriceNotifications: (enabled) =>
+    ipcRenderer.invoke('bladevault:set-price-notifications', enabled === true),
   claudeDesktop: {
     connect: () => ipcRenderer.invoke('bladevault:connect-claude-desktop'),
   },

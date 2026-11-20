@@ -43,6 +43,10 @@ function source(overrides: Partial<MonitoredSource> = {}): MonitoredSource {
     nextCheckAt: null,
     restockedAt: null,
     priceSeenAt: null,
+    driftPct: null,
+    fluctuating: false,
+    paidCurrency: null,
+    retireHint: null,
     ...overrides,
   }
 }

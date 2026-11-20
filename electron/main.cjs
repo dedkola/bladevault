@@ -2,7 +2,9 @@ const {
   app,
   BrowserWindow,
   Menu,
+  Notification,
   nativeImage,
+  session,
   Tray,
   clipboard,
   dialog,
@@ -24,6 +26,7 @@ const {
   registerScrapeBrowser,
 } = require('./scrape-browser.cjs')
 const backgroundMode = require('./background-mode.cjs')
+const priceNotifier = require('./price-notifier.cjs')
 const errorReporting = require('./error-reporting.cjs')
 const claudeDesktopConfig = require('./claude-desktop-config.cjs')
 const whatsNew = require('./whats-new.cjs')
@@ -68,6 +71,9 @@ const pendingWhatsNew = whatsNew.getPendingWhatsNew({
 let backgroundModeEnabled = SMOKE_TEST_MODE
   ? false
   : backgroundMode.readBackgroundMode(app.getPath('userData'))
+let priceNotificationsEnabled = SMOKE_TEST_MODE
+  ? false
+  : priceNotifier.readPriceNotifications(app.getPath('userData'))
 // With background mode on, BladeVault keeps running in the tray, so opening
 // it again (a Windows shortcut, say) must show that instance instead of
 // starting a second server on the same vault.
@@ -1436,7 +1442,8 @@ function ensureMainWindow(pathname) {
   return mainWindowCreation
 }
 
-async function showMainWindow(pathname) {
+// `exact` also compares the query, e.g. a knife page's ?tab=market.
+async function showMainWindow(pathname, { exact = false } = {}) {
   if (!mainWindow || mainWindow.isDestroyed()) {
     await ensureMainWindow(pathname)
     return
@@ -1450,7 +1457,8 @@ async function showMainWindow(pathname) {
   if (pathname && serverOrigin) {
     const target = new URL(pathname, serverOrigin)
     const current = mainWindow.webContents.getURL()
-    if (!current || new URL(current).pathname !== target.pathname) {
+    const key = (url) => (exact ? url.pathname + url.search : url.pathname)
+    if (!current || key(new URL(current)) !== key(target)) {
       await mainWindow.loadURL(target.toString()).catch(() => {
         // The page may refuse to leave, e.g. to keep unsaved edits.
       })
@@ -1508,6 +1516,95 @@ async function checkPricesNow() {
     }
   } catch (error) {
     showTrayError('Could not start price checks', error)
+  }
+}
+
+// ------------------------------------------- price drop notifications
+
+// Only changes after this moment notify; null while the window is in use.
+let priceNotifyCursor = null
+// Shown notifications stay referenced so their click handlers survive GC.
+const shownPriceNotifications = new Set()
+let priceNotifyRunning = false
+
+function isMainWindowAway() {
+  return (
+    !mainWindow ||
+    mainWindow.isDestroyed() ||
+    !mainWindow.isVisible() ||
+    mainWindow.isMinimized()
+  )
+}
+
+function startPriceNotifyWindow() {
+  if (!priceNotifyCursor) priceNotifyCursor = new Date().toISOString()
+}
+
+function showPriceNotification({ title, body, pathname }) {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('com.bladevault.desktop')
+  }
+  const notification = new Notification({ title, body })
+  shownPriceNotifications.add(notification)
+  const forget = () => shownPriceNotifications.delete(notification)
+  notification.on('click', () => {
+    forget()
+    void showMainWindow(pathname, { exact: true }).catch((error) =>
+      showTrayError('Could not open BladeVault', error),
+    )
+  })
+  notification.on('close', forget)
+  notification.on('failed', (_event, error) => {
+    forget()
+    captureDesktopError(new Error(String(error)), 'price-notification')
+  })
+  notification.show()
+}
+
+// Asks the embedded server for drops and restocks since the window went
+// away. A locked app or a stopped server answers nothing; the next poll
+// tries again with the same cursor.
+async function pollPriceNotifications() {
+  if (priceNotifyRunning) return
+  if (!isMainWindowAway()) {
+    priceNotifyCursor = null
+    return
+  }
+  if (
+    !priceNotificationsEnabled ||
+    !serverOrigin ||
+    !Notification.isSupported()
+  ) {
+    return
+  }
+  startPriceNotifyWindow()
+  priceNotifyRunning = true
+  try {
+    const cookies = await session.defaultSession.cookies.get({
+      url: serverOrigin,
+      name: 'bladevault_unlock',
+    })
+    const url = new URL('/api/price-notifications/desktop', serverOrigin)
+    url.searchParams.set('since', priceNotifyCursor)
+    const response = await fetch(url, {
+      cache: 'no-store',
+      headers: {
+        Cookie: cookies.map(({ name, value }) => `${name}=${value}`).join('; '),
+      },
+    })
+    if (!response.ok) return
+    const data = await response.json()
+    const alerts = Array.isArray(data?.alerts) ? data.alerts : []
+    // The window may have come back while the request ran.
+    if (!isMainWindowAway() || !priceNotificationsEnabled) return
+    priceNotifyCursor = priceNotifier.nextCursor(priceNotifyCursor, alerts)
+    for (const item of priceNotifier.planDesktopNotifications(alerts)) {
+      showPriceNotification(item)
+    }
+  } catch (error) {
+    captureDesktopError(error, 'price-notification-poll')
+  } finally {
+    priceNotifyRunning = false
   }
 }
 
@@ -1688,6 +1785,23 @@ ipcMain.handle('bladevault:set-background-mode', (_event, enabled) => {
   syncTray()
   return backgroundModeEnabled
 })
+ipcMain.handle('bladevault:get-price-notifications', () => ({
+  enabled: priceNotificationsEnabled,
+  supported: Notification.isSupported(),
+}))
+ipcMain.handle('bladevault:set-price-notifications', (_event, enabled) => {
+  if (typeof enabled !== 'boolean') {
+    throw new Error('Price notification choice must be true or false.')
+  }
+  if (!SMOKE_TEST_MODE) {
+    priceNotifier.writePriceNotifications(app.getPath('userData'), enabled)
+  }
+  priceNotificationsEnabled = enabled
+  return {
+    enabled: priceNotificationsEnabled,
+    supported: Notification.isSupported(),
+  }
+})
 ipcMain.handle('bladevault:restart-app', () => {
   app.relaunch()
   app.quit()
@@ -1735,6 +1849,10 @@ async function createMainWindow(pathname) {
     closeScrapeBrowser()
     window.hide()
   })
+  // Price notifications cover changes from the moment the window goes away.
+  window.on('hide', startPriceNotifyWindow)
+  window.on('minimize', startPriceNotifyWindow)
+  window.on('closed', startPriceNotifyWindow)
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
@@ -1817,6 +1935,11 @@ app
     }
 
     syncTray()
+    if (!SMOKE_TEST_MODE) {
+      setInterval(() => {
+        void pollPriceNotifications()
+      }, priceNotifier.PRICE_NOTIFY_POLL_MS)
+    }
 
     const runInitialUpdateFlow = () => {
       if (SKIP_UPDATE_CHECK) {

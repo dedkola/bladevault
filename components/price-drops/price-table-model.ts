@@ -64,7 +64,7 @@ export const SECTION_FILTER: Record<
   oos: (source) => source.result === 'out_of_stock',
   below_paid: isBelowPaid,
   attention: (source) =>
-    source.result === 'attention' || source.result === 'pending',
+    source.result === 'attention' || source.retireHint !== null,
   recent: (source) => Boolean(source.lastCheckedAt),
 }
 

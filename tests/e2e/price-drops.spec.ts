@@ -31,9 +31,15 @@ test('shows monitored knives, their sources and the Market tab', async ({
   await page.goto('/price-drops')
   const status = page.locator('[data-price-status]')
   await expect(status).toContainText('0/1 checked in 24 h')
+  // A never-checked source waits for its first check; it is not a problem.
+  await expect(
+    status.getByRole('region', { name: 'Waiting for first check' }),
+  ).toBeVisible()
   await expect(
     status.getByRole('region', { name: 'Needs attention' }),
-  ).toBeVisible()
+  ).toHaveCount(0)
+  await expect(status).toContainText('0 need attention')
+  await expect(status).toContainText('1 waiting for first check')
   const table = page.locator('[data-price-table]')
   await expect(table.getByRole('tab', { name: /^All/ })).toHaveAttribute(
     'aria-selected',
@@ -45,6 +51,12 @@ test('shows monitored knives, their sources and the Market tab', async ({
     page.getByRole('tabpanel').getByText('No price or stock changes', {
       exact: false,
     }),
+  ).toBeVisible()
+  await page.getByRole('tab', { name: 'Needs attention' }).click()
+  await expect(
+    page
+      .getByRole('tabpanel')
+      .getByText('Every store page was read on its last check.'),
   ).toBeVisible()
   await page.getByRole('tab', { name: 'Recently monitored' }).click()
   await expect(
