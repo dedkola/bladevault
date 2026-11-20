@@ -37,6 +37,11 @@ import {
   type PriceNotificationSettings,
 } from '@/lib/price-monitor/notifications'
 import {
+  readMissingPageSourceIds,
+  readOutOfStockSince,
+  retireHintFor,
+} from '@/lib/price-monitor/insights'
+import {
   readPriceNotifications,
   writePriceNotificationChanges,
 } from '@/lib/price-monitor/notification-store'
@@ -269,6 +274,25 @@ export function buildPriceWatchView(
   const mode = readWatchMode(database, knife.id)
   const sources = readActiveSources(database, knife.id)
   const found = readDiscoveredSourceIds(database, knife.id)
+  const outOfStockSince = readOutOfStockSince(database)
+  const missingPages = readMissingPageSourceIds(database)
+  const now = Date.now()
+  const withHints = (source: SourceRow): PriceSourceView => {
+    const since =
+      source.last_availability === 'out_of_stock'
+        ? (outOfStockSince.get(source.id) ?? null)
+        : null
+    return {
+      ...toSourceView(source),
+      outOfStockSince: since,
+      retireHint: retireHintFor({
+        outOfStockSince: since,
+        pageGone: missingPages.has(source.id),
+        now,
+      }),
+      ...(found.has(source.id) ? { foundByAi: true } : {}),
+    }
+  }
   return {
     knifeId: knife.id,
     mode,
@@ -278,11 +302,7 @@ export function buildPriceWatchView(
       sources.filter((source) => source.enabled === 1).length,
       settings,
     ),
-    sources: sources.map((source) =>
-      found.has(source.id)
-        ? { ...toSourceView(source), foundByAi: true }
-        : toSourceView(source),
-    ),
+    sources: sources.map(withHints),
     maxSources: MAX_PRICE_SOURCES_PER_KNIFE,
     // Check now waits as priority 2 until its store's next free slot.
     queuedSourceIds: sources
@@ -948,6 +968,7 @@ type LaneRow = {
   failure_streak: number
   last_request_at: string | null
   strategy: HostStrategy
+  paused_at: string | null
 }
 
 const parseTime = (value: string | null): number | null => {
@@ -961,7 +982,10 @@ const toIso = (value: number | null): string | null =>
 
 export function readLaneStates(
   database: Database.Database,
-): Map<string, LaneState & { strategy: HostStrategy }> {
+): Map<
+  string,
+  LaneState & { strategy: HostStrategy; pausedAt: number | null }
+> {
   const rows = database
     .prepare('SELECT * FROM price_host_state')
     .all() as LaneRow[]
@@ -979,6 +1003,7 @@ export function readLaneStates(
         failureStreak: row.failure_streak,
         lastRequestAt: parseTime(row.last_request_at),
         strategy: row.strategy,
+        pausedAt: parseTime(row.paused_at),
       },
     ]),
   )
@@ -1031,7 +1056,13 @@ export type CandidateRow = {
   priority: number
   nextCheckAt: number | null
   /** Enabled source of a knife that scheduled monitoring covers. */
+  covered: boolean
+  /** The user paused the whole store in Settings → Stores. */
+  storePaused: boolean
+  /** Covered and its store not paused: scheduled checks run. */
   scheduled: boolean
+  /** Start of the current out-of-stock run (epoch ms), or null. */
+  outOfStockSince: number | null
 }
 
 /**
@@ -1045,10 +1076,12 @@ export function readQueueCandidates(
   const rows = database
     .prepare(
       `SELECT s.id, s.knife_id, s.lane_key, s.priority, s.next_check_at,
-              s.enabled, k.specs, k.sold, COALESCE(w.mode, 'auto') AS mode
+              s.enabled, k.specs, k.sold, COALESCE(w.mode, 'auto') AS mode,
+              h.paused_at IS NOT NULL AS store_paused
        FROM price_sources s
        JOIN knives k ON k.id = s.knife_id
        LEFT JOIN price_watch w ON w.knife_id = s.knife_id
+       LEFT JOIN price_host_state h ON h.lane_key = s.lane_key
        WHERE s.removed_at IS NULL AND (s.priority >= 2 OR s.enabled = 1)`,
     )
     .all() as Array<{
@@ -1061,7 +1094,9 @@ export function readQueueCandidates(
     specs: string
     sold: number
     mode: PriceWatchMode
+    store_paused: number
   }>
+  const outOfStockSince = readOutOfStockSince(database)
   const eligible = new Map<string, boolean>()
   return rows.map((row) => {
     let monitored = eligible.get(row.knife_id)
@@ -1080,13 +1115,18 @@ export function readQueueCandidates(
       ).monitored
       eligible.set(row.knife_id, monitored)
     }
+    const covered = monitored && row.enabled === 1
+    const storePaused = row.store_paused === 1
     return {
       sourceId: row.id,
       knifeId: row.knife_id,
       laneKey: row.lane_key,
       priority: row.priority,
       nextCheckAt: parseTime(row.next_check_at),
-      scheduled: monitored && row.enabled === 1,
+      covered,
+      storePaused,
+      scheduled: covered && !storePaused,
+      outOfStockSince: parseTime(outOfStockSince.get(row.id) ?? null),
     }
   })
 }
@@ -1329,4 +1369,86 @@ export async function markScheduledSourcesDue(
     })()
   })
   return ids.length
+}
+
+// ------------------------------------------------------- store actions
+
+/** Throws a 404 PriceWatchError unless some source or lane state uses it. */
+export function assertStoreKnown(
+  laneKey: string,
+  database: Database.Database = db(),
+) {
+  const known = database
+    .prepare(
+      `SELECT 1 FROM price_sources WHERE lane_key = ? AND removed_at IS NULL
+       UNION SELECT 1 FROM price_host_state WHERE lane_key = ? LIMIT 1`,
+    )
+    .get(laneKey, laneKey)
+  if (!known) throw new PriceWatchError('Store not found', 404)
+}
+
+/**
+ * Resume now: ends a store's bot-check cooldown so its next check may start
+ * right away. The breaker's escalation is kept, so a store that blocks
+ * again pauses for longer.
+ */
+export async function resumeStoreNow(
+  laneKey: string,
+  now = Date.now(),
+): Promise<void> {
+  await withVaultWrite(async () => {
+    const database = db()
+    assertStoreKnown(laneKey, database)
+    const iso = new Date(now).toISOString()
+    database
+      .prepare(
+        `UPDATE price_host_state
+         SET circuit = 'closed', cooldown_until = NULL, ready_at = ?,
+             failure_streak = 0, updated_at = ?
+         WHERE lane_key = ?`,
+      )
+      .run(iso, iso, laneKey)
+  })
+}
+
+/**
+ * Pauses or resumes scheduled checks at a whole store. Check now on a knife
+ * still works while a store is paused.
+ */
+export async function setStorePaused(
+  laneKey: string,
+  paused: boolean,
+  now = Date.now(),
+): Promise<void> {
+  await withVaultWrite(async () => {
+    const database = db()
+    assertStoreKnown(laneKey, database)
+    const iso = new Date(now).toISOString()
+    database
+      .prepare(
+        `INSERT INTO price_host_state (lane_key, min_gap_ms, ready_at, paused_at,
+                                       updated_at)
+         VALUES (?, 0, ?, ?, ?)
+         ON CONFLICT(lane_key) DO UPDATE SET
+           paused_at = excluded.paused_at, updated_at = excluded.updated_at`,
+      )
+      .run(laneKey, iso, paused ? iso : null, iso)
+  })
+}
+
+/**
+ * Check this store now: every source scheduled monitoring covers at the
+ * store (also while the store is paused) becomes a Check now request; its
+ * minimum gap and bot-check cooldown still apply. Returns the queued ids.
+ */
+export async function requestStoreChecks(
+  laneKey: string,
+  settings: EligibilitySettings,
+): Promise<number[]> {
+  const database = db()
+  assertStoreKnown(laneKey, database)
+  const ids = readQueueCandidates(database, settings)
+    .filter((candidate) => candidate.laneKey === laneKey && candidate.covered)
+    .map((candidate) => candidate.sourceId)
+  return ids.length ? requestSourceChecks(ids) : []
 }

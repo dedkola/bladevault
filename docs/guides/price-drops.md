@@ -41,7 +41,7 @@ The page starts with counts of monitored knives, recent price drops and increase
 - **Out of stock** — sources that currently show the knife as unavailable.
 - **Recently monitored** — the latest checks, including failures and blocked stores.
 
-Select a knife to see its best current price, price chart, and sources in the side panel. **Check all now** queues every monitored source; **Check now** on a source or knife checks just that one.
+Select a knife to see its best current price, price chart, and sources in the side panel. **Check all now** queues every monitored source and shows its progress, such as "34 of 221 checked", until the queue is done; **Check now** on a source or knife checks just that one.
 
 ## Check one knife's market
 
@@ -83,6 +83,8 @@ Checks that fail, are blocked by a bot check (CAPTCHA), or find no price, and st
 
 Select the **Blocked**, **Failed**, or **Unavailable** mark in the table (or the window button next to a store in the knife's sources) to open the store page in a visible browser window. Pass the bot check, or settle a cookie banner, age prompt, or region choice yourself, then select **Done**. BladeVault keeps that window's cookies for the store, so later checks get through, and checks the price again right away. The window opens on the computer that runs BladeVault, so this works with the desktop app or a local server, not with a server in Docker.
 
+A store page that has been out of stock for 60 days or more, or whose page is gone (the store answers "not found"), also shows under **Needs attention**, and in the knife's sources, with a hint that the listing may be discontinued. Select **Pause** to stop checking it, or **Add another store** to add a different store for the knife. A page that is not found three checks in a row is paused automatically.
+
 ## How checks are scheduled
 
 Open **Settings → Price monitoring** to control automatic checks:
@@ -91,10 +93,16 @@ Open **Settings → Price monitoring** to control automatic checks:
 - **Skip sold knives** leaves sold knives out in Auto mode.
 - **How often** — **Once daily**, **Twice daily**, **Every 12 hours**, or **Custom** with an interval in hours.
 - **Only check between** limits checks to set hours, in the server's time zone.
+- **Check long out-of-stock pages once a day** (on by default) checks a page that has been out of stock for two weeks or more at most once a day, so a restock still shows within a day while stores get fewer requests. **Check now** and **Check all now** still check it right away.
 
 BladeVault never hits one store with several requests at once. Each store is checked one product at a time, and its checks are spread evenly over the chosen interval; different stores are checked in parallel. A product that has never been checked does not wait for its turn in the spread: it gets its first reading as soon as the store's minimum pause allows. **Pacing** sets the minimum pause between two checks at one store, with a separate, longer pause shared by all Amazon marketplaces.
 
-The pace adapts by itself: a store that answers slowly, rate-limits, or shows a bot check is slowed down or paused, and speeds up again after successful checks. The **Stores** table shows each store's current pace, how long a full pass takes, and any pause.
+The pace adapts by itself: a store that answers slowly, rate-limits, or shows a bot check is slowed down or paused, and speeds up again after successful checks. The **Stores** table shows each store's current pace, how many of its products are checked only once a day because they have been out of stock for a long time, how long a full pass takes, and any pause. Each store has these actions:
+
+- **Resume now** appears while a store is paused after a bot check or repeated errors and lets its next check start right away. The store may block again; if it does, it pauses for longer.
+- **Check now** (the refresh button) queues every product at that store. They run at the store's minimum pause, not spread over the day.
+- **Pause** stops scheduled checks at the whole store until you select **Resume**. Check now on a knife still works there.
+- **Reset saved cookies** (the cookie button) forgets the cookies BladeVault kept for the store, for example when a stale session keeps getting blocked. A bot check you solved there may have to be solved again.
 
 Prices are compared only within one currency. Implausible jumps are confirmed with a second reading before they are recorded.
 

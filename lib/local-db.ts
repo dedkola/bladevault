@@ -1018,6 +1018,9 @@ function migratePriceMonitoringSchema(
   // Schema 12: AI quality control. 'confirmed' or 'unconfirmed' when AI
   // checked a reading against its page (price-monitor/verify).
   addColumn('price_snapshots', 'ai_review', 'TEXT')
+  // A store the user paused in Settings → Stores (no scheduled
+  // checks there until resumed; Check now still works).
+  addColumn('price_host_state', 'paused_at', 'TEXT')
 }
 
 function normalizeKnifeRows(database: Database.Database) {

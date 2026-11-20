@@ -1,8 +1,14 @@
+import fs from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as knivesRoute from '@/app/api/knives/route'
 import * as priceWatchRoute from '@/app/api/knives/[id]/price-watch/route'
+import * as storesRoute from '@/app/api/prices/stores/route'
 import { getLocalDb } from '@/lib/local-db'
 import { recordAdvice } from '@/lib/price-monitor/advice-store'
+import {
+  browserStatePath,
+  saveBrowserState,
+} from '@/lib/price-monitor/browser-state'
 import {
   nextDiscoveryKnife,
   type DiscoverySummary,
@@ -484,5 +490,151 @@ describe('price monitor worker', () => {
       )
       .get() as { last_request_at: string }
     expect(Date.parse(lane.last_request_at)).toBe(now())
+  })
+})
+
+async function storeAction(laneKey: string, action: string) {
+  const response = await storesRoute.POST(
+    json('http://localhost/api/prices/stores', 'POST', { laneKey, action }),
+  )
+  return {
+    status: response.status,
+    body: (await response.json()) as { queued?: number; error?: string },
+  }
+}
+
+describe('store actions', () => {
+  it('pauses a whole store; Check this store now still runs it', async () => {
+    await knife(['https://shop.example/a', 'https://shop.example/b'])
+    await knife(['https://other.example/c'])
+    const ids = sourceIds()
+    expect((await storeAction('shop.example', 'pause')).status).toBe(200)
+    const { worker, pending, finish } = harness()
+    worker.start({ scheduled: true })
+    await worker.pass()
+    expect(lanesOf(pending, ids)).toEqual(['other.example'])
+    await finish()
+
+    // A paused store stays listed with its products, so it can be resumed.
+    const lane = buildQueueSnapshot().lanes.find(
+      (entry) => entry.laneKey === 'shop.example',
+    )
+    expect(lane).toMatchObject({ paused: true, sources: 2 })
+
+    const checked = await storeAction('shop.example', 'check')
+    expect(checked).toMatchObject({ status: 200, body: { queued: 2 } })
+    await worker.pass()
+    expect(pending.map((check) => check.trigger)).toEqual(['manual'])
+    await finish()
+
+    expect((await storeAction('shop.example', 'unpause')).status).toBe(200)
+    expect(
+      buildQueueSnapshot().lanes.find(
+        (entry) => entry.laneKey === 'shop.example',
+      )?.paused,
+    ).toBe(false)
+  })
+
+  it('resumes a blocked store now and resets its saved cookies', async () => {
+    await knife(['https://shop.example/a', 'https://shop.example/b'])
+    const { worker, pending, finish, now, advance } = harness()
+    worker.start({ scheduled: true })
+    await worker.pass()
+    await finish(0, { outcome: 'blocked', laneOutcome: 'blocked' })
+    expect(buildQueueSnapshot(now()).lanes[0].circuit).toBe('open')
+
+    expect((await storeAction('shop.example', 'resume')).status).toBe(200)
+    // The route uses the real clock; move the worker's clock up to it.
+    advance(Date.now() - now() + 1000)
+    await worker.pass()
+    // A normal scheduled check, not a probe: the cooldown is over.
+    expect(pending.map((check) => check.trigger)).toEqual(['scheduled'])
+    const openCount = (
+      getLocalDb()
+        .prepare(
+          "SELECT open_count FROM price_host_state WHERE lane_key = 'shop.example'",
+        )
+        .get() as { open_count: number }
+    ).open_count
+    expect(openCount).toBe(1)
+
+    await saveBrowserState('shop.example', { cookies: [], origins: [] })
+    expect(fs.existsSync(browserStatePath('shop.example'))).toBe(true)
+    expect((await storeAction('shop.example', 'reset_cookies')).status).toBe(
+      200,
+    )
+    expect(fs.existsSync(browserStatePath('shop.example'))).toBe(false)
+  })
+
+  it('rejects unknown stores and actions', async () => {
+    expect((await storeAction('nowhere.example', 'pause')).status).toBe(404)
+    expect((await storeAction('nowhere.example', 'explode')).status).toBe(400)
+  })
+})
+
+describe('queue snapshot', () => {
+  it('reports waiting checks and Check all progress', async () => {
+    await knife(['https://shop.example/a', 'https://shop.example/b'])
+    const start = new Date().toISOString()
+    let snapshot = buildQueueSnapshot(Date.now(), { since: start })
+    expect(snapshot).toMatchObject({ waiting: 2, checkedSince: 0 })
+    getLocalDb()
+      .prepare(
+        `UPDATE price_sources SET last_checked_at = ?, priority = 0,
+           next_check_at = ? WHERE url = 'https://shop.example/a'`,
+      )
+      .run(
+        new Date(Date.parse(start) + 1000).toISOString(),
+        new Date(Date.now() + 60 * MIN).toISOString(),
+      )
+    snapshot = buildQueueSnapshot(Date.now(), { since: start })
+    expect(snapshot).toMatchObject({ waiting: 1, checkedSince: 1 })
+    expect(buildQueueSnapshot().checkedSince).toBeNull()
+  })
+
+  it('counts pages out of stock for two weeks as slowed and spreads the rest', async () => {
+    await knife([
+      'https://shop.example/a',
+      'https://shop.example/b',
+      'https://shop.example/c',
+      'https://shop.example/d',
+    ])
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        schedule: {
+          ...DEFAULT_PRICE_MONITORING.schedule,
+          mode: 'custom',
+          intervalHours: 6,
+        },
+      },
+    })
+    const gapBefore = buildQueueSnapshot().lanes[0].gapMs
+    const ids = sourceIds()
+    const longAgo = new Date(Date.now() - 20 * 24 * 60 * MIN).toISOString()
+    for (const url of ['https://shop.example/a', 'https://shop.example/b']) {
+      const id = ids.get(url)!
+      const row = getLocalDb()
+        .prepare('SELECT knife_id FROM price_sources WHERE id = ?')
+        .get(id) as { knife_id: string }
+      getLocalDb()
+        .prepare(
+          `INSERT INTO price_snapshots
+             (knife_id, source_id, availability, extraction_status,
+              extraction_method, observed_at, last_seen_at)
+           VALUES (?, ?, 'out_of_stock', 'no_price', 'jsonld', ?, ?)`,
+        )
+        .run(row.knife_id, id, longAgo, new Date().toISOString())
+      getLocalDb()
+        .prepare(
+          "UPDATE price_sources SET last_availability = 'out_of_stock' WHERE id = ?",
+        )
+        .run(id)
+    }
+    const lane = buildQueueSnapshot().lanes[0]
+    expect(lane).toMatchObject({ sources: 4, slowed: 2 })
+    // 6 h × 0.8 over 2.5 checks instead of 4.
+    expect(gapBefore).toBe((6 * 60 * MIN * 0.8) / 4)
+    expect(lane.gapMs).toBe((6 * 60 * MIN * 0.8) / 2.5)
   })
 })

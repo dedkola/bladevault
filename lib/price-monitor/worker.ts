@@ -48,6 +48,7 @@ import {
 } from '@/lib/price-monitor/queue'
 import {
   activeWindowMs,
+  checkLoad,
   effectiveActiveHours,
   frequencyMs,
   isWithinActiveHours,
@@ -146,6 +147,7 @@ type PassContext = {
   generation: string
   intervalMs: number
   windowMs: number
+  /** Scheduled checks per store and window (long out-of-stock count less). */
   laneCounts: Map<string, number>
   /**
    * Scheduled sources per store waiting for an early check: never checked,
@@ -189,6 +191,32 @@ function scheduledCounts(
     if (candidate.scheduled && include(candidate))
       counts.set(candidate.laneKey, (counts.get(candidate.laneKey) ?? 0) + 1)
   return counts
+}
+
+/**
+ * Scheduled checks per store in one frequency window: one per source, less
+ * for a page out of stock long enough to be checked only once a day.
+ */
+function scheduledLoad(
+  candidates: readonly CandidateRow[],
+  schedule: PriceMonitoringSettings['schedule'],
+  now: number,
+) {
+  const intervalMs = frequencyMs(schedule)
+  const load = new Map<string, number>()
+  for (const candidate of candidates)
+    if (candidate.scheduled)
+      load.set(
+        candidate.laneKey,
+        (load.get(candidate.laneKey) ?? 0) +
+          checkLoad({
+            intervalMs,
+            outOfStockSince: candidate.outOfStockSince,
+            now,
+            slowOutOfStock: schedule.slowOutOfStock,
+          }),
+      )
+  return load
 }
 
 /**
@@ -363,7 +391,7 @@ export class PriceMonitorWorker {
         generation: access.generation,
         intervalMs: frequencyMs(settings.schedule),
         windowMs: activeWindowMs(settings.schedule),
-        laneCounts: scheduledCounts(candidates),
+        laneCounts: scheduledLoad(candidates, settings.schedule, now),
         firstReadings: scheduledCounts(
           candidates,
           (candidate) => candidate.priority === 1,
@@ -638,8 +666,12 @@ export async function requestPriceChecks(
 
 export type QueueLaneView = {
   laneKey: string
-  /** Sources covered by scheduled monitoring. */
+  /** Sources covered by scheduled monitoring (also while the store is paused). */
   sources: number
+  /** Of those, pages out of stock long enough to be checked once a day. */
+  slowed: number
+  /** The user paused scheduled checks at this store. */
+  paused: boolean
   /** Check now requests waiting. */
   manual: number
   minGapMs: number
@@ -670,6 +702,10 @@ export type QueueSnapshot = {
   activeHours: ActiveHours | null
   timeZone: string
   frequencyMs: number
+  /** Checks waiting to run: Check now requests and due scheduled checks. */
+  waiting: number
+  /** Sources checked since `since` (Check all progress), when asked. */
+  checkedSince: number | null
   inFlight: Array<{
     sourceId: number
     laneKey: string
@@ -683,20 +719,53 @@ const iso = (value: number | null) =>
   value === null ? null : new Date(value).toISOString()
 
 /** Queue state for the UI, read from SQLite plus this process's checks. */
-export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
+export function buildQueueSnapshot(
+  now = Date.now(),
+  options: { since?: string | null } = {},
+): QueueSnapshot {
   const worker = getPriceMonitorWorker()
   const database = getLocalDb()
   const settings = getSettings().priceMonitoring
   const hours = effectiveActiveHours(settings.schedule)
   const candidates = readQueueCandidates(database, settings)
   const counts = scheduledCounts(candidates)
+  const load = scheduledLoad(candidates, settings.schedule, now)
+  const covered = new Map<string, number>()
+  const slowed = new Map<string, number>()
   const manual = new Map<string, number>()
-  for (const candidate of candidates)
+  const intervalMs = frequencyMs(settings.schedule)
+  let waiting = 0
+  for (const candidate of candidates) {
+    const { laneKey } = candidate
+    if (candidate.covered) {
+      covered.set(laneKey, (covered.get(laneKey) ?? 0) + 1)
+      if (
+        checkLoad({
+          intervalMs,
+          outOfStockSince: candidate.outOfStockSince,
+          now,
+          slowOutOfStock: settings.schedule.slowOutOfStock,
+        }) < 1
+      )
+        slowed.set(laneKey, (slowed.get(laneKey) ?? 0) + 1)
+    }
     if (candidate.priority >= 2)
-      manual.set(candidate.laneKey, (manual.get(candidate.laneKey) ?? 0) + 1)
+      manual.set(laneKey, (manual.get(laneKey) ?? 0) + 1)
+    if (
+      candidate.priority >= 2 ||
+      (candidate.scheduled &&
+        (candidate.nextCheckAt === null || candidate.nextCheckAt <= now))
+    )
+      waiting += 1
+  }
   const stored = readLaneStates(database)
   const advice = readActiveAdvice(database, now)
-  const laneKeys = new Set([...counts.keys(), ...manual.keys()])
+  const pausedLanes = new Set(
+    candidates
+      .filter((candidate) => candidate.storePaused && candidate.covered)
+      .map((candidate) => candidate.laneKey),
+  )
+  const laneKeys = new Set([...counts.keys(), ...manual.keys(), ...pausedLanes])
   const windowMs = activeWindowMs(settings.schedule)
   const checkingLanes = new Set(
     (
@@ -708,6 +777,17 @@ export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
         .all() as Array<{ lane_key: string }>
     ).map((row) => row.lane_key),
   )
+  const since = options.since ? Date.parse(options.since) : NaN
+  const checkedSince = Number.isFinite(since)
+    ? (
+        database
+          .prepare(
+            `SELECT COUNT(*) AS n FROM price_sources
+             WHERE removed_at IS NULL AND last_checked_at >= ?`,
+          )
+          .get(new Date(since).toISOString()) as { n: number }
+      ).n
+    : null
 
   const lanes = [...laneKeys].sort().map((laneKey): QueueLaneView => {
     const raw = stored.get(laneKey)
@@ -718,17 +798,19 @@ export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
       laneAdvice,
       now,
     )
-    const sources = counts.get(laneKey) ?? 0
+    const laneLoad = load.get(laneKey) ?? 0
     const gapMs = laneGapMs({
       minGapMs: lane.minGapMs,
       floorMs: laneFloorMs(laneKey, settings.pacing),
       activeWindowMs: windowMs,
-      sourceCount: sources,
+      sourceCount: laneLoad,
     })
     const availability = laneAvailability(lane, now)
     return {
       laneKey,
-      sources,
+      sources: covered.get(laneKey) ?? 0,
+      slowed: slowed.get(laneKey) ?? 0,
+      paused: pausedLanes.has(laneKey),
       manual: manual.get(laneKey) ?? 0,
       minGapMs: lane.minGapMs,
       gapMs,
@@ -737,7 +819,7 @@ export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
       cooldownUntil:
         availability.state === 'cooling' ? iso(availability.until) : null,
       strategy: raw?.strategy ?? 'auto',
-      fullPassMs: fullPassMs(gapMs, sources),
+      fullPassMs: fullPassMs(gapMs, laneLoad),
       lastRequestAt: iso(lane.lastRequestAt),
       checking:
         worker.inFlight.has(laneKey) ||
@@ -763,7 +845,9 @@ export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
       settings.enabled && isWithinActiveHours(hours, new Date(now)),
     activeHours: hours,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    frequencyMs: frequencyMs(settings.schedule),
+    frequencyMs: intervalMs,
+    waiting,
+    checkedSince,
     inFlight: [...worker.inFlight.values()].map((entry) => ({
       sourceId: entry.sourceId,
       laneKey: entry.laneKey,

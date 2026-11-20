@@ -34,7 +34,9 @@ import {
   shouldNotify,
   type PriceNotificationSettings,
 } from '@/lib/price-monitor/notifications'
+import { readOutOfStockSince } from '@/lib/price-monitor/insights'
 import { MONITOR_CURRENCY } from '@/lib/price-monitor/region'
+import { scheduledIntervalMs } from '@/lib/price-monitor/schedule'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
 import {
   parseRecipe,
@@ -838,7 +840,12 @@ export async function checkPriceSource(
     operation,
   )
 
-  const { notify, thresholds, ai: aiSettings } = getSettings().priceMonitoring
+  const {
+    notify,
+    thresholds,
+    ai: aiSettings,
+    schedule,
+  } = getSettings().priceMonitoring
   const base = {
     generation,
     sourceId: source.id,
@@ -881,7 +888,27 @@ export async function checkPriceSource(
       retryAfterMs: extra.retryAfterMs ?? null,
     }
   }
-  const nextOk = () => new Date(Date.now() + intervalMs).toISOString()
+  // A page out of stock for two weeks is checked at most once a day.
+  const nextOk = (observation?: RecordedObservation | null) => {
+    const now = Date.now()
+    const stillOut =
+      observation?.availability === 'out_of_stock' &&
+      source.last_availability === 'out_of_stock'
+    const since = stillOut
+      ? Date.parse(
+          readOutOfStockSince(database, source.id).get(source.id) ?? '',
+        )
+      : NaN
+    return new Date(
+      now +
+        scheduledIntervalMs({
+          intervalMs,
+          outOfStockSince: Number.isFinite(since) ? since : null,
+          now,
+          slowOutOfStock: schedule.slowOutOfStock,
+        }),
+    ).toISOString()
+  }
   let implausible = false
   let aiUsed = false
   let solverSteps: SolverLogStep[] | null = null
@@ -1136,7 +1163,7 @@ export async function checkPriceSource(
       needsReview: review.needsReview,
       errorCode: review.errorCode,
       errorMessage: review.message,
-      nextCheckAt: nextOk(),
+      nextCheckAt: nextOk(evaluated.observation),
     })
   } catch (error) {
     if (error instanceof Error && error.name === 'VaultAccessError') throw error
