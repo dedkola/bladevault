@@ -427,7 +427,7 @@ export function PriceMonitoringSettings({
         <SettingsRow
           inline
           label="Check prices automatically"
-          description="Knives with a stored purchase price are checked in the background, store by store and never two at once at the same store. Check now works either way."
+          description="Knives with a stored regular price are checked in the background, store by store and never two at once at the same store. Check now works either way."
         >
           <SettingsSwitch
             aria-label="Check prices automatically"

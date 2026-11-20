@@ -11,7 +11,7 @@
  * - An opposite event resolves it: an increase closes a drop and the other
  *   way round; back in stock closes out of stock and the other way round.
  * - Closed notifications are deleted after 90 days.
- * - Per-knife alert rules (mute, target price, below what I paid) and a
+ * - Per-knife alert rules (mute, target price, below regular price) and a
  *   source muted for some days only stop new notifications; an opposite
  *   event still resolves an open one.
  * - A snoozed notification stays hidden until its time, even when a repeat
@@ -93,7 +93,7 @@ export type PriceNotification = {
 
 /** What the Inbox shows next to a price message, read when it loads. */
 export type PriceNotificationContext = {
-  /** Purchase price in the event's currency, when comparable. */
+  /** Regular price in the event's currency, when comparable. */
   paidMinor: number | null
   /** Lowest trusted price this store has shown, in the event's currency. */
   lowestMinor: number | null
@@ -115,7 +115,7 @@ export type PriceAlertRules = {
   muted: boolean
   /** Drops notify only at or below this price (same currency only). */
   targetPrice: { minor: number; currency: string } | null
-  /** Drops notify only below the purchase price (when comparable). */
+  /** Drops notify only below the regular price (when comparable). */
   belowPaid: boolean
 }
 
@@ -128,7 +128,7 @@ export const NO_PRICE_ALERT_RULES: PriceAlertRules = {
 /** Everything the planner needs to apply alert rules to one event. */
 export type PriceAlertContext = {
   rules: PriceAlertRules
-  /** Purchase price in the event's currency, when comparable. */
+  /** Regular price in the event's currency, when comparable. */
   paidMinor: number | null
   /** The source is muted until then. */
   sourceMutedUntil: string | null
@@ -294,8 +294,8 @@ export function isPriceAlertMuted(
  * the knife's rules and the thresholds. For a drop:
  * - a target price in the same currency must be reached; crossing it
  *   notifies whatever the thresholds;
- * - with "only below what I paid", the new price must be under the
- *   purchase price (ignored when no comparable purchase price is stored);
+ * - with "only below regular price", the new price must be under the
+ *   regular price (ignored when no comparable regular price is stored);
  * - with `allTimeLow` on, a new lowest price for the source skips the
  *   percent threshold (the minimum amount still applies).
  */

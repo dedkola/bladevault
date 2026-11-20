@@ -5,7 +5,7 @@ import { fromMinorUnits } from '@/lib/price-monitor/money'
 
 /**
  * CSV export of price history. Rows come straight from the permanent
- * history tables; nothing here writes. The purchase price, notes and other
+ * history tables; nothing here writes. The regular price, notes and other
  * collection fields are left out on purpose: the file holds only what
  * stores published, so it can be shared without exposing the collection.
  */

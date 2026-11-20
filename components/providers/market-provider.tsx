@@ -35,7 +35,7 @@ type MarketContextValue = {
 const REFRESH_MS = 5 * 60_000
 /** Focus and tab switches refresh at most this often. */
 const FOCUS_REFRESH_MS = 60_000
-/** Knife edits can change eligibility and the purchase price compared. */
+/** Knife edits can change eligibility and the regular price compared. */
 const KNIFE_CHANGE_DELAY_MS = 600
 
 const MarketContext = createContext<MarketContextValue | null>(null)
@@ -109,8 +109,8 @@ export function MarketProvider({ children }: { children: React.ReactNode }) {
     }
   }, [available, refresh])
 
-  // Purchase price, sold state and product links decide what is monitored
-  // and what "below what I paid" compares with, so reload after edits.
+  // Regular price, sold state and product links decide what is monitored
+  // and what "below regular price" compares with, so reload after edits.
   const knifeSignature = useMemo(
     () =>
       knives

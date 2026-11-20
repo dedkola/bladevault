@@ -225,7 +225,7 @@ describe('price history CSV export', () => {
     expect(rows.at(-2)).toContain(',112,USD,')
   })
 
-  it('validates parameters and leaves out the purchase price', async () => {
+  it('validates parameters and leaves out the regular price', async () => {
     const raccoon = await createKnife(
       'Raccoon',
       'Vosteed',

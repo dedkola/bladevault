@@ -198,9 +198,9 @@ export type MonitoredSource = SourceSummary & {
   driftPct: number | null
   /** The price moved and came back to an earlier level in the window. */
   fluctuating: boolean
-  /** Purchase price in this source's currency, when comparable. */
+  /** Regular price in this source's currency, when comparable. */
   paidMinor: number | null
-  /** Currency of the stored purchase price, when it names one. */
+  /** Currency of the stored regular price, when it names one. */
   paidCurrency: string | null
   nextCheckAt: string | null
   /** When it came back in stock, while that is the latest stock change. */
@@ -513,7 +513,7 @@ export type KnifeSummary = {
   /** Lowest in-stock price; the most common currency among the sources. */
   bestPriceMinor: number | null
   currency: string | null
-  /** Purchase price in the same currency, when comparable. */
+  /** Regular price in the same currency, when comparable. */
   paidMinor: number | null
   outOfStock: boolean
   lastChange: ChangeEvent | null
@@ -1020,9 +1020,9 @@ export type KnifeHistoryStats = {
     url: string
     availability: Availability | null
   } | null
-  /** Purchase price in `currency`, when comparable. */
+  /** Regular price in `currency`, when comparable. */
   paidMinor: number | null
-  /** Best price now minus the purchase price, and that as a percentage. */
+  /** Best price now minus the regular price, and that as a percentage. */
   gapMinor: number | null
   gapPct: number | null
 }

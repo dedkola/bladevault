@@ -32,7 +32,7 @@ import {
 
 /**
  * The daily Inbox digest: once a day AI writes a short summary of price
- * monitoring from aggregated vault data (best deals against the purchase
+ * monitoring from aggregated vault data (best deals against the regular
  * price, the last 24 hours' drops and restocks, store pages that broke and
  * what AI fixed). Only knife names, store names and prices are sent: no
  * notes, photos, links or keys. Each day's digest replaces the previous one
@@ -55,9 +55,9 @@ export type DigestDeal = {
   knife: string
   store: string
   price: string
-  paid: string
-  /** How far below the purchase price, percent. */
-  belowPaidPct: number
+  regularPrice: string
+  /** How far below the regular price, percent. */
+  belowRegularPct: number
 }
 
 export type DigestData = {
@@ -160,13 +160,13 @@ export function readDigestData(
       knife: knifeLabel(row.brand, row.name),
       store: row.store_name,
       price: money(row.last_price_minor, currency),
-      paid: money(paidMinor, currency),
-      belowPaidPct:
+      regularPrice: money(paidMinor, currency),
+      belowRegularPct:
         Math.round(((paidMinor - row.last_price_minor) / paidMinor) * 1000) /
         10,
     })
   }
-  deals.sort((a, b) => b.belowPaidPct - a.belowPaidPct)
+  deals.sort((a, b) => b.belowRegularPct - a.belowRegularPct)
 
   const changes = database
     .prepare(
@@ -304,7 +304,7 @@ export const DIGEST_SCHEMA = {
 
 const SYSTEM_PROMPT = [
   "You write a short daily summary for the Inbox of a knife collector's price tracker.",
-  'The data covers the last 24 hours: current prices below what the collector paid (deals), price drops, restocks, store pages that need attention, and what AI did (prices it read when the page parsers could not, checks it worked through, readings it doubted).',
+  'The data covers the last 24 hours: current prices below the stored regular price (deals), price drops, restocks, store pages that need attention, and what AI did (prices it read when the page parsers could not, checks it worked through, readings it doubted).',
   'Answer with JSON only: {"title", "summary"}.',
   `title: at most 60 characters, naming the most useful news. summary: plain text, no markdown, at most 5 short sentences and ${DIGEST_SUMMARY_MAX - 200} characters.`,
   'Lead with what is worth acting on: a good deal or a notable drop, then restocks, then problems and what AI fixed. Skip empty topics.',

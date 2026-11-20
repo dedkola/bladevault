@@ -789,7 +789,7 @@ const MOBILE_SORTS: Array<{ value: string; label: string; sort: Sort }> = [
   },
   {
     value: 'paid-asc',
-    label: 'Furthest below paid',
+    label: 'Furthest below regular price',
     sort: { key: 'paid', dir: 'asc' },
   },
   {
@@ -1237,7 +1237,7 @@ export function PriceDropsView({
           <CardContent className="space-y-2 py-6 text-sm">
             <p className="font-medium">No knives are monitored yet.</p>
             <p className="text-muted-foreground">
-              Knives with a stored purchase price and a product link are checked
+              Knives with a stored regular price and a product link are checked
               automatically. Add a price to a knife, or open it in edit mode and
               choose Always monitor; you can add up to 10 store URLs per knife.
             </p>
@@ -1516,7 +1516,7 @@ export function PriceDropsView({
                           onSort={(key) => setSort(nextSort(sort, key))}
                         />
                         <SortHeader
-                          label="vs paid"
+                          label="vs regular"
                           sortKey="paid"
                           sort={sort}
                           onSort={(key) => setSort(nextSort(sort, key))}

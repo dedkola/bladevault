@@ -68,7 +68,7 @@ export function ChangePill({ event }: { event: ChangeEvent }) {
 
 /**
  * Stands in for a price comparison when the store shows another currency
- * than the purchase price ("UAH price"), so the blank reads as intended.
+ * than the regular price ("UAH price"), so the blank reads as intended.
  */
 export function CurrencyMismatch({
   currency,
@@ -79,7 +79,7 @@ export function CurrencyMismatch({
   paidCurrency: string
   className?: string
 }) {
-  const title = `This store shows prices in ${currency} and you paid in ${paidCurrency}, so they are not compared.`
+  const title = `This store shows prices in ${currency} and the regular price is in ${paidCurrency}, so they are not compared.`
   return (
     <span
       data-price-currency-mismatch

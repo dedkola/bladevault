@@ -42,7 +42,7 @@ import {
  * through the paced queue: one product at a time per store, with store gaps,
  * Retry-After, AI pacing advice and the circuit breaker all in force, so the
  * agent can reorder work but never speed a store up. It never sees or sends
- * URLs, keys, purchase prices or notes. In observe mode it only journals
+ * URLs, keys, regular prices or notes. In observe mode it only journals
  * what it would do.
  */
 const MINUTE_MS = 60 * 1000

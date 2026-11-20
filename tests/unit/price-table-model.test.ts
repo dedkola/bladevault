@@ -66,7 +66,7 @@ describe('price table model', () => {
     expect(SECTION_FILTER.changes(back)).toBe(true)
   })
 
-  it('compares with the purchase price in money and percent', () => {
+  it('compares with the regular price in money and percent', () => {
     expect(vsPaid({ priceMinor: 9000, paidMinor: 12000 })).toEqual({
       deltaMinor: -3000,
       pct: -25,

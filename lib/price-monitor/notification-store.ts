@@ -67,7 +67,7 @@ export function readPriceAlertRules(
   }
 }
 
-/** The knife's stored purchase price, parsed. */
+/** The knife's stored regular price, parsed. */
 export function readKnifePaid(
   database: Database.Database,
   knifeId: string,
@@ -85,7 +85,7 @@ export function readKnifePaid(
   return parseStoredPrice(price)
 }
 
-/** A purchase price in `currency`; one without a currency is taken as it. */
+/** A regular price in `currency`; one without a currency is taken as it. */
 function paidMinorIn(
   paid: { amount: number; currency: string } | null,
   currency: string | null,
@@ -114,7 +114,7 @@ function readLowestPrice(
 }
 
 /**
- * The alert rules, purchase price, source mute and previous lowest price
+ * The alert rules, regular price, source mute and previous lowest price
  * the planner needs for one source's events. `excludeSnapshotId` leaves the
  * reading being recorded out of the lowest price.
  */

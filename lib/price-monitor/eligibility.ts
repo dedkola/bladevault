@@ -37,7 +37,7 @@ export const DEFAULT_ELIGIBILITY_SETTINGS: EligibilitySettings = {
  * Whether scheduled monitoring covers a knife.
  * - off: never.
  * - on: whenever it has an enabled source.
- * - auto: when its stored purchase price is above 0, it is not sold (unless
+ * - auto: when its stored regular price is above 0, it is not sold (unless
  *   the setting allows sold knives), and it has an enabled source.
  */
 export function getEligibility(
