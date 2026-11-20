@@ -1,5 +1,10 @@
 'use client'
 
+import {
+  formatNavCount,
+  priceDropsCountLabel,
+  usePriceDropsUnread,
+} from '@/components/price-drops/price-drops-nav-count'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -56,6 +61,7 @@ export function ShelfShell({ children }: { children: React.ReactNode }) {
   const [isImportOpen, setIsImportOpen] = useState(false)
   const isAll = pathname === '/collection' && params.get('all') === '1'
   const compareCount = active?.ids.length ?? 0
+  const priceUnread = usePriceDropsUnread()
 
   useEffect(() => {
     const open = () => setIsPaletteOpen(true)
@@ -134,6 +140,16 @@ export function ShelfShell({ children }: { children: React.ReactNode }) {
                       aria-current={selected ? 'page' : undefined}
                     >
                       {label}
+                      {href === '/price-drops' && priceUnread > 0 && (
+                        <small data-price-drops-count>
+                          <span aria-hidden="true">
+                            {formatNavCount(priceUnread)}
+                          </span>
+                          <span className="sr-only">
+                            {priceDropsCountLabel(priceUnread)}
+                          </span>
+                        </small>
+                      )}
                       {href === '/compare' && compareCount > 0 && (
                         <small aria-label={`${compareCount} in comparison`}>
                           {compareCount}

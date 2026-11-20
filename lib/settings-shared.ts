@@ -454,6 +454,11 @@ export type PriceMonitoringSettings = {
     intervalHours: number
     /** Null: around the clock (Twice daily defaults to 8–22). */
     activeHours: ActiveHours | null
+    /**
+     * Pages out of stock for two weeks or more are checked at most once a
+     * day, so a restock is still caught within a day.
+     */
+    slowOutOfStock: boolean
   }
   /** Per-store limits; different stores are checked in parallel. */
   pacing: {
@@ -616,7 +621,12 @@ export const PRICE_MONITORING_LIMITS = {
 export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
   enabled: true,
   skipSoldKnives: true,
-  schedule: { mode: 'daily', intervalHours: 24, activeHours: null },
+  schedule: {
+    mode: 'daily',
+    intervalHours: 24,
+    activeHours: null,
+    slowOutOfStock: true,
+  },
   pacing: { minGapSeconds: 60, amazonMinGapSeconds: 300 },
   notify: { drop: true, increase: false, outOfStock: false, backInStock: true },
   thresholds: { minPercent: 5, minAmount: 0, allTimeLow: false },
@@ -978,6 +988,10 @@ export function normalizePriceMonitoring(
               fallback.schedule.activeHours,
             )
           : fallback.schedule.activeHours,
+      slowOutOfStock:
+        typeof schedule.slowOutOfStock === 'boolean'
+          ? schedule.slowOutOfStock
+          : fallback.schedule.slowOutOfStock,
     },
     pacing: {
       minGapSeconds: boundedInteger(

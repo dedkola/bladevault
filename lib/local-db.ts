@@ -1026,6 +1026,9 @@ function migratePriceMonitoringSchema(
   addColumn('price_watch', 'notify_muted', 'INTEGER NOT NULL DEFAULT 0')
   addColumn('price_sources', 'notify_muted_until', 'TEXT')
   addColumn('price_notifications', 'snoozed_until', 'TEXT')
+  // A store the user paused in Settings → Stores (no scheduled
+  // checks there until resumed; Check now still works).
+  addColumn('price_host_state', 'paused_at', 'TEXT')
 }
 
 function normalizeKnifeRows(database: Database.Database) {

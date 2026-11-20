@@ -62,7 +62,17 @@ export type PriceSourceView = {
   notifyMutedUntil: string | null
   /** Added by Other stores: AI found and confirmed this product. */
   foundByAi?: boolean
+  /** Start of the current out-of-stock run, when out of stock. */
+  outOfStockSince?: string | null
+  /** The listing may be gone for good: suggest Pause or another store. */
+  retireHint?: RetireHint | null
 }
+
+/**
+ * Why a listing may be gone for good: out of stock for 60 days or more, or
+ * its page no longer exists (HTTP 404/410).
+ */
+export type RetireHint = 'long_out_of_stock' | 'page_gone'
 
 export type EligibilityReason =
   | 'monitored_auto'

@@ -76,3 +76,59 @@ export function msUntilActive(hours: ActiveHours | null, date: Date): number {
   if (start.getTime() <= date.getTime()) start.setDate(start.getDate() + 1)
   return start.getTime() - date.getTime()
 }
+
+const DAY_MS = 24 * HOUR_MS
+
+/** A page out of stock this long is checked at most once a day. */
+export const SLOW_OUT_OF_STOCK_AFTER_MS = 14 * DAY_MS
+/** The slower pace for long out-of-stock pages: a restock shows within a day. */
+export const SLOW_OUT_OF_STOCK_INTERVAL_MS = DAY_MS
+/** Out of stock this long: the listing may be discontinued (Pause hint). */
+export const STALE_OUT_OF_STOCK_MS = 60 * DAY_MS
+
+/**
+ * How long until a source's next scheduled check after a successful one:
+ * the schedule's frequency, or at least a day for a page that has been out
+ * of stock for two weeks or more (when `slowOutOfStock` is on). Check now
+ * and Check all ignore this; they make a source due right away.
+ */
+export function scheduledIntervalMs(input: {
+  intervalMs: number
+  /** Start of the current out-of-stock run (epoch ms), or null. */
+  outOfStockSince: number | null
+  now: number
+  slowOutOfStock: boolean
+}): number {
+  const { intervalMs, outOfStockSince, now } = input
+  if (
+    input.slowOutOfStock &&
+    outOfStockSince !== null &&
+    now - outOfStockSince >= SLOW_OUT_OF_STOCK_AFTER_MS
+  )
+    return Math.max(intervalMs, SLOW_OUT_OF_STOCK_INTERVAL_MS)
+  return intervalMs
+}
+
+/**
+ * A source's share of its store's checks per frequency window: 1 normally,
+ * less for a page checked less often, so the store's even spread is not
+ * computed for checks that never come.
+ */
+export function checkLoad(input: {
+  intervalMs: number
+  outOfStockSince: number | null
+  now: number
+  slowOutOfStock: boolean
+}): number {
+  return input.intervalMs / scheduledIntervalMs(input)
+}
+
+/** True when an out-of-stock page may be gone for good (suggest Pause). */
+export function isStaleOutOfStock(
+  outOfStockSince: number | null,
+  now: number,
+): boolean {
+  return (
+    outOfStockSince !== null && now - outOfStockSince >= STALE_OUT_OF_STOCK_MS
+  )
+}

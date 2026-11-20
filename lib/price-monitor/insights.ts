@@ -8,10 +8,12 @@ import {
   classifyPriceMoves,
   type PriceMoveClass,
 } from '@/lib/price-monitor/price-moves'
+import { isStaleOutOfStock } from '@/lib/price-monitor/schedule'
 import type {
   Availability,
   PriceSourceStatus,
   PriceWatchMode,
+  RetireHint,
 } from '@/lib/price-monitor/shared'
 
 /**
@@ -43,11 +45,84 @@ export function rangeStart(range: HistoryRange, now: number): number | null {
   return range === 'all' ? null : now - RANGE_DAYS[range] * DAY_MS
 }
 
+/**
+ * When each out-of-stock source went out of stock: the first reading of its
+ * current out-of-stock run. Readings AI did not confirm and readings without
+ * a stock status do not end a run. Keyed by source id, ISO times.
+ */
+export function readOutOfStockSince(
+  database: Database.Database,
+  sourceId: number | null = null,
+): Map<number, string> {
+  const rows = database
+    .prepare(
+      `SELECT s.id AS sourceId,
+              (SELECT MIN(p.observed_at) FROM price_snapshots p
+               WHERE p.source_id = s.id AND p.availability = 'out_of_stock'
+                 AND p.ai_review IS NOT 'unconfirmed'
+                 AND p.id > COALESCE((
+                   SELECT MAX(q.id) FROM price_snapshots q
+                   WHERE q.source_id = s.id
+                     AND q.availability NOT IN ('out_of_stock', 'unknown')
+                     AND q.ai_review IS NOT 'unconfirmed'), 0)) AS since
+       FROM price_sources s
+       WHERE s.removed_at IS NULL AND s.last_availability = 'out_of_stock'
+         AND (@sourceId IS NULL OR s.id = @sourceId)`,
+    )
+    .all({ sourceId }) as Array<{ sourceId: number; since: string | null }>
+  return new Map(
+    rows
+      .filter((row) => row.since !== null)
+      .map((row) => [row.sourceId, row.since!]),
+  )
+}
+
+/**
+ * Failing sources whose latest check found no page at all (HTTP 404 or 410):
+ * the listing is probably gone. The engine pauses them after three in a row.
+ */
+export function readMissingPageSourceIds(
+  database: Database.Database,
+): Set<number> {
+  const rows = database
+    .prepare(
+      `SELECT s.id AS sourceId,
+              (SELECT l.http_status FROM price_check_log l
+               WHERE l.source_id = s.id ORDER BY l.id DESC LIMIT 1) AS status
+       FROM price_sources s
+       WHERE s.removed_at IS NULL AND s.status = 'failed'`,
+    )
+    .all() as Array<{ sourceId: number; status: number | null }>
+  return new Set(
+    rows
+      .filter((row) => row.status === 404 || row.status === 410)
+      .map((row) => row.sourceId),
+  )
+}
+
+/** Pure: why the UI should suggest Pause or another store, if at all. */
+export function retireHintFor(input: {
+  outOfStockSince: string | null
+  pageGone: boolean
+  now: number
+}): RetireHint | null {
+  if (input.pageGone) return 'page_gone'
+  const since = input.outOfStockSince ? Date.parse(input.outOfStockSince) : NaN
+  return isStaleOutOfStock(Number.isFinite(since) ? since : null, input.now)
+    ? 'long_out_of_stock'
+    : null
+}
+
 export type KnifeRef = {
   id: string
   name: string
   brand: string
   image: string | null
+  /**
+   * Model number, steel and handle, so knives that share a name (three
+   * "Drop Bear" variants) can be told apart.
+   */
+  subtitle: string | null
 }
 
 export type ChangeEvent = {
@@ -79,7 +154,7 @@ export type SourceSummary = {
   availability: Availability | null
   lastCheckedAt: string | null
   lastError: string | null
-  /** When it went out of stock (out-of-stock list only). */
+  /** When it went out of stock (out-of-stock sources only). */
   since: string | null
 }
 
@@ -91,12 +166,16 @@ export type SourceSummary = {
 export const SOURCE_RESULTS = [
   'drop',
   'increase',
+  'restocked',
   'out_of_stock',
   'same',
   'attention',
   'pending',
 ] as const
 export type SourceResult = (typeof SOURCE_RESULTS)[number]
+
+/** A source back in stock within this many days reads as Restocked. */
+export const RESTOCK_DAYS = 7
 
 /** One monitored store listing, as the status timeline and table show it. */
 export type MonitoredSource = SourceSummary & {
@@ -118,6 +197,15 @@ export type MonitoredSource = SourceSummary & {
   /** Currency of the stored purchase price, when it names one. */
   paidCurrency: string | null
   nextCheckAt: string | null
+  /** When it came back in stock, while that is the latest stock change. */
+  restockedAt: string | null
+  /**
+   * When the page last showed a trusted price. A failed or blocked check
+   * keeps the last price, so this says how old it is.
+   */
+  priceSeenAt: string | null
+  /** The listing may be gone for good: suggest Pause or another store. */
+  retireHint: RetireHint | null
 }
 
 /** Checks started in one hour, counted by what they found. */
@@ -126,24 +214,17 @@ export type CheckHour = {
   hour: string
 } & Record<Exclude<SourceResult, 'pending'>, number>
 
-export type KnifeSummary = {
-  knife: KnifeRef
-  monitored: boolean
-  sources: number
-  /** Lowest in-stock price; the most common currency among the sources. */
-  bestPriceMinor: number | null
-  currency: string | null
-  /** Purchase price in the same currency, when comparable. */
-  paidMinor: number | null
-  outOfStock: boolean
-  lastChange: ChangeEvent | null
-  lastCheckedAt: string | null
-}
-
+/**
+ * What the Price Drops page polls every minute: KPIs, every monitored
+ * listing, checks per hour and the round. Kept small on purpose; per-knife
+ * history comes from /api/prices/history.
+ */
 export type PriceOverview = {
   windowDays: number
   kpis: {
     monitoredKnives: number
+    /** Knives with at least one store URL, monitored or not. */
+    knivesWithSources: number
     sources: number
     stores: number
     drops: number
@@ -151,12 +232,6 @@ export type PriceOverview = {
     outOfStock: number
     lastSuccessAt: string | null
   }
-  recent: ChangeEvent[]
-  drops: ChangeEvent[]
-  increases: ChangeEvent[]
-  outOfStock: SourceSummary[]
-  recentlyMonitored: SourceSummary[]
-  knives: KnifeSummary[]
   /** Every enabled source of a monitored knife. */
   monitored: MonitoredSource[]
   /** The last 24 hours of checks, oldest first. */
@@ -177,6 +252,7 @@ type KnifeRow = {
   brand: string
   images: string
   specs: string
+  handle_material: string | null
   sold: number
   mode: PriceWatchMode
 }
@@ -190,6 +266,21 @@ function firstImage(images: string): string | null {
   }
 }
 
+/** Model number, steel and handle, without repeats; null when none is set. */
+function knifeSubtitle(row: KnifeRow): string | null {
+  let specs: { modelNumber?: unknown; bladeMaterial?: unknown } = {}
+  try {
+    specs = (JSON.parse(row.specs) as typeof specs | null) ?? {}
+  } catch {
+    // Unreadable specs only lose the subtitle.
+  }
+  const parts = [specs.modelNumber, specs.bladeMaterial, row.handle_material]
+    .map((value) => (typeof value === 'string' ? value.trim() : ''))
+    .filter(Boolean)
+  const unique = [...new Set(parts)]
+  return unique.length ? unique.join(' · ') : null
+}
+
 function storedPrice(specs: string): string | undefined {
   try {
     return (JSON.parse(specs) as { price?: string }).price
@@ -198,15 +289,25 @@ function storedPrice(specs: string): string | undefined {
   }
 }
 
-function readKnives(database: Database.Database): Map<string, KnifeRow> {
+/**
+ * Knives with store URLs, plus (unless `activeOnly`) knives that only have
+ * past price or stock events left.
+ */
+function readKnives(
+  database: Database.Database,
+  options: { activeOnly?: boolean } = {},
+): Map<string, KnifeRow> {
+  const history = options.activeOnly
+    ? ''
+    : `OR k.id IN (SELECT knife_id FROM price_change_events)
+          OR k.id IN (SELECT knife_id FROM stock_events)`
   const rows = database
     .prepare(
-      `SELECT k.id, k.name, k.brand, k.images, k.specs, k.sold,
-              COALESCE(w.mode, 'auto') AS mode
+      `SELECT k.id, k.name, k.brand, k.images, k.specs, k.handle_material,
+              k.sold, COALESCE(w.mode, 'auto') AS mode
        FROM knives k LEFT JOIN price_watch w ON w.knife_id = k.id
        WHERE k.id IN (SELECT knife_id FROM price_sources WHERE removed_at IS NULL)
-          OR k.id IN (SELECT knife_id FROM price_change_events)
-          OR k.id IN (SELECT knife_id FROM stock_events)`,
+          ${history}`,
     )
     .all() as KnifeRow[]
   return new Map(rows.map((row) => [row.id, row]))
@@ -217,6 +318,7 @@ const knifeRef = (row: KnifeRow | undefined, id: string): KnifeRef => ({
   name: row?.name ?? 'Deleted knife',
   brand: row?.brand ?? '',
   image: row ? firstImage(row.images) : null,
+  subtitle: row ? knifeSubtitle(row) : null,
 })
 
 type EventRow = {
@@ -341,6 +443,56 @@ function toSourceSummary(
   }
 }
 
+/** Knives scheduled monitoring covers: eligible, with an enabled source. */
+function monitoredKnifeIds(
+  sources: readonly SourceRow[],
+  knives: Map<string, KnifeRow>,
+  settings: EligibilitySettings,
+): Set<string> {
+  const enabledByKnife = new Map<string, number>()
+  for (const source of sources)
+    if (source.enabled === 1)
+      enabledByKnife.set(
+        source.knife_id,
+        (enabledByKnife.get(source.knife_id) ?? 0) + 1,
+      )
+  const monitored = new Set<string>()
+  for (const [knifeId, count] of enabledByKnife) {
+    const knife = knives.get(knifeId)
+    if (
+      knife &&
+      getEligibility(
+        { sold: knife.sold === 1, specs: { price: storedPrice(knife.specs) } },
+        knife.mode,
+        count,
+        settings,
+      ).monitored
+    )
+      monitored.add(knifeId)
+  }
+  return monitored
+}
+
+const SOURCE_SQL = `SELECT id, knife_id, store_name, lane_key, url, enabled, status,
+         last_price_minor, last_currency, last_availability,
+         last_checked_at, last_success_at, last_error, next_check_at
+  FROM price_sources WHERE removed_at IS NULL`
+
+/** One knife's market at a glance, for the MCP price tools. */
+export type KnifeSummary = {
+  knife: KnifeRef
+  monitored: boolean
+  sources: number
+  /** Lowest in-stock price; the most common currency among the sources. */
+  bestPriceMinor: number | null
+  currency: string | null
+  /** Purchase price in the same currency, when comparable. */
+  paidMinor: number | null
+  outOfStock: boolean
+  lastChange: ChangeEvent | null
+  lastCheckedAt: string | null
+}
+
 function mostCommon(values: string[]): string | null {
   const counts = new Map<string, number>()
   for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1)
@@ -348,6 +500,89 @@ function mostCommon(values: string[]): string | null {
   for (const [value, count] of counts)
     if (best === null || count > (counts.get(best) ?? 0)) best = value
   return best
+}
+
+/**
+ * Every knife with a store URL: best price, stock and its latest change.
+ * Read on demand (MCP), not by the Price Drops page.
+ */
+export function buildKnifeSummaries(
+  database: Database.Database,
+  settings: EligibilitySettings,
+): KnifeSummary[] {
+  const knives = readKnives(database)
+  const sources = database.prepare(SOURCE_SQL).all() as SourceRow[]
+  const monitored = monitoredKnifeIds(sources, knives, settings)
+  const lastChangeByKnife = new Map(
+    (
+      database
+        .prepare(
+          `SELECT * FROM (
+             SELECT e.*, ROW_NUMBER() OVER (
+               PARTITION BY knife_id ORDER BY occurred_at DESC, id DESC
+             ) AS rank
+             FROM (${EVENTS_SQL}) e
+           ) WHERE rank = 1`,
+        )
+        .all() as EventRow[]
+    ).map((row) => [row.knife_id, toEvent(row, knives)]),
+  )
+  const sourcesByKnife = new Map<string, SourceRow[]>()
+  for (const source of sources) {
+    const list = sourcesByKnife.get(source.knife_id) ?? []
+    list.push(source)
+    sourcesByKnife.set(source.knife_id, list)
+  }
+  return [...sourcesByKnife]
+    .map(([knifeId, list]): KnifeSummary => {
+      const knife = knives.get(knifeId)
+      const priced = list.filter(
+        (source) =>
+          source.last_price_minor !== null &&
+          source.last_currency &&
+          source.last_availability !== 'out_of_stock',
+      )
+      const currency = mostCommon(priced.map((s) => s.last_currency!))
+      const inCurrency = priced.filter((s) => s.last_currency === currency)
+      const checked = list
+        .map((source) => source.last_checked_at)
+        .filter((value): value is string => Boolean(value))
+        .sort()
+      return {
+        knife: knifeRef(knife, knifeId),
+        monitored: monitored.has(knifeId),
+        sources: list.length,
+        bestPriceMinor: inCurrency.length
+          ? Math.min(...inCurrency.map((s) => s.last_price_minor!))
+          : null,
+        currency,
+        paidMinor: paidIn(knife, currency),
+        outOfStock:
+          list.length > 0 &&
+          list.every((source) => source.last_availability === 'out_of_stock'),
+        lastChange: lastChangeByKnife.get(knifeId) ?? null,
+        lastCheckedAt: checked.at(-1) ?? null,
+      }
+    })
+    .sort(
+      (a, b) =>
+        (b.lastChange?.occurredAt ?? '').localeCompare(
+          a.lastChange?.occurredAt ?? '',
+        ) || a.knife.name.localeCompare(b.knife.name),
+    )
+}
+
+/** Every source currently out of stock, with when it went out of stock. */
+export function readOutOfStockSources(
+  database: Database.Database,
+): SourceSummary[] {
+  const knives = readKnives(database, { activeOnly: true })
+  const since = readOutOfStockSince(database)
+  return (database.prepare(SOURCE_SQL).all() as SourceRow[])
+    .filter((source) => source.last_availability === 'out_of_stock')
+    .map((source) =>
+      toSourceSummary(source, knives, since.get(source.id) ?? null),
+    )
 }
 
 /**
@@ -364,51 +599,19 @@ export function buildPriceOverview(
   options: {
     now?: number
     windowDays?: number
-    limit?: number
     /** Check frequency from the schedule, shown with the status timeline. */
     frequencyMs?: number
   } = {},
 ): PriceOverview {
   const now = options.now ?? Date.now()
   const windowDays = options.windowDays ?? 30
-  const limit = options.limit ?? 50
   const since = new Date(now - windowDays * DAY_MS).toISOString()
-  const knives = readKnives(database)
+  const knives = readKnives(database, { activeOnly: true })
 
-  const sources = database
-    .prepare(
-      `SELECT id, knife_id, store_name, lane_key, url, enabled, status,
-              last_price_minor, last_currency, last_availability,
-              last_checked_at, last_success_at, last_error, next_check_at
-       FROM price_sources WHERE removed_at IS NULL`,
-    )
-    .all() as SourceRow[]
+  const sources = database.prepare(SOURCE_SQL).all() as SourceRow[]
 
-  const enabledByKnife = new Map<string, SourceRow[]>()
-  for (const source of sources) {
-    if (source.enabled !== 1) continue
-    const list = enabledByKnife.get(source.knife_id) ?? []
-    list.push(source)
-    enabledByKnife.set(source.knife_id, list)
-  }
-  const monitored = new Set<string>()
-  for (const [knifeId, list] of enabledByKnife) {
-    const knife = knives.get(knifeId)
-    if (
-      knife &&
-      getEligibility(
-        { sold: knife.sold === 1, specs: { price: storedPrice(knife.specs) } },
-        knife.mode,
-        list.length,
-        settings,
-      ).monitored
-    )
-      monitored.add(knifeId)
-  }
+  const monitored = monitoredKnifeIds(sources, knives, settings)
 
-  const recentRows = database
-    .prepare(`${EVENTS_SQL} ORDER BY occurred_at DESC, id DESC LIMIT ?`)
-    .all(limit) as EventRow[]
   const windowRows = database
     .prepare(
       `SELECT * FROM (${EVENTS_SQL}) WHERE type = 'price' AND occurred_at >= ?
@@ -423,85 +626,6 @@ export function buildPriceOverview(
   const significant = new Set(
     [...moves.values()].flatMap((move) => move.significantIds),
   )
-  // Moves under the Minimum change are noise: they stay in history and
-  // Recent, but not in the drop and increase lists or their counts.
-  const drops = windowRows.filter(
-    (row) => row.kind === 'drop' && significant.has(row.id),
-  )
-  const increases = windowRows.filter(
-    (row) => row.kind === 'increase' && significant.has(row.id),
-  )
-
-  const outOfStockSince = new Map(
-    (
-      database
-        .prepare(
-          `SELECT source_id, MAX(occurred_at) AS since FROM stock_events
-           WHERE kind = 'out_of_stock' GROUP BY source_id`,
-        )
-        .all() as Array<{ source_id: number; since: string }>
-    ).map((row) => [row.source_id, row.since]),
-  )
-  const outOfStock = sources
-    .filter((source) => source.last_availability === 'out_of_stock')
-    .map((source) =>
-      toSourceSummary(source, knives, outOfStockSince.get(source.id) ?? null),
-    )
-  const recentlyMonitored = sources
-    .filter((source) => source.last_checked_at)
-    .sort((a, b) => b.last_checked_at!.localeCompare(a.last_checked_at!))
-    .slice(0, 20)
-    .map((source) => toSourceSummary(source, knives))
-
-  const lastChangeByKnife = new Map<string, ChangeEvent>()
-  for (const row of database
-    .prepare(`${EVENTS_SQL} ORDER BY occurred_at ASC, id ASC`)
-    .all() as EventRow[])
-    lastChangeByKnife.set(row.knife_id, toEvent(row, knives))
-
-  const sourcesByKnife = new Map<string, SourceRow[]>()
-  for (const source of sources) {
-    const list = sourcesByKnife.get(source.knife_id) ?? []
-    list.push(source)
-    sourcesByKnife.set(source.knife_id, list)
-  }
-  const knifeSummaries: KnifeSummary[] = [...sourcesByKnife].map(
-    ([knifeId, list]) => {
-      const knife = knives.get(knifeId)
-      const priced = list.filter(
-        (source) =>
-          source.last_price_minor !== null &&
-          source.last_currency &&
-          source.last_availability !== 'out_of_stock',
-      )
-      const currency = mostCommon(priced.map((s) => s.last_currency!))
-      const inCurrency = priced.filter((s) => s.last_currency === currency)
-      const best = inCurrency.length
-        ? Math.min(...inCurrency.map((s) => s.last_price_minor!))
-        : null
-      const paid = knife ? parseStoredPrice(storedPrice(knife.specs)) : null
-      const checked = list
-        .map((source) => source.last_checked_at)
-        .filter((value): value is string => Boolean(value))
-        .sort()
-      return {
-        knife: knifeRef(knife, knifeId),
-        monitored: monitored.has(knifeId),
-        sources: list.length,
-        bestPriceMinor: best,
-        currency,
-        paidMinor:
-          paid && currency && (paid.currency === currency || !paid.currency)
-            ? toMinorUnits(paid.amount, currency)
-            : null,
-        outOfStock:
-          list.length > 0 &&
-          list.every((source) => source.last_availability === 'out_of_stock'),
-        lastChange: lastChangeByKnife.get(knifeId) ?? null,
-        lastCheckedAt: checked.at(-1) ?? null,
-      }
-    },
-  )
 
   const monitoredSources = buildMonitoredSources(
     sources.filter(
@@ -509,6 +633,13 @@ export function buildPriceOverview(
     ),
     knives,
     moves,
+    {
+      outOfStockSince: readOutOfStockSince(database),
+      missingPages: readMissingPageSourceIds(database),
+      latestStock: readLatestStockEvents(database),
+      priceSeen: readPriceSeen(database),
+      now,
+    },
   )
   const dayAgo = new Date(now - DAY_MS).toISOString()
   const checksByHour = readChecksByHour(database, now, significant)
@@ -528,28 +659,26 @@ export function buildPriceOverview(
     windowDays,
     kpis: {
       monitoredKnives: monitored.size,
+      knivesWithSources: new Set(sources.map((source) => source.knife_id)).size,
       sources: sources.filter((s) => monitored.has(s.knife_id)).length,
       stores: new Set(
         sources
           .filter((s) => monitored.has(s.knife_id))
           .map((source) => source.lane_key),
       ).size,
-      drops: drops.length,
-      increases: increases.length,
-      outOfStock: outOfStock.length,
+      // Moves under the Minimum change are noise: they stay in history, but
+      // not in the drop and increase counts.
+      drops: windowRows.filter(
+        (row) => row.kind === 'drop' && significant.has(row.id),
+      ).length,
+      increases: windowRows.filter(
+        (row) => row.kind === 'increase' && significant.has(row.id),
+      ).length,
+      outOfStock: sources.filter(
+        (source) => source.last_availability === 'out_of_stock',
+      ).length,
       lastSuccessAt: lastSuccess ?? null,
     },
-    recent: recentRows.map((row) => toEvent(row, knives)),
-    drops: drops.slice(0, limit).map((row) => toEvent(row, knives)),
-    increases: increases.slice(0, limit).map((row) => toEvent(row, knives)),
-    outOfStock,
-    recentlyMonitored,
-    knives: knifeSummaries.sort(
-      (a, b) =>
-        (b.lastChange?.occurredAt ?? '').localeCompare(
-          a.lastChange?.occurredAt ?? '',
-        ) || a.knife.name.localeCompare(b.knife.name),
-    ),
     monitored: monitoredSources,
     checksByHour,
     round: {
@@ -580,6 +709,35 @@ function paidIn(knife: KnifeRow | undefined, currency: string | null) {
   return paid && (paid.currency === currency || !paid.currency)
     ? toMinorUnits(paid.amount, currency)
     : null
+}
+
+/** The latest stock change per source. */
+function readLatestStockEvents(database: Database.Database) {
+  // SQLite takes the bare columns from the row holding the MAX.
+  const rows = database
+    .prepare(
+      `SELECT source_id, kind, MAX(occurred_at) AS at
+       FROM stock_events GROUP BY source_id`,
+    )
+    .all() as Array<{
+    source_id: number
+    kind: 'out_of_stock' | 'back_in_stock'
+    at: string
+  }>
+  return new Map(rows.map((row) => [row.source_id, row]))
+}
+
+/** When each source last showed a trusted price. */
+function readPriceSeen(database: Database.Database) {
+  const rows = database
+    .prepare(
+      `SELECT source_id, MAX(last_seen_at) AS at FROM price_snapshots
+       WHERE price_minor IS NOT NULL
+         AND (ai_review IS NULL OR ai_review != 'unconfirmed')
+       GROUP BY source_id`,
+    )
+    .all() as Array<{ source_id: number; at: string }>
+  return new Map(rows.map((row) => [row.source_id, row.at]))
 }
 
 /** Classifies each source's price events in the window (newest first in). */
@@ -628,6 +786,8 @@ function classifyWindowMoves(
 function sourceResult(
   source: SourceRow,
   move: PriceMoveClass | undefined,
+  restockedAt: string | null,
+  now: number,
 ): SourceResult {
   if (!source.last_checked_at) return 'pending'
   if (source.last_availability === 'out_of_stock') return 'out_of_stock'
@@ -639,21 +799,41 @@ function sourceResult(
   )
     return 'attention'
   // Only a counted change that still stands; noise and bounces are no change.
-  return move?.result ?? 'same'
+  if (move && move.result !== 'same') return move.result
+  if (restockedAt && Date.parse(restockedAt) >= now - RESTOCK_DAYS * DAY_MS)
+    return 'restocked'
+  return 'same'
 }
 
 function buildMonitoredSources(
   sources: SourceRow[],
   knives: Map<string, KnifeRow>,
   moves: Map<number, PriceMoveClass>,
+  context: {
+    outOfStockSince: ReadonlyMap<number, string>
+    missingPages: ReadonlySet<number>
+    latestStock: ReturnType<typeof readLatestStockEvents>
+    priceSeen: ReadonlyMap<number, string>
+    now: number
+  },
 ): MonitoredSource[] {
   return sources.map((source) => {
     const move = moves.get(source.id)
-    const result = sourceResult(source, move)
+    const latestStock = context.latestStock.get(source.id)
+    const restockedAt =
+      source.last_availability !== 'out_of_stock' &&
+      latestStock?.kind === 'back_in_stock'
+        ? latestStock.at
+        : null
+    const result = sourceResult(source, move, restockedAt, context.now)
     const changed = result === 'drop' || result === 'increase'
+    const outOfStockSince =
+      source.last_availability === 'out_of_stock'
+        ? (context.outOfStockSince.get(source.id) ?? null)
+        : null
     const knife = knives.get(source.knife_id)
     return {
-      ...toSourceSummary(source, knives),
+      ...toSourceSummary(source, knives, outOfStockSince),
       result,
       previousPriceMinor: changed ? (move?.previousPriceMinor ?? null) : null,
       deltaMinor: changed ? (move?.deltaMinor ?? null) : null,
@@ -664,6 +844,13 @@ function buildMonitoredSources(
       paidMinor: paidIn(knife, source.last_currency),
       paidCurrency: paidCurrency(knife),
       nextCheckAt: source.next_check_at,
+      restockedAt: result === 'restocked' ? restockedAt : null,
+      priceSeenAt: context.priceSeen.get(source.id) ?? null,
+      retireHint: retireHintFor({
+        outOfStockSince,
+        pageGone: context.missingPages.has(source.id),
+        now: context.now,
+      }),
     }
   })
 }
@@ -691,6 +878,7 @@ function readChecksByHour(
     hour: new Date(first + index * HOUR_MS).toISOString(),
     drop: 0,
     increase: 0,
+    restocked: 0,
     out_of_stock: 0,
     same: 0,
     attention: 0,
@@ -730,6 +918,7 @@ function readChecksByHour(
     // A move under the Minimum change found no change worth showing.
     else if (row.change && significant.has(row.change_id ?? -1))
       bucket[row.change] += 1
+    else if (row.stock === 'back_in_stock') bucket.restocked += 1
     else bucket.same += 1
   }
   return hours
@@ -776,8 +965,8 @@ export function buildKnifeHistory(
   const knives = readKnives(database)
   const knife = database
     .prepare(
-      `SELECT k.id, k.name, k.brand, k.images, k.specs, k.sold,
-              COALESCE(w.mode, 'auto') AS mode
+      `SELECT k.id, k.name, k.brand, k.images, k.specs, k.handle_material,
+              k.sold, COALESCE(w.mode, 'auto') AS mode
        FROM knives k LEFT JOIN price_watch w ON w.knife_id = k.id
        WHERE k.id = ?`,
     )

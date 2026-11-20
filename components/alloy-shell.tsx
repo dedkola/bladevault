@@ -1,5 +1,10 @@
 'use client'
 
+import {
+  formatNavCount,
+  priceDropsCountLabel,
+  usePriceDropsUnread,
+} from '@/components/price-drops/price-drops-nav-count'
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
@@ -45,6 +50,7 @@ const links = [
 
 export function AlloyShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const priceUnread = usePriceDropsUnread()
   const params = useSearchParams()
   const { knives, isAutoBackupActive, showFeedback } = useKnives()
   const { reminders: careReminders, statusById: careStatusById } = useCare()
@@ -124,6 +130,16 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
                   aria-current={selected ? 'page' : undefined}
                 >
                   {label}
+                  {href === '/price-drops' && priceUnread > 0 && (
+                    <span data-alloy-nav-count data-price-drops-count>
+                      <span aria-hidden="true">
+                        {formatNavCount(priceUnread)}
+                      </span>
+                      <span className="sr-only">
+                        {priceDropsCountLabel(priceUnread)}
+                      </span>
+                    </span>
+                  )}
                   {href === '/compare' && Boolean(active?.ids.length) && (
                     <span data-alloy-nav-count aria-hidden="true">
                       {active?.ids.length}

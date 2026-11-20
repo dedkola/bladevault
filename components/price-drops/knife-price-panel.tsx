@@ -6,7 +6,7 @@ import { AppWindow, ExternalLink, Loader2, RefreshCw, X } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { getSafeExternalUrl } from '@/lib/external-url'
 import { announcePriceDataUpdated } from '@/lib/market-status'
-import type { HistoryRange } from '@/lib/price-monitor/insights'
+import { HISTORY_RANGES, type HistoryRange } from '@/lib/price-monitor/insights'
 import type {
   EligibilityReason,
   PriceSourceView,
@@ -35,7 +35,9 @@ import {
   KnifeThumb,
   StatusDot,
   useMinuteClock,
+  useStoredValue,
 } from './price-ui'
+import { RetireHintNotice } from './retire-hint'
 import {
   SOLVE_UNAVAILABLE_TEXT,
   SolveInBrowserDialog,
@@ -124,19 +126,24 @@ function bestPrice(sources: PriceSourceView[], currency: string | null) {
 
 function SourceLine({
   source,
+  knifeId,
   queued,
   now,
   canSolve,
   onCheck,
   onSolve,
+  onPaused,
 }: {
   source: PriceSourceView
+  knifeId: string
   queued: boolean
   now: number
   canSolve: boolean | null
   onCheck: () => void
   onSolve: () => void
+  onPaused: () => void
 }) {
+  const retire = source.enabled ? (source.retireHint ?? null) : null
   const needsHelp =
     source.status === 'blocked' ||
     source.status === 'failed' ||
@@ -153,7 +160,7 @@ function SourceLine({
   return (
     <li
       data-price-source-line
-      className="flex items-center gap-2.5 border-t border-[var(--bladevault-line)]/60 py-2 first:border-t-0"
+      className="flex flex-wrap items-center gap-2.5 border-t border-[var(--bladevault-line)]/60 py-2 first:border-t-0"
     >
       <StatusDot tone={STATUS_TONE[status]} />
       <div className="min-w-0 flex-1">
@@ -238,6 +245,18 @@ function SourceLine({
           <RefreshCw className="size-3" />
         )}
       </Button>
+      {retire ? (
+        <RetireHintNotice
+          hint={retire}
+          knifeId={knifeId}
+          sourceId={source.id}
+          storeName={source.storeName}
+          outOfStockSince={source.outOfStockSince ?? null}
+          now={now}
+          onPaused={onPaused}
+          className="basis-full pl-5"
+        />
+      ) : null}
     </li>
   )
 }
@@ -258,8 +277,14 @@ export function KnifePricePanel({
   onClose?: () => void
   onChanged?: () => void
 }) {
-  const [range, setRange] = useState<HistoryRange>(
+  // The chart range is remembered per browser, separately for each place.
+  const [range, setRange] = useStoredValue<HistoryRange>(
+    `bladevault.priceDrops.range.${variant}`,
     variant === 'tab' ? '1m' : '3m',
+    (raw) =>
+      (HISTORY_RANGES as readonly (string | null)[]).includes(raw)
+        ? (raw as HistoryRange)
+        : null,
   )
   const [version, setVersion] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -360,6 +385,14 @@ export function KnifePricePanel({
             >
               {history.knife.brand} {history.knife.name}
             </Link>
+            {history.knife.subtitle ? (
+              <div
+                data-price-subtitle
+                className="truncate text-xs text-muted-foreground"
+              >
+                {history.knife.subtitle}
+              </div>
+            ) : null}
             <div className="text-xs text-muted-foreground">
               {watch?.sources.length ?? 0}{' '}
               {watch?.sources.length === 1 ? 'source' : 'sources'}
@@ -462,6 +495,7 @@ export function KnifePricePanel({
               <SourceLine
                 key={source.id}
                 source={source}
+                knifeId={knifeId}
                 queued={queued.has(source.id)}
                 now={now}
                 canSolve={canSolve}
@@ -474,6 +508,10 @@ export function KnifePricePanel({
                     status: source.status,
                   })
                 }
+                onPaused={() => {
+                  setVersion((value) => value + 1)
+                  onChanged?.()
+                }}
               />
             ))}
           </ul>
