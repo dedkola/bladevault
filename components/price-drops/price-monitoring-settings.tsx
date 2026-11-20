@@ -307,6 +307,8 @@ export function PriceMonitoringSettings({
   const updateThresholds = (
     patch: Partial<PriceMonitoringSettings['thresholds']>,
   ) => update({ thresholds: { ...settings.thresholds, ...patch } })
+  // The minimum amount only filters notifications, unlike the percent.
+  const priceAlertsOn = settings.notify.drop || settings.notify.increase
 
   const off = disabled || !settings.enabled
   const hours: ActiveHours | null =
@@ -495,7 +497,7 @@ export function PriceMonitoringSettings({
         </SettingsRow>
         <SettingsRow
           label="Minimum amount"
-          description="Also ignore price changes smaller than this, in each price's own currency (3 means $3, €3 or ₴3). A change must pass both the percent and the amount. 0 turns it off."
+          description="Price notifications also skip changes smaller than this, in each price's own currency (3 means $3, €3 or ₴3). A change must pass both the percent and the amount. 0 turns it off."
         >
           <NumberField
             aria-label="Minimum price change in the price's currency"
