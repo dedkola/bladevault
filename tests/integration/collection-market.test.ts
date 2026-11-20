@@ -220,11 +220,14 @@ describe('collection market summaries', () => {
     expect(muchLater.get(raccoon.knife.id)?.droppedAt).toBeNull()
   })
 
-  it('drops a drop that a later increase undid, and skips paused links', async () => {
+  it('ignores noise and drops a later increase undid, and skips paused links', async () => {
     const raccoon = await createKnife('Raccoon', '129.00 USD', [
       'https://shop.example/raccoon',
     ])
     await checkAt(0, raccoon.sources[0], offer(100))
+    // Under the default 5% Minimum change: noise, not a drop.
+    await checkAt(1, raccoon.sources[0], offer(98))
+    expect((await market(1)).get(raccoon.knife.id)?.droppedAt).toBeNull()
     await checkAt(2, raccoon.sources[0], offer(90))
     expect((await market(2)).get(raccoon.knife.id)?.droppedAt).toBe(at(2))
     await checkAt(3, raccoon.sources[0], offer(110))

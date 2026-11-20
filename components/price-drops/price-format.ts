@@ -44,6 +44,70 @@ export function shortDateTime(
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
+/**
+ * A time in the app's 12/24-hour setting: "14:05" today, "Nov 18, 14:05"
+ * on another day, with the year when it is not this year.
+ */
+export function clockTime(
+  iso: string,
+  hourCycle: 'h12' | 'h23',
+  now = Date.now(),
+): string {
+  const date = new Date(iso)
+  if (!Number.isFinite(date.getTime())) return ''
+  const time = date.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hourCycle,
+  })
+  const today = new Date(now)
+  if (date.toDateString() === today.toDateString()) return time
+  const day = date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: date.getFullYear() === today.getFullYear() ? undefined : 'numeric',
+  })
+  return `${day}, ${time}`
+}
+
+/** A whole hour (0–24) in the app's 12/24-hour setting: "08:00" or "8:00 AM". */
+export function hourLabel(hour: number, hourCycle: 'h12' | 'h23'): string {
+  return new Date(2000, 0, 1, hour % 24).toLocaleTimeString(undefined, {
+    hour: hourCycle === 'h23' ? '2-digit' : 'numeric',
+    minute: '2-digit',
+    hourCycle,
+  })
+}
+
+/** "26 min", "3 h", "2 d". */
+export function durationLabel(ms: number): string {
+  const minutes = Math.max(1, Math.round(ms / 60_000))
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.round(minutes / 60)
+  return hours < 48 ? `${hours} h` : `${Math.round(hours / 24)} d`
+}
+
+/** A check this recently due is "due now" rather than overdue. */
+const DUE_NOW_MS = 15 * 60_000
+
+/** "next in 3 hours", "due now" or "overdue 9 h", never "next 9 hours ago". */
+export function nextCheckLabel(iso: string, now = Date.now()): string {
+  const ms = Date.parse(iso) - now
+  if (ms > 0) return `next ${relativeTime(iso, now)}`
+  if (-ms < DUE_NOW_MS) return 'due now'
+  return `overdue ${durationLabel(-ms)}`
+}
+
+/**
+ * A price change in percent, unsigned: one decimal below 10% so a 0.3% move
+ * never reads as 0%, whole numbers above.
+ */
+export function percentLabel(pct: number): string {
+  const abs = Math.abs(pct)
+  if (abs > 0 && abs < 0.05) return '<0.1%'
+  return `${abs < 9.95 ? abs.toFixed(1) : abs.toFixed(0)}%`
+}
+
 export function storeLabel(storeName: string): string {
   return storeName === 'amazon' ? 'Amazon' : storeName
 }
@@ -51,9 +115,9 @@ export function storeLabel(storeName: string): string {
 export function deltaLabel(event: ChangeEvent): string {
   if (event.deltaMinor === null || event.deltaPct === null) return ''
   const arrow = event.deltaMinor < 0 ? '↓' : '↑'
-  return `${arrow} ${money(Math.abs(event.deltaMinor), event.currency)} · ${Math.abs(
+  return `${arrow} ${money(Math.abs(event.deltaMinor), event.currency)} · ${percentLabel(
     event.deltaPct,
-  ).toFixed(1)}%`
+  )}`
 }
 
 export const STATUS_LABEL: Record<PriceSourceStatus, string> = {

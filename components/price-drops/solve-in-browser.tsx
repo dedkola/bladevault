@@ -23,6 +23,45 @@ export type SolveTarget = {
 
 type Phase = 'starting' | 'waiting' | 'saving' | 'done' | 'error'
 
+/** Shown where the server cannot open a window the person can see. */
+export const SOLVE_UNAVAILABLE_TEXT =
+  'Solve in browser needs the desktop app or BladeVault running on this computer. On a Docker or Helm server the window would open where you cannot see it.'
+
+let solveCapability: Promise<boolean> | null = null
+
+function loadSolveCapability(): Promise<boolean> {
+  solveCapability ??= fetch('/api/prices/capabilities', { cache: 'no-store' })
+    .then(async (response) => {
+      if (!response.ok) throw new Error('capabilities unavailable')
+      const data = (await response.json()) as { solveInBrowser?: unknown }
+      return data.solveInBrowser === true
+    })
+    .catch(() => {
+      // Ask again next time; until then the buttons stay hidden.
+      solveCapability = null
+      return false
+    })
+  return solveCapability
+}
+
+/**
+ * Whether this server can open a visible browser window: null while
+ * unknown, then true or false. Asked once per page load.
+ */
+export function useSolveInBrowserAvailable(): boolean | null {
+  const [available, setAvailable] = useState<boolean | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void loadSolveCapability().then((value) => {
+      if (!cancelled) setAvailable(value)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  return available
+}
+
 async function postJson<T>(
   url: string,
   body?: unknown,

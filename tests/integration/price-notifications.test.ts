@@ -3,6 +3,7 @@ import * as knivesRoute from '@/app/api/knives/route'
 import * as knifeRoute from '@/app/api/knives/[id]/route'
 import * as priceWatchRoute from '@/app/api/knives/[id]/price-watch/route'
 import * as notificationsRoute from '@/app/api/price-notifications/route'
+import * as desktopRoute from '@/app/api/price-notifications/desktop/route'
 import { getLocalDb } from '@/lib/local-db'
 import { checkPriceSource } from '@/lib/price-monitor/engine'
 import type { PriceNotificationView } from '@/lib/price-monitor/notifications'
@@ -213,7 +214,7 @@ describe('price notifications', () => {
           outOfStock: true,
           backInStock: false,
         },
-        thresholds: { minPercent: 15 },
+        thresholds: { minPercent: 15, minAmount: 0, allTimeLow: false },
       },
     })
     const knifeId = await createKnife()
@@ -289,5 +290,109 @@ describe('price notifications', () => {
     )
     expect(notificationRows()).toEqual([])
     expect(await getNotifications()).toEqual([])
+  })
+
+  it('applies per-knife rules, store mutes, snooze and bulk dismiss', async () => {
+    const knifeId = await createKnife() // paid 129.00 USD
+    const sourceId = await sourceIdFor(knifeId)
+    const put = async (body: unknown) => {
+      const response = await priceWatchRoute.PUT(
+        json(`http://localhost/api/knives/${knifeId}/price-watch`, 'PUT', body),
+        params(knifeId),
+      )
+      return {
+        status: response.status,
+        watch: ((await response.json()) as { watch: PriceWatchView }).watch,
+      }
+    }
+
+    // Target price: 150 → 140 does not reach 120; 140 → 119 does.
+    const saved = await put({
+      alerts: {
+        targetPrice: { amount: 120, currency: 'usd' },
+        belowPaid: true,
+      },
+    })
+    expect(saved.watch.alerts).toEqual({
+      muted: false,
+      belowPaid: true,
+      targetPrice: { minor: 12_000, currency: 'USD' },
+    })
+    expect(saved.watch.paid).toEqual({ amount: 129, currency: 'USD' })
+    expect((await put({ alerts: { targetPrice: { amount: 0 } } })).status).toBe(
+      400,
+    )
+    await check(sourceId, offer(150), offer(140))
+    expect(notificationRows()).toEqual([])
+    await check(sourceId, offer(119))
+    expect(notificationRows()).toHaveLength(1)
+
+    // The Inbox view carries what was paid and the lowest earlier price.
+    const [view] = await getNotifications()
+    expect(view.context).toEqual({
+      paidMinor: 12_900,
+      lowestMinor: 11_900,
+      sourceMutedUntil: null,
+      knifeMuted: false,
+    })
+
+    // Desktop alerts list it while new and unread.
+    const desktop = await desktopRoute.GET(
+      new Request(
+        'http://localhost/api/price-notifications/desktop?since=2000-01-01T00:00:00Z',
+      ),
+    )
+    const alerts = (
+      (await desktop.json()) as { alerts: Array<{ title: string }> }
+    ).alerts
+    expect(alerts.map((alert) => alert.title)).toEqual([
+      'Price dropped: Vosteed Raccoon',
+    ])
+    expect(
+      (
+        await desktopRoute.GET(
+          new Request('http://localhost/api/price-notifications/desktop'),
+        )
+      ).status,
+    ).toBe(400)
+
+    // Snooze hides it; a repeat keeps it snoozed.
+    const snoozed = await patch({ action: 'snooze', ids: [view.id], days: 3 })
+    expect(snoozed.body.notifications?.[0].snoozedUntil).toBeTruthy()
+    await put({ alerts: { targetPrice: null, belowPaid: false } })
+    await check(sourceId, offer(100))
+    const [repeat] = await getNotifications()
+    expect(repeat.occurrences).toBe(2)
+    expect(repeat.snoozedUntil).toBe(
+      snoozed.body.notifications?.[0].snoozedUntil,
+    )
+    await patch({ action: 'unsnooze', ids: [view.id] })
+
+    // Muting the store stops new messages, but an increase still resolves.
+    const muted = await put({ update: [{ id: sourceId, muteDays: 7 }] })
+    expect(muted.watch.sources[0].notifyMutedUntil).toBeTruthy()
+    await check(sourceId, offer(110), offer(95))
+    expect(notificationRows()).toEqual([
+      { kind: 'drop', occurrences: 2, read: 0, dismissed: 0, resolved: 1 },
+    ])
+    expect((await getNotifications())[0].context.sourceMutedUntil).toBeTruthy()
+    await put({ update: [{ id: sourceId, muteDays: 0 }] })
+
+    // Muting the knife does the same; unmuting lets drops through again.
+    await put({ alerts: { muted: true } })
+    await check(sourceId, offer(105), offer(90))
+    expect(notificationRows()).toHaveLength(1)
+    await put({ alerts: { muted: false } })
+    await check(sourceId, offer(100), offer(85))
+    expect(notificationRows()).toHaveLength(2)
+
+    // Dismiss all closes every open message.
+    const dismissed = await patch({ action: 'dismiss-all' })
+    expect(dismissed.status).toBe(200)
+    expect(
+      dismissed.body.notifications?.every(
+        (row) => row.dismissedAt || row.resolvedAt,
+      ),
+    ).toBe(true)
   })
 })

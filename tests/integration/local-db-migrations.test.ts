@@ -63,6 +63,73 @@ describe('local database migrations', () => {
     ).toEqual({ checks: 3 })
   })
 
+  it('adds the alert rule columns to an older price schema, keeping its rows', async () => {
+    vault = await createTempVault()
+    const database = getLocalDb()
+    database
+      .prepare(
+        "INSERT INTO price_watch (knife_id, mode, updated_at) VALUES ('k1', 'on', 't')",
+      )
+      .run()
+    database
+      .prepare(
+        `INSERT INTO price_sources
+           (knife_id, url, normalized_url, provider, lane_key, store_name,
+            origin, created_at, updated_at)
+         VALUES ('k1', 'https://a.example/p', 'https://a.example/p', 'generic',
+                 'a.example', 'a.example', 'manual', 't', 't')`,
+      )
+      .run()
+    database
+      .prepare(
+        `INSERT INTO price_notifications
+           (knife_id, source_id, event_id, kind, occurred_at, created_at,
+            updated_at)
+         VALUES ('k1', 1, 1, 'drop', 't', 't', 't')`,
+      )
+      .run()
+    // Simulate a vault from before alert rules.
+    for (const [table, column] of [
+      ['price_watch', 'target_price_minor'],
+      ['price_watch', 'target_currency'],
+      ['price_watch', 'notify_below_paid'],
+      ['price_watch', 'notify_muted'],
+      ['price_sources', 'notify_muted_until'],
+      ['price_notifications', 'snoozed_until'],
+    ])
+      database.exec(`ALTER TABLE ${table} DROP COLUMN ${column}`)
+    closeLocalDb()
+
+    for (let open = 0; open < 2; open += 1) {
+      expect(
+        getLocalDb()
+          .prepare(
+            `SELECT mode, target_price_minor, target_currency,
+                    notify_below_paid, notify_muted FROM price_watch`,
+          )
+          .get(),
+      ).toEqual({
+        mode: 'on',
+        target_price_minor: null,
+        target_currency: null,
+        notify_below_paid: 0,
+        notify_muted: 0,
+      })
+      expect(
+        getLocalDb()
+          .prepare('SELECT store_name, notify_muted_until FROM price_sources')
+          .get(),
+      ).toEqual({ store_name: 'a.example', notify_muted_until: null })
+      expect(
+        getLocalDb()
+          .prepare('SELECT kind, snoozed_until FROM price_notifications')
+          .get(),
+      ).toEqual({ kind: 'drop', snoozed_until: null })
+      // Reopening runs the migration again; it must be repeat-safe.
+      closeLocalDb()
+    }
+  })
+
   it('adds missing columns and backfills updated_at without losing a legacy knife', async () => {
     vault = await createTempVault()
     const legacy = new Database(path.join(vault.dataDir, 'bladevault.sqlite'))

@@ -4,6 +4,11 @@ import {
   type EligibilitySettings,
 } from '@/lib/price-monitor/eligibility'
 import { parseStoredPrice, toMinorUnits } from '@/lib/price-monitor/money'
+import {
+  classifyPriceMoves,
+  type PriceMoveClass,
+  type PriceMoveEvent,
+} from '@/lib/price-monitor/price-moves'
 import type { Availability, PriceWatchMode } from '@/lib/price-monitor/shared'
 import {
   MARKET_DROP_WINDOW_DAYS,
@@ -29,12 +34,21 @@ type SourceRow = {
   last_checked_at: string | null
 }
 
-type DropRow = {
+type ChangeRow = {
+  id: number
   source_id: number
-  direction: 'drop' | 'increase'
+  previous_price_minor: number | null
   price_minor: number | null
-  delta_pct: number | null
+  currency: string | null
   occurred_at: string
+}
+
+/**
+ * Eligibility plus the notification Minimum change, which decides which
+ * price moves count as a drop, as on the Price Drops page.
+ */
+export type MarketSummarySettings = EligibilitySettings & {
+  thresholds?: { minPercent: number }
 }
 
 function storedPrice(specs: string): string | undefined {
@@ -69,7 +83,7 @@ function latest(values: Array<string | null | undefined>): string | null {
  */
 export function buildMarketSummaries(
   database: Database.Database,
-  settings: EligibilitySettings,
+  settings: MarketSummarySettings,
   now = Date.now(),
 ): Record<string, KnifeMarketSummary> {
   const sources = database
@@ -101,20 +115,46 @@ export function buildMarketSummaries(
     ).map((row) => [row.id, row]),
   )
 
-  // The latest price change per source inside the drop window; it only
-  // counts while the source's price still sits there.
+  // Each source's price changes inside the drop window, classified like the
+  // Price Drops page: moves under the Minimum change and bounces back to an
+  // earlier level are no change, and a drop only counts while it stands.
   const dropSince = new Date(
     now - MARKET_DROP_WINDOW_DAYS * DAY_MS,
   ).toISOString()
-  const latestChange = new Map<number, DropRow>()
+  const changesBySource = new Map<number, PriceMoveEvent[]>()
   for (const row of database
     .prepare(
-      `SELECT source_id, direction, price_minor, delta_pct, occurred_at
+      `SELECT id, source_id, previous_price_minor, price_minor, currency,
+              occurred_at
        FROM price_change_events WHERE occurred_at >= ?
-       ORDER BY occurred_at DESC, id DESC`,
+       ORDER BY occurred_at ASC, id ASC`,
     )
-    .all(dropSince) as DropRow[])
-    if (!latestChange.has(row.source_id)) latestChange.set(row.source_id, row)
+    .all(dropSince) as ChangeRow[]) {
+    if (row.previous_price_minor === null || row.price_minor === null) continue
+    const list = changesBySource.get(row.source_id) ?? []
+    list.push({
+      id: row.id,
+      previousPriceMinor: row.previous_price_minor,
+      priceMinor: row.price_minor,
+      currency: row.currency,
+      occurredAt: row.occurred_at,
+    })
+    changesBySource.set(row.source_id, list)
+  }
+  const minPercent = settings.thresholds?.minPercent ?? 0
+  const moveFor = (source: SourceRow): PriceMoveClass | null => {
+    const events = changesBySource.get(source.id)
+    return events
+      ? classifyPriceMoves(
+          events,
+          {
+            priceMinor: source.last_price_minor,
+            currency: source.last_currency,
+          },
+          minPercent,
+        )
+      : null
+  }
 
   const restockSince = new Date(
     now - MARKET_RESTOCK_WINDOW_DAYS * DAY_MS,
@@ -192,17 +232,14 @@ export function buildMarketSummaries(
       read.length > 0 &&
       read.every((source) => source.last_availability === 'out_of_stock')
 
-    // A drop counts when it still holds on an in-stock source.
-    const drops = priced
-      .map((source) => ({ source, change: latestChange.get(source.id) }))
+    // The latest counted drop that still holds on an in-stock source.
+    const drop = priced
+      .map(moveFor)
       .filter(
-        ({ source, change }) =>
-          change?.direction === 'drop' &&
-          change.price_minor === source.last_price_minor,
+        (move): move is PriceMoveClass & { changedAt: string } =>
+          move?.result === 'drop' && Boolean(move.changedAt),
       )
-      .map(({ change }) => change!)
-      .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
-    const drop = drops[0]
+      .sort((a, b) => b.changedAt.localeCompare(a.changedAt))[0]
 
     result[knifeId] = {
       monitored,
@@ -220,8 +257,8 @@ export function buildMarketSummaries(
             ),
           )
         : null,
-      droppedAt: outOfStock ? null : (drop?.occurred_at ?? null),
-      dropPct: outOfStock ? null : (drop?.delta_pct ?? null),
+      droppedAt: outOfStock ? null : (drop?.changedAt ?? null),
+      dropPct: outOfStock ? null : (drop?.deltaPct ?? null),
       restockedAt: outOfStock
         ? null
         : latest(inStock.map((source) => restockedAt.get(source.id))),
