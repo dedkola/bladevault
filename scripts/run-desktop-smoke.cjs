@@ -292,6 +292,7 @@ async function main() {
       'downloadUpdate',
       'errorReporting',
       'getBackgroundMode',
+      'getPriceNotifications',
       'getUpdateStatus',
       'installUpdate',
       'onUpdateStatus',
@@ -300,6 +301,7 @@ async function main() {
       'scrapeBrowser',
       'selectDirectory',
       'setBackgroundMode',
+      'setPriceNotifications',
     ])
     assert.deepEqual(boundary.scrapeBrowserKeys, [
       'cancel',
@@ -463,6 +465,36 @@ async function main() {
       })),
       [{ name: 'Desktop comparison', ids: ['electron-smoke'] }],
     )
+
+    // Like background mode, the price notification choice stays in memory.
+    logStage('Price notifications: the choice round-trips through preload.')
+    assert.equal(
+      (
+        await window.evaluate(() =>
+          window.bladevaultDesktop.getPriceNotifications(),
+        )
+      ).enabled,
+      false,
+    )
+    assert.equal(
+      (
+        await window.evaluate(() =>
+          window.bladevaultDesktop.setPriceNotifications(true),
+        )
+      ).enabled,
+      true,
+    )
+    await window.evaluate(() =>
+      window.bladevaultDesktop.setPriceNotifications(false),
+    )
+    const desktopAlerts = await window.evaluate(async () => {
+      const response = await fetch(
+        '/api/price-notifications/desktop?since=2000-01-01T00:00:00.000Z',
+      )
+      return { status: response.status, body: await response.json() }
+    })
+    assert.equal(desktopAlerts.status, 200)
+    assert.ok(Array.isArray(desktopAlerts.body.alerts))
 
     // Smoke runs keep this choice in memory only, so it starts off and never
     // touches the developer's own user-data folder.

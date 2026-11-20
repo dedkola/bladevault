@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { PriceAlertRules } from '@/components/price-drops/price-alert-rules'
 import { getSafeExternalUrl } from '@/lib/external-url'
 import { formatMoney } from '@/lib/price-monitor/money'
 import type {
@@ -518,6 +519,14 @@ export function PriceWatchEditor({
           </p>
         ) : null}
       </div>
+
+      <PriceAlertRules
+        watch={watch}
+        busy={busy}
+        onChange={(alerts) => void update({ alerts })}
+        onUnmuteSource={(id) => void update({ update: [{ id, muteDays: 0 }] })}
+        className="border-t border-[var(--bladevault-line)] pt-3"
+      />
 
       {error ? (
         <p className="flex items-start gap-1.5 text-xs text-destructive">
