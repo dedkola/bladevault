@@ -121,6 +121,72 @@ describe('pickNextChecks', () => {
     ).toEqual([])
   })
 
+  it('gives a new source its first price after the minimum gap, not the spread', () => {
+    // Other stores just found a listing: the store's next scheduled slot is
+    // an hour away, but the new source waits only the minimum gap.
+    const spread = lane('amazon', {
+      readyAt: NOW + 60 * MIN,
+      lastRequestAt: NOW - 10 * MIN,
+      minGapMs: 9 * MIN,
+    })
+    const known = source('amazon')
+    const fresh = source('amazon', {
+      priority: 1,
+      nextCheckAt: null,
+      firstReading: true,
+    })
+    expect(pickNextChecks(input([known, fresh], {}, [spread]))).toEqual([
+      { sourceId: fresh.sourceId, laneKey: 'amazon', trigger: 'scheduled' },
+    ])
+    // Too soon after the store's last request: still waits the minimum gap.
+    const recent = { ...spread, lastRequestAt: NOW - 2 * MIN }
+    expect(pickNextChecks(input([fresh], {}, [recent]))).toEqual([])
+    expect(nextWakeAt(input([fresh], {}, [recent]))).toBe(NOW + 7 * MIN)
+    // A source moved forward by the supervisor keeps the spread.
+    const promoted = source('amazon', { priority: 1 })
+    expect(pickNextChecks(input([promoted], {}, [spread]))).toEqual([])
+  })
+
+  it('holds first readings for failures, cooldowns and advised pauses', () => {
+    const fresh = source('shop.example', {
+      priority: 1,
+      nextCheckAt: null,
+      firstReading: true,
+    })
+    const base = {
+      readyAt: NOW + 60 * MIN,
+      lastRequestAt: NOW - 10 * MIN,
+      minGapMs: MIN,
+    }
+    expect(
+      pickNextChecks(
+        input([fresh], {}, [
+          lane('shop.example', { ...base, failureStreak: 1 }),
+        ]),
+      ),
+    ).toEqual([])
+    expect(
+      pickNextChecks(
+        input([fresh], {}, [
+          lane('shop.example', {
+            ...base,
+            circuit: 'open',
+            cooldownUntil: NOW + 30 * MIN,
+          }),
+        ]),
+      ),
+    ).toEqual([])
+    const paused = input(
+      [fresh],
+      {
+        pauses: new Map([['shop.example', NOW + 20 * MIN]]),
+      },
+      [lane('shop.example', base)],
+    )
+    expect(pickNextChecks(paused)).toEqual([])
+    expect(nextWakeAt(paused)).toBe(NOW + 20 * MIN)
+  })
+
   it('works through a backlog after a restart at the normal pace', () => {
     // The desktop app was closed for days: every product is overdue, and the
     // stores' saved gaps survive the restart.

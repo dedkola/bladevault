@@ -162,6 +162,28 @@ export function manualReadyAt(lane: LaneState): number {
   return lane.lastRequestAt === null ? 0 : lane.lastRequestAt + lane.minGapMs
 }
 
+/**
+ * When a never-checked source may get its first reading: the store's minimum
+ * gap since its last request, not the spread of its scheduled checks. A
+ * listing found by Other stores or added between two checks would otherwise
+ * wait for the store's next scheduled slot, often an hour or more. A store
+ * that failed, slowed us down (Retry-After), is cooling down or has an
+ * advised pause waits as before.
+ */
+export function firstReadingAvailability(
+  lane: LaneState,
+  now: number,
+  pauseUntil: number | null = null,
+): LaneAvailability {
+  if (lane.circuit === 'open' || lane.failureStreak > 0)
+    return laneAvailability(lane, now)
+  const until = Math.min(
+    lane.readyAt,
+    Math.max(manualReadyAt(lane), pauseUntil ?? 0),
+  )
+  return until > now ? { state: 'waiting', until } : { state: 'ready' }
+}
+
 function openCircuit(
   lane: LaneState,
   now: number,

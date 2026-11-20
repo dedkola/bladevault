@@ -248,6 +248,16 @@ function TimelinePin({
   )
 }
 
+/**
+ * When a source is next checked (epoch ms). A never-checked source has no
+ * scheduled time: it waits at the front of its store's queue, so it shows at
+ * Now with the other due checks.
+ */
+function nextCheckTime(source: MonitoredSource, now: number): number | null {
+  if (source.nextCheckAt) return Date.parse(source.nextCheckAt)
+  return source.lastCheckedAt ? null : now
+}
+
 type Lane = {
   key: string
   label: string
@@ -394,9 +404,9 @@ function StatusTimeline({
     )
     const upcoming = placePins(
       lane.sources
-        .filter((source) => source.nextCheckAt)
+        .filter((source) => nextCheckTime(source, now) !== null)
         .map((source) => {
-          const at = Date.parse(source.nextCheckAt!)
+          const at = nextCheckTime(source, now)!
           return {
             source,
             due: at <= now,
@@ -738,10 +748,11 @@ export function MonitoringStatus({
   const attention = count('attention')
   const waiting = count('pending')
   const nextChecks = sources
-    .map((source) => source.nextCheckAt)
-    .filter((value): value is string => Boolean(value))
-  const queued = nextChecks.filter((value) => Date.parse(value) <= now).length
-  const nextDue = nextChecks.sort()[0]
+    .map((source) => nextCheckTime(source, now))
+    .filter((value): value is number => value !== null)
+  const queued = nextChecks.filter((value) => value <= now).length
+  const nextDueAt = nextChecks.length ? Math.min(...nextChecks) : null
+  const nextDue = nextDueAt === null ? null : new Date(nextDueAt).toISOString()
   const interval = overview.round.intervalHours
   const horizonHours = Math.min(24, Math.max(6, interval ?? 12))
 

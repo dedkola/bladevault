@@ -1,4 +1,5 @@
 import {
+  firstReadingAvailability,
   laneAvailability,
   manualReadyAt,
   type LaneState,
@@ -14,6 +15,8 @@ export type QueueCandidate = {
   nextCheckAt: number | null
   /** Covered by scheduled monitoring (enabled source, eligible knife). */
   scheduled: boolean
+  /** Never checked: its first reading waits only the store's minimum gap. */
+  firstReading?: boolean
 }
 
 export type QueuePick = {
@@ -31,6 +34,24 @@ export type QueueInput = {
   /** Monitoring enabled and inside the active hours. */
   scheduledActive: boolean
   defaultLane: (laneKey: string) => LaneState
+  /** Advised pauses per store (epoch ms); first readings wait for them too. */
+  pauses?: ReadonlyMap<string, number>
+}
+
+/** A due never-checked source of a waiting store, when it may start now. */
+function freshFirstReading(
+  due: readonly QueueCandidate[],
+  lane: LaneState,
+  input: QueueInput,
+): QueueCandidate | null {
+  const fresh = due.find(
+    (candidate) => candidate.firstReading && candidate.priority < 2,
+  )
+  if (!fresh) return null
+  const pauseUntil = input.pauses?.get(lane.laneKey) ?? null
+  return firstReadingAvailability(lane, input.now, pauseUntil).state === 'ready'
+    ? fresh
+    : null
 }
 
 function isDue(candidate: QueueCandidate, input: QueueInput): boolean {
@@ -69,21 +90,28 @@ export function pickNextChecks(input: QueueInput): QueuePick[] {
     const lane = input.lanes.get(laneKey) ?? input.defaultLane(laneKey)
     const availability = laneAvailability(lane, input.now)
     const [first] = due.sort(byUrgency)
+    let pick: QueueCandidate = first
     let trigger: QueuePick['trigger'] | null = null
     if (availability.state === 'ready') {
       trigger = first.priority >= 2 ? 'manual' : 'scheduled'
     } else if (availability.state === 'probe') {
       trigger = 'probe'
-    } else if (
-      availability.state === 'waiting' &&
-      first.priority >= 2 &&
-      manualReadyAt(lane) <= input.now
-    ) {
-      trigger = 'manual'
+    } else if (availability.state === 'waiting') {
+      if (first.priority >= 2) {
+        if (manualReadyAt(lane) <= input.now) trigger = 'manual'
+      } else {
+        // A new source gets its first price within the store's minimum gap
+        // instead of waiting for the next slot of the store's spread.
+        const fresh = freshFirstReading(due, lane, input)
+        if (fresh) {
+          pick = fresh
+          trigger = 'scheduled'
+        }
+      }
     }
     if (trigger)
       ready.push({
-        pick: { sourceId: first.sourceId, laneKey, trigger },
+        pick: { sourceId: pick.sourceId, laneKey, trigger },
         lastRequestAt: lane.lastRequestAt ?? -Infinity,
       })
   }
@@ -130,6 +158,23 @@ export function nextWakeAt(input: QueueInput): number | null {
       ? input.now
       : Math.min(...list.map((candidate) => candidate.nextCheckAt ?? input.now))
     consider(Math.max(gate, sourceDue))
+    // A due first reading may start before the store's spread allows.
+    if (
+      availability.state === 'waiting' &&
+      list.some(
+        (candidate) =>
+          candidate.firstReading &&
+          candidate.priority < 2 &&
+          (candidate.nextCheckAt ?? input.now) <= input.now,
+      )
+    ) {
+      const first = firstReadingAvailability(
+        lane,
+        input.now,
+        input.pauses?.get(laneKey) ?? null,
+      )
+      consider(first.state === 'waiting' ? first.until : input.now)
+    }
   }
   return earliest
 }
