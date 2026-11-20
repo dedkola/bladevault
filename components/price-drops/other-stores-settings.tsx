@@ -16,6 +16,7 @@ import {
   SettingsSwitch,
 } from '@/components/settings-panels'
 import { relativeTime } from '@/components/price-drops/price-format'
+import { TextField } from '@/components/price-drops/price-ai-settings'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
 import type {
   DiscoveryItemView,
@@ -23,7 +24,9 @@ import type {
   DiscoveryStatus,
 } from '@/lib/price-monitor/discovery-store'
 import {
+  AMAZON_DEFAULT_POSTCODES,
   AMAZON_MARKETPLACES,
+  normalizeAmazonPostcode,
   OTHER_STORE_IDS,
   OTHER_STORE_LABELS,
   type AmazonMarketplace,
@@ -256,6 +259,25 @@ export function OtherStoresSettings({
           ) : null}
         </SettingsRow>
       ))}
+      <SettingsRow
+        label="Amazon delivery postcode"
+        description={`Amazon hides products that do not ship to your address, so searches and checks shop as a buyer at this ZIP or postcode in the marketplace’s country. Leave it empty to use ${AMAZON_DEFAULT_POSTCODES[settings.amazonMarketplace]}.`}
+      >
+        <TextField
+          aria-label="Amazon delivery postcode"
+          value={settings.amazonPostcode}
+          placeholder={AMAZON_DEFAULT_POSTCODES[settings.amazonMarketplace]}
+          disabled={off || !settings.stores.amazon}
+          validate={(value) =>
+            !value || normalizeAmazonPostcode(value)
+              ? null
+              : 'Enter a ZIP or postcode: letters, digits, spaces and dashes.'
+          }
+          onCommit={(value) =>
+            update({ amazonPostcode: normalizeAmazonPostcode(value) ?? '' })
+          }
+        />
+      </SettingsRow>
       {shown.length ? (
         <SettingsRow
           label="Results"

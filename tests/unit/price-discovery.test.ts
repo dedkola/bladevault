@@ -3,13 +3,18 @@ import {
   amazonSearchUrl,
   buildSearchQueries,
   buildSearchQuery,
+  modelNumberCodes,
+  pageShowsModelNumber,
   parseAmazonSearchResults,
   parseMatchAnswer,
   parseVerifyAnswer,
 } from '@/lib/price-monitor/discovery-ai'
+import { amazonDeliversTo } from '@/lib/price-monitor/amazon-location'
 import { nextDiscoveryAttempt } from '@/lib/price-monitor/discovery-store'
 import {
+  amazonDeliveryPostcode,
   DEFAULT_PRICE_MONITORING,
+  normalizeAmazonPostcode,
   normalizePriceMonitoring,
 } from '@/lib/settings-shared'
 
@@ -73,6 +78,18 @@ describe('Other stores search parsing', () => {
     ])
   })
 
+  it('takes the ad label out of the title and marks the result as an ad', () => {
+    const [result] = parseAmazonSearchResults(`
+      <div data-component-type="s-search-result" data-asin="B0GVSLQJD2">
+        <h2 aria-label="Vosteed">Vosteed</h2>
+        <h2 aria-label="Sponsored Ad - Porcupine ModSwap - 154CM Blade, G10 Handle - A3103"></h2>
+      </div>`)
+    expect(result).toMatchObject({
+      title: 'Vosteed Porcupine ModSwap - 154CM Blade, G10 Handle - A3103',
+      sponsored: true,
+    })
+  })
+
   it('falls back to product links for other layouts', () => {
     const html = `<a href="/Spyderco-Para/dp/B07PARA003/ref=sr_1_1">Spyderco Para 3 Folding Knife</a>
       <a href="/dp/B07PARA003">Spyderco Para 3 again</a><a href="/dp/B0SHORT001">Buy</a>`
@@ -111,6 +128,82 @@ describe('Other stores search parsing', () => {
     expect(amazonSearchUrl('amazon.de', 'Para 3 & Co')).toBe(
       'https://www.amazon.de/s?k=Para+3+%26+Co',
     )
+  })
+})
+
+describe('Other stores model number check', () => {
+  it('reads one or more maker codes and ignores names', () => {
+    expect(modelNumberCodes('C223GP / C223GPBK')).toEqual([
+      'C223GP',
+      'C223GPBK',
+    ])
+    expect(modelNumberCodes('A3105')).toEqual(['A3105'])
+    expect(modelNumberCodes('Para')).toEqual([])
+    expect(modelNumberCodes('3V')).toEqual([])
+    expect(modelNumberCodes(undefined)).toEqual([])
+  })
+
+  it('needs the exact code on the page, not another variant', () => {
+    const title =
+      'Vosteed Porcupine ModSwap - 3.08" 154CM Blade, Micarta Handle - A3105'
+    expect(pageShowsModelNumber('A3105', title)).toBe(true)
+    expect(pageShowsModelNumber('A3103', title)).toBe(false)
+    expect(pageShowsModelNumber('A310', title)).toBe(false)
+    expect(pageShowsModelNumber('a-3105', title)).toBe(true)
+    expect(pageShowsModelNumber('C223GP', 'Item model number: SP223GP')).toBe(
+      false,
+    )
+    expect(pageShowsModelNumber('C223GP', 'Para 3 C223GPBK black')).toBe(false)
+    expect(pageShowsModelNumber('V3619.2PR3', 'Drop Bear V3619.2PR3')).toBe(
+      true,
+    )
+    // No code in the collection: nothing to compare.
+    expect(pageShowsModelNumber(undefined, title)).toBe(true)
+  })
+
+  it('sets the postcode unless Amazon already delivers there', () => {
+    expect(amazonDeliversTo('Ukraine', '10001')).toBe(false)
+    expect(amazonDeliversTo('New York 10001\u200c', '10001')).toBe(true)
+    // The user's own ZIP replaces an earlier one.
+    expect(amazonDeliversTo('New York 10001', '94105')).toBe(false)
+    // Amazon shortens UK postcodes.
+    expect(amazonDeliversTo('London SW1A 1', 'SW1A 1AA')).toBe(true)
+    // No location on the page: another layout, left alone.
+    expect(amazonDeliversTo(null, '10001')).toBe(true)
+  })
+
+  it('uses the user’s postcode or the marketplace default', () => {
+    expect(
+      amazonDeliveryPostcode({
+        amazonMarketplace: 'amazon.com',
+        amazonPostcode: '',
+      }),
+    ).toBe('10001')
+    expect(
+      amazonDeliveryPostcode({
+        amazonMarketplace: 'amazon.de',
+        amazonPostcode: '',
+      }),
+    ).toBe('10115')
+    expect(
+      amazonDeliveryPostcode({
+        amazonMarketplace: 'amazon.com',
+        amazonPostcode: '94105',
+      }),
+    ).toBe('94105')
+    expect(normalizeAmazonPostcode(' sw1a   1aa ')).toBe('SW1A 1AA')
+    expect(normalizeAmazonPostcode('<script>')).toBeNull()
+    expect(normalizeAmazonPostcode('1')).toBeNull()
+    expect(
+      normalizePriceMonitoring({
+        otherStores: { amazonPostcode: '94105' },
+      }).otherStores.amazonPostcode,
+    ).toBe('94105')
+    expect(
+      normalizePriceMonitoring({
+        otherStores: { amazonPostcode: 'not a zip!!' },
+      }).otherStores.amazonPostcode,
+    ).toBe('')
   })
 })
 
@@ -168,6 +261,8 @@ describe('Other stores scheduling and settings', () => {
       enabled: false,
       stores: { amazon: true, bladehq: false, knifecenter: false },
       amazonMarketplace: 'amazon.com',
+      // Empty: the marketplace's default postcode (10001 on amazon.com).
+      amazonPostcode: '',
     })
     const next = normalizePriceMonitoring({
       otherStores: {
@@ -180,6 +275,7 @@ describe('Other stores scheduling and settings', () => {
       enabled: true,
       stores: { amazon: false, bladehq: false, knifecenter: false },
       amazonMarketplace: 'amazon.com',
+      amazonPostcode: '',
     })
     expect(
       normalizePriceMonitoring({

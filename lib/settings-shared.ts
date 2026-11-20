@@ -517,6 +517,51 @@ export const AMAZON_MARKETPLACES = [
 ] as const
 export type AmazonMarketplace = (typeof AMAZON_MARKETPLACES)[number]
 
+/**
+ * The delivery postcode Amazon searches and checks use when none is set: a
+ * central one in the marketplace's country. Amazon hides products that do
+ * not ship to the shopper, so a browser abroad would find almost nothing.
+ */
+export const AMAZON_DEFAULT_POSTCODES: Record<AmazonMarketplace, string> = {
+  'amazon.com': '10001',
+  'amazon.ca': 'M5V 3L9',
+  'amazon.co.uk': 'SW1A 1AA',
+  'amazon.de': '10115',
+  'amazon.fr': '75001',
+  'amazon.it': '00184',
+  'amazon.es': '28001',
+  'amazon.nl': '1012 JS',
+  'amazon.se': '111 52',
+  'amazon.pl': '00-001',
+  'amazon.com.au': '2000',
+  'amazon.co.jp': '100-0001',
+}
+
+/** Letters, digits, spaces and dashes, 2 to 12 characters ("10001", "SW1A 1AA"). */
+const AMAZON_POSTCODE = /^[A-Za-z0-9](?:[A-Za-z0-9 -]{0,10}[A-Za-z0-9])?$/
+
+/** The postcode cleaned up, or null when it is not one. */
+export function normalizeAmazonPostcode(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const postcode = value.trim().replace(/\s+/g, ' ').toUpperCase()
+  return postcode.length >= 2 && AMAZON_POSTCODE.test(postcode)
+    ? postcode
+    : null
+}
+
+/** The postcode Amazon delivers to: the user's, or the marketplace's default. */
+export function amazonDeliveryPostcode(
+  settings: Pick<
+    PriceOtherStoresSettings,
+    'amazonMarketplace' | 'amazonPostcode'
+  >,
+): string {
+  return (
+    settings.amazonPostcode ||
+    AMAZON_DEFAULT_POSTCODES[settings.amazonMarketplace]
+  )
+}
+
 /** Stores AI can search for monitored knives, in search order. */
 export const OTHER_STORE_IDS = ['amazon', 'bladehq', 'knifecenter'] as const
 export type OtherStoreId = (typeof OTHER_STORE_IDS)[number]
@@ -532,6 +577,11 @@ export type PriceOtherStoresSettings = {
   enabled: boolean
   stores: Record<OtherStoreId, boolean>
   amazonMarketplace: AmazonMarketplace
+  /**
+   * Delivery postcode for Amazon searches and checks; empty uses the
+   * marketplace's default (10001 on amazon.com).
+   */
+  amazonPostcode: string
 }
 
 /**
@@ -670,6 +720,7 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
     enabled: false,
     stores: { amazon: true, bladehq: false, knifecenter: false },
     amazonMarketplace: 'amazon.com',
+    amazonPostcode: '',
   },
 }
 
@@ -909,6 +960,11 @@ function normalizeOtherStores(
     )
       ? (record.amazonMarketplace as AmazonMarketplace)
       : fallback.amazonMarketplace,
+    amazonPostcode:
+      record.amazonPostcode === ''
+        ? ''
+        : (normalizeAmazonPostcode(record.amazonPostcode) ??
+          fallback.amazonPostcode),
   }
 }
 

@@ -1,4 +1,6 @@
 import * as cheerio from 'cheerio'
+import type { Page } from 'playwright'
+import { ensureAmazonDelivery } from '@/lib/price-monitor/amazon-location'
 import {
   amazonProductUrl,
   amazonSearchUrl,
@@ -10,6 +12,7 @@ import {
 import { laneKeyForUrl, parseHttpUrl } from '@/lib/price-monitor/shared'
 import { extractAmazonProduct } from '@/lib/scrape-amazon'
 import {
+  amazonDeliveryPostcode,
   OTHER_STORE_LABELS,
   type OtherStoreId,
   type PriceOtherStoresSettings,
@@ -36,6 +39,14 @@ export type DiscoveryStore = {
     settings: PriceOtherStoresSettings,
   ) => DiscoveryCandidate[]
   productDetails: (html: string, url: string) => ProductPageDetails | null
+  /**
+   * Runs on each loaded store page before it is read, e.g. Amazon's
+   * delivery location. Its cookies are kept for the store's lane.
+   */
+  preparePage?: (
+    page: Page,
+    settings: PriceOtherStoresSettings,
+  ) => Promise<void>
 }
 
 const TITLE_MAX = 250
@@ -212,6 +223,8 @@ export const DISCOVERY_STORES: Record<OtherStoreId, DiscoveryStore> = {
         url: amazonProductUrl(settings.amazonMarketplace, candidate.asin),
       })),
     productDetails: amazonDetails,
+    preparePage: (page, settings) =>
+      ensureAmazonDelivery(page, amazonDeliveryPostcode(settings)),
   },
   bladehq: {
     id: 'bladehq',

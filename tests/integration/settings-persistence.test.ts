@@ -66,6 +66,7 @@ describe('settings persistence', () => {
           enabled: true,
           stores: { amazon: true, bladehq: false, knifecenter: false },
           amazonMarketplace: 'amazon.de',
+          amazonPostcode: '80331',
         },
       },
     })
@@ -118,6 +119,7 @@ describe('settings persistence', () => {
         enabled: true,
         stores: { amazon: true, bladehq: false, knifecenter: false },
         amazonMarketplace: 'amazon.de',
+        amazonPostcode: '80331',
       },
     })
     // The AI key is never part of the settings table.

@@ -72,7 +72,7 @@ function NoticeText({ notice }: { notice: Notice }) {
 }
 
 /** A text setting that saves on blur or Enter; Escape reverts. */
-function TextField({
+export function TextField({
   value,
   placeholder,
   disabled,
