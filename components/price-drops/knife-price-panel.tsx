@@ -43,9 +43,20 @@ import {
   CheckHistoryDialog,
   type CheckHistoryTarget,
 } from './check-history-dialog'
-import { ChangePill, KnifeThumb, StatusDot, useMinuteClock } from './price-ui'
+import {
+  ChangePill,
+  CurrencyMismatch,
+  KnifeThumb,
+  StatusDot,
+  useMinuteClock,
+} from './price-ui'
 import { PriceWatchEditor } from './price-watch-editor'
-import { SolveInBrowserDialog, type SolveTarget } from './solve-in-browser'
+import {
+  SOLVE_UNAVAILABLE_TEXT,
+  SolveInBrowserDialog,
+  useSolveInBrowserAvailable,
+  type SolveTarget,
+} from './solve-in-browser'
 
 const MODE_LABEL = { auto: 'Auto', on: 'Always monitor', off: 'Never monitor' }
 
@@ -142,6 +153,7 @@ function SourceLine({
   source,
   queued,
   now,
+  canSolve,
   onCheck,
   onSolve,
   onHistory,
@@ -149,6 +161,7 @@ function SourceLine({
   source: PriceSourceView
   queued: boolean
   now: number
+  canSolve: boolean | null
   onCheck: () => void
   onSolve: () => void
   onHistory: () => void
@@ -227,18 +240,24 @@ function SourceLine({
           </span>
         ) : null}
       </span>
-      {needsHelp ? (
+      {needsHelp && canSolve !== null ? (
         <Button
           type="button"
           variant="ghost"
           size="icon-xs"
-          aria-label={`${source.status === 'blocked' ? 'Solve the bot check' : 'Fix the page'} at ${storeLabel(source.storeName)} in a browser`}
-          title={
-            source.status === 'blocked'
-              ? 'Solve in browser'
-              : 'Open in a browser to fix'
+          aria-label={
+            canSolve
+              ? `${source.status === 'blocked' ? 'Solve the bot check' : 'Fix the page'} at ${storeLabel(source.storeName)} in a browser`
+              : `Solve in browser is unavailable here. ${SOLVE_UNAVAILABLE_TEXT}`
           }
-          disabled={queued}
+          title={
+            !canSolve
+              ? SOLVE_UNAVAILABLE_TEXT
+              : source.status === 'blocked'
+                ? 'Solve in browser'
+                : 'Open in a browser to fix'
+          }
+          disabled={queued || !canSolve}
           onClick={onSolve}
         >
           <AppWindow className="size-3" />
@@ -414,6 +433,7 @@ export function KnifePricePanel({
   )
   const [managing, setManaging] = useState(false)
   const now = useMinuteClock()
+  const canSolve = useSolveInBrowserAvailable()
   const [historyVersion, setHistoryVersion] = useState(0)
   const { watch, pending } = usePriceWatch(knifeId, version, () => {
     setHistoryVersion((value) => value + 1)
@@ -458,6 +478,19 @@ export function KnifePricePanel({
     stats?.bestNow ?? (watch ? bestOffer(watch.sources, currency) : null)
   const bestUrl = best ? getSafeExternalUrl(best.url) : null
   const paid = history?.paid ?? null
+  // Stores priced only in other currencies than the purchase price.
+  const storeCurrencies = new Set(
+    (watch?.sources ?? [])
+      .filter((source) => source.lastPriceMinor !== null)
+      .map((source) => source.lastCurrency)
+      .filter((value): value is string => Boolean(value)),
+  )
+  const otherCurrency =
+    paid && storeCurrencies.size && !storeCurrencies.has(paid.currency)
+      ? currency && storeCurrencies.has(currency)
+        ? currency
+        : [...storeCurrencies][0]
+      : null
   const queued = new Set(watch?.queuedSourceIds ?? [])
   const enabledSources = watch?.sources.filter((source) => source.enabled) ?? []
 
@@ -531,6 +564,13 @@ export function KnifePricePanel({
                   </a>
                 ) : null}
               </div>
+            ) : null}
+            {otherCurrency && paid ? (
+              <CurrencyMismatch
+                currency={otherCurrency}
+                paidCurrency={paid.currency}
+                className="block"
+              />
             ) : null}
           </div>
           {variant === 'tab' ? (
@@ -640,6 +680,7 @@ export function KnifePricePanel({
                 source={source}
                 queued={queued.has(source.id)}
                 now={now}
+                canSolve={canSolve}
                 onCheck={() =>
                   void startCheck({ scope: 'source', id: source.id })
                 }
@@ -665,6 +706,14 @@ export function KnifePricePanel({
             No product URLs yet. Add one under Manage sources.
           </p>
         )}
+        {canSolve === false &&
+        watch?.sources.some((source) =>
+          ['blocked', 'failed', 'price_unavailable'].includes(source.status),
+        ) ? (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {SOLVE_UNAVAILABLE_TEXT}
+          </p>
+        ) : null}
       </div>
 
       {history && history.events.length ? (

@@ -24,6 +24,7 @@ import {
   isModernThemeFamily,
 } from '@/lib/settings-shared'
 import { CareInboxBell } from '@/components/care-inbox'
+import { workspaceCrumb } from '@/lib/workspace-crumb'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -57,25 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Studio and Collection render their own search fields.
   const showWorkspaceSearch =
     pathname !== '/studio' && pathname !== '/collection'
-  const crumb = pathname.startsWith('/compare')
-    ? ['Compare', 'Saved comparisons']
-    : pathname.startsWith('/maintenance')
-      ? ['Activity', 'Maintenance']
-      : pathname.startsWith('/logs')
-        ? ['Activity', 'History']
-        : pathname === '/studio'
-          ? ['Studio', 'Visual library']
-          : pathname === '/collection'
-            ? ['Collection', 'All knives']
-            : pathname.startsWith('/collection/')
-              ? ['Collection', 'Knife details']
-              : pathname.startsWith('/settings')
-                ? ['Workspace', 'Settings']
-                : pathname === '/inbox'
-                  ? ['Workspace', 'Inbox']
-                  : pathname.startsWith('/add')
-                    ? ['Collection', 'Add knife']
-                    : ['Workspace', 'Insights']
+  const crumb = workspaceCrumb(pathname)
   async function toggleTheme() {
     const root = document.documentElement
     const dark = !root.classList.contains('dark')

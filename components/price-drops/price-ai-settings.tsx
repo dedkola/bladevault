@@ -15,7 +15,10 @@ import {
   SettingsSection,
   SettingsSwitch,
 } from '@/components/settings-panels'
+import { useKnives } from '@/components/providers/knives-provider'
+import { clockTime } from '@/components/price-drops/price-format'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
+import { getHourCycle } from '@/lib/time-format'
 import {
   formatAiHeaders,
   normalizeAiBaseUrl,
@@ -354,6 +357,7 @@ function AiActivity({
 }) {
   const [summary, setSummary] = useState<AiCallSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const hourCycle = getHourCycle(useKnives().timeFormat)
 
   useEffect(() => {
     let cancelled = false
@@ -417,7 +421,7 @@ function AiActivity({
           Last error (
           {PURPOSE_LABELS[summary.lastError.purpose] ??
             summary.lastError.purpose}
-          , {new Date(summary.lastError.at).toLocaleTimeString()}):{' '}
+          , {clockTime(summary.lastError.at, hourCycle)}):{' '}
           {summary.lastError.message}
         </p>
       ) : null}
@@ -446,6 +450,7 @@ type AgentRunView = {
 /** The supervisor's latest run, in one or two lines. */
 function AgentLastRun({ version }: { version: number }) {
   const [run, setRun] = useState<AgentRunView | null | undefined>(undefined)
+  const hourCycle = getHourCycle(useKnives().timeFormat)
   useEffect(() => {
     let cancelled = false
     callJson<{ runs: AgentRunView[] }>(
@@ -470,7 +475,7 @@ function AgentLastRun({ version }: { version: number }) {
     run.actions.filter((action) => action.status === status).length
   const done = run.mode === 'act' ? count('applied') : count('proposed')
   const refused = count('refused')
-  const when = new Date(run.startedAt).toLocaleString()
+  const when = clockTime(run.startedAt, hourCycle)
   return (
     <div className="flex w-full flex-col gap-1 text-xs text-muted-foreground">
       <p className="tabular-nums text-foreground">

@@ -12,8 +12,10 @@ import type {
 } from '@/lib/price-monitor/agent'
 import type { PriceAgentMode } from '@/lib/settings-shared'
 import { cn } from '@/lib/utils'
-import { relativeTime, storeLabel } from './price-format'
-import { StatusDot } from './price-ui'
+import { useKnives } from '@/components/providers/knives-provider'
+import { getHourCycle } from '@/lib/time-format'
+import { clockTime, relativeTime, storeLabel } from './price-format'
+import { StatusDot, useMinuteClock } from './price-ui'
 
 /**
  * The AI supervisor on Price Drops: a status strip above Monitoring status
@@ -558,6 +560,8 @@ export function AgentFeed({
   onSelect: (knifeId: string) => void
 }) {
   const [filter, setFilter] = useState<Filter>('all')
+  const hourCycle = getHourCycle(useKnives().timeFormat)
+  const now = useMinuteClock()
   const { state } = controls
   if (
     !state ||
@@ -618,16 +622,13 @@ export function AgentFeed({
           {shown.map((item) => (
             <li
               key={item.key}
-              className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] gap-2 py-2"
+              className="grid grid-cols-[5.5rem_minmax(0,1fr)_auto] gap-2 py-2"
             >
               <time
                 dateTime={item.at}
                 className="pt-0.5 text-xs whitespace-nowrap text-muted-foreground tabular-nums"
               >
-                {new Date(item.at).toLocaleTimeString(undefined, {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                {clockTime(item.at, hourCycle, now)}
               </time>
               <div className="min-w-0">
                 <p className="text-[13px] break-words">{item.what}</p>
