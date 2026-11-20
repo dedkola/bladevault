@@ -307,7 +307,6 @@ export function PriceMonitoringSettings({
   const updateThresholds = (
     patch: Partial<PriceMonitoringSettings['thresholds']>,
   ) => update({ thresholds: { ...settings.thresholds, ...patch } })
-  const priceAlertsOn = settings.notify.drop || settings.notify.increase
 
   const off = disabled || !settings.enabled
   const hours: ActiveHours | null =
@@ -481,7 +480,7 @@ export function PriceMonitoringSettings({
         ))}
         <SettingsRow
           label="Minimum change"
-          description="Price changes smaller than this don't notify. Set it to 0 to be notified about every price change. Stock changes always notify."
+          description="Price changes smaller than this don't notify and show as No change on Price Drops, with the small move as a hint. Set it to 0 to count every price change. Stock changes always notify."
         >
           <NumberField
             aria-label="Minimum price change in percent"
@@ -490,7 +489,7 @@ export function PriceMonitoringSettings({
             max={PRICE_MONITORING_LIMITS.minPercent[1]}
             decimals={1}
             unit="%"
-            disabled={disabled || !priceAlertsOn}
+            disabled={disabled}
             onCommit={(minPercent) => updateThresholds({ minPercent })}
           />
         </SettingsRow>
