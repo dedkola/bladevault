@@ -40,18 +40,30 @@ Open **Price Drops** in the sidebar. From top to bottom the page shows:
 
 - **Header** — whether automatic checks are running, waiting for the next check, or outside checking hours, with the time of the last successful check. **Check all now** queues every monitored source. It is unavailable while **Check prices automatically** is off; **Check now** on a knife or store still works then.
 - **AI supervisor** — appears when AI is connected (see [Let AI supervise monitoring](#let-ai-supervise-monitoring)): its mode, latest summary, coverage of monitored sources, what it did in its last run, and stores that need you to solve a bot check.
-- **Monitoring status** — counts of sources checked in the last 24 hours, drops, rises, out of stock, sources that need attention, and sources still waiting for their first check. Below the counts, a timeline pins each knife where it was last checked over the past 24 hours and again where its next check is due. Group the lanes **By result** or **By store**. Knives already due wait at **Now** and are checked one at a time per store. Select a pin to open the knife; a pin for several knives lists them.
+- **Monitoring status** — counts of sources checked in the last 24 hours, drops, rises, out of stock, sources that need attention, and sources still waiting for their first check. Below the counts, a timeline pins each knife where it was last checked over the past 24 hours and again where its next check is due. Group the lanes **By result** or **By store**. Knives already due wait at **Now** and are checked one at a time per store. Select a pin to open the knife; a pin for several knives lists them. Select **Hide timeline** to keep only the counts; the page remembers the choice.
 - **Checks per hour** and **Round** — checks started in each of the last 24 hours, colored by what they found, next to the check interval, number of stores, paused stores, failed checks in 24 hours, and the oldest result.
 - **The table** — every monitored store listing, with the price now, the latest change in money and percent, and the difference from what you paid. Switch between tabs:
   - **All** — every monitored source.
   - **Changes** — drops, increases, and out-of-stock sources together.
   - **Drops** and **Increases** — sources whose latest price change in the last 30 days is still the current price.
-  - **Out of stock** — sources that currently show the knife as unavailable.
-  - **Needs attention** — failed, blocked, unavailable, or doubtful readings, with when each will be checked next, such as **next in 3 hours**, **due now**, or **overdue 9 h**. Sources that have never been checked are not problems: they show as **Waiting** in **All** and in their own timeline lane until their first check.
+  - **Restocked** — sources that came back in stock in the last 7 days, marked like **Restocked · 2 d ago**.
+  - **Out of stock** — sources that currently show the knife as unavailable, with how long, like **Out of stock · 41 d**.
+  - **Below what I paid** — in-stock sources that cost less than your purchase price.
+  - **Needs attention** — failed, blocked, unavailable, or doubtful readings. They keep their last known price, shown muted with its date (**as of Nov 3**), and show when each is checked next, such as **next in 3 hours**, **due now**, or **overdue 9 h**. Sources that have never been checked are not problems: they show as **Waiting** in **All** and in their own timeline lane until their first check.
   - **Recently monitored** — the 30 latest checks.
 - **Side panel** — the selected knife's best current price, price chart, and sources, each with **Check now**. With AI connected, **Supervisor activity** below it lists every action, with the day for anything older than today.
 
-Select a knife to see its best current price, price chart, and sources in the side panel. **Check all now** queues every monitored source and shows its progress, such as "34 of 221 checked", until the queue is done; **Check now** on a source or knife checks just that one.
+To find a knife, search by brand, name, model number, steel, or store, or pick a store. Select a column header (**Price now**, **Change**, **vs paid**, **Checked**) to sort by it, and select it again to reverse or reset the order. **vs paid** shows the difference in money and percent. Knives that share a name show their model number, steel, and handle so you can tell them apart. **Group by knife** shows one row per knife with its best price; expand it to see each store.
+
+The open tab and selected knife stay in the address (`?section=` and `?knife=`), so a link opens the same view; the page also remembers the last tab and the chart range in this browser.
+
+Select a knife to see its best current price, price chart, and sources in the side panel; on a phone it opens as a sheet. Each row also has **Check now**, **Store page**, **Market tab**, and, for listings that need attention, **Solve in browser**.
+
+Tick rows to act on several at once: **Check now**, **Pause** (paused listings stop being checked; resume them in the knife's edit mode), or **Set mode** to Auto, Always monitor, or Never monitor. BladeVault asks first before changing five or more.
+
+The **Price Drops** link in the navigation shows how many price notifications are unread. If the page cannot refresh, it says how old the shown data is and offers **Retry**.
+
+**Check all now** queues every monitored source and shows its progress, such as "34 of 221 checked", until the queue is done; **Check now** on a source or knife checks just that one.
 
 Percent changes keep one decimal below 10%, so a 0.3% move does not read as 0%. Times follow **Settings → Time format** (12-hour or 24-hour) and add the date when they are not today.
 

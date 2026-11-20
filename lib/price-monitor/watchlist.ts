@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3'
 import { getLocalDb } from '@/lib/local-db'
 import { getEligibility } from '@/lib/price-monitor/eligibility'
 import {
+  knifeSubtitle,
   readChangeEventsById,
   type ChangeEvent,
 } from '@/lib/price-monitor/insights'
@@ -43,6 +44,8 @@ type WantedRow = {
   name: string
   brand: string
   images: string
+  specs: string
+  handle_material: string | null
   source_url: string
   added_at: string
   mode: PriceWatchMode
@@ -114,7 +117,8 @@ function stockOf(sources: SourceRow[]): WatchlistStock {
 export function buildWatchlist(database: Database.Database): Watchlist {
   const knives = database
     .prepare(
-      `SELECT k.id, k.name, k.brand, k.images, k.source_url, k.added_at,
+      `SELECT k.id, k.name, k.brand, k.images, k.specs, k.handle_material,
+              k.source_url, k.added_at,
               COALESCE(w.mode, 'auto') AS mode, w.target_price_minor,
               w.target_currency
        FROM knives k LEFT JOIN price_watch w ON w.knife_id = k.id
@@ -213,6 +217,7 @@ export function buildWatchlist(database: Database.Database): Watchlist {
         name: knife.name,
         brand: knife.brand,
         image: firstImage(knife.images),
+        subtitle: knifeSubtitle(knife),
         wanted: true,
       },
       sourceUrl: knife.source_url,
