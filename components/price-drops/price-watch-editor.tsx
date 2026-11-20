@@ -4,6 +4,7 @@ import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import {
   AlertCircle,
   ExternalLink,
+  Eye,
   Loader2,
   Pause,
   Play,
@@ -65,6 +66,11 @@ const FETCH_LABEL: Record<FetchOverride, string> = {
 }
 
 const POLL_MS = 2500
+
+function focusEvery(intervalMs: number): string {
+  const hours = intervalMs / 3_600_000
+  return hours === 1 ? 'hour' : `${Math.round(hours * 10) / 10} hours`
+}
 
 async function readError(response: Response): Promise<string> {
   try {
@@ -421,6 +427,37 @@ export function PriceWatchEditor({
         >
           {ELIGIBILITY_TEXT[watch.eligibility.reason]}
         </p>
+        {watch.focus ? (
+          <div
+            data-price-focus
+            className="flex flex-wrap items-start gap-2 rounded-lg border border-[var(--bladevault-line)] p-2 text-xs"
+          >
+            <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <p className="min-w-0 flex-1 text-foreground">
+              The AI supervisor is watching this knife closely: checks about
+              every {focusEvery(watch.focus.intervalMs)} until{' '}
+              {new Date(watch.focus.until).toLocaleString(undefined, {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              })}
+              .
+              {watch.focus.reason ? (
+                <span className="block text-muted-foreground">
+                  {watch.focus.reason}
+                </span>
+              ) : null}
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={() => void update({ stopWatching: true })}
+              disabled={busy}
+            >
+              Stop
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <div className="space-y-2">

@@ -51,7 +51,9 @@ import {
  * - retryWithAi: let AI read or solve a failing page on its next check,
  * - fetchMode: load a source in the browser or over plain HTTP,
  * - pause: stop a source whose page keeps failing as gone,
- * - searchOtherStore: look for a knife on other stores (Other stores).
+ * - searchOtherStore: look for a knife on other stores (Other stores),
+ * - watchClosely: check a knife's sources more often for a while,
+ * - crossCheck: read a knife's other stores now.
  *
  * Every action is validated and capped here, never trusted. Checks still run
  * through the paced queue: one product at a time per store, with store gaps,
@@ -77,7 +79,15 @@ export const AGENT_LIMITS = {
   fetchMode: 5,
   pause: 3,
   searchOtherStore: 5,
+  watchClosely: 5,
+  crossCheck: 5,
 } as const
+/** Knives the supervisor may watch closely at once. */
+export const MAX_FOCUSED_KNIVES = 20
+/** A close watch lasts at most this long (hours). */
+export const FOCUS_MAX_HOURS = 72
+/** And checks at most this often (hours). */
+export const FOCUS_MIN_EVERY_HOURS = 1
 /** A check asked for this soon after the last one is refused. */
 export const RECHECK_MIN_MS = 30 * MINUTE_MS
 /** Failed checks in a row before the agent may pause a source. */
@@ -181,6 +191,12 @@ export type AgentKnife = {
   } | null
   /** Other stores searches (only while Other stores is on). */
   search: AgentSearch[]
+  /** Your close watch on the knife, while it lasts. */
+  watching: {
+    everyHours: number
+    endsInHours: number
+    reason: string
+  } | null
 }
 
 export type AgentStore = {
@@ -276,6 +292,9 @@ type KnifeQueryRow = {
   target_price_minor: number | null
   target_currency: string | null
   muted: number
+  focus_until: string | null
+  focus_interval_ms: number | null
+  focus_reason: string | null
 }
 
 /** "129.00 USD": plain amounts the model can compare, in any currency. */
@@ -527,7 +546,8 @@ function readAgentKnives(input: {
       database
         .prepare(
           `SELECT k.id, k.brand, k.name, k.specs, w.target_price_minor,
-                  w.target_currency, COALESCE(w.notify_muted, 0) AS muted
+                  w.target_currency, COALESCE(w.notify_muted, 0) AS muted,
+                  w.focus_until, w.focus_interval_ms, w.focus_reason
            FROM knives k LEFT JOIN price_watch w ON w.knife_id = k.id
            WHERE k.id IN (SELECT knife_id FROM price_sources
                           WHERE removed_at IS NULL)`,
@@ -670,6 +690,16 @@ function readAgentKnives(input: {
     const change = lastPrice.get(knifeId)
     const stock = lastStock.get(knifeId)
     const lanes = knifeLanes.get(knifeId) ?? new Set<string>()
+    const focusUntil = knife?.focus_until ? Date.parse(knife.focus_until) : NaN
+    const watching =
+      knife?.focus_interval_ms && focusUntil > now
+        ? {
+            everyHours:
+              Math.round((knife.focus_interval_ms / HOUR_MS) * 10) / 10,
+            endsInHours: Math.round(((focusUntil - now) / HOUR_MS) * 10) / 10,
+            reason: knife.focus_reason ?? '',
+          }
+        : null
     return {
       knifeId,
       knife: listed[0]?.knife ?? knifeId,
@@ -729,6 +759,7 @@ function readAgentKnives(input: {
               : null,
           }
         }),
+      watching,
     }
   })
 }
@@ -757,22 +788,44 @@ function readRecentRuns(
     `SELECT store, status FROM price_discovery
      WHERE knife_id = ? AND last_attempt_at >= ? ORDER BY store`,
   )
+  const knifeChecks = database.prepare(
+    `SELECT COUNT(*) AS count FROM price_check_log
+     WHERE knife_id = ? AND started_at >= ?`,
+  )
+  type CheckRow = {
+    outcome: string
+    error_code: string | null
+    http_status: number | null
+    started_at: string
+  }
+  const result = (check: CheckRow) => {
+    const error =
+      check.outcome === 'ok'
+        ? null
+        : errorLabel(check.error_code, check.http_status)
+    return `${check.outcome}${error ? ` (${error})` : ''}`
+  }
   const outcome = (run: AgentRun, action: AgentAction): string | undefined => {
     if (action.status === 'refused') return undefined
+    if (action.kind === 'crossCheck') {
+      const ids = action.sourceIds ?? []
+      const checks = ids
+        .map((id) => nextCheck.get(id, run.startedAt) as CheckRow | undefined)
+        .filter((check): check is CheckRow => Boolean(check))
+      return checks.length
+        ? `read ${checks.length} of ${ids.length}: ${checks.map(result).join(', ')}`
+        : 'not checked since'
+    }
+    if (action.kind === 'watchClosely' && action.knifeId !== undefined) {
+      const { count } = knifeChecks.get(action.knifeId, run.startedAt) as {
+        count: number
+      }
+      return `${count} check${count === 1 ? '' : 's'} since`
+    }
     if (action.sourceId !== undefined) {
       const check = nextCheck.get(action.sourceId, run.startedAt) as
-        | {
-            outcome: string
-            error_code: string | null
-            http_status: number | null
-            started_at: string
-          }
-        | undefined
+        CheckRow | undefined
       if (!check) return 'not checked since'
-      const error =
-        check.outcome === 'ok'
-          ? null
-          : errorLabel(check.error_code, check.http_status)
       const after = Math.max(
         0,
         Math.round(
@@ -780,7 +833,7 @@ function readRecentRuns(
             MINUTE_MS,
         ),
       )
-      return `next check: ${check.outcome}${error ? ` (${error})` : ''}, ${after} min later`
+      return `next check: ${result(check)}, ${after} min later`
     }
     if (action.knifeId === undefined) return undefined
     const rows = searched.all(action.knifeId, run.startedAt) as Array<{
@@ -840,8 +893,25 @@ export type AgentPlan = {
   retryWithAi: PlanItem[]
   fetchMode: Array<PlanItem & { mode: FetchOverride }>
   pause: PlanItem[]
-  searchOtherStore: Array<{ knifeId: string; reason: string }>
+  searchOtherStore: KnifeItem[]
+  watchClosely: Array<KnifeItem & { hours: number; everyHours: number }>
+  crossCheck: KnifeItem[]
 }
+type KnifeItem = { knifeId: string; reason: string }
+
+const knifeItems = (extra: Record<string, unknown> = {}) => ({
+  type: 'array',
+  items: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['knifeId', 'reason', ...Object.keys(extra)],
+    properties: {
+      knifeId: { type: 'string' },
+      reason: { type: 'string' },
+      ...extra,
+    },
+  },
+})
 
 const item = (extra: Record<string, unknown> = {}) => ({
   type: 'array',
@@ -867,6 +937,8 @@ export const AGENT_SCHEMA = {
     'fetchMode',
     'pause',
     'searchOtherStore',
+    'watchClosely',
+    'crossCheck',
   ],
   properties: {
     summary: { type: 'string' },
@@ -874,31 +946,27 @@ export const AGENT_SCHEMA = {
     retryWithAi: item(),
     fetchMode: item({ mode: { type: 'string', enum: [...FETCH_OVERRIDES] } }),
     pause: item(),
-    searchOtherStore: {
-      type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['knifeId', 'reason'],
-        properties: {
-          knifeId: { type: 'string' },
-          reason: { type: 'string' },
-        },
-      },
-    },
+    searchOtherStore: knifeItems(),
+    watchClosely: knifeItems({
+      hours: { type: 'number' },
+      everyHours: { type: 'number' },
+    }),
+    crossCheck: knifeItems(),
   },
 } as const
 
 export const AGENT_PROMPT = [
   'You supervise price monitoring for a knife collector. Each source is one store product page that BladeVault checks for price and stock. Keep every monitored source fresh and readable, and spend checks where they matter most to the collector right now.',
   "The input lists knives, most urgent first. Each knife has its market: regular (the knife's stored regular price), target (the collector's alert price), best (the cheapest in-stock price now) and bestStore, low (lowest in-stock price ever), low90d and high90d, lastPriceChange, lastStockChange, muted, and search (Other stores searches). Under it are its sources: status, price, stock, outOfStockDays, timing in minutes, failures, error, queued and ahead. The input also has each store's pace, coverage, the AI budget, localTime and your recent runs, each action with its note (why it was refused) or outcome (what its next check or search found). Missing fields are unknown.",
-  'Answer with JSON only: {"summary", "check", "retryWithAi", "fetchMode", "pause", "searchOtherStore"}. Leave a list empty when nothing is needed: often nothing is.',
+  'Answer with JSON only: {"summary", "check", "retryWithAi", "fetchMode", "pause", "searchOtherStore", "watchClosely", "crossCheck"}. Leave a list empty when nothing is needed: often nothing is.',
   `check (at most ${AGENT_LIMITS.check}): move sources to the front of their store's line. Each store already checks its most overdue source first, so a due source with ahead 0 is next anyway and a check changes nothing. Use check to put a source that matters more ahead of others (ahead above 0), or to read a source that is not due yet now: a knife near or below its target or regular price, a price that just moved at another store, a restock to confirm, a sale period (look at localTime, e.g. Black Friday and holiday sales). Skip sources marked queued, checked in the last 30 minutes, or not monitored.`,
   'A store checks one product at a time at its own safe pace (minGapSec, fullPassHours), and paused stores (circuit open) wait out their pause. You cannot speed a store up: many checks at one store simply wait in line, so do not ask for more than the stores can do before your next run.',
   `retryWithAi (at most ${AGENT_LIMITS.retryWithAi}): failed or price_unavailable sources where AI reading or working the page may get the price on the next check. Never for blocked sources: a bot check needs the user.`,
   `fetchMode (at most ${AGENT_LIMITS.fetchMode}): "browser" when a source keeps failing in a way a real browser may fix (scripts, empty pages, timeouts), "http" only for a fast simple page, "auto" to undo. Look at a source's fetch first.`,
   `pause (at most ${AGENT_LIMITS.pause}): only sources that failed at least ${PAUSE_MIN_FAILURES} checks in a row and whose page seems gone (not_found or redirect). Pages not found with HTTP 404 or 410 pause on their own. The user can resume them.`,
   `searchOtherStore (at most ${AGENT_LIMITS.searchOtherStore}): bring a waiting Other stores search forward (a search with nextInDays above 0), for knives whose sources are all out of stock or failing, or that the collector watches closely (a target, a recent drop) and that have a single store. Only when otherStores is true. A search that is due (not_searched, nextInDays 0 or less) or found needs nothing.`,
+  `watchClosely (at most ${AGENT_LIMITS.watchClosely}, ${MAX_FOCUSED_KNIVES} knives at once): check a knife's sources every everyHours (at least ${FOCUS_MIN_EVERY_HOURS}, below checkIntervalHours) for the next hours (at most ${FOCUS_MAX_HOURS}): a knife near or below its target or regular price, a fresh drop that may go lower, a restock to catch, a sale period. Asking again for a watched knife replaces its watch. The stores' pace still applies.`,
+  `crossCheck (at most ${AGENT_LIMITS.crossCheck}): read all other sources of a knife now, for example after its price moved or it came back in stock at one store, so the collector sees the whole market. Sources checked in the last 30 minutes, queued or blocked are left out.`,
   'Learn from your recent runs: do not repeat actions that were refused or did not help.',
   'Every item needs a short reason. summary: one to three plain sentences for the collector: notable market news (drops, prices at or below target or regular price, restocks) and what you did. If nothing changed since your last run, say so in one short sentence.',
 ].join('\n')
@@ -956,24 +1024,61 @@ export function readAgentPlan(answer: unknown): AgentPlan {
     searchOtherStore: readItems(
       record.searchOtherStore,
       AGENT_LIMITS.searchOtherStore,
+      knifeItem,
+    ),
+    watchClosely: readItems(
+      record.watchClosely,
+      AGENT_LIMITS.watchClosely,
       (entry) => {
-        const id = text(entry.knifeId, 100)
-        return id
-          ? { knifeId: id, reason: text(entry.reason, REASON_MAX) }
-          : null
+        const base = knifeItem(entry)
+        const { hours, everyHours } = entry
+        if (
+          !base ||
+          typeof hours !== 'number' ||
+          typeof everyHours !== 'number' ||
+          !Number.isFinite(hours) ||
+          !Number.isFinite(everyHours)
+        )
+          return null
+        return {
+          ...base,
+          hours: Math.min(FOCUS_MAX_HOURS, Math.max(1, hours)),
+          everyHours: Math.max(FOCUS_MIN_EVERY_HOURS, everyHours),
+        }
       },
+    ),
+    crossCheck: readItems(
+      record.crossCheck,
+      AGENT_LIMITS.crossCheck,
+      knifeItem,
     ),
   }
 }
 
+const knifeItem = (entry: Record<string, unknown>): KnifeItem | null => {
+  const id = text(entry.knifeId, 100)
+  return id ? { knifeId: id, reason: text(entry.reason, REASON_MAX) } : null
+}
+
 export type AgentActionKind =
-  'check' | 'retryWithAi' | 'fetchMode' | 'pause' | 'searchOtherStore'
+  | 'check'
+  | 'retryWithAi'
+  | 'fetchMode'
+  | 'pause'
+  | 'searchOtherStore'
+  | 'watchClosely'
+  | 'crossCheck'
 
 export type AgentAction = {
   kind: AgentActionKind
   sourceId?: number
   knifeId?: string
+  /** crossCheck: the knife's sources it reads now. */
+  sourceIds?: number[]
   mode?: FetchOverride
+  /** watchClosely: for how long, and how often. */
+  hours?: number
+  everyHours?: number
   reason: string
   /** applied (act), proposed (observe), refused (failed validation). */
   status: 'applied' | 'proposed' | 'refused'
@@ -984,9 +1089,30 @@ export type AgentAction = {
  * Validates the plan against the snapshot. Pure: refused actions say why,
  * the others become `applied` (act) or `proposed` (observe) once applied.
  */
+/** Why a source may not be moved forward now, or null. */
+function checkRefusal(source: AgentSource | null): string | null {
+  return !source
+    ? 'unknown source'
+    : !source.monitored
+      ? 'not monitored'
+      : source.queued
+        ? 'already queued'
+        : source.checkedMinAgo !== null &&
+            source.checkedMinAgo * MINUTE_MS < RECHECK_MIN_MS
+          ? 'checked less than 30 minutes ago'
+          : source.status === 'blocked' &&
+              source.dueInMin !== null &&
+              source.dueInMin > 0
+            ? 'blocked: waits for its backoff'
+            : null
+}
+
 export function validateAgentPlan(
   plan: AgentPlan,
-  snapshot: Pick<AgentSnapshot, 'sources' | 'knives' | 'ai' | 'otherStores'>,
+  snapshot: Pick<
+    AgentSnapshot,
+    'sources' | 'knives' | 'ai' | 'otherStores' | 'checkIntervalHours'
+  >,
 ): AgentAction[] {
   const byId = new Map(snapshot.sources.map((source) => [source.id, source]))
   const knives = new Map(snapshot.knives.map((knife) => [knife.knifeId, knife]))
@@ -1011,22 +1137,8 @@ export function validateAgentPlan(
     const source = known(entry.sourceId)
     push(
       { kind: 'check', sourceId: entry.sourceId, reason: entry.reason },
-      !source
-        ? 'unknown source'
-        : !source.monitored
-          ? 'not monitored'
-          : source.queued
-            ? 'already queued'
-            : source.checkedMinAgo !== null &&
-                source.checkedMinAgo * MINUTE_MS < RECHECK_MIN_MS
-              ? 'checked less than 30 minutes ago'
-              : source.status === 'blocked' &&
-                  source.dueInMin !== null &&
-                  source.dueInMin > 0
-                ? 'blocked: waits for its backoff'
-                : source.ahead === 0
-                  ? 'already next at its store'
-                  : null,
+      checkRefusal(source) ??
+        (source?.ahead === 0 ? 'already next at its store' : null),
     )
   }
   for (const entry of plan.retryWithAi) {
@@ -1091,6 +1203,52 @@ export function validateAgentPlan(
         : searchRefusal(knives.get(entry.knifeId)),
     )
   }
+  let watched = snapshot.knives.filter((knife) => knife.watching).length
+  for (const entry of plan.watchClosely) {
+    const knife = knives.get(entry.knifeId)
+    push(
+      {
+        kind: 'watchClosely',
+        knifeId: entry.knifeId,
+        hours: entry.hours,
+        everyHours: entry.everyHours,
+        reason: entry.reason,
+      },
+      !knife
+        ? 'unknown knife'
+        : !snapshot.sources.some(
+              (source) => source.knifeId === entry.knifeId && source.monitored,
+            )
+          ? 'no monitored source'
+          : entry.everyHours >= snapshot.checkIntervalHours
+            ? `not more often than the schedule (every ${snapshot.checkIntervalHours} h)`
+            : !knife.watching && watched >= MAX_FOCUSED_KNIVES
+              ? `already watching ${MAX_FOCUSED_KNIVES} knives`
+              : null,
+    )
+    if (actions.at(-1)?.status !== 'refused' && !knife?.watching) watched += 1
+  }
+  for (const entry of plan.crossCheck) {
+    const sourceIds = snapshot.sources
+      .filter(
+        (source) =>
+          source.knifeId === entry.knifeId && checkRefusal(source) === null,
+      )
+      .map((source) => source.id)
+    push(
+      {
+        kind: 'crossCheck',
+        knifeId: entry.knifeId,
+        sourceIds,
+        reason: entry.reason,
+      },
+      !knives.has(entry.knifeId)
+        ? 'unknown knife'
+        : !sourceIds.length
+          ? 'no source to read now'
+          : null,
+    )
+  }
   return actions
 }
 
@@ -1124,6 +1282,25 @@ export async function applyAgentActions(
       `UPDATE price_discovery SET next_attempt_at = ?
        WHERE knife_id = ? AND status <> 'found'`,
     )
+    // A row made only for the watch keeps the default Auto mode.
+    const focus = database.prepare(
+      `INSERT INTO price_watch
+         (knife_id, mode, updated_at, focus_until, focus_interval_ms,
+          focus_reason)
+       VALUES (?, 'auto', ?, ?, ?, ?)
+       ON CONFLICT(knife_id) DO UPDATE SET
+         updated_at = excluded.updated_at,
+         focus_until = excluded.focus_until,
+         focus_interval_ms = excluded.focus_interval_ms,
+         focus_reason = excluded.focus_reason`,
+    )
+    // A watched knife's next checks come no later than its new interval;
+    // blocked sources keep their bot-check backoff.
+    const pullForward = database.prepare(
+      `UPDATE price_sources SET next_check_at = ?, updated_at = ?
+       WHERE knife_id = ? AND removed_at IS NULL AND enabled = 1
+         AND status <> 'blocked' AND next_check_at > ?`,
+    )
     return database.transaction(() =>
       actions.map((action): AgentAction => {
         if (action.status === 'refused') return action
@@ -1141,6 +1318,25 @@ export async function applyAgentActions(
             break
           case 'pause':
             changes = pause.run(now, action.sourceId).changes
+            break
+          case 'watchClosely': {
+            const intervalMs = Math.round((action.everyHours ?? 0) * HOUR_MS)
+            const next = new Date(context.now + intervalMs).toISOString()
+            changes = focus.run(
+              action.knifeId,
+              now,
+              new Date(
+                context.now + (action.hours ?? 0) * HOUR_MS,
+              ).toISOString(),
+              intervalMs,
+              action.reason,
+            ).changes
+            pullForward.run(next, now, action.knifeId, next)
+            break
+          }
+          case 'crossCheck':
+            for (const id of action.sourceIds ?? [])
+              changes += expedite.run(now, now, id).changes
             break
           case 'searchOtherStore':
             changes = search.run(now, action.knifeId).changes

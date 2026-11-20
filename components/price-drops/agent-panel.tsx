@@ -298,6 +298,8 @@ const KIND_SUMMARY: Record<AgentAction['kind'], [string, string]> = {
   fetchMode: ['loading change', 'loading changes'],
   pause: ['page paused', 'pages paused'],
   searchOtherStore: ['other-store search', 'other-store searches'],
+  watchClosely: ['knife watched closely', 'knives watched closely'],
+  crossCheck: ['knife cross-checked', 'knives cross-checked'],
 }
 
 /** A: the strip above Monitoring status. */
@@ -485,6 +487,8 @@ const ACTION_LABEL: Record<AgentAction['kind'], string> = {
   fetchMode: 'Load page',
   pause: 'Pause',
   searchOtherStore: 'Other stores',
+  watchClosely: 'Watch closely',
+  crossCheck: 'Cross-check',
 }
 
 /** Groups of this size or more collapse into one expandable row. */
@@ -651,6 +655,12 @@ function RunActions({
                 <span className="text-muted-foreground">
                   {' '}
                   ({row.action.mode})
+                </span>
+              ) : null}
+              {row.action.everyHours && row.action.hours ? (
+                <span className="text-muted-foreground">
+                  {' '}
+                  (every {row.action.everyHours} h for {row.action.hours} h)
                 </span>
               ) : null}
             </td>

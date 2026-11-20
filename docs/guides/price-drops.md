@@ -241,7 +241,8 @@ The supervisor runs every 10 minutes with **Unlimited** AI usage and every hour 
 - every knife's market: its regular price, your target price, the best in-stock price now and its store, the lowest price ever and the lowest and highest of the last 90 days, the last price and stock change, and its **Other stores** searches;
 - every monitored product under its knife: store, price, stock, how long it has been out of stock, status, when it was last checked and how it failed, and how many checks wait before it at its store;
 - each store's pace and pauses, how many products are fresh, the AI budget, and the local date and time, so it can plan around sales;
-- its last three runs, with why an action was refused or what the next check or search found.
+- its last three runs, with why an action was refused or what the next check or search found;
+- which knives it is watching closely, how often, and for how long.
 
 It never sees product links, notes, or keys. It can:
 
@@ -250,6 +251,8 @@ It never sees product links, notes, or keys. It can:
 - **Change how a page loads**: switch up to 5 products to the browser, plain HTTP, or back to automatic.
 - **Pause**: stop up to 3 products whose page failed at least 5 checks in a row and seems gone (not found or a redirect; never timeouts, server errors, or bot checks). Pages not found with HTTP 404 or 410 pause on their own after three checks. Resume them in the knife's **Price monitoring** section.
 - **Look on other stores**: bring a waiting search forward for up to 5 knives, when [Other stores](#find-knives-at-other-stores-with-ai) is on. A knife that was never searched at a store is due anyway, and a listing already found stays.
+- **Watch closely**: check up to 5 knives more often for a while, for example a knife near its target, a fresh drop that may go lower, or a restock to catch. A watch checks a knife's products at least every hour and at most for 72 hours, and only when that is more often than your schedule; up to 20 knives are watched at once. The knife's **Manage sources** shows the watch and its reason, with **Stop** to end it early. Each store's pace still applies.
+- **Cross-check**: read all other stores of up to 5 knives now, for example after a price moved at one store, so you see the whole market. Products checked in the last 30 minutes, already queued, or blocked by a bot check are left out.
 
 Every action is checked before it runs, and actions that break the rules are refused and recorded with the reason. The supervisor can change the order of checks but not their pace: each store is still checked one product at a time, and store pauses, Retry-After, and bot-check pauses still apply. It never solves a bot check. The latest run and its summary appear under **AI supervisor** on **Price Drops**; while the supervisor is off and has never run, that strip is a single line with **Turn on**, which starts it in **Observe**. Runs are kept for 30 days.
 

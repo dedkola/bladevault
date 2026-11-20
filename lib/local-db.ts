@@ -1069,6 +1069,11 @@ function migratePriceMonitoringSchema(
   // A store the user paused in Settings → Stores (no scheduled
   // checks there until resumed; Check now still works).
   addColumn('price_host_state', 'paused_at', 'TEXT')
+  // The AI supervisor watches a knife closely: its sources are checked at
+  // least this often until then (price-monitor/agent, watchClosely).
+  addColumn('price_watch', 'focus_until', 'TEXT')
+  addColumn('price_watch', 'focus_interval_ms', 'INTEGER')
+  addColumn('price_watch', 'focus_reason', 'TEXT')
 }
 
 function normalizeKnifeRows(database: Database.Database) {

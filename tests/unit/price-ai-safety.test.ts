@@ -435,6 +435,8 @@ describe('supervisor answers', () => {
     const actions = validateAgentPlan(
       {
         summary: '',
+        watchClosely: [],
+        crossCheck: [],
         check: [],
         retryWithAi: [],
         fetchMode: [],
@@ -444,7 +446,7 @@ describe('supervisor answers', () => {
         })),
         searchOtherStore: [],
       },
-      { sources, knives: [], ai, otherStores: false },
+      { sources, knives: [], ai, otherStores: false, checkIntervalHours: 6 },
     )
     expect(actions.map((action) => [action.sourceId, action.note])).toEqual([
       [1, 'the page is not gone (timeout)'],
@@ -461,6 +463,8 @@ describe('supervisor answers', () => {
     const actions = validateAgentPlan(
       {
         summary: '',
+        watchClosely: [],
+        crossCheck: [],
         check: [
           { sourceId: 1, reason: '' },
           { sourceId: 2, reason: '' },
@@ -488,6 +492,7 @@ describe('supervisor answers', () => {
         knives: [],
         ai,
         otherStores: false,
+        checkIntervalHours: 6,
       },
     )
     expect(actions.map((action) => [action.kind, action.note])).toEqual([

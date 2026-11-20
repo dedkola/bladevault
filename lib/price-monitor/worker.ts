@@ -222,6 +222,7 @@ function scheduledLoad(
             outOfStockSince: candidate.outOfStockSince,
             now,
             slowOutOfStock: schedule.slowOutOfStock,
+            focusIntervalMs: candidate.focusIntervalMs,
           }),
       )
   return load
@@ -364,7 +365,7 @@ export class PriceMonitorWorker {
         isWithinActiveHours(hours, new Date(now))
       const advice = readActiveAdvice(database, now)
       // Advised quiet hours hold a store's scheduled checks; Check now still runs.
-      const candidates = readQueueCandidates(database, settings).map(
+      const candidates = readQueueCandidates(database, settings, now).map(
         (candidate) =>
           candidate.scheduled &&
           inQuietHours(advice.get(candidate.laneKey), new Date(now))
@@ -777,7 +778,7 @@ export function buildQueueSnapshot(
   const database = getLocalDb()
   const settings = getSettings().priceMonitoring
   const hours = effectiveActiveHours(settings.schedule)
-  const candidates = readQueueCandidates(database, settings)
+  const candidates = readQueueCandidates(database, settings, now)
   const counts = scheduledCounts(candidates)
   const load = scheduledLoad(candidates, settings.schedule, now)
   const covered = new Map<string, number>()
@@ -795,6 +796,7 @@ export function buildQueueSnapshot(
           outOfStockSince: candidate.outOfStockSince,
           now,
           slowOutOfStock: settings.schedule.slowOutOfStock,
+          focusIntervalMs: candidate.focusIntervalMs,
         }) < 1
       )
         slowed.set(laneKey, (slowed.get(laneKey) ?? 0) + 1)

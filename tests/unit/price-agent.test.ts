@@ -52,6 +52,7 @@ function knife(patch: Partial<AgentKnife> = {}): AgentKnife {
     lastPriceChange: null,
     lastStockChange: null,
     search: [{ store: 'Amazon', status: 'not_found', nextInDays: 20 }],
+    watching: null,
     ...patch,
   }
 }
@@ -117,6 +118,8 @@ describe('validateAgentPlan', () => {
     const actions = validateAgentPlan(
       {
         summary: '',
+        watchClosely: [],
+        crossCheck: [],
         check: [1, 2, 3, 4, 99, 1].map((sourceId) => ({
           sourceId,
           reason: '',
@@ -132,7 +135,13 @@ describe('validateAgentPlan', () => {
           { knifeId: 'nope', reason: '' },
         ],
       },
-      { sources, knives: [knife()], ai, otherStores: true },
+      {
+        sources,
+        knives: [knife()],
+        ai,
+        otherStores: true,
+        checkIntervalHours: 6,
+      },
     )
     const result = actions.map((action) => [
       action.kind,
@@ -164,6 +173,8 @@ describe('validateAgentPlan', () => {
     const off = validateAgentPlan(
       {
         summary: '',
+        watchClosely: [],
+        crossCheck: [],
         check: [],
         retryWithAi: [{ sourceId: 5, reason: '' }],
         fetchMode: [],
@@ -175,6 +186,7 @@ describe('validateAgentPlan', () => {
         knives: [knife()],
         ai: { ...ai, readsPages: false, solvesErrors: false },
         otherStores: false,
+        checkIntervalHours: 6,
       },
     )
     expect(off.map((action) => action.note)).toEqual([
@@ -187,6 +199,8 @@ describe('validateAgentPlan', () => {
     const actions = validateAgentPlan(
       {
         summary: '',
+        watchClosely: [],
+        crossCheck: [],
         check: [
           { sourceId: 1, reason: 'overdue' },
           { sourceId: 2, reason: 'near target' },
@@ -223,6 +237,7 @@ describe('validateAgentPlan', () => {
         ],
         ai,
         otherStores: true,
+        checkIntervalHours: 6,
       },
     )
     expect(
@@ -235,6 +250,148 @@ describe('validateAgentPlan', () => {
       ['k2', 'already due'],
       ['k3', 'already found'],
       ['k4', 'no other store to search'],
+    ])
+  })
+})
+
+describe('watchClosely and crossCheck', () => {
+  it('clamps a watch to 72 hours and at least hourly checks', () => {
+    const plan = readAgentPlan({
+      summary: '',
+      watchClosely: [
+        { knifeId: 'k1', hours: 500, everyHours: 0.1, reason: 'drop' },
+        { knifeId: 'k2', hours: 'x', everyHours: 2 },
+        { knifeId: 7, hours: 5, everyHours: 2 },
+      ],
+      crossCheck: [{ knifeId: 'k1', reason: 'moved' }, { reason: 'none' }],
+    })
+    expect(plan.watchClosely).toEqual([
+      { knifeId: 'k1', hours: 72, everyHours: 1, reason: 'drop' },
+    ])
+    expect(plan.crossCheck).toEqual([{ knifeId: 'k1', reason: 'moved' }])
+  })
+
+  it('refuses watches that change nothing or go too far', () => {
+    const empty = {
+      summary: '',
+      check: [],
+      retryWithAi: [],
+      fetchMode: [],
+      pause: [],
+      searchOtherStore: [],
+      crossCheck: [],
+    }
+    const watch = (knifeId: string, everyHours = 2) => ({
+      knifeId,
+      hours: 24,
+      everyHours,
+      reason: '',
+    })
+    const knives = [
+      knife({ knifeId: 'k1' }),
+      knife({ knifeId: 'k2' }),
+      knife({
+        knifeId: 'k3',
+        watching: { everyHours: 2, endsInHours: 10, reason: '' },
+      }),
+      ...Array.from({ length: 18 }, (_, index) =>
+        knife({
+          knifeId: `w${index}`,
+          watching: { everyHours: 2, endsInHours: 10, reason: '' },
+        }),
+      ),
+    ]
+    const sources = [
+      source({ id: 1, knifeId: 'k1' }),
+      source({ id: 2, knifeId: 'k2', monitored: false }),
+      source({ id: 3, knifeId: 'k3' }),
+    ]
+    const actions = validateAgentPlan(
+      {
+        ...empty,
+        watchClosely: [
+          watch('k1', 6),
+          watch('k2'),
+          watch('nope'),
+          watch('k1'),
+          watch('k3'),
+        ],
+      },
+      { sources, knives, ai, otherStores: false, checkIntervalHours: 6 },
+    )
+    expect(actions.map((action) => [action.knifeId, action.note])).toEqual([
+      ['k1', 'not more often than the schedule (every 6 h)'],
+      ['k2', 'no monitored source'],
+      ['nope', 'unknown knife'],
+      ['k1', 'asked twice'],
+      // Already watched: a new watch replaces it without counting twice.
+      ['k3', null],
+    ])
+
+    // 19 knives watched + k1 = 20: a 21st is refused.
+    const full = validateAgentPlan(
+      {
+        ...empty,
+        watchClosely: [watch('k1'), watch('k2')],
+      },
+      {
+        sources: [
+          source({ id: 1, knifeId: 'k1' }),
+          source({ id: 2, knifeId: 'k2' }),
+        ],
+        knives,
+        ai,
+        otherStores: false,
+        checkIntervalHours: 6,
+      },
+    )
+    expect(full.map((action) => action.note)).toEqual([
+      null,
+      'already watching 20 knives',
+    ])
+  })
+
+  it('cross-checks only the sources that can be read now', () => {
+    const actions = validateAgentPlan(
+      {
+        summary: '',
+        check: [],
+        retryWithAi: [],
+        fetchMode: [],
+        pause: [],
+        searchOtherStore: [],
+        watchClosely: [],
+        crossCheck: [
+          { knifeId: 'k1', reason: 'moved at Kizer' },
+          { knifeId: 'k2', reason: '' },
+          { knifeId: 'nope', reason: '' },
+        ],
+      },
+      {
+        sources: [
+          source({ id: 1, knifeId: 'k1', dueInMin: 300 }),
+          source({ id: 2, knifeId: 'k1', checkedMinAgo: 5, dueInMin: 300 }),
+          source({ id: 3, knifeId: 'k1', queued: true, dueInMin: 300 }),
+          source({
+            id: 4,
+            knifeId: 'k1',
+            status: 'blocked',
+            dueInMin: 300,
+          }),
+          source({ id: 5, knifeId: 'k2', checkedMinAgo: 1, dueInMin: 300 }),
+        ],
+        knives: [knife({ knifeId: 'k1' }), knife({ knifeId: 'k2' })],
+        ai,
+        otherStores: false,
+        checkIntervalHours: 6,
+      },
+    )
+    expect(
+      actions.map((action) => [action.knifeId, action.sourceIds, action.note]),
+    ).toEqual([
+      ['k1', [1], null],
+      ['k2', [], 'no source to read now'],
+      ['nope', [], 'unknown knife'],
     ])
   })
 })

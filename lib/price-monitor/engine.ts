@@ -55,6 +55,7 @@ import {
   hasAnySnapshot,
   markSourceChecking,
   readHostState,
+  readKnifeFocus,
   readLatestPricedSnapshot,
   readLatestSnapshot,
   readRecentPrices,
@@ -914,6 +915,8 @@ export async function checkPriceSource(
           outOfStockSince: Number.isFinite(since) ? since : null,
           now,
           slowOutOfStock: schedule.slowOutOfStock,
+          focusIntervalMs:
+            readKnifeFocus(database, source.knife_id, now)?.intervalMs ?? null,
         }),
     ).toISOString()
   }

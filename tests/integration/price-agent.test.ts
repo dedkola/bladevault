@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as knivesRoute from '@/app/api/knives/route'
 import * as agentRoute from '@/app/api/prices/agent/route'
+import * as watchRoute from '@/app/api/knives/[id]/price-watch/route'
 import { getLocalDb } from '@/lib/local-db'
 import {
   agentModelInput,
@@ -8,7 +9,11 @@ import {
   readAgentRuns,
   runPriceAgent,
 } from '@/lib/price-monitor/agent'
-import { readActiveSources, syncAutoSource } from '@/lib/price-monitor/store'
+import {
+  readActiveSources,
+  readQueueCandidates,
+  syncAutoSource,
+} from '@/lib/price-monitor/store'
 import { getPriceMonitorWorker } from '@/lib/price-monitor/worker'
 import { getSettings, saveSettings } from '@/lib/settings'
 import {
@@ -432,6 +437,7 @@ describe('AI supervisor', () => {
           nextInDays: expect.any(Number),
         },
       ],
+      watching: null,
     })
 
     aiFetch.mockResolvedValueOnce(
@@ -501,6 +507,154 @@ describe('AI supervisor', () => {
         outcome: 'searched: amazon found',
       },
     ])
+  })
+
+  it('watches a knife closely until it ends or is stopped, and cross-checks its stores', async () => {
+    enableAgent('act')
+    const watched = await createKnife('Drop Bear', 'https://kizer.example/drop')
+    const other = await createKnife('Mini', 'https://kizer.example/mini')
+    const db = getLocalDb()
+    // A second store for the watched knife, and a blocked third.
+    const params = { params: Promise.resolve({ id: watched.id }) }
+    const added = await watchRoute.PUT(
+      new Request(`http://localhost/api/knives/${watched.id}/price-watch`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          add: [
+            { url: 'https://blade.example/drop' },
+            { url: 'https://shy.example/drop' },
+          ],
+        }),
+      }),
+      params,
+    )
+    expect(added.status).toBe(200)
+    const [, second, blocked] = readActiveSources(db, watched.id).map(
+      (source) => source.id,
+    )
+    const now = Date.now()
+    const iso = (offset: number) => new Date(now + offset).toISOString()
+    const later = iso(5 * 3_600_000)
+    db.prepare(
+      `UPDATE price_sources SET status = 'ok', last_checked_at = ?,
+         next_check_at = ?, priority = 0 WHERE id IN (?, ?, ?)`,
+    ).run(
+      iso(-3 * 3_600_000),
+      later,
+      watched.source.id,
+      other.source.id,
+      second,
+    )
+    db.prepare(
+      `UPDATE price_sources SET status = 'blocked', last_checked_at = ?,
+         next_check_at = ?, priority = 0 WHERE id = ?`,
+    ).run(iso(-3 * 3_600_000), later, blocked)
+
+    aiFetch.mockResolvedValueOnce(
+      planResponse({
+        summary: 'Drop Bear fell at Kizer.',
+        check: [],
+        retryWithAi: [],
+        fetchMode: [],
+        pause: [],
+        searchOtherStore: [],
+        watchClosely: [
+          {
+            knifeId: watched.id,
+            hours: 24,
+            everyHours: 1,
+            reason: 'Fresh drop, may go lower.',
+          },
+          { knifeId: other.id, hours: 24, everyHours: 500, reason: '' },
+        ],
+        crossCheck: [{ knifeId: watched.id, reason: 'Kizer moved.' }],
+      }),
+    )
+    const result = await runPriceAgent({ trigger: 'manual' })
+    expect(result.status === 'done' && result.run.actions).toEqual([
+      expect.objectContaining({ kind: 'watchClosely', status: 'applied' }),
+      expect.objectContaining({
+        kind: 'watchClosely',
+        status: 'refused',
+        note: expect.stringContaining('not more often than the schedule'),
+      }),
+      expect.objectContaining({
+        kind: 'crossCheck',
+        status: 'applied',
+        sourceIds: [watched.source.id, second],
+      }),
+    ])
+    // Cross-check: both readable stores due now; the blocked one waits.
+    expect(row(watched.source.id).priority).toBe(1)
+    expect(row(second).priority).toBe(1)
+    expect(row(blocked)).toMatchObject({ priority: 0, next_check_at: later })
+    expect(row(other.source.id).next_check_at).toBe(later)
+
+    // The schedule uses the watch's interval while it lasts.
+    const candidates = readQueueCandidates(
+      db,
+      getSettings().priceMonitoring,
+      now,
+    )
+    expect(
+      candidates.find((candidate) => candidate.sourceId === second)
+        ?.focusIntervalMs,
+    ).toBe(3_600_000)
+    expect(
+      candidates.find((candidate) => candidate.sourceId === other.source.id)
+        ?.focusIntervalMs,
+    ).toBeNull()
+    const snapshot = buildAgentSnapshot({
+      database: db,
+      settings: getSettings().priceMonitoring,
+      mode: 'act',
+      now,
+    })
+    expect(
+      snapshot.knives.find((knife) => knife.knifeId === watched.id)?.watching,
+    ).toEqual({
+      everyHours: 1,
+      endsInHours: 24,
+      reason: 'Fresh drop, may go lower.',
+    })
+    expect(
+      readQueueCandidates(
+        db,
+        getSettings().priceMonitoring,
+        now + 25 * 3_600_000,
+      ).find((candidate) => candidate.sourceId === second)?.focusIntervalMs,
+    ).toBeNull()
+
+    // Manage sources shows the watch and stops it.
+    const view = await watchRoute.GET(
+      new Request(`http://localhost/api/knives/${watched.id}/price-watch`),
+      params,
+    )
+    expect(
+      ((await view.json()) as { watch: { focus: unknown } }).watch.focus,
+    ).toEqual({
+      until: expect.any(String),
+      intervalMs: 3_600_000,
+      reason: 'Fresh drop, may go lower.',
+    })
+    const stopped = await watchRoute.PUT(
+      new Request(`http://localhost/api/knives/${watched.id}/price-watch`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stopWatching: true }),
+      }),
+      params,
+    )
+    expect(stopped.status).toBe(200)
+    expect(
+      ((await stopped.json()) as { watch: { focus: unknown } }).watch.focus,
+    ).toBeNull()
+    expect(
+      readQueueCandidates(db, getSettings().priceMonitoring, now).find(
+        (candidate) => candidate.sourceId === second,
+      )?.focusIntervalMs,
+    ).toBeNull()
   })
 
   it('serves knife labels, blocked stores and switches the mode', async () => {
