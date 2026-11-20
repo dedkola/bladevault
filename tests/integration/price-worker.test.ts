@@ -491,6 +491,61 @@ describe('price monitor worker', () => {
       .get() as { last_request_at: string }
     expect(Date.parse(lane.last_request_at)).toBe(now())
   })
+
+  it('probes a paused store with a search once its cooldown is over', async () => {
+    const lookFor = await knife([])
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        ai: {
+          ...DEFAULT_PRICE_MONITORING.ai,
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          model: 'test-model',
+        },
+        otherStores: {
+          enabled: true,
+          stores: { amazon: true, bladehq: false, knifecenter: false },
+          amazonMarketplace: 'amazon.com',
+        },
+      },
+    })
+    const discover = vi.fn(async (): Promise<DiscoverySummary> => ({
+      status: 'done',
+      result: 'not_found',
+      laneOutcome: 'success',
+      aiProblem: false,
+      durationMs: 4000,
+      retryAfterMs: null,
+      sourceId: null,
+    }))
+    const { worker, now } = harness({
+      nextDiscovery: nextDiscoveryKnife,
+      discover,
+    })
+    // Amazon has no price sources: only a search can probe it.
+    const ended = new Date(now() - MIN).toISOString()
+    getLocalDb()
+      .prepare(
+        `INSERT INTO price_host_state
+           (lane_key, min_gap_ms, ready_at, circuit, cooldown_until,
+            open_count, updated_at)
+         VALUES ('amazon', 60000, ?, 'open', ?, 1, ?)`,
+      )
+      .run(ended, ended, ended)
+    worker.start({ scheduled: true })
+    await worker.pass()
+    expect(discover).toHaveBeenCalledTimes(1)
+    expect(discover.mock.calls[0]).toEqual([
+      lookFor,
+      { signal: expect.any(AbortSignal), store: 'amazon' },
+    ])
+    await worker.idle()
+    const lane = getLocalDb()
+      .prepare("SELECT circuit FROM price_host_state WHERE lane_key = 'amazon'")
+      .get() as { circuit: string }
+    expect(lane.circuit).toBe('closed')
+  })
 })
 
 async function storeAction(laneKey: string, action: string) {
