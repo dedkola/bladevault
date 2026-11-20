@@ -96,14 +96,16 @@ export function amazonProductUrl(
   return `https://www.${marketplace}/dp/${asin}`
 }
 
-export type SearchCandidate = {
+/** One search result as AI sees it. */
+export type MatchCandidate = {
   /** 1-based position in what AI sees. */
   id: number
-  asin: string
   title: string
   price: string | null
   sponsored: boolean
 }
+
+export type SearchCandidate = MatchCandidate & { asin: string }
 
 const ASIN = /^[A-Z0-9]{10}$/
 
@@ -194,10 +196,10 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 /** The candidate AI chose, only when it is one of the listed ones and AI is sure. */
-export function parseMatchAnswer(
+export function parseMatchAnswer<C extends MatchCandidate>(
   answer: unknown,
-  candidates: readonly SearchCandidate[],
-): AiDecision & { candidate: SearchCandidate | null } {
+  candidates: readonly C[],
+): AiDecision & { candidate: C | null } {
   const record = asRecord(answer)
   const confidence = readConfidence(record.confidence)
   const reason = readReason(record.reason)
@@ -287,10 +289,10 @@ type AiCall = {
 }
 
 /** Asks AI which search result is the knife. Throws AiClientError. */
-export async function matchSearchResults(
+export async function matchSearchResults<C extends MatchCandidate>(
   input: AiCall & {
     knife: KnifeIdentity
-    candidates: readonly SearchCandidate[]
+    candidates: readonly C[]
   },
 ) {
   const answer = await requestJsonCompletion(

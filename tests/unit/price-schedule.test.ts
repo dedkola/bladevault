@@ -107,6 +107,7 @@ describe('normalizePriceMonitoring', () => {
     ).toEqual({
       enabled: false,
       skipSoldKnives: true,
+      ignoreOfficialOutOfStock: false,
       schedule: {
         mode: 'custom',
         intervalHours: 168,

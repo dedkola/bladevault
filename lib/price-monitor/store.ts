@@ -11,6 +11,7 @@ import {
 import {
   DEFAULT_ELIGIBILITY_SETTINGS,
   getEligibility,
+  isIgnoredOfficialOutOfStock,
   planAutoSource,
   type EligibilitySettings,
 } from '@/lib/price-monitor/eligibility'
@@ -300,6 +301,12 @@ export function buildPriceWatchView(
         now,
       }),
       ...(found.has(source.id) ? { foundByAi: true } : {}),
+      ...(isIgnoredOfficialOutOfStock(
+        { origin: source.origin, availability: source.last_availability },
+        settings,
+      )
+        ? { stockIgnored: true }
+        : {}),
     }
   }
   return {
@@ -909,7 +916,17 @@ export async function recordCheck(
             sourceId: source.id,
           })
         }
-        if (events.length) {
+        const notifications = record.notifications ?? DEFAULT_PRICE_MONITORING
+        // Out of stock on an ignored official link stays in history only.
+        const notifiable = events.filter(
+          (event) =>
+            event.kind !== 'out_of_stock' ||
+            !isIgnoredOfficialOutOfStock(
+              { origin: source.origin, availability: 'out_of_stock' },
+              notifications,
+            ),
+        )
+        if (notifiable.length) {
           const alertContext = readPriceAlertContext(database, {
             knifeId: source.knife_id,
             sourceId: source.id,
@@ -919,9 +936,9 @@ export async function recordCheck(
           writePriceNotificationChanges(
             database,
             planPriceNotifications(
-              events,
+              notifiable,
               readPriceNotifications(database, { sourceId: source.id }),
-              record.notifications ?? DEFAULT_PRICE_MONITORING,
+              notifications,
               new Date(now),
               () => alertContext,
             ),
@@ -1142,7 +1159,8 @@ export function readQueueCandidates(
   const rows = database
     .prepare(
       `SELECT s.id, s.knife_id, s.lane_key, s.priority, s.next_check_at,
-              s.enabled, k.specs, k.sold, COALESCE(w.mode, 'auto') AS mode,
+              s.enabled, s.origin, s.last_availability,
+              k.specs, k.sold, COALESCE(w.mode, 'auto') AS mode,
               h.paused_at IS NOT NULL AS store_paused
        FROM price_sources s
        JOIN knives k ON k.id = s.knife_id
@@ -1157,6 +1175,8 @@ export function readQueueCandidates(
     priority: number
     next_check_at: string | null
     enabled: number
+    origin: PriceSourceOrigin
+    last_availability: Availability | null
     specs: string
     sold: number
     mode: PriceWatchMode
@@ -1191,7 +1211,14 @@ export function readQueueCandidates(
       nextCheckAt: parseTime(row.next_check_at),
       covered,
       storePaused,
-      scheduled: covered && !storePaused,
+      // An ignored sold-out official link waits for Check now.
+      scheduled:
+        covered &&
+        !storePaused &&
+        !isIgnoredOfficialOutOfStock(
+          { origin: row.origin, availability: row.last_availability },
+          settings,
+        ),
       outOfStockSince: parseTime(outOfStockSince.get(row.id) ?? null),
     }
   })

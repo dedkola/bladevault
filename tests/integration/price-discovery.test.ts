@@ -51,7 +51,7 @@ function enableOtherStores(ai = true) {
       },
       otherStores: {
         enabled: true,
-        stores: { amazon: true },
+        stores: { amazon: true, bladehq: false, knifecenter: false },
         amazonMarketplace: 'amazon.com',
       },
     },
@@ -130,11 +130,13 @@ describe('Other stores discovery', () => {
       1,
       'https://www.amazon.com/s?k=Spyderco+Para+3',
       expect.anything(),
+      'amazon',
     )
     expect(run.fetchPage).toHaveBeenNthCalledWith(
       2,
       'https://www.amazon.com/dp/B07PARA003',
       expect.anything(),
+      'amazon',
     )
     // AI sees the knife's identity, never what was paid.
     const matchInput = vi.mocked(run.match!).mock.calls[0][0]
@@ -159,14 +161,24 @@ describe('Other stores discovery', () => {
     const response = await discoveryRoute.GET(
       new Request('http://localhost/api/prices/discovery'),
     )
-    const { discovery } = (await response.json()) as {
+    const { discovery: all } = (await response.json()) as {
       discovery: {
         active: boolean
-        counts: Record<string, number>
-        recent: Array<{ status: string; sourceActive: boolean }>
+        stores: Array<{
+          store: string
+          active: boolean
+          counts: Record<string, number>
+          recent: Array<{ status: string; sourceActive: boolean }>
+        }>
       }
     }
-    expect(discovery.active).toBe(true)
+    expect(all.active).toBe(true)
+    expect(all.stores.map((store) => [store.store, store.active])).toEqual([
+      ['amazon', true],
+      ['bladehq', false],
+      ['knifecenter', false],
+    ])
+    const discovery = all.stores[0]
     expect(discovery.counts.found).toBe(1)
     expect(discovery.recent[0]).toMatchObject({
       status: 'found',

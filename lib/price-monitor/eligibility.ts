@@ -9,6 +9,24 @@ import {
 export type EligibilitySettings = {
   /** Auto mode skips sold knives; Always monitor still covers them. */
   skipSoldKnives: boolean
+  /** Out of stock on the knife's own product link is ignored. */
+  ignoreOfficialOutOfStock?: boolean
+}
+
+/**
+ * The knife's own product link (its official store) reports out of stock
+ * and the setting ignores that: it does not count as out of stock, does not
+ * notify, and is not checked on schedule until Check now finds it in stock.
+ */
+export function isIgnoredOfficialOutOfStock(
+  source: { origin: PriceSourceOrigin; availability: string | null },
+  settings: Pick<EligibilitySettings, 'ignoreOfficialOutOfStock'>,
+): boolean {
+  return (
+    Boolean(settings.ignoreOfficialOutOfStock) &&
+    source.origin === 'auto' &&
+    source.availability === 'out_of_stock'
+  )
 }
 
 export const DEFAULT_ELIGIBILITY_SETTINGS: EligibilitySettings = {

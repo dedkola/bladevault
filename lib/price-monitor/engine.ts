@@ -850,6 +850,7 @@ export async function checkPriceSource(
   const {
     notify,
     thresholds,
+    ignoreOfficialOutOfStock,
     ai: aiSettings,
     schedule,
   } = getSettings().priceMonitoring
@@ -858,7 +859,7 @@ export async function checkPriceSource(
     sourceId: source.id,
     trigger: options.trigger,
     startedAt: startedAt.toISOString(),
-    notifications: { notify, thresholds },
+    notifications: { notify, thresholds, ignoreOfficialOutOfStock },
   }
   const done = async (
     record: Omit<CheckRecord, keyof typeof base | 'durationMs' | 'host'>,
@@ -1155,7 +1156,7 @@ export async function checkPriceSource(
       source,
       knife,
       settings: aiSettings,
-      notifications: { notify, thresholds },
+      notifications: { notify, thresholds, ignoreOfficialOutOfStock },
       implausible,
       parserReading: method !== 'ai' && method !== 'solver',
       signal: options.signal,

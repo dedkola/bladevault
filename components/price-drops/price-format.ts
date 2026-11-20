@@ -117,8 +117,14 @@ export function percentLabel(pct: number): string {
   return `${abs < 9.95 ? abs.toFixed(1) : abs.toFixed(0)}%`
 }
 
+const STORE_LABELS: Record<string, string> = {
+  amazon: 'Amazon',
+  'bladehq.com': 'Blade HQ',
+  'knifecenter.com': 'KnifeCenter',
+}
+
 export function storeLabel(storeName: string): string {
-  return storeName === 'amazon' ? 'Amazon' : storeName
+  return STORE_LABELS[storeName] ?? storeName
 }
 
 export function deltaLabel(event: ChangeEvent): string {

@@ -62,6 +62,8 @@ export type PriceSourceView = {
   notifyMutedUntil: string | null
   /** Added by Other stores: AI found and confirmed this product. */
   foundByAi?: boolean
+  /** Out of stock on the knife's own link, ignored by the setting. */
+  stockIgnored?: boolean
   /** Start of the current out-of-stock run, when out of stock. */
   outOfStockSince?: string | null
   /** The listing may be gone for good: suggest Pause or another store. */

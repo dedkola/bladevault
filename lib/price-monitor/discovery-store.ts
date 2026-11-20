@@ -8,7 +8,6 @@ import {
 } from '@/lib/price-monitor/shared'
 import { insertSource, readActiveSources } from '@/lib/price-monitor/store'
 import type {
-  AmazonMarketplace,
   OtherStoreId,
   PriceMonitoringSettings,
 } from '@/lib/settings-shared'
@@ -94,7 +93,9 @@ export function readDiscoveryQueue(
   input: {
     settings: Pick<PriceMonitoringSettings, 'skipSoldKnives'>
     store: OtherStoreId
-    marketplace: AmazonMarketplace
+    marketplace: string
+    /** The store's price-source lane; a knife with a source there is skipped. */
+    laneKey?: string
     now: number
     limit?: number
   },
@@ -114,7 +115,11 @@ export function readDiscoveryQueue(
          ON d.knife_id = k.id AND d.store = ? AND d.marketplace = ?
        ORDER BY d.next_attempt_at IS NOT NULL, d.next_attempt_at, k.added_at`,
     )
-    .all(input.store, input.store, input.marketplace) as QueueRow[]
+    .all(
+      input.laneKey ?? input.store,
+      input.store,
+      input.marketplace,
+    ) as QueueRow[]
   const due: string[] = []
   for (const row of rows) {
     if (row.has_store_source || row.source_count >= MAX_PRICE_SOURCES_PER_KNIFE)
@@ -142,7 +147,7 @@ export type DiscoveryRecord = {
   generation: string
   knifeId: string
   store: OtherStoreId
-  marketplace: AmazonMarketplace
+  marketplace: string
   status: DiscoveryStatus
   /** Product page to add as a source when found. */
   url?: string | null
@@ -265,7 +270,8 @@ export type DiscoveryItemView = {
 }
 
 export type DiscoveryOverview = {
-  marketplace: AmazonMarketplace
+  store: OtherStoreId
+  marketplace: string
   counts: Record<DiscoveryStatus, number>
   /** Knives waiting for their first or next search. */
   waiting: number
@@ -277,7 +283,8 @@ export function readDiscoveryOverview(
   input: {
     settings: Pick<PriceMonitoringSettings, 'skipSoldKnives'>
     store: OtherStoreId
-    marketplace: AmazonMarketplace
+    marketplace: string
+    laneKey?: string
     now?: number
     limit?: number
   },
@@ -321,12 +328,14 @@ export function readDiscoveryOverview(
     source_active: number
   }>
   return {
+    store: input.store,
     marketplace: input.marketplace,
     counts,
     waiting: readDiscoveryQueue(database, {
       settings: input.settings,
       store: input.store,
       marketplace: input.marketplace,
+      laneKey: input.laneKey,
       now: input.now ?? Date.now(),
       limit: Number.MAX_SAFE_INTEGER,
     }).length,
@@ -349,7 +358,7 @@ export function readDiscoveryOverview(
 /** Search again: knives without a match become due now. Found ones stay. */
 export async function retryDiscovery(input: {
   store: OtherStoreId
-  marketplace: AmazonMarketplace
+  marketplace: string
 }): Promise<number> {
   return withVaultWrite(async () => {
     const now = new Date().toISOString()

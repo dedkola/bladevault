@@ -64,7 +64,7 @@ describe('settings persistence', () => {
         },
         otherStores: {
           enabled: true,
-          stores: { amazon: true },
+          stores: { amazon: true, bladehq: false, knifecenter: false },
           amazonMarketplace: 'amazon.de',
         },
       },
@@ -74,6 +74,7 @@ describe('settings persistence', () => {
     expect(getSettings().priceMonitoring).toEqual({
       enabled: false,
       skipSoldKnives: true,
+      ignoreOfficialOutOfStock: false,
       schedule: {
         mode: 'custom',
         intervalHours: 6,
@@ -115,7 +116,7 @@ describe('settings persistence', () => {
       },
       otherStores: {
         enabled: true,
-        stores: { amazon: true },
+        stores: { amazon: true, bladehq: false, knifecenter: false },
         amazonMarketplace: 'amazon.de',
       },
     })
