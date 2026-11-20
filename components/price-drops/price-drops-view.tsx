@@ -14,15 +14,28 @@ import type {
 import { cn } from '@/lib/utils'
 import { AgentFeed, AgentStrip, useAgentState } from './agent-panel'
 import { KnifePricePanel } from './knife-price-panel'
+import { useKnives } from '@/components/providers/knives-provider'
+import { getHourCycle } from '@/lib/time-format'
 import { MonitoringStatus, ResultBadge } from './monitoring-status'
-import { money, relativeTime, storeLabel } from './price-format'
+import {
+  clockTime,
+  money,
+  nextCheckLabel,
+  relativeTime,
+  storeLabel,
+} from './price-format'
 import {
   CurrencyMismatch,
   KnifeThumb,
   StatusDot,
   useMinuteClock,
 } from './price-ui'
-import { SolveInBrowserDialog, type SolveTarget } from './solve-in-browser'
+import {
+  SOLVE_UNAVAILABLE_TEXT,
+  SolveInBrowserDialog,
+  useSolveInBrowserAvailable,
+  type SolveTarget,
+} from './solve-in-browser'
 
 type QueueLane = {
   laneKey: string
@@ -128,8 +141,8 @@ const SECTION_FILTER: Record<Section, (source: MonitoredSource) => boolean> = {
   drops: (source) => source.result === 'drop',
   increases: (source) => source.result === 'increase',
   oos: (source) => source.result === 'out_of_stock',
-  attention: (source) =>
-    source.result === 'attention' || source.result === 'pending',
+  // Never-checked sources are waiting for their first check, not failing.
+  attention: (source) => source.result === 'attention',
   recent: (source) => Boolean(source.lastCheckedAt),
 }
 
@@ -206,6 +219,8 @@ function SourceTableRow({
   section,
   lanes,
   now,
+  hourCycle,
+  canSolve,
   onSelect,
   onResolve,
 }: {
@@ -214,10 +229,12 @@ function SourceTableRow({
   section: Section
   lanes: Map<string, QueueLane>
   now: number
+  hourCycle: 'h12' | 'h23'
+  canSolve: boolean | null
   onSelect: () => void
   onResolve: () => void
 }) {
-  const paused = laneNote(lanes, source)
+  const paused = laneNote(lanes, source, hourCycle, now)
   const showNext = section === 'attention'
   return (
     <tr
@@ -261,7 +278,13 @@ function SourceTableRow({
         ) : null}
       </td>
       <td className="py-2 pr-3">
-        <ResultBadge source={source} onResolve={onResolve} />
+        <ResultBadge
+          source={source}
+          onResolve={canSolve ? onResolve : undefined}
+          solveUnavailable={
+            canSolve === false ? SOLVE_UNAVAILABLE_TEXT : undefined
+          }
+        />
       </td>
       <td className="py-2 pr-3 text-right whitespace-nowrap">
         <VsPaid source={source} />
@@ -274,7 +297,7 @@ function SourceTableRow({
           </span>
         ) : showNext ? (
           source.nextCheckAt ? (
-            `next ${relativeTime(source.nextCheckAt, now)}`
+            nextCheckLabel(source.nextCheckAt, now)
           ) : (
             '—'
           )
@@ -288,15 +311,15 @@ function SourceTableRow({
   )
 }
 
-function laneNote(lanes: Map<string, QueueLane>, source: SourceSummary) {
+function laneNote(
+  lanes: Map<string, QueueLane>,
+  source: SourceSummary,
+  hourCycle: 'h12' | 'h23',
+  now: number,
+) {
   const lane = lanes.get(source.laneKey)
   if (lane?.circuit === 'open' && lane.cooldownUntil)
-    return `Store paused until ${new Date(
-      lane.cooldownUntil,
-    ).toLocaleTimeString(undefined, {
-      hour: '2-digit',
-      minute: '2-digit',
-    })}`
+    return `Store paused until ${clockTime(lane.cooldownUntil, hourCycle, now)}`
   return null
 }
 
@@ -315,6 +338,8 @@ export function PriceDropsView({
   const queue = useQueue()
   const agent = useAgentState(version)
   const now = useMinuteClock()
+  const hourCycle = getHourCycle(useKnives().timeFormat)
+  const canSolve = useSolveInBrowserAvailable()
   const [section, setSection] = useState<Section>(
     initialSection in SECTION_LABEL ? (initialSection as Section) : 'all',
   )
@@ -389,7 +414,19 @@ export function PriceDropsView({
           <Button
             size="sm"
             onClick={() => void checkAll()}
-            disabled={checking || !overview?.kpis.monitoredKnives}
+            disabled={
+              checking ||
+              !overview?.kpis.monitoredKnives ||
+              queue?.enabled === false
+            }
+            aria-describedby={
+              queue?.enabled === false ? 'price-checks-off' : undefined
+            }
+            title={
+              queue?.enabled === false
+                ? 'Turn on automatic checks in Settings to check every knife.'
+                : undefined
+            }
           >
             {checking ? (
               <Loader2 className="size-3.5 animate-spin" />
@@ -436,8 +473,12 @@ export function PriceDropsView({
         </p>
       ) : null}
       {queue && !queue.enabled ? (
-        <p className="mb-4 rounded-lg border border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] px-3 py-2 text-sm">
-          Automatic checks are off. Check now still works per knife.{' '}
+        <p
+          id="price-checks-off"
+          className="mb-4 rounded-lg border border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] px-3 py-2 text-sm"
+        >
+          Automatic checks are off, so Check all now is unavailable. Check now
+          still works per knife and per store.{' '}
           <Link href="/settings?tab=prices" className="underline">
             Turn them on in Settings
           </Link>
@@ -548,6 +589,8 @@ export function PriceDropsView({
                           selected={selectedKnife === source.knife.id}
                           lanes={lanes}
                           now={now}
+                          hourCycle={hourCycle}
+                          canSolve={canSolve}
                           onSelect={() => setSelected(source.knife.id)}
                           onResolve={() => {
                             setSelected(source.knife.id)

@@ -8,7 +8,14 @@ import type {
   SourceResult,
 } from '@/lib/price-monitor/insights'
 import { cn } from '@/lib/utils'
-import { money, relativeTime, storeLabel } from './price-format'
+import {
+  durationLabel,
+  money,
+  nextCheckLabel,
+  percentLabel,
+  relativeTime,
+  storeLabel,
+} from './price-format'
 import './price-drops.css'
 
 /** Lane names and legend labels, in display order. */
@@ -48,14 +55,6 @@ type Pin = {
 }
 
 type PlacedPin = Pin & { row: number; align: 'start' | 'mid' | 'end' }
-
-/** "26 min", "3 h", "2 d": how long a due knife has been waiting. */
-function waitLabel(ms: number) {
-  const minutes = Math.max(1, Math.round(ms / 60_000))
-  if (minutes < 60) return `${minutes} min`
-  const hours = Math.round(minutes / 60)
-  return hours < 48 ? `${hours} h` : `${Math.round(hours / 24)} d`
-}
 
 function shortName(source: MonitoredSource) {
   const name = source.knife.name || source.knife.brand
@@ -153,7 +152,7 @@ function describe(source: MonitoredSource, now: number) {
     ? `checked ${relativeTime(source.lastCheckedAt, now)}`
     : 'not checked yet'
   const next = source.nextCheckAt
-    ? `, next ${relativeTime(source.nextCheckAt, now)}`
+    ? `, ${nextCheckLabel(source.nextCheckAt, now)}`
     : ''
   return `${name} · ${RESULT_LABEL[source.result]} · ${money(
     source.priceMinor,
@@ -222,23 +221,21 @@ type Lane = {
 
 function lanesFor(group: Group, sources: MonitoredSource[]): Lane[] {
   if (group === 'result') {
+    // Never-checked sources get their own lane: waiting is not a problem.
     const order: SourceResult[] = [
       'drop',
       'increase',
       'out_of_stock',
       'same',
       'attention',
+      'pending',
     ]
     return order
       .map((result) => ({
         key: result,
         label: RESULT_LABEL[result],
         result,
-        sources: sources.filter((source) =>
-          result === 'attention'
-            ? source.result === 'attention' || source.result === 'pending'
-            : source.result === result,
-        ),
+        sources: sources.filter((source) => source.result === result),
       }))
       .filter((lane) => lane.sources.length > 0)
   }
@@ -401,7 +398,14 @@ function StatusTimeline({
         </div>
         <ul className="pd-legend" aria-label="Pin colours">
           {(
-            ['drop', 'increase', 'out_of_stock', 'same', 'attention'] as const
+            [
+              'drop',
+              'increase',
+              'out_of_stock',
+              'same',
+              'attention',
+              'pending',
+            ] as const
           ).map((result) => (
             <li key={result} data-result={result}>
               {RESULT_LABEL[result]}
@@ -534,7 +538,7 @@ function StatusTimeline({
                     </span>
                     <span>
                       {cluster.pin.due
-                        ? `waiting ${waitLabel(now - Date.parse(source.nextCheckAt!))}`
+                        ? `waiting ${durationLabel(now - Date.parse(source.nextCheckAt!))}`
                         : cluster.upcoming
                           ? relativeTime(source.nextCheckAt, now)
                           : relativeTime(source.lastCheckedAt, now)}
@@ -664,12 +668,13 @@ export function MonitoringStatus({
     (source) =>
       source.lastCheckedAt && now - Date.parse(source.lastCheckedAt) <= PAST_MS,
   ).length
-  const changed = sources.filter((source) =>
-    ['drop', 'increase', 'out_of_stock'].includes(source.result),
-  ).length
-  const attention = sources.filter(
-    (source) => source.result === 'attention' || source.result === 'pending',
-  ).length
+  const count = (result: SourceResult) =>
+    sources.filter((source) => source.result === result).length
+  const drops = count('drop')
+  const rises = count('increase')
+  const outOfStock = count('out_of_stock')
+  const attention = count('attention')
+  const waiting = count('pending')
   const nextChecks = sources
     .map((source) => source.nextCheckAt)
     .filter((value): value is string => Boolean(value))
@@ -701,11 +706,22 @@ export function MonitoringStatus({
             checked in 24 h
           </span>
           <span>
-            <b>{changed}</b> changed
+            <b>{drops}</b> {drops === 1 ? 'drop' : 'drops'}
           </span>
           <span>
-            <b>{attention}</b> need attention
+            <b>{rises}</b> {rises === 1 ? 'rise' : 'rises'}
           </span>
+          <span>
+            <b>{outOfStock}</b> out of stock
+          </span>
+          <span>
+            <b>{attention}</b> {attention === 1 ? 'needs' : 'need'} attention
+          </span>
+          {waiting ? (
+            <span>
+              <b>{waiting}</b> waiting for first check
+            </span>
+          ) : null}
           {queued ? (
             <span>
               <b>{queued}</b> waiting in the queue
@@ -763,14 +779,17 @@ export function MonitoringStatus({
 /** Change badge for a monitored source: icon plus words, never color alone. */
 /**
  * A source's result. With `onResolve`, a Needs attention badge is a button
- * that starts Solve in browser for that store page.
+ * that starts Solve in browser for that store page; `solveUnavailable`
+ * explains instead, where this server cannot open a visible window.
  */
 export function ResultBadge({
   source,
   onResolve,
+  solveUnavailable,
 }: {
   source: MonitoredSource
   onResolve?: () => void
+  solveUnavailable?: string
 }) {
   if (
     (source.result === 'drop' || source.result === 'increase') &&
@@ -788,9 +807,7 @@ export function ResultBadge({
       >
         {source.deltaMinor < 0 ? '▼' : '▲'}{' '}
         {money(Math.abs(source.deltaMinor), source.currency)}
-        {source.deltaPct !== null
-          ? ` · ${Math.abs(source.deltaPct).toFixed(0)}%`
-          : ''}
+        {source.deltaPct !== null ? ` · ${percentLabel(source.deltaPct)}` : ''}
       </span>
     )
   const icon: Record<SourceResult, string> = {
@@ -813,6 +830,16 @@ export function ResultBadge({
       : source.result === 'pending'
         ? 'Waiting'
         : RESULT_LABEL[source.result]
+  if (source.result === 'attention' && solveUnavailable)
+    return (
+      <span
+        className="pd-badge"
+        data-result={source.result}
+        title={solveUnavailable}
+      >
+        {icon[source.result]} {text}
+      </span>
+    )
   if (source.result === 'attention' && onResolve)
     return (
       <button

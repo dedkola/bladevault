@@ -4,6 +4,7 @@ import {
   checkViaHttp,
   headedRetryAvailable,
   offersMatch,
+  visibleBrowserWindowAvailable,
   upstreamStatus,
 } from '@/lib/price-monitor/fetch'
 import { createScrapeOperation } from '@/lib/scrape-operation'
@@ -274,5 +275,31 @@ describe('headedRetryAvailable', () => {
     vi.stubEnv('DISPLAY', '')
     expect(headedRetryAvailable()).toBe(false)
     vi.unstubAllEnvs()
+  })
+})
+
+describe('visibleBrowserWindowAvailable', () => {
+  it('is off in Docker and Helm, where the window opens on a virtual display', () => {
+    expect(
+      visibleBrowserWindowAvailable(
+        { BLADEVAULT_DOCKER_RUNTIME: '1', DISPLAY: ':99' },
+        'linux',
+      ),
+    ).toBe(false)
+  })
+
+  it('works in the desktop app and a local checkout with a display', () => {
+    expect(
+      visibleBrowserWindowAvailable(
+        { BLADEVAULT_DESKTOP_RUNTIME: '1' },
+        'darwin',
+      ),
+    ).toBe(true)
+    expect(visibleBrowserWindowAvailable({}, 'win32')).toBe(true)
+    expect(visibleBrowserWindowAvailable({ DISPLAY: ':0' }, 'linux')).toBe(true)
+    expect(
+      visibleBrowserWindowAvailable({ WAYLAND_DISPLAY: 'wayland-0' }, 'linux'),
+    ).toBe(true)
+    expect(visibleBrowserWindowAvailable({}, 'linux')).toBe(false)
   })
 })

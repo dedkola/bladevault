@@ -34,12 +34,22 @@ Each source also offers **How to load this page**. **Auto (learned per store)** 
 
 ## Read the Price Drops page
 
-The page starts with counts of monitored knives, recent price drops and increases, sources that are out of stock, and the last successful check. Below them, switch between:
+Open **Price Drops** in the sidebar. From top to bottom the page shows:
 
-- **Recent changes** — every price and stock change, newest first.
-- **Price drops** and **Increases** — price changes in the last 30 days.
-- **Out of stock** — sources that currently show the knife as unavailable.
-- **Recently monitored** — the latest checks, including failures and blocked stores.
+- **Header** — whether automatic checks are running, waiting for the next check, or outside checking hours, with the time of the last successful check. **Check all now** queues every monitored source. It is unavailable while **Check prices automatically** is off; **Check now** on a knife or store still works then.
+- **AI supervisor** — appears when AI is connected (see [Let AI supervise monitoring](#let-ai-supervise-monitoring)): its mode, latest summary, coverage of monitored sources, what it did in its last run, and stores that need you to solve a bot check.
+- **Monitoring status** — counts of sources checked in the last 24 hours, drops, rises, out of stock, sources that need attention, and sources still waiting for their first check. Below the counts, a timeline pins each knife where it was last checked over the past 24 hours and again where its next check is due. Group the lanes **By result** or **By store**. Knives already due wait at **Now** and are checked one at a time per store. Select a pin to open the knife; a pin for several knives lists them.
+- **Checks per hour** and **Round** — checks started in each of the last 24 hours, colored by what they found, next to the check interval, number of stores, paused stores, failed checks in 24 hours, and the oldest result.
+- **The table** — every monitored store listing, with the price now, the latest change in money and percent, and the difference from what you paid. Switch between tabs:
+  - **All** — every monitored source.
+  - **Changes** — drops, increases, and out-of-stock sources together.
+  - **Drops** and **Increases** — sources whose latest price change in the last 30 days is still the current price.
+  - **Out of stock** — sources that currently show the knife as unavailable.
+  - **Needs attention** — failed, blocked, unavailable, or doubtful readings, with when each will be checked next, such as **next in 3 hours**, **due now**, or **overdue 9 h**. Sources that have never been checked are not problems: they show as **Waiting** in **All** and in their own timeline lane until their first check.
+  - **Recently monitored** — the 30 latest checks.
+- **Side panel** — the selected knife's best current price, price chart, and sources, each with **Check now**. With AI connected, **Supervisor activity** below it lists every action, with the day for anything older than today.
+
+Percent changes keep one decimal below 10%, so a 0.3% move does not read as 0%. Times follow **Settings → Time format** (12-hour or 24-hour) and add the date when they are not today.
 
 ### Small moves and fluctuating prices
 
@@ -50,10 +60,6 @@ Price Drops counts a price change only when it reaches the **Minimum change** fr
 - When the price comes back to about a price it had earlier in the last 30 days (for example, it rose in the morning and fell back in the afternoon), the moves cancel out and the listing shows **Fluctuating** instead of a fresh drop or rise.
 
 Every move is still recorded: the chart, the Market tab's latest changes, and notifications are unaffected. Set the Minimum change to 0 to count every price change.
-
-When a store shows prices in another currency than the purchase price, **vs paid** shows that currency (for example **UAH price**) instead of a comparison. Hover it for details.
-
-Select a knife to see its best current price, price chart, and sources in the side panel. **Check all now** queues every monitored source; **Check now** on a source or knife checks just that one.
 
 ## Check one knife's market
 
@@ -93,7 +99,7 @@ With AI connected, **Confirm price changes** (see [Optional AI assistance](#opti
 
 Checks that fail, are blocked by a bot check (CAPTCHA), or find no price, and store pages where AI doubts the price the page parser read (**Spot-check page readings**), show as **Needs attention** on **Price Drops**, and the Inbox gets one message that lists them when a product newly runs into a problem. The message closes on its own once every store page reads fine again.
 
-Select the **Blocked**, **Failed**, or **Unavailable** mark in the table (or the window button next to a store in the knife's sources) to open the store page in a visible browser window. Pass the bot check, or settle a cookie banner, age prompt, or region choice yourself, then select **Done**. BladeVault keeps that window's cookies for the store, so later checks get through, and checks the price again right away. The window opens on the computer that runs BladeVault, so this works with the desktop app or a local server, not with a server in Docker.
+Select the **Blocked**, **Failed**, or **Unavailable** mark in the table (or the window button next to a store in the knife's sources) to open the store page in a visible browser window. Pass the bot check, or settle a cookie banner, age prompt, or region choice yourself, then select **Done**. BladeVault keeps that window's cookies for the store, so later checks get through, and checks the price again right away. The window opens on the computer that runs BladeVault, so this works with the desktop app or BladeVault running on your computer. On a Docker or Helm server, the marks and window buttons say so instead of opening a window you cannot see.
 
 ## How checks are scheduled
 
