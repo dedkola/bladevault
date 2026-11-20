@@ -4,7 +4,14 @@ import * as priceWatchRoute from '@/app/api/knives/[id]/price-watch/route'
 import * as historyRoute from '@/app/api/prices/history/route'
 import * as overviewRoute from '@/app/api/prices/overview/route'
 import { checkPriceSource } from '@/lib/price-monitor/engine'
-import type { KnifeHistory, PriceOverview } from '@/lib/price-monitor/insights'
+import { getLocalDb } from '@/lib/local-db'
+import { ScrapeError } from '@/lib/scrape-errors'
+import {
+  buildKnifeSummaries,
+  readOutOfStockSources,
+  type KnifeHistory,
+  type PriceOverview,
+} from '@/lib/price-monitor/insights'
 import type { PriceWatchView } from '@/lib/price-monitor/shared'
 import type { ExtractedOffer } from '@/lib/scrape-offer'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
@@ -79,8 +86,9 @@ async function createKnife(name: string, price: string, urls: string[]) {
 function offer(
   amount: number | null,
   availability: ExtractedOffer['availability'] = 'in_stock',
+  currency = 'USD',
 ): ExtractedOffer {
-  return { amount, currency: 'USD', availability, method: 'jsonld' }
+  return { amount, currency, availability, method: 'jsonld' }
 }
 
 /** Advances the clock, then runs one check that reads `reading`. */
@@ -146,29 +154,48 @@ describe('price overview', () => {
       outOfStock: 1,
       lastSuccessAt: new Date(START + 47 * DAY).toISOString(),
     })
-    expect(result.recent.map((event) => event.kind)).toEqual([
-      'out_of_stock',
-      'drop',
-      'increase',
+    // The overview carries only what the page uses; no per-knife lists.
+    expect(Object.keys(result).sort()).toEqual([
+      'checksByHour',
+      'kpis',
+      'monitored',
+      'round',
+      'windowDays',
     ])
-    expect(result.drops[0]).toMatchObject({
-      type: 'price',
+    expect(result.kpis.knivesWithSources).toBe(2)
+    const drop = result.monitored.find(
+      (source) => source.sourceId === raccoon.sources[0],
+    )
+    expect(drop).toMatchObject({
+      result: 'drop',
       knife: { id: raccoon.id, name: 'Raccoon', brand: 'Vosteed' },
       storeName: 'shop.example',
       previousPriceMinor: 12000,
       priceMinor: 8000,
       deltaPct: -33.33,
+      since: null,
+      retireHint: null,
     })
-    expect(result.outOfStock).toEqual([
-      expect.objectContaining({
-        sourceId: raccoon.sources[1],
-        since: new Date(START + 46 * DAY).toISOString(),
-      }),
-    ])
-    expect(result.recentlyMonitored[0].knife.id).toBe(corgi.id)
+    // Out-of-stock rows carry when they went out of stock.
+    expect(
+      result.monitored.find((source) => source.sourceId === raccoon.sources[1]),
+    ).toMatchObject({
+      result: 'out_of_stock',
+      since: new Date(START + 46 * DAY).toISOString(),
+      retireHint: null,
+    })
+    // Corgi has no stored price, so Auto mode does not monitor it.
+    expect(
+      result.monitored.some((source) => source.knife.id === corgi.id),
+    ).toBe(false)
 
-    const summary = result.knives.find((k) => k.knife.id === raccoon.id)
-    expect(summary).toMatchObject({
+    // MCP reads per-knife summaries and out-of-stock sources on demand.
+    const { getSettings } = await import('@/lib/settings')
+    const summaries = buildKnifeSummaries(
+      getLocalDb(),
+      getSettings().priceMonitoring,
+    )
+    expect(summaries.find((k) => k.knife.id === raccoon.id)).toMatchObject({
       monitored: true,
       sources: 2,
       bestPriceMinor: 8000,
@@ -177,12 +204,121 @@ describe('price overview', () => {
       outOfStock: false,
       lastChange: expect.objectContaining({ kind: 'out_of_stock' }),
     })
-    expect(result.knives.find((k) => k.knife.id === corgi.id)?.monitored).toBe(
+    expect(summaries.find((k) => k.knife.id === corgi.id)?.monitored).toBe(
       false,
     )
+    expect(readOutOfStockSources(getLocalDb())).toEqual([
+      expect.objectContaining({
+        sourceId: raccoon.sources[1],
+        since: new Date(START + 46 * DAY).toISOString(),
+      }),
+    ])
 
     // A wider window counts the earlier increase too.
     expect((await overview(60)).kpis.increases).toBe(1)
+  })
+})
+
+describe('long out-of-stock and missing pages', () => {
+  const HOUR = 60 * 60 * 1000
+  const nextCheckAt = (sourceId: number) =>
+    (
+      getLocalDb()
+        .prepare('SELECT next_check_at FROM price_sources WHERE id = ?')
+        .get(sourceId) as { next_check_at: string }
+    ).next_check_at
+
+  async function checkEvery6h(dayOffset: number, sourceId: number) {
+    vi.setSystemTime(START + dayOffset * DAY)
+    mocks.browser.mockResolvedValueOnce({
+      offer: offer(null, 'out_of_stock'),
+      serverOffer: null,
+      finalUrl: 'https://shop.example/p',
+      isShopify: false,
+    })
+    await checkPriceSource(sourceId, {
+      trigger: 'scheduled',
+      intervalMs: 6 * HOUR,
+    })
+  }
+
+  it('checks a page out of stock for two weeks once a day and hints Pause after 60 days', async () => {
+    const raccoon = await createKnife('Raccoon', '129.00 USD', [
+      'https://shop.example/raccoon',
+    ])
+    const [source] = raccoon.sources
+    await checkAt(0, source, offer(100))
+    await checkEvery6h(1, source) // out of stock from day 1
+    expect(nextCheckAt(source)).toBe(
+      new Date(START + DAY + 6 * HOUR).toISOString(),
+    )
+    await checkEvery6h(14, source) // 13 days: still the normal pace
+    expect(nextCheckAt(source)).toBe(
+      new Date(START + 14 * DAY + 6 * HOUR).toISOString(),
+    )
+    await checkEvery6h(15, source) // 14 days: once a day
+    expect(nextCheckAt(source)).toBe(new Date(START + 16 * DAY).toISOString())
+
+    let row = (await overview()).monitored[0]
+    expect(row).toMatchObject({
+      since: new Date(START + DAY).toISOString(),
+      retireHint: null,
+    })
+    await checkEvery6h(61, source)
+    row = (await overview()).monitored[0]
+    expect(row.retireHint).toBe('long_out_of_stock')
+
+    // Back in stock: the normal pace and no hint.
+    vi.setSystemTime(START + 62 * DAY)
+    await checkAt(62, source, offer(90))
+    expect(nextCheckAt(source)).toBe(new Date(START + 63 * DAY).toISOString())
+    row = (await overview()).monitored[0]
+    expect(row).toMatchObject({ since: null, retireHint: null })
+  })
+
+  it('does not slow down when the setting is off', async () => {
+    const { saveSettings, getSettings } = await import('@/lib/settings')
+    const settings = getSettings().priceMonitoring
+    saveSettings({
+      priceMonitoring: {
+        ...settings,
+        schedule: { ...settings.schedule, slowOutOfStock: false },
+      },
+    })
+    const raccoon = await createKnife('Raccoon', '129.00 USD', [
+      'https://shop.example/raccoon',
+    ])
+    const [source] = raccoon.sources
+    await checkEvery6h(0, source)
+    await checkEvery6h(20, source)
+    expect(nextCheckAt(source)).toBe(
+      new Date(START + 20 * DAY + 6 * HOUR).toISOString(),
+    )
+  })
+
+  it('hints that a page is gone after a 404', async () => {
+    const raccoon = await createKnife('Raccoon', '129.00 USD', [
+      'https://shop.example/raccoon',
+    ])
+    const [source] = raccoon.sources
+    await checkAt(0, source, offer(100))
+    vi.setSystemTime(START + DAY)
+    mocks.browser.mockRejectedValueOnce(
+      new ScrapeError('http', 'The store returned HTTP 404.'),
+    )
+    await checkPriceSource(source, { trigger: 'scheduled' })
+    expect((await overview()).monitored[0]).toMatchObject({
+      result: 'attention',
+      retireHint: 'page_gone',
+    })
+    const watch = (
+      (await (
+        await priceWatchRoute.GET(new Request('http://localhost/x'), {
+          params: Promise.resolve({ id: raccoon.id }),
+        })
+      ).json()) as { watch: PriceWatchView }
+    ).watch
+    expect(watch.sources[0].retireHint).toBe('page_gone')
   })
 })
 
@@ -256,6 +392,88 @@ describe('monitoring status', () => {
     expect(
       (await overview()).monitored.find((s) => s.sourceId === shop)?.result,
     ).toBe('drop')
+  })
+})
+
+describe('noise on the page', () => {
+  it('shows moves under the Minimum change as no change with a hint', async () => {
+    const chef = await createKnife('Chef', '129.00 USD', [
+      'https://uah.example/chef',
+    ])
+    const bowie = await createKnife('Bowie', '200.00 USD', [
+      'https://flap.example/bowie',
+    ])
+    const drift = await createKnife('Drift', '90.00 USD', [
+      'https://drift.example/drift',
+    ])
+    const [uah] = chef.sources
+    const [flap] = bowie.sources
+    const [slow] = drift.sources
+    // Currency conversion noise: 0.3% on a UAH price.
+    await checkAt(0, uah, offer(5000, 'in_stock', 'UAH'))
+    await checkAt(1, uah, offer(4985, 'in_stock', 'UAH'))
+    // Rose in the morning, back in the afternoon.
+    await checkAt(0, flap, offer(200))
+    await checkAt(1.35, flap, offer(210))
+    await checkAt(1.6, flap, offer(200))
+    // Small steps that add up past 5%.
+    await checkAt(0, slow, offer(100))
+    await checkAt(1, slow, offer(98))
+    await checkAt(2, slow, offer(96))
+    await checkAt(3, slow, offer(94))
+    await checkAt(3.5, slow, offer(93.9))
+
+    const result = await overview()
+    const bySource = new Map(result.monitored.map((s) => [s.sourceId, s]))
+    expect(bySource.get(uah)).toMatchObject({
+      result: 'same',
+      driftPct: -0.3,
+      fluctuating: false,
+      deltaMinor: null,
+      previousPriceMinor: null,
+      // Bought in USD, priced in UAH: not comparable, but explained.
+      paidMinor: null,
+      paidCurrency: 'USD',
+      currency: 'UAH',
+    })
+    expect(bySource.get(flap)).toMatchObject({
+      result: 'same',
+      driftPct: null,
+      fluctuating: true,
+      paidMinor: 20000,
+      paidCurrency: 'USD',
+    })
+    expect(bySource.get(slow)).toMatchObject({
+      result: 'drop',
+      previousPriceMinor: 10000,
+      deltaMinor: -610,
+      changedAt: new Date(START + 3 * DAY).toISOString(),
+    })
+
+    // Only the drift crossing and the two flap moves count; the 0.3% and
+    // the small steps stay in history but not in the KPIs.
+    expect(result.kpis).toMatchObject({ drops: 2, increases: 1 })
+    const lastHour = result.checksByHour.at(-1)!
+    expect(lastHour).toMatchObject({ drop: 0, same: 1 })
+
+    // At 0% every move counts again, as in notifications.
+    const settingsModule = await import('@/lib/settings')
+    const settings = settingsModule.getSettings()
+    settingsModule.saveSettings({
+      ...settings,
+      priceMonitoring: {
+        ...settings.priceMonitoring,
+        thresholds: { minPercent: 0, minAmount: 0, allTimeLow: false },
+      },
+    })
+    const strict = new Map(
+      (await overview()).monitored.map((s) => [s.sourceId, s]),
+    )
+    expect(strict.get(uah)).toMatchObject({ result: 'drop', deltaPct: -0.3 })
+    expect(strict.get(flap)).toMatchObject({
+      result: 'same',
+      fluctuating: true,
+    })
   })
 })
 

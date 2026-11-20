@@ -285,6 +285,29 @@ type ModelProfile = {
   reasoning: boolean
   /** The endpoint refused a larger answer ceiling for this model. */
   answerCap?: number
+  /** The endpoint refused the request field that turns thinking off. */
+  thinkingOffRejected?: boolean
+}
+
+/**
+ * Gateways whose models take `thinking: { type: "disabled" }` to answer
+ * without reasoning. OpenCode Go/Zen serve GLM, Kimi and DeepSeek over Chat
+ * Completions (their own APIs use this field) and translate it for the
+ * models it serves through Anthropic Messages (Qwen, Claude). Its docs list
+ * no Go-specific switch, so an endpoint that refuses the field gets the
+ * request again without it, once per model.
+ */
+const THINKING_OFF_HOSTS = /(^|\.)opencode\.ai$/i
+
+/** Whether requests to this endpoint ask the model not to reason. */
+export function sendsThinkingOff(endpoint: AiEndpoint): boolean {
+  const base = normalizeAiBaseUrl(endpoint.baseUrl)
+  if (!base) return false
+  try {
+    return THINKING_OFF_HOSTS.test(new URL(base).hostname)
+  } catch {
+    return false
+  }
 }
 
 /** Receives every finished call (process-wide; null removes it). */
@@ -501,6 +524,8 @@ async function completeJson(
     modelProfiles().get(key) ?? { reasoning: false }
   let retried = false
   let capped = false
+  const thinkingOff = () =>
+    sendsThinkingOff(endpoint) && !profile().thinkingOffRejected
   const learnReasoning = () => {
     modelProfiles().set(key, { ...profile(), reasoning: true })
   }
@@ -533,6 +558,8 @@ async function completeJson(
         { role: 'user', content: request.user },
       ],
     }
+    const sentThinkingOff = thinkingOff()
+    if (sentThinkingOff) payload.thinking = { type: 'disabled' }
     if (format === 'json_schema')
       payload.response_format = {
         type: 'json_schema',
@@ -557,6 +584,20 @@ async function completeJson(
         { ...options, timeoutMs },
       )
     } catch (error) {
+      // The endpoint does not take the thinking switch: drop it for this
+      // model and send the same request again. A 400 that does not name it
+      // is retried without it once the formats have run out.
+      if (
+        sentThinkingOff &&
+        error instanceof AiClientError &&
+        error.code === 'http' &&
+        (error.status === 400 || error.status === 422) &&
+        (/thinking/i.test(error.message) || format === 'none')
+      ) {
+        modelProfiles().set(key, { ...profile(), thinkingOffRejected: true })
+        index--
+        continue
+      }
       // The answer ceiling is above the model's own limit: lower it once
       // and remember that for this model.
       if (

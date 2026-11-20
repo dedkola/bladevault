@@ -10,7 +10,14 @@ import type {
   SourceResult,
 } from '@/lib/price-monitor/insights'
 import { cn } from '@/lib/utils'
-import { money, relativeTime, storeLabel } from './price-format'
+import {
+  durationLabel,
+  money,
+  nextCheckLabel,
+  percentLabel,
+  relativeTime,
+  storeLabel,
+} from './price-format'
 import './price-drops.css'
 
 /** Lane names and legend labels, in display order. */
@@ -21,6 +28,13 @@ export const RESULT_LABEL: Record<SourceResult, string> = {
   same: 'No change',
   attention: 'Needs attention',
   pending: 'Waiting for first check',
+}
+
+/** "−0.3%", "+1.2%", "<0.1%": a small move under the Minimum change. */
+export function driftLabel(pct: number) {
+  const sign = pct < 0 ? '−' : '+'
+  const abs = Math.abs(pct)
+  return abs < 0.1 ? `${sign}<0.1%` : `${sign}${abs.toFixed(1)}%`
 }
 
 const PAST_MS = 24 * 60 * 60 * 1000
@@ -43,14 +57,6 @@ type Pin = {
 }
 
 type PlacedPin = Pin & { row: number; align: 'start' | 'mid' | 'end' }
-
-/** "26 min", "3 h", "2 d": how long a due knife has been waiting. */
-function waitLabel(ms: number) {
-  const minutes = Math.max(1, Math.round(ms / 60_000))
-  if (minutes < 60) return `${minutes} min`
-  const hours = Math.round(minutes / 60)
-  return hours < 48 ? `${hours} h` : `${Math.round(hours / 24)} d`
-}
 
 function shortName(source: MonitoredSource) {
   const name = source.knife.name || source.knife.brand
@@ -148,7 +154,7 @@ function describe(source: MonitoredSource, now: number) {
     ? `checked ${relativeTime(source.lastCheckedAt, now)}`
     : 'not checked yet'
   const next = source.nextCheckAt
-    ? `, next ${relativeTime(source.nextCheckAt, now)}`
+    ? `, ${nextCheckLabel(source.nextCheckAt, now)}`
     : ''
   return `${name} · ${RESULT_LABEL[source.result]} · ${money(
     source.priceMinor,
@@ -217,23 +223,21 @@ type Lane = {
 
 function lanesFor(group: Group, sources: MonitoredSource[]): Lane[] {
   if (group === 'result') {
+    // Never-checked sources get their own lane: waiting is not a problem.
     const order: SourceResult[] = [
       'drop',
       'increase',
       'out_of_stock',
       'same',
       'attention',
+      'pending',
     ]
     return order
       .map((result) => ({
         key: result,
         label: RESULT_LABEL[result],
         result,
-        sources: sources.filter((source) =>
-          result === 'attention'
-            ? source.result === 'attention' || source.result === 'pending'
-            : source.result === result,
-        ),
+        sources: sources.filter((source) => source.result === result),
       }))
       .filter((lane) => lane.sources.length > 0)
   }
@@ -396,7 +400,14 @@ function StatusTimeline({
         </div>
         <ul className="pd-legend" aria-label="Pin colours">
           {(
-            ['drop', 'increase', 'out_of_stock', 'same', 'attention'] as const
+            [
+              'drop',
+              'increase',
+              'out_of_stock',
+              'same',
+              'attention',
+              'pending',
+            ] as const
           ).map((result) => (
             <li key={result} data-result={result}>
               {RESULT_LABEL[result]}
@@ -529,7 +540,7 @@ function StatusTimeline({
                     </span>
                     <span>
                       {cluster.pin.due
-                        ? `waiting ${waitLabel(now - Date.parse(source.nextCheckAt!))}`
+                        ? `waiting ${durationLabel(now - Date.parse(source.nextCheckAt!))}`
                         : cluster.upcoming
                           ? relativeTime(source.nextCheckAt, now)
                           : relativeTime(source.lastCheckedAt, now)}
@@ -659,12 +670,13 @@ export function MonitoringStatus({
     (source) =>
       source.lastCheckedAt && now - Date.parse(source.lastCheckedAt) <= PAST_MS,
   ).length
-  const changed = sources.filter((source) =>
-    ['drop', 'increase', 'out_of_stock'].includes(source.result),
-  ).length
-  const attention = sources.filter(
-    (source) => source.result === 'attention' || source.result === 'pending',
-  ).length
+  const count = (result: SourceResult) =>
+    sources.filter((source) => source.result === result).length
+  const drops = count('drop')
+  const rises = count('increase')
+  const outOfStock = count('out_of_stock')
+  const attention = count('attention')
+  const waiting = count('pending')
   const nextChecks = sources
     .map((source) => source.nextCheckAt)
     .filter((value): value is string => Boolean(value))
@@ -696,11 +708,22 @@ export function MonitoringStatus({
             checked in 24 h
           </span>
           <span>
-            <b>{changed}</b> changed
+            <b>{drops}</b> {drops === 1 ? 'drop' : 'drops'}
           </span>
           <span>
-            <b>{attention}</b> need attention
+            <b>{rises}</b> {rises === 1 ? 'rise' : 'rises'}
           </span>
+          <span>
+            <b>{outOfStock}</b> out of stock
+          </span>
+          <span>
+            <b>{attention}</b> {attention === 1 ? 'needs' : 'need'} attention
+          </span>
+          {waiting ? (
+            <span>
+              <b>{waiting}</b> waiting for first check
+            </span>
+          ) : null}
           {queued ? (
             <span>
               <b>{queued}</b> waiting in the queue
@@ -758,14 +781,17 @@ export function MonitoringStatus({
 /**
  * A source's result: icon plus words, never color alone. With `onResolve`, a
  * blocked, failed or unavailable store page also gets a Solve or Fix button
- * that opens it in a browser window.
+ * that opens it in a browser window; `solveUnavailable` explains instead,
+ * where this server cannot open a visible window.
  */
 export function ResultBadge({
   source,
   onResolve,
+  solveUnavailable,
 }: {
   source: MonitoredSource
   onResolve?: () => void
+  solveUnavailable?: string
 }) {
   if (
     (source.result === 'drop' || source.result === 'increase') &&
@@ -777,15 +803,13 @@ export function ResultBadge({
         data-result={source.result}
         title={
           source.changedAt
-            ? `${RESULT_LABEL[source.result]} ${new Date(source.changedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+            ? `${RESULT_LABEL[source.result]} ${new Date(source.changedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}${source.fluctuating ? '; the price has also gone back and forth' : ''}`
             : undefined
         }
       >
         {source.deltaMinor < 0 ? '▼' : '▲'}{' '}
         {money(Math.abs(source.deltaMinor), source.currency)}
-        {source.deltaPct !== null
-          ? ` · ${Math.abs(source.deltaPct).toFixed(0)}%`
-          : ''}
+        {source.deltaPct !== null ? ` · ${percentLabel(source.deltaPct)}` : ''}
       </span>
     )
   const icon: Record<SourceResult, string> = {
@@ -808,6 +832,16 @@ export function ResultBadge({
       : source.result === 'pending'
         ? 'Waiting'
         : RESULT_LABEL[source.result]
+  if (source.result === 'attention' && solveUnavailable)
+    return (
+      <span
+        className="pd-badge"
+        data-result={source.result}
+        title={solveUnavailable}
+      >
+        {icon[source.result]} {text}
+      </span>
+    )
   const solvable =
     source.status === 'blocked' ||
     source.status === 'failed' ||
@@ -841,6 +875,24 @@ export function ResultBadge({
       </span>
     )
   }
+  if (source.result === 'same' && (source.fluctuating || source.driftPct))
+    return (
+      <span
+        className="pd-badge"
+        data-result="same"
+        data-fluctuating={source.fluctuating || undefined}
+        title={
+          source.fluctuating
+            ? 'The price moved and came back to an earlier level in the last 30 days, so it counts as no change.'
+            : 'The price moved by less than the Minimum change in Settings, so it counts as no change.'
+        }
+      >
+        {source.fluctuating ? '~ Fluctuating' : `${icon.same} ${text}`}
+        {source.driftPct ? (
+          <span className="pd-drift"> · {driftLabel(source.driftPct)}</span>
+        ) : null}
+      </span>
+    )
   return (
     <span className="pd-badge" data-result={source.result}>
       {icon[source.result]} {text}
