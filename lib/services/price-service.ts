@@ -380,6 +380,7 @@ type AttentionSourceRow = {
   last_error_code: string | null
   last_checked_at: string | null
   consecutive_failures: number
+  wanted_monitored: number
 }
 
 const ATTENTION_GROUPS = {
@@ -404,8 +405,10 @@ export async function getPriceAttention(now = Date.now()) {
     .prepare(
       `SELECT s.id, s.knife_id, k.brand, k.name, s.store_name, s.lane_key,
               s.url, s.status, s.last_error_code, s.last_checked_at,
-              s.consecutive_failures
+              s.consecutive_failures,
+              k.wanted AND COALESCE(w.mode, 'auto') != 'off' AS wanted_monitored
        FROM price_sources s JOIN knives k ON k.id = s.knife_id
+       LEFT JOIN price_watch w ON w.knife_id = s.knife_id
        WHERE s.removed_at IS NULL AND s.enabled = 1
          AND s.status IN ('failed', 'blocked', 'price_unavailable',
                           'needs_review')
@@ -426,7 +429,10 @@ export async function getPriceAttention(now = Date.now()) {
       sourceId: row.id,
       storeName: row.store_name,
       url: row.url,
-      monitored: monitoredKnives.has(row.knife_id),
+      // The collection overview leaves watchlist knives out; an enabled
+      // source of a wanted knife is monitored.
+      monitored:
+        row.wanted_monitored === 1 || monitoredKnives.has(row.knife_id),
       problem: problemFor(row.status, row.last_error_code),
       consecutiveFailures: row.consecutive_failures,
       lastCheckedAt: row.last_checked_at,
