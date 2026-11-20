@@ -1,6 +1,14 @@
 'use client'
 
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react'
+import { Cookie, Loader2, Pause, Play, RefreshCw } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -53,6 +61,10 @@ const SCHEDULE_HELP: Record<PriceScheduleMode, string> = {
 type LaneView = {
   laneKey: string
   sources: number
+  /** Pages out of stock for two weeks, checked once a day. */
+  slowed: number
+  /** Scheduled checks paused by the user. */
+  paused: boolean
   manual: number
   gapMs: number
   circuit: 'closed' | 'open'
@@ -207,13 +219,71 @@ const NOTIFY_OPTIONS: ReadonlyArray<{
   },
 ]
 
+function StoreButton({
+  label,
+  busy,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string
+  busy: boolean
+  disabled: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-xs"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {busy ? <Loader2 className="animate-spin" /> : children}
+    </Button>
+  )
+}
+
 const START_HOURS = Array.from({ length: 24 }, (_, hour) => hour)
 const END_HOURS = Array.from({ length: 24 }, (_, hour) => hour + 1)
+
+type StoreAction = 'resume' | 'reset_cookies' | 'check' | 'pause' | 'unpause'
+
+const storeName = (laneKey: string) =>
+  laneKey === 'amazon' ? 'Amazon' : laneKey
+
+/** Asks first where an action can backfire; null means go ahead. */
+function confirmText(action: StoreAction, laneKey: string): string | null {
+  const name = storeName(laneKey)
+  if (action === 'resume')
+    return `Resume checks at ${name} now? It was paused after a bot check or errors and may block again; if it does, it pauses for longer next time.`
+  if (action === 'reset_cookies')
+    return `Forget the cookies saved for ${name}? A bot check you solved there may have to be solved again.`
+  return null
+}
+
+const DONE_TEXT: Record<
+  StoreAction,
+  (name: string, queued?: number) => string
+> = {
+  resume: (name) => `${name} resumed. Its next check can start now.`,
+  reset_cookies: (name) => `Saved cookies for ${name} were reset.`,
+  check: (name, queued) =>
+    queued
+      ? `${queued} ${queued === 1 ? 'product' : 'products'} at ${name} queued. They run at the store's minimum pause.`
+      : `Nothing to check at ${name}.`,
+  pause: (name) => `${name} paused. Check now on a knife still works there.`,
+  unpause: (name) => `${name} resumed on its normal schedule.`,
+}
 
 type HourCycle = 'h12' | 'h23'
 
 function laneStatus(lane: LaneView, hourCycle: HourCycle): string {
   if (lane.checking) return 'Checking'
+  if (lane.paused) return 'Paused by you'
   if (lane.circuit === 'open' && lane.cooldownUntil)
     return `Paused until ${clockTime(lane.cooldownUntil, hourCycle)} (blocked)`
   if (lane.manual) return `${lane.manual} waiting for Check now`
@@ -294,6 +364,38 @@ export function PriceMonitoringSettings({
       clearInterval(timer)
     }
   }, [loadQueue])
+
+  const [storeBusy, setStoreBusy] = useState<string | null>(null)
+  const [storeNotice, setStoreNotice] = useState<string | null>(null)
+  const runStoreAction = async (laneKey: string, action: StoreAction) => {
+    const question = confirmText(action, laneKey)
+    if (question && !window.confirm(question)) return
+    setStoreBusy(`${laneKey}:${action}`)
+    setStoreNotice(null)
+    try {
+      const response = await fetch('/api/prices/stores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ laneKey, action }),
+      })
+      const data = (await response.json().catch(() => ({}))) as {
+        queued?: number
+        error?: string
+      }
+      if (!response.ok)
+        throw new Error(data.error ?? 'The store action did not work.')
+      setStoreNotice(DONE_TEXT[action](storeName(laneKey), data.queued))
+      await loadQueue()
+    } catch (error) {
+      setStoreNotice(
+        error instanceof Error
+          ? error.message
+          : 'The store action did not work.',
+      )
+    } finally {
+      setStoreBusy(null)
+    }
+  }
 
   const update = (patch: Partial<PriceMonitoringSettings>) =>
     onChange({ ...settings, ...patch })
@@ -421,6 +523,20 @@ export function PriceMonitoringSettings({
             ) : null}
           </SettingsRow>
         ) : null}
+        <SettingsRow
+          inline
+          label="Check long out-of-stock pages once a day"
+          description="A page that has been out of stock for two weeks is checked at most once a day, so a restock still shows within a day and stores get fewer requests. Check now and Check all still check it right away."
+        >
+          <SettingsSwitch
+            aria-label="Check long out-of-stock pages once a day"
+            checked={settings.schedule.slowOutOfStock}
+            disabled={off}
+            onCheckedChange={(slowOutOfStock) =>
+              updateSchedule({ slowOutOfStock })
+            }
+          />
+        </SettingsRow>
       </SettingsSection>
 
       <SettingsSection
@@ -547,8 +663,13 @@ export function PriceMonitoringSettings({
       {queueAvailable && queue && queue.lanes.length ? (
         <SettingsSection
           title="Stores"
-          description="Each store's current pace. A full pass is how long it takes to check every product at that store once."
+          description="Each store's current pace. A full pass is how long it takes to check every product at that store once. Use the buttons to check a store now, pause it, or reset its saved cookies."
         >
+          {storeNotice ? (
+            <p role="status" className="pt-2 text-xs text-muted-foreground">
+              {storeNotice}
+            </p>
+          ) : null}
           <div className="overflow-x-auto py-2">
             <table className="w-full text-left text-xs">
               <thead className="text-muted-foreground">
@@ -557,7 +678,10 @@ export function PriceMonitoringSettings({
                   <th className="py-1.5 pr-3 font-medium">Products</th>
                   <th className="py-1.5 pr-3 font-medium">One check every</th>
                   <th className="py-1.5 pr-3 font-medium">Full pass</th>
-                  <th className="py-1.5 font-medium">Status</th>
+                  <th className="py-1.5 pr-3 font-medium">Status</th>
+                  <th className="py-1.5 text-right font-medium">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -565,7 +689,7 @@ export function PriceMonitoringSettings({
                   <Fragment key={lane.laneKey}>
                     <tr className="border-t border-[var(--bladevault-line)]">
                       <td className="py-1.5 pr-3 font-medium text-foreground">
-                        {lane.laneKey === 'amazon' ? 'Amazon' : lane.laneKey}
+                        {storeName(lane.laneKey)}
                         {lane.strategy === 'http_first' ? (
                           <span className="ml-1.5 text-muted-foreground">
                             · fast HTTP
@@ -574,12 +698,20 @@ export function PriceMonitoringSettings({
                       </td>
                       <td className="py-1.5 pr-3 tabular-nums">
                         {lane.sources}
+                        {lane.slowed ? (
+                          <span
+                            className="ml-1 text-muted-foreground"
+                            title="Out of stock for two weeks or more, so checked once a day"
+                          >
+                            · {lane.slowed} once a day
+                          </span>
+                        ) : null}
                       </td>
                       <td className="py-1.5 pr-3 tabular-nums">
-                        {formatDuration(lane.gapMs)}
+                        {lane.paused ? '—' : formatDuration(lane.gapMs)}
                       </td>
                       <td className="py-1.5 pr-3 tabular-nums">
-                        {lane.sources
+                        {lane.sources && !lane.paused
                           ? `${formatDuration(lane.fullPassMs)}${
                               lane.fullPassMs > queue.frequencyMs
                                 ? ' (longer than the schedule)'
@@ -587,12 +719,70 @@ export function PriceMonitoringSettings({
                             }`
                           : '—'}
                       </td>
-                      <td className="py-1.5">{laneStatus(lane, hourCycle)}</td>
+                      <td className="py-1.5 pr-3">
+                        {laneStatus(lane, hourCycle)}
+                        {lane.circuit === 'open' && !lane.checking ? (
+                          <Button
+                            type="button"
+                            variant="link"
+                            size="xs"
+                            className="h-auto px-1 py-0"
+                            disabled={disabled || storeBusy !== null}
+                            onClick={() =>
+                              void runStoreAction(lane.laneKey, 'resume')
+                            }
+                          >
+                            Resume now
+                          </Button>
+                        ) : null}
+                      </td>
+                      <td className="py-1 text-right whitespace-nowrap">
+                        <StoreButton
+                          label={`Check ${storeName(lane.laneKey)} now`}
+                          busy={storeBusy === `${lane.laneKey}:check`}
+                          disabled={disabled || storeBusy !== null}
+                          onClick={() =>
+                            void runStoreAction(lane.laneKey, 'check')
+                          }
+                        >
+                          <RefreshCw />
+                        </StoreButton>
+                        <StoreButton
+                          label={
+                            lane.paused
+                              ? `Resume scheduled checks at ${storeName(lane.laneKey)}`
+                              : `Pause scheduled checks at ${storeName(lane.laneKey)}`
+                          }
+                          busy={
+                            storeBusy === `${lane.laneKey}:pause` ||
+                            storeBusy === `${lane.laneKey}:unpause`
+                          }
+                          disabled={disabled || storeBusy !== null}
+                          onClick={() =>
+                            void runStoreAction(
+                              lane.laneKey,
+                              lane.paused ? 'unpause' : 'pause',
+                            )
+                          }
+                        >
+                          {lane.paused ? <Play /> : <Pause />}
+                        </StoreButton>
+                        <StoreButton
+                          label={`Reset saved cookies for ${storeName(lane.laneKey)}`}
+                          busy={storeBusy === `${lane.laneKey}:reset_cookies`}
+                          disabled={disabled || storeBusy !== null}
+                          onClick={() =>
+                            void runStoreAction(lane.laneKey, 'reset_cookies')
+                          }
+                        >
+                          <Cookie />
+                        </StoreButton>
+                      </td>
                     </tr>
                     {lane.advice ? (
                       <tr>
                         <td
-                          colSpan={5}
+                          colSpan={6}
                           className="pb-1.5 text-muted-foreground"
                         >
                           {adviceSummary(lane.advice, hourCycle)}

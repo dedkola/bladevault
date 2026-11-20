@@ -23,7 +23,12 @@ describe('settings persistence', () => {
       priceMonitoring: {
         ...getSettings().priceMonitoring,
         enabled: false,
-        schedule: { mode: 'custom', intervalHours: 6, activeHours: [22, 6] },
+        schedule: {
+          mode: 'custom',
+          intervalHours: 6,
+          activeHours: [22, 6],
+          slowOutOfStock: false,
+        },
         pacing: {
           minGapSeconds: 90,
           amazonMinGapSeconds: 600,
@@ -69,7 +74,12 @@ describe('settings persistence', () => {
     expect(getSettings().priceMonitoring).toEqual({
       enabled: false,
       skipSoldKnives: true,
-      schedule: { mode: 'custom', intervalHours: 6, activeHours: [22, 6] },
+      schedule: {
+        mode: 'custom',
+        intervalHours: 6,
+        activeHours: [22, 6],
+        slowOutOfStock: false,
+      },
       pacing: {
         minGapSeconds: 90,
         amazonMinGapSeconds: 600,
