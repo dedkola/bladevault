@@ -21,6 +21,8 @@ vi.mock('@/lib/webpage-screenshot-capture', () => ({
 }))
 vi.mock('@/lib/scrape', () => ({
   isSecurityChallengePage: (html: string) => html.includes('CAPTCHA challenge'),
+  isNetworkBlockPage: () => false,
+  networkBlockError: () => new Error('HTTP 403'),
 }))
 
 const url = 'https://retailer.example/product'

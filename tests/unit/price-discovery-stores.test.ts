@@ -1,13 +1,26 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { isIgnoredOfficialOutOfStock } from '@/lib/price-monitor/eligibility'
 import {
   DISCOVERY_STORES,
   genericProductDetails,
 } from '@/lib/price-monitor/discovery-stores'
+import { extractOfferFromHtml } from '@/lib/price-monitor/fetch'
+import { pageShowsModelNumber } from '@/lib/price-monitor/discovery-ai'
+import {
+  isNetworkBlockError,
+  isNetworkBlockPage,
+  isSecurityChallengePage,
+  networkBlockError,
+} from '@/lib/scrape'
+import { toScrapeError } from '@/lib/scrape-errors'
 import {
   DEFAULT_PRICE_MONITORING,
   normalizePriceMonitoring,
 } from '@/lib/settings-shared'
+
+const fixture = (name: string) =>
+  readFileSync(new URL(`../fixtures/scrape/${name}`, import.meta.url), 'utf8')
 
 // Trimmed from a Blade HQ category page (search redirects there).
 const BLADEHQ_HTML = `
@@ -26,16 +39,7 @@ const BLADEHQ_HTML = `
 </ul>
 <footer><a href="https://www.bladehq.com/item--Footer-Promo--2">Footer promo product link</a></footer>`
 
-const KNIFECENTER_HTML = `
-<div class="results">
-  <div class="card">
-    <a href="/item/SP223GP/spyderco-para-3-folding-knife-s45vn-satin-plain-blade-black-g10-handles-paramilitary-3">Spyderco Para 3 Folding Knife 3" S45VN Satin Plain Blade, Black G10 Handles</a>
-    <div class="price">$197.25</div>
-  </div>
-  <a href="/brand/314/HTM-Knives">HTM Knives brand page</a>
-</div>`
-
-describe('Other stores: Blade HQ and KnifeCenter', () => {
+describe('Other stores: Blade HQ', () => {
   it('reads Blade HQ product links, skipping header, nav and footer', () => {
     const settings = DEFAULT_PRICE_MONITORING.otherStores
     const results = DISCOVERY_STORES.bladehq.parseResults(
@@ -66,19 +70,6 @@ describe('Other stores: Blade HQ and KnifeCenter', () => {
     ).toBe('https://www.bladehq.com/?search=Spyderco+Para+3')
   })
 
-  it('reads KnifeCenter /item/ links only', () => {
-    const results = DISCOVERY_STORES.knifecenter.parseResults(
-      KNIFECENTER_HTML,
-      'https://www.knifecenter.com/search?q=para+3',
-      DEFAULT_PRICE_MONITORING.otherStores,
-    )
-    expect(results).toHaveLength(1)
-    expect(results[0]).toMatchObject({
-      url: 'https://www.knifecenter.com/item/SP223GP/spyderco-para-3-folding-knife-s45vn-satin-plain-blade-black-g10-handles-paramilitary-3',
-      price: '$197.25',
-    })
-  })
-
   it('reads a product page from JSON-LD', () => {
     const details = genericProductDetails(`
       <script type="application/ld+json">[{"@context":"https://schema.org","@type":"Product",
@@ -92,9 +83,112 @@ describe('Other stores: Blade HQ and KnifeCenter', () => {
     expect(genericProductDetails('<p>nothing</p>')).toBeNull()
   })
 
+  it('reads the live Blade HQ search page at the selling price, not the MSRP', () => {
+    const html = fixture('bladehq-search-para-3.html')
+    const results = DISCOVERY_STORES.bladehq.parseResults(
+      html,
+      'https://www.bladehq.com/cat--Spyderco-Para-3--2475',
+      DEFAULT_PRICE_MONITORING.otherStores,
+    )
+    expect(
+      results.map(({ url, title, price }) => ({ url, title, price })),
+    ).toEqual([
+      {
+        url: 'https://www.bladehq.com/item--Spyderco-Para-3-Knife-Brown-Canvas--191668',
+        title:
+          'Spyderco Para 3 Knife Brown Canvas Micarta (3" Satin CPM CRU-WEAR) C223MPCW',
+        price: '$216.75',
+      },
+      {
+        url: 'https://www.bladehq.com/item--Spyderco-Para-3-Compression-Lock--67321',
+        title:
+          'Spyderco Para 3 Compression Lock Knife Black G-10 (3" Black DLC) C223GPBK',
+        price: '$212.25',
+      },
+      {
+        url: 'https://www.bladehq.com/item--Spyderco-Para-3-Knife-Dark-Gray-G--71267',
+        title:
+          'Spyderco Para 3 Knife Dark Gray G-10 (3" Stonewash Maxamet) C223GPDGY',
+        price: '$275.25',
+      },
+    ])
+  })
+
+  it('reads the live Blade HQ product page: title, SKU and price', () => {
+    const html = fixture('bladehq-item-para-3-c223gpbk.html')
+    const url =
+      'https://www.bladehq.com/item--Spyderco-Para-3-Compression-Lock--67321'
+    const details = DISCOVERY_STORES.bladehq.productDetails(html, url)
+    expect(details?.title).toBe(
+      'Spyderco Para 3 Compression Lock Knife Black G-10 (3" Black DLC) C223GPBK',
+    )
+    expect(details?.details).toContain('Brand: Spyderco')
+    expect(details?.details).toContain('SKU: C223GPBK')
+    expect(details?.details).toContain("that's easy to use")
+    expect(
+      pageShowsModelNumber(
+        'C223GPBK',
+        `${details?.title}\n${details?.details}`,
+      ),
+    ).toBe(true)
+    expect(extractOfferFromHtml(html, url)).toMatchObject({
+      amount: 212.25,
+      currency: 'USD',
+      availability: 'in_stock',
+    })
+  })
+
+  it('takes a search that lands on a product page as its one result', () => {
+    const url =
+      'https://www.bladehq.com/item--Spyderco-Para-3-Compression-Lock--67321?search=C223GPBK'
+    const results = DISCOVERY_STORES.bladehq.parseResults(
+      fixture('bladehq-item-para-3-c223gpbk.html'),
+      url,
+      DEFAULT_PRICE_MONITORING.otherStores,
+    )
+    expect(results).toEqual([
+      {
+        id: 1,
+        url: 'https://www.bladehq.com/item--Spyderco-Para-3-Compression-Lock--67321',
+        title:
+          'Spyderco Para 3 Compression Lock Knife Black G-10 (3" Black DLC) C223GPBK',
+        price: null,
+        sponsored: false,
+      },
+    ])
+  })
+
+  it('tells an IP-range block page apart from a bot check', () => {
+    const html = fixture('ip-range-block.html')
+    expect(isNetworkBlockPage(html)).toBe(true)
+    // Nothing here a person could solve: it is not a challenge page.
+    expect(isSecurityChallengePage(html)).toBe(false)
+    expect(isNetworkBlockPage(fixture('bladehq-search-para-3.html'))).toBe(
+      false,
+    )
+    const error = networkBlockError(200)
+    expect(isNetworkBlockError(error)).toBe(true)
+    expect(toScrapeError(error).code).toBe('http')
+    // The 403 keeps pacing and the circuit breaker treating it as a block.
+    expect(error.message).toContain('HTTP 403')
+    expect(error.message).toContain('not a bot check')
+    expect(isNetworkBlockError(new Error('HTTP 403'))).toBe(false)
+  })
+
+  it('no longer offers KnifeCenter; old saved settings still load', () => {
+    expect(Object.keys(DISCOVERY_STORES)).toEqual(['amazon', 'bladehq'])
+    expect(
+      normalizePriceMonitoring({
+        otherStores: {
+          enabled: true,
+          stores: { amazon: false, bladehq: true, knifecenter: true },
+        },
+      }).otherStores.stores,
+    ).toEqual({ amazon: false, bladehq: true })
+  })
+
   it('lanes and marketplaces follow the store', () => {
     expect(DISCOVERY_STORES.bladehq.laneKey).toBe('bladehq.com')
-    expect(DISCOVERY_STORES.knifecenter.laneKey).toBe('knifecenter.com')
     expect(
       DISCOVERY_STORES.amazon.marketplace({
         ...DEFAULT_PRICE_MONITORING.otherStores,

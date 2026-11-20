@@ -1,5 +1,10 @@
 import * as cheerio from 'cheerio'
-import { isSecurityChallengePage, isShopifyProductPage } from '@/lib/scrape'
+import {
+  isNetworkBlockPage,
+  isSecurityChallengePage,
+  isShopifyProductPage,
+  networkBlockError,
+} from '@/lib/scrape'
 import { ScrapeError } from '@/lib/scrape-errors'
 import {
   extractOffer,
@@ -86,6 +91,7 @@ async function httpGet(
     }),
   )
   const body = await operation.run(() => response.text())
+  if (isNetworkBlockPage(body)) throw networkBlockError(response.status)
   if (isSecurityChallengePage(body)) throw new ScrapeError('challenge')
   if (!response.ok)
     throw Object.assign(

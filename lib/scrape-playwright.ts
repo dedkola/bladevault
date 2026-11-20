@@ -8,7 +8,11 @@ import {
   type ScrapeOperation,
 } from '@/lib/scrape-operation'
 import { ScrapeError, toScrapeError } from '@/lib/scrape-errors'
-import { isSecurityChallengePage } from '@/lib/scrape'
+import {
+  isNetworkBlockPage,
+  isSecurityChallengePage,
+  networkBlockError,
+} from '@/lib/scrape'
 import { waitForSogProductContent } from '@/lib/scrape-sog-browser'
 import { validateExternalUrl } from '@/lib/url-validation'
 
@@ -188,6 +192,8 @@ export async function fetchRenderedHtml(
         serverHtml = await response.text().catch(() => undefined)
       }
       const initialHtml = await page.content()
+      if (isNetworkBlockPage(initialHtml))
+        throw networkBlockError(response?.status())
       if (isSecurityChallengePage(initialHtml))
         throw new ScrapeError('challenge')
       if (response && !response.ok()) {
@@ -252,6 +258,7 @@ export async function fetchRenderedHtml(
       if (options.interact) await options.interact(page, operation)
       const html = await page.content()
       const finalUrl = page.url()
+      if (isNetworkBlockPage(html)) throw networkBlockError()
       if (isSecurityChallengePage(html)) throw new ScrapeError('challenge')
       if (
         html.length < 2000 &&

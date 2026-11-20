@@ -259,7 +259,7 @@ describe('Other stores scheduling and settings', () => {
   it('is off by default and keeps only known marketplaces', () => {
     expect(DEFAULT_PRICE_MONITORING.otherStores).toEqual({
       enabled: false,
-      stores: { amazon: true, bladehq: false, knifecenter: false },
+      stores: { amazon: true, bladehq: false },
       amazonMarketplace: 'amazon.com',
       // Empty: the marketplace's default postcode (10001 on amazon.com).
       amazonPostcode: '',
@@ -273,7 +273,7 @@ describe('Other stores scheduling and settings', () => {
     })
     expect(next.otherStores).toEqual({
       enabled: true,
-      stores: { amazon: false, bladehq: false, knifecenter: false },
+      stores: { amazon: false, bladehq: false },
       amazonMarketplace: 'amazon.com',
       amazonPostcode: '',
     })

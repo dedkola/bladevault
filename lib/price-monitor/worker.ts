@@ -35,6 +35,8 @@ import { checkPriceSource } from '@/lib/price-monitor/engine'
 import {
   applyLaneOutcome,
   defaultLaneState,
+  discoveryAvailability,
+  discoveryGapMs,
   fullPassMs,
   laneAvailability,
   laneFloorMs,
@@ -160,6 +162,8 @@ type PassContext = {
   firstReadings: Map<string, number>
   /** The never-checked sources themselves. */
   firstReadingIds: ReadonlySet<number>
+  /** AI advice per store: pauses and quiet hours hold searches too. */
+  advice: Map<string, ActiveLaneAdvice>
 }
 
 function isVaultError(error: unknown): boolean {
@@ -410,6 +414,7 @@ export class PriceMonitorWorker {
             .filter((candidate) => candidate.priority === 1)
             .map((candidate) => candidate.sourceId),
         ),
+        advice,
       }
       for (const pick of pickNextChecks(input)) {
         const lane = lanes.get(pick.laneKey) ?? input.defaultLane(pick.laneKey)
@@ -453,11 +458,16 @@ export class PriceMonitorWorker {
       if ((this.discoveryIdleUntil.get(store) ?? 0) > now) continue
       const laneKey = DISCOVERY_STORES[store].laneKey
       if (busy.has(laneKey)) continue
+      const advice = context.advice.get(laneKey)
+      if (inQuietHours(advice, new Date(now))) continue
       const lane = input.lanes.get(laneKey) ?? input.defaultLane(laneKey)
       // After a cooldown the search is the store's probe: a store with no
       // price sources there (often Amazon) has no check that could probe it,
       // and its searches would otherwise stop for good.
-      const availability = laneAvailability(lane, now).state
+      const availability = discoveryAvailability(lane, now, {
+        floorMs: laneFloorMs(laneKey, context.settings.pacing),
+        pauseUntil: advice && advice.expiresAt > now ? advice.pauseUntil : null,
+      }).state
       if (availability !== 'ready' && availability !== 'probe') continue
       const knifeId = nextDiscovery(context.settings, now, store)
       if (!knifeId) {
@@ -474,12 +484,9 @@ export class PriceMonitorWorker {
     const controller = new AbortController()
     this.controllers.add(controller)
     const floorMs = laneFloorMs(laneKey, context.settings.pacing)
-    const gapMs = laneGapMs({
-      minGapMs: lane.minGapMs,
-      floorMs,
-      activeWindowMs: context.windowMs,
-      sourceCount: context.laneCounts.get(laneKey) ?? 0,
-    })
+    // The next search waits the store's minimum gap; scheduled checks keep
+    // their own spread (below).
+    const gapMs = discoveryGapMs(lane, floorMs)
     this.discoveryLane = laneKey
     this.discovering = (async () => {
       try {
@@ -500,6 +507,13 @@ export class PriceMonitorWorker {
           },
           { now: this.deps.now(), gapMs, floorMs, random: this.deps.random },
         )
+        // A search that went well does not bring the store's next scheduled
+        // check forward: its spread still holds.
+        if (
+          update.lane.circuit === 'closed' &&
+          summary.laneOutcome === 'success'
+        )
+          update.lane.readyAt = Math.max(update.lane.readyAt, current.readyAt)
         await writeLaneState(update.lane, context.generation)
         if (update.clearCookies)
           await clearBrowserState(laneKey).catch(() => {})
