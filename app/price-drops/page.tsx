@@ -10,9 +10,12 @@ export const metadata: Metadata = {
 export default async function PriceDropsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ section?: string | string[] }>
+  searchParams: Promise<{
+    section?: string | string[]
+    knife?: string | string[]
+  }>
 }) {
-  const { section } = await searchParams
+  const { section, knife } = await searchParams
   return (
     <div
       data-price-drops-page
@@ -20,6 +23,7 @@ export default async function PriceDropsPage({
     >
       <PriceDropsView
         initialSection={typeof section === 'string' ? section : undefined}
+        initialKnife={typeof knife === 'string' && knife ? knife : undefined}
       />
     </div>
   )
