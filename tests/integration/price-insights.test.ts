@@ -86,8 +86,9 @@ async function createKnife(name: string, price: string, urls: string[]) {
 function offer(
   amount: number | null,
   availability: ExtractedOffer['availability'] = 'in_stock',
+  currency = 'USD',
 ): ExtractedOffer {
-  return { amount, currency: 'USD', availability, method: 'jsonld' }
+  return { amount, currency, availability, method: 'jsonld' }
 }
 
 /** Advances the clock, then runs one check that reads `reading`. */
@@ -391,6 +392,88 @@ describe('monitoring status', () => {
     expect(
       (await overview()).monitored.find((s) => s.sourceId === shop)?.result,
     ).toBe('drop')
+  })
+})
+
+describe('noise on the page', () => {
+  it('shows moves under the Minimum change as no change with a hint', async () => {
+    const chef = await createKnife('Chef', '129.00 USD', [
+      'https://uah.example/chef',
+    ])
+    const bowie = await createKnife('Bowie', '200.00 USD', [
+      'https://flap.example/bowie',
+    ])
+    const drift = await createKnife('Drift', '90.00 USD', [
+      'https://drift.example/drift',
+    ])
+    const [uah] = chef.sources
+    const [flap] = bowie.sources
+    const [slow] = drift.sources
+    // Currency conversion noise: 0.3% on a UAH price.
+    await checkAt(0, uah, offer(5000, 'in_stock', 'UAH'))
+    await checkAt(1, uah, offer(4985, 'in_stock', 'UAH'))
+    // Rose in the morning, back in the afternoon.
+    await checkAt(0, flap, offer(200))
+    await checkAt(1.35, flap, offer(210))
+    await checkAt(1.6, flap, offer(200))
+    // Small steps that add up past 5%.
+    await checkAt(0, slow, offer(100))
+    await checkAt(1, slow, offer(98))
+    await checkAt(2, slow, offer(96))
+    await checkAt(3, slow, offer(94))
+    await checkAt(3.5, slow, offer(93.9))
+
+    const result = await overview()
+    const bySource = new Map(result.monitored.map((s) => [s.sourceId, s]))
+    expect(bySource.get(uah)).toMatchObject({
+      result: 'same',
+      driftPct: -0.3,
+      fluctuating: false,
+      deltaMinor: null,
+      previousPriceMinor: null,
+      // Bought in USD, priced in UAH: not comparable, but explained.
+      paidMinor: null,
+      paidCurrency: 'USD',
+      currency: 'UAH',
+    })
+    expect(bySource.get(flap)).toMatchObject({
+      result: 'same',
+      driftPct: null,
+      fluctuating: true,
+      paidMinor: 20000,
+      paidCurrency: 'USD',
+    })
+    expect(bySource.get(slow)).toMatchObject({
+      result: 'drop',
+      previousPriceMinor: 10000,
+      deltaMinor: -610,
+      changedAt: new Date(START + 3 * DAY).toISOString(),
+    })
+
+    // Only the drift crossing and the two flap moves count; the 0.3% and
+    // the small steps stay in history but not in the KPIs.
+    expect(result.kpis).toMatchObject({ drops: 2, increases: 1 })
+    const lastHour = result.checksByHour.at(-1)!
+    expect(lastHour).toMatchObject({ drop: 0, same: 1 })
+
+    // At 0% every move counts again, as in notifications.
+    const settingsModule = await import('@/lib/settings')
+    const settings = settingsModule.getSettings()
+    settingsModule.saveSettings({
+      ...settings,
+      priceMonitoring: {
+        ...settings.priceMonitoring,
+        thresholds: { minPercent: 0 },
+      },
+    })
+    const strict = new Map(
+      (await overview()).monitored.map((s) => [s.sourceId, s]),
+    )
+    expect(strict.get(uah)).toMatchObject({ result: 'drop', deltaPct: -0.3 })
+    expect(strict.get(flap)).toMatchObject({
+      result: 'same',
+      fluctuating: true,
+    })
   })
 })
 

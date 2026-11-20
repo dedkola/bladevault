@@ -75,8 +75,7 @@ export async function POST(request: Request) {
           await resumeStoreNow(laneKey)
           break
         case 'reset_cookies':
-          assertStoreKnown(laneKey)
-          await clearBrowserState(laneKey)
+          await clearBrowserState(assertStoreKnown(laneKey))
           break
         case 'check':
           queued = await requestStoreChecks(

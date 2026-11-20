@@ -28,6 +28,9 @@ import {
   SettingsSwitch,
 } from '@/components/settings-panels'
 import { hasServerRuntime } from '@/lib/runtime-capabilities'
+import { useKnives } from '@/components/providers/knives-provider'
+import { getHourCycle } from '@/lib/time-format'
+import { clockTime, hourLabel } from '@/components/price-drops/price-format'
 import { OtherStoresSettings } from '@/components/price-drops/other-stores-settings'
 import { DesktopBackgroundSettings } from '@/components/price-drops/desktop-background-settings'
 import {
@@ -89,13 +92,6 @@ function formatDuration(ms: number): string {
   const hours = ms / 3_600_000
   if (hours < 48) return `${Math.round(hours * 10) / 10} h`
   return `${Math.round((hours / 24) * 10) / 10} days`
-}
-
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 /**
@@ -164,23 +160,25 @@ function HourSelect({
   value,
   hours,
   disabled,
+  hourCycle,
   onChange,
   'aria-label': ariaLabel,
 }: {
   value: number
   hours: number[]
   disabled?: boolean
+  hourCycle: HourCycle
   onChange: (hour: number) => void
   'aria-label': string
 }) {
-  const label = (hour: number) => `${String(hour % 24).padStart(2, '0')}:00`
+  const label = (hour: number) => hourLabel(hour, hourCycle)
   return (
     <Select
       value={String(value)}
       onValueChange={(next) => onChange(Number(next))}
       disabled={disabled}
     >
-      <SelectTrigger size="sm" aria-label={ariaLabel} className="w-24">
+      <SelectTrigger size="sm" aria-label={ariaLabel} className="w-28">
         <SelectValue>{label(value)}</SelectValue>
       </SelectTrigger>
       <SelectContent>
@@ -281,25 +279,28 @@ const DONE_TEXT: Record<
   unpause: (name) => `${name} resumed on its normal schedule.`,
 }
 
-function laneStatus(lane: LaneView): string {
+type HourCycle = 'h12' | 'h23'
+
+function laneStatus(lane: LaneView, hourCycle: HourCycle): string {
   if (lane.checking) return 'Checking'
   if (lane.paused) return 'Paused by you'
   if (lane.circuit === 'open' && lane.cooldownUntil)
-    return `Paused until ${formatTime(lane.cooldownUntil)} (blocked)`
+    return `Paused until ${clockTime(lane.cooldownUntil, hourCycle)} (blocked)`
   if (lane.manual) return `${lane.manual} waiting for Check now`
   const pause = lane.advice?.pauseUntil
   if (pause && Date.parse(pause) > Date.now())
-    return `Paused by AI until ${formatTime(pause)}`
+    return `Paused by AI until ${clockTime(pause, hourCycle)}`
   return 'Ready'
 }
-
-const hour = (value: number) => `${String(value % 24).padStart(2, '0')}:00`
 
 /**
  * "AI: at most one check every 20 min, quiet 18:00–23:00 — reason". A pause
  * shows in the status column.
  */
-function adviceSummary(advice: AdvisorLaneAdvice): string {
+function adviceSummary(
+  advice: AdvisorLaneAdvice,
+  hourCycle: HourCycle,
+): string {
   const parts: string[] = []
   if (advice.minGapMs)
     parts.push(`at most one check every ${formatDuration(advice.minGapMs)}`)
@@ -307,7 +308,7 @@ function adviceSummary(advice: AdvisorLaneAdvice): string {
     parts.push('paused')
   if (advice.quietHours)
     parts.push(
-      `quiet ${hour(advice.quietHours[0])}–${hour(advice.quietHours[1])}`,
+      `quiet ${hourLabel(advice.quietHours[0], hourCycle)}–${hourLabel(advice.quietHours[1], hourCycle)}`,
     )
   if (!parts.length) parts.push('checks in the browser only')
   return `AI: ${parts.join(', ')}${advice.reason ? ` — “${advice.reason}”` : ''}`
@@ -326,6 +327,7 @@ export function PriceMonitoringSettings({
   disabled?: boolean
   onChange: (next: PriceMonitoringSettings) => void
 }) {
+  const hourCycle = getHourCycle(useKnives().timeFormat)
   const [queue, setQueue] = useState<QueueSnapshot | null>(null)
   const [queueAvailable, setQueueAvailable] = useState(true)
   // The static web app has no server: no AI settings there.
@@ -407,7 +409,6 @@ export function PriceMonitoringSettings({
   const updateThresholds = (
     patch: Partial<PriceMonitoringSettings['thresholds']>,
   ) => update({ thresholds: { ...settings.thresholds, ...patch } })
-  const priceAlertsOn = settings.notify.drop || settings.notify.increase
 
   const off = disabled || !settings.enabled
   const hours: ActiveHours | null =
@@ -504,6 +505,7 @@ export function PriceMonitoringSettings({
                   value={hours[0]}
                   hours={START_HOURS}
                   disabled={off}
+                  hourCycle={hourCycle}
                   onChange={(start) => setHours([start, hours[1]])}
                 />
                 <span className="text-xs text-muted-foreground">to</span>
@@ -512,6 +514,7 @@ export function PriceMonitoringSettings({
                   value={hours[1]}
                   hours={END_HOURS}
                   disabled={off}
+                  hourCycle={hourCycle}
                   onChange={(end) => setHours([hours[0], end])}
                 />
               </>
@@ -593,7 +596,7 @@ export function PriceMonitoringSettings({
         ))}
         <SettingsRow
           label="Minimum change"
-          description="Price changes smaller than this don't notify. Set it to 0 to be notified about every price change. Stock changes always notify."
+          description="Price changes smaller than this don't notify and show as No change on Price Drops, with the small move as a hint. Set it to 0 to count every price change. Stock changes always notify."
         >
           <NumberField
             aria-label="Minimum price change in percent"
@@ -602,7 +605,7 @@ export function PriceMonitoringSettings({
             max={PRICE_MONITORING_LIMITS.minPercent[1]}
             decimals={1}
             unit="%"
-            disabled={disabled || !priceAlertsOn}
+            disabled={disabled}
             onCommit={(minPercent) => updateThresholds({ minPercent })}
           />
         </SettingsRow>
@@ -688,7 +691,7 @@ export function PriceMonitoringSettings({
                           : '—'}
                       </td>
                       <td className="py-1.5 pr-3">
-                        {laneStatus(lane)}
+                        {laneStatus(lane, hourCycle)}
                         {lane.circuit === 'open' && !lane.checking ? (
                           <Button
                             type="button"
@@ -753,7 +756,7 @@ export function PriceMonitoringSettings({
                           colSpan={6}
                           className="pb-1.5 text-muted-foreground"
                         >
-                          {adviceSummary(lane.advice)}
+                          {adviceSummary(lane.advice, hourCycle)}
                         </td>
                       </tr>
                     ) : null}

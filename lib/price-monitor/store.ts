@@ -1373,18 +1373,24 @@ export async function markScheduledSourcesDue(
 
 // ------------------------------------------------------- store actions
 
-/** Throws a 404 PriceWatchError unless some source or lane state uses it. */
+/**
+ * Throws a 404 PriceWatchError unless some source or lane state uses the store;
+ * returns its key as stored.
+ */
 export function assertStoreKnown(
   laneKey: string,
   database: Database.Database = db(),
-) {
+): string {
   const known = database
     .prepare(
-      `SELECT 1 FROM price_sources WHERE lane_key = ? AND removed_at IS NULL
-       UNION SELECT 1 FROM price_host_state WHERE lane_key = ? LIMIT 1`,
+      `SELECT lane_key FROM price_sources
+       WHERE lane_key = ? AND removed_at IS NULL
+       UNION SELECT lane_key FROM price_host_state WHERE lane_key = ? LIMIT 1`,
     )
-    .get(laneKey, laneKey)
+    .get(laneKey, laneKey) as { lane_key: string } | undefined
   if (!known) throw new PriceWatchError('Store not found', 404)
+  // The key as stored, not as the request spelled it.
+  return known.lane_key
 }
 
 /**

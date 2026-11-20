@@ -26,9 +26,20 @@ import {
   RangeButtons,
   usePriceHistory,
 } from './price-history-chart'
-import { ChangePill, KnifeThumb, StatusDot, useMinuteClock } from './price-ui'
+import {
+  ChangePill,
+  CurrencyMismatch,
+  KnifeThumb,
+  StatusDot,
+  useMinuteClock,
+} from './price-ui'
 import { RetireHintNotice } from './retire-hint'
-import { SolveInBrowserDialog, type SolveTarget } from './solve-in-browser'
+import {
+  SOLVE_UNAVAILABLE_TEXT,
+  SolveInBrowserDialog,
+  useSolveInBrowserAvailable,
+  type SolveTarget,
+} from './solve-in-browser'
 
 const MODE_LABEL = { auto: 'Auto', on: 'Always monitor', off: 'Never monitor' }
 
@@ -113,6 +124,7 @@ function SourceLine({
   knifeId,
   queued,
   now,
+  canSolve,
   onCheck,
   onSolve,
   onPaused,
@@ -121,6 +133,7 @@ function SourceLine({
   knifeId: string
   queued: boolean
   now: number
+  canSolve: boolean | null
   onCheck: () => void
   onSolve: () => void
   onPaused: () => void
@@ -189,18 +202,24 @@ function SourceLine({
           ? '—'
           : money(source.lastPriceMinor, source.lastCurrency)}
       </span>
-      {needsHelp ? (
+      {needsHelp && canSolve !== null ? (
         <Button
           type="button"
           variant="ghost"
           size="icon-xs"
-          aria-label={`${source.status === 'blocked' ? 'Solve the bot check' : 'Fix the page'} at ${storeLabel(source.storeName)} in a browser`}
-          title={
-            source.status === 'blocked'
-              ? 'Solve in browser'
-              : 'Open in a browser to fix'
+          aria-label={
+            canSolve
+              ? `${source.status === 'blocked' ? 'Solve the bot check' : 'Fix the page'} at ${storeLabel(source.storeName)} in a browser`
+              : `Solve in browser is unavailable here. ${SOLVE_UNAVAILABLE_TEXT}`
           }
-          disabled={queued}
+          title={
+            !canSolve
+              ? SOLVE_UNAVAILABLE_TEXT
+              : source.status === 'blocked'
+                ? 'Solve in browser'
+                : 'Open in a browser to fix'
+          }
+          disabled={queued || !canSolve}
           onClick={onSolve}
         >
           <AppWindow className="size-3" />
@@ -260,6 +279,7 @@ export function KnifePricePanel({
   const [error, setError] = useState<string | null>(null)
   const [solveTarget, setSolveTarget] = useState<SolveTarget | null>(null)
   const now = useMinuteClock()
+  const canSolve = useSolveInBrowserAvailable()
   const [historyVersion, setHistoryVersion] = useState(0)
   const { watch } = usePriceWatch(knifeId, version, () => {
     setHistoryVersion((value) => value + 1)
@@ -295,8 +315,21 @@ export function KnifePricePanel({
     watch?.sources.find((source) => source.lastCurrency)?.lastCurrency ??
     null
   const best = watch ? bestPrice(watch.sources, currency) : null
-  const paid =
-    history?.paid && history.paid.currency === currency ? history.paid : null
+  // The purchase price is always shown; it is compared only in one currency.
+  const paid = history?.paid ?? null
+  // Stores priced only in other currencies than the purchase price.
+  const storeCurrencies = new Set(
+    (watch?.sources ?? [])
+      .filter((source) => source.lastPriceMinor !== null)
+      .map((source) => source.lastCurrency)
+      .filter((value): value is string => Boolean(value)),
+  )
+  const otherCurrency =
+    paid && storeCurrencies.size && !storeCurrencies.has(paid.currency)
+      ? currency && storeCurrencies.has(currency)
+        ? currency
+        : [...storeCurrencies][0]
+      : null
   const queued = new Set(watch?.queuedSourceIds ?? [])
 
   return (
@@ -345,6 +378,13 @@ export function KnifePricePanel({
             <div className="text-2xl font-semibold tabular-nums">
               {money(best, currency)}
             </div>
+            {otherCurrency && paid ? (
+              <CurrencyMismatch
+                currency={otherCurrency}
+                paidCurrency={paid.currency}
+                className="block"
+              />
+            ) : null}
           </div>
           {variant === 'tab' ? (
             <>
@@ -409,6 +449,7 @@ export function KnifePricePanel({
                 knifeId={knifeId}
                 queued={queued.has(source.id)}
                 now={now}
+                canSolve={canSolve}
                 onCheck={() => void check(source.id)}
                 onSolve={() =>
                   setSolveTarget({
@@ -430,6 +471,14 @@ export function KnifePricePanel({
             No product URLs yet. Add them in edit mode.
           </p>
         )}
+        {canSolve === false &&
+        watch?.sources.some((source) =>
+          ['blocked', 'failed', 'price_unavailable'].includes(source.status),
+        ) ? (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {SOLVE_UNAVAILABLE_TEXT}
+          </p>
+        ) : null}
       </div>
 
       {variant === 'tab' && history && history.events.length ? (
