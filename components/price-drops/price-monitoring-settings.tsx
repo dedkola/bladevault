@@ -307,6 +307,8 @@ export function PriceMonitoringSettings({
   const updateThresholds = (
     patch: Partial<PriceMonitoringSettings['thresholds']>,
   ) => update({ thresholds: { ...settings.thresholds, ...patch } })
+  // The minimum amount only filters notifications, unlike the percent.
+  const priceAlertsOn = settings.notify.drop || settings.notify.increase
 
   const off = disabled || !settings.enabled
   const hours: ActiveHours | null =
@@ -505,6 +507,33 @@ export function PriceMonitoringSettings({
             unit="%"
             disabled={disabled}
             onCommit={(minPercent) => updateThresholds({ minPercent })}
+          />
+        </SettingsRow>
+        <SettingsRow
+          label="Minimum amount"
+          description="Price notifications also skip changes smaller than this, in each price's own currency (3 means $3, €3 or ₴3). A change must pass both the percent and the amount. 0 turns it off."
+        >
+          <NumberField
+            aria-label="Minimum price change in the price's currency"
+            value={settings.thresholds.minAmount}
+            min={PRICE_MONITORING_LIMITS.minAmount[0]}
+            max={PRICE_MONITORING_LIMITS.minAmount[1]}
+            decimals={2}
+            unit="in its currency"
+            disabled={disabled || !priceAlertsOn}
+            onCommit={(minAmount) => updateThresholds({ minAmount })}
+          />
+        </SettingsRow>
+        <SettingsRow
+          inline
+          label="Always notify about a new lowest price"
+          description="A drop to the lowest price a store has shown for a knife notifies even below the minimum percent. Needs Price drops on; the minimum amount still applies."
+        >
+          <SettingsSwitch
+            aria-label="Always notify about a new lowest price"
+            checked={settings.thresholds.allTimeLow}
+            disabled={disabled || !settings.notify.drop}
+            onCheckedChange={(allTimeLow) => updateThresholds({ allTimeLow })}
           />
         </SettingsRow>
       </SettingsSection>

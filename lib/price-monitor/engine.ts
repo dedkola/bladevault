@@ -1,4 +1,5 @@
 import { getLocalDb } from '@/lib/local-db'
+import { readPriceAlertContext } from '@/lib/price-monitor/notification-store'
 import { syncPriceAttention } from '@/lib/price-monitor/attention'
 import { reportServerError } from '@/lib/sentry/server'
 import {
@@ -620,8 +621,14 @@ async function reviewWithAi(input: {
         currency: change.currency,
         deltaMinor: change.deltaMinor,
         deltaPct: change.deltaPct,
+        priceMinor: change.priceMinor,
       },
       input.notifications,
+      readPriceAlertContext(database, {
+        knifeId: source.knife_id,
+        sourceId: source.id,
+        currency: change.currency,
+      }),
     ),
   )
   const gate = confirm && (notifying || input.implausible)

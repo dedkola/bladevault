@@ -338,7 +338,7 @@ describe('noise on the page', () => {
       ...settings,
       priceMonitoring: {
         ...settings.priceMonitoring,
-        thresholds: { minPercent: 0 },
+        thresholds: { minPercent: 0, minAmount: 0, allTimeLow: false },
       },
     })
     const strict = new Map(
