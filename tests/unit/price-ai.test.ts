@@ -14,8 +14,10 @@ import {
   listAiModels,
   isReasoningModel,
   parseJsonAnswer,
+  PLANNING_TIMEOUT_MS,
   REASONING_MAX_TOKENS,
   REASONING_MIN_TIMEOUT_MS,
+  REASONING_PURPOSES,
   requestJsonCompletion,
   resetAiModelProfiles,
   SAFE_ANSWER_TOKENS,
@@ -834,6 +836,70 @@ describe('AI client', () => {
     )
     const body = JSON.parse(String(fetchImpl.mock.calls[0][1]?.body))
     expect(body.thinking).toBeUndefined()
+  })
+
+  it('lets planning tasks reason with room from the start, apart from page reads', async () => {
+    const opencode = {
+      baseUrl: 'https://opencode.ai/zen/go/v1',
+      apiKey: KEY,
+    }
+    const request = {
+      model: 'deepseek-v4.1-flash',
+      system: 's',
+      user: 'u',
+      schemaName: 'x',
+      schema: { type: 'object' },
+      maxTokens: 300,
+    }
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: '{"plan":1}',
+                  reasoning_content: 'Weighing every knife first.',
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(chatResponse('{"price":"12.00"}'))
+    expect(REASONING_PURPOSES.has('agent')).toBe(true)
+    expect(REASONING_PURPOSES.has('extraction')).toBe(false)
+    expect(
+      await requestJsonCompletion(
+        opencode,
+        { ...request, purpose: 'agent' },
+        { timeoutMs: 1000, fetchImpl },
+      ),
+    ).toEqual({ plan: 1 })
+    expect(
+      await requestJsonCompletion(
+        opencode,
+        { ...request, purpose: 'extraction' },
+        { timeoutMs: 1000, fetchImpl },
+      ),
+    ).toEqual({ price: '12.00' })
+    const [planning, reading] = fetchImpl.mock.calls.map(
+      (call) => JSON.parse(String(call[1]?.body)) as Record<string, unknown>,
+    )
+    // The supervisor may think, with the reasoning budget at once.
+    expect(planning.thinking).toBeUndefined()
+    expect(planning.max_tokens).toBe(REASONING_MAX_TOKENS)
+    // A page read still asks not to think and keeps its small budget.
+    expect(reading.thinking).toEqual({ type: 'disabled' })
+    expect(reading.max_tokens).toBe(300)
+    // What was learned from planning stays with planning.
+    expect(isReasoningModel(opencode, 'deepseek-v4.1-flash', 'agent')).toBe(
+      true,
+    )
+    expect(isReasoningModel(opencode, 'deepseek-v4.1-flash')).toBe(false)
+    expect(PLANNING_TIMEOUT_MS).toBeGreaterThanOrEqual(5 * 60_000)
   })
 
   it('refuses requests the budget gate stops, without sending or reporting', async () => {

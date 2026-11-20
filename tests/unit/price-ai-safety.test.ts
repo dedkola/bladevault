@@ -366,6 +366,10 @@ describe('supervisor answers', () => {
       dueInMin: -5,
       aiMinAgo: null,
       queued: false,
+      ahead: null,
+      price: null,
+      stock: null,
+      outOfStockDays: null,
       ...patch,
     }
   }
@@ -418,6 +422,7 @@ describe('supervisor answers', () => {
   })
 
   it('pauses only pages that seem gone, after five failures', () => {
+    // HTTP 404 and 410 pages pause on their own after three in a row.
     const sources = [
       source({ id: 1, error: 'timeout' }),
       source({ id: 2, error: 'http_503' }),
@@ -430,6 +435,12 @@ describe('supervisor answers', () => {
     const actions = validateAgentPlan(
       {
         summary: '',
+        remember: [],
+        forget: [],
+        advise: [],
+        ask: [],
+        watchClosely: [],
+        crossCheck: [],
         check: [],
         retryWithAi: [],
         fetchMode: [],
@@ -439,14 +450,14 @@ describe('supervisor answers', () => {
         })),
         searchOtherStore: [],
       },
-      { sources, ai, otherStores: false },
+      { sources, knives: [], ai, otherStores: false, checkIntervalHours: 6 },
     )
     expect(actions.map((action) => [action.sourceId, action.note])).toEqual([
       [1, 'the page is not gone (timeout)'],
       [2, 'the page is not gone (http_503)'],
       [3, 'the page is not gone (challenge)'],
       [4, 'the page is not gone (no error)'],
-      [5, null],
+      [5, 'pages not found (HTTP 404 or 410) pause on their own'],
       [6, null],
       [7, 'only 4 failed checks in a row'],
     ])
@@ -456,6 +467,12 @@ describe('supervisor answers', () => {
     const actions = validateAgentPlan(
       {
         summary: '',
+        remember: [],
+        forget: [],
+        advise: [],
+        ask: [],
+        watchClosely: [],
+        crossCheck: [],
         check: [
           { sourceId: 1, reason: '' },
           { sourceId: 2, reason: '' },
@@ -480,8 +497,10 @@ describe('supervisor answers', () => {
             dueInMin: -1,
           }),
         ],
+        knives: [],
         ai,
         otherStores: false,
+        checkIntervalHours: 6,
       },
     )
     expect(actions.map((action) => [action.kind, action.note])).toEqual([

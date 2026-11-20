@@ -203,6 +203,27 @@ describe('long out-of-stock pages', () => {
     expect(checkLoad(input({ outOfStockSince: NOW - 20 * DAY }))).toBe(0.25)
   })
 
+  it('checks a closely watched knife at its shorter interval', () => {
+    expect(scheduledIntervalMs({ ...input({}), focusIntervalMs: HOUR })).toBe(
+      HOUR,
+    )
+    // Out of stock for weeks: the watch still wins (a restock to catch).
+    expect(
+      scheduledIntervalMs({
+        ...input({ outOfStockSince: NOW - 30 * DAY }),
+        focusIntervalMs: 2 * HOUR,
+      }),
+    ).toBe(2 * HOUR)
+    // Never slower than the schedule, and no watch keeps the schedule.
+    expect(
+      scheduledIntervalMs({ ...input({}), focusIntervalMs: 12 * HOUR }),
+    ).toBe(6 * HOUR)
+    expect(scheduledIntervalMs({ ...input({}), focusIntervalMs: null })).toBe(
+      6 * HOUR,
+    )
+    expect(checkLoad({ ...input({}), focusIntervalMs: 2 * HOUR })).toBe(3)
+  })
+
   it('suggests Pause after 60 days out of stock', () => {
     expect(isStaleOutOfStock(null, NOW)).toBe(false)
     expect(isStaleOutOfStock(NOW - 59 * DAY, NOW)).toBe(false)

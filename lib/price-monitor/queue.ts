@@ -60,7 +60,11 @@ function isDue(candidate: QueueCandidate, input: QueueInput): boolean {
   return candidate.nextCheckAt === null || candidate.nextCheckAt <= input.now
 }
 
-function byUrgency(a: QueueCandidate, b: QueueCandidate): number {
+/** Inside one store: Check now first, then the most overdue source. */
+export function byUrgency(
+  a: Pick<QueueCandidate, 'priority' | 'nextCheckAt' | 'sourceId'>,
+  b: Pick<QueueCandidate, 'priority' | 'nextCheckAt' | 'sourceId'>,
+): number {
   return (
     b.priority - a.priority ||
     (a.nextCheckAt ?? -Infinity) - (b.nextCheckAt ?? -Infinity) ||

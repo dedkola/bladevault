@@ -89,8 +89,10 @@ export const STALE_OUT_OF_STOCK_MS = 60 * DAY_MS
 /**
  * How long until a source's next scheduled check after a successful one:
  * the schedule's frequency, or at least a day for a page that has been out
- * of stock for two weeks or more (when `slowOutOfStock` is on). Check now
- * and Check all ignore this; they make a source due right away.
+ * of stock for two weeks or more (when `slowOutOfStock` is on). A knife the
+ * AI supervisor watches closely is checked at its shorter interval, out of
+ * stock or not. Check now and Check all ignore this; they make a source due
+ * right away.
  */
 export function scheduledIntervalMs(input: {
   intervalMs: number
@@ -98,8 +100,12 @@ export function scheduledIntervalMs(input: {
   outOfStockSince: number | null
   now: number
   slowOutOfStock: boolean
+  /** The knife is watched closely: at most this long between checks. */
+  focusIntervalMs?: number | null
 }): number {
   const { intervalMs, outOfStockSince, now } = input
+  if (input.focusIntervalMs && input.focusIntervalMs > 0)
+    return Math.min(intervalMs, input.focusIntervalMs)
   if (
     input.slowOutOfStock &&
     outOfStockSince !== null &&
@@ -119,6 +125,7 @@ export function checkLoad(input: {
   outOfStockSince: number | null
   now: number
   slowOutOfStock: boolean
+  focusIntervalMs?: number | null
 }): number {
   return input.intervalMs / scheduledIntervalMs(input)
 }

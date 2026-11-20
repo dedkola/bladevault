@@ -230,6 +230,12 @@ export const SAFE_ANSWER_TOKENS = 4096
 const TOKEN_LIMIT_ERROR =
   /max_tokens|max_completion_tokens|max_output_tokens|maximum[^.]*tokens|tokens?[^.]*(?:limit|exceed|too large|at most)/i
 export const REASONING_MIN_TIMEOUT_MS = 60_000
+/**
+ * How long a planning task's request may take (see REASONING_PURPOSES): a
+ * model that thinks over every monitored product needed up to two and a
+ * half minutes in practice, so this leaves room without hanging for long.
+ */
+export const PLANNING_TIMEOUT_MS = 6 * 60_000
 
 /** What a request is for; recorded in the AI call journal. */
 export type AiPurpose =
@@ -246,6 +252,23 @@ export type AiPurpose =
   | 'digest'
   | 'agent'
   | 'test'
+
+/**
+ * Planning tasks: a few calls an hour that weigh many products or stores at
+ * once (the supervisor, the pacing advisor, the daily summary). The model
+ * may reason before it answers: they never ask it not to think, and start
+ * with the reasoning budget and PLANNING_TIMEOUT_MS. Every other purpose
+ * reads a page or checks one fact, often, behind code checks of its own;
+ * those ask the model not to reason where the endpoint supports it.
+ */
+export const REASONING_PURPOSES: ReadonlySet<AiPurpose> = new Set<AiPurpose>([
+  'agent',
+  'advisor',
+  'digest',
+])
+
+const plansWith = (purpose: AiPurpose | undefined) =>
+  purpose !== undefined && REASONING_PURPOSES.has(purpose)
 
 /** One finished chat completion call (all its attempts), without content. */
 export type AiCallEvent = {
@@ -299,8 +322,15 @@ type ModelProfile = {
  */
 const THINKING_OFF_HOSTS = /(^|\.)opencode\.ai$/i
 
-/** Whether requests to this endpoint ask the model not to reason. */
-export function sendsThinkingOff(endpoint: AiEndpoint): boolean {
+/**
+ * Whether requests to this endpoint ask the model not to reason; planning
+ * tasks (REASONING_PURPOSES) never do.
+ */
+export function sendsThinkingOff(
+  endpoint: AiEndpoint,
+  purpose?: AiPurpose,
+): boolean {
+  if (plansWith(purpose)) return false
   const base = normalizeAiBaseUrl(endpoint.baseUrl)
   if (!base) return false
   try {
@@ -339,13 +369,33 @@ function modelProfiles(): Map<string, ModelProfile> {
   return ((globalThis as Scope)[PROFILES] ??= new Map())
 }
 
-function profileKey(endpoint: AiEndpoint, model: string): string {
-  return `${normalizeAiBaseUrl(endpoint.baseUrl) ?? endpoint.baseUrl}\n${model}`
+/**
+ * What is learned about a model is kept apart for requests that ask it not
+ * to think: a model that reasons for planning tasks may answer page reads
+ * at once, and a lower answer cap learned there must not starve planning.
+ */
+function profileKey(
+  endpoint: AiEndpoint,
+  model: string,
+  purpose?: AiPurpose,
+): string {
+  const base = `${normalizeAiBaseUrl(endpoint.baseUrl) ?? endpoint.baseUrl}\n${model}`
+  return sendsThinkingOff(endpoint, purpose) ? `${base}\nthinking-off` : base
 }
 
-/** Whether this model is known (in this process) to reason before answering. */
-export function isReasoningModel(endpoint: AiEndpoint, model: string): boolean {
-  return modelProfiles().get(profileKey(endpoint, model))?.reasoning ?? false
+/**
+ * Whether this model is known (in this process) to reason before answering
+ * requests for this purpose (left out: a page read or connection test).
+ */
+export function isReasoningModel(
+  endpoint: AiEndpoint,
+  model: string,
+  purpose?: AiPurpose,
+): boolean {
+  return (
+    modelProfiles().get(profileKey(endpoint, model, purpose))?.reasoning ??
+    false
+  )
 }
 
 /** Forgets what was learned about models; for tests. */
@@ -487,7 +537,7 @@ export async function requestJsonCompletion(
               ).slice(0, 300),
         promptTokens: usage.prompt,
         completionTokens: usage.completion,
-        reasoning: isReasoningModel(endpoint, request.model),
+        reasoning: isReasoningModel(endpoint, request.model, request.purpose),
       })
     } catch {
       // The journal never breaks a request.
@@ -512,20 +562,23 @@ async function completeJson(
     schemaName: string
     schema: JsonSchema
     maxTokens?: number
+    purpose?: AiPurpose
   },
   options: { timeoutMs: number; signal?: AbortSignal; fetchImpl?: FetchLike },
   usage: { prompt: number | null; completion: number | null; attempts: number },
 ): Promise<unknown> {
   const url = endpointUrl(endpoint, '/chat/completions')
   const formats: ResponseFormat[] = ['json_schema', 'json_object', 'none']
-  const key = profileKey(endpoint, request.model)
+  const key = profileKey(endpoint, request.model, request.purpose)
+  const planning = plansWith(request.purpose)
   const baseTokens = request.maxTokens ?? 400
   const profile = (): ModelProfile =>
     modelProfiles().get(key) ?? { reasoning: false }
   let retried = false
   let capped = false
   const thinkingOff = () =>
-    sendsThinkingOff(endpoint) && !profile().thinkingOffRejected
+    sendsThinkingOff(endpoint, request.purpose) &&
+    !profile().thinkingOffRejected
   const learnReasoning = () => {
     modelProfiles().set(key, { ...profile(), reasoning: true })
   }
@@ -535,11 +588,15 @@ async function completeJson(
       endpoint.maxAnswerTokens ?? REASONING_MAX_TOKENS,
       profile().answerCap ?? Infinity,
     )
+  // Planning tasks expect the model to think: room and time from the start.
   const budget = () =>
-    profile().reasoning
+    planning || profile().reasoning
       ? {
           maxTokens: Math.max(baseTokens, ceiling()),
-          timeoutMs: Math.max(options.timeoutMs, REASONING_MIN_TIMEOUT_MS),
+          timeoutMs: Math.max(
+            options.timeoutMs,
+            planning ? PLANNING_TIMEOUT_MS : REASONING_MIN_TIMEOUT_MS,
+          ),
         }
       : { maxTokens: baseTokens, timeoutMs: options.timeoutMs }
   /** One more try with the reasoning budget, if it would give more room. */

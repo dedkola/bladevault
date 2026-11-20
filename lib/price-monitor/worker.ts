@@ -14,8 +14,10 @@ import {
 import {
   agentActive,
   agentDue,
+  agentEventGapMs,
   lastAgentRunAt,
   pruneAgentRuns,
+  readAgentEvents,
   runPriceAgent,
   type AgentRunResult,
   type AgentTrigger,
@@ -222,6 +224,7 @@ function scheduledLoad(
             outOfStockSince: candidate.outOfStockSince,
             now,
             slowOutOfStock: schedule.slowOutOfStock,
+            focusIntervalMs: candidate.focusIntervalMs,
           }),
       )
   return load
@@ -364,7 +367,7 @@ export class PriceMonitorWorker {
         isWithinActiveHours(hours, new Date(now))
       const advice = readActiveAdvice(database, now)
       // Advised quiet hours hold a store's scheduled checks; Check now still runs.
-      const candidates = readQueueCandidates(database, settings).map(
+      const candidates = readQueueCandidates(database, settings, now).map(
         (candidate) =>
           candidate.scheduled &&
           inQuietHours(advice.get(candidate.laneKey), new Date(now))
@@ -572,19 +575,28 @@ export class PriceMonitorWorker {
   }
 
   /**
-   * Starts the AI supervisor in the background when it is due (every 10
-   * minutes with Unlimited AI, every hour with Limited). Its actions only
-   * reorder the paced queue, so the next pass picks them up.
+   * Starts the AI supervisor in the background when it is due: when price,
+   * stock or page changes wait since its last run (at most every 10 minutes
+   * with Unlimited AI, every hour with Limited), and otherwise on its
+   * heartbeat (hourly with Unlimited, every 6 hours with Limited). Its
+   * actions only reorder the paced queue, so the next pass picks them up.
    */
   private maybeSupervise(settings: PriceMonitoringSettings, now: number) {
     if (this.supervising || !this.deps.supervise) return
     if (!agentActive(settings)) return
     if (now - this.lastAgentCheck < AGENT_CHECK_EVERY_MS) return
     this.lastAgentCheck = now
-    if (!agentDue({ settings, lastRunAt: lastAgentRunAt(getLocalDb()), now }))
-      return
+    const database = getLocalDb()
+    const lastRunAt = lastAgentRunAt(database)
+    // Events matter only once the gap since the last run has passed.
+    const events =
+      lastRunAt !== null && now - lastRunAt >= agentEventGapMs(settings)
+        ? readAgentEvents(database, lastRunAt, 0)
+        : undefined
+    const trigger = agentDue({ settings, lastRunAt, now, events })
+    if (!trigger) return
     this.supervising = this.deps
-      .supervise('scheduled')
+      .supervise(trigger)
       .catch((error) => {
         if (!isVaultError(error))
           reportServerError(error, 'price-monitor/agent')
@@ -777,7 +789,7 @@ export function buildQueueSnapshot(
   const database = getLocalDb()
   const settings = getSettings().priceMonitoring
   const hours = effectiveActiveHours(settings.schedule)
-  const candidates = readQueueCandidates(database, settings)
+  const candidates = readQueueCandidates(database, settings, now)
   const counts = scheduledCounts(candidates)
   const load = scheduledLoad(candidates, settings.schedule, now)
   const covered = new Map<string, number>()
@@ -795,6 +807,7 @@ export function buildQueueSnapshot(
           outOfStockSince: candidate.outOfStockSince,
           now,
           slowOutOfStock: settings.schedule.slowOutOfStock,
+          focusIntervalMs: candidate.focusIntervalMs,
         }) < 1
       )
         slowed.set(laneKey, (slowed.get(laneKey) ?? 0) + 1)

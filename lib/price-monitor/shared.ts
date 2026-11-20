@@ -101,6 +101,15 @@ export type PriceWatchView = {
   alerts: PriceAlertRules
   /** The stored regular price, for "only below regular price". */
   paid: { amount: number; currency: string } | null
+  /** The AI supervisor watches this knife closely, while it lasts. */
+  focus: PriceWatchFocus | null
+}
+
+/** Checked at least every `intervalMs` until `until` (ISO), and why. */
+export type PriceWatchFocus = {
+  until: string
+  intervalMs: number
+  reason: string
 }
 
 /** Alert rule changes; a null target price clears it. */
@@ -123,6 +132,8 @@ export type PriceWatchUpdate = {
   }>
   remove?: number[]
   alerts?: PriceAlertRulesUpdate
+  /** End the AI supervisor's close watch on the knife. */
+  stopWatching?: boolean
 }
 
 export type PriceCheckRequest =
@@ -342,6 +353,11 @@ export function parsePriceWatchUpdate(body: unknown): PriceWatchUpdate {
     })
   }
   if (body.alerts !== undefined) result.alerts = parseAlertRules(body.alerts)
+  if (body.stopWatching !== undefined) {
+    if (body.stopWatching !== true)
+      throw new Error('stopWatching must be true when given')
+    result.stopWatching = true
+  }
   if (body.remove !== undefined) {
     if (
       !Array.isArray(body.remove) ||

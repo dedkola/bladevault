@@ -30,6 +30,7 @@ import {
   type PriceSourceOrigin,
   type PriceSourceStatus,
   type PriceSourceView,
+  type PriceWatchFocus,
   type PriceWatchMode,
   type PriceWatchUpdate,
   type PriceWatchView,
@@ -119,6 +120,96 @@ function db(): Database.Database {
 }
 
 // ---------------------------------------------------------------- reads
+
+/**
+ * The AI supervisor's close watch on a knife while it lasts: its sources
+ * are checked at least every `intervalMs` until `until`.
+ */
+export function readKnifeFocus(
+  database: Database.Database,
+  knifeId: string,
+  now = Date.now(),
+): PriceWatchFocus | null {
+  const row = database
+    .prepare(
+      `SELECT focus_until, focus_interval_ms, focus_reason
+       FROM price_watch WHERE knife_id = ?`,
+    )
+    .get(knifeId) as
+    | {
+        focus_until: string | null
+        focus_interval_ms: number | null
+        focus_reason: string | null
+      }
+    | undefined
+  return activeFocus(row, now)
+}
+
+/**
+ * Starts (or replaces) a close watch on a knife and brings its next checks
+ * forward to the new interval; blocked sources keep their bot-check
+ * backoff. Must run inside the caller's vault write. Returns whether the
+ * watch was stored.
+ */
+export function startKnifeFocus(
+  database: Database.Database,
+  knifeId: string,
+  watch: { hours: number; everyHours: number; reason: string },
+  now: number,
+): boolean {
+  const nowIso = new Date(now).toISOString()
+  const intervalMs = Math.round(watch.everyHours * 3_600_000)
+  const next = new Date(now + intervalMs).toISOString()
+  // A row made only for the watch keeps the default Auto mode.
+  const { changes } = database
+    .prepare(
+      `INSERT INTO price_watch
+         (knife_id, mode, updated_at, focus_until, focus_interval_ms,
+          focus_reason)
+       VALUES (?, 'auto', ?, ?, ?, ?)
+       ON CONFLICT(knife_id) DO UPDATE SET
+         updated_at = excluded.updated_at,
+         focus_until = excluded.focus_until,
+         focus_interval_ms = excluded.focus_interval_ms,
+         focus_reason = excluded.focus_reason`,
+    )
+    .run(
+      knifeId,
+      nowIso,
+      new Date(now + watch.hours * 3_600_000).toISOString(),
+      intervalMs,
+      watch.reason,
+    )
+  database
+    .prepare(
+      `UPDATE price_sources SET next_check_at = ?, updated_at = ?
+       WHERE knife_id = ? AND removed_at IS NULL AND enabled = 1
+         AND status <> 'blocked' AND next_check_at > ?`,
+    )
+    .run(next, nowIso, knifeId, next)
+  return changes > 0
+}
+
+function activeFocus(
+  row:
+    | {
+        focus_until: string | null
+        focus_interval_ms: number | null
+        focus_reason: string | null
+      }
+    | undefined,
+  now: number,
+): PriceWatchFocus | null {
+  if (!row?.focus_until || !row.focus_interval_ms) return null
+  const until = Date.parse(row.focus_until)
+  if (!Number.isFinite(until) || until <= now || row.focus_interval_ms <= 0)
+    return null
+  return {
+    until: row.focus_until,
+    intervalMs: row.focus_interval_ms,
+    reason: row.focus_reason ?? '',
+  }
+}
 
 export function readWatchMode(
   database: Database.Database,
@@ -342,6 +433,7 @@ export function buildPriceWatchView(
       .map((source) => source.id),
     alerts: readPriceAlertRules(database, knife.id),
     paid: readKnifePaid(database, knife.id),
+    focus: readKnifeFocus(database, knife.id, now),
   }
 }
 
@@ -468,6 +560,15 @@ export async function applyPriceWatchUpdate(
           )
           .run(knife.id, update.mode, now)
       }
+
+      if (update.stopWatching)
+        database
+          .prepare(
+            `UPDATE price_watch SET focus_until = NULL,
+               focus_interval_ms = NULL, focus_reason = NULL, updated_at = ?
+             WHERE knife_id = ?`,
+          )
+          .run(now, knife.id)
 
       if (update.alerts) {
         const current = readPriceAlertRules(database, knife.id)
@@ -1174,6 +1275,8 @@ export type CandidateRow = {
   outOfStockSince: number | null
   /** Never checked yet: its first reading skips the store's spread. */
   firstReading: boolean
+  /** The knife is watched closely: at most this long between checks. */
+  focusIntervalMs: number | null
 }
 
 /**
@@ -1183,12 +1286,14 @@ export type CandidateRow = {
 export function readQueueCandidates(
   database: Database.Database,
   settings: EligibilitySettings,
+  now = Date.now(),
 ): CandidateRow[] {
   const rows = database
     .prepare(
       `SELECT s.id, s.knife_id, s.lane_key, s.priority, s.next_check_at,
               s.enabled, s.origin, s.last_availability, s.last_checked_at,
               k.specs, k.sold, COALESCE(w.mode, 'auto') AS mode,
+              w.focus_until, w.focus_interval_ms, w.focus_reason,
               h.paused_at IS NOT NULL AS store_paused
        FROM price_sources s
        JOIN knives k ON k.id = s.knife_id
@@ -1209,6 +1314,9 @@ export function readQueueCandidates(
     specs: string
     sold: number
     mode: PriceWatchMode
+    focus_until: string | null
+    focus_interval_ms: number | null
+    focus_reason: string | null
     store_paused: number
   }>
   const outOfStockSince = readOutOfStockSince(database)
@@ -1250,6 +1358,7 @@ export function readQueueCandidates(
         ),
       outOfStockSince: parseTime(outOfStockSince.get(row.id) ?? null),
       firstReading: row.last_checked_at === null,
+      focusIntervalMs: activeFocus(row, now)?.intervalMs ?? null,
     }
   })
 }

@@ -1,4 +1,5 @@
 import {
+  PLANNING_TIMEOUT_MS,
   requestJsonCompletion,
   type FetchLike,
 } from '@/lib/price-monitor/ai-client'
@@ -51,7 +52,8 @@ export const ADVISOR_INTERVAL_MS = DAY_MS
 /** After repeated blocks, the advisor runs again at most this often. */
 export const ADVISOR_BLOCKS_INTERVAL_MS = 6 * HOUR_MS
 export const ADVISOR_STATS_DAYS = 7
-export const ADVISOR_TIMEOUT_MS = 60_000
+/** A planning task: the model may reason (REASONING_PURPOSES). */
+export const ADVISOR_TIMEOUT_MS = PLANNING_TIMEOUT_MS
 export const MAX_ADVISOR_LANES = 25
 export const MAX_PAUSE_MINUTES = 48 * 60
 export const MAX_QUIET_HOURS = 12

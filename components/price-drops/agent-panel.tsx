@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button'
 import type {
   AgentAction,
   AgentCoverage,
+  AgentEvent,
   AgentLabels,
+  AgentNote,
   AgentRun,
 } from '@/lib/price-monitor/agent'
 import type { PriceAgentMode } from '@/lib/settings-shared'
@@ -29,11 +31,18 @@ export type AgentState = {
   usage: 'limited' | 'unlimited'
   active: boolean
   running: boolean
+  /** The heartbeat: a run at least this often. */
   intervalMinutes: number
+  /** Changes wake it, at most this often. */
+  eventGapMinutes: number
+  /** Changes since the last run that will wake it. */
+  pendingEvents: number
   nextRunAt: string | null
   blockedStores: string[]
   runs: AgentRun[]
   labels: AgentLabels
+  /** Notes the supervisor keeps for its later runs. */
+  notes: AgentNote[]
 }
 
 const REFRESH_MS = 60_000
@@ -49,7 +58,7 @@ async function readJson<T>(response: Response, fallback: string): Promise<T> {
 /** The supervisor's state, refreshed every minute and after changes. */
 export function useAgentState(version: number) {
   const [state, setState] = useState<AgentState | null>(null)
-  const [busy, setBusy] = useState<'run' | 'mode' | null>(null)
+  const [busy, setBusy] = useState<'run' | 'mode' | 'note' | null>(null)
   const [notice, setNotice] = useState<{
     tone: 'ok' | 'error'
     text: string
@@ -133,7 +142,31 @@ export function useAgentState(version: number) {
     }
   }
 
-  return { state, busy, notice, run, setMode }
+  const forgetNote = async (noteId: number) => {
+    setBusy('note')
+    setNotice(null)
+    try {
+      setState(
+        await readJson<AgentState>(
+          await fetch('/api/prices/agent', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ noteId }),
+          }),
+          'Could not forget the note.',
+        ),
+      )
+    } catch (error) {
+      setNotice({
+        tone: 'error',
+        text: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return { state, busy, notice, run, setMode, forgetNote }
 }
 
 type AgentControls = ReturnType<typeof useAgentState>
@@ -298,6 +331,12 @@ const KIND_SUMMARY: Record<AgentAction['kind'], [string, string]> = {
   fetchMode: ['loading change', 'loading changes'],
   pause: ['page paused', 'pages paused'],
   searchOtherStore: ['other-store search', 'other-store searches'],
+  watchClosely: ['knife watched closely', 'knives watched closely'],
+  crossCheck: ['knife cross-checked', 'knives cross-checked'],
+  advise: ['note to the Inbox', 'notes to the Inbox'],
+  ask: ['question in the Inbox', 'questions in the Inbox'],
+  remember: ['note kept', 'notes kept'],
+  forget: ['note forgotten', 'notes forgotten'],
 }
 
 /** A: the strip above Monitoring status. */
@@ -399,7 +438,7 @@ export function AgentStrip({
           <span className="rounded-full border border-[var(--bladevault-line)] px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
             {state.mode === 'off'
               ? 'off'
-              : `${MODE_LABEL[state.mode]} · every ${state.intervalMinutes} min · ${state.usage === 'unlimited' ? 'Unlimited' : 'Limited'}`}
+              : `${MODE_LABEL[state.mode]} · ${scheduleText(state)} · ${state.usage === 'unlimited' ? 'Unlimited' : 'Limited'}`}
           </span>
         </h2>
         <div className="flex flex-wrap items-center gap-2">
@@ -485,6 +524,12 @@ const ACTION_LABEL: Record<AgentAction['kind'], string> = {
   fetchMode: 'Load page',
   pause: 'Pause',
   searchOtherStore: 'Other stores',
+  watchClosely: 'Watch closely',
+  crossCheck: 'Cross-check',
+  advise: 'Advice',
+  ask: 'Question',
+  remember: 'Remember',
+  forget: 'Forget',
 }
 
 /** Groups of this size or more collapse into one expandable row. */
@@ -504,6 +549,139 @@ function runCounts(run: AgentRun) {
     if (action.status === 'refused') refused += 1
     else done += 1
   return { done, refused }
+}
+
+function minutesText(minutes: number): string {
+  return minutes % 60 === 0 ? `${minutes / 60} h` : `${minutes} min`
+}
+
+/** "on changes, at least every 1 h": how the supervisor is woken. */
+function scheduleText(state: AgentState): string {
+  return `on changes, at least every ${minutesText(state.intervalMinutes)}`
+}
+
+/** Why a run started, in a few words. */
+function triggerText(run: AgentRun): string {
+  if (run.trigger === 'event')
+    return `${run.eventTotal} ${run.eventTotal === 1 ? 'change' : 'changes'}`
+  return run.trigger === 'manual' ? 'Run now' : 'scheduled'
+}
+
+const EVENT_LABEL: Record<AgentEvent['type'], string> = {
+  drop: 'Price drop',
+  increase: 'Price up',
+  out_of_stock: 'Sold out',
+  back_in_stock: 'Back in stock',
+  failing: 'Failing',
+  bot_check: 'Bot check',
+  found_listing: 'Found by Other stores',
+}
+
+/** "Kizer Drop Bear at Kizer: 129.00 USD → 99.00 USD (−23.3%)". */
+function eventText(event: AgentEvent): string {
+  const where = event.knife
+    ? `${event.knife} at ${storeLabel(event.store)}`
+    : storeLabel(event.store)
+  if (event.from && event.to)
+    return `${where}: ${event.from} → ${event.to}${event.pct !== undefined ? ` (${event.pct > 0 ? '+' : ''}${event.pct}%)` : ''}`
+  if (event.type === 'failing')
+    return `${where}: ${event.failures} checks in a row${event.error ? ` (${event.error})` : ''}`
+  return event.price ? `${where}: ${event.price}` : where
+}
+
+const EVENTS_SHOWN = 8
+
+/** What changed since the run before, newest first. */
+function RunEvents({ run }: { run: AgentRun }) {
+  const [all, setAll] = useState(false)
+  if (!run.events?.length) return null
+  const shown = all ? run.events : run.events.slice(0, EVENTS_SHOWN)
+  const more = (run.eventTotal ?? run.events.length) - shown.length
+  return (
+    <div className="space-y-1.5">
+      <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+        {run.trigger === 'event' ? 'Woken by' : 'Changes since the run before'}
+      </h4>
+      <ul className="space-y-1 text-xs">
+        {shown.map((event, index) => (
+          <li key={`${event.type}:${event.at}:${index}`}>
+            <span className="font-medium">{EVENT_LABEL[event.type]}</span>{' '}
+            <span className="text-muted-foreground">{eventText(event)}</span>
+          </li>
+        ))}
+      </ul>
+      {more > 0 ? (
+        run.events.length > shown.length ? (
+          <button
+            type="button"
+            className="text-xs underline underline-offset-2"
+            onClick={() => setAll(true)}
+          >
+            {more} more
+          </button>
+        ) : (
+          <p className="text-xs text-muted-foreground">and {more} more</p>
+        )
+      ) : null}
+    </div>
+  )
+}
+
+/** The supervisor's notes for its later runs; each can be forgotten. */
+function AgentNotes({
+  controls,
+  onSelect,
+}: {
+  controls: AgentControls
+  onSelect: (knifeId: string) => void
+}) {
+  const now = useMinuteClock()
+  const notes = controls.state?.notes ?? []
+  if (!notes.length) return null
+  return (
+    <div
+      data-agent-notes
+      className="space-y-2 border-t border-[var(--bladevault-line)]/60 px-4 py-3"
+    >
+      <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+        Notes for later runs ({notes.length})
+      </h3>
+      <ul className="space-y-1.5 text-sm">
+        {notes.map((note) => (
+          <li key={note.id} className="flex flex-wrap items-start gap-x-2">
+            <span className="min-w-0 flex-1">
+              {note.knifeId ? (
+                <button
+                  type="button"
+                  className="mr-1 font-medium underline decoration-[var(--bladevault-line)] underline-offset-2 hover:decoration-current"
+                  onClick={() => onSelect(note.knifeId!)}
+                >
+                  {note.knife}:
+                </button>
+              ) : null}
+              {note.note}
+              <span className="block text-xs text-muted-foreground">
+                Noted {relativeTime(note.createdAt, now, 'short')} · kept until{' '}
+                {new Date(note.expiresAt).toLocaleDateString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </span>
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              disabled={controls.busy === 'note'}
+              onClick={() => void controls.forgetNote(note.id)}
+            >
+              Forget
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 }
 
 /** One run in the timeline: time, done/refused bar, counts. */
@@ -566,7 +744,7 @@ function RunTile({
           : 'Run failed'}
       </span>
       <span className="block text-[11px] text-muted-foreground">
-        {run.trigger} · {(run.durationMs / 1000).toFixed(1)} s
+        {triggerText(run)} · {(run.durationMs / 1000).toFixed(1)} s
       </span>
     </button>
   )
@@ -651,6 +829,17 @@ function RunActions({
                 <span className="text-muted-foreground">
                   {' '}
                   ({row.action.mode})
+                </span>
+              ) : null}
+              {row.action.everyHours && row.action.hours ? (
+                <span className="text-muted-foreground">
+                  {' '}
+                  (every {row.action.everyHours} h for {row.action.hours} h)
+                </span>
+              ) : null}
+              {row.action.message ? (
+                <span className="block text-muted-foreground">
+                  {row.action.message.title}
                 </span>
               ) : null}
             </td>
@@ -797,7 +986,10 @@ export function AgentActivity({
           <b className="font-semibold text-foreground">
             {MODE_LABEL[state.mode]}
           </b>
-          {state.mode !== 'off' ? ` · every ${state.intervalMinutes} min` : ''}
+          {state.mode !== 'off' ? ` · ${scheduleText(state)}` : ''}
+          {state.mode !== 'off' && state.pendingEvents
+            ? ` · ${state.pendingEvents} ${state.pendingEvents === 1 ? 'change' : 'changes'} waiting`
+            : ''}
           {state.mode !== 'off' && state.nextRunAt
             ? ` · next ${Date.parse(state.nextRunAt) <= now ? 'soon' : clockTime(state.nextRunAt, hourCycle, now)}`
             : ''}
@@ -910,6 +1102,7 @@ export function AgentActivity({
                   : 'No summary: the run failed.'}
               </p>
               {run.coverage ? <CoverageMeter coverage={run.coverage} /> : null}
+              <RunEvents key={run.id} run={run} />
               <p className="text-xs text-muted-foreground">
                 {run.mode === 'act' ? 'Act' : 'Observe'} · {run.model}
               </p>
@@ -921,6 +1114,7 @@ export function AgentActivity({
           No runs yet. The first one starts within a minute, or select Run now.
         </p>
       )}
+      <AgentNotes controls={controls} onSelect={onSelect} />
     </section>
   )
 }

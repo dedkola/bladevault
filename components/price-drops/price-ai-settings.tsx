@@ -432,7 +432,7 @@ function AiActivity({
 type AgentRunView = {
   id: number
   startedAt: string
-  trigger: 'scheduled' | 'manual'
+  trigger: 'scheduled' | 'manual' | 'event'
   mode: 'observe' | 'act'
   durationMs: number
   ok: boolean
@@ -959,7 +959,7 @@ export function PriceAiSettingsSection({
       ) : null}
       <SettingsRow
         label="AI supervisor"
-        description="AI looks over every monitored product and store and decides what needs attention: which products to check first, which failing pages to give to AI, when a page should load in the browser, which gone pages to pause, and which knives to look for on other stores. Observe only records what it would do; Act does it within fixed limits. It runs every 10 minutes with Unlimited AI and every hour with Limited. Checks still run one at a time per store at the store's safe pace."
+        description="AI looks over every monitored product and store and decides what needs attention: which products to check first, which failing pages to give to AI, when a page should load in the browser, which gone pages to pause, and which knives to look for on other stores. Observe only records what it would do; Act does it within fixed limits. It runs when prices, stock or store pages change (at most every 10 minutes with Unlimited AI, every hour with Limited), and at least every hour with Unlimited or every 6 hours with Limited. Checks still run one at a time per store at the store's safe pace."
       >
         <Select
           value={settings.agentMode}

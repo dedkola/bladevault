@@ -1038,6 +1038,20 @@ function migratePriceMonitoringSchema(
       CREATE INDEX price_agent_runs_time
         ON price_agent_runs (started_at);`,
     ],
+    [
+      // The AI supervisor's short memory: notes it keeps for later runs,
+      // about one knife or in general. They expire; the user can forget them.
+      'price_agent_notes',
+      `CREATE TABLE price_agent_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        knife_id TEXT,
+        note TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      );
+      CREATE INDEX price_agent_notes_expiry
+        ON price_agent_notes (expires_at);`,
+    ],
   ]
   const missing = statements.filter(([name]) => !has(name))
   if (missing.length)
@@ -1069,6 +1083,17 @@ function migratePriceMonitoringSchema(
   // A store the user paused in Settings → Stores (no scheduled
   // checks there until resumed; Check now still works).
   addColumn('price_host_state', 'paused_at', 'TEXT')
+  // The AI supervisor watches a knife closely: its sources are checked at
+  // least this often until then (price-monitor/agent, watchClosely).
+  addColumn('price_watch', 'focus_until', 'TEXT')
+  addColumn('price_watch', 'focus_interval_ms', 'INTEGER')
+  addColumn('price_watch', 'focus_reason', 'TEXT')
+  // AI supervisor advice and questions in the Inbox: what a message is
+  // about (JSON) and the collector's Yes or No.
+  addColumn('system_messages', 'payload', 'TEXT')
+  addColumn('system_messages', 'answer', 'TEXT')
+  // What changed since the supervisor's run before (JSON), shown per run.
+  addColumn('price_agent_runs', 'events', 'TEXT')
 }
 
 function normalizeKnifeRows(database: Database.Database) {

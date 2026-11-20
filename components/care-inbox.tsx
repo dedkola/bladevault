@@ -18,8 +18,10 @@ import {
   ExternalLink,
   ImageIcon,
   Inbox,
+  Lightbulb,
   LineChart,
   Loader2,
+  MessageCircleQuestion,
   RotateCcw,
   Settings,
   Sparkles,
@@ -50,9 +52,11 @@ import {
 import type { CareStatusLevel } from '@/lib/maintenance-due'
 import {
   getSystemMessageBox,
+  isOpenPriceQuestion,
   isSystemMessageUnread,
   sortSystemMessages,
   systemMessageTime,
+  type PriceAgentNote,
   type SystemMessage,
   type SystemMessageAction,
 } from '@/lib/system-messages'
@@ -558,6 +562,39 @@ const SYSTEM_MESSAGE_HREF: Record<SystemMessage['kind'], string> = {
   'price-attention': '/price-drops?section=attention',
   'price-digest': '/price-drops',
   achievement: ACHIEVEMENTS_HREF,
+  'price-advice': '/price-drops',
+  'price-question': '/price-drops',
+}
+
+/** AI supervisor messages open the knife's Market tab. */
+function systemMessageHref(message: SystemMessage): string {
+  return message.payload
+    ? `/collection/${encodeURIComponent(message.payload.knifeId)}?tab=market`
+    : SYSTEM_MESSAGE_HREF[message.kind]
+}
+
+/** Messages written by AI: calm colours instead of the problem red. */
+const AI_MESSAGE_KINDS: ReadonlySet<SystemMessage['kind']> = new Set([
+  'price-digest',
+  'price-advice',
+  'price-question',
+])
+
+/** The two buttons of an AI question: Yes first. */
+function questionAnswers(
+  payload: Extract<PriceAgentNote, { type: 'question' }>,
+): { yes: string; no: string } {
+  switch (payload.ask) {
+    case 'set_target':
+      return {
+        yes: `Set ${money(payload.priceMinor, payload.currency)} target`,
+        no: 'No thanks',
+      }
+    case 'watch_closely':
+      return { yes: 'Watch closely', no: 'Not now' }
+    case 'keep_listing':
+      return { yes: 'Keep listing', no: 'Pause listing' }
+  }
 }
 
 function systemMessageDetail(message: SystemMessage, now: Date): string {
@@ -566,6 +603,21 @@ function systemMessageDetail(message: SystemMessage, now: Date): string {
     message.occurrences > 1
       ? `Happened ${plural(message.occurrences, 'time')}, last ${when.toLowerCase()}`
       : when
+  if (message.kind === 'price-question' && message.resolvedAt) {
+    const answers =
+      message.payload?.type === 'question'
+        ? questionAnswers(message.payload)
+        : { yes: 'Yes', no: 'No' }
+    return message.answer
+      ? `Answered “${message.answer === 'yes' ? answers.yes : answers.no}” on ${formatShortDate(message.resolvedAt, now)}`
+      : `Closed unanswered on ${formatShortDate(message.resolvedAt, now)}`
+  }
+  if (message.kind === 'price-advice' || message.kind === 'price-question') {
+    const label = message.kind === 'price-advice' ? 'AI advice' : 'AI question'
+    return message.dismissedAt
+      ? `${label} · ${when} · dismissed`
+      : `${label} · ${when}`
+  }
   if (message.resolvedAt) {
     return message.kind === 'backup-failed'
       ? `A later backup worked on ${formatShortDate(message.resolvedAt, now)}, ${formatTime(message.resolvedAt)}`
@@ -611,9 +663,13 @@ function SystemMessageIcon({
       </span>
     )
   }
-  const digest = message.kind === 'price-digest'
+  const digest = AI_MESSAGE_KINDS.has(message.kind)
   const Icon = digest
-    ? Sparkles
+    ? message.kind === 'price-question'
+      ? MessageCircleQuestion
+      : message.kind === 'price-advice'
+        ? Lightbulb
+        : Sparkles
     : message.kind === 'price-attention'
       ? resolved
         ? CircleCheck
@@ -681,7 +737,7 @@ function SystemMessageRow({
       <SystemMessageIcon message={message} size={compact ? 'sm' : 'md'} />
       <div className="min-w-0 flex-1">
         <Link
-          href={SYSTEM_MESSAGE_HREF[message.kind]}
+          href={systemMessageHref(message)}
           onClick={() => {
             markRead()
             onNavigate?.()
@@ -699,7 +755,7 @@ function SystemMessageRow({
             'text-xs font-medium',
             box === 'done'
               ? 'text-muted-foreground'
-              : message.kind === 'price-digest' ||
+              : AI_MESSAGE_KINDS.has(message.kind) ||
                   message.kind === 'achievement'
                 ? 'text-foreground/80'
                 : 'text-red-600 dark:text-red-400',
@@ -761,6 +817,52 @@ function SystemMessageRow({
               >
                 <LineChart className="size-3" />
                 Open Needs attention
+              </Button>
+            )}
+            {isOpenPriceQuestion(message) &&
+              message.payload?.type === 'question' && (
+                <>
+                  <Button
+                    type="button"
+                    size="xs"
+                    onClick={() =>
+                      onAction({
+                        action: 'answer',
+                        id: message.id,
+                        answer: 'yes',
+                      })
+                    }
+                  >
+                    <Check className="size-3" />
+                    {questionAnswers(message.payload).yes}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    onClick={() =>
+                      onAction({
+                        action: 'answer',
+                        id: message.id,
+                        answer: 'no',
+                      })
+                    }
+                  >
+                    {questionAnswers(message.payload).no}
+                  </Button>
+                </>
+              )}
+            {box === 'open' && message.kind === 'price-advice' && (
+              <Button
+                type="button"
+                size="xs"
+                render={
+                  <Link href={systemMessageHref(message)} onClick={markRead} />
+                }
+                nativeButton={false}
+              >
+                <LineChart className="size-3" />
+                Open market
               </Button>
             )}
             {box === 'open' && (

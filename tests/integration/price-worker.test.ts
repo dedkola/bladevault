@@ -420,6 +420,65 @@ describe('price monitor worker', () => {
     expect(advise).toHaveBeenCalledTimes(1)
   })
 
+  it('wakes the AI supervisor for changes, otherwise on its heartbeat', async () => {
+    const id = await knife(['https://a.example/p'])
+    const supervise = vi.fn<NonNullable<WorkerDeps['supervise']>>(async () => ({
+      status: 'skipped' as const,
+      reason: 'busy' as const,
+    }))
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        ai: {
+          ...DEFAULT_PRICE_MONITORING.ai,
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          model: 'm',
+          agentMode: 'act',
+          usage: { ...DEFAULT_PRICE_MONITORING.ai.usage, mode: 'unlimited' },
+        },
+      },
+    })
+    const test = harness({ supervise })
+    const ago = (minutes: number) =>
+      new Date(test.now() - minutes * 60_000).toISOString()
+    getLocalDb()
+      .prepare(
+        `INSERT INTO price_agent_runs
+           (started_at, trigger, mode, model, duration_ms, ok, actions)
+         VALUES (?, 'scheduled', 'act', 'm', 1000, 1, '[]')`,
+      )
+      .run(ago(30))
+    const settle = async () => {
+      await test.worker.pass()
+      await new Promise((resolve) => setImmediate(resolve))
+    }
+    test.worker.start({ scheduled: true })
+    await settle()
+    // 30 minutes after the last run, nothing changed: the hourly beat waits.
+    expect(supervise).not.toHaveBeenCalled()
+
+    const [sourceId] = sourceIds().values()
+    getLocalDb()
+      .prepare(
+        `INSERT INTO price_change_events
+           (knife_id, source_id, direction, previous_price_minor,
+            price_minor, currency, delta_minor, delta_pct, availability,
+            from_snapshot_id, to_snapshot_id, source_url, store_name,
+            extraction_method, occurred_at)
+         VALUES (?, ?, 'drop', 10000, 9000, 'USD', -1000, -10, 'in_stock',
+                 1, 2, 'https://a.example/p', 'A', 'json_ld', ?)`,
+      )
+      .run(id, sourceId, ago(0))
+    // The drop is a minute old: it waits for the batch to fill.
+    test.advance(60_000)
+    await settle()
+    expect(supervise).not.toHaveBeenCalled()
+    test.advance(60_000)
+    await settle()
+    expect(supervise).toHaveBeenCalledWith('event')
+  })
+
   it('searches other stores on the Amazon lane only when it is free', async () => {
     await knife(['https://www.amazon.com/dp/B000000001'])
     const lookFor = await knife([])

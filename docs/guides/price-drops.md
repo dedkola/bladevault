@@ -51,7 +51,7 @@ Open **Price Drops** in the sidebar. From top to bottom the page shows:
   - **Below regular price** — in-stock sources that cost less than the regular price.
   - **Needs attention** — failed, blocked, unavailable, or doubtful readings. They keep their last known price, shown muted with its date (**as of Nov 3**), and show when each is checked next, such as **next in 3 hours**, **due now**, or **overdue 9 h**. Sources that have never been checked are not problems: they show as **Waiting** in **All** and in their own timeline lane until their first check.
   - **Recently monitored** — the 30 latest checks.
-  - **Supervisor** — with AI connected, the supervisor's recent runs as a timeline, newest first. Select a run to see its summary, coverage, and every action in a table with the knife, store, reason, and result; repeated actions at one store collapse into one row you can expand. Select a knife name to open it in the table.
+  - **Supervisor** — with AI connected, the supervisor's recent runs as a timeline, newest first, each with what started it (changes, the schedule, or **Run now**). Select a run to see its summary, coverage, the changes since the run before, and every action in a table with the knife, store, reason, and result; repeated actions at one store collapse into one row you can expand. Select a knife name to open it in the table.
 - **Side panel** — the selected knife's price details, the same as its Market tab (see below), including **Latest changes**, **Check all sources**, **Manage sources**, and each store's **Check now** and check history.
 
 To find a knife, search by brand, name, model number, steel, or store, or pick a store. Select a column header (**Price now**, **Change**, **vs regular**, **Checked**) to sort by it, and select it again to reverse or reset the order. **vs regular** shows the difference in money and percent. Knives that share a name show their model number, steel, and handle so you can tell them apart. **Group by knife** shows one row per knife with its best price; expand it to see each store.
@@ -204,6 +204,8 @@ Prices are compared only within one currency. Implausible jumps are confirmed wi
 
 Models that reason before they answer (such as GLM, DeepSeek R1, or Qwen3) need more time and room than a short price answer suggests. BladeVault notices this on the first request that comes back empty, cut off, or too late, retries it once with the **Answer limit for reasoning models** (16,384 tokens by default) and at least 60 seconds, and gives that model the same room from then on. The limit caps the answer only, not the page sent. If the endpoint refuses it as above the model's own limit, BladeVault lowers it to 4,096 tokens for that model. **Test connection** says when a model reasons.
 
+Planning tasks (the [AI supervisor](#let-ai-supervise-monitoring), the **Pacing advisor**, and the **Daily summary in the Inbox**) weigh many products or stores at once, so the model may reason before it answers: they start with the **Answer limit for reasoning models** and wait up to 6 minutes. Everything else (reading a price, working a page, confirming a change, searching other stores) asks OpenCode models to answer without reasoning, which keeps those frequent requests fast. Other endpoints answer as the model is set up.
+
 **AI usage** decides how much AI may work:
 
 - **Limited** (the default) is for paid APIs and slow local models. **Requests per day** (200 by default) and **Tokens per day** (2,000,000 by default) cap AI per day, counted from midnight on the server; 0 turns a cap off. **AI per product at most every** (24 hours by default) is how long a product waits after AI worked on it. Once a cap is reached, AI stops until midnight and monitoring continues without it, and Other stores does not open store searches it cannot finish. **Test connection** never counts.
@@ -234,15 +236,32 @@ The API key is stored next to the vault in its private control folder, outside b
 | **Observe** | AI plans what it would do and records it, without changing anything. |
 | **Act**     | AI does what it planned, within fixed limits.                        |
 
-The supervisor runs every 10 minutes with **Unlimited** AI usage and every hour with **Limited**, and **Run now** starts a run at once. Each run, AI sees every monitored product (knife name, store, status, when it was last checked and how it failed), each store's pace and pauses, how many products are fresh, and the AI budget. It never sees product links, the regular price, notes, or keys. It can:
+The supervisor runs when something changes: a price drop or increase, a product selling out or coming back in stock, a product failing 3 or 5 checks in a row, a store showing a bot check, or **Other stores** finding a listing. It waits 2 minutes after the first change so a burst of changes is handled in one run, and runs at most every 10 minutes with **Unlimited** AI usage or every hour with **Limited**. Without changes it still looks over everything every hour with **Unlimited** and every 6 hours with **Limited**. **Run now** starts a run at once. Each run, AI sees:
 
-- **Check first**: move up to 25 overdue, stale, or failing products to the front of their store's queue. A product blocked by a bot check still waits out its backoff.
+- what changed since its last run, and why it runs now;
+
+- every knife's market: its regular price, your target price, the best in-stock price now and its store, the lowest price ever and the lowest and highest of the last 90 days, the last price and stock change, and its **Other stores** searches;
+- every monitored product under its knife: store, price, stock, how long it has been out of stock, status, when it was last checked and how it failed, and how many checks wait before it at its store;
+- each store's pace and pauses, how many products are fresh, the AI budget, and the local date and time, so it can plan around sales;
+- its last three runs, with why an action was refused or what the next check or search found;
+- which knives it is watching closely, how often, and for how long;
+- its notes and questions of the last weeks: read or not, and how you answered;
+- the notes it keeps for itself (see **Remember** below).
+
+It never sees product links, notes, or keys. It can:
+
+- **Check first**: move up to 25 products to the front of their store's line, for example a knife near its target price ahead of others, or a product it wants read before it is due. A product that is already next at its store, or that was checked in the last 30 minutes, is left alone. A product blocked by a bot check still waits out its backoff.
 - **Retry with AI**: let AI read or work the page of up to 10 failing products on their next check.
 - **Change how a page loads**: switch up to 5 products to the browser, plain HTTP, or back to automatic.
-- **Pause**: stop up to 3 products whose page failed at least 5 checks in a row and seems gone (not found, HTTP 404 or 410, or a redirect; never timeouts, server errors, or bot checks). Resume them in the knife's **Price monitoring** section.
-- **Look on other stores**: search again for up to 5 knives on other stores, when [Other stores](#find-knives-at-other-stores-with-ai) is on.
+- **Pause**: stop up to 3 products whose page failed at least 5 checks in a row and seems gone (not found or a redirect; never timeouts, server errors, or bot checks). Pages not found with HTTP 404 or 410 pause on their own after three checks. Resume them in the knife's **Price monitoring** section.
+- **Look on other stores**: bring a waiting search forward for up to 5 knives, when [Other stores](#find-knives-at-other-stores-with-ai) is on. A knife that was never searched at a store is due anyway, and a listing already found stays.
+- **Watch closely**: check up to 5 knives more often for a while, for example a knife near its target, a fresh drop that may go lower, or a restock to catch. A watch checks a knife's products at least every hour and at most for 72 hours, and only when that is more often than your schedule; up to 20 knives are watched at once. The knife's **Manage sources** shows the watch and its reason, with **Stop** to end it early. Each store's pace still applies.
+- **Cross-check**: read all other stores of up to 5 knives now, for example after a price moved at one store, so you see the whole market. Products checked in the last 30 minutes, already queued, or blocked by a bot check are left out.
+- **Advice**: leave a short note in the Inbox when something is worth acting on: a deal (a price at or below your target or regular price, a new 90-day low), a restock, or a trend to watch. Up to 6 notes a day, never for a muted knife, and not again for the same knife and topic within 3 days. A note that quotes a price AI was not shown is refused. **Open market** opens the knife's **Market** tab.
+- **Questions**: ask you a yes/no question in the Inbox when your answer changes what it does: whether to set a target price it suggests, whether to watch a knife closely, or whether a listing **Other stores** found is the right knife. At most 3 questions wait at once, one per knife, and the same question is not asked again for 30 days. Your answer acts like the knife's own controls: the target price is set, the watch starts, or **Pause listing** pauses that listing (resume it in **Manage sources**). Questions you don't answer close after a week, and the supervisor sees every answer.
+- **Remember**: keep up to 30 short notes for its later runs, about one knife or in general, for at most 30 days: what it is waiting for, a pattern it noticed (a store that restocks on Mondays), or what your answers told it. It forgets notes that are done. A note that quotes a price AI was not shown is refused. The **Supervisor** tab lists the notes under **Notes for later runs**, and **Forget** removes one.
 
-Every action is checked before it runs, and actions that break the rules are refused and recorded with the reason. The supervisor can change the order of checks but not their pace: each store is still checked one product at a time, and store pauses, Retry-After, and bot-check pauses still apply. It never solves a bot check. The latest run and its summary appear under **AI supervisor** on **Price Drops**; while the supervisor is off and has never run, that strip is a single line with **Turn on**, which starts it in **Observe**. Runs are kept for 30 days.
+Notes and questions appear only in **Act**, in the Inbox under **System**. Every action is checked before it runs, and actions that break the rules are refused and recorded with the reason. The supervisor can change the order of checks but not their pace: each store is still checked one product at a time, and store pauses, Retry-After, and bot-check pauses still apply. It never solves a bot check. The latest run and its summary appear under **AI supervisor** on **Price Drops**; while the supervisor is off and has never run, that strip is a single line with **Turn on**, which starts it in **Observe**. Runs are kept for 30 days.
 
 ## Find knives at other stores with AI
 
