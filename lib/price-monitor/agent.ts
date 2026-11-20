@@ -18,6 +18,7 @@ import {
   currencyFractionDigits,
   fromMinorUnits,
   parseStoredPrice,
+  toMinorUnits,
 } from '@/lib/price-monitor/money'
 import { byUrgency } from '@/lib/price-monitor/queue'
 import { frequencyMs } from '@/lib/price-monitor/schedule'
@@ -29,12 +30,26 @@ import {
   type FetchOverride,
   type PriceSourceStatus,
 } from '@/lib/price-monitor/shared'
-import { readLaneStates, readQueueCandidates } from '@/lib/price-monitor/store'
+import {
+  readLaneStates,
+  readQueueCandidates,
+  startKnifeFocus,
+} from '@/lib/price-monitor/store'
 import { getSettings } from '@/lib/settings'
 import type {
   PriceAgentMode,
   PriceMonitoringSettings,
 } from '@/lib/settings-shared'
+import { writeSystemMessageReports } from '@/lib/system-message-store'
+import {
+  PRICE_ADVICE_TOPICS,
+  PRICE_QUESTION_ASKS,
+  readPriceAgentNote,
+  type PriceAdviceTopic,
+  type PriceAgentNote,
+  type PriceQuestionAsk,
+  type SystemMessageReport,
+} from '@/lib/system-messages'
 import {
   assertVaultGeneration,
   getVaultAccessState,
@@ -53,7 +68,9 @@ import {
  * - pause: stop a source whose page keeps failing as gone,
  * - searchOtherStore: look for a knife on other stores (Other stores),
  * - watchClosely: check a knife's sources more often for a while,
- * - crossCheck: read a knife's other stores now.
+ * - crossCheck: read a knife's other stores now,
+ * - advise: leave the collector a note in the Inbox,
+ * - ask: ask the collector a yes/no question in the Inbox.
  *
  * Every action is validated and capped here, never trusted. Checks still run
  * through the paced queue: one product at a time per store, with store gaps,
@@ -81,7 +98,19 @@ export const AGENT_LIMITS = {
   searchOtherStore: 5,
   watchClosely: 5,
   crossCheck: 5,
+  advise: 3,
+  ask: 2,
 } as const
+/** Advice notes per day, and how long one knife's topic then stays quiet. */
+export const ADVICE_PER_DAY = 6
+export const ADVICE_REPEAT_DAYS = 3
+/** Open questions at once; the same question is not asked again this long. */
+export const MAX_OPEN_QUESTIONS = 3
+export const QUESTION_REPEAT_DAYS = 30
+/** Unanswered questions close on their own after this many days. */
+export const QUESTION_EXPIRY_DAYS = 7
+const TITLE_MAX = 120
+const DETAIL_MAX = 400
 /** Knives the supervisor may watch closely at once. */
 export const MAX_FOCUSED_KNIVES = 20
 /** A close watch lasts at most this long (hours). */
@@ -147,6 +176,8 @@ export type AgentSource = {
   stock: Availability | null
   /** Days in the current out-of-stock run; null when not out of stock. */
   outOfStockDays: number | null
+  /** A listing Other stores found (only present when true). */
+  foundByAi?: true
 }
 
 /** An Other stores search for a knife at one store. */
@@ -235,6 +266,26 @@ export type AgentRecentRun = {
   }>
 }
 
+/** Your recent Inbox notes and questions, and what came of them. */
+export type AgentInbox = {
+  /** Advice of the last ADVICE_REPEAT_DAYS days. */
+  advice: Array<{
+    knifeId: string
+    topic: PriceAdviceTopic
+    hoursAgo: number
+    status: 'unread' | 'read' | 'dismissed'
+  }>
+  /** Questions of the last QUESTION_REPEAT_DAYS days. */
+  questions: Array<{
+    knifeId: string
+    ask: PriceQuestionAsk
+    daysAgo: number
+    status: 'open' | 'yes' | 'no' | 'dismissed' | 'expired'
+  }>
+}
+
+const EMPTY_INBOX: AgentInbox = { advice: [], questions: [] }
+
 export type AgentSnapshot = {
   now: string
   /** The server's local date and time, e.g. "Fri, 27 Nov 2026, 09:00". */
@@ -259,6 +310,7 @@ export type AgentSnapshot = {
   /** Sources left out of `sources` (only when over MAX_SNAPSHOT_SOURCES). */
   omitted: number
   recentRuns: AgentRecentRun[]
+  inbox: AgentInbox
 }
 
 type SourceQueryRow = {
@@ -282,6 +334,7 @@ type SourceQueryRow = {
   last_price_minor: number | null
   last_currency: string | null
   last_availability: Availability | null
+  found_by_ai: number
 }
 
 type KnifeQueryRow = {
@@ -364,7 +417,7 @@ export function buildAgentSnapshot(input: {
   const { database, settings, now } = input
   const intervalMs = frequencyMs(settings.schedule)
   const monitored = new Set(
-    readQueueCandidates(database, settings)
+    readQueueCandidates(database, settings, now)
       .filter((candidate) => candidate.scheduled)
       .map((candidate) => candidate.sourceId),
   )
@@ -375,6 +428,8 @@ export function buildAgentSnapshot(input: {
               s.last_success_at, s.last_error_code, s.consecutive_failures,
               s.next_check_at, s.last_ai_at, s.priority, s.last_price_minor,
               s.last_currency, s.last_availability,
+              EXISTS (SELECT 1 FROM price_discovery d
+                      WHERE d.source_id = s.id) AS found_by_ai,
               (SELECT l.http_status FROM price_check_log l
                WHERE l.source_id = s.id
                ORDER BY l.started_at DESC, l.id DESC LIMIT 1) AS last_http_status
@@ -434,6 +489,7 @@ export function buildAgentSnapshot(input: {
           : null,
       stock: row.last_availability,
       outOfStockDays: since ? Math.floor(daysSince(since, now)) : null,
+      ...(row.found_by_ai ? { foundByAi: true as const } : {}),
     }
   })
 
@@ -528,7 +584,72 @@ export function buildAgentSnapshot(input: {
     }),
     omitted: Math.max(0, sorted.length - MAX_SNAPSHOT_SOURCES),
     recentRuns: readRecentRuns(database, 3),
+    inbox: readAgentInbox(database, now),
   }
+}
+
+/** The supervisor's own recent Inbox messages, so it does not repeat itself. */
+function readAgentInbox(database: Database.Database, now: number): AgentInbox {
+  const rows = database
+    .prepare(
+      `SELECT kind, payload, created_at, read_at, dismissed_at, resolved_at,
+              answer
+       FROM system_messages
+       WHERE kind IN ('price-advice', 'price-question') AND created_at >= ?
+       ORDER BY created_at DESC, id DESC`,
+    )
+    .all(
+      new Date(
+        now - Math.max(ADVICE_REPEAT_DAYS, QUESTION_REPEAT_DAYS) * DAY_MS,
+      ).toISOString(),
+    ) as Array<{
+    kind: string
+    payload: string | null
+    created_at: string
+    read_at: string | null
+    dismissed_at: string | null
+    resolved_at: string | null
+    answer: string | null
+  }>
+  const inbox: AgentInbox = { advice: [], questions: [] }
+  for (const row of rows) {
+    let note: PriceAgentNote | null = null
+    try {
+      note = row.payload ? readPriceAgentNote(JSON.parse(row.payload)) : null
+    } catch {
+      note = null
+    }
+    if (!note) continue
+    const age = now - Date.parse(row.created_at)
+    if (note.type === 'advice' && row.kind === 'price-advice') {
+      if (age > ADVICE_REPEAT_DAYS * DAY_MS) continue
+      inbox.advice.push({
+        knifeId: note.knifeId,
+        topic: note.topic,
+        hoursAgo: Math.round((age / HOUR_MS) * 10) / 10,
+        status: row.dismissed_at
+          ? 'dismissed'
+          : row.read_at
+            ? 'read'
+            : 'unread',
+      })
+    } else if (note.type === 'question' && row.kind === 'price-question') {
+      inbox.questions.push({
+        knifeId: note.knifeId,
+        ask: note.ask,
+        daysAgo: Math.floor(age / DAY_MS),
+        status:
+          row.answer === 'yes' || row.answer === 'no'
+            ? row.answer
+            : row.resolved_at
+              ? 'expired'
+              : row.dismissed_at
+                ? 'dismissed'
+                : 'open',
+      })
+    }
+  }
+  return inbox
 }
 
 /** Every listed knife's market, in the order its first source appears. */
@@ -792,6 +913,10 @@ function readRecentRuns(
     `SELECT COUNT(*) AS count FROM price_check_log
      WHERE knife_id = ? AND started_at >= ?`,
   )
+  const message = database.prepare(
+    `SELECT read_at, dismissed_at, resolved_at, answer FROM system_messages
+     WHERE kind = ? AND dedupe_key = ?`,
+  )
   type CheckRow = {
     outcome: string
     error_code: string | null
@@ -807,6 +932,30 @@ function readRecentRuns(
   }
   const outcome = (run: AgentRun, action: AgentAction): string | undefined => {
     if (action.status === 'refused') return undefined
+    if (action.kind === 'advise' || action.kind === 'ask') {
+      if (!action.message?.key) return undefined
+      const row = message.get(
+        action.kind === 'advise' ? 'price-advice' : 'price-question',
+        action.message.key,
+      ) as
+        | {
+            read_at: string | null
+            dismissed_at: string | null
+            resolved_at: string | null
+            answer: string | null
+          }
+        | undefined
+      if (!row) return 'no longer in the Inbox'
+      if (action.kind === 'advise')
+        return row.dismissed_at ? 'dismissed' : row.read_at ? 'read' : 'unread'
+      return row.answer
+        ? `answered ${row.answer}`
+        : row.resolved_at
+          ? 'expired unanswered'
+          : row.dismissed_at
+            ? 'dismissed'
+            : 'waiting for an answer'
+    }
     if (action.kind === 'crossCheck') {
       const ids = action.sourceIds ?? []
       const checks = ids
@@ -896,8 +1045,28 @@ export type AgentPlan = {
   searchOtherStore: KnifeItem[]
   watchClosely: Array<KnifeItem & { hours: number; everyHours: number }>
   crossCheck: KnifeItem[]
+  advise: AdviceItem[]
+  ask: AskItem[]
 }
 type KnifeItem = { knifeId: string; reason: string }
+type AdviceItem = {
+  knifeId: string
+  topic: PriceAdviceTopic
+  title: string
+  detail: string
+}
+type AskItem = {
+  knifeId: string
+  ask: PriceQuestionAsk
+  question: string
+  /** set_target: the suggested target, e.g. "95.00 USD". */
+  price: string | null
+  /** keep_listing: the listing in question. */
+  sourceId: number | null
+  /** watch_closely: for how long, and how often. */
+  hours: number | null
+  everyHours: number | null
+}
 
 const knifeItems = (extra: Record<string, unknown> = {}) => ({
   type: 'array',
@@ -939,6 +1108,8 @@ export const AGENT_SCHEMA = {
     'searchOtherStore',
     'watchClosely',
     'crossCheck',
+    'advise',
+    'ask',
   ],
   properties: {
     summary: { type: 'string' },
@@ -952,13 +1123,52 @@ export const AGENT_SCHEMA = {
       everyHours: { type: 'number' },
     }),
     crossCheck: knifeItems(),
+    advise: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['knifeId', 'topic', 'title', 'detail'],
+        properties: {
+          knifeId: { type: 'string' },
+          topic: { type: 'string', enum: [...PRICE_ADVICE_TOPICS] },
+          title: { type: 'string' },
+          detail: { type: 'string' },
+        },
+      },
+    },
+    ask: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'knifeId',
+          'ask',
+          'question',
+          'price',
+          'sourceId',
+          'hours',
+          'everyHours',
+        ],
+        properties: {
+          knifeId: { type: 'string' },
+          ask: { type: 'string', enum: [...PRICE_QUESTION_ASKS] },
+          question: { type: 'string' },
+          price: { type: ['string', 'null'] },
+          sourceId: { type: ['integer', 'null'] },
+          hours: { type: ['number', 'null'] },
+          everyHours: { type: ['number', 'null'] },
+        },
+      },
+    },
   },
 } as const
 
 export const AGENT_PROMPT = [
   'You supervise price monitoring for a knife collector. Each source is one store product page that BladeVault checks for price and stock. Keep every monitored source fresh and readable, and spend checks where they matter most to the collector right now.',
   "The input lists knives, most urgent first. Each knife has its market: regular (the knife's stored regular price), target (the collector's alert price), best (the cheapest in-stock price now) and bestStore, low (lowest in-stock price ever), low90d and high90d, lastPriceChange, lastStockChange, muted, and search (Other stores searches). Under it are its sources: status, price, stock, outOfStockDays, timing in minutes, failures, error, queued and ahead. The input also has each store's pace, coverage, the AI budget, localTime and your recent runs, each action with its note (why it was refused) or outcome (what its next check or search found). Missing fields are unknown.",
-  'Answer with JSON only: {"summary", "check", "retryWithAi", "fetchMode", "pause", "searchOtherStore", "watchClosely", "crossCheck"}. Leave a list empty when nothing is needed: often nothing is.',
+  'Answer with JSON only: {"summary", "check", "retryWithAi", "fetchMode", "pause", "searchOtherStore", "watchClosely", "crossCheck", "advise", "ask"}. Leave a list empty when nothing is needed: often nothing is.',
   `check (at most ${AGENT_LIMITS.check}): move sources to the front of their store's line. Each store already checks its most overdue source first, so a due source with ahead 0 is next anyway and a check changes nothing. Use check to put a source that matters more ahead of others (ahead above 0), or to read a source that is not due yet now: a knife near or below its target or regular price, a price that just moved at another store, a restock to confirm, a sale period (look at localTime, e.g. Black Friday and holiday sales). Skip sources marked queued, checked in the last 30 minutes, or not monitored.`,
   'A store checks one product at a time at its own safe pace (minGapSec, fullPassHours), and paused stores (circuit open) wait out their pause. You cannot speed a store up: many checks at one store simply wait in line, so do not ask for more than the stores can do before your next run.',
   `retryWithAi (at most ${AGENT_LIMITS.retryWithAi}): failed or price_unavailable sources where AI reading or working the page may get the price on the next check. Never for blocked sources: a bot check needs the user.`,
@@ -967,7 +1177,9 @@ export const AGENT_PROMPT = [
   `searchOtherStore (at most ${AGENT_LIMITS.searchOtherStore}): bring a waiting Other stores search forward (a search with nextInDays above 0), for knives whose sources are all out of stock or failing, or that the collector watches closely (a target, a recent drop) and that have a single store. Only when otherStores is true. A search that is due (not_searched, nextInDays 0 or less) or found needs nothing.`,
   `watchClosely (at most ${AGENT_LIMITS.watchClosely}, ${MAX_FOCUSED_KNIVES} knives at once): check a knife's sources every everyHours (at least ${FOCUS_MIN_EVERY_HOURS}, below checkIntervalHours) for the next hours (at most ${FOCUS_MAX_HOURS}): a knife near or below its target or regular price, a fresh drop that may go lower, a restock to catch, a sale period. Asking again for a watched knife replaces its watch. The stores' pace still applies.`,
   `crossCheck (at most ${AGENT_LIMITS.crossCheck}): read all other sources of a knife now, for example after its price moved or it came back in stock at one store, so the collector sees the whole market. Sources checked in the last 30 minutes, queued or blocked are left out.`,
-  'Learn from your recent runs: do not repeat actions that were refused or did not help.',
+  `advise (at most ${AGENT_LIMITS.advise}, ${ADVICE_PER_DAY} a day): a short note in the collector's Inbox when something is worth acting on: topic "deal" (a price at or below the target or regular price, a new 90-day low, a big drop), "restock" (back in stock after a long time, or the only store in stock), "watch" (a trend to keep an eye on). title: one line naming the knife; detail: one or two plain sentences. Quote only prices that appear in the input, exactly as written there, never computed amounts (say "23% below regular" for differences). Never for muted knives, and not again for the same knife and topic within ${ADVICE_REPEAT_DAYS} days (see inbox.advice). Fewer, better notes: the collector already gets an alert for every drop.`,
+  `ask (at most ${AGENT_LIMITS.ask}, ${MAX_OPEN_QUESTIONS} open at once, one per knife): a yes/no question in the Inbox when the collector's answer changes what you do. "set_target" proposes an alert target price (price, e.g. "95.00 USD", in the currency of the knife's prices) for a knife without a fitting target. "watch_closely" asks to watch a knife closely (hours, everyHours, as for watchClosely) when you are not sure it is wanted. "keep_listing" asks whether a listing Other stores found (sourceId of a source with foundByAi) is the right knife, when its price or stock looks off; No pauses it. question: one plain sentence. Never repeat a question from inbox.questions within ${QUESTION_REPEAT_DAYS} days, and respect its answer. Use null for fields an ask does not use.`,
+  'Learn from your recent runs and inbox: do not repeat actions that were refused or did not help.',
   'Every item needs a short reason. summary: one to three plain sentences for the collector: notable market news (drops, prices at or below target or regular price, restocks) and what you did. If nothing changed since your last run, say so in one short sentence.',
 ].join('\n')
 
@@ -1052,6 +1264,52 @@ export function readAgentPlan(answer: unknown): AgentPlan {
       AGENT_LIMITS.crossCheck,
       knifeItem,
     ),
+    advise: readItems(record.advise, AGENT_LIMITS.advise, (entry) => {
+      const knifeId = text(entry.knifeId, 100)
+      const title = text(entry.title, TITLE_MAX)
+      const detail = text(entry.detail, DETAIL_MAX)
+      return knifeId &&
+        title &&
+        (PRICE_ADVICE_TOPICS as readonly unknown[]).includes(entry.topic)
+        ? {
+            knifeId,
+            topic: entry.topic as PriceAdviceTopic,
+            title,
+            detail,
+          }
+        : null
+    }),
+    ask: readItems(record.ask, AGENT_LIMITS.ask, (entry) => {
+      const knifeId = text(entry.knifeId, 100)
+      const question = text(entry.question, DETAIL_MAX)
+      if (
+        !knifeId ||
+        !question ||
+        !(PRICE_QUESTION_ASKS as readonly unknown[]).includes(entry.ask)
+      )
+        return null
+      const finite = (value: unknown) =>
+        typeof value === 'number' && Number.isFinite(value) ? value : null
+      const hours = finite(entry.hours)
+      const everyHours = finite(entry.everyHours)
+      const sourceId = finite(entry.sourceId)
+      return {
+        knifeId,
+        ask: entry.ask as PriceQuestionAsk,
+        question,
+        price: text(entry.price, 40) || null,
+        sourceId:
+          sourceId !== null && Number.isInteger(sourceId) && sourceId > 0
+            ? sourceId
+            : null,
+        hours:
+          hours === null ? null : Math.min(FOCUS_MAX_HOURS, Math.max(1, hours)),
+        everyHours:
+          everyHours === null
+            ? null
+            : Math.max(FOCUS_MIN_EVERY_HOURS, everyHours),
+      }
+    }),
   }
 }
 
@@ -1068,6 +1326,17 @@ export type AgentActionKind =
   | 'searchOtherStore'
   | 'watchClosely'
   | 'crossCheck'
+  | 'advise'
+  | 'ask'
+
+/** The Inbox message an advise or ask action leaves. */
+export type AgentMessage = {
+  title: string
+  detail: string
+  payload: PriceAgentNote
+  /** Set once posted (Act), to look up what came of it. */
+  key?: string
+}
 
 export type AgentAction = {
   kind: AgentActionKind
@@ -1079,16 +1348,14 @@ export type AgentAction = {
   /** watchClosely: for how long, and how often. */
   hours?: number
   everyHours?: number
+  /** advise and ask: the Inbox message. */
+  message?: AgentMessage
   reason: string
   /** applied (act), proposed (observe), refused (failed validation). */
   status: 'applied' | 'proposed' | 'refused'
   note: string | null
 }
 
-/**
- * Validates the plan against the snapshot. Pure: refused actions say why,
- * the others become `applied` (act) or `proposed` (observe) once applied.
- */
 /** Why a source may not be moved forward now, or null. */
 function checkRefusal(source: AgentSource | null): string | null {
   return !source
@@ -1107,13 +1374,18 @@ function checkRefusal(source: AgentSource | null): string | null {
             : null
 }
 
+/**
+ * Validates the plan against the snapshot. Pure: refused actions say why,
+ * the others become `applied` (act) or `proposed` (observe) once applied.
+ */
 export function validateAgentPlan(
   plan: AgentPlan,
   snapshot: Pick<
     AgentSnapshot,
     'sources' | 'knives' | 'ai' | 'otherStores' | 'checkIntervalHours'
-  >,
+  > & { inbox?: AgentInbox },
 ): AgentAction[] {
+  const inbox = snapshot.inbox ?? EMPTY_INBOX
   const byId = new Map(snapshot.sources.map((source) => [source.id, source]))
   const knives = new Map(snapshot.knives.map((knife) => [knife.knifeId, knife]))
   const seen = new Set<string>()
@@ -1249,7 +1521,245 @@ export function validateAgentPlan(
           : null,
     )
   }
+
+  let adviceToday = inbox.advice.filter((entry) => entry.hoursAgo < 24).length
+  for (const entry of plan.advise) {
+    const knife = knives.get(entry.knifeId)
+    const invented = knife
+      ? inventedAmount(
+          `${entry.title} ${entry.detail}`,
+          knownAmounts(knife, snapshot.sources),
+        )
+      : null
+    push(
+      {
+        kind: 'advise',
+        knifeId: entry.knifeId,
+        reason: entry.detail || entry.title,
+        message: {
+          title: entry.title,
+          detail: entry.detail,
+          payload: {
+            type: 'advice',
+            knifeId: entry.knifeId,
+            topic: entry.topic,
+          },
+        },
+      },
+      !knife
+        ? 'unknown knife'
+        : knife.muted
+          ? 'notifications for this knife are muted'
+          : adviceToday >= ADVICE_PER_DAY
+            ? `already ${ADVICE_PER_DAY} notes today`
+            : inbox.advice.some(
+                  (note) =>
+                    note.knifeId === entry.knifeId &&
+                    note.topic === entry.topic,
+                )
+              ? `same advice in the last ${ADVICE_REPEAT_DAYS} days`
+              : LINK.test(`${entry.title} ${entry.detail}`)
+                ? 'links are not allowed'
+                : invented
+                  ? `quotes a price not in the data (${invented})`
+                  : null,
+    )
+    if (actions.at(-1)?.status !== 'refused') adviceToday += 1
+  }
+
+  const waiting = new Set(
+    inbox.questions
+      .filter((question) => question.status === 'open')
+      .map((question) => question.knifeId),
+  )
+  for (const entry of plan.ask) {
+    const knife = knives.get(entry.knifeId)
+    let refusal: string | null = !knife
+      ? 'unknown knife'
+      : knife.muted
+        ? 'notifications for this knife are muted'
+        : waiting.has(entry.knifeId)
+          ? 'a question about this knife is waiting'
+          : waiting.size >= MAX_OPEN_QUESTIONS
+            ? `already ${MAX_OPEN_QUESTIONS} open questions`
+            : inbox.questions.some(
+                  (question) =>
+                    question.knifeId === entry.knifeId &&
+                    question.ask === entry.ask,
+                )
+              ? `asked the same in the last ${QUESTION_REPEAT_DAYS} days`
+              : LINK.test(entry.question)
+                ? 'links are not allowed'
+                : null
+    let message: AgentMessage | undefined
+    if (knife && !refusal) {
+      const asked = askMessage(entry, knife, snapshot, byId)
+      if (typeof asked === 'string') refusal = asked
+      else message = asked
+    }
+    push(
+      {
+        kind: 'ask',
+        knifeId: entry.knifeId,
+        reason: entry.question,
+        ...(message ? { message } : {}),
+      },
+      refusal,
+    )
+    if (actions.at(-1)?.status !== 'refused') waiting.add(entry.knifeId)
+  }
   return actions
+}
+
+const LINK = /https?:\/\/|www\./i
+const CURRENCY_CODES =
+  'USD|EUR|GBP|JPY|CAD|AUD|NZD|CHF|SEK|NOK|DKK|PLN|CZK|HUF|CNY|HKD|SGD|KRW|INR|RUB|UAH|BRL|MXN|ZAR|TRY|ILS'
+const QUOTED_AMOUNT = new RegExp(
+  `[$€£¥]\\s?(\\d[\\d,]*(?:\\.\\d+)?)|(\\d[\\d,]*(?:\\.\\d+)?)\\s?(?:${CURRENCY_CODES})\\b`,
+  'g',
+)
+
+/** Amounts written with a currency, e.g. "$99" or "129.00 USD", as numbers. */
+export function quotedAmounts(value: string): number[] {
+  return [...value.matchAll(QUOTED_AMOUNT)].flatMap((match) => {
+    const amount = Number.parseFloat((match[1] ?? match[2]).replace(/,/g, ''))
+    return Number.isFinite(amount) ? [amount] : []
+  })
+}
+
+/** Every price the model saw for a knife, in hundredths. */
+function knownAmounts(
+  knife: AgentKnife,
+  sources: readonly AgentSource[],
+): Set<number> {
+  return new Set(
+    [
+      knife.regular,
+      knife.target,
+      knife.best,
+      knife.low,
+      knife.low90d,
+      knife.high90d,
+      knife.lastPriceChange?.from,
+      knife.lastPriceChange?.to,
+      ...sources
+        .filter((source) => source.knifeId === knife.knifeId)
+        .map((source) => source.price),
+    ].flatMap((value) => {
+      const amount = value ? Number.parseFloat(value) : Number.NaN
+      return Number.isFinite(amount) ? [Math.round(amount * 100)] : []
+    }),
+  )
+}
+
+/** The first quoted amount the model did not see, or null. */
+function inventedAmount(value: string, known: Set<number>): string | null {
+  const invented = quotedAmounts(value).find(
+    (amount) => !known.has(Math.round(amount * 100)),
+  )
+  return invented === undefined ? null : String(invented)
+}
+
+/** The currencies a knife's prices are in, e.g. ["USD"]. */
+function knifeCurrencies(
+  knife: AgentKnife,
+  sources: readonly AgentSource[],
+): Set<string> {
+  return new Set(
+    [
+      knife.regular,
+      knife.best,
+      ...sources
+        .filter((source) => source.knifeId === knife.knifeId)
+        .map((source) => source.price),
+    ].flatMap((value) => {
+      const code = value?.split(' ')[1]
+      return code ? [code] : []
+    }),
+  )
+}
+
+/** The Inbox question an ask leaves, or why it is refused. */
+function askMessage(
+  entry: AskItem,
+  knife: AgentKnife,
+  snapshot: Pick<AgentSnapshot, 'sources' | 'checkIntervalHours'>,
+  byId: ReadonlyMap<number, AgentSource>,
+): AgentMessage | string {
+  const known = knownAmounts(knife, snapshot.sources)
+  let message: AgentMessage
+  switch (entry.ask) {
+    case 'set_target': {
+      const parsed = entry.price ? parseStoredPrice(entry.price) : null
+      if (!parsed) return 'no valid price'
+      const currencies = knifeCurrencies(knife, snapshot.sources)
+      if (currencies.size && !currencies.has(parsed.currency))
+        return `not in the knife's currency (${[...currencies].join(', ')})`
+      const priceMinor = toMinorUnits(parsed.amount, parsed.currency)
+      const price = moneyText(priceMinor, parsed.currency)
+      if (knife.target === price) return 'already the target'
+      known.add(Math.round(parsed.amount * 100))
+      message = {
+        title: `Set a ${price} target for ${knife.knife}?`,
+        detail: entry.question,
+        payload: {
+          type: 'question',
+          knifeId: knife.knifeId,
+          ask: 'set_target',
+          priceMinor,
+          currency: parsed.currency,
+        },
+      }
+      break
+    }
+    case 'watch_closely': {
+      if (entry.hours === null || entry.everyHours === null)
+        return 'hours and everyHours are needed'
+      if (knife.watching) return 'already watched closely'
+      if (
+        !snapshot.sources.some(
+          (source) => source.knifeId === knife.knifeId && source.monitored,
+        )
+      )
+        return 'no monitored source'
+      if (entry.everyHours >= snapshot.checkIntervalHours)
+        return `not more often than the schedule (every ${snapshot.checkIntervalHours} h)`
+      message = {
+        title: `Watch ${knife.knife} closely?`,
+        detail: entry.question,
+        payload: {
+          type: 'question',
+          knifeId: knife.knifeId,
+          ask: 'watch_closely',
+          hours: entry.hours,
+          everyHours: entry.everyHours,
+        },
+      }
+      break
+    }
+    case 'keep_listing': {
+      const source =
+        entry.sourceId === null ? undefined : byId.get(entry.sourceId)
+      if (!source || source.knifeId !== knife.knifeId)
+        return 'unknown source for this knife'
+      if (!source.foundByAi) return 'only for listings Other stores found'
+      if (!source.monitored) return 'not monitored'
+      message = {
+        title: `Is the ${source.store} listing the right ${knife.knife}?`,
+        detail: entry.question,
+        payload: {
+          type: 'question',
+          knifeId: knife.knifeId,
+          ask: 'keep_listing',
+          sourceId: source.id,
+          store: source.store,
+        },
+      }
+      break
+    }
+  }
+  const invented = inventedAmount(entry.question, known)
+  return invented ? `quotes a price not in the data (${invented})` : message
 }
 
 /** Applies validated actions in one write; returns them with results. */
@@ -1282,27 +1792,20 @@ export async function applyAgentActions(
       `UPDATE price_discovery SET next_attempt_at = ?
        WHERE knife_id = ? AND status <> 'found'`,
     )
-    // A row made only for the watch keeps the default Auto mode.
-    const focus = database.prepare(
-      `INSERT INTO price_watch
-         (knife_id, mode, updated_at, focus_until, focus_interval_ms,
-          focus_reason)
-       VALUES (?, 'auto', ?, ?, ?, ?)
-       ON CONFLICT(knife_id) DO UPDATE SET
-         updated_at = excluded.updated_at,
-         focus_until = excluded.focus_until,
-         focus_interval_ms = excluded.focus_interval_ms,
-         focus_reason = excluded.focus_reason`,
+    // Questions nobody answered close after a week.
+    const expireQuestions = database.prepare(
+      `UPDATE system_messages SET resolved_at = ?, updated_at = ?
+       WHERE kind = 'price-question' AND resolved_at IS NULL
+         AND dismissed_at IS NULL AND answer IS NULL AND created_at < ?`,
     )
-    // A watched knife's next checks come no later than its new interval;
-    // blocked sources keep their bot-check backoff.
-    const pullForward = database.prepare(
-      `UPDATE price_sources SET next_check_at = ?, updated_at = ?
-       WHERE knife_id = ? AND removed_at IS NULL AND enabled = 1
-         AND status <> 'blocked' AND next_check_at > ?`,
-    )
-    return database.transaction(() =>
-      actions.map((action): AgentAction => {
+    const reports: SystemMessageReport[] = []
+    return database.transaction(() => {
+      expireQuestions.run(
+        now,
+        now,
+        new Date(context.now - QUESTION_EXPIRY_DAYS * DAY_MS).toISOString(),
+      )
+      const result = actions.map((action): AgentAction => {
         if (action.status === 'refused') return action
         let changes = 0
         switch (action.kind) {
@@ -1319,21 +1822,20 @@ export async function applyAgentActions(
           case 'pause':
             changes = pause.run(now, action.sourceId).changes
             break
-          case 'watchClosely': {
-            const intervalMs = Math.round((action.everyHours ?? 0) * HOUR_MS)
-            const next = new Date(context.now + intervalMs).toISOString()
-            changes = focus.run(
-              action.knifeId,
-              now,
-              new Date(
-                context.now + (action.hours ?? 0) * HOUR_MS,
-              ).toISOString(),
-              intervalMs,
-              action.reason,
-            ).changes
-            pullForward.run(next, now, action.knifeId, next)
+          case 'watchClosely':
+            changes = startKnifeFocus(
+              database,
+              action.knifeId!,
+              {
+                hours: action.hours ?? 0,
+                everyHours: action.everyHours ?? 0,
+                reason: action.reason,
+              },
+              context.now,
+            )
+              ? 1
+              : 0
             break
-          }
           case 'crossCheck':
             for (const id of action.sourceIds ?? [])
               changes += expedite.run(now, now, id).changes
@@ -1346,12 +1848,35 @@ export async function applyAgentActions(
               status: 'applied',
               note: changes ? null : 'already due, or already found',
             }
+          case 'advise':
+          case 'ask': {
+            if (!action.message)
+              return { ...action, status: 'refused', note: 'no message' }
+            const key = `${action.kind}:${action.knifeId}:${now}`
+            reports.push({
+              kind:
+                action.kind === 'advise' ? 'price-advice' : 'price-question',
+              key,
+              title: action.message.title,
+              detail: action.message.detail,
+              payload: action.message.payload,
+            })
+            return {
+              ...action,
+              status: 'applied',
+              note: null,
+              message: { ...action.message, key },
+            }
+          }
         }
         return changes
           ? { ...action, status: 'applied', note: null }
           : { ...action, status: 'refused', note: 'source changed meanwhile' }
-      }),
-    )()
+      })
+      if (reports.length)
+        writeSystemMessageReports(database, reports, new Date(context.now))
+      return result
+    })()
   })
 }
 

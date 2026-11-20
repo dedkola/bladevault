@@ -145,6 +145,51 @@ export function readKnifeFocus(
   return activeFocus(row, now)
 }
 
+/**
+ * Starts (or replaces) a close watch on a knife and brings its next checks
+ * forward to the new interval; blocked sources keep their bot-check
+ * backoff. Must run inside the caller's vault write. Returns whether the
+ * watch was stored.
+ */
+export function startKnifeFocus(
+  database: Database.Database,
+  knifeId: string,
+  watch: { hours: number; everyHours: number; reason: string },
+  now: number,
+): boolean {
+  const nowIso = new Date(now).toISOString()
+  const intervalMs = Math.round(watch.everyHours * 3_600_000)
+  const next = new Date(now + intervalMs).toISOString()
+  // A row made only for the watch keeps the default Auto mode.
+  const { changes } = database
+    .prepare(
+      `INSERT INTO price_watch
+         (knife_id, mode, updated_at, focus_until, focus_interval_ms,
+          focus_reason)
+       VALUES (?, 'auto', ?, ?, ?, ?)
+       ON CONFLICT(knife_id) DO UPDATE SET
+         updated_at = excluded.updated_at,
+         focus_until = excluded.focus_until,
+         focus_interval_ms = excluded.focus_interval_ms,
+         focus_reason = excluded.focus_reason`,
+    )
+    .run(
+      knifeId,
+      nowIso,
+      new Date(now + watch.hours * 3_600_000).toISOString(),
+      intervalMs,
+      watch.reason,
+    )
+  database
+    .prepare(
+      `UPDATE price_sources SET next_check_at = ?, updated_at = ?
+       WHERE knife_id = ? AND removed_at IS NULL AND enabled = 1
+         AND status <> 'blocked' AND next_check_at > ?`,
+    )
+    .run(next, nowIso, knifeId, next)
+  return changes > 0
+}
+
 function activeFocus(
   row:
     | {

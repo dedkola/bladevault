@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as knivesRoute from '@/app/api/knives/route'
 import * as agentRoute from '@/app/api/prices/agent/route'
 import * as watchRoute from '@/app/api/knives/[id]/price-watch/route'
+import * as messagesRoute from '@/app/api/system-messages/route'
 import { getLocalDb } from '@/lib/local-db'
 import {
   agentModelInput,
@@ -21,6 +22,7 @@ import {
   type PriceAgentMode,
 } from '@/lib/settings-shared'
 import { getStorage } from '@/lib/storage'
+import type { SystemMessage } from '@/lib/system-messages'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 let vault: TempVault
@@ -655,6 +657,201 @@ describe('AI supervisor', () => {
         (candidate) => candidate.sourceId === second,
       )?.focusIntervalMs,
     ).toBeNull()
+  })
+
+  it('leaves advice and questions in the Inbox and acts on the answers', async () => {
+    enableAgent('act')
+    const drop = await createKnife('Drop Bear', 'https://kizer.example/drop')
+    const mini = await createKnife('Mini', 'https://kizer.example/mini')
+    const db = getLocalDb()
+    // Mini also has an Amazon listing that Other stores found.
+    const params = (id: string) => ({ params: Promise.resolve({ id }) })
+    await watchRoute.PUT(
+      new Request(`http://localhost/api/knives/${mini.id}/price-watch`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ add: [{ url: 'https://amazon.com/dp/mini' }] }),
+      }),
+      params(mini.id),
+    )
+    const listing = readActiveSources(db, mini.id)[1].id
+    db.prepare(
+      `INSERT INTO price_discovery
+         (knife_id, store, marketplace, status, source_id, attempts,
+          last_attempt_at)
+       VALUES (?, 'amazon', 'amazon.com', 'found', ?, 1, ?)`,
+    ).run(mini.id, listing, new Date().toISOString())
+    db.prepare(
+      `UPDATE price_sources SET status = 'ok', last_price_minor = 9900,
+         last_currency = 'USD', last_availability = 'in_stock',
+         last_checked_at = ?, next_check_at = ?, priority = 0
+       WHERE knife_id IN (?, ?)`,
+    ).run(
+      new Date().toISOString(),
+      new Date(Date.now() + 3_600_000).toISOString(),
+      drop.id,
+      mini.id,
+    )
+
+    const question = (knifeId: string, patch: Record<string, unknown>) => ({
+      knifeId,
+      question: 'Is that right?',
+      price: null,
+      sourceId: null,
+      hours: null,
+      everyHours: null,
+      ...patch,
+    })
+    aiFetch.mockResolvedValueOnce(
+      planResponse({
+        summary: 'Drop Bear is cheap.',
+        check: [],
+        retryWithAi: [],
+        fetchMode: [],
+        pause: [],
+        searchOtherStore: [],
+        watchClosely: [],
+        crossCheck: [],
+        advise: [
+          {
+            knifeId: drop.id,
+            topic: 'deal',
+            title: 'Drop Bear is 23% below regular',
+            detail: 'Kizer has it for 99.00 USD.',
+          },
+          {
+            knifeId: mini.id,
+            topic: 'deal',
+            title: 'Mini for 49.00 USD',
+            detail: 'Invented.',
+          },
+        ],
+        ask: [
+          question(drop.id, {
+            ask: 'set_target',
+            price: '95.00 USD',
+            question: 'Get an alert when it reaches 95.00 USD?',
+          }),
+          question(mini.id, { ask: 'keep_listing', sourceId: listing }),
+        ],
+      }),
+    )
+    const result = await runPriceAgent({ trigger: 'manual' })
+    expect(
+      result.status === 'done' &&
+        result.run.actions.map((action) => [action.kind, action.note]),
+    ).toEqual([
+      ['advise', null],
+      ['advise', 'quotes a price not in the data (49)'],
+      ['ask', null],
+      ['ask', null],
+    ])
+
+    const listMessages = async () =>
+      (
+        (await (
+          await messagesRoute.GET(
+            new Request('http://localhost/api/system-messages'),
+          )
+        ).json()) as { messages: SystemMessage[] }
+      ).messages
+    const messages = await listMessages()
+    expect(messages.map((message) => [message.kind, message.title])).toEqual([
+      ['price-advice', 'Drop Bear is 23% below regular'],
+      ['price-question', 'Set a 95.00 USD target for Kizer Drop Bear?'],
+      ['price-question', 'Is the amazon.com listing the right Kizer Mini?'],
+    ])
+    const [, target, keep] = messages
+    expect(target.payload).toEqual({
+      type: 'question',
+      knifeId: drop.id,
+      ask: 'set_target',
+      priceMinor: 9500,
+      currency: 'USD',
+    })
+
+    const answer = (id: number, value: string) =>
+      messagesRoute.PATCH(
+        new Request('http://localhost/api/system-messages', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'answer', id, answer: value }),
+        }),
+      )
+    const yes = await answer(target.id, 'yes')
+    expect(yes.status).toBe(200)
+    const view = await watchRoute.GET(
+      new Request(`http://localhost/api/knives/${drop.id}/price-watch`),
+      params(drop.id),
+    )
+    expect(
+      ((await view.json()) as { watch: { alerts: { targetPrice: unknown } } })
+        .watch.alerts.targetPrice,
+    ).toEqual({ minor: 9500, currency: 'USD' })
+    const again = await answer(target.id, 'no')
+    expect(again.status).toBe(409)
+    expect(((await again.json()) as { error: string }).error).toBe(
+      'This question was already answered.',
+    )
+
+    expect((await answer(keep.id, 'no')).status).toBe(200)
+    expect(row(listing).enabled).toBe(0)
+    expect(row(mini.source.id).enabled).toBe(1)
+
+    // The next run sees what came of its notes and questions.
+    const snapshot = buildAgentSnapshot({
+      database: db,
+      settings: getSettings().priceMonitoring,
+      mode: 'act',
+      now: Date.now(),
+    })
+    expect(snapshot.inbox.questions).toEqual(
+      expect.arrayContaining([
+        { knifeId: drop.id, ask: 'set_target', daysAgo: 0, status: 'yes' },
+        { knifeId: mini.id, ask: 'keep_listing', daysAgo: 0, status: 'no' },
+      ]),
+    )
+    expect(snapshot.inbox.advice).toEqual([
+      { knifeId: drop.id, topic: 'deal', hoursAgo: 0, status: 'unread' },
+    ])
+    expect(
+      snapshot.recentRuns[0].actions.map((action) => action.outcome),
+    ).toEqual(['unread', undefined, 'answered yes', 'answered no'])
+
+    // A week without an answer closes a question on the next Act run.
+    db.prepare(
+      `UPDATE system_messages SET created_at = ?, resolved_at = NULL,
+         answer = NULL
+       WHERE id = ?`,
+    ).run(new Date(Date.now() - 8 * 86_400_000).toISOString(), keep.id)
+    aiFetch.mockResolvedValueOnce(planResponse({ summary: 'Quiet.' }))
+    await runPriceAgent({ trigger: 'manual' })
+    const expired = (await listMessages()).find((row) => row.id === keep.id)
+    expect(expired).toMatchObject({
+      answer: null,
+      resolvedAt: expect.any(String),
+    })
+
+    // Observe only proposes: nothing new in the Inbox.
+    enableAgent('observe')
+    aiFetch.mockResolvedValueOnce(
+      planResponse({
+        summary: '',
+        advise: [
+          {
+            knifeId: mini.id,
+            topic: 'restock',
+            title: 'Mini is in stock',
+            detail: '',
+          },
+        ],
+      }),
+    )
+    const observed = await runPriceAgent({ trigger: 'manual' })
+    expect(observed.status === 'done' && observed.run.actions).toEqual([
+      expect.objectContaining({ kind: 'advise', status: 'proposed' }),
+    ])
+    expect(await listMessages()).toHaveLength(3)
   })
 
   it('serves knife labels, blocked stores and switches the mode', async () => {

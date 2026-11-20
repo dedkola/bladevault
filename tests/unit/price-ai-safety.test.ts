@@ -435,6 +435,8 @@ describe('supervisor answers', () => {
     const actions = validateAgentPlan(
       {
         summary: '',
+        advise: [],
+        ask: [],
         watchClosely: [],
         crossCheck: [],
         check: [],
@@ -463,6 +465,8 @@ describe('supervisor answers', () => {
     const actions = validateAgentPlan(
       {
         summary: '',
+        advise: [],
+        ask: [],
         watchClosely: [],
         crossCheck: [],
         check: [

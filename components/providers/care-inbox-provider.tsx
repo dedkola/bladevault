@@ -39,6 +39,7 @@ import {
   type PriceNotificationBox,
   type PriceNotificationView,
 } from '@/lib/price-monitor/notifications'
+import { announcePriceDataUpdated } from '@/lib/market-status'
 import { hasServerRuntime } from '@/lib/runtime-capabilities'
 import type { MaintenanceEventInput } from '@/lib/data'
 import type { CareTrack } from '@/lib/settings-shared'
@@ -296,8 +297,15 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
           body: JSON.stringify(action),
         }),
       )
+      // An answered AI question may have set a target or started a watch.
+      if (action.action === 'answer') announcePriceDataUpdated()
     } catch (error) {
       setSystemMessages(previous)
+      // A question that no longer applies is closed on the server.
+      if (action.action === 'answer')
+        requestSystemMessages()
+          .then(setSystemMessages)
+          .catch(() => {})
       throw error
     }
   }, [])

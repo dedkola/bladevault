@@ -7,6 +7,7 @@ import {
   parseSystemMessageAction,
   planSystemMessageReport,
   planSystemMessageResolve,
+  readPriceAgentNote,
   sortSystemMessages,
   type SystemMessage,
 } from '@/lib/system-messages'
@@ -182,5 +183,101 @@ describe('keyed system messages', () => {
 
     const resolve = planSystemMessageResolve([keyed], 'achievement', now)
     expect(resolve.update).toEqual([])
+  })
+})
+
+describe('AI supervisor questions', () => {
+  const question = message({
+    id: 7,
+    kind: 'price-question',
+    key: 'ask:k1:2026-11-18T09:00:00.000Z',
+    title: 'Set a 95.00 USD target for Kizer Drop Bear?',
+    detail: 'It sold for 95.00 USD twice this year.',
+    payload: {
+      type: 'question',
+      knifeId: 'k1',
+      ask: 'set_target',
+      priceMinor: 9500,
+      currency: 'USD',
+    },
+    answer: null,
+  })
+
+  it('closes a question for good with its answer', () => {
+    const [answered] = applySystemMessageAction(
+      [question],
+      { action: 'answer', id: 7, answer: 'yes' },
+      now,
+    )
+    expect(answered).toMatchObject({
+      answer: 'yes',
+      resolvedAt: now.toISOString(),
+      readAt: now.toISOString(),
+      dismissedAt: null,
+    })
+    expect(getSystemMessageBox(answered)).toBe('done')
+    // Answered, dismissed or not a question: nothing to answer.
+    for (const row of [
+      answered,
+      { ...question, dismissedAt: now.toISOString() },
+      message({ id: 7 }),
+    ])
+      expect(
+        applySystemMessageAction(
+          [row],
+          { action: 'answer', id: 7, answer: 'no' },
+          now,
+        ),
+      ).toEqual([])
+  })
+
+  it('validates answers and stored payloads', () => {
+    expect(
+      parseSystemMessageAction({ action: 'answer', id: 7, answer: 'no' }),
+    ).toEqual({ action: 'answer', id: 7, answer: 'no' })
+    expect(() =>
+      parseSystemMessageAction({ action: 'answer', id: 7, answer: 'maybe' }),
+    ).toThrow('answer must be yes or no')
+    expect(() =>
+      parseSystemMessageAction({ action: 'answer', id: 0, answer: 'yes' }),
+    ).toThrow('id must be a message id')
+
+    expect(readPriceAgentNote(question.payload)).toEqual(question.payload)
+    expect(
+      readPriceAgentNote({ type: 'advice', knifeId: 'k1', topic: 'deal' }),
+    ).toEqual({ type: 'advice', knifeId: 'k1', topic: 'deal' })
+    for (const bad of [
+      null,
+      { type: 'advice', knifeId: 'k1', topic: 'gossip' },
+      { type: 'question', knifeId: 'k1', ask: 'set_target', priceMinor: -1 },
+      {
+        type: 'question',
+        knifeId: 'k1',
+        ask: 'set_target',
+        priceMinor: 9500,
+        currency: 'usd',
+      },
+      { type: 'question', knifeId: '', ask: 'watch_closely', hours: 1 },
+      { type: 'question', knifeId: 'k1', ask: 'keep_listing', sourceId: 2.5 },
+    ])
+      expect(readPriceAgentNote(bad)).toBeNull()
+  })
+
+  it('stores the payload of a new report', () => {
+    const changes = planSystemMessageReport(
+      [],
+      {
+        kind: 'price-advice',
+        key: 'advise:k1:now',
+        title: 'Kizer Drop Bear is at its 90-day low',
+        detail: '99.00 USD at Kizer.',
+        payload: { type: 'advice', knifeId: 'k1', topic: 'deal' },
+      },
+      now,
+    )
+    expect(changes.create[0]).toMatchObject({
+      payload: { type: 'advice', knifeId: 'k1', topic: 'deal' },
+      answer: null,
+    })
   })
 })

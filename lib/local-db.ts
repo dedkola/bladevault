@@ -1074,6 +1074,10 @@ function migratePriceMonitoringSchema(
   addColumn('price_watch', 'focus_until', 'TEXT')
   addColumn('price_watch', 'focus_interval_ms', 'INTEGER')
   addColumn('price_watch', 'focus_reason', 'TEXT')
+  // AI supervisor advice and questions in the Inbox: what a message is
+  // about (JSON) and the collector's Yes or No.
+  addColumn('system_messages', 'payload', 'TEXT')
+  addColumn('system_messages', 'answer', 'TEXT')
 }
 
 function normalizeKnifeRows(database: Database.Database) {

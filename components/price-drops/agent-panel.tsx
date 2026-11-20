@@ -300,6 +300,8 @@ const KIND_SUMMARY: Record<AgentAction['kind'], [string, string]> = {
   searchOtherStore: ['other-store search', 'other-store searches'],
   watchClosely: ['knife watched closely', 'knives watched closely'],
   crossCheck: ['knife cross-checked', 'knives cross-checked'],
+  advise: ['note to the Inbox', 'notes to the Inbox'],
+  ask: ['question in the Inbox', 'questions in the Inbox'],
 }
 
 /** A: the strip above Monitoring status. */
@@ -489,6 +491,8 @@ const ACTION_LABEL: Record<AgentAction['kind'], string> = {
   searchOtherStore: 'Other stores',
   watchClosely: 'Watch closely',
   crossCheck: 'Cross-check',
+  advise: 'Advice',
+  ask: 'Question',
 }
 
 /** Groups of this size or more collapse into one expandable row. */
@@ -661,6 +665,11 @@ function RunActions({
                 <span className="text-muted-foreground">
                   {' '}
                   (every {row.action.everyHours} h for {row.action.hours} h)
+                </span>
+              ) : null}
+              {row.action.message ? (
+                <span className="block text-muted-foreground">
+                  {row.action.message.title}
                 </span>
               ) : null}
             </td>

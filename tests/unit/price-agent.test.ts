@@ -4,12 +4,16 @@ import {
   AGENT_INTERVAL_UNLIMITED_MS,
   AGENT_LIMITS,
   agentDue,
+  quotedAmounts,
   readAgentPlan,
   validateAgentPlan,
+  type AgentInbox,
   type AgentKnife,
+  type AgentPlan,
   type AgentSource,
 } from '@/lib/price-monitor/agent'
 import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
+import type { PriceAdviceTopic } from '@/lib/system-messages'
 
 const NOW = Date.UTC(2026, 10, 19, 12)
 
@@ -118,6 +122,8 @@ describe('validateAgentPlan', () => {
     const actions = validateAgentPlan(
       {
         summary: '',
+        advise: [],
+        ask: [],
         watchClosely: [],
         crossCheck: [],
         check: [1, 2, 3, 4, 99, 1].map((sourceId) => ({
@@ -173,6 +179,8 @@ describe('validateAgentPlan', () => {
     const off = validateAgentPlan(
       {
         summary: '',
+        advise: [],
+        ask: [],
         watchClosely: [],
         crossCheck: [],
         check: [],
@@ -199,6 +207,8 @@ describe('validateAgentPlan', () => {
     const actions = validateAgentPlan(
       {
         summary: '',
+        advise: [],
+        ask: [],
         watchClosely: [],
         crossCheck: [],
         check: [
@@ -258,6 +268,8 @@ describe('watchClosely and crossCheck', () => {
   it('clamps a watch to 72 hours and at least hourly checks', () => {
     const plan = readAgentPlan({
       summary: '',
+      advise: [],
+      ask: [],
       watchClosely: [
         { knifeId: 'k1', hours: 500, everyHours: 0.1, reason: 'drop' },
         { knifeId: 'k2', hours: 'x', everyHours: 2 },
@@ -274,6 +286,8 @@ describe('watchClosely and crossCheck', () => {
   it('refuses watches that change nothing or go too far', () => {
     const empty = {
       summary: '',
+      advise: [],
+      ask: [],
       check: [],
       retryWithAi: [],
       fetchMode: [],
@@ -355,6 +369,8 @@ describe('watchClosely and crossCheck', () => {
     const actions = validateAgentPlan(
       {
         summary: '',
+        advise: [],
+        ask: [],
         check: [],
         retryWithAi: [],
         fetchMode: [],
@@ -392,6 +408,290 @@ describe('watchClosely and crossCheck', () => {
       ['k1', [1], null],
       ['k2', [], 'no source to read now'],
       ['nope', [], 'unknown knife'],
+    ])
+  })
+})
+
+describe('advise and ask', () => {
+  const empty: AgentPlan = {
+    summary: '',
+    check: [],
+    retryWithAi: [],
+    fetchMode: [],
+    pause: [],
+    searchOtherStore: [],
+    watchClosely: [],
+    crossCheck: [],
+    advise: [],
+    ask: [],
+  }
+  const snapshot = (inbox?: AgentInbox) => ({
+    sources: [
+      source({ id: 1, knifeId: 'k1', price: '99.00 USD' }),
+      source({ id: 2, knifeId: 'k1', store: 'amazon.com', foundByAi: true }),
+      source({ id: 3, knifeId: 'k2', knife: 'Begleiter' }),
+    ],
+    knives: [
+      knife({ knifeId: 'k1' }),
+      knife({ knifeId: 'k2', knife: 'Begleiter', muted: true }),
+      knife({ knifeId: 'k3', knife: 'Mini', regular: '80.00 EUR' }),
+    ],
+    ai,
+    otherStores: false,
+    checkIntervalHours: 6,
+    inbox,
+  })
+  const advice = (
+    knifeId: string,
+    detail: string,
+    topic: PriceAdviceTopic = 'deal',
+  ) => ({
+    knifeId,
+    topic,
+    title: 'Drop Bear at its 90-day low',
+    detail,
+  })
+
+  it('finds the amounts a text quotes', () => {
+    expect(
+      quotedAmounts('Now $99, was 129.00 USD (1,299.50 JPY), 23% off'),
+    ).toEqual([99, 129, 1299.5])
+    expect(quotedAmounts('Watch it for 72 hours')).toEqual([])
+  })
+
+  it('posts advice only with prices from the data, and not too often', () => {
+    const actions = validateAgentPlan(
+      {
+        ...empty,
+        advise: [
+          advice('k1', 'Kizer has it at 99.00 USD, 23% below regular.'),
+          advice('k2', 'Begleiter dropped.'),
+          advice('k3', 'Mini is down to 59.99 EUR.'),
+          advice('nope', ''),
+        ],
+      },
+      snapshot(),
+    )
+    expect(actions.map((action) => [action.knifeId, action.note])).toEqual([
+      ['k1', null],
+      ['k2', 'notifications for this knife are muted'],
+      ['k3', 'quotes a price not in the data (59.99)'],
+      ['nope', 'unknown knife'],
+    ])
+    expect(actions[0].message).toEqual({
+      title: 'Drop Bear at its 90-day low',
+      detail: 'Kizer has it at 99.00 USD, 23% below regular.',
+      payload: { type: 'advice', knifeId: 'k1', topic: 'deal' },
+    })
+
+    const recent = validateAgentPlan(
+      {
+        ...empty,
+        advise: [
+          advice('k1', 'See https://kizer.example', 'watch'),
+          advice('k1', 'Again.', 'deal'),
+          advice('k3', 'Mini is back.', 'restock'),
+        ],
+      },
+      snapshot({
+        advice: [
+          { knifeId: 'k1', topic: 'deal', hoursAgo: 30, status: 'read' },
+          ...Array.from({ length: 5 }, () => ({
+            knifeId: 'x',
+            topic: 'watch' as const,
+            hoursAgo: 2,
+            status: 'unread' as const,
+          })),
+        ],
+        questions: [],
+      }),
+    )
+    expect(recent.map((action) => action.note)).toEqual([
+      'links are not allowed',
+      'asked twice',
+      // Five today, plus none accepted in this run: the sixth is the cap.
+      null,
+    ])
+    const capped = validateAgentPlan(
+      { ...empty, advise: [advice('k3', 'Mini is back.', 'restock')] },
+      snapshot({
+        advice: Array.from({ length: 6 }, () => ({
+          knifeId: 'x',
+          topic: 'watch' as const,
+          hoursAgo: 2,
+          status: 'unread' as const,
+        })),
+        questions: [],
+      }),
+    )
+    expect(capped[0].note).toBe('already 6 notes today')
+    const repeated = validateAgentPlan(
+      { ...empty, advise: [advice('k1', 'Kizer has it at 99.00 USD.')] },
+      snapshot({
+        advice: [
+          { knifeId: 'k1', topic: 'deal', hoursAgo: 30, status: 'read' },
+        ],
+        questions: [],
+      }),
+    )
+    expect(repeated[0].note).toBe('same advice in the last 3 days')
+  })
+
+  it('asks only answerable questions, one per knife', () => {
+    const ask = (patch: Partial<AgentPlan['ask'][number]>) => ({
+      knifeId: 'k1',
+      ask: 'set_target' as const,
+      question: 'Alert me at this price?',
+      price: null,
+      sourceId: null,
+      hours: null,
+      everyHours: null,
+      ...patch,
+    })
+    const actions = validateAgentPlan(
+      {
+        ...empty,
+        ask: [
+          ask({ price: '95.00 EUR' }),
+          ask({ knifeId: 'k3', price: 'cheap' }),
+          ask({ knifeId: 'k3', ask: 'keep_listing', sourceId: 1 }),
+        ],
+      },
+      snapshot(),
+    )
+    expect(actions.map((action) => action.note)).toEqual([
+      "not in the knife's currency (USD)",
+      'no valid price',
+      'asked twice',
+    ])
+
+    const ok = validateAgentPlan(
+      {
+        ...empty,
+        ask: [
+          ask({
+            price: '95.00 USD',
+            question: 'It sold for 95.00 USD before.',
+          }),
+          ask({ knifeId: 'k3', ask: 'keep_listing', sourceId: 2 }),
+        ],
+      },
+      snapshot(),
+    )
+    expect(ok.map((action) => action.note)).toEqual([
+      null,
+      'unknown source for this knife',
+    ])
+    expect(ok[0].message).toEqual({
+      title: 'Set a 95.00 USD target for Kizer Drop Bear?',
+      detail: 'It sold for 95.00 USD before.',
+      payload: {
+        type: 'question',
+        knifeId: 'k1',
+        ask: 'set_target',
+        priceMinor: 9500,
+        currency: 'USD',
+      },
+    })
+
+    const listing = validateAgentPlan(
+      {
+        ...empty,
+        ask: [
+          ask({ ask: 'keep_listing', sourceId: 1 }),
+          ask({
+            knifeId: 'k3',
+            ask: 'watch_closely',
+            hours: 24,
+            everyHours: 2,
+          }),
+        ],
+      },
+      snapshot(),
+    )
+    expect(listing.map((action) => action.note)).toEqual([
+      'only for listings Other stores found',
+      // k3 has no source in the snapshot.
+      'no monitored source',
+    ])
+    const found = validateAgentPlan(
+      { ...empty, ask: [ask({ ask: 'keep_listing', sourceId: 2 })] },
+      snapshot(),
+    )
+    expect(found[0].message?.payload).toEqual({
+      type: 'question',
+      knifeId: 'k1',
+      ask: 'keep_listing',
+      sourceId: 2,
+      store: 'amazon.com',
+    })
+
+    const waiting = validateAgentPlan(
+      {
+        ...empty,
+        ask: [
+          ask({ price: '95.00 USD' }),
+          ask({ knifeId: 'k3', ask: 'watch_closely', hours: 5, everyHours: 1 }),
+        ],
+      },
+      snapshot({
+        advice: [],
+        questions: [
+          { knifeId: 'k1', ask: 'watch_closely', daysAgo: 1, status: 'open' },
+          { knifeId: 'a', ask: 'set_target', daysAgo: 1, status: 'open' },
+          { knifeId: 'b', ask: 'set_target', daysAgo: 1, status: 'open' },
+        ],
+      }),
+    )
+    expect(waiting.map((action) => action.note)).toEqual([
+      'a question about this knife is waiting',
+      'already 3 open questions',
+    ])
+    const answered = validateAgentPlan(
+      { ...empty, ask: [ask({ price: '95.00 USD' })] },
+      snapshot({
+        advice: [],
+        questions: [
+          { knifeId: 'k1', ask: 'set_target', daysAgo: 12, status: 'no' },
+        ],
+      }),
+    )
+    expect(answered[0].note).toBe('asked the same in the last 30 days')
+  })
+
+  it('reads advise and ask items, dropping malformed ones', () => {
+    const plan = readAgentPlan({
+      advise: [
+        { knifeId: 'k1', topic: 'deal', title: ' Low ', detail: 'x' },
+        { knifeId: 'k1', topic: 'gossip', title: 'Hi', detail: '' },
+        { knifeId: 'k1', topic: 'deal', title: '', detail: 'no title' },
+      ],
+      ask: [
+        {
+          knifeId: 'k1',
+          ask: 'watch_closely',
+          question: 'Watch?',
+          price: null,
+          sourceId: null,
+          hours: 900,
+          everyHours: 0,
+        },
+        { knifeId: 'k1', ask: 'sell_it', question: 'Sell?' },
+      ],
+    })
+    expect(plan.advise).toEqual([
+      { knifeId: 'k1', topic: 'deal', title: 'Low', detail: 'x' },
+    ])
+    expect(plan.ask).toEqual([
+      {
+        knifeId: 'k1',
+        ask: 'watch_closely',
+        question: 'Watch?',
+        price: null,
+        sourceId: null,
+        hours: 72,
+        everyHours: 1,
+      },
     ])
   })
 })

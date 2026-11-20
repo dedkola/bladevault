@@ -4,6 +4,7 @@ import { withVaultWrite } from '@/lib/vault-access'
 import {
   applySystemMessageAction,
   isSystemMessageKind,
+  mergeSystemMessageChanges,
   planSystemMessageReport,
   planSystemMessageResolve,
   type SystemMessage,
@@ -11,6 +12,7 @@ import {
   type SystemMessageChanges,
   type SystemMessageKind,
   type SystemMessageReport,
+  readPriceAgentNote,
 } from '@/lib/system-messages'
 
 type SystemMessageRow = {
@@ -26,9 +28,22 @@ type SystemMessageRow = {
   read_at: string | null
   dismissed_at: string | null
   resolved_at: string | null
+  payload: string | null
+  answer: string | null
 }
 
-function readSystemMessages(database: Database.Database): SystemMessage[] {
+function readPayload(value: string | null) {
+  if (!value) return null
+  try {
+    return readPriceAgentNote(JSON.parse(value))
+  } catch {
+    return null
+  }
+}
+
+export function readSystemMessages(
+  database: Database.Database,
+): SystemMessage[] {
   const rows = database
     .prepare('SELECT * FROM system_messages ORDER BY id')
     .all() as SystemMessageRow[]
@@ -48,6 +63,9 @@ function readSystemMessages(database: Database.Database): SystemMessage[] {
             readAt: row.read_at,
             dismissedAt: row.dismissed_at,
             resolvedAt: row.resolved_at,
+            payload: readPayload(row.payload),
+            answer:
+              row.answer === 'yes' || row.answer === 'no' ? row.answer : null,
           },
         ]
       : [],
@@ -70,13 +88,14 @@ function writeSystemMessageChanges(
   const insert = database.prepare(
     `INSERT INTO system_messages
        (kind, dedupe_key, title, detail, occurrences, occurred_at, created_at,
-        updated_at, read_at, dismissed_at, resolved_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        updated_at, read_at, dismissed_at, resolved_at, payload, answer)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
   const update = database.prepare(
     `UPDATE system_messages
      SET title = ?, detail = ?, occurrences = ?, occurred_at = ?,
-         updated_at = ?, read_at = ?, dismissed_at = ?, resolved_at = ?
+         updated_at = ?, read_at = ?, dismissed_at = ?, resolved_at = ?,
+         answer = ?
      WHERE id = ?`,
   )
   const remove = database.prepare('DELETE FROM system_messages WHERE id = ?')
@@ -93,6 +112,8 @@ function writeSystemMessageChanges(
       row.readAt,
       row.dismissedAt,
       row.resolvedAt,
+      row.payload ? JSON.stringify(row.payload) : null,
+      row.answer ?? null,
     )
   }
   for (const row of changes.update) {
@@ -105,6 +126,7 @@ function writeSystemMessageChanges(
       row.readAt,
       row.dismissedAt,
       row.resolvedAt,
+      row.answer ?? null,
       row.id,
     )
   }
@@ -127,6 +149,28 @@ async function writePlanned(
   })
 }
 
+/**
+ * Records several reports inside the caller's vault write and transaction,
+ * e.g. the AI supervisor's notes of one run.
+ */
+export function writeSystemMessageReports(
+  database: Database.Database,
+  reports: readonly SystemMessageReport[],
+  now: Date,
+) {
+  let list = readSystemMessages(database)
+  const all: SystemMessageChanges = { create: [], update: [], deleteIds: [] }
+  for (const report of reports) {
+    const changes = planSystemMessageReport(list, report, now)
+    list = mergeSystemMessageChanges(list, changes)
+    all.create.push(...changes.create)
+    all.update.push(...changes.update)
+    for (const id of changes.deleteIds)
+      if (!all.deleteIds.includes(id)) all.deleteIds.push(id)
+  }
+  writeSystemMessageChanges(database, all)
+}
+
 export async function getSystemMessages(): Promise<SystemMessage[]> {
   return readSystemMessages(getLocalDb())
 }
@@ -147,6 +191,21 @@ export async function resolveSystemMessages(
   return writePlanned((existing) =>
     planSystemMessageResolve(existing, kind, now),
   )
+}
+
+/** Closes one message for good, e.g. a question that no longer applies. */
+export async function resolveSystemMessage(
+  id: number,
+  now: Date = new Date(),
+): Promise<SystemMessage[]> {
+  const nowIso = now.toISOString()
+  return writePlanned((existing) => ({
+    create: [],
+    update: existing
+      .filter((row) => row.id === id && !row.resolvedAt)
+      .map((row) => ({ ...row, resolvedAt: nowIso, updatedAt: nowIso })),
+    deleteIds: [],
+  }))
 }
 
 export async function updateSystemMessages(

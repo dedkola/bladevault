@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { withVaultMutationRequest } from '@/lib/vault-mutation-request'
 import { reportServerError } from '@/lib/sentry/server'
+import { vaultAccessErrorResponse } from '@/lib/vault-access'
+import {
+  answerPriceQuestion,
+  PriceQuestionError,
+} from '@/lib/price-monitor/agent-inbox'
 import { parseSystemMessageAction } from '@/lib/system-messages'
 import {
   getSystemMessages,
@@ -22,7 +27,10 @@ export async function GET(request: Request) {
   }
 }
 
-/** Marks system messages read, dismisses or restores them. */
+/**
+ * Marks system messages read, dismisses or restores them, and answers AI
+ * supervisor questions (which acts on the knife first).
+ */
 export async function PATCH(request: Request) {
   return withVaultMutationRequest(request, async () => {
     const locked = requireAppUnlock(request)
@@ -37,8 +45,19 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: message }, { status: 400 })
     }
     try {
-      return NextResponse.json({ messages: await updateSystemMessages(action) })
+      const messages =
+        action.action === 'answer'
+          ? await answerPriceQuestion(action.id, action.answer)
+          : await updateSystemMessages(action)
+      return NextResponse.json({ messages })
     } catch (error) {
+      if (error instanceof PriceQuestionError)
+        return NextResponse.json(
+          { error: error.message },
+          { status: error.status },
+        )
+      const vaultResponse = vaultAccessErrorResponse(error)
+      if (vaultResponse) return vaultResponse
       reportServerError(error, '/api/system-messages')
       const message = error instanceof Error ? error.message : 'Unknown error'
       return NextResponse.json({ error: message }, { status: 500 })

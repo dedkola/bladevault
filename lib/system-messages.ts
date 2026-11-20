@@ -11,7 +11,55 @@ export type SystemMessageKind =
   | 'price-digest'
   /** An unlocked achievement; one message per badge, keyed by its id. */
   | 'achievement'
+  /** Advice from the AI price supervisor about one knife. */
+  | 'price-advice'
+  /** A yes/no question from the AI price supervisor about one knife. */
+  | 'price-question'
 export type SystemMessageBox = 'open' | 'done'
+
+export type PriceAdviceTopic = 'deal' | 'restock' | 'watch'
+export const PRICE_ADVICE_TOPICS: readonly PriceAdviceTopic[] = [
+  'deal',
+  'restock',
+  'watch',
+]
+export type PriceQuestionAsk = 'set_target' | 'watch_closely' | 'keep_listing'
+export const PRICE_QUESTION_ASKS: readonly PriceQuestionAsk[] = [
+  'set_target',
+  'watch_closely',
+  'keep_listing',
+]
+export type SystemMessageAnswer = 'yes' | 'no'
+
+/**
+ * What an AI supervisor message is about. For a question it is also what
+ * Yes (or, for keep_listing, No) does.
+ */
+export type PriceAgentNote =
+  | { type: 'advice'; knifeId: string; topic: PriceAdviceTopic }
+  | {
+      type: 'question'
+      knifeId: string
+      ask: 'set_target'
+      /** The suggested target price in minor units. */
+      priceMinor: number
+      currency: string
+    }
+  | {
+      type: 'question'
+      knifeId: string
+      ask: 'watch_closely'
+      hours: number
+      everyHours: number
+    }
+  | {
+      type: 'question'
+      knifeId: string
+      ask: 'keep_listing'
+      /** A listing Other stores found; No pauses it. */
+      sourceId: number
+      store: string
+    }
 
 export type SystemMessage = {
   id: number
@@ -33,17 +81,24 @@ export type SystemMessage = {
   dismissedAt: string | null
   /** Set when the problem went away on its own, e.g. a later backup worked. */
   resolvedAt: string | null
+  /** AI supervisor messages: the knife they are about, and what Yes does. */
+  payload?: PriceAgentNote | null
+  /** A question's answer; set when answered (the message is then resolved). */
+  answer?: SystemMessageAnswer | null
 }
 
 export type SystemMessageAction =
   | { action: 'read' | 'dismiss' | 'restore'; ids: number[] }
   | { action: 'read-all' }
+  | { action: 'answer'; id: number; answer: SystemMessageAnswer }
 
 export const SYSTEM_MESSAGE_KINDS: readonly SystemMessageKind[] = [
   'backup-failed',
   'price-attention',
   'price-digest',
   'achievement',
+  'price-advice',
+  'price-question',
 ]
 export const SYSTEM_MESSAGE_RETENTION_DAYS = 90
 
@@ -57,6 +112,71 @@ export function isSystemMessageKind(
   value: unknown,
 ): value is SystemMessageKind {
   return (SYSTEM_MESSAGE_KINDS as readonly unknown[]).includes(value)
+}
+
+const positive = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0
+
+/** A stored AI supervisor payload, or null when it is not one. */
+export function readPriceAgentNote(value: unknown): PriceAgentNote | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const note = value as Record<string, unknown>
+  if (typeof note.knifeId !== 'string' || !note.knifeId) return null
+  const knifeId = note.knifeId
+  if (note.type === 'advice')
+    return (PRICE_ADVICE_TOPICS as readonly unknown[]).includes(note.topic)
+      ? { type: 'advice', knifeId, topic: note.topic as PriceAdviceTopic }
+      : null
+  if (note.type !== 'question') return null
+  switch (note.ask) {
+    case 'set_target':
+      return Number.isSafeInteger(note.priceMinor) &&
+        positive(note.priceMinor) &&
+        typeof note.currency === 'string' &&
+        /^[A-Z]{3}$/.test(note.currency)
+        ? {
+            type: 'question',
+            knifeId,
+            ask: 'set_target',
+            priceMinor: note.priceMinor,
+            currency: note.currency,
+          }
+        : null
+    case 'watch_closely':
+      return positive(note.hours) && positive(note.everyHours)
+        ? {
+            type: 'question',
+            knifeId,
+            ask: 'watch_closely',
+            hours: note.hours,
+            everyHours: note.everyHours,
+          }
+        : null
+    case 'keep_listing':
+      return Number.isSafeInteger(note.sourceId) &&
+        positive(note.sourceId) &&
+        typeof note.store === 'string'
+        ? {
+            type: 'question',
+            knifeId,
+            ask: 'keep_listing',
+            sourceId: note.sourceId,
+            store: note.store,
+          }
+        : null
+    default:
+      return null
+  }
+}
+
+/** An open AI question that still waits for Yes or No. */
+export function isOpenPriceQuestion(message: SystemMessage): boolean {
+  return (
+    message.kind === 'price-question' &&
+    getSystemMessageBox(message) === 'open' &&
+    !message.answer &&
+    message.payload?.type === 'question'
+  )
 }
 
 export function getSystemMessageBox(message: SystemMessage): SystemMessageBox {
@@ -101,6 +221,7 @@ export type SystemMessageReport = {
   key?: string
   title: string
   detail: string
+  payload?: PriceAgentNote
 }
 
 export type SystemMessageChanges = {
@@ -166,6 +287,8 @@ export function planSystemMessageReport(
         readAt: null,
         dismissedAt: null,
         resolvedAt: null,
+        payload: report.payload ?? null,
+        answer: null,
       },
     ],
     update: [],
@@ -200,6 +323,18 @@ export function applySystemMessageAction(
     return existing
       .filter(isSystemMessageUnread)
       .map((row) => ({ ...row, readAt: nowIso, updatedAt: nowIso }))
+  }
+  if (request.action === 'answer') {
+    // Answered questions close for good: no Move back to inbox.
+    return existing
+      .filter((row) => row.id === request.id && isOpenPriceQuestion(row))
+      .map((row) => ({
+        ...row,
+        answer: request.answer,
+        readAt: row.readAt ?? nowIso,
+        resolvedAt: nowIso,
+        updatedAt: nowIso,
+      }))
   }
   const ids = new Set(request.ids)
   const changed: SystemMessage[] = []
@@ -244,10 +379,16 @@ export function parseSystemMessageAction(body: unknown): SystemMessageAction {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     throw new Error('Request body must be an object')
   }
-  const { action, ids } = body as Record<string, unknown>
+  const { action, ids, id, answer } = body as Record<string, unknown>
   switch (action) {
     case 'read-all':
       return { action }
+    case 'answer':
+      if (!Number.isSafeInteger(id) || (id as number) <= 0)
+        throw new Error('id must be a message id')
+      if (answer !== 'yes' && answer !== 'no')
+        throw new Error('answer must be yes or no')
+      return { action, id: id as number, answer }
     case 'read':
     case 'dismiss':
     case 'restore':
