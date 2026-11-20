@@ -105,13 +105,14 @@
   --sidebar-border: #d3c097;
   --sidebar-ring: #c89c3d;
   /* Price meaning on Price Drops, the Inbox and the Market tab. A drop is
-     good news, a rise a warning, stock its own tone, attention needs you and
-     neutral means no change. Solid fills carry --price-on-solid text. */
+     good news, a rise a warning, stock its own tone, a restock its own too,
+     attention needs you and neutral means no change. Solid fills carry --price-on-solid text. */
   --price-drop: #4a7a2c;
   --price-rise: #b44d36;
   --price-stock: #9a6510;
   --price-attention: #5a5444;
   --price-neutral: #a39a82;
+  --price-restock: #2f6fa8;
   --price-on-solid: #ffffff;
 }
 
@@ -167,6 +168,7 @@
   --price-stock: #e0b05a;
   --price-attention: #c2b58e;
   --price-neutral: #7d745f;
+  --price-restock: #7fb0e0;
   --price-on-solid: #141414;
 }
 
@@ -243,6 +245,7 @@ html[data-theme-style='modern'] {
   --price-stock: #b25f00;
   --price-attention: #52525b;
   --price-neutral: #8e8e93;
+  --price-restock: #0a66c2;
 }
 
 html[data-theme-style='modern'].dark {
@@ -302,6 +305,7 @@ html[data-theme-style='modern'].dark {
   --price-stock: #ff9f0a;
   --price-attention: #a1a1aa;
   --price-neutral: #636366;
+  --price-restock: #64a8ff;
 }
 
 html:is([data-theme-style='modern'], [data-theme-style='alloy']) .page-title {

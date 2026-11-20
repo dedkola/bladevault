@@ -74,6 +74,7 @@ html[data-theme-style='alloy'] {
   --price-stock: #9a6a14;
   --price-attention: #57534b;
   --price-neutral: #9a958b;
+  --price-restock: #3a6a9a;
 }
 
 html[data-theme-style='alloy'].dark {
@@ -137,6 +138,7 @@ html[data-theme-style='alloy'].dark {
   --price-stock: #e6b65c;
   --price-attention: #b8b1a4;
   --price-neutral: #6f6a60;
+  --price-restock: #8fb8e0;
 }
 
 /* Porcelain surfaces keep the light appearance distinct from the dark shell. */

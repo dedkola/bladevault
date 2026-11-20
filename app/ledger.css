@@ -139,6 +139,7 @@ html[data-theme-variant='ledger'] {
   --price-stock: #9a6410;
   --price-attention: #4f5c54;
   --price-neutral: #97a39a;
+  --price-restock: #2f6a9a;
 }
 
 html[data-theme-variant='ledger'].dark {
@@ -255,6 +256,7 @@ html[data-theme-variant='ledger'].dark {
   --price-stock: #e3b25e;
   --price-attention: #8d9d92;
   --price-neutral: #56635a;
+  --price-restock: #7fb3dc;
 }
 
 /* Shell ------------------------------------------------------------- */

@@ -87,6 +87,7 @@ html[data-theme-variant='forge'] {
   --price-stock: #a15c07;
   --price-attention: #57534e;
   --price-neutral: #a19c94;
+  --price-restock: #2563b0;
 }
 
 html[data-theme-variant='forge'].dark {
@@ -164,6 +165,7 @@ html[data-theme-variant='forge'].dark {
   --price-stock: #f5b13d;
   --price-attention: #a8a49c;
   --price-neutral: #5d5a55;
+  --price-restock: #6aa8f0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -250,6 +252,7 @@ html[data-theme-variant='titanium'] {
   --price-stock: #a86400;
   --price-attention: #5b5866;
   --price-neutral: #9d99a8;
+  --price-restock: #2a64c4;
 }
 
 html[data-theme-variant='titanium'].dark {
@@ -333,6 +336,7 @@ html[data-theme-variant='titanium'].dark {
   --price-stock: #f2b252;
   --price-attention: #a9a5b4;
   --price-neutral: #5f5b6a;
+  --price-restock: #7aa9ff;
 }
 
 /* ------------------------------------------------------------------ */
@@ -413,6 +417,7 @@ html[data-theme-variant='field'] {
   --price-stock: #a05a00;
   --price-attention: #55564c;
   --price-neutral: #9a9b90;
+  --price-restock: #2f64a8;
 }
 
 html[data-theme-variant='field'].dark {
@@ -490,6 +495,7 @@ html[data-theme-variant='field'].dark {
   --price-stock: #f0a840;
   --price-attention: #a3a498;
   --price-neutral: #5d5e55;
+  --price-restock: #7fb0e8;
 }
 
 /* Field uses Space Grotesk for titles. */
@@ -571,6 +577,7 @@ html[data-theme-palette='lumen'] {
   --price-stock: #b45309;
   --price-attention: #52525b;
   --price-neutral: #a1a1aa;
+  --price-restock: #1d63c7;
 }
 
 /* ------------------------------------------------------------------ */
@@ -652,6 +659,7 @@ html[data-theme-variant='espresso'] {
   --price-stock: #9a5b0c;
   --price-attention: #5c4f40;
   --price-neutral: #a8987f;
+  --price-restock: #2f62a0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -734,6 +742,7 @@ html[data-theme-variant='phosphor'][data-theme-variant] {
   --price-stock: #e8a33c;
   --price-attention: #a8875a;
   --price-neutral: #6b5a40;
+  --price-restock: #7fb0d8;
 }
 
 html[data-theme-variant='field'] :is(.page-title, [data-workspace-brand] b) {

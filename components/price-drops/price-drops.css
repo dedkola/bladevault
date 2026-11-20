@@ -2,11 +2,14 @@
    pills, badges, dots and the timeline share one meaning per color. Any
    element sets --pd-color; tints and text derive from it. */
 [data-price-pill='drop'],
-[data-price-pill='back'],
 [data-result='drop'],
 [data-price-dot='ok'],
 [data-price-chip='ok'] {
   --pd-color: var(--price-drop);
+}
+[data-price-pill='back'],
+[data-result='restocked'] {
+  --pd-color: var(--price-restock);
 }
 [data-price-pill='increase'],
 [data-result='increase'] {
@@ -59,8 +62,47 @@
 
 /* Monitoring status: lanes in the style of Maintenance > Coming up. */
 .pd-status-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
   padding: 14px 16px 10px;
   border-bottom: 1px solid var(--bladevault-line);
+}
+.pd-status-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--bladevault-line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 11.5px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.pd-status-toggle:hover {
+  color: var(--foreground);
+}
+.pd-status-toggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.pd-status-toggle svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.15s;
+}
+.pd-status-toggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+.pd-status-body[data-collapsed] {
+  padding-bottom: 2px;
+}
+.pd-status-body[data-collapsed] .pd-counts {
+  margin: 0;
 }
 .pd-status-head h2 {
   margin: 0;
@@ -331,6 +373,11 @@
 .pd-pin-list button:focus-visible {
   background: var(--bladevault-surface-hover);
 }
+.pd-pin-list button small {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+}
 .pd-pin-list button > span:last-child {
   color: var(--muted-foreground);
   white-space: nowrap;
@@ -447,4 +494,77 @@
 }
 .pd-agent-attn b {
   color: var(--foreground);
+}
+
+/* Price table: the selected knife is marked by more than its background,
+   and row actions stay quiet until the row is hovered or focused. */
+[data-price-grid] tr[data-selected] {
+  box-shadow: inset 3px 0 0 var(--bladevault-gold, var(--foreground));
+}
+[data-price-grid] tr[data-child] {
+  background: color-mix(
+    in srgb,
+    var(--bladevault-surface-soft) 55%,
+    transparent
+  );
+}
+@media (hover: hover) and (min-width: 640px) {
+  [data-price-grid] [data-price-row-actions] {
+    opacity: 0.35;
+    transition: opacity 0.12s;
+  }
+  [data-price-grid] tr:hover [data-price-row-actions],
+  [data-price-grid] tr:focus-within [data-price-row-actions],
+  [data-price-grid] tr[data-selected] [data-price-row-actions] {
+    opacity: 1;
+  }
+}
+
+/* Narrow screens: each listing is a card so price and change stay visible;
+   the knife panel opens as a sheet instead of below every row. */
+@media (max-width: 639px) {
+  [data-price-grid] thead {
+    display: none;
+  }
+  [data-price-grid] tbody tr {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'check knife price'
+      'check change paid'
+      'check checked actions';
+    align-items: center;
+    gap: 4px 10px;
+    padding: 10px 2px;
+  }
+  [data-price-grid] tbody td {
+    padding: 0;
+  }
+  [data-price-grid] td[data-col='check'] {
+    grid-area: check;
+    align-self: start;
+    padding-top: 8px;
+  }
+  [data-price-grid] td[data-col='knife'] {
+    grid-area: knife;
+    min-width: 0;
+  }
+  [data-price-grid] td[data-col='price'] {
+    grid-area: price;
+  }
+  [data-price-grid] td[data-col='change'] {
+    grid-area: change;
+  }
+  [data-price-grid] td[data-col='paid'] {
+    grid-area: paid;
+  }
+  [data-price-grid] td[data-col='checked'] {
+    grid-area: checked;
+  }
+  [data-price-grid] td[data-col='actions'] {
+    grid-area: actions;
+  }
+}
+[data-price-sheet] {
+  border-radius: 16px 16px 0 0;
 }

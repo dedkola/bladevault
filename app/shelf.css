@@ -134,6 +134,7 @@ html[data-theme-variant='shelf'] {
   --price-stock: #a2650f;
   --price-attention: #57504b;
   --price-neutral: #a69c94;
+  --price-restock: #2f5f96;
 }
 
 html[data-theme-variant='shelf'].dark {
@@ -245,6 +246,7 @@ html[data-theme-variant='shelf'].dark {
   --price-stock: #e6b062;
   --price-attention: #a3978e;
   --price-neutral: #645b55;
+  --price-restock: #86b1dd;
 }
 
 /* Shell ------------------------------------------------------------- */

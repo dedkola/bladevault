@@ -5,7 +5,7 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { AppWindow, ExternalLink, Loader2, RefreshCw, X } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { getSafeExternalUrl } from '@/lib/external-url'
-import type { HistoryRange } from '@/lib/price-monitor/insights'
+import { HISTORY_RANGES, type HistoryRange } from '@/lib/price-monitor/insights'
 import type {
   EligibilityReason,
   PriceSourceView,
@@ -35,6 +35,7 @@ import {
   KnifeThumb,
   StatusDot,
   useMinuteClock,
+  useStoredValue,
 } from './price-ui'
 import { RetireHintNotice } from './retire-hint'
 import {
@@ -276,8 +277,14 @@ export function KnifePricePanel({
   onClose?: () => void
   onChanged?: () => void
 }) {
-  const [range, setRange] = useState<HistoryRange>(
+  // The chart range is remembered per browser, separately for each place.
+  const [range, setRange] = useStoredValue<HistoryRange>(
+    `bladevault.priceDrops.range.${variant}`,
     variant === 'tab' ? '1m' : '3m',
+    (raw) =>
+      (HISTORY_RANGES as readonly (string | null)[]).includes(raw)
+        ? (raw as HistoryRange)
+        : null,
   )
   const [version, setVersion] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -377,6 +384,14 @@ export function KnifePricePanel({
             >
               {history.knife.brand} {history.knife.name}
             </Link>
+            {history.knife.subtitle ? (
+              <div
+                data-price-subtitle
+                className="truncate text-xs text-muted-foreground"
+              >
+                {history.knife.subtitle}
+              </div>
+            ) : null}
             <div className="text-xs text-muted-foreground">
               {watch?.sources.length ?? 0}{' '}
               {watch?.sources.length === 1 ? 'source' : 'sources'}

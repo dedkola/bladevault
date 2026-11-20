@@ -1,5 +1,10 @@
 'use client'
 
+import {
+  formatNavCount,
+  priceDropsCountLabel,
+  usePriceDropsUnread,
+} from '@/components/price-drops/price-drops-nav-count'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -96,6 +101,7 @@ export function AtriumShell({ children }: { children: React.ReactNode }) {
   const isCollection = pathname === '/collection'
   const isStudio = pathname === '/studio'
   const compareCount = active?.ids.length ?? 0
+  const priceUnread = usePriceDropsUnread()
 
   return (
     <div data-modern-shell data-lumen-shell="atrium">
@@ -192,6 +198,16 @@ export function AtriumShell({ children }: { children: React.ReactNode }) {
               >
                 <Icon aria-hidden="true" />
                 <span>{label}</span>
+                {href === '/price-drops' && priceUnread > 0 && (
+                  <small data-atrium-dock-count data-price-drops-count>
+                    <span aria-hidden="true">
+                      {formatNavCount(priceUnread)}
+                    </span>
+                    <span className="sr-only">
+                      {priceDropsCountLabel(priceUnread)}
+                    </span>
+                  </small>
+                )}
                 {href === '/compare' && compareCount > 0 && (
                   <small
                     data-atrium-dock-count
