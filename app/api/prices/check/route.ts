@@ -53,10 +53,12 @@ export async function POST(request: Request) {
             },
             { status: 409 },
           )
+        // Progress: /api/prices/queue?since=<startedAt> counts checks since.
+        const startedAt = new Date().toISOString()
         const due = await markScheduledSourcesDue(settings)
         getPriceMonitorWorker().wake(0)
         return NextResponse.json(
-          { due },
+          { due, startedAt },
           { status: 202, headers: { 'Cache-Control': 'no-store' } },
         )
       }

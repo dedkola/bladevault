@@ -23,12 +23,16 @@ export function browserStatePath(
   laneKey: string,
   dataDir = getLocalDataDirPath(),
 ): string {
-  return path.join(
+  const directory = path.resolve(
     getVaultControlDir(dataDir),
     'price-monitor',
     'browser-state',
-    `${safeLaneKey(laneKey)}.json`,
   )
+  const filePath = path.resolve(directory, `${safeLaneKey(laneKey)}.json`)
+  // safeLaneKey leaves no separators, but "." and ".." stay legal names.
+  if (!filePath.startsWith(directory + path.sep))
+    throw new Error(`Invalid store key: ${laneKey}`)
+  return filePath
 }
 
 export async function loadBrowserState(

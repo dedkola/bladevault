@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
   activeHoursPerDay,
   activeWindowMs,
+  checkLoad,
   effectiveActiveHours,
   frequencyMs,
   isWithinActiveHours,
+  isStaleOutOfStock,
   msUntilActive,
+  scheduledIntervalMs,
 } from '@/lib/price-monitor/schedule'
 import {
   DEFAULT_PRICE_MONITORING,
@@ -105,7 +108,12 @@ describe('normalizePriceMonitoring', () => {
       enabled: false,
       skipSoldKnives: true,
       ignoreOfficialOutOfStock: false,
-      schedule: { mode: 'custom', intervalHours: 168, activeHours: null },
+      schedule: {
+        mode: 'custom',
+        intervalHours: 168,
+        activeHours: null,
+        slowOutOfStock: true,
+      },
       pacing: {
         minGapSeconds: 30,
         amazonMinGapSeconds: 300,
@@ -150,5 +158,54 @@ describe('normalizePriceMonitoring', () => {
       normalizePriceMonitoring({ thresholds: { minPercent: 2.5 } }, alerts)
         .thresholds,
     ).toEqual({ minPercent: 2.5, minAmount: 0, allTimeLow: false })
+  })
+})
+
+describe('long out-of-stock pages', () => {
+  const DAY = 24 * HOUR
+  const NOW = Date.UTC(2026, 10, 19, 12)
+  const input = (patch: {
+    intervalMs?: number
+    outOfStockSince?: number | null
+    slowOutOfStock?: boolean
+  }) => ({
+    intervalMs: 6 * HOUR,
+    outOfStockSince: null,
+    now: NOW,
+    slowOutOfStock: true,
+    ...patch,
+  })
+
+  it('checks a page out of stock for two weeks at most once a day', () => {
+    expect(scheduledIntervalMs(input({}))).toBe(6 * HOUR)
+    expect(
+      scheduledIntervalMs(input({ outOfStockSince: NOW - 13 * DAY })),
+    ).toBe(6 * HOUR)
+    expect(
+      scheduledIntervalMs(input({ outOfStockSince: NOW - 14 * DAY })),
+    ).toBe(DAY)
+    // A schedule already slower than daily is kept.
+    expect(
+      scheduledIntervalMs(
+        input({ intervalMs: 2 * DAY, outOfStockSince: NOW - 30 * DAY }),
+      ),
+    ).toBe(2 * DAY)
+    // The setting turns it off.
+    expect(
+      scheduledIntervalMs(
+        input({ outOfStockSince: NOW - 30 * DAY, slowOutOfStock: false }),
+      ),
+    ).toBe(6 * HOUR)
+  })
+
+  it('counts a slowed page as part of a check per window', () => {
+    expect(checkLoad(input({}))).toBe(1)
+    expect(checkLoad(input({ outOfStockSince: NOW - 20 * DAY }))).toBe(0.25)
+  })
+
+  it('suggests Pause after 60 days out of stock', () => {
+    expect(isStaleOutOfStock(null, NOW)).toBe(false)
+    expect(isStaleOutOfStock(NOW - 59 * DAY, NOW)).toBe(false)
+    expect(isStaleOutOfStock(NOW - 60 * DAY, NOW)).toBe(true)
   })
 })
