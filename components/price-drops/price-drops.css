@@ -471,3 +471,42 @@
 .pd-agent-attn b {
   color: var(--price-stock);
 }
+
+/* Price chart marker key (Market tab and Price Drops panel). */
+[data-price-marker] {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+}
+[data-price-marker='drop'],
+[data-price-marker='increase'] {
+  width: 9px;
+  height: 8px;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+[data-price-marker='drop'] {
+  background: var(--price-drop);
+  transform: rotate(180deg);
+}
+[data-price-marker='increase'] {
+  background: var(--price-up);
+}
+[data-price-marker='stock'] {
+  border: 1.5px solid var(--price-stock);
+  border-radius: 999px;
+}
+[data-price-marker='low'] {
+  background: var(--bladevault-gold, #c89c3d);
+  transform: rotate(45deg) scale(0.85);
+}
+[data-price-marker='unconfirmed'] {
+  border: 1.5px dashed var(--muted-foreground);
+  border-radius: 999px;
+}
+
+/* Availability that is neither in nor out of stock. */
+[data-price-availability] {
+  background: var(--price-stock-bg);
+  color: var(--price-stock);
+}

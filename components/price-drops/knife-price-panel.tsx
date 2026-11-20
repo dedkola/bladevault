@@ -2,10 +2,22 @@
 
 import Link from 'next/link'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
-import { AppWindow, ExternalLink, Loader2, RefreshCw, X } from 'lucide-react'
-import { Button, buttonVariants } from '@/components/ui/button'
+import {
+  AppWindow,
+  ChevronDown,
+  ExternalLink,
+  History,
+  Loader2,
+  RefreshCw,
+  X,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { getSafeExternalUrl } from '@/lib/external-url'
-import type { HistoryRange } from '@/lib/price-monitor/insights'
+import type {
+  ChangeEvent,
+  HistoryRange,
+  KnifeHistoryStats,
+} from '@/lib/price-monitor/insights'
 import type {
   EligibilityReason,
   PriceSourceView,
@@ -13,6 +25,7 @@ import type {
 } from '@/lib/price-monitor/shared'
 import { cn } from '@/lib/utils'
 import {
+  AVAILABILITY_LABEL,
   money,
   relativeTime,
   STATUS_LABEL,
@@ -26,7 +39,12 @@ import {
   RangeButtons,
   usePriceHistory,
 } from './price-history-chart'
+import {
+  CheckHistoryDialog,
+  type CheckHistoryTarget,
+} from './check-history-dialog'
 import { ChangePill, KnifeThumb, StatusDot, useMinuteClock } from './price-ui'
+import { PriceWatchEditor } from './price-watch-editor'
 import { SolveInBrowserDialog, type SolveTarget } from './solve-in-browser'
 
 const MODE_LABEL = { auto: 'Auto', on: 'Always monitor', off: 'Never monitor' }
@@ -95,16 +113,29 @@ function usePriceWatch(
   return { watch, pending }
 }
 
-function bestPrice(sources: PriceSourceView[], currency: string | null) {
-  const prices = sources
-    .filter(
-      (source) =>
-        source.lastPriceMinor !== null &&
-        source.lastCurrency === currency &&
-        source.lastAvailability !== 'out_of_stock',
+/** Best in-stock offer from the live source list, until history loads. */
+function bestOffer(
+  sources: PriceSourceView[],
+  currency: string | null,
+): KnifeHistoryStats['bestNow'] {
+  let best: PriceSourceView | null = null
+  for (const source of sources)
+    if (
+      source.lastPriceMinor !== null &&
+      source.lastCurrency === currency &&
+      source.lastAvailability !== 'out_of_stock' &&
+      (!best || source.lastPriceMinor < best.lastPriceMinor!)
     )
-    .map((source) => source.lastPriceMinor!)
-  return prices.length ? Math.min(...prices) : null
+      best = source
+  return best
+    ? {
+        priceMinor: best.lastPriceMinor!,
+        sourceId: best.id,
+        storeName: best.storeName,
+        url: best.url,
+        availability: best.lastAvailability,
+      }
+    : null
 }
 
 function SourceLine({
@@ -113,12 +144,14 @@ function SourceLine({
   now,
   onCheck,
   onSolve,
+  onHistory,
 }: {
   source: PriceSourceView
   queued: boolean
   now: number
   onCheck: () => void
   onSolve: () => void
+  onHistory: () => void
 }) {
   const needsHelp =
     source.status === 'blocked' ||
@@ -178,10 +211,21 @@ function SourceLine({
             : statusText}
         </div>
       </div>
-      <span className="text-sm font-semibold tabular-nums">
-        {source.lastAvailability === 'out_of_stock'
-          ? '—'
-          : money(source.lastPriceMinor, source.lastCurrency)}
+      <span className="flex flex-col items-end">
+        <span className="text-sm font-semibold tabular-nums">
+          {source.lastAvailability === 'out_of_stock'
+            ? '—'
+            : money(source.lastPriceMinor, source.lastCurrency)}
+        </span>
+        {source.lastAvailability &&
+        AVAILABILITY_LABEL[source.lastAvailability] ? (
+          <span
+            data-price-availability
+            className="rounded-full px-1.5 text-[10.5px] font-semibold whitespace-nowrap"
+          >
+            {AVAILABILITY_LABEL[source.lastAvailability]}
+          </span>
+        ) : null}
       </span>
       {needsHelp ? (
         <Button
@@ -204,6 +248,16 @@ function SourceLine({
         type="button"
         variant="ghost"
         size="icon-xs"
+        aria-label={`Check history of ${storeLabel(source.storeName)}`}
+        title="Check history"
+        onClick={onHistory}
+      >
+        <History className="size-3" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
         aria-label={`Check ${storeLabel(source.storeName)} now`}
         title="Check now"
         disabled={queued}
@@ -219,10 +273,124 @@ function SourceLine({
   )
 }
 
+const LABEL =
+  'text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground'
+
+function shortDate(iso: string): string {
+  const date = new Date(iso)
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(date.getFullYear() !== new Date().getFullYear()
+      ? { year: 'numeric' as const }
+      : {}),
+  })
+}
+
+function signedMoney(minor: number, currency: string | null): string {
+  if (minor === 0) return money(0, currency)
+  return `${minor < 0 ? '−' : '+'}${money(Math.abs(minor), currency)}`
+}
+
+/** Lowest and highest seen, tracking since and the gap to what you paid. */
+function HistoryStats({ stats }: { stats: KnifeHistoryStats }) {
+  const items: Array<{ label: string; value: string; note?: string }> = [
+    {
+      label: 'Lowest seen',
+      value: stats.lowest
+        ? money(stats.lowest.priceMinor, stats.currency)
+        : '—',
+      note: stats.lowest
+        ? `${shortDate(stats.lowest.at)} · ${storeLabel(stats.lowest.storeName)}`
+        : undefined,
+    },
+    {
+      label: 'Highest seen',
+      value: stats.highest
+        ? money(stats.highest.priceMinor, stats.currency)
+        : '—',
+      note: stats.highest
+        ? `${shortDate(stats.highest.at)} · ${storeLabel(stats.highest.storeName)}`
+        : undefined,
+    },
+    {
+      label: 'Tracking since',
+      value: stats.trackingSince ? shortDate(stats.trackingSince) : '—',
+    },
+    {
+      label: 'Now vs you paid',
+      value:
+        stats.gapMinor !== null
+          ? signedMoney(stats.gapMinor, stats.currency)
+          : '—',
+      note:
+        stats.gapPct !== null
+          ? `${stats.gapPct > 0 ? '+' : stats.gapPct < 0 ? '−' : ''}${Math.abs(stats.gapPct).toFixed(1)}%`
+          : stats.paidMinor === null
+            ? 'No comparable purchase price'
+            : undefined,
+    },
+  ]
+  return (
+    <dl
+      data-price-stats
+      className="grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-x-4 gap-y-2"
+    >
+      {items.map((item) => (
+        <div key={item.label} className="min-w-0">
+          <dt className={LABEL}>{item.label}</dt>
+          <dd className="text-sm font-semibold tabular-nums">{item.value}</dd>
+          {item.note ? (
+            <dd className="truncate text-xs text-muted-foreground">
+              {item.note}
+            </dd>
+          ) : null}
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+function LatestChanges({
+  events,
+  now,
+}: {
+  events: ChangeEvent[]
+  now: number
+}) {
+  return (
+    <div>
+      <div className={cn('mb-1', LABEL)}>Latest changes</div>
+      <ul data-price-latest-changes className="text-sm">
+        {events.slice(0, 5).map((event) => (
+          <li
+            key={event.id}
+            className="flex items-start gap-2 border-t border-[var(--bladevault-line)]/60 py-1.5 first:border-t-0"
+          >
+            <ChangePill event={event} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate">{storeLabel(event.storeName)}</div>
+              {event.type === 'price' ? (
+                <div className="text-xs text-muted-foreground tabular-nums">
+                  {money(event.previousPriceMinor, event.currency)} →{' '}
+                  {money(event.priceMinor, event.currency)}
+                </div>
+              ) : null}
+            </div>
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {relativeTime(event.occurredAt, now)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 /**
- * Best price, history chart and sources for one knife. `page` is the Price
- * Drops side panel; `tab` is the knife's Market tab with the purchase price,
- * mode and latest changes.
+ * Best price, stats, history chart, sources and latest changes for one
+ * knife. `page` is the Price Drops side panel; `tab` is the knife's Market
+ * tab, which adds the purchase price and mode. Both can manage sources.
  */
 export function KnifePricePanel({
   knifeId,
@@ -241,22 +409,30 @@ export function KnifePricePanel({
   const [version, setVersion] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [solveTarget, setSolveTarget] = useState<SolveTarget | null>(null)
+  const [historyTarget, setHistoryTarget] = useState<CheckHistoryTarget | null>(
+    null,
+  )
+  const [managing, setManaging] = useState(false)
   const now = useMinuteClock()
   const [historyVersion, setHistoryVersion] = useState(0)
-  const { watch } = usePriceWatch(knifeId, version, () => {
+  const { watch, pending } = usePriceWatch(knifeId, version, () => {
     setHistoryVersion((value) => value + 1)
     onChanged?.()
   })
   const historyState = usePriceHistory(knifeId, range, historyVersion)
   const history = historyState.status === 'ready' ? historyState.history : null
+  const manageId = `knife-price-manage-${knifeId}`
 
-  const check = async (sourceId: number) => {
+  const startCheck = async (body: {
+    scope: 'knife' | 'source'
+    id: string | number
+  }) => {
     setError(null)
     try {
       const response = await fetch('/api/prices/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scope: 'source', id: sourceId }),
+        body: JSON.stringify(body),
       })
       if (!response.ok) {
         const data = (await response.json().catch(() => ({}))) as {
@@ -272,14 +448,18 @@ export function KnifePricePanel({
     }
   }
 
+  const stats = history?.stats ?? null
   const currency =
+    stats?.currency ??
     (history && chartCurrency(history)) ??
     watch?.sources.find((source) => source.lastCurrency)?.lastCurrency ??
     null
-  const best = watch ? bestPrice(watch.sources, currency) : null
-  const paid =
-    history?.paid && history.paid.currency === currency ? history.paid : null
+  const best =
+    stats?.bestNow ?? (watch ? bestOffer(watch.sources, currency) : null)
+  const bestUrl = best ? getSafeExternalUrl(best.url) : null
+  const paid = history?.paid ?? null
   const queued = new Set(watch?.queuedSourceIds ?? [])
+  const enabledSources = watch?.sources.filter((source) => source.enabled) ?? []
 
   return (
     <div data-knife-price-panel={variant} className="space-y-3">
@@ -320,34 +500,57 @@ export function KnifePricePanel({
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
-          <div>
-            <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-              Best price now
-            </div>
+          <div className="min-w-0">
+            <div className={LABEL}>Best price now</div>
             <div className="text-2xl font-semibold tabular-nums">
-              {money(best, currency)}
+              {money(best?.priceMinor ?? null, currency)}
             </div>
+            {best ? (
+              <div
+                data-price-best-store
+                className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground"
+              >
+                <span>at {storeLabel(best.storeName)}</span>
+                {best.availability && AVAILABILITY_LABEL[best.availability] ? (
+                  <span
+                    data-price-availability
+                    className="rounded-full px-1.5 text-[10.5px] font-semibold"
+                  >
+                    {AVAILABILITY_LABEL[best.availability]}
+                  </span>
+                ) : null}
+                {bestUrl ? (
+                  <a
+                    href={bestUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-0.5 text-foreground hover:underline"
+                  >
+                    Store page
+                    <ExternalLink className="size-3" />
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           {variant === 'tab' ? (
             <>
               <div>
-                <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                  You paid
-                </div>
+                <div className={LABEL}>You paid</div>
                 <div className="text-base font-semibold tabular-nums">
                   {paid
                     ? new Intl.NumberFormat(undefined, {
                         style: 'currency',
                         currency: paid.currency,
                       }).format(paid.amount)
-                    : '—'}
+                    : stats?.paidMinor != null
+                      ? money(stats.paidMinor, stats.currency)
+                      : '—'}
                 </div>
               </div>
               {watch ? (
                 <div>
-                  <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                    Monitoring
-                  </div>
+                  <div className={LABEL}>Monitoring</div>
                   <div className="text-sm font-semibold">
                     {MODE_LABEL[watch.mode]}
                   </div>
@@ -361,6 +564,8 @@ export function KnifePricePanel({
         </div>
         <RangeButtons value={range} onChange={setRange} />
       </div>
+
+      {stats ? <HistoryStats stats={stats} /> : null}
 
       {historyState.status === 'error' ? (
         <p className="text-xs text-destructive">{historyState.message}</p>
@@ -379,10 +584,55 @@ export function KnifePricePanel({
       )}
 
       <div>
-        <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-          Sources
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <span className={LABEL}>Sources</span>
+          <div className="flex flex-wrap items-center gap-1">
+            {enabledSources.length && !managing ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                disabled={pending}
+                onClick={() => void startCheck({ scope: 'knife', id: knifeId })}
+              >
+                {pending ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="size-3" />
+                )}
+                Check all sources
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              aria-expanded={managing}
+              aria-controls={manageId}
+              onClick={() => setManaging((value) => !value)}
+            >
+              Manage sources
+              <ChevronDown
+                className={cn(
+                  'size-3 transition-transform',
+                  managing && 'rotate-180',
+                )}
+              />
+            </Button>
+          </div>
         </div>
-        {watch && watch.sources.length ? (
+        {managing ? (
+          <div
+            id={manageId}
+            data-price-manage-sources
+            className="rounded-lg border border-[var(--bladevault-line)] p-3"
+          >
+            <PriceWatchEditor
+              knifeId={knifeId}
+              onChanged={() => setVersion((value) => value + 1)}
+            />
+          </div>
+        ) : watch && watch.sources.length ? (
           <ul>
             {watch.sources.map((source) => (
               <SourceLine
@@ -390,7 +640,9 @@ export function KnifePricePanel({
                 source={source}
                 queued={queued.has(source.id)}
                 now={now}
-                onCheck={() => void check(source.id)}
+                onCheck={() =>
+                  void startCheck({ scope: 'source', id: source.id })
+                }
                 onSolve={() =>
                   setSolveTarget({
                     sourceId: source.id,
@@ -399,64 +651,36 @@ export function KnifePricePanel({
                     status: source.status,
                   })
                 }
+                onHistory={() =>
+                  setHistoryTarget({
+                    sourceId: source.id,
+                    storeName: source.storeName,
+                  })
+                }
               />
             ))}
           </ul>
         ) : (
           <p className="text-xs text-muted-foreground">
-            No product URLs yet. Add them in edit mode.
+            No product URLs yet. Add one under Manage sources.
           </p>
         )}
       </div>
 
-      {variant === 'tab' && history && history.events.length ? (
-        <div>
-          <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            Latest changes
-          </div>
-          <ul className="text-sm">
-            {history.events.slice(0, 5).map((event) => (
-              <li
-                key={event.id}
-                className="flex items-center gap-2 border-t border-[var(--bladevault-line)]/60 py-1.5 first:border-t-0"
-              >
-                <ChangePill event={event} />
-                <span className="min-w-0 flex-1 truncate">
-                  {storeLabel(event.storeName)}
-                  {event.type === 'price'
-                    ? ` · ${money(event.previousPriceMinor, event.currency)} → ${money(event.priceMinor, event.currency)}`
-                    : ''}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {relativeTime(event.occurredAt, now)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
+      {history && history.events.length ? (
+        <LatestChanges events={history.events} now={now} />
       ) : null}
 
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        {variant === 'tab' ? (
-          <span className="text-xs text-muted-foreground">
-            Sources and Auto / Always / Never are set in edit mode.
-          </span>
-        ) : (
-          <span />
-        )}
-        <Link
-          href={`/collection/${encodeURIComponent(knifeId)}?edit=1`}
-          className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-        >
-          Edit monitoring
-        </Link>
-      </div>
       <SolveInBrowserDialog
         target={solveTarget}
         onClose={() => setSolveTarget(null)}
         onSolved={() => setVersion((value) => value + 1)}
+      />
+      <CheckHistoryDialog
+        target={historyTarget}
+        onClose={() => setHistoryTarget(null)}
       />
     </div>
   )

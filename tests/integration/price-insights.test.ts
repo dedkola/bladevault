@@ -3,8 +3,14 @@ import * as knivesRoute from '@/app/api/knives/route'
 import * as priceWatchRoute from '@/app/api/knives/[id]/price-watch/route'
 import * as historyRoute from '@/app/api/prices/history/route'
 import * as overviewRoute from '@/app/api/prices/overview/route'
+import * as checksRoute from '@/app/api/prices/sources/[id]/checks/route'
+import { getLocalDb } from '@/lib/local-db'
 import { checkPriceSource } from '@/lib/price-monitor/engine'
-import type { KnifeHistory, PriceOverview } from '@/lib/price-monitor/insights'
+import type {
+  KnifeHistory,
+  PriceOverview,
+  SourceCheckHistory,
+} from '@/lib/price-monitor/insights'
 import type { PriceWatchView } from '@/lib/price-monitor/shared'
 import type { ExtractedOffer } from '@/lib/scrape-offer'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
@@ -325,5 +331,197 @@ describe('price history', () => {
     )
     expect(response.status).toBe(400)
     expect((await history('missing', '1m')).status).toBe(404)
+  })
+
+  it('fits the chart to the first reading and summarizes all history', async () => {
+    const raccoon = await createKnife('Raccoon', '129.00 USD', [
+      'https://shop.example/raccoon',
+      'https://second.example/raccoon',
+    ])
+    const [main, second] = raccoon.sources
+    await checkAt(0, main, offer(100))
+    await checkAt(2, main, offer(140)) // increase: highest
+    await checkAt(4, main, offer(null, 'out_of_stock'))
+    await checkAt(6, main, offer(90, 'limited')) // back, lowest
+    await checkAt(8, main, offer(110))
+    await checkAt(8.5, second, offer(95, 'preorder'))
+    vi.setSystemTime(START + 10 * DAY)
+
+    // Three months reach back before tracking began on day 0.
+    const quarter = (await history(raccoon.id, '3m')).history
+    expect(quarter.rangeStart).toBe(new Date(START - 80 * DAY).toISOString())
+    expect(quarter.chartStart).toBe(new Date(START).toISOString())
+    expect(quarter.stats).toEqual({
+      currency: 'USD',
+      lowest: expect.objectContaining({
+        priceMinor: 9000,
+        at: new Date(START + 6 * DAY).toISOString(),
+        sourceId: main,
+        storeName: 'shop.example',
+      }),
+      highest: expect.objectContaining({ priceMinor: 14000 }),
+      trackingSince: new Date(START).toISOString(),
+      bestNow: {
+        priceMinor: 9500,
+        sourceId: second,
+        storeName: 'second.example',
+        url: 'https://second.example/raccoon',
+        availability: 'preorder',
+      },
+      paidMinor: 12900,
+      gapMinor: -3400,
+      gapPct: -26.4,
+    })
+    expect(quarter.events.map((event) => event.kind)).toEqual([
+      'increase',
+      'drop',
+      'back_in_stock',
+      'out_of_stock',
+      'increase',
+    ])
+
+    // A week inside the history starts at the range, but the stats still
+    // cover everything.
+    const week = (await history(raccoon.id, '7d')).history
+    expect(week.chartStart).toBe(week.rangeStart)
+    expect(week.stats.highest?.priceMinor).toBe(14000)
+    expect(
+      week.sources.every((source) => source.unconfirmed.length === 0),
+    ).toBe(true)
+  })
+
+  it('keeps AI-unconfirmed readings out of the line', async () => {
+    const raccoon = await createKnife('Raccoon', '129.00 USD', [
+      'https://shop.example/raccoon',
+    ])
+    const [main] = raccoon.sources
+    await checkAt(0, main, offer(100))
+    vi.setSystemTime(START + 2 * DAY)
+    getLocalDb()
+      .prepare(
+        `INSERT INTO price_snapshots
+          (knife_id, source_id, price_minor, currency, availability,
+           extraction_status, extraction_method, observed_at, last_seen_at,
+           ai_review)
+         VALUES (?, ?, 1000, 'USD', 'in_stock', 'ok', 'jsonld', ?, ?,
+                 'unconfirmed')`,
+      )
+      .run(
+        raccoon.id,
+        main,
+        new Date(START + DAY).toISOString(),
+        new Date(START + DAY).toISOString(),
+      )
+    const all = (await history(raccoon.id, 'all')).history
+    const line = all.sources.find((source) => source.sourceId === main)!
+    expect(line.points.map((point) => point.priceMinor)).toEqual([10000])
+    expect(line.unconfirmed).toEqual([
+      expect.objectContaining({ priceMinor: 1000, currency: 'USD' }),
+    ])
+    expect(all.stats.lowest?.priceMinor).toBe(10000)
+  })
+})
+
+describe('source check history', () => {
+  async function checks(id: string | number) {
+    const response = await checksRoute.GET(
+      new Request(`http://localhost/api/prices/sources/${id}/checks`),
+      { params: Promise.resolve({ id: String(id) }) },
+    )
+    return {
+      status: response.status,
+      body: (await response.json()) as SourceCheckHistory & { error?: string },
+    }
+  }
+
+  it('lists recent checks with their readings, newest first', async () => {
+    const raccoon = await createKnife('Raccoon', '129.00 USD', [
+      'https://shop.example/raccoon',
+    ])
+    const [main] = raccoon.sources
+    await checkAt(0, main, offer(100))
+    await checkAt(1, main, offer(100)) // confirms the same reading
+    await checkAt(2, main, offer(80, 'limited'))
+    const database = getLocalDb()
+    database
+      .prepare(
+        `UPDATE price_check_log SET solver_steps = ? WHERE id =
+           (SELECT MAX(id) FROM price_check_log)`,
+      )
+      .run(
+        JSON.stringify([
+          { action: 'click', detail: 'Accept cookies', result: 'clicked' },
+          { action: 'read', detail: '', result: 'price read', html: '<p>' },
+        ]),
+      )
+
+    const { status, body } = await checks(main)
+    expect(status).toBe(200)
+    expect(body.source).toMatchObject({
+      id: main,
+      knifeId: raccoon.id,
+      storeName: 'shop.example',
+      removed: false,
+    })
+    expect(body.checks).toHaveLength(3)
+    expect(body.checks.map((check) => check.reading?.priceMinor)).toEqual([
+      8000, 10000, 10000,
+    ])
+    expect(body.checks[0]).toMatchObject({
+      trigger: 'manual',
+      outcome: 'ok',
+      method: 'browser',
+      attempt: 1,
+      reading: {
+        currency: 'USD',
+        availability: 'limited',
+        aiReview: null,
+      },
+      solverSteps: [
+        { action: 'click', detail: 'Accept cookies', result: 'clicked' },
+        { action: 'read', detail: '', result: 'price read' },
+      ],
+    })
+    expect(typeof body.checks[0].durationMs).toBe('number')
+  })
+
+  it('marks readings AI could not confirm', async () => {
+    const raccoon = await createKnife('Raccoon', '129.00 USD', [
+      'https://shop.example/raccoon',
+    ])
+    const [main] = raccoon.sources
+    await checkAt(0, main, offer(100))
+    const database = getLocalDb()
+    const at = new Date(START + DAY).toISOString()
+    const logId = database
+      .prepare(
+        `INSERT INTO price_check_log
+          (lane_key, trigger, source_id, knife_id, started_at, duration_ms,
+           outcome, method, error_code, error_message)
+         VALUES ('shop.example', 'scheduled', ?, ?, ?, 900, 'ok', 'http',
+                 'ai_unconfirmed', 'AI could not confirm this price')`,
+      )
+      .run(main, raccoon.id, at).lastInsertRowid
+    database
+      .prepare(
+        `INSERT INTO price_snapshots
+          (knife_id, source_id, price_minor, currency, availability,
+           extraction_status, extraction_method, observed_at, last_seen_at,
+           check_log_id, ai_review)
+         VALUES (?, ?, 1000, 'USD', 'in_stock', 'ok', 'jsonld', ?, ?, ?,
+                 'unconfirmed')`,
+      )
+      .run(raccoon.id, main, at, at, logId)
+
+    const { body } = await checks(main)
+    expect(body.checks[0]).toMatchObject({
+      errorCode: 'ai_unconfirmed',
+      reading: { priceMinor: 1000, aiReview: 'unconfirmed' },
+    })
+  })
+
+  it('validates the source id', async () => {
+    expect((await checks('abc')).status).toBe(400)
+    expect((await checks(9999)).status).toBe(404)
   })
 })
