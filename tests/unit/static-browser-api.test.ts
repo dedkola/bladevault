@@ -237,3 +237,55 @@ describe('empty static browser app', () => {
     expect((await request('/api/knives')).data.knives[0].sold).toBe(false)
   })
 })
+
+describe('static browser achievements', () => {
+  const addKnife = (index: number) =>
+    request('/api/knives', 'POST', { name: `Knife ${index}`, brand: 'Kizer' })
+
+  it('backfills quietly, then celebrates new unlocks in this tab', async () => {
+    const settings = (await request('/api/settings')).data.settings
+    expect(settings.achievements).toMatchObject({ enabled: true, inbox: false })
+
+    await addKnife(1)
+    const first = (await request('/api/achievements', 'POST')).data
+    expect(first.backfilledCount).toBe(1)
+    expect(first.newlyUnlocked).toEqual([])
+    expect(first.unlocks[0]).toMatchObject({
+      id: 'first-blade',
+      backfilled: true,
+    })
+
+    for (let index = 2; index <= 5; index += 1) await addKnife(index)
+    const next = (await request('/api/achievements', 'POST')).data
+    expect(next.newlyUnlocked.map((u: { id: string }) => u.id)).toContain(
+      'pocketful',
+    )
+    expect(next.summary.unlockedCount).toBe(next.unlocks.length)
+
+    await request('/api/achievements', 'PATCH', {
+      action: 'seen',
+      ids: ['pocketful'],
+    })
+    const read = (await request('/api/achievements')).data
+    expect(
+      read.unlocks.find((u: { id: string }) => u.id === 'pocketful').seenAt,
+    ).not.toBeNull()
+
+    await request('/api/achievements', 'PATCH', { action: 'reset' })
+    expect((await request('/api/achievements')).data.unlocks).toEqual([])
+    expect(
+      (await request('/api/achievements', 'PATCH', { action: 'nope' })).status,
+    ).toBe(400)
+  })
+
+  it('records nothing while off and keeps the Inbox switch off', async () => {
+    await request('/api/settings', 'POST', {
+      achievements: { enabled: false, celebrate: true, inbox: true },
+    })
+    await addKnife(1)
+    const off = (await request('/api/achievements', 'POST')).data
+    expect(off).toMatchObject({ enabled: false, unlocks: [], progress: [] })
+    const settings = (await request('/api/settings')).data.settings
+    expect(settings.achievements.inbox).toBe(false)
+  })
+})

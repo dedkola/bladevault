@@ -1,0 +1,83 @@
+.badge {
+  --tier: #b0703a;
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--badge-size, 44px);
+  height: var(--badge-size, 44px);
+  clip-path: polygon(50% 0, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+  background: conic-gradient(
+    from 210deg,
+    var(--tier),
+    color-mix(in srgb, var(--tier) 40%, #fff),
+    var(--tier)
+  );
+  color: var(--tier);
+}
+
+.badge::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  clip-path: inherit;
+  background: radial-gradient(
+    circle at 50% 30%,
+    color-mix(in srgb, var(--tier) 18%, var(--card)),
+    var(--card) 70%
+  );
+}
+
+.icon {
+  position: relative;
+  z-index: 1;
+  width: 46%;
+  height: 46%;
+}
+
+.bronze {
+  --tier: #b0703a;
+}
+.silver {
+  --tier: #7f8b98;
+}
+.gold {
+  --tier: #c99a17;
+}
+.platinum {
+  --tier: #3f9bb2;
+}
+
+.locked {
+  filter: grayscale(1);
+  opacity: 0.4;
+}
+
+.sm {
+  --badge-size: 34px;
+}
+.lg {
+  --badge-size: 64px;
+}
+
+.pop {
+  animation: pop 600ms ease-out;
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(0.4) rotate(-20deg);
+  }
+  70% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pop {
+    animation: none;
+  }
+}

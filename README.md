@@ -393,6 +393,7 @@ is required.
 | `search_knives`         | Search text and exact BladeVault fields                              | Read-only  |
 | `get_knife`             | Retrieve one complete knife record                                   | Read-only  |
 | `get_collection_stats`  | Summarize completeness, categories, measurements, and recent records | Read-only  |
+| `get_achievements`      | Report rank, score, unlocked badges, and progress on the rest        | Read-only  |
 | `find_missing_fields`   | Find knives with missing built-in or custom fields                   | Read-only  |
 | `find_duplicates`       | Score possible duplicate records without merging or deleting         | Read-only  |
 | `propose_changes`       | Validate suggested values without modifying the collection           | Read-only  |

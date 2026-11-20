@@ -16,6 +16,8 @@ import { KnivesProvider } from '@/components/providers/knives-provider'
 import { CareProvider } from '@/components/providers/care-provider'
 import { MarketProvider } from '@/components/providers/market-provider'
 import { CareInboxProvider } from '@/components/providers/care-inbox-provider'
+import { AchievementsProvider } from '@/components/providers/achievements-provider'
+import { AchievementCelebration } from '@/components/achievement-celebration'
 import { DEFAULT_SETTINGS, getSettings } from '@/lib/settings'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import {
@@ -188,20 +190,23 @@ export default async function RootLayout({
               <KnivesProvider initialThemeStyle={themeStyle}>
                 <CareProvider>
                   <MarketProvider>
-                    <CareInboxProvider>
-                      <SmartCollectionsProvider>
-                        <TooltipProvider>
-                          <Suspense>
-                            <ComparisonsProvider>
-                              <AppShell>{children}</AppShell>
-                            </ComparisonsProvider>
-                          </Suspense>
-                          <GlobalKnifeSearch />
-                          <BackupProgressNotice />
-                          {promptForConsent ? <ErrorReportingPrompt /> : null}
-                        </TooltipProvider>
-                      </SmartCollectionsProvider>
-                    </CareInboxProvider>
+                    <AchievementsProvider>
+                      <CareInboxProvider>
+                        <SmartCollectionsProvider>
+                          <TooltipProvider>
+                            <Suspense>
+                              <ComparisonsProvider>
+                                <AppShell>{children}</AppShell>
+                              </ComparisonsProvider>
+                            </Suspense>
+                            <GlobalKnifeSearch />
+                            <BackupProgressNotice />
+                            <AchievementCelebration />
+                            {promptForConsent ? <ErrorReportingPrompt /> : null}
+                          </TooltipProvider>
+                        </SmartCollectionsProvider>
+                      </CareInboxProvider>
+                    </AchievementsProvider>
                   </MarketProvider>
                 </CareProvider>
               </KnivesProvider>

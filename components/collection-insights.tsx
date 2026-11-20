@@ -45,6 +45,11 @@ import { cn } from '@/lib/utils'
 import { getMaintenanceRecency } from '@/lib/maintenance-recency'
 import { useCare } from '@/components/providers/care-provider'
 import { CareStatusSummary } from '@/components/care-status-summary'
+import {
+  AchievementTrophyCase,
+  useTrophyCaseVisible,
+} from '@/components/achievement-trophy-case'
+import { ACHIEVEMENTS_HREF } from '@/lib/achievements/messages'
 
 const LEGEND_DOT_CLASSES = [
   'bg-[var(--bv-chart-1)]',
@@ -718,6 +723,7 @@ export function DrilldownKnife({ knife }: { knife: Knife }) {
 export function CollectionInsights() {
   const { knives, isLoading, dimensionUnit = 'in' } = useKnives()
   const { reminders: careReminders } = useCare()
+  const showTrophyCase = useTrophyCaseVisible()
   const [activity, setActivity] = useState<KnifeActivityEvent[]>()
   const [isActivityLoaded, setIsActivityLoaded] = useState(false)
   const [measurementKey, setMeasurementKey] =
@@ -1347,6 +1353,17 @@ export function CollectionInsights() {
                 className="col-span-12"
               >
                 <CareStatusSummary />
+              </InsightPanel>
+            )}
+            {showTrophyCase && (
+              <InsightPanel
+                eyebrow="Achievements"
+                title="Trophy case"
+                detailHref={ACHIEVEMENTS_HREF}
+                description="Your rank, latest badges and the ones closest to unlocking."
+                className="col-span-12"
+              >
+                <AchievementTrophyCase />
               </InsightPanel>
             )}
             <InsightPanel

@@ -25,6 +25,7 @@ import {
   getSystemMessageBox,
   isSystemMessageUnread,
   mergeSystemMessageChanges,
+  SYSTEM_MESSAGES_REFRESH_EVENT,
   type SystemMessage,
   type SystemMessageAction,
   type SystemMessageBox,
@@ -43,6 +44,7 @@ import type { MaintenanceEventInput } from '@/lib/data'
 import type { CareTrack } from '@/lib/settings-shared'
 import { useCare } from '@/components/providers/care-provider'
 import { useKnives } from '@/components/providers/knives-provider'
+import { useAchievements } from '@/components/providers/achievements-provider'
 
 type CareInboxContextValue = {
   /** False while care reminders are off; care messages hide themselves. */
@@ -53,8 +55,13 @@ type CareInboxContextValue = {
   pricesAvailable: boolean
   isLoading: boolean
   notifications: readonly CareNotification[]
-  /** App events such as failed backups, independent of care reminders. */
+  /**
+   * App events such as failed backups, independent of care reminders.
+   * Includes achievement messages only while achievements are on.
+   */
   systemMessages: readonly SystemMessage[]
+  /** False while achievements are off: their messages and filter hide. */
+  achievementsAvailable: boolean
   /** Price and stock changes found by price monitoring. */
   priceNotifications: readonly PriceNotificationView[]
   /** Clock used to decide which messages are snoozed; ticks every minute. */
@@ -62,10 +69,14 @@ type CareInboxContextValue = {
   /** Unread care, system and price messages together. */
   unreadCount: number
   careUnreadCount: number
+  /** Unread system messages other than achievements. */
   systemUnreadCount: number
+  achievementUnreadCount: number
   priceUnreadCount: number
   counts: Record<CareNotificationBox, number>
+  /** System messages other than achievements. */
   systemCounts: Record<SystemMessageBox, number>
+  achievementCounts: Record<SystemMessageBox, number>
   priceCounts: Record<PriceNotificationBox, number>
   act: (action: CareNotificationAction) => Promise<void>
   actSystem: (action: SystemMessageAction) => Promise<void>
@@ -144,6 +155,9 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
   const [systemMessages, setSystemMessages] = useState<SystemMessage[]>([])
   const systemMessagesRef = useRef(systemMessages)
   const [pricesAvailable] = useState(hasServerRuntime)
+  // The browser version has no system messages, so no Achievements tab.
+  const achievementsAvailable =
+    useAchievements().settings.enabled && pricesAvailable
   const [priceNotifications, setPriceNotifications] = useState<
     PriceNotificationView[]
   >([])
@@ -204,9 +218,11 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
     void load()
     const onFocus = () => void load()
     window.addEventListener('focus', onFocus)
+    window.addEventListener(SYSTEM_MESSAGES_REFRESH_EVENT, onFocus)
     return () => {
       cancelled = true
       window.removeEventListener('focus', onFocus)
+      window.removeEventListener(SYSTEM_MESSAGES_REFRESH_EVENT, onFocus)
     }
   }, [backupSettled, cloudBackupJob.id])
 
@@ -362,11 +378,25 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
       counts[getCareNotificationBox(row, now)] += 1
       if (isCareNotificationUnread(row, now)) careUnreadCount += 1
     }
+    const shownSystemMessages = achievementsAvailable
+      ? systemMessages
+      : systemMessages.filter((row) => row.kind !== 'achievement')
     const systemCounts: Record<SystemMessageBox, number> = { open: 0, done: 0 }
+    const achievementCounts: Record<SystemMessageBox, number> = {
+      open: 0,
+      done: 0,
+    }
     let systemUnreadCount = 0
-    for (const row of systemMessages) {
-      systemCounts[getSystemMessageBox(row)] += 1
-      if (isSystemMessageUnread(row)) systemUnreadCount += 1
+    let achievementUnreadCount = 0
+    for (const row of shownSystemMessages) {
+      const achievement = row.kind === 'achievement'
+      ;(achievement ? achievementCounts : systemCounts)[
+        getSystemMessageBox(row)
+      ] += 1
+      if (isSystemMessageUnread(row)) {
+        if (achievement) achievementUnreadCount += 1
+        else systemUnreadCount += 1
+      }
     }
     const priceCounts: Record<PriceNotificationBox, number> = {
       open: 0,
@@ -382,19 +412,28 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
     return {
       enabled,
       visible:
-        enabled || systemMessages.length > 0 || priceNotifications.length > 0,
+        enabled ||
+        shownSystemMessages.length > 0 ||
+        priceNotifications.length > 0,
       pricesAvailable,
       isLoading: enabled && !hasSynced,
       notifications,
-      systemMessages,
+      systemMessages: shownSystemMessages,
+      achievementsAvailable,
       priceNotifications,
       now,
-      unreadCount: careUnreadCount + systemUnreadCount + priceUnreadCount,
+      unreadCount:
+        careUnreadCount +
+        systemUnreadCount +
+        achievementUnreadCount +
+        priceUnreadCount,
       careUnreadCount,
       systemUnreadCount,
+      achievementUnreadCount,
       priceUnreadCount,
       counts,
       systemCounts,
+      achievementCounts,
       priceCounts,
       act,
       actSystem,
@@ -407,6 +446,7 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
     hasSynced,
     notifications,
     systemMessages,
+    achievementsAvailable,
     priceNotifications,
     pricesAvailable,
     now,
@@ -431,14 +471,17 @@ const DISABLED_INBOX: CareInboxContextValue = {
   isLoading: false,
   notifications: [],
   systemMessages: [],
+  achievementsAvailable: false,
   priceNotifications: [],
   now: new Date(0),
   unreadCount: 0,
   careUnreadCount: 0,
   systemUnreadCount: 0,
+  achievementUnreadCount: 0,
   priceUnreadCount: 0,
   counts: { open: 0, snoozed: 0, done: 0 },
   systemCounts: { open: 0, done: 0 },
+  achievementCounts: { open: 0, done: 0 },
   priceCounts: { open: 0, snoozed: 0, done: 0 },
   act: async () => {
     throw new Error('The care inbox is unavailable here.')

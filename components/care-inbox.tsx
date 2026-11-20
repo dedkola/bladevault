@@ -23,6 +23,7 @@ import {
   RotateCcw,
   Settings,
   Sparkles,
+  Trophy,
   UploadCloud,
   X,
 } from 'lucide-react'
@@ -31,6 +32,11 @@ import { Button } from '@/components/ui/button'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useCareInbox } from '@/components/providers/care-inbox-provider'
 import { careToneDotClass, careToneTextClass } from '@/components/care-badge'
+import { AchievementBadge } from '@/components/achievement-badge'
+import {
+  ACHIEVEMENTS_HREF,
+  achievementIdFromMessageKey,
+} from '@/lib/achievements/messages'
 import { getImageUrl, type Knife } from '@/lib/data'
 import {
   CARE_SNOOZE_OPTIONS,
@@ -551,6 +557,7 @@ const SYSTEM_MESSAGE_HREF: Record<SystemMessage['kind'], string> = {
   'backup-failed': '/settings?tab=backup',
   'price-attention': '/price-drops?section=attention',
   'price-digest': '/price-drops',
+  achievement: ACHIEVEMENTS_HREF,
 }
 
 function systemMessageDetail(message: SystemMessage, now: Date): string {
@@ -568,6 +575,10 @@ function systemMessageDetail(message: SystemMessage, now: Date): string {
           ? `AI summary of ${formatShortDate(message.occurredAt, now)}, replaced by a newer one`
           : `Resolved ${formatShortDate(message.resolvedAt, now)}`
   }
+  if (message.kind === 'achievement')
+    return message.dismissedAt
+      ? `Unlocked ${when.toLowerCase()} · dismissed`
+      : `Unlocked ${when.toLowerCase()}`
   if (message.kind === 'price-digest')
     return message.dismissedAt
       ? `AI summary · ${when} · dismissed`
@@ -585,6 +596,21 @@ function SystemMessageIcon({
 }) {
   const resolved = Boolean(message.resolvedAt)
   const open = getSystemMessageBox(message) === 'open'
+  if (message.kind === 'achievement') {
+    const id = achievementIdFromMessageKey(message.key)
+    return id ? (
+      <AchievementBadge id={id} size={size === 'sm' ? 'sm' : 'md'} />
+    ) : (
+      <span
+        className={cn(
+          'grid shrink-0 place-items-center rounded-lg border border-[var(--bladevault-line)]/70 bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400',
+          size === 'sm' ? 'size-9' : 'size-11',
+        )}
+      >
+        <Trophy className={size === 'sm' ? 'size-4' : 'size-5'} />
+      </span>
+    )
+  }
   const digest = message.kind === 'price-digest'
   const Icon = digest
     ? Sparkles
@@ -673,7 +699,8 @@ function SystemMessageRow({
             'text-xs font-medium',
             box === 'done'
               ? 'text-muted-foreground'
-              : message.kind === 'price-digest'
+              : message.kind === 'price-digest' ||
+                  message.kind === 'achievement'
                 ? 'text-foreground/80'
                 : 'text-red-600 dark:text-red-400',
             compact && 'truncate',
@@ -1094,9 +1121,11 @@ export function CareInboxBell({
     unreadCount,
     careUnreadCount,
     systemUnreadCount,
+    achievementUnreadCount,
     priceUnreadCount,
     counts,
     systemCounts,
+    achievementCounts,
     priceCounts,
   } = useCareInbox()
   const knivesById = useInboxKnives()
@@ -1125,14 +1154,18 @@ export function CareInboxBell({
   )
   if (!visible) return null
   const openCount =
-    (enabled ? counts.open : 0) + systemCounts.open + priceCounts.open
+    (enabled ? counts.open : 0) +
+    systemCounts.open +
+    achievementCounts.open +
+    priceCounts.open
   const label =
     unreadCount > 0
       ? `Inbox, ${plural(unreadCount, 'unread message')}`
       : 'Inbox'
   const markAllRead = () => {
     if (enabled && careUnreadCount > 0) void run({ action: 'read-all' })
-    if (systemUnreadCount > 0) void runSystem({ action: 'read-all' })
+    if (systemUnreadCount + achievementUnreadCount > 0)
+      void runSystem({ action: 'read-all' })
     if (priceUnreadCount > 0) void runPrice({ action: 'read-all' })
   }
   return (
@@ -1247,13 +1280,14 @@ export function CareInboxBell({
   )
 }
 
-type InboxFilter = 'all' | 'maintenance' | 'prices' | 'system'
+type InboxFilter = 'all' | 'maintenance' | 'prices' | 'system' | 'achievements'
 
 const FILTER_TABS: readonly { filter: InboxFilter; label: string }[] = [
   { filter: 'all', label: 'All' },
   { filter: 'maintenance', label: 'Maintenance' },
   { filter: 'prices', label: 'Prices' },
   { filter: 'system', label: 'System' },
+  { filter: 'achievements', label: 'Achievements' },
 ]
 
 function isInboxFilter(value: string | null): value is InboxFilter {
@@ -1261,7 +1295,8 @@ function isInboxFilter(value: string | null): value is InboxFilter {
     value === 'all' ||
     value === 'maintenance' ||
     value === 'prices' ||
-    value === 'system'
+    value === 'system' ||
+    value === 'achievements'
   )
 }
 
@@ -1292,6 +1327,11 @@ const EMPTY_TEXT: Record<InboxFilter, Record<CareNotificationBox, string>> = {
     snoozed: 'System messages can’t be snoozed.',
     done: 'Resolved and dismissed system messages show up here for 90 days.',
   },
+  achievements: {
+    open: 'No new achievements. Unlocked badges show up here.',
+    snoozed: 'Achievement messages can’t be snoozed.',
+    done: 'Dismissed achievement messages show up here for 90 days.',
+  },
 }
 
 const FOOTNOTE: Record<InboxFilter, string> = {
@@ -1302,6 +1342,8 @@ const FOOTNOTE: Record<InboxFilter, string> = {
     'A message arrives when a monitored store changes a price or its stock. A later change the other way closes it. Choose which changes notify in Settings → Price monitoring, and set a target price or mute a knife in its Price monitoring editor.',
   system:
     'A failed Google Drive backup stays here until a later backup works. Successful backups only show a short notice.',
+  achievements:
+    'Each unlocked achievement leaves a note here. Badges stay unlocked when you dismiss the note. Turn the notes or achievements off in Settings → Achievements.',
 }
 
 /** Newest first, like mail. Done messages sort by when they closed. */
@@ -1329,9 +1371,12 @@ export function CareInboxView() {
     now,
     careUnreadCount,
     systemUnreadCount,
+    achievementUnreadCount,
+    achievementsAvailable,
     priceUnreadCount,
     counts,
     systemCounts,
+    achievementCounts,
     priceCounts,
   } = useCareInbox()
   const knivesById = useInboxKnives()
@@ -1346,7 +1391,8 @@ export function CareInboxView() {
   // The static web app has no price monitoring, so no Prices filter.
   const filter: InboxFilter =
     isInboxFilter(requestedFilter) &&
-    (requestedFilter !== 'prices' || pricesAvailable)
+    (requestedFilter !== 'prices' || pricesAvailable) &&
+    (requestedFilter !== 'achievements' || achievementsAvailable)
       ? requestedFilter
       : 'all'
   const setFilter = (next: InboxFilter) => {
@@ -1360,10 +1406,11 @@ export function CareInboxView() {
 
   const showCare = enabled && (filter === 'all' || filter === 'maintenance')
   const showSystem = filter === 'all' || filter === 'system'
+  const showAchievements = filter === 'all' || filter === 'achievements'
   const showPrices =
     pricesAvailable && (filter === 'all' || filter === 'prices')
-  // System messages have no snoozed box.
-  const unsnoozable = filter === 'system'
+  // System and achievement messages have no snoozed box.
+  const unsnoozable = filter === 'system' || filter === 'achievements'
   const activeBox = unsnoozable && box === 'snoozed' ? 'open' : box
 
   const visible = useMemo<InboxItem[]>(() => {
@@ -1380,8 +1427,11 @@ export function CareInboxView() {
           }))
       : []
     const system =
-      showSystem && activeBox !== 'snoozed'
+      activeBox !== 'snoozed'
         ? systemMessages
+            .filter((row) =>
+              row.kind === 'achievement' ? showAchievements : showSystem,
+            )
             .filter((row) => getSystemMessageBox(row) === activeBox)
             .map((row) => ({
               type: 'system' as const,
@@ -1410,6 +1460,7 @@ export function CareInboxView() {
   }, [
     showCare,
     showSystem,
+    showAchievements,
     showPrices,
     filter,
     notifications,
@@ -1422,25 +1473,45 @@ export function CareInboxView() {
   const boxCount = (target: CareNotificationBox) =>
     (showCare ? counts[target] : 0) +
     (showSystem && target !== 'snoozed' ? systemCounts[target] : 0) +
+    (showAchievements && target !== 'snoozed' ? achievementCounts[target] : 0) +
     (showPrices ? priceCounts[target] : 0)
   const filterUnread: Record<InboxFilter, number> = {
-    all: careUnreadCount + systemUnreadCount + priceUnreadCount,
+    all:
+      careUnreadCount +
+      systemUnreadCount +
+      achievementUnreadCount +
+      priceUnreadCount,
     maintenance: careUnreadCount,
     prices: priceUnreadCount,
     system: systemUnreadCount,
+    achievements: achievementUnreadCount,
   }
   const unread = filterUnread[filter]
   const boxTabs = BOX_TABS.filter(
     (tab) => tab.box !== 'snoozed' || !unsnoozable,
   )
   const filterTabs = FILTER_TABS.filter(
-    (tab) => tab.filter !== 'prices' || pricesAvailable,
+    (tab) =>
+      (tab.filter !== 'prices' || pricesAvailable) &&
+      (tab.filter !== 'achievements' || achievementsAvailable),
   )
 
   const markAllRead = () => {
     if (showCare && careUnreadCount > 0) void run({ action: 'read-all' })
-    if (showSystem && systemUnreadCount > 0)
-      void runSystem({ action: 'read-all' })
+    if (filter === 'all') {
+      if (systemUnreadCount + achievementUnreadCount > 0)
+        void runSystem({ action: 'read-all' })
+    } else if (showSystem || showAchievements) {
+      // Only the messages this filter shows.
+      const ids = systemMessages
+        .filter(
+          (row) =>
+            isSystemMessageUnread(row) &&
+            (row.kind === 'achievement' ? showAchievements : showSystem),
+        )
+        .map((row) => row.id)
+      if (ids.length > 0) void runSystem({ action: 'read', ids })
+    }
     if (showPrices && priceUnreadCount > 0)
       void runPrice({ action: 'read-all' })
   }

@@ -11,6 +11,11 @@ import { useKnives } from '@/components/providers/knives-provider'
 import { ForgeActivityMap } from '@/components/forge-activity-map'
 import { useCare } from '@/components/providers/care-provider'
 import { CareStatusSummary } from '@/components/care-status-summary'
+import {
+  AchievementTrophyCase,
+  useTrophyCaseVisible,
+} from '@/components/achievement-trophy-case'
+import { ACHIEVEMENTS_HREF } from '@/lib/achievements/messages'
 import { readJsonResponse } from '@/lib/api-response'
 import {
   createCollectionStats,
@@ -239,6 +244,7 @@ function Bars({
 export function ModernInsights() {
   const { knives, isLoading, themeStyle, dimensionUnit = 'in' } = useKnives()
   const { reminders: careReminders } = useCare()
+  const showTrophyCase = useTrophyCaseVisible()
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>()
   const [measurementKey, setMeasurementKey] =
     useState<MeasurementKey>('bladeLength')
@@ -443,6 +449,23 @@ export function ModernInsights() {
               >
                 <div className={styles.careBody}>
                   <CareStatusSummary />
+                </div>
+              </Panel>
+            )}
+
+            {showTrophyCase && (
+              <Panel
+                eyebrow="Achievements"
+                title="Trophy case"
+                description="Your rank, latest badges and the ones closest to unlocking."
+                action={
+                  <DetailLink href={ACHIEVEMENTS_HREF}>
+                    All achievements
+                  </DetailLink>
+                }
+              >
+                <div className={styles.careBody}>
+                  <AchievementTrophyCase />
                 </div>
               </Panel>
             )}

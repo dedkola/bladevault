@@ -22,6 +22,7 @@ function message(overrides: Partial<SystemMessage> = {}): SystemMessage {
   return {
     id: 1,
     kind: 'backup-failed',
+    key: null,
     title: 'Google Drive backup failed',
     detail: 'Network error',
     occurrences: 1,
@@ -137,5 +138,49 @@ describe('system messages', () => {
     expect(() =>
       parseSystemMessageAction({ action: 'read', ids: [] }),
     ).toThrow()
+  })
+})
+
+describe('keyed system messages', () => {
+  const unlock = {
+    kind: 'achievement' as const,
+    key: 'unlock:collector',
+    title: 'Achievement unlocked: Collector',
+    detail: '100 knives in the vault',
+  }
+
+  it('creates one message per key and ignores repeats of a key', () => {
+    const first = planSystemMessageReport([], unlock, now)
+    expect(first.create).toHaveLength(1)
+    expect(first.create[0]).toMatchObject({ key: 'unlock:collector' })
+
+    const stored = message({ kind: 'achievement', key: 'unlock:collector' })
+    // Even dismissed, the same key is never reported twice.
+    for (const row of [stored, { ...stored, dismissedAt: now.toISOString() }]) {
+      const repeat = planSystemMessageReport([row], unlock, now)
+      expect(repeat.create).toEqual([])
+      expect(repeat.update).toEqual([])
+    }
+
+    const other = planSystemMessageReport(
+      [stored],
+      { ...unlock, key: 'unlock:armory' },
+      now,
+    )
+    expect(other.create).toHaveLength(1)
+  })
+
+  it('keeps keyed and unkeyed messages apart', () => {
+    const keyed = message({ id: 1, kind: 'achievement', key: 'unlock:a' })
+    const unkeyed = planSystemMessageReport(
+      [keyed],
+      { kind: 'achievement', title: 'Plain', detail: '' },
+      now,
+    )
+    expect(unkeyed.update).toEqual([])
+    expect(unkeyed.create[0]).toMatchObject({ key: null })
+
+    const resolve = planSystemMessageResolve([keyed], 'achievement', now)
+    expect(resolve.update).toEqual([])
   })
 })

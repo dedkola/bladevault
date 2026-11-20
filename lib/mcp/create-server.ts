@@ -29,6 +29,8 @@ import {
   requestKnifePriceCheck,
   updatePriceWatch,
 } from '@/lib/services/price-service'
+import { getAchievementReport } from '@/lib/services/achievements-service'
+import { ACHIEVEMENT_CATEGORIES } from '@/lib/achievements/catalog'
 import { HISTORY_RANGES } from '@/lib/price-monitor/insights'
 import { PRICE_WATCH_MODES } from '@/lib/price-monitor/shared'
 import { MAINTENANCE_TYPES } from '@/lib/data'
@@ -168,6 +170,29 @@ export function createBladeVaultMcpServer(
       runTool(transport, () =>
         getCollectionStats({ includeSchema: include_schema }),
       ),
+  )
+
+  server.registerTool(
+    'get_achievements',
+    {
+      title: 'Get BladeVault achievements',
+      description:
+        'Return the collector rank, score, and badges with unlock dates or progress toward each target. Filter by status (all, unlocked, locked) or category. Locked secret badges are only counted, never described. Read-only: unlocks are recorded by the app.',
+      inputSchema: z.object({
+        status: z.enum(['all', 'unlocked', 'locked']).default('all'),
+        category: z
+          .enum(
+            ACHIEVEMENT_CATEGORIES.map((entry) => entry.id) as [
+              (typeof ACHIEVEMENT_CATEGORIES)[number]['id'],
+              ...(typeof ACHIEVEMENT_CATEGORIES)[number]['id'][],
+            ],
+          )
+          .optional(),
+      }),
+      annotations: readOnlyAnnotations,
+    },
+    ({ status, category }) =>
+      runTool(transport, () => getAchievementReport({ status, category })),
   )
 
   server.registerTool(

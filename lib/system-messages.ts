@@ -9,11 +9,18 @@ export type SystemMessageKind =
   | 'price-attention'
   /** The daily AI summary of price monitoring; each day replaces the last. */
   | 'price-digest'
+  /** An unlocked achievement; one message per badge, keyed by its id. */
+  | 'achievement'
 export type SystemMessageBox = 'open' | 'done'
 
 export type SystemMessage = {
   id: number
   kind: SystemMessageKind
+  /**
+   * Separates messages of one kind, e.g. each achievement. Messages without a
+   * key keep the one-open-message-per-kind rule.
+   */
+  key: string | null
   title: string
   detail: string
   /** How many times the problem happened while this message stayed open. */
@@ -36,8 +43,13 @@ export const SYSTEM_MESSAGE_KINDS: readonly SystemMessageKind[] = [
   'backup-failed',
   'price-attention',
   'price-digest',
+  'achievement',
 ]
 export const SYSTEM_MESSAGE_RETENTION_DAYS = 90
+
+/** Asks the Inbox to reload system messages, e.g. after new achievements. */
+export const SYSTEM_MESSAGES_REFRESH_EVENT =
+  'bladevault:system-messages-refresh'
 
 const DAY_MS = 86_400_000
 
@@ -85,6 +97,8 @@ export function expiredSystemMessageIds(
 
 export type SystemMessageReport = {
   kind: SystemMessageKind
+  /** A keyed report is recorded once: repeats of the same key are ignored. */
+  key?: string
   title: string
   detail: string
 }
@@ -106,9 +120,20 @@ export function planSystemMessageReport(
 ): SystemMessageChanges {
   const nowIso = now.toISOString()
   const deleteIds = expiredSystemMessageIds(existing, now)
-  const current = existing.find(
-    (row) => row.kind === report.kind && !row.resolvedAt,
-  )
+  const key = report.key ?? null
+  if (
+    key !== null &&
+    existing.some((row) => row.kind === report.kind && row.key === key)
+  ) {
+    return { create: [], update: [], deleteIds }
+  }
+  const current =
+    key === null
+      ? existing.find(
+          (row) =>
+            row.kind === report.kind && row.key === null && !row.resolvedAt,
+        )
+      : undefined
   if (current) {
     return {
       create: [],
@@ -131,6 +156,7 @@ export function planSystemMessageReport(
     create: [
       {
         kind: report.kind,
+        key,
         title: report.title,
         detail: report.detail,
         occurrences: 1,
@@ -157,7 +183,7 @@ export function planSystemMessageResolve(
   return {
     create: [],
     update: existing
-      .filter((row) => row.kind === kind && !row.resolvedAt)
+      .filter((row) => row.kind === kind && row.key === null && !row.resolvedAt)
       .map((row) => ({ ...row, resolvedAt: nowIso, updatedAt: nowIso })),
     deleteIds: expiredSystemMessageIds(existing, now),
   }
