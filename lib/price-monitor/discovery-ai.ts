@@ -125,6 +125,8 @@ export type MatchCandidate = {
 export type SearchCandidate = MatchCandidate & { asin: string }
 
 const ASIN = /^[A-Z0-9]{10}$/
+/** Amazon puts the ad label in the title heading: "Sponsored Ad - Corgi V…". */
+const SPONSORED_PREFIX = /^Sponsored Ad\s*[-–—]\s*/i
 
 /**
  * A search result's title. Amazon often shows the brand in its own heading
@@ -138,7 +140,12 @@ function amazonResultTitle(
   const headings = block
     .find('h2')
     .toArray()
-    .map((el) => clean($(el).attr('aria-label') || $(el).text()))
+    .map((el) =>
+      clean($(el).attr('aria-label') || $(el).text()).replace(
+        SPONSORED_PREFIX,
+        '',
+      ),
+    )
     .filter(Boolean)
   const title = headings.reduce(
     (longest, text) => (text.length > longest.length ? text : longest),
@@ -193,7 +200,15 @@ export function parseAmazonSearchResults(html: string): SearchCandidate[] {
               )
               .text(),
           ),
-        ),
+        ) ||
+        block
+          .find('h2')
+          .toArray()
+          .some((el) =>
+            SPONSORED_PREFIX.test(
+              clean($(el).attr('aria-label') || $(el).text()),
+            ),
+          ),
     })
   })
   if (!found.length) {
@@ -280,6 +295,47 @@ export function parseVerifyAnswer(answer: unknown): AiDecision {
   }
 }
 
+/**
+ * The maker's model numbers in a knife's model number field: one or more
+ * codes such as "A3105" or "C223GP / C223GPBK". Codes without a digit or
+ * shorter than three characters are names, not codes, and are left out.
+ */
+export function modelNumberCodes(modelNumber: string | undefined): string[] {
+  return (modelNumber ?? '')
+    .split(/\s*(?:[,;/|]|\bor\b)\s*/i)
+    .map((part) => part.trim())
+    .filter(
+      (part) =>
+        /\d/.test(part) && part.replace(/[^\p{L}\p{N}]/gu, '').length >= 3,
+    )
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * True when the page text shows one of the knife's model numbers as a whole
+ * code. Spaces, dashes and dots inside the code are ignored ("A-3105" is
+ * A3105), but a longer code is another variant: "C223GPBK" is not "C223GP",
+ * "SP223GP" is not "C223GP".
+ */
+export function pageShowsModelNumber(
+  modelNumber: string | undefined,
+  pageText: string,
+): boolean {
+  const codes = modelNumberCodes(modelNumber)
+  if (!codes.length) return true
+  return codes.some((code) => {
+    const chars = [...code.replace(/[^\p{L}\p{N}]/gu, '')]
+    const pattern = chars.map(escapeRegExp).join('[\\s.\\-]?')
+    return new RegExp(
+      `(?<![\\p{L}\\p{N}])${pattern}(?![\\p{L}\\p{N}])`,
+      'iu',
+    ).test(pageText)
+  })
+}
+
 const MATCH_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -326,6 +382,7 @@ const MATCH_SYSTEM = [
 const VERIFY_SYSTEM = [
   'You check whether a store’s product page sells a specific knife from a collector’s collection.',
   MATCHING_RULES,
+  'When the collection knife has a modelNumber, the product page must show that exact model number (in the title, the details or the item model number). Makers use a different code for each steel, handle and colour variant: a page showing another code, or no code at all, is not the same product.',
   'Answer with JSON only: {"same_product", "confidence", "reason"}.',
   'same_product: true only when the page sells exactly this knife.',
   'confidence: 0 to 1, how sure you are. reason: one short sentence.',

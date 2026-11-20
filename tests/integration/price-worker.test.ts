@@ -436,6 +436,7 @@ describe('price monitor worker', () => {
           enabled: true,
           stores: { amazon: true, bladehq: false, knifecenter: false },
           amazonMarketplace: 'amazon.com',
+          amazonPostcode: '',
         },
       },
     })
@@ -507,6 +508,7 @@ describe('price monitor worker', () => {
           enabled: true,
           stores: { amazon: true, bladehq: false, knifecenter: false },
           amazonMarketplace: 'amazon.com',
+          amazonPostcode: '',
         },
       },
     })

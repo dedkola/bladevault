@@ -4,6 +4,7 @@ import * as priceWatchRoute from '@/app/api/knives/[id]/price-watch/route'
 import * as discoveryRoute from '@/app/api/prices/discovery/route'
 import { getLocalDb } from '@/lib/local-db'
 import { AiClientError } from '@/lib/price-monitor/ai-client'
+import { AmazonLocationError } from '@/lib/price-monitor/amazon-location'
 import {
   discoverKnife,
   nextDiscoveryKnife,
@@ -53,6 +54,7 @@ function enableOtherStores(ai = true) {
         enabled: true,
         stores: { amazon: true, bladehq: false, knifecenter: false },
         amazonMarketplace: 'amazon.com',
+        amazonPostcode: '',
       },
     },
   })
@@ -110,7 +112,8 @@ describe('Other stores discovery', () => {
         ? '<div>No results</div>'
         : url.includes('/s?')
           ? SEARCH_HTML
-          : PRODUCT_HTML,
+          : // The title leaves the code out; the details show it.
+            PRODUCT_HTML.replace('</ul>', '<li>Model: C223GP</li></ul>'),
       finalUrl: url,
     }))
     const run = deps({ fetchPage })
@@ -174,12 +177,16 @@ describe('Other stores discovery', () => {
       'https://www.amazon.com/s?k=Spyderco+Para+3',
       expect.anything(),
       'amazon',
+      // Amazon pages first get a delivery address in the marketplace.
+      expect.any(Function),
     )
     expect(run.fetchPage).toHaveBeenNthCalledWith(
       2,
       'https://www.amazon.com/dp/B07PARA003',
       expect.anything(),
       'amazon',
+      // Amazon pages first get a delivery address in the marketplace.
+      expect.any(Function),
     )
     // AI sees the knife's identity, never what was paid.
     const matchInput = vi.mocked(run.match!).mock.calls[0][0]
@@ -270,6 +277,63 @@ describe('Other stores discovery', () => {
     )
     expect(((await retry.json()) as { reset: number }).reset).toBe(1)
     expect(nextDiscoveryKnife(getSettings().priceMonitoring)).toBe(knifeId)
+  })
+
+  it('rejects a listing whose page does not show the knife’s model number', async () => {
+    enableOtherStores()
+    const knifeId = await createKnife({
+      specs: { price: '$150', modelNumber: 'C223GPBK' },
+    })
+    const summary = await discoverKnife(knifeId, { deps: deps() })
+    expect(summary).toMatchObject({ status: 'done', result: 'rejected' })
+    expect((await getWatch(knifeId)).sources).toEqual([])
+    const row = getLocalDb()
+      .prepare('SELECT detail FROM price_discovery WHERE knife_id = ?')
+      .get(knifeId) as { detail: string }
+    expect(row.detail).toBe(
+      'The Amazon page does not show model number C223GPBK.',
+    )
+  })
+
+  it('adds a listing whose page shows the knife’s model number', async () => {
+    enableOtherStores()
+    const knifeId = await createKnife({
+      specs: { price: '$150', modelNumber: 'C223GP' },
+    })
+    const run = deps({
+      fetchPage: vi.fn(async (url: string) => ({
+        html: url.includes('/s?')
+          ? SEARCH_HTML
+          : PRODUCT_HTML.replace('CTS BD1N</span>', 'CTS BD1N - C223GP</span>'),
+        finalUrl: url,
+      })),
+    })
+    expect(await discoverKnife(knifeId, { deps: run })).toMatchObject({
+      status: 'done',
+      result: 'found',
+    })
+    expect((await getWatch(knifeId)).sources).toHaveLength(1)
+  })
+
+  it('does not record "not found" when Amazon will not deliver to the marketplace', async () => {
+    enableOtherStores()
+    const knifeId = await createKnife({ specs: { price: '$150' } })
+    const run = deps({
+      fetchPage: vi.fn(async () => {
+        throw new AmazonLocationError('Ukraine', '10001')
+      }),
+    })
+    expect(await discoverKnife(knifeId, { deps: run })).toMatchObject({
+      status: 'done',
+      result: 'failed',
+      laneOutcome: 'neutral',
+    })
+    expect(run.match).not.toHaveBeenCalled()
+    const row = getLocalDb()
+      .prepare('SELECT status, detail FROM price_discovery WHERE knife_id = ?')
+      .get(knifeId) as { status: string; detail: string }
+    expect(row.status).toBe('failed')
+    expect(row.detail).toContain('Amazon delivers to Ukraine')
   })
 
   it('reports a bot check to the Amazon lane without asking AI', async () => {

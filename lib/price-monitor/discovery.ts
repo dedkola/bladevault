@@ -1,3 +1,4 @@
+import type { Page } from 'playwright'
 import type { Knife } from '@/lib/data'
 import { getLocalDb } from '@/lib/local-db'
 import { aiConfigured } from '@/lib/price-monitor/ai'
@@ -6,6 +7,7 @@ import {
   aiBudgetRefusal,
   type AiEndpoint,
 } from '@/lib/price-monitor/ai-client'
+import { AmazonLocationError } from '@/lib/price-monitor/amazon-location'
 import {
   loadBrowserState,
   saveBrowserState,
@@ -14,6 +16,7 @@ import {
   buildSearchQueries,
   knifeIdentity,
   matchSearchResults,
+  pageShowsModelNumber,
   verifyProductPage,
 } from '@/lib/price-monitor/discovery-ai'
 import {
@@ -62,6 +65,7 @@ export type DiscoveryDeps = {
     url: string,
     signal: AbortSignal,
     laneKey: string,
+    preparePage?: (page: Page) => Promise<void>,
   ) => Promise<DiscoveryPage>
   match: typeof matchSearchResults
   verify: typeof verifyProductPage
@@ -73,6 +77,7 @@ async function renderWithLaneCookies(
   url: string,
   signal: AbortSignal,
   laneKey: string,
+  preparePage?: (page: Page) => Promise<void>,
 ): Promise<DiscoveryPage> {
   const { fetchRenderedHtml } = await import('@/lib/scrape-playwright')
   const operation = createScrapeOperation({ signal, timeoutMs: 60_000 })
@@ -84,6 +89,7 @@ async function renderWithLaneCookies(
       light: true,
       captureStorageState: true,
       storageState,
+      interact: preparePage,
     })
     if (page.storageState)
       await saveBrowserState(laneKey, page.storageState).catch(() => {})
@@ -160,6 +166,13 @@ function pageFailure(
   detail: string
   retryAfterMs: number | null
 } {
+  if (error instanceof AmazonLocationError)
+    return {
+      result: 'failed',
+      laneOutcome: 'neutral',
+      detail: `${error.message} Amazon would hide knives that do not ship there, so BladeVault will try again later.`,
+      retryAfterMs: null,
+    }
   const failure = toScrapeError(error)
   const status = upstreamStatus(error)
   if (failure.code === 'challenge' || status === 403)
@@ -273,9 +286,15 @@ export async function discoverKnife(
     const refusal = aiBudgetRefusal('discovery_search')
     if (refusal) throw new AiClientError('budget', refusal)
 
+    const prepare = store.preparePage
+    const preparePage = prepare
+      ? (page: Page) => prepare(page, settings.otherStores)
+      : undefined
     /** A page load that always ends when the search's time budget does. */
     const load = (url: string) =>
-      runWithSignal(signal, () => deps.fetchPage(url, signal, store.laneKey))
+      runWithSignal(signal, () =>
+        deps.fetchPage(url, signal, store.laneKey, preparePage),
+      )
     const loadFailure = (error: unknown) =>
       controller.signal.aborted
         ? {
@@ -368,6 +387,23 @@ export async function discoverKnife(
         confidence: verdict.confidence,
         detail:
           verdict.reason || 'AI decided the product page sells another item.',
+      })
+
+    // The maker's model number decides the variant (steel, handle, colour):
+    // without it on the page, AI's yes is not enough.
+    if (
+      !pageShowsModelNumber(
+        identity.modelNumber,
+        `${details.title}\n${details.details}`,
+      )
+    )
+      return await finish({
+        result: 'rejected',
+        laneOutcome: 'success',
+        url,
+        title: details.title,
+        confidence: verdict.confidence,
+        detail: `The ${store.label} page does not show model number ${identity.modelNumber}.`,
       })
 
     // 3. Parse: from now on the source is checked like any other, with the
