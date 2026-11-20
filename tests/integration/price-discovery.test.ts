@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as knivesRoute from '@/app/api/knives/route'
 import * as priceWatchRoute from '@/app/api/knives/[id]/price-watch/route'
@@ -12,6 +13,7 @@ import {
 } from '@/lib/price-monitor/discovery'
 import type { PriceWatchView } from '@/lib/price-monitor/shared'
 import { getPriceMonitorWorker } from '@/lib/price-monitor/worker'
+import { networkBlockError } from '@/lib/scrape'
 import { ScrapeError } from '@/lib/scrape-errors'
 import { getSettings, saveSettings } from '@/lib/settings'
 import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
@@ -40,7 +42,13 @@ const PRODUCT_HTML = `<html><body>
   <div id="feature-bullets"><ul><li>2.95 inch CTS BD1N blade</li></ul></div>
 </body></html>`
 
-function enableOtherStores(ai = true) {
+const fixture = (name: string) =>
+  readFileSync(new URL(`../fixtures/scrape/${name}`, import.meta.url), 'utf8')
+
+function enableOtherStores(
+  ai = true,
+  stores = { amazon: true, bladehq: false },
+) {
   saveSettings({
     priceMonitoring: {
       ...DEFAULT_PRICE_MONITORING,
@@ -52,7 +60,7 @@ function enableOtherStores(ai = true) {
       },
       otherStores: {
         enabled: true,
-        stores: { amazon: true, bladehq: false, knifecenter: false },
+        stores,
         amazonMarketplace: 'amazon.com',
         amazonPostcode: '',
       },
@@ -226,7 +234,6 @@ describe('Other stores discovery', () => {
     expect(all.stores.map((store) => [store.store, store.active])).toEqual([
       ['amazon', true],
       ['bladehq', false],
-      ['knifecenter', false],
     ])
     const discovery = all.stores[0]
     expect(discovery.counts.found).toBe(1)
@@ -350,6 +357,86 @@ describe('Other stores discovery', () => {
       laneOutcome: 'blocked',
     })
     expect(run.match).not.toHaveBeenCalled()
+  })
+
+  it('finds a knife on Blade HQ from its live search and product pages', async () => {
+    enableOtherStores(true, {
+      amazon: false,
+      bladehq: true,
+    })
+    const knifeId = await createKnife({
+      specs: { price: '$150', modelNumber: 'C223GPBK' },
+    })
+    const product =
+      'https://www.bladehq.com/item--Spyderco-Para-3-Compression-Lock--67321'
+    const fetchPage = vi.fn<DiscoveryDeps['fetchPage']>(async (url) =>
+      url.includes('?search=')
+        ? {
+            html: fixture('bladehq-search-para-3.html'),
+            // Blade HQ redirects a close match to the model's category.
+            finalUrl: 'https://www.bladehq.com/cat--Spyderco-Para-3--2475',
+          }
+        : { html: fixture('bladehq-item-para-3-c223gpbk.html'), finalUrl: url },
+    )
+    const match = vi.fn(
+      async ({ candidates }: { candidates: Array<{ title: string }> }) => ({
+        accepted: true,
+        confidence: 0.9,
+        reason: 'Same model number.',
+        candidate: candidates.find((item) => item.title.endsWith('C223GPBK'))!,
+      }),
+    )
+    const run = deps({
+      fetchPage,
+      match: match as unknown as DiscoveryDeps['match'],
+    })
+    expect(
+      await discoverKnife(knifeId, { deps: run, store: 'bladehq' }),
+    ).toMatchObject({ status: 'done', result: 'found', laneOutcome: 'success' })
+    expect(fetchPage.mock.calls.map(([url, , lane]) => [url, lane])).toEqual([
+      [
+        'https://www.bladehq.com/?search=Spyderco+Para+3+C223GPBK',
+        'bladehq.com',
+      ],
+      [product, 'bladehq.com'],
+    ])
+    // AI sees the selling price, not the struck-through MSRP.
+    expect(match.mock.calls[0][0].candidates[1]).toMatchObject({
+      title:
+        'Spyderco Para 3 Compression Lock Knife Black G-10 (3" Black DLC) C223GPBK',
+      price: '$212.25',
+    })
+    const sources = (await getWatch(knifeId)).sources
+    expect(sources.map((source) => source.url)).toEqual([product])
+  })
+
+  it('says a store blocks this network rather than showing a bot check', async () => {
+    enableOtherStores(true, { amazon: false, bladehq: true })
+    const knifeId = await createKnife({ specs: { price: '$150' } })
+    const run = deps({
+      fetchPage: vi.fn(async () => {
+        throw networkBlockError(403)
+      }),
+    })
+    expect(
+      await discoverKnife(knifeId, { deps: run, store: 'bladehq' }),
+    ).toMatchObject({
+      status: 'done',
+      result: 'blocked',
+      // Pauses the store's lane like a bot check would.
+      laneOutcome: 'blocked',
+    })
+    expect(run.match).not.toHaveBeenCalled()
+    const row = getLocalDb()
+      .prepare(
+        "SELECT status, detail FROM price_discovery WHERE knife_id = ? AND store = 'bladehq'",
+      )
+      .get(knifeId) as { status: string; detail: string }
+    expect(row.status).toBe('blocked')
+    expect(row.detail).toContain(
+      'Blade HQ blocks visitors from this network or IP address',
+    )
+    expect(row.detail).not.toContain('showed a bot check')
   })
 
   it('does not blame the knife when the AI endpoint fails', async () => {

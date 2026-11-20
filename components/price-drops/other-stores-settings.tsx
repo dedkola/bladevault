@@ -53,8 +53,6 @@ const STORE_DESCRIPTION: Record<OtherStoreId, string> = {
     'Searches the marketplace you choose. A knife that already has an Amazon source is skipped. Amazon checks and searches share one pace and pause together after a bot check.',
   bladehq:
     'Searches bladehq.com (US prices). A knife that already has a Blade HQ source is skipped. Searches share Blade HQ’s pace with its price checks.',
-  knifecenter:
-    'Searches knifecenter.com (US prices). A knife that already has a KnifeCenter source is skipped. Searches share KnifeCenter’s pace with its price checks.',
 }
 
 const STATUS_LABEL: Record<DiscoveryStatus, string> = {
@@ -199,7 +197,7 @@ export function OtherStoresSettings({
   return (
     <SettingsSection
       title="Other stores"
-      description="A knife’s own store is often sold out. AI looks for every monitored knife at Amazon, Blade HQ or KnifeCenter, checks that the listing is the same knife, and adds it as a price source. From then on it is checked like any other source, and AI reads the price when the page parsers cannot."
+      description="A knife’s own store is often sold out. AI looks for every monitored knife at Amazon or Blade HQ, checks that the listing is the same knife, and adds it as a price source. From then on it is checked like any other source, and AI reads the price when the page parsers cannot."
     >
       <SettingsRow
         inline

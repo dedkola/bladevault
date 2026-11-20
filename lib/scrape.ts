@@ -98,6 +98,45 @@ function resolveDocumentBase($: cheerio.CheerioAPI, pageUrl: string): string {
   return resolveUrl($('base[href]').first().attr('href'), pageUrl) ?? pageUrl
 }
 
+/**
+ * A store page that refuses the visitor's network outright, e.g. a store's
+ * "Sorry, you have been blocked … malicious traffic from similar IPs" or
+ * Cloudflare's firewall block. Unlike a bot check there is nothing to solve:
+ * every request from this IP address gets the same page.
+ */
+export function isNetworkBlockPage(html: string): boolean {
+  if (!html) return false
+  const text = html
+    .toLowerCase()
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+  // Block pages are short notices; a product page may quote the words.
+  if (text.length > 4000) return false
+  if (!/you have been blocked|you are unable to access/.test(text)) return false
+  return /\bips?\b|ip address|ray id/.test(text)
+}
+
+/** Message and status a network block reports (the 403 paces the store). */
+export function networkBlockError(status = 403): ScrapeError {
+  // A block page served with 200 still has to pause the store like a 403.
+  if (status < 400) status = 403
+  return Object.assign(
+    new ScrapeError(
+      'http',
+      `The store blocks requests from this network or IP address (HTTP ${status}). This is not a bot check BladeVault can pass; checks may work again later or from another network.`,
+    ),
+    { networkBlock: true as const },
+  )
+}
+
+export function isNetworkBlockError(error: unknown): boolean {
+  return (
+    error instanceof ScrapeError &&
+    (error as ScrapeError & { networkBlock?: boolean }).networkBlock === true
+  )
+}
+
 // Detect Cloudflare and other bot/security challenge interstitials so we can
 // surface a helpful error instead of parsing the challenge page as a product.
 export function isSecurityChallengePage(html: string): boolean {
@@ -188,6 +227,7 @@ async function enrichProduct(
 ): Promise<EnrichedScrapeResult> {
   // Saved pages can embed verification scripts after the person has passed
   // the check; their caller confirms product markup before allowing them.
+  if (isNetworkBlockPage(html)) throw networkBlockError()
   if (!options?.allowChallengeMarkers && isSecurityChallengePage(html)) {
     throw new ScrapeError('challenge')
   }

@@ -127,6 +127,36 @@ export function laneAvailability(
     : { state: 'ready' }
 }
 
+/** Other stores: at most one search per store in this time. */
+export const DISCOVERY_MIN_GAP_MS = 5 * MINUTE_MS
+
+/** Gap between a store's last request and its next Other stores search. */
+export function discoveryGapMs(lane: LaneState, floorMs: number): number {
+  return Math.max(lane.minGapMs, floorMs, DISCOVERY_MIN_GAP_MS)
+}
+
+/**
+ * When an Other stores search may start at a store. It follows the store's
+ * minimum gap since its last request, not the spread of its scheduled
+ * checks: that spread is hours long for a store with one or two sources and
+ * would leave its searches waiting all day. A store that failed, slowed us
+ * down (Retry-After), is in a cooldown or advised pause waits as before.
+ */
+export function discoveryAvailability(
+  lane: LaneState,
+  now: number,
+  options: { floorMs: number; pauseUntil?: number | null },
+): LaneAvailability {
+  if (lane.circuit === 'open' || lane.failureStreak > 0)
+    return laneAvailability(lane, now)
+  const searchAt = Math.max(
+    (lane.lastRequestAt ?? 0) + discoveryGapMs(lane, options.floorMs),
+    options.pauseUntil ?? 0,
+  )
+  const until = Math.min(lane.readyAt, searchAt)
+  return until > now ? { state: 'waiting', until } : { state: 'ready' }
+}
+
 /** Earliest a manual check may start: the store's minimum gap only. */
 export function manualReadyAt(lane: LaneState): number {
   return lane.lastRequestAt === null ? 0 : lane.lastRequestAt + lane.minGapMs

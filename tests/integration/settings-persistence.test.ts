@@ -64,7 +64,7 @@ describe('settings persistence', () => {
         },
         otherStores: {
           enabled: true,
-          stores: { amazon: true, bladehq: false, knifecenter: false },
+          stores: { amazon: true, bladehq: false },
           amazonMarketplace: 'amazon.de',
           amazonPostcode: '80331',
         },
@@ -117,7 +117,7 @@ describe('settings persistence', () => {
       },
       otherStores: {
         enabled: true,
-        stores: { amazon: true, bladehq: false, knifecenter: false },
+        stores: { amazon: true, bladehq: false },
         amazonMarketplace: 'amazon.de',
         amazonPostcode: '80331',
       },

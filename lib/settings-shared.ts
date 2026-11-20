@@ -451,7 +451,7 @@ export type PriceMonitoringSettings = {
    * Out of stock on the knife's own product link (its official store) is
    * ignored: it does not count as out of stock, does not notify, and the
    * link is not checked on schedule while it stays out of stock. Other
-   * stores (Amazon, Blade HQ, KnifeCenter) carry the knife instead.
+   * stores (Amazon, Blade HQ) carry the knife instead.
    */
   ignoreOfficialOutOfStock: boolean
   /** Target frequency per source; the queue spreads checks across it. */
@@ -563,13 +563,12 @@ export function amazonDeliveryPostcode(
 }
 
 /** Stores AI can search for monitored knives, in search order. */
-export const OTHER_STORE_IDS = ['amazon', 'bladehq', 'knifecenter'] as const
+export const OTHER_STORE_IDS = ['amazon', 'bladehq'] as const
 export type OtherStoreId = (typeof OTHER_STORE_IDS)[number]
 
 export const OTHER_STORE_LABELS: Record<OtherStoreId, string> = {
   amazon: 'Amazon',
   bladehq: 'Blade HQ',
-  knifecenter: 'KnifeCenter',
 }
 
 export type PriceOtherStoresSettings = {
@@ -718,7 +717,7 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
   },
   otherStores: {
     enabled: false,
-    stores: { amazon: true, bladehq: false, knifecenter: false },
+    stores: { amazon: true, bladehq: false },
     amazonMarketplace: 'amazon.com',
     amazonPostcode: '',
   },

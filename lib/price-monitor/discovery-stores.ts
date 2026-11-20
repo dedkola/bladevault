@@ -71,6 +71,14 @@ function amazonDetails(html: string, url: string): ProductPageDetails | null {
 }
 
 /**
+ * Struck-through prices on a result card (MSRP, "was"): left out so the first
+ * price is the one the store sells at. Blade HQ shows "$289.00 $216.75" with
+ * the list price crossed out.
+ */
+const STRUCK_PRICES =
+  'del, s, strike, [class*="line-through"], [style*="line-through"]'
+
+/**
  * Product links on a store's search or category page. Header, navigation
  * and footer links are left out; one entry per product with its longest
  * title and the first price shown in its result card.
@@ -84,6 +92,22 @@ export function parseStoreProductLinks(
   const base = parseHttpUrl(pageUrl)
   if (!base) return []
   const lane = laneKeyForUrl(base.href)
+  // A search that matched one product can land on its page instead.
+  if (isProductPath(base.pathname)) {
+    const details = genericProductDetails(html)
+    if (!details) return []
+    base.search = ''
+    base.hash = ''
+    return [
+      {
+        id: 1,
+        url: base.href,
+        title: details.title,
+        price: null,
+        sponsored: false,
+      },
+    ]
+  }
   const byUrl = new Map<string, { title: string; price: string | null }>()
   $('a[href]').each((_, el) => {
     const link = $(el)
@@ -120,7 +144,9 @@ export function parseStoreProductLinks(
           }
         })
       if (others) break
-      price = clean(card.text()).match(PRICE)?.[0] ?? null
+      const selling = card.clone()
+      selling.find(STRUCK_PRICES).remove()
+      price = clean(selling.text()).match(PRICE)?.[0] ?? null
       card = card.parent()
     }
     const previous = byUrl.get(href)
@@ -206,8 +232,6 @@ export function genericProductDetails(html: string): ProductPageDetails | null {
 
 /** www.bladehq.com/item--Spyderco-Para-3-Lightweight--106189 */
 const BLADEHQ_PRODUCT = /^\/item--[^/]+--\d+\/?$/i
-/** www.knifecenter.com/item/SP223GP/spyderco-para-3-folding-knife… */
-const KNIFECENTER_PRODUCT = /^\/item\/[A-Z0-9][A-Z0-9-]*(?:\/[^/]*)?\/?$/i
 
 export const DISCOVERY_STORES: Record<OtherStoreId, DiscoveryStore> = {
   amazon: {
@@ -241,22 +265,6 @@ export const DISCOVERY_STORES: Record<OtherStoreId, DiscoveryStore> = {
     parseResults: (html, pageUrl) =>
       parseStoreProductLinks(html, pageUrl, (path) =>
         BLADEHQ_PRODUCT.test(path),
-      ),
-    productDetails: (html) => genericProductDetails(html),
-  },
-  knifecenter: {
-    id: 'knifecenter',
-    label: OTHER_STORE_LABELS.knifecenter,
-    laneKey: 'knifecenter.com',
-    marketplace: () => 'knifecenter.com',
-    searchUrl: (_settings, query) => {
-      const url = new URL('https://www.knifecenter.com/search')
-      url.searchParams.set('q', query)
-      return url.href
-    },
-    parseResults: (html, pageUrl) =>
-      parseStoreProductLinks(html, pageUrl, (path) =>
-        KNIFECENTER_PRODUCT.test(path),
       ),
     productDetails: (html) => genericProductDetails(html),
   },

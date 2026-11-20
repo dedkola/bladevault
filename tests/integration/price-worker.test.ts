@@ -434,7 +434,7 @@ describe('price monitor worker', () => {
         },
         otherStores: {
           enabled: true,
-          stores: { amazon: true, bladehq: false, knifecenter: false },
+          stores: { amazon: true, bladehq: false },
           amazonMarketplace: 'amazon.com',
           amazonPostcode: '',
         },
@@ -493,6 +493,119 @@ describe('price monitor worker', () => {
     expect(Date.parse(lane.last_request_at)).toBe(now())
   })
 
+  it('searches a store with one source within minutes, not at its check spread', async () => {
+    await knife(['https://www.bladehq.com/item--Test-Knife--1'])
+    const lookFor = await knife([])
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        ai: {
+          ...DEFAULT_PRICE_MONITORING.ai,
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          model: 'test-model',
+        },
+        otherStores: {
+          enabled: true,
+          stores: { amazon: false, bladehq: true },
+          amazonMarketplace: 'amazon.com',
+          amazonPostcode: '',
+        },
+      },
+    })
+    const discover = vi.fn(async (): Promise<DiscoverySummary> => ({
+      status: 'done',
+      result: 'not_found',
+      laneOutcome: 'success',
+      aiProblem: false,
+      durationMs: 4000,
+      retryAfterMs: null,
+      sourceId: null,
+    }))
+    const { worker, pending, finish, advance, now } = harness({
+      nextDiscovery: (_settings, _now, store) =>
+        store === 'bladehq' ? lookFor : null,
+      discover,
+    })
+    // The AI advisor paused Blade HQ for half an hour: searches wait too.
+    const createdAt = new Date(now()).toISOString()
+    await recordAdvice({
+      generation: getVaultAccessState().generation,
+      createdAt,
+      trigger: 'manual',
+      model: 'm',
+      input: {
+        now: createdAt,
+        timeZone: 'UTC',
+        frequencyHours: 24,
+        activeHours: null,
+        statsDays: 7,
+        stores: [],
+      },
+      applied: {
+        createdAt,
+        expiresAt: new Date(now() + 48 * 60 * MIN).toISOString(),
+        lanes: [
+          {
+            laneKey: 'bladehq.com',
+            minGapMs: null,
+            pauseUntil: new Date(now() + 30 * MIN).toISOString(),
+            quietHours: null,
+            strategy: null,
+            reason: 'test',
+            adjustments: [],
+          },
+        ],
+      },
+    })
+    // Manual checks still run in a pause; its one source is checked now.
+    await requestSourceChecks([...sourceIds().values()])
+    worker.start({ scheduled: true })
+    await worker.pass()
+    expect(pending).toHaveLength(1)
+    await finish()
+    const spreadReadyAt = Date.parse(
+      (
+        getLocalDb()
+          .prepare(
+            "SELECT ready_at FROM price_host_state WHERE lane_key = 'bladehq.com'",
+          )
+          .get() as { ready_at: string }
+      ).ready_at,
+    )
+    // One source a day: its next check waits the two-hour spread cap.
+    expect(spreadReadyAt - now()).toBeGreaterThanOrEqual(2 * 60 * MIN)
+
+    advance(6 * MIN)
+    await worker.pass()
+    expect(discover).not.toHaveBeenCalled()
+
+    advance(25 * MIN)
+    await worker.pass()
+    expect(discover).toHaveBeenCalledTimes(1)
+    expect(discover.mock.calls[0]).toEqual([
+      lookFor,
+      { signal: expect.any(AbortSignal), store: 'bladehq' },
+    ])
+    await worker.idle()
+    const lane = getLocalDb()
+      .prepare(
+        "SELECT ready_at, last_request_at FROM price_host_state WHERE lane_key = 'bladehq.com'",
+      )
+      .get() as { ready_at: string; last_request_at: string }
+    expect(Date.parse(lane.last_request_at)).toBe(now())
+    // The search does not bring the next scheduled check forward.
+    expect(Date.parse(lane.ready_at)).toBe(spreadReadyAt)
+
+    // The next search follows the store's minimum gap of five minutes.
+    advance(4 * MIN)
+    await worker.pass()
+    expect(discover).toHaveBeenCalledTimes(1)
+    advance(2 * MIN)
+    await worker.pass()
+    expect(discover).toHaveBeenCalledTimes(2)
+  })
+
   it('probes a paused store with a search once its cooldown is over', async () => {
     const lookFor = await knife([])
     saveSettings({
@@ -506,7 +619,7 @@ describe('price monitor worker', () => {
         },
         otherStores: {
           enabled: true,
-          stores: { amazon: true, bladehq: false, knifecenter: false },
+          stores: { amazon: true, bladehq: false },
           amazonMarketplace: 'amazon.com',
           amazonPostcode: '',
         },

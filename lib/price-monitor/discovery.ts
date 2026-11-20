@@ -32,6 +32,7 @@ import {
 import { retryAfterMs, type LaneOutcomeKind } from '@/lib/price-monitor/engine'
 import { upstreamStatus } from '@/lib/price-monitor/fetch'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
+import { isNetworkBlockError } from '@/lib/scrape'
 import { toScrapeError } from '@/lib/scrape-errors'
 import { createScrapeOperation, runWithSignal } from '@/lib/scrape-operation'
 import type { BrowserStorageState } from '@/lib/scrape-playwright'
@@ -45,8 +46,8 @@ import { getStorage } from '@/lib/storage'
 import { getVaultAccessState } from '@/lib/vault-access'
 
 /**
- * Other stores: AI looks for a monitored knife on Amazon, Blade HQ or
- * KnifeCenter. It reads the store's search results and picks the knife,
+ * Other stores: AI looks for a monitored knife on Amazon or Blade HQ.
+ * It reads the store's search results and picks the knife,
  * then reads the product page and confirms it; only then does the product
  * become a price source, checked and parsed like every other source from
  * then on. A store's searches share its lane with its price checks (one
@@ -175,6 +176,13 @@ function pageFailure(
     }
   const failure = toScrapeError(error)
   const status = upstreamStatus(error)
+  if (isNetworkBlockError(error))
+    return {
+      result: 'blocked',
+      laneOutcome: 'blocked',
+      detail: `${store.label} blocks visitors from this network or IP address, so it cannot be searched from here. This is not a bot check that can be solved; BladeVault will try again later, and searches may work from another network.`,
+      retryAfterMs: null,
+    }
   if (failure.code === 'challenge' || status === 403)
     return {
       result: 'blocked',
