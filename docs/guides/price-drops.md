@@ -72,6 +72,22 @@ Open a knife and select the **Market** tab. It shows:
 
 Market prices are information only. They never change the purchase price stored in the knife's specifications.
 
+## Export price history to CSV
+
+Select **Export CSV** on a knife's **Market** tab or in the Price Drops side panel to download that knife's full price history. **Export all** in the Price Drops header downloads the history of every knife with recorded prices. In the desktop app, a save dialog asks where to put the file.
+
+Each row is one price state at one store: when it was first seen (`observed_at`), when a check last confirmed it (`last_seen_at`), how many checks saw it, the knife's brand, name and ID, the store and product URL, the price in normal units (for example `129.99`), currency, availability, how the price was read (`extraction_method`), and the AI review (`confirmed` or `unconfirmed`) when AI checked the reading.
+
+The file contains only what stores published. The purchase price, notes, and other collection details are left out, so you can share it. Text that a spreadsheet could run as a formula starts with an apostrophe. The file is UTF-8, so Excel shows names such as Böker correctly.
+
+The export is also available from `/api/prices/export` while the app is unlocked:
+
+- `kind=events` exports price changes and stock changes instead of price states, with the previous and new price, the change, and the change in percent.
+- `knifeId=<id>` limits the export to one knife.
+- `range=7d`, `1m`, `3m`, `6m` or `1y` limits it to recent history. Price states include the state each store showed when the range began, like the chart. The default is all history.
+
+The static web app has no price monitoring, so it has no export.
+
 ## Get notified in the Inbox
 
 New changes appear in the **Inbox** under **Prices** and in the header bell. Each notification shows the knife, the store, the old and new price, and the change in money and percent. When they can be compared in the same currency, it also shows how the price stands against what you paid and the lowest price seen at that store. Use **Market** to open the knife's Market tab, **Store page** to open the product page, **Mark read**, **Snooze**, or **Dismiss**.
