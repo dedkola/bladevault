@@ -25,13 +25,14 @@ export type StockChange = {
   previousAvailability: Availability
   availability: Availability
   fromSnapshotId: number
+  /** The snapshot that first read the new status (the change happened there). */
+  toSnapshotId: number
 }
 
 export type DetectResult = {
   /** touch: extend the latest snapshot; insert: start a new one. */
   action: 'touch' | 'insert'
   priceChange: PriceChange | null
-  stockChange: StockChange | null
   /** The price is in another currency than the last priced snapshot. */
   currencyChanged: boolean
 }
@@ -65,7 +66,6 @@ export function detectChange(
     return {
       action: 'insert',
       priceChange: null,
-      stockChange: null,
       currencyChanged: false,
     }
   }
@@ -73,7 +73,6 @@ export function detectChange(
     return {
       action: 'touch',
       priceChange: null,
-      stockChange: null,
       currencyChanged: false,
     }
   }
@@ -102,30 +101,87 @@ export function detectChange(
     }
   }
 
-  let stockChange: StockChange | null = null
-  if (
-    next.availability === 'out_of_stock' &&
-    latest.availability !== 'out_of_stock'
-  ) {
-    stockChange = {
-      kind: 'out_of_stock',
-      previousAvailability: latest.availability,
-      availability: next.availability,
-      fromSnapshotId: latest.id,
-    }
-  } else if (
-    latest.availability === 'out_of_stock' &&
-    BUYABLE.has(next.availability)
-  ) {
-    stockChange = {
-      kind: 'back_in_stock',
-      previousAvailability: latest.availability,
-      availability: next.availability,
-      fromSnapshotId: latest.id,
+  return { action: 'insert', priceChange, currencyChanged }
+}
+
+/** A trusted snapshot's stock status and how many readings it covers. */
+export type StockSnapshot = {
+  id: number
+  availability: Availability
+  observations: number
+}
+
+/** How many recent snapshots stock detection looks back over. */
+export const STOCK_HISTORY_LIMIT = 50
+
+/**
+ * Stock changes need two readings in a row. A store page can show the wrong
+ * stock for a while (an inventory sync, a cached edition), so one reading
+ * alone never notifies: the change is reported when the next check agrees.
+ * It is compared with the last status that two readings agreed on, so a
+ * one-off flip and the flip back report nothing.
+ *
+ * `history` holds the source's trusted snapshots, newest first (up to
+ * STOCK_HISTORY_LIMIT); `next` is the status this check observed.
+ */
+export function detectStockChange(
+  history: readonly StockSnapshot[],
+  next: Availability,
+): StockChange | null {
+  // Group snapshots into runs of the same status, newest first.
+  // `id` is a run's newest snapshot, `firstId` its oldest.
+  const runs: {
+    availability: Availability
+    observations: number
+    id: number
+    firstId: number
+  }[] = []
+  for (const snapshot of history) {
+    const run = runs.at(-1)
+    if (run && run.availability === snapshot.availability) {
+      run.observations += snapshot.observations
+      run.firstId = snapshot.id
+    } else {
+      runs.push({
+        availability: snapshot.availability,
+        observations: snapshot.observations,
+        id: snapshot.id,
+        firstId: snapshot.id,
+      })
     }
   }
 
-  return { action: 'insert', priceChange, stockChange, currencyChanged }
+  // Only the reading that confirms the newest status reports: it must match
+  // a status seen exactly once so far.
+  const [current, ...older] = runs
+  if (!current || current.availability !== next || current.observations !== 1)
+    return null
+
+  // The baseline is the newest earlier status two readings agreed on, or the
+  // source's oldest status known here (first readings are a baseline).
+  const baseline = older.find((run) => run.observations >= 2) ?? older.at(-1)
+  if (!baseline) return null
+
+  const previous = baseline.availability
+  if (next === 'out_of_stock' && previous !== 'out_of_stock') {
+    return {
+      kind: 'out_of_stock',
+      previousAvailability: previous,
+      availability: next,
+      fromSnapshotId: baseline.id,
+      toSnapshotId: current.firstId,
+    }
+  }
+  if (previous === 'out_of_stock' && BUYABLE.has(next)) {
+    return {
+      kind: 'back_in_stock',
+      previousAvailability: previous,
+      availability: next,
+      fromSnapshotId: baseline.id,
+      toSnapshotId: current.firstId,
+    }
+  }
+  return null
 }
 
 export function medianPrice(values: readonly number[]): number | null {

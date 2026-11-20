@@ -149,8 +149,18 @@ describe('price notifications', () => {
       { kind: 'drop', occurrences: 2, read: 0, dismissed: 0, resolved: 0 },
     ])
 
-    // Out of stock is off by default; back in stock is on.
-    await check(sourceId, offer(null, 'out_of_stock'), offer(75))
+    // Out of stock is off by default; back in stock is on. A stock change
+    // needs a second reading that agrees.
+    await check(
+      sourceId,
+      offer(null, 'out_of_stock'),
+      offer(null, 'out_of_stock'),
+    )
+    await check(sourceId, offer(75))
+    expect(notificationRows()).toEqual([
+      { kind: 'drop', occurrences: 2, read: 0, dismissed: 0, resolved: 0 },
+    ])
+    await check(sourceId, offer(75))
     expect(notificationRows()).toEqual([
       { kind: 'drop', occurrences: 2, read: 0, dismissed: 0, resolved: 0 },
       {
@@ -221,7 +231,11 @@ describe('price notifications', () => {
 
     // +10% is under 15%; 110 → 130 (+18%) notifies; drops are off.
     await check(sourceId, offer(100), offer(110), offer(130), offer(100))
-    await check(sourceId, offer(null, 'out_of_stock'))
+    await check(
+      sourceId,
+      offer(null, 'out_of_stock'),
+      offer(null, 'out_of_stock'),
+    )
     expect(notificationRows()).toEqual([
       { kind: 'increase', occurrences: 1, read: 0, dismissed: 0, resolved: 1 },
       {

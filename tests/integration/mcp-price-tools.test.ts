@@ -118,8 +118,11 @@ describe('MCP price monitoring services', () => {
     const { knife, sourceId } = await createMonitoredKnife()
     await checkAt(0, sourceId, offer(180))
     await checkAt(2, sourceId, offer(150))
+    // Stock changes count once a second reading agrees.
     await checkAt(4, sourceId, offer(null, 'out_of_stock'))
+    await checkAt(5, sourceId, offer(null, 'out_of_stock'))
     await checkAt(6, sourceId, offer(150))
+    await checkAt(7, sourceId, offer(150))
 
     const watches = await listPriceWatches({})
     expect(watches.total).toBe(1)

@@ -134,6 +134,7 @@ describe('price overview', () => {
     await checkAt(10, raccoon.sources[0], offer(120)) // increase, outside 30 d
     await checkAt(45, raccoon.sources[0], offer(80)) // drop
     await checkAt(46, raccoon.sources[1], offer(null, 'out_of_stock'))
+    await checkAt(46.5, raccoon.sources[1], offer(null, 'out_of_stock'))
     await checkAt(47, corgi.sources[0], offer(40))
 
     const result = await overview()
@@ -200,6 +201,7 @@ describe('monitoring status', () => {
     await checkAt(0.01, amazon, offer(95))
     await checkAt(1, shop, offer(80)) // drop
     await checkAt(1.01, amazon, offer(null, 'out_of_stock'))
+    await checkAt(1.015, amazon, offer(null, 'out_of_stock')) // confirms it
     await checkAt(1.02, bean.sources[0], offer(null)) // no price on the page
 
     const result = await overview()
@@ -225,7 +227,7 @@ describe('monitoring status', () => {
       drop: 1,
       out_of_stock: 1,
       attention: 1,
-      same: 0,
+      same: 1,
     })
     const total = result.checksByHour.reduce(
       (sum, hour) =>
@@ -237,7 +239,7 @@ describe('monitoring status', () => {
         hour.attention,
       0,
     )
-    expect(total).toBe(3)
+    expect(total).toBe(4)
     expect(result.round).toMatchObject({
       failed24h: 0,
       oldestCheckAt: new Date(START + DAY).toISOString(),
