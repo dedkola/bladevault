@@ -6,6 +6,7 @@ import {
   agentDue,
   readAgentPlan,
   validateAgentPlan,
+  type AgentKnife,
   type AgentSource,
 } from '@/lib/price-monitor/agent'
 import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
@@ -28,6 +29,29 @@ function source(patch: Partial<AgentSource> = {}): AgentSource {
     dueInMin: -5,
     aiMinAgo: null,
     queued: false,
+    ahead: null,
+    price: null,
+    stock: null,
+    outOfStockDays: null,
+    ...patch,
+  }
+}
+
+function knife(patch: Partial<AgentKnife> = {}): AgentKnife {
+  return {
+    knifeId: 'k1',
+    knife: 'Kizer Drop Bear',
+    regular: '129.00 USD',
+    target: null,
+    muted: false,
+    best: '99.00 USD',
+    bestStore: 'Kizer',
+    low: '95.00 USD',
+    low90d: '99.00 USD',
+    high90d: '129.00 USD',
+    lastPriceChange: null,
+    lastStockChange: null,
+    search: [{ store: 'Amazon', status: 'not_found', nextInDays: 20 }],
     ...patch,
   }
 }
@@ -87,7 +111,7 @@ describe('validateAgentPlan', () => {
         status: 'failed',
         failures: 6,
         fetch: 'browser',
-        error: 'http_404',
+        error: 'not_found',
       }),
     ]
     const actions = validateAgentPlan(
@@ -108,7 +132,7 @@ describe('validateAgentPlan', () => {
           { knifeId: 'nope', reason: '' },
         ],
       },
-      { sources, ai, otherStores: true },
+      { sources, knives: [knife()], ai, otherStores: true },
     )
     const result = actions.map((action) => [
       action.kind,
@@ -148,6 +172,7 @@ describe('validateAgentPlan', () => {
       },
       {
         sources,
+        knives: [knife()],
         ai: { ...ai, readsPages: false, solvesErrors: false },
         otherStores: false,
       },
@@ -155,6 +180,61 @@ describe('validateAgentPlan', () => {
     expect(off.map((action) => action.note)).toEqual([
       'AI page reading and error solving are off',
       'Other stores is off',
+    ])
+  })
+
+  it('refuses checks that change nothing and searches that wait for nothing', () => {
+    const actions = validateAgentPlan(
+      {
+        summary: '',
+        check: [
+          { sourceId: 1, reason: 'overdue' },
+          { sourceId: 2, reason: 'near target' },
+          { sourceId: 3, reason: 'not due yet, Black Friday' },
+        ],
+        retryWithAi: [],
+        fetchMode: [],
+        pause: [],
+        searchOtherStore: ['k1', 'k2', 'k3', 'k4'].map((knifeId) => ({
+          knifeId,
+          reason: '',
+        })),
+      },
+      {
+        sources: [
+          source({ id: 1, ahead: 0 }),
+          source({ id: 2, ahead: 3 }),
+          source({ id: 3, dueInMin: 240, ahead: null }),
+        ],
+        knives: [
+          knife(),
+          knife({
+            knifeId: 'k2',
+            search: [
+              { store: 'Amazon', status: 'not_searched', nextInDays: 0 },
+              { store: 'Blade HQ', status: 'failed', nextInDays: -1 },
+            ],
+          }),
+          knife({
+            knifeId: 'k3',
+            search: [{ store: 'Amazon', status: 'found', nextInDays: null }],
+          }),
+          knife({ knifeId: 'k4', search: [] }),
+        ],
+        ai,
+        otherStores: true,
+      },
+    )
+    expect(
+      actions.map((action) => [action.sourceId ?? action.knifeId, action.note]),
+    ).toEqual([
+      [1, 'already next at its store'],
+      [2, null],
+      [3, null],
+      ['k1', null],
+      ['k2', 'already due'],
+      ['k3', 'already found'],
+      ['k4', 'no other store to search'],
     ])
   })
 })

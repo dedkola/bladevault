@@ -3,6 +3,7 @@ import * as knivesRoute from '@/app/api/knives/route'
 import * as agentRoute from '@/app/api/prices/agent/route'
 import { getLocalDb } from '@/lib/local-db'
 import {
+  agentModelInput,
   buildAgentSnapshot,
   readAgentRuns,
   runPriceAgent,
@@ -123,8 +124,15 @@ describe('AI supervisor', () => {
       failed: 2,
     })
     expect(snapshot.sources[0].id).toBe(fresh.source.id)
-    expect(JSON.stringify(snapshot)).not.toContain('https://')
-    expect(JSON.stringify(snapshot)).not.toContain('129.00')
+    // Prices, the regular price included, but never a link.
+    const input = agentModelInput(snapshot)
+    expect(input).not.toContain('https://')
+    expect(JSON.parse(input).knives[0]).toMatchObject({
+      knifeId: fresh.id,
+      regular: '129.00 USD',
+      sources: [expect.objectContaining({ id: fresh.source.id })],
+    })
+    expect(JSON.parse(input).knives[0].sources[0]).not.toHaveProperty('knife')
 
     aiFetch.mockResolvedValueOnce(
       planResponse({
@@ -160,6 +168,7 @@ describe('AI supervisor', () => {
     ])
     const sent = JSON.parse(String(aiFetch.mock.calls[0][1]?.body))
     expect(sent.messages[1].content).not.toContain('https://')
+    expect(sent.messages[1].content).toContain('"regular":"129.00 USD"')
 
     expect(row(stale.source.id).priority).toBe(1)
     expect(Date.parse(row(stale.source.id).next_check_at!)).toBeLessThanOrEqual(
@@ -198,12 +207,13 @@ describe('AI supervisor', () => {
   it('only records proposals in Observe mode and journals AI failures', async () => {
     enableAgent('observe')
     const { source } = await createKnife('Drop Bear', 'https://kizer.example/d')
+    // Not due yet: a check would read it sooner.
     getLocalDb()
       .prepare(
         `UPDATE price_sources SET last_checked_at = '2026-01-01T00:00:00.000Z',
-           priority = 0 WHERE id = ?`,
+           next_check_at = ?, priority = 0 WHERE id = ?`,
       )
-      .run(source.id)
+      .run(new Date(Date.now() + 3_600_000).toISOString(), source.id)
     const before = row(source.id)
     aiFetch.mockResolvedValueOnce(
       planResponse({
@@ -232,7 +242,7 @@ describe('AI supervisor', () => {
     expect(readAgentRuns(getLocalDb())).toHaveLength(2)
   })
 
-  it('pauses only gone pages and never clears AI waits on paused sources', async () => {
+  it('leaves 404 pages to the engine and never clears AI waits on paused sources', async () => {
     enableAgent('act')
     const notFound = await createKnife('Gone', 'https://kizer.example/gone')
     const down = await createKnife('Down', 'https://kizer.example/down')
@@ -298,13 +308,199 @@ describe('AI supervisor', () => {
       ]),
     ).toEqual([
       ['retryWithAi', paused.source.id, 'refused'],
-      ['pause', notFound.source.id, 'applied'],
+      ['pause', notFound.source.id, 'refused'],
       ['pause', down.source.id, 'refused'],
     ])
-    expect(row(notFound.source.id).enabled).toBe(0)
+    expect(result.run.actions[1].note).toBe(
+      'pages not found (HTTP 404 or 410) pause on their own',
+    )
+    expect(row(notFound.source.id).enabled).toBe(1)
     expect(row(down.source.id).enabled).toBe(1)
     // A refused retry leaves the paused source's AI wait as it was.
     expect(row(paused.source.id).last_ai_at).toBe(old)
+  })
+
+  it('shows each knife its market, the line at its store and what came of earlier actions', async () => {
+    enableAgent('act')
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        otherStores: {
+          enabled: true,
+          stores: { amazon: true, bladehq: false },
+          amazonMarketplace: 'amazon.com',
+          amazonPostcode: '',
+        },
+      },
+    })
+    const watched = await createKnife('Drop Bear', 'https://kizer.example/drop')
+    const first = await createKnife('Mini', 'https://kizer.example/mini')
+    const database = getLocalDb()
+    const ago = (days: number) =>
+      new Date(Date.now() - days * 86_400_000).toISOString()
+    const setState = database.prepare(
+      `UPDATE price_sources SET status = 'ok', priority = 0,
+         last_checked_at = ?, next_check_at = ?, last_price_minor = ?,
+         last_currency = 'USD', last_availability = 'in_stock' WHERE id = ?`,
+    )
+    // Both due at one store: the more overdue Mini goes first.
+    setState.run(ago(1), ago(0.05), 9900, watched.source.id)
+    setState.run(ago(1), ago(0.2), 5000, first.source.id)
+    const snapshotRow = database.prepare(
+      `INSERT INTO price_snapshots
+         (knife_id, source_id, price_minor, currency, availability,
+          extraction_status, extraction_method, observed_at, last_seen_at,
+          ai_review)
+       VALUES (?, ?, ?, 'USD', 'in_stock', 'ok', 'json_ld', ?, ?, ?)`,
+    )
+    const { id, source } = watched
+    snapshotRow.run(id, source.id, 8900, ago(200), ago(150), null)
+    snapshotRow.run(id, source.id, 12900, ago(150), ago(30), null)
+    snapshotRow.run(id, source.id, 9900, ago(30), ago(0), null)
+    // A reading AI did not confirm never counts as a low.
+    snapshotRow.run(id, source.id, 1000, ago(10), ago(10), 'unconfirmed')
+    database
+      .prepare(
+        `INSERT INTO price_change_events
+           (knife_id, source_id, direction, previous_price_minor, price_minor,
+            currency, delta_minor, delta_pct, availability, from_snapshot_id,
+            to_snapshot_id, source_url, store_name, extraction_method,
+            occurred_at)
+         VALUES (?, ?, 'drop', 12900, 9900, 'USD', -3000, -23.26, 'in_stock',
+                 2, 3, 'https://kizer.example/drop', 'Kizer', 'json_ld', ?)`,
+      )
+      .run(id, source.id, ago(2))
+    database
+      .prepare(
+        `INSERT INTO price_watch
+           (knife_id, mode, updated_at, target_price_minor, target_currency)
+         VALUES (?, 'auto', ?, 10000, 'USD')
+         ON CONFLICT (knife_id) DO UPDATE SET
+           target_price_minor = excluded.target_price_minor,
+           target_currency = excluded.target_currency`,
+      )
+      .run(id, ago(0))
+    database
+      .prepare(
+        `INSERT INTO price_discovery
+           (knife_id, store, marketplace, status, attempts, last_attempt_at,
+            next_attempt_at)
+         VALUES (?, 'amazon', 'amazon.com', 'not_found', 1, ?, ?)`,
+      )
+      .run(id, ago(10), new Date(Date.now() + 20 * 86_400_000).toISOString())
+
+    const snapshot = buildAgentSnapshot({
+      database,
+      settings: getSettings().priceMonitoring,
+      mode: 'act',
+      now: Date.now(),
+    })
+    const sourceOf = (sourceId: number) =>
+      snapshot.sources.find((entry) => entry.id === sourceId)
+    expect(sourceOf(first.source.id)?.ahead).toBe(0)
+    expect(sourceOf(source.id)).toMatchObject({
+      ahead: 1,
+      price: '99.00 USD',
+      stock: 'in_stock',
+      outOfStockDays: null,
+    })
+    expect(snapshot.localTime).toMatch(/\d{4}/)
+    expect(snapshot.knives.find((knife) => knife.knifeId === id)).toEqual({
+      knifeId: id,
+      knife: 'Kizer Drop Bear',
+      regular: '129.00 USD',
+      target: '100.00 USD',
+      muted: false,
+      best: '99.00 USD',
+      bestStore: sourceOf(source.id)?.store,
+      low: '89.00 USD',
+      low90d: '99.00 USD',
+      high90d: '129.00 USD',
+      lastPriceChange: {
+        direction: 'drop',
+        from: '129.00 USD',
+        to: '99.00 USD',
+        pct: -23.3,
+        store: 'Kizer',
+        daysAgo: 2,
+      },
+      lastStockChange: null,
+      search: [
+        {
+          store: 'Amazon',
+          status: 'not_found',
+          nextInDays: expect.any(Number),
+        },
+      ],
+    })
+
+    aiFetch.mockResolvedValueOnce(
+      planResponse({
+        summary: 'Drop Bear is below its target.',
+        check: [
+          { sourceId: first.source.id, reason: 'overdue' },
+          { sourceId: source.id, reason: 'below target' },
+        ],
+        retryWithAi: [],
+        fetchMode: [],
+        pause: [],
+        searchOtherStore: [{ knifeId: id, reason: 'single store' }],
+      }),
+    )
+    const result = await runPriceAgent({ trigger: 'manual' })
+    if (result.status !== 'done') throw new Error('agent did not run')
+    expect(
+      result.run.actions.map((action) => [action.kind, action.note]),
+    ).toEqual([
+      ['check', 'already next at its store'],
+      ['check', null],
+      ['searchOtherStore', null],
+    ])
+    // The next check and the search came back.
+    const later = new Date(Date.now() + 60_000).toISOString()
+    database
+      .prepare(
+        `INSERT INTO price_check_log
+           (lane_key, trigger, source_id, knife_id, started_at, duration_ms,
+            outcome)
+         VALUES ('kizer.example', 'scheduled', ?, ?, ?, 100, 'ok')`,
+      )
+      .run(source.id, id, later)
+    database
+      .prepare(
+        `UPDATE price_discovery SET status = 'found', last_attempt_at = ?
+         WHERE knife_id = ?`,
+      )
+      .run(later, id)
+    const next = buildAgentSnapshot({
+      database,
+      settings: getSettings().priceMonitoring,
+      mode: 'act',
+      now: Date.now(),
+    })
+    expect(next.recentRuns[0].actions).toEqual([
+      {
+        kind: 'check',
+        target: `source ${first.source.id}`,
+        status: 'refused',
+        note: 'already next at its store',
+        outcome: undefined,
+      },
+      {
+        kind: 'check',
+        target: `source ${source.id}`,
+        status: 'applied',
+        note: undefined,
+        outcome: expect.stringMatching(/^next check: ok, \d+ min later$/),
+      },
+      {
+        kind: 'searchOtherStore',
+        target: `knife ${id}`,
+        status: 'applied',
+        note: undefined,
+        outcome: 'searched: amazon found',
+      },
+    ])
   })
 
   it('serves knife labels, blocked stores and switches the mode', async () => {

@@ -204,6 +204,8 @@ Prices are compared only within one currency. Implausible jumps are confirmed wi
 
 Models that reason before they answer (such as GLM, DeepSeek R1, or Qwen3) need more time and room than a short price answer suggests. BladeVault notices this on the first request that comes back empty, cut off, or too late, retries it once with the **Answer limit for reasoning models** (16,384 tokens by default) and at least 60 seconds, and gives that model the same room from then on. The limit caps the answer only, not the page sent. If the endpoint refuses it as above the model's own limit, BladeVault lowers it to 4,096 tokens for that model. **Test connection** says when a model reasons.
 
+Planning tasks (the [AI supervisor](#let-ai-supervise-monitoring), the **Pacing advisor**, and the **Daily summary in the Inbox**) weigh many products or stores at once, so the model may reason before it answers: they start with the **Answer limit for reasoning models** and wait up to 6 minutes. Everything else (reading a price, working a page, confirming a change, searching other stores) asks OpenCode models to answer without reasoning, which keeps those frequent requests fast. Other endpoints answer as the model is set up.
+
 **AI usage** decides how much AI may work:
 
 - **Limited** (the default) is for paid APIs and slow local models. **Requests per day** (200 by default) and **Tokens per day** (2,000,000 by default) cap AI per day, counted from midnight on the server; 0 turns a cap off. **AI per product at most every** (24 hours by default) is how long a product waits after AI worked on it. Once a cap is reached, AI stops until midnight and monitoring continues without it, and Other stores does not open store searches it cannot finish. **Test connection** never counts.
@@ -234,13 +236,20 @@ The API key is stored next to the vault in its private control folder, outside b
 | **Observe** | AI plans what it would do and records it, without changing anything. |
 | **Act**     | AI does what it planned, within fixed limits.                        |
 
-The supervisor runs every 10 minutes with **Unlimited** AI usage and every hour with **Limited**, and **Run now** starts a run at once. Each run, AI sees every monitored product (knife name, store, status, when it was last checked and how it failed), each store's pace and pauses, how many products are fresh, and the AI budget. It never sees product links, the regular price, notes, or keys. It can:
+The supervisor runs every 10 minutes with **Unlimited** AI usage and every hour with **Limited**, and **Run now** starts a run at once. Each run, AI sees:
 
-- **Check first**: move up to 25 overdue, stale, or failing products to the front of their store's queue. A product blocked by a bot check still waits out its backoff.
+- every knife's market: its regular price, your target price, the best in-stock price now and its store, the lowest price ever and the lowest and highest of the last 90 days, the last price and stock change, and its **Other stores** searches;
+- every monitored product under its knife: store, price, stock, how long it has been out of stock, status, when it was last checked and how it failed, and how many checks wait before it at its store;
+- each store's pace and pauses, how many products are fresh, the AI budget, and the local date and time, so it can plan around sales;
+- its last three runs, with why an action was refused or what the next check or search found.
+
+It never sees product links, notes, or keys. It can:
+
+- **Check first**: move up to 25 products to the front of their store's line, for example a knife near its target price ahead of others, or a product it wants read before it is due. A product that is already next at its store, or that was checked in the last 30 minutes, is left alone. A product blocked by a bot check still waits out its backoff.
 - **Retry with AI**: let AI read or work the page of up to 10 failing products on their next check.
 - **Change how a page loads**: switch up to 5 products to the browser, plain HTTP, or back to automatic.
-- **Pause**: stop up to 3 products whose page failed at least 5 checks in a row and seems gone (not found, HTTP 404 or 410, or a redirect; never timeouts, server errors, or bot checks). Resume them in the knife's **Price monitoring** section.
-- **Look on other stores**: search again for up to 5 knives on other stores, when [Other stores](#find-knives-at-other-stores-with-ai) is on.
+- **Pause**: stop up to 3 products whose page failed at least 5 checks in a row and seems gone (not found or a redirect; never timeouts, server errors, or bot checks). Pages not found with HTTP 404 or 410 pause on their own after three checks. Resume them in the knife's **Price monitoring** section.
+- **Look on other stores**: bring a waiting search forward for up to 5 knives, when [Other stores](#find-knives-at-other-stores-with-ai) is on. A knife that was never searched at a store is due anyway, and a listing already found stays.
 
 Every action is checked before it runs, and actions that break the rules are refused and recorded with the reason. The supervisor can change the order of checks but not their pace: each store is still checked one product at a time, and store pauses, Retry-After, and bot-check pauses still apply. It never solves a bot check. The latest run and its summary appear under **AI supervisor** on **Price Drops**; while the supervisor is off and has never run, that strip is a single line with **Turn on**, which starts it in **Observe**. Runs are kept for 30 days.
 

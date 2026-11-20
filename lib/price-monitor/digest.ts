@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3'
 import { getLocalDb } from '@/lib/local-db'
 import { aiConfigured, appearsLiterally } from '@/lib/price-monitor/ai'
 import {
+  PLANNING_TIMEOUT_MS,
   requestJsonCompletion,
   type AiEndpoint,
   type FetchLike,
@@ -43,7 +44,8 @@ const HOUR_MS = 60 * MINUTE_MS
 const DAY_MS = 24 * HOUR_MS
 /** No digest before this local hour, so it sums up the previous day. */
 export const DIGEST_EARLIEST_HOUR = 6
-export const DIGEST_TIMEOUT_MS = 60_000
+/** A planning task: the model may reason (REASONING_PURPOSES). */
+export const DIGEST_TIMEOUT_MS = PLANNING_TIMEOUT_MS
 /** After a failed attempt, wait this long before trying again. */
 export const DIGEST_RETRY_MS = HOUR_MS
 const CHECK_EVERY_MS = 10 * MINUTE_MS
