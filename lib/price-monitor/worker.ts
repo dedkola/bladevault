@@ -60,6 +60,7 @@ import {
 } from '@/lib/price-monitor/schedule'
 import {
   acquireWorkerLease,
+  ownsWorkerLease,
   pruneCheckLog,
   readLaneStates,
   readQueueCandidates,
@@ -111,8 +112,14 @@ export type WorkerDeps = {
   random: () => number
   /** The AI pacing advisor; only runs when AI and the advisor are on. */
   advise?: (trigger: AdvisorTrigger) => Promise<AdvisorRunResult>
-  /** The AI supervisor; only runs when AI is set up and its mode is on. */
-  supervise?: (trigger: AgentTrigger) => Promise<AgentRunResult>
+  /**
+   * The AI supervisor; only runs when AI is set up and its mode is on.
+   * `canWrite` says whether this worker still holds the lease.
+   */
+  supervise?: (
+    trigger: AgentTrigger,
+    options: { canWrite: () => boolean },
+  ) => Promise<AgentRunResult>
   /** Other stores: the next knife AI should look for at a store, or null. */
   nextDiscovery?: (
     settings: PriceMonitoringSettings,
@@ -122,7 +129,11 @@ export type WorkerDeps = {
   /** Other stores: AI looks for one knife at a store. */
   discover?: (
     knifeId: string,
-    options: { signal: AbortSignal; store: OtherStoreId },
+    options: {
+      signal: AbortSignal
+      store: OtherStoreId
+      canWrite: () => boolean
+    },
   ) => Promise<DiscoverySummary>
 }
 
@@ -137,7 +148,7 @@ const realDeps: WorkerDeps = {
   check: (...args) => checkPriceSource(...args),
   random: () => Math.random(),
   advise: (trigger) => runPriceAdvisor({ trigger }),
-  supervise: (trigger) => runPriceAgent({ trigger }),
+  supervise: (trigger, options) => runPriceAgent({ trigger, ...options }),
   nextDiscovery: (settings, now, store) =>
     nextDiscoveryKnife(settings, now, store),
   discover: (knifeId, options) => discoverKnife(knifeId, options),
@@ -336,6 +347,18 @@ export class PriceMonitorWorker {
     return held
   }
 
+  /**
+   * Whether this worker still holds the lease, read from the vault. Work
+   * that finishes after the lease moved to another process (after sleep, or
+   * to a newer build) or after stop() writes nothing.
+   */
+  readonly ownsLease = (): boolean => {
+    if (this.stopped || !this.leaseHeld) return false
+    if (ownsWorkerLease(this.owner)) return true
+    this.leaseHeld = false
+    return false
+  }
+
   private async runPass(): Promise<void> {
     if (this.stopped) return
     let delay = MAX_SLEEP_MS
@@ -503,8 +526,10 @@ export class PriceMonitorWorker {
         const summary = await discover(knifeId, {
           signal: controller.signal,
           store,
+          canWrite: this.ownsLease,
         })
         if (summary.status !== 'done' || controller.signal.aborted) return
+        if (!this.ownsLease()) return
         if (summary.aiProblem)
           this.discoveryNotBefore = this.deps.now() + DISCOVERY_AI_PAUSE_MS
         const current = readLaneStates(getLocalDb()).get(laneKey) ?? lane
@@ -596,7 +621,7 @@ export class PriceMonitorWorker {
     const trigger = agentDue({ settings, lastRunAt, now, events })
     if (!trigger) return
     this.supervising = this.deps
-      .supervise(trigger)
+      .supervise(trigger, { canWrite: this.ownsLease })
       .catch((error) => {
         if (!isVaultError(error))
           reportServerError(error, 'price-monitor/agent')
@@ -633,6 +658,7 @@ export class PriceMonitorWorker {
           signal: controller.signal,
         })
         if (summary.status !== 'done' || controller.signal.aborted) return
+        if (!this.ownsLease()) return
         const current = readLaneStates(getLocalDb()).get(pick.laneKey) ?? lane
         const update = applyLaneOutcome(
           normalizeLane(current, context.settings.pacing),
@@ -678,13 +704,29 @@ export class PriceMonitorWorker {
     }
   }
 
-  /** Stops scheduling, cancels running checks and releases the lease. */
-  async stop(): Promise<void> {
+  /**
+   * Stops scheduling, cancels running checks and releases the lease. With
+   * `timeoutMs` (server shutdown) it waits at most that long for running
+   * work (an AI run cannot be cancelled) and releases the lease anyway;
+   * that work then finds it no longer owns the lease and writes nothing.
+   */
+  async stop(options: { timeoutMs?: number } = {}): Promise<void> {
     this.stopped = true
     if (this.timer !== null) this.deps.clearTimer(this.timer)
     this.timer = null
     for (const controller of this.controllers) controller.abort()
-    await this.idle()
+    const idle = this.idle()
+    if (options.timeoutMs === undefined) await idle
+    else {
+      let timeout: ReturnType<typeof setTimeout> | undefined
+      await Promise.race([
+        idle,
+        new Promise<void>((resolve) => {
+          timeout = setTimeout(resolve, options.timeoutMs)
+        }),
+      ])
+      clearTimeout(timeout)
+    }
     this.started = false
     this.scheduled = false
     if (this.leaseHeld) {

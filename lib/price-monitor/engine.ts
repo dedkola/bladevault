@@ -69,6 +69,7 @@ import {
   type SolverSearch,
 } from '@/lib/price-monitor/solver'
 import {
+  isAmazonUrl,
   normalizeSourceUrl,
   type PriceProvider,
 } from '@/lib/price-monitor/shared'
@@ -898,7 +899,7 @@ export type LaneOutcomeKind =
   'success' | 'throttled' | 'blocked' | 'failed' | 'neutral'
 
 export type CheckSummary =
-  | { status: 'skipped'; reason: 'missing' | 'read_only' }
+  | { status: 'skipped'; reason: 'missing' | 'read_only' | 'unsupported' }
   | {
       status: 'done'
       outcome: CheckOutcomeKind
@@ -964,6 +965,14 @@ export async function checkPriceSource(
   const source = readSource(database, sourceId)
   if (!source || source.removed_at)
     return { status: 'skipped', reason: 'missing' }
+  // Price Drops never loads Amazon pages, even if such a source reappears
+  // (an older build, a restored backup) before the vault-open cleanup.
+  if (
+    String(source.provider) === 'amazon' ||
+    source.lane_key === 'amazon' ||
+    isAmazonUrl(source.url)
+  )
+    return { status: 'skipped', reason: 'unsupported' }
   const knife = await getStorage().getKnifeById(source.knife_id)
   if (!knife) return { status: 'skipped', reason: 'missing' }
 

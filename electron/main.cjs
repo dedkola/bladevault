@@ -225,6 +225,13 @@ function getCloudAuthUrl() {
 let mainWindow = null
 let tray = null
 let serverProcess = null
+// Every embedded server still running, including one being stopped. The
+// last-resort kill on exit covers them all.
+const liveServerChildren = new Set()
+// The embedded Next server gets this long to stop the price worker, release
+// its vault lease and exit after SIGTERM; then it is killed.
+const SERVER_STOP_GRACE_MS = 5000
+const SERVER_KILL_WAIT_MS = 2000
 let serverOrigin = null
 let isQuitting = false
 let isInstallingUpdate = false
@@ -1127,6 +1134,9 @@ async function startEmbeddedServer() {
     BLADEVAULT_MCP_NODE_COMMAND: getNodeExecPath(),
     BLADEVAULT_MCP_ENTRY: path.join(getStandaloneDir(), 'bladevault-mcp.mjs'),
     BLADEVAULT_MCP_DISCOVERY_FILE: getMcpDiscoveryFile(),
+    // The server shuts itself down when this process is gone (a crash or a
+    // force quit sends it no signal), so it cannot outlive the app.
+    BLADEVAULT_PARENT_PID: String(process.pid),
     HOSTNAME: '127.0.0.1',
     NEXT_TELEMETRY_DISABLED: '1',
     NODE_ENV: 'production',
@@ -1142,6 +1152,7 @@ async function startEmbeddedServer() {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   serverProcess = child
+  liveServerChildren.add(child)
 
   child.stdout.on('data', (chunk) => {
     process.stdout.write(`[bladevault-server] ${chunk}`)
@@ -1152,6 +1163,7 @@ async function startEmbeddedServer() {
   })
 
   child.once('exit', (code, signal) => {
+    liveServerChildren.delete(child)
     const wasCurrentServer = serverProcess === child
     if (wasCurrentServer) {
       serverProcess = null
@@ -1193,21 +1205,12 @@ async function startEmbeddedServer() {
   return url
 }
 
-function stopEmbeddedServer() {
-  const child = serverProcess
-  serverProcess = null
-  serverOrigin = null
-
-  if (!child) {
-    return
-  }
-
-  removeMcpDiscoveryFile(child.pid)
-  child.kill()
+function childHasExited(child) {
+  return child.exitCode !== null || child.signalCode !== null
 }
 
 function waitForChildExit(child, timeoutMs) {
-  if (child.exitCode !== null) {
+  if (childHasExited(child)) {
     return Promise.resolve(true)
   }
 
@@ -1225,26 +1228,41 @@ function waitForChildExit(child, timeoutMs) {
   })
 }
 
-async function stopEmbeddedServerAndWait(timeoutMs = 5000) {
+// SIGTERM lets the server stop its price worker and release the vault's
+// worker lease (lib/server-shutdown). Next alone can wait forever on open
+// keep-alive or MCP connections, so after the grace period it is killed.
+// Quitting must wait for this: a server left behind keeps running an
+// outdated build's price worker against the vault.
+async function stopEmbeddedServerAndWait(timeoutMs = SERVER_STOP_GRACE_MS) {
   const child = serverProcess
   serverProcess = null
   serverOrigin = null
 
-  if (!child || child.exitCode !== null) {
+  if (!child || childHasExited(child)) {
     appendUpdateDebug('embedded_server_already_stopped')
     return
   }
 
   const pid = child.pid ?? null
+  removeMcpDiscoveryFile(pid)
   const exitPromise = waitForChildExit(child, timeoutMs)
-  const killRequested = child.kill()
-  const didExit = await exitPromise
+  const killRequested = child.kill('SIGTERM')
+  let didExit = await exitPromise
+  let forced = false
+  if (!didExit) {
+    forced = true
+    const killedPromise = waitForChildExit(child, SERVER_KILL_WAIT_MS)
+    child.kill('SIGKILL')
+    didExit = await killedPromise
+  }
 
   appendUpdateDebug('embedded_server_stop_completed', {
     pid,
     killRequested,
+    forced,
     didExit,
     exitCode: child.exitCode,
+    signal: child.signalCode,
   })
 }
 
@@ -1877,9 +1895,37 @@ async function createMainWindow(pathname) {
   )
 }
 
-app.on('before-quit', () => {
+let serverStopBeforeQuit = null
+app.on('before-quit', (event) => {
   isQuitting = true
-  stopEmbeddedServer()
+  if (![...liveServerChildren].some((child) => !childHasExited(child))) {
+    return
+  }
+  // Hold the quit until the embedded server is gone, then quit again.
+  event.preventDefault()
+  if (serverStopBeforeQuit) return
+  serverStopBeforeQuit = Promise.all([
+    stopEmbeddedServerAndWait(),
+    ...[...liveServerChildren].map((child) =>
+      waitForChildExit(child, SERVER_STOP_GRACE_MS + SERVER_KILL_WAIT_MS),
+    ),
+  ])
+    .catch(() => {})
+    .finally(() => {
+      for (const child of liveServerChildren) {
+        if (!childHasExited(child)) child.kill('SIGKILL')
+      }
+      liveServerChildren.clear()
+      serverStopBeforeQuit = null
+      app.quit()
+    })
+})
+
+// Last resort (app.exit, an uncaught error): never leave a server behind.
+process.on('exit', () => {
+  for (const child of liveServerChildren) {
+    if (!childHasExited(child)) child.kill('SIGKILL')
+  }
 })
 
 app.on('browser-window-created', (_event, window) => {

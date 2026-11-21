@@ -481,7 +481,9 @@ describe('price monitor worker', () => {
     expect(supervise).not.toHaveBeenCalled()
     test.advance(60_000)
     await settle()
-    expect(supervise).toHaveBeenCalledWith('event')
+    expect(supervise).toHaveBeenCalledWith('event', {
+      canWrite: expect.any(Function),
+    })
   })
 
   it('searches other stores on a store’s lane only when it is free', async () => {
@@ -529,7 +531,11 @@ describe('price monitor worker', () => {
     expect(discover).toHaveBeenCalledTimes(1)
     expect(discover.mock.calls[0]).toEqual([
       lookFor,
-      { signal: expect.any(AbortSignal), store: 'bladehq' },
+      {
+        signal: expect.any(AbortSignal),
+        store: 'bladehq',
+        canWrite: expect.any(Function),
+      },
     ])
     // The search holds the Blade HQ lane like a check would.
     expect(worker.discovering).not.toBeNull()
@@ -645,7 +651,11 @@ describe('price monitor worker', () => {
     expect(discover).toHaveBeenCalledTimes(1)
     expect(discover.mock.calls[0]).toEqual([
       lookFor,
-      { signal: expect.any(AbortSignal), store: 'bladehq' },
+      {
+        signal: expect.any(AbortSignal),
+        store: 'bladehq',
+        canWrite: expect.any(Function),
+      },
     ])
     await worker.idle()
     const lane = getLocalDb()
@@ -711,7 +721,11 @@ describe('price monitor worker', () => {
     expect(discover).toHaveBeenCalledTimes(1)
     expect(discover.mock.calls[0]).toEqual([
       lookFor,
-      { signal: expect.any(AbortSignal), store: 'bladehq' },
+      {
+        signal: expect.any(AbortSignal),
+        store: 'bladehq',
+        canWrite: expect.any(Function),
+      },
     ])
     await worker.idle()
     const lane = getLocalDb()

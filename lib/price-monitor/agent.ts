@@ -2600,7 +2600,10 @@ export function agentNextRunAt(input: {
 }
 
 export type AgentRunResult =
-  | { status: 'skipped'; reason: 'disabled' | 'read_only' | 'busy' }
+  | {
+      status: 'skipped'
+      reason: 'disabled' | 'read_only' | 'busy' | 'not_owner'
+    }
   | { status: 'done'; run: AgentRun }
 
 const RUNNING = Symbol.for('bladevault.price-monitor.agent-running')
@@ -2681,6 +2684,12 @@ export async function runPriceAgent(options: {
   signal?: AbortSignal
   fetchImpl?: FetchLike
   now?: () => number
+  /**
+   * The price worker asks whether it still holds the vault's lease before
+   * the run's actions and journal are written (price-monitor/store,
+   * ownsWorkerLease).
+   */
+  canWrite?: () => boolean
 }): Promise<AgentRunResult> {
   const settings = getSettings().priceMonitoring
   if (!agentActive(settings)) return { status: 'skipped', reason: 'disabled' }
@@ -2740,6 +2749,8 @@ export async function runPriceAgent(options: {
     } catch (error) {
       if (error instanceof Error && error.name === 'VaultAccessError')
         throw error
+      if (options.canWrite && !options.canWrite())
+        return { status: 'skipped', reason: 'not_owner' }
       const run = {
         ...base,
         durationMs: clock() - started,
@@ -2753,6 +2764,8 @@ export async function runPriceAgent(options: {
       const id = await recordAgentRun(run, access.generation)
       return { status: 'done', run: { ...run, id } }
     }
+    if (options.canWrite && !options.canWrite())
+      return { status: 'skipped', reason: 'not_owner' }
     const validated = validateAgentPlan(plan, snapshot)
     const actions =
       mode === 'act'
