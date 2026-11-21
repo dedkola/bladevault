@@ -17,6 +17,10 @@ const SKIPPED: Record<string, { status: number; error: string }> = {
     error: 'The vault is read-only while a restore runs.',
   },
   busy: { status: 409, error: 'The advisor is already reviewing pacing.' },
+  suspended: {
+    status: 503,
+    error: 'The computer went to sleep during the AI request. Try again.',
+  },
   no_data: {
     status: 409,
     error: 'There are no checks from the last 7 days to review yet.',

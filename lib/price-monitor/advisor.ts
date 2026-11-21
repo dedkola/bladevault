@@ -1,4 +1,5 @@
 import {
+  AiClientError,
   PLANNING_TIMEOUT_MS,
   requestJsonCompletion,
   type FetchLike,
@@ -617,7 +618,8 @@ const ADVISOR_PROMPT = [
 export type AdvisorRunResult =
   | {
       status: 'skipped'
-      reason: 'disabled' | 'read_only' | 'busy' | 'no_data'
+      /** suspended: the computer slept mid-request; it runs again later. */
+      reason: 'disabled' | 'read_only' | 'busy' | 'no_data' | 'suspended'
     }
   | { status: 'done'; adviceId: number; applied: AppliedAdvice }
   | { status: 'failed'; adviceId: number | null; error: string }
@@ -707,6 +709,9 @@ export async function runPriceAdvisor(options: {
         },
       )
     } catch (error) {
+      // Sleep is not a failed review: nothing is recorded, so it is due again.
+      if (error instanceof AiClientError && error.code === 'suspended')
+        return { status: 'skipped', reason: 'suspended' }
       const message = redactSecrets(
         error instanceof Error ? error.message : 'The AI request failed.',
       )

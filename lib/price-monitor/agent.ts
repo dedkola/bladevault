@@ -4,6 +4,7 @@ import { readActiveAdvice } from '@/lib/price-monitor/advice-store'
 import { applyAdviceToLane, maxAdvisedGapMs } from '@/lib/price-monitor/advisor'
 import { aiConfigured } from '@/lib/price-monitor/ai'
 import {
+  AiClientError,
   PLANNING_TIMEOUT_MS,
   requestJsonCompletion,
   type FetchLike,
@@ -2629,7 +2630,8 @@ export function agentNextRunAt(input: {
 export type AgentRunResult =
   | {
       status: 'skipped'
-      reason: 'disabled' | 'read_only' | 'busy' | 'not_owner'
+      /** suspended: the computer slept mid-request; it runs again later. */
+      reason: 'disabled' | 'read_only' | 'busy' | 'not_owner' | 'suspended'
     }
   | { status: 'done'; run: AgentRun }
 
@@ -2778,6 +2780,9 @@ export async function runPriceAgent(options: {
         throw error
       if (options.canWrite && !options.canWrite())
         return { status: 'skipped', reason: 'not_owner' }
+      // Sleep is not a failed run: nothing is recorded, so it is due again.
+      if (error instanceof AiClientError && error.code === 'suspended')
+        return { status: 'skipped', reason: 'suspended' }
       const run = {
         ...base,
         durationMs: clock() - started,

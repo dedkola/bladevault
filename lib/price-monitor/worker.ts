@@ -35,6 +35,7 @@ import {
 import { DISCOVERY_STORES } from '@/lib/price-monitor/discovery-stores'
 import { startPriceDigestIfDue } from '@/lib/price-monitor/digest'
 import { checkPriceSource } from '@/lib/price-monitor/engine'
+import { checkClockJump, monitorHoldMs } from '@/lib/price-monitor/power'
 import {
   applyLaneOutcome,
   defaultLaneState,
@@ -383,6 +384,13 @@ export class PriceMonitorWorker {
       const settings = getSettings().priceMonitoring
       const now = this.deps.now()
       if (!(await this.ensureLease(now))) return
+      // Asleep, just awake or offline: checks and AI runs wait (power.ts).
+      checkClockJump()
+      const hold = monitorHoldMs(now)
+      if (hold > 0) {
+        delay = Math.min(MAX_SLEEP_MS, Math.max(SECOND_MS, hold))
+        return
+      }
 
       if (now - this.lastSync >= SYNC_EVERY_MS) {
         this.lastSync = now

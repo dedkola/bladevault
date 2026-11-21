@@ -50,6 +50,12 @@ export const DIGEST_TIMEOUT_MS = PLANNING_TIMEOUT_MS
 export const DIGEST_RETRY_MS = HOUR_MS
 const CHECK_EVERY_MS = 10 * MINUTE_MS
 const LISTED = 5
+/**
+ * A price this far below the stored regular price is more likely a bad
+ * stored price (a typo, another currency) than a deal: left out of the
+ * digest's deals and drops.
+ */
+export const SUSPECT_BELOW_REGULAR_PCT = 90
 export const DIGEST_TITLE_MAX = 80
 export const DIGEST_SUMMARY_MAX = 800
 
@@ -110,6 +116,29 @@ function storedPrice(specs: string): string | undefined {
   }
 }
 
+/** More than SUSPECT_BELOW_REGULAR_PCT below the regular price. */
+export function suspectBelowRegular(
+  priceMinor: number,
+  regularMinor: number,
+): boolean {
+  return (
+    regularMinor > 0 &&
+    priceMinor < regularMinor * (1 - SUSPECT_BELOW_REGULAR_PCT / 100)
+  )
+}
+
+/** The knife's stored regular price makes this price suspect. */
+function suspectAgainstStored(
+  priceMinor: number,
+  currency: string,
+  specs: string,
+): boolean {
+  const paid = parseStoredPrice(storedPrice(specs))
+  const code = normalizeCurrencyCode(currency)
+  if (!paid || !code || (paid.currency && paid.currency !== code)) return false
+  return suspectBelowRegular(priceMinor, toMinorUnits(paid.amount, code))
+}
+
 /** Aggregated monitoring data for the digest. Reads only. */
 export function readDigestData(
   database: Database.Database,
@@ -158,6 +187,7 @@ export function readDigestData(
       continue
     const paidMinor = toMinorUnits(paid.amount, currency)
     if (paidMinor <= 0 || row.last_price_minor >= paidMinor) continue
+    if (suspectBelowRegular(row.last_price_minor, paidMinor)) continue
     deals.push({
       knife: knifeLabel(row.brand, row.name),
       store: row.store_name,
@@ -173,7 +203,7 @@ export function readDigestData(
   const changes = database
     .prepare(
       `SELECT e.direction, e.previous_price_minor, e.price_minor, e.currency,
-              e.delta_pct, e.store_name, k.brand, k.name
+              e.delta_pct, e.store_name, k.brand, k.name, k.specs
        FROM price_change_events e JOIN knives k ON k.id = e.knife_id
        WHERE e.occurred_at >= ?
        ORDER BY e.delta_pct ASC`,
@@ -187,9 +217,14 @@ export function readDigestData(
     store_name: string
     brand: string
     name: string
+    specs: string
   }>
   const drops = changes
-    .filter((row) => row.direction === 'drop')
+    .filter(
+      (row) =>
+        row.direction === 'drop' &&
+        !suspectAgainstStored(row.price_minor, row.currency, row.specs),
+    )
     .slice(0, LISTED)
     .map((row) => ({
       knife: knifeLabel(row.brand, row.name),
