@@ -606,7 +606,14 @@ describe('price history', () => {
       removed: true,
       points: [expect.objectContaining({ priceMinor: 7000 })],
     })
-    expect(week.events.map((event) => event.kind)).toEqual(['drop'])
+    // The second store's first reading undercut the main store: a drop of
+    // the knife, measured against that store.
+    expect(
+      week.events.map((event) => [event.kind, event.previousStoreName]),
+    ).toEqual([
+      ['drop', null],
+      ['drop', 'shop.example'],
+    ])
 
     const all = (await history(raccoon.id, 'all')).history
     expect(all.rangeStart).toBeNull()
@@ -631,7 +638,11 @@ describe('price history', () => {
         new Date(START + 29.5 * DAY).toISOString(),
       ],
     ])
-    expect(all.events.map((event) => event.kind)).toEqual(['drop', 'drop'])
+    expect(all.events.map((event) => event.kind)).toEqual([
+      'drop',
+      'drop',
+      'drop',
+    ])
   })
 
   it('validates the request', async () => {
@@ -684,6 +695,7 @@ describe('price history', () => {
       gapPct: -26.4,
     })
     expect(quarter.events.map((event) => event.kind)).toEqual([
+      'drop', // the second store, first read below the main store's 110
       'increase',
       'drop',
       'back_in_stock',

@@ -10,6 +10,11 @@
  *   even when it was dismissed.
  * - An opposite event resolves it: an increase closes a drop and the other
  *   way round; back in stock closes out of stock and the other way round.
+ * - Stock is the knife's, not one store's: a knife's stores (its own link
+ *   and those Other stores found) are one item. Out of stock notifies only
+ *   when no other store has the knife in stock, back in stock only when
+ *   none had it, and back in stock at any store closes the knife's open
+ *   out-of-stock notifications.
  * - Closed notifications are deleted after 90 days.
  * - Per-knife alert rules (mute, target price, below regular price) and a
  *   source muted for some days only stop new notifications; an opposite
@@ -101,6 +106,8 @@ export type PriceNotificationContext = {
   sourceMutedUntil: string | null
   /** The knife's notifications are muted. */
   knifeMuted: boolean
+  /** Stores the knife is monitored at now (paused and removed left out). */
+  storeCount?: number
 }
 
 /** A notification with its event: knife, store, prices and change. */
@@ -134,6 +141,11 @@ export type PriceAlertContext = {
   sourceMutedUntil: string | null
   /** Lowest trusted price the source showed before this event, same currency. */
   lowestBeforeMinor: number | null
+  /**
+   * The knife's other monitored stores whose latest reading has it for
+   * sale (priced, not out of stock). Left out: none.
+   */
+  otherStoresInStock?: number
 }
 
 /** Applies action results to a loaded list, keeping each row's event. */
@@ -290,8 +302,9 @@ export function isPriceAlertMuted(
 }
 
 /**
- * Whether an event notifies: not muted, its category on and, for prices,
- * the knife's rules and the thresholds. For a drop:
+ * Whether an event notifies: not muted, its category on, for stock no
+ * other store of the knife selling it and, for prices, the knife's rules
+ * and the thresholds. For a drop:
  * - a target price in the same currency must be reached; crossing it
  *   notifies whatever the thresholds;
  * - with "only below regular price", the new price must be under the
@@ -307,7 +320,9 @@ export function shouldNotify(
 ): boolean {
   if (isPriceAlertMuted(context, now)) return false
   if (!settings.notify[CATEGORY[event.kind]]) return false
-  if (!('currency' in event)) return true
+  // Another store still sells it (out of stock) or already did (back in
+  // stock): the knife's stock did not change.
+  if (!('currency' in event)) return !context?.otherStoresInStock
   if (event.kind === 'increase')
     return meetsPriceThreshold(event, settings.thresholds)
 
@@ -338,7 +353,7 @@ export function shouldNotify(
 /**
  * Plans the notification changes for new events, in the order they were
  * stored. `existing` holds the stored rows the events may touch (at least
- * every unresolved row of their sources); expired closed rows are deleted.
+ * every unresolved row of their knives); expired closed rows are deleted.
  */
 export function planPriceNotifications(
   events: readonly PriceNotificationEvent[],
@@ -362,11 +377,12 @@ export function planPriceNotifications(
   for (const event of events) {
     const opposite = OPPOSITE[event.kind]
     for (const [index, row] of rows.entries()) {
-      if (
-        row.sourceId === event.sourceId &&
-        row.kind === opposite &&
-        !row.resolvedAt
-      ) {
+      // Back in stock anywhere ends the knife's out of stock everywhere.
+      const sameScope =
+        event.kind === 'back_in_stock'
+          ? row.knifeId === event.knifeId
+          : row.sourceId === event.sourceId
+      if (sameScope && row.kind === opposite && !row.resolvedAt) {
         rows[index] = { ...row, resolvedAt: nowIso, updatedAt: nowIso }
         touched.add(row.id)
       }

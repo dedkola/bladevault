@@ -6,6 +6,7 @@ import * as notificationsRoute from '@/app/api/price-notifications/route'
 import * as desktopRoute from '@/app/api/price-notifications/desktop/route'
 import { getLocalDb } from '@/lib/local-db'
 import { checkPriceSource } from '@/lib/price-monitor/engine'
+import { backfillNewStoreEvents } from '@/lib/price-monitor/new-store'
 import type { PriceNotificationView } from '@/lib/price-monitor/notifications'
 import type { PriceWatchView } from '@/lib/price-monitor/shared'
 import type { ExtractedOffer } from '@/lib/scrape-offer'
@@ -348,6 +349,7 @@ describe('price notifications', () => {
       lowestMinor: 11_900,
       sourceMutedUntil: null,
       knifeMuted: false,
+      storeCount: 1,
     })
 
     // Desktop alerts list it while new and unread.
@@ -408,5 +410,164 @@ describe('price notifications', () => {
         (row) => row.dismissedAt || row.resolvedAt,
       ),
     ).toBe(true)
+  })
+})
+
+describe("a knife's stores as one item", () => {
+  const OTHER_URL = 'https://other.example/products/raccoon'
+
+  async function addStore(knifeId: string) {
+    const response = await priceWatchRoute.PUT(
+      json('http://localhost/x', 'PUT', { add: [{ url: OTHER_URL }] }),
+      params(knifeId),
+    )
+    const watch = ((await response.json()) as { watch: PriceWatchView }).watch
+    return watch.sources.find((source) => source.url === OTHER_URL)!.id
+  }
+
+  async function checkAt(
+    sourceId: number,
+    url: string,
+    ...readings: ExtractedOffer[]
+  ) {
+    for (const reading of readings) {
+      mocks.browser.mockResolvedValueOnce({
+        offer: reading,
+        serverOffer: null,
+        finalUrl: url,
+        isShopify: false,
+      })
+      await checkPriceSource(sourceId, { trigger: 'manual' })
+    }
+  }
+
+  function knifeEvents() {
+    return getLocalDb()
+      .prepare(
+        `SELECT 'price' AS type, direction AS kind, source_id, previous_source_id,
+                previous_price_minor, price_minor
+         FROM price_change_events WHERE previous_source_id IS NOT NULL
+         UNION ALL
+         SELECT 'stock', kind, source_id, previous_source_id, NULL, price_minor
+         FROM stock_events WHERE previous_source_id IS NOT NULL`,
+      )
+      .all()
+  }
+
+  it('reports a new store that sells it cheaper as a drop of the knife', async () => {
+    const knifeId = await createKnife()
+    const own = await sourceIdFor(knifeId)
+    await checkAt(own, PRODUCT_URL, offer(129), offer(129))
+    const other = await addStore(knifeId)
+    await checkAt(other, OTHER_URL, offer(99))
+
+    expect(knifeEvents()).toEqual([
+      {
+        type: 'price',
+        kind: 'drop',
+        source_id: other,
+        previous_source_id: own,
+        previous_price_minor: 12900,
+        price_minor: 9900,
+      },
+    ])
+    const [drop] = await getNotifications()
+    expect(drop).toMatchObject({ kind: 'drop', sourceId: other })
+    expect(drop.event.previousStoreName).toBe('shop.example')
+
+    // The backfill finds nothing more, and gives the event back once lost.
+    const database = getLocalDb()
+    expect(backfillNewStoreEvents(database)).toBe(0)
+    database
+      .prepare('DELETE FROM price_change_events WHERE previous_source_id = ?')
+      .run(own)
+    expect(backfillNewStoreEvents(database)).toBe(1)
+    expect(knifeEvents()).toHaveLength(1)
+  })
+
+  it('alerts on stock only when no store has the knife', async () => {
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        notify: {
+          drop: true,
+          increase: false,
+          outOfStock: true,
+          backInStock: true,
+        },
+      },
+    })
+    const knifeId = await createKnife()
+    const own = await sourceIdFor(knifeId)
+    await checkAt(own, PRODUCT_URL, offer(129), offer(129))
+    const other = await addStore(knifeId)
+    await checkAt(other, OTHER_URL, offer(129), offer(129))
+    expect(notificationRows()).toEqual([])
+
+    // The maker sells out while the other store still has it: no alert.
+    const out = offer(null, 'out_of_stock')
+    await checkAt(own, PRODUCT_URL, out, out)
+    expect(notificationRows()).toEqual([])
+
+    // Now no store has it.
+    await checkAt(other, OTHER_URL, out, out)
+    expect(notificationRows()).toEqual([
+      {
+        kind: 'out_of_stock',
+        occurrences: 1,
+        read: 0,
+        dismissed: 0,
+        resolved: 0,
+      },
+    ])
+    const [soldOut] = await getNotifications()
+    expect(soldOut.context.storeCount).toBe(2)
+
+    // The maker has it again: back in stock, and the knife's out of stock closes.
+    await checkAt(own, PRODUCT_URL, offer(129), offer(129))
+    expect(notificationRows()).toEqual([
+      {
+        kind: 'out_of_stock',
+        occurrences: 1,
+        read: 0,
+        dismissed: 0,
+        resolved: 1,
+      },
+      {
+        kind: 'back_in_stock',
+        occurrences: 1,
+        read: 0,
+        dismissed: 0,
+        resolved: 0,
+      },
+    ])
+  })
+
+  it('reports a new store selling it while the others are out as back in stock', async () => {
+    const knifeId = await createKnife()
+    const own = await sourceIdFor(knifeId)
+    const out = offer(null, 'out_of_stock')
+    await checkAt(own, PRODUCT_URL, out, out)
+    const other = await addStore(knifeId)
+    await checkAt(other, OTHER_URL, offer(135))
+    expect(knifeEvents()).toEqual([
+      {
+        type: 'stock',
+        kind: 'back_in_stock',
+        source_id: other,
+        previous_source_id: own,
+        previous_price_minor: null,
+        price_minor: 13500,
+      },
+    ])
+    expect(notificationRows()).toEqual([
+      {
+        kind: 'back_in_stock',
+        occurrences: 1,
+        read: 0,
+        dismissed: 0,
+        resolved: 0,
+      },
+    ])
   })
 })

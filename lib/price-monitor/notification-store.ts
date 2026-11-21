@@ -113,10 +113,48 @@ function readLowestPrice(
   return row.low
 }
 
+/** A store counts for the knife's stock while monitored and not paused. */
+const ACTIVE_SOURCE = 'removed_at IS NULL AND enabled = 1'
+/** Its latest reading has the knife for sale (as Best price now counts it). */
+const SELLING =
+  "last_price_minor IS NOT NULL AND (last_availability IS NULL OR last_availability <> 'out_of_stock')"
+
+/** The knife's other active stores that have it for sale now. */
+function countOtherStoresInStock(
+  database: Database.Database,
+  knifeId: string,
+  sourceId: number,
+): number {
+  return (
+    database
+      .prepare(
+        `SELECT COUNT(*) AS n FROM price_sources
+         WHERE knife_id = ? AND id <> ? AND ${ACTIVE_SOURCE} AND ${SELLING}`,
+      )
+      .get(knifeId, sourceId) as { n: number }
+  ).n
+}
+
+/** How many active stores the knife is monitored at. */
+function countActiveStores(
+  database: Database.Database,
+  knifeId: string,
+): number {
+  return (
+    database
+      .prepare(
+        `SELECT COUNT(*) AS n FROM price_sources
+         WHERE knife_id = ? AND ${ACTIVE_SOURCE}`,
+      )
+      .get(knifeId) as { n: number }
+  ).n
+}
+
 /**
- * The alert rules, regular price, source mute and previous lowest price
- * the planner needs for one source's events. `excludeSnapshotId` leaves the
- * reading being recorded out of the lowest price.
+ * The alert rules, regular price, source mute, previous lowest price and
+ * the knife's other stores in stock the planner needs for one source's
+ * events. `excludeSnapshotId` leaves the reading being recorded out of the
+ * lowest price.
  */
 export function readPriceAlertContext(
   database: Database.Database,
@@ -145,22 +183,35 @@ export function readPriceAlertContext(
           input.excludeSnapshotId,
         )
       : null,
+    otherStoresInStock: countOtherStoresInStock(
+      database,
+      input.knifeId,
+      input.sourceId,
+    ),
   }
 }
 
-/** Stored notifications, all of them or one source's. */
+/** Stored notifications: all of them, one knife's or one source's. */
 export function readPriceNotifications(
   database: Database.Database,
-  filter: { sourceId?: number } = {},
+  filter: { sourceId?: number; knifeId?: string } = {},
 ): PriceNotification[] {
   const rows = (
-    filter.sourceId === undefined
-      ? database.prepare('SELECT * FROM price_notifications ORDER BY id').all()
-      : database
+    filter.knifeId !== undefined
+      ? database
           .prepare(
-            'SELECT * FROM price_notifications WHERE source_id = ? ORDER BY id',
+            'SELECT * FROM price_notifications WHERE knife_id = ? ORDER BY id',
           )
-          .all(filter.sourceId)
+          .all(filter.knifeId)
+      : filter.sourceId !== undefined
+        ? database
+            .prepare(
+              'SELECT * FROM price_notifications WHERE source_id = ? ORDER BY id',
+            )
+            .all(filter.sourceId)
+        : database
+            .prepare('SELECT * FROM price_notifications ORDER BY id')
+            .all()
   ) as PriceNotificationRow[]
   return rows.flatMap((row) =>
     isPriceNotificationKind(row.kind)
@@ -277,6 +328,7 @@ function readPriceNotificationViews(
         lowestMinor: alert.lowestBeforeMinor,
         sourceMutedUntil: alert.sourceMutedUntil,
         knifeMuted: alert.rules.muted,
+        storeCount: countActiveStores(database, knifeId),
       }
       contexts.set(key, context)
     }
