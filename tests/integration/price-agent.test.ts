@@ -337,9 +337,7 @@ describe('AI supervisor', () => {
         ...getSettings().priceMonitoring,
         otherStores: {
           enabled: true,
-          stores: { amazon: true, bladehq: false },
-          amazonMarketplace: 'amazon.com',
-          amazonPostcode: '',
+          stores: { bladehq: true },
         },
       },
     })
@@ -395,7 +393,7 @@ describe('AI supervisor', () => {
         `INSERT INTO price_discovery
            (knife_id, store, marketplace, status, attempts, last_attempt_at,
             next_attempt_at)
-         VALUES (?, 'amazon', 'amazon.com', 'not_found', 1, ?, ?)`,
+         VALUES (?, 'bladehq', 'bladehq.com', 'not_found', 1, ?, ?)`,
       )
       .run(id, ago(10), new Date(Date.now() + 20 * 86_400_000).toISOString())
 
@@ -437,7 +435,7 @@ describe('AI supervisor', () => {
       lastStockChange: null,
       search: [
         {
-          store: 'Amazon',
+          store: 'Blade HQ',
           status: 'not_found',
           nextInDays: expect.any(Number),
         },
@@ -509,7 +507,7 @@ describe('AI supervisor', () => {
         target: `knife ${id}`,
         status: 'applied',
         note: undefined,
-        outcome: 'searched: amazon found',
+        outcome: 'searched: bladehq found',
       },
     ])
   })
@@ -667,13 +665,15 @@ describe('AI supervisor', () => {
     const drop = await createKnife('Drop Bear', 'https://kizer.example/drop')
     const mini = await createKnife('Mini', 'https://kizer.example/mini')
     const db = getLocalDb()
-    // Mini also has an Amazon listing that Other stores found.
+    // Mini also has a Blade HQ listing that Other stores found.
     const params = (id: string) => ({ params: Promise.resolve({ id }) })
     await watchRoute.PUT(
       new Request(`http://localhost/api/knives/${mini.id}/price-watch`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ add: [{ url: 'https://amazon.com/dp/mini' }] }),
+        body: JSON.stringify({
+          add: [{ url: 'https://www.bladehq.com/item--Kizer-Mini--1' }],
+        }),
       }),
       params(mini.id),
     )
@@ -682,7 +682,7 @@ describe('AI supervisor', () => {
       `INSERT INTO price_discovery
          (knife_id, store, marketplace, status, source_id, attempts,
           last_attempt_at)
-       VALUES (?, 'amazon', 'amazon.com', 'found', ?, 1, ?)`,
+       VALUES (?, 'bladehq', 'bladehq.com', 'found', ?, 1, ?)`,
     ).run(mini.id, listing, new Date().toISOString())
     db.prepare(
       `UPDATE price_sources SET status = 'ok', last_price_minor = 9900,
@@ -762,7 +762,7 @@ describe('AI supervisor', () => {
     expect(messages.map((message) => [message.kind, message.title])).toEqual([
       ['price-advice', 'Drop Bear is 23% below regular'],
       ['price-question', 'Set a 95.00 USD target for Kizer Drop Bear?'],
-      ['price-question', 'Is the amazon.com listing the right Kizer Mini?'],
+      ['price-question', 'Is the bladehq.com listing the right Kizer Mini?'],
     ])
     const [, target, keep] = messages
     expect(target.payload).toEqual({
@@ -906,7 +906,7 @@ describe('AI supervisor', () => {
     db.prepare(
       `INSERT INTO price_discovery
          (knife_id, store, marketplace, status, attempts, last_attempt_at)
-       VALUES (?, 'amazon', 'amazon.com', 'found', 1, ?)`,
+       VALUES (?, 'bladehq', 'bladehq.com', 'found', 1, ?)`,
     ).run(drop.id, at(5000))
 
     const events = readAgentEvents(db, lastRunAt)

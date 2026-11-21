@@ -42,7 +42,7 @@ export const TROUBLESHOOT_CODES: ReadonlySet<string> = new Set([
 ])
 
 export type TroubleshootInput = {
-  /** Store host name such as "vosteed.com", or "amazon". */
+  /** Store host name such as "vosteed.com" or "bladehq.com". */
   store: string
   errorCode: string
   httpStatus: number | null

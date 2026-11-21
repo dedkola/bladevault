@@ -1,5 +1,4 @@
 import type { CheerioAPI } from 'cheerio'
-import { extractAmazonOffer, isAmazonProductUrl } from '@/lib/scrape-amazon'
 import {
   normalizeCurrencyCode,
   parseMoneyText,
@@ -24,7 +23,6 @@ export type OfferMethod =
   | 'microdata'
   | 'meta'
   | 'shopify'
-  | 'amazon'
   // Price monitoring's optional AI fallback (lib/price-monitor/ai.ts).
   | 'ai'
 
@@ -292,8 +290,8 @@ function extractMetaOffer($: CheerioAPI): ExtractedOffer | null {
 }
 
 /**
- * Deterministic offer extraction from a product page. Amazon pages use their
- * buy box; other pages use JSON-LD, then microdata, then Open Graph meta.
+ * Deterministic offer extraction from a product page: JSON-LD, then
+ * microdata, then Open Graph meta.
  * A source that has the price but no stock status borrows the status from
  * the next source that has one.
  */
@@ -301,8 +299,6 @@ export function extractOffer(
   $: CheerioAPI,
   pageUrl: string,
 ): ExtractedOffer | null {
-  if (isAmazonProductUrl(pageUrl)) return extractAmazonOffer($, pageUrl)
-
   const candidates = [
     extractJsonLdOffer($, pageUrl),
     extractMicrodataOffer($),

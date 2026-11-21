@@ -1,4 +1,3 @@
-import type { Page } from 'playwright'
 import type { Knife } from '@/lib/data'
 import { getLocalDb } from '@/lib/local-db'
 import { aiConfigured } from '@/lib/price-monitor/ai'
@@ -7,7 +6,6 @@ import {
   aiBudgetRefusal,
   type AiEndpoint,
 } from '@/lib/price-monitor/ai-client'
-import { AmazonLocationError } from '@/lib/price-monitor/amazon-location'
 import {
   loadBrowserState,
   saveBrowserState,
@@ -46,15 +44,14 @@ import { getStorage } from '@/lib/storage'
 import { getVaultAccessState } from '@/lib/vault-access'
 
 /**
- * Other stores: AI looks for a monitored knife on Amazon or Blade HQ.
- * It reads the store's search results and picks the knife,
- * then reads the product page and confirms it; only then does the product
- * become a price source, checked and parsed like every other source from
- * then on. A store's searches share its lane with its price checks (one
- * request at a time, its pace and its pauses).
+ * Other stores: AI looks for a monitored knife on Blade HQ (not on Amazon:
+ * it forbids automated AI access). It reads the store's search results and
+ * picks the knife, then reads the product page and confirms it; only then
+ * does the product become a price source, checked and parsed like every
+ * other source from then on. A store's searches share its lane with its
+ * price checks (one request at a time, its pace and its pauses).
  */
-export const DISCOVERY_STORE = 'amazon' as const
-export const DISCOVERY_LANE = 'amazon'
+export const DISCOVERY_STORE: OtherStoreId = 'bladehq'
 /** Two searches, a product page and three AI answers fit in this. */
 const DISCOVERY_BUDGET_MS = 240_000
 
@@ -66,7 +63,6 @@ export type DiscoveryDeps = {
     url: string,
     signal: AbortSignal,
     laneKey: string,
-    preparePage?: (page: Page) => Promise<void>,
   ) => Promise<DiscoveryPage>
   match: typeof matchSearchResults
   verify: typeof verifyProductPage
@@ -78,7 +74,6 @@ async function renderWithLaneCookies(
   url: string,
   signal: AbortSignal,
   laneKey: string,
-  preparePage?: (page: Page) => Promise<void>,
 ): Promise<DiscoveryPage> {
   const { fetchRenderedHtml } = await import('@/lib/scrape-playwright')
   const operation = createScrapeOperation({ signal, timeoutMs: 60_000 })
@@ -90,7 +85,6 @@ async function renderWithLaneCookies(
       light: true,
       captureStorageState: true,
       storageState,
-      interact: preparePage,
     })
     if (page.storageState)
       await saveBrowserState(laneKey, page.storageState).catch(() => {})
@@ -151,7 +145,7 @@ export function nextDiscoveryKnife(
     readDiscoveryQueue(getLocalDb(), {
       settings,
       store,
-      marketplace: config.marketplace(settings.otherStores),
+      marketplace: config.marketplace,
       laneKey: config.laneKey,
       now,
     })[0] ?? null
@@ -167,13 +161,6 @@ function pageFailure(
   detail: string
   retryAfterMs: number | null
 } {
-  if (error instanceof AmazonLocationError)
-    return {
-      result: 'failed',
-      laneOutcome: 'neutral',
-      detail: `${error.message} Amazon would hide knives that do not ship there, so BladeVault will try again later.`,
-      retryAfterMs: null,
-    }
   const failure = toScrapeError(error)
   const status = upstreamStatus(error)
   if (isNetworkBlockError(error))
@@ -211,7 +198,7 @@ function pageFailure(
 }
 
 /**
- * Looks for one knife at a store (Amazon: the configured marketplace) and
+ * Looks for one knife at a store and
  * records the result. AI endpoint problems are not the knife's fault:
  * nothing is recorded for it, and the caller pauses discovery instead.
  */
@@ -234,7 +221,7 @@ export async function discoverKnife(
   const knife = await deps.getKnife(knifeId)
   if (!knife) return { status: 'skipped', reason: 'missing' }
 
-  const marketplace = store.marketplace(settings.otherStores)
+  const marketplace = store.marketplace
   const startedAt = Date.now()
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), DISCOVERY_BUDGET_MS)
@@ -294,15 +281,9 @@ export async function discoverKnife(
     const refusal = aiBudgetRefusal('discovery_search')
     if (refusal) throw new AiClientError('budget', refusal)
 
-    const prepare = store.preparePage
-    const preparePage = prepare
-      ? (page: Page) => prepare(page, settings.otherStores)
-      : undefined
     /** A page load that always ends when the search's time budget does. */
     const load = (url: string) =>
-      runWithSignal(signal, () =>
-        deps.fetchPage(url, signal, store.laneKey, preparePage),
-      )
+      runWithSignal(signal, () => deps.fetchPage(url, signal, store.laneKey))
     const loadFailure = (error: unknown) =>
       controller.signal.aborted
         ? {
@@ -322,25 +303,13 @@ export async function discoverKnife(
     for (const query of queries) {
       let searchPage: DiscoveryPage
       try {
-        searchPage = await load(store.searchUrl(settings.otherStores, query))
+        searchPage = await load(store.searchUrl(query))
       } catch (error) {
         if (signal.aborted && options.signal?.aborted) throw error
         return await finish(loadFailure(error))
       }
-      candidates = store.parseResults(
-        searchPage.html,
-        searchPage.finalUrl,
-        settings.otherStores,
-      )
+      candidates = store.parseResults(searchPage.html, searchPage.finalUrl)
       if (!candidates.length) {
-        // Only the store's own empty result list means it has no such
-        // knife; any other page is no answer, so no 30-day "not found".
-        if (store.emptySearch?.(searchPage.html) === 'unreadable')
-          return await finish({
-            result: 'failed',
-            laneOutcome: 'failed',
-            detail: `${store.label} showed a page without search results: a bot check, an error page or a layout BladeVault cannot read. BladeVault will try again later.`,
-          })
         emptyQueries.push(query)
         continue
       }

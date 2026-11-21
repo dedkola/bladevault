@@ -126,7 +126,7 @@ describe('collection market summaries', () => {
   it('summarizes price, drops, restocks, stock and regular price per knife', async () => {
     const raccoon = await createKnife('Raccoon', '129.00 USD', [
       'https://shop.example/raccoon',
-      'https://amazon.example/raccoon',
+      'https://dealer.example/raccoon',
     ])
     const corgi = await createKnife('Corgi', '', ['https://shop.example/corgi'])
     const kiwi = await createKnife('Kiwi', '50.00 USD', [

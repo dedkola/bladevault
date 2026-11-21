@@ -19,10 +19,11 @@ import {
   type EligibilitySettings,
 } from '@/lib/price-monitor/eligibility'
 import {
+  AMAZON_NOT_SUPPORTED,
+  isAmazonUrl,
   laneKeyForUrl,
   MAX_PRICE_SOURCES_PER_KNIFE,
   normalizeSourceUrl,
-  providerForUrl,
   storeNameForUrl,
   type Availability,
   type FetchOverride,
@@ -469,18 +470,18 @@ export function insertSource(
     throw new PriceWatchError(
       'Enter a valid product URL starting with http:// or https://.',
     )
+  if (isAmazonUrl(url)) throw new PriceWatchError(AMAZON_NOT_SUPPORTED)
   database
     .prepare(
       `INSERT INTO price_sources
         (knife_id, url, normalized_url, provider, lane_key, store_name, origin,
          priority, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+       VALUES (?, ?, ?, 'generic', ?, ?, ?, 1, ?, ?)`,
     )
     .run(
       knifeId,
       url,
       normalized,
-      providerForUrl(url),
       laneKeyForUrl(url),
       storeName || storeNameForUrl(url),
       origin,

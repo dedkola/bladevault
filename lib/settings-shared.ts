@@ -451,7 +451,7 @@ export type PriceMonitoringSettings = {
    * Out of stock on the knife's own product link (its official store) is
    * ignored: it does not count as out of stock, does not notify, and the
    * link is not checked on schedule while it stays out of stock. Other
-   * stores (Amazon, Blade HQ) carry the knife instead.
+   * stores (Blade HQ) carry the knife instead.
    */
   ignoreOfficialOutOfStock: boolean
   /** Target frequency per source; the queue spreads checks across it. */
@@ -471,7 +471,6 @@ export type PriceMonitoringSettings = {
   pacing: {
     /** Floor between two checks at one store; raised automatically. */
     minGapSeconds: number
-    amazonMinGapSeconds: number
   }
   /** Which detected changes create an Inbox notification. */
   notify: PriceNotifyCategories
@@ -500,74 +499,14 @@ export type PriceMonitoringSettings = {
   otherStores: PriceOtherStoresSettings
 }
 
-/** Marketplaces AI can search for monitored knives. */
-export const AMAZON_MARKETPLACES = [
-  'amazon.com',
-  'amazon.ca',
-  'amazon.co.uk',
-  'amazon.de',
-  'amazon.fr',
-  'amazon.it',
-  'amazon.es',
-  'amazon.nl',
-  'amazon.se',
-  'amazon.pl',
-  'amazon.com.au',
-  'amazon.co.jp',
-] as const
-export type AmazonMarketplace = (typeof AMAZON_MARKETPLACES)[number]
-
 /**
- * The delivery postcode Amazon searches and checks use when none is set: a
- * central one in the marketplace's country. Amazon hides products that do
- * not ship to the shopper, so a browser abroad would find almost nothing.
+ * Stores AI can search for monitored knives, in search order. Amazon is not
+ * one: it forbids automated AI access, so Price Drops never loads its pages.
  */
-export const AMAZON_DEFAULT_POSTCODES: Record<AmazonMarketplace, string> = {
-  'amazon.com': '10001',
-  'amazon.ca': 'M5V 3L9',
-  'amazon.co.uk': 'SW1A 1AA',
-  'amazon.de': '10115',
-  'amazon.fr': '75001',
-  'amazon.it': '00184',
-  'amazon.es': '28001',
-  'amazon.nl': '1012 JS',
-  'amazon.se': '111 52',
-  'amazon.pl': '00-001',
-  'amazon.com.au': '2000',
-  'amazon.co.jp': '100-0001',
-}
-
-/** Letters, digits, spaces and dashes, 2 to 12 characters ("10001", "SW1A 1AA"). */
-const AMAZON_POSTCODE = /^[A-Za-z0-9](?:[A-Za-z0-9 -]{0,10}[A-Za-z0-9])?$/
-
-/** The postcode cleaned up, or null when it is not one. */
-export function normalizeAmazonPostcode(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const postcode = value.trim().replace(/\s+/g, ' ').toUpperCase()
-  return postcode.length >= 2 && AMAZON_POSTCODE.test(postcode)
-    ? postcode
-    : null
-}
-
-/** The postcode Amazon delivers to: the user's, or the marketplace's default. */
-export function amazonDeliveryPostcode(
-  settings: Pick<
-    PriceOtherStoresSettings,
-    'amazonMarketplace' | 'amazonPostcode'
-  >,
-): string {
-  return (
-    settings.amazonPostcode ||
-    AMAZON_DEFAULT_POSTCODES[settings.amazonMarketplace]
-  )
-}
-
-/** Stores AI can search for monitored knives, in search order. */
-export const OTHER_STORE_IDS = ['amazon', 'bladehq'] as const
+export const OTHER_STORE_IDS = ['bladehq'] as const
 export type OtherStoreId = (typeof OTHER_STORE_IDS)[number]
 
 export const OTHER_STORE_LABELS: Record<OtherStoreId, string> = {
-  amazon: 'Amazon',
   bladehq: 'Blade HQ',
 }
 
@@ -575,12 +514,6 @@ export type PriceOtherStoresSettings = {
   /** Let AI find, verify and add monitored knives on the stores below. */
   enabled: boolean
   stores: Record<OtherStoreId, boolean>
-  amazonMarketplace: AmazonMarketplace
-  /**
-   * Delivery postcode for Amazon searches and checks; empty uses the
-   * marketplace's default (10001 on amazon.com).
-   */
-  amazonPostcode: string
 }
 
 /**
@@ -675,7 +608,6 @@ export type PriceNotifyCategories = {
 export const PRICE_MONITORING_LIMITS = {
   intervalHours: [1, 168],
   minGapSeconds: [30, 3600],
-  amazonMinGapSeconds: [60, 21_600],
   minPercent: [0, 100],
   minAmount: [0, 100_000],
 } as const
@@ -690,7 +622,7 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
     activeHours: null,
     slowOutOfStock: true,
   },
-  pacing: { minGapSeconds: 60, amazonMinGapSeconds: 300 },
+  pacing: { minGapSeconds: 60 },
   notify: { drop: true, increase: false, outOfStock: false, backInStock: true },
   thresholds: { minPercent: 5, minAmount: 0, allTimeLow: false },
   ai: {
@@ -717,9 +649,7 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
   },
   otherStores: {
     enabled: false,
-    stores: { amazon: true, bladehq: false },
-    amazonMarketplace: 'amazon.com',
-    amazonPostcode: '',
+    stores: { bladehq: true },
   },
 }
 
@@ -954,16 +884,6 @@ function normalizeOtherStores(
         typeof stores[id] === 'boolean' ? stores[id] : fallback.stores[id],
       ]),
     ) as Record<OtherStoreId, boolean>,
-    amazonMarketplace: (AMAZON_MARKETPLACES as readonly unknown[]).includes(
-      record.amazonMarketplace,
-    )
-      ? (record.amazonMarketplace as AmazonMarketplace)
-      : fallback.amazonMarketplace,
-    amazonPostcode:
-      record.amazonPostcode === ''
-        ? ''
-        : (normalizeAmazonPostcode(record.amazonPostcode) ??
-          fallback.amazonPostcode),
   }
 }
 
@@ -1071,11 +991,6 @@ export function normalizePriceMonitoring(
         pacing.minGapSeconds,
         PRICE_MONITORING_LIMITS.minGapSeconds,
         fallback.pacing.minGapSeconds,
-      ),
-      amazonMinGapSeconds: boundedInteger(
-        pacing.amazonMinGapSeconds,
-        PRICE_MONITORING_LIMITS.amazonMinGapSeconds,
-        fallback.pacing.amazonMinGapSeconds,
       ),
     },
     notify: Object.fromEntries(

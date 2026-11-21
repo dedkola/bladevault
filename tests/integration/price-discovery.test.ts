@@ -5,7 +5,6 @@ import * as priceWatchRoute from '@/app/api/knives/[id]/price-watch/route'
 import * as discoveryRoute from '@/app/api/prices/discovery/route'
 import { getLocalDb } from '@/lib/local-db'
 import { AiClientError } from '@/lib/price-monitor/ai-client'
-import { AmazonLocationError } from '@/lib/price-monitor/amazon-location'
 import {
   discoverKnife,
   nextDiscoveryKnife,
@@ -30,25 +29,35 @@ afterEach(async () => {
   vault = null
 })
 
-const SEARCH_HTML = `
-  <div data-component-type="s-search-result" data-asin="B0CASE0001">
-    <h2>Leather Sheath for Para 3</h2></div>
-  <div data-component-type="s-search-result" data-asin="B07PARA003">
-    <h2>Spyderco Para 3 Folding Knife CTS BD1N</h2>
-    <span class="a-price"><span class="a-offscreen">$124.95</span></span></div>`
+const SEARCH_HTML = `<main>
+  <div class="card"><a href="/item--Leather-Sheath-for-Para-3--11111">Leather Sheath for Para 3</a>
+    <span>$29.95</span></div>
+  <div class="card"><a href="/item--Spyderco-Para-3-Folding-Knife--106189">Spyderco Para 3 Folding Knife CTS BD1N</a>
+    <span>$124.95</span></div>
+</main>`
 
-const PRODUCT_HTML = `<html><body>
-  <span id="productTitle">Spyderco Para 3 Folding Knife CTS BD1N</span>
-  <div id="feature-bullets"><ul><li>2.95 inch CTS BD1N blade</li></ul></div>
-</body></html>`
+/** Blade HQ's search page when nothing matches: no product links. */
+const EMPTY_SEARCH_HTML =
+  '<main><p>No results found for your search.</p><a href="/cat--Knives--1">Knives</a></main>'
+
+const PRODUCT_URL =
+  'https://www.bladehq.com/item--Spyderco-Para-3-Folding-Knife--106189'
+
+function productHtml(
+  title = 'Spyderco Para 3 Folding Knife CTS BD1N',
+  description = '2.95 inch CTS BD1N blade',
+) {
+  return `<html><head><script type="application/ld+json">${JSON.stringify({
+    '@type': 'Product',
+    name: title,
+    description,
+  })}</script></head><body><h1>${title}</h1></body></html>`
+}
 
 const fixture = (name: string) =>
   readFileSync(new URL(`../fixtures/scrape/${name}`, import.meta.url), 'utf8')
 
-function enableOtherStores(
-  ai = true,
-  stores = { amazon: true, bladehq: false },
-) {
+function enableOtherStores(ai = true, stores = { bladehq: true }) {
   saveSettings({
     priceMonitoring: {
       ...DEFAULT_PRICE_MONITORING,
@@ -58,12 +67,7 @@ function enableOtherStores(
         baseUrl: 'http://localhost:11434/v1',
         model: 'test-model',
       },
-      otherStores: {
-        enabled: true,
-        stores,
-        amazonMarketplace: 'amazon.com',
-        amazonPostcode: '',
-      },
+      otherStores: { enabled: true, stores },
     },
   })
 }
@@ -91,7 +95,7 @@ function deps(overrides: Partial<DiscoveryDeps> = {}): Partial<DiscoveryDeps> {
   return {
     readKey: async () => null,
     fetchPage: vi.fn(async (url: string) => ({
-      html: url.includes('/s?') ? SEARCH_HTML : PRODUCT_HTML,
+      html: url.includes('?search=') ? SEARCH_HTML : productHtml(),
       finalUrl: url,
     })),
     match: vi.fn(async ({ candidates }) => ({
@@ -117,11 +121,11 @@ describe('Other stores discovery', () => {
     })
     const fetchPage = vi.fn(async (url: string) => ({
       html: url.includes('C223GP')
-        ? fixture('amazon-search-no-results.html')
-        : url.includes('/s?')
+        ? EMPTY_SEARCH_HTML
+        : url.includes('?search=')
           ? SEARCH_HTML
           : // The title leaves the code out; the details show it.
-            PRODUCT_HTML.replace('</ul>', '<li>Model: C223GP</li></ul>'),
+            productHtml(undefined, '2.95 inch CTS BD1N blade. Model: C223GP'),
       finalUrl: url,
     }))
     const run = deps({ fetchPage })
@@ -129,20 +133,20 @@ describe('Other stores discovery', () => {
 
     expect(summary).toMatchObject({ status: 'done', result: 'found' })
     expect(fetchPage.mock.calls.map(([url]) => url)).toEqual([
-      'https://www.amazon.com/s?k=Spyderco+Para+3+C223GP',
-      'https://www.amazon.com/s?k=Spyderco+Para+3',
-      'https://www.amazon.com/dp/B07PARA003',
+      'https://www.bladehq.com/?search=Spyderco+Para+3+C223GP',
+      'https://www.bladehq.com/?search=Spyderco+Para+3',
+      PRODUCT_URL,
     ])
   })
 
-  it('records "not found" when Amazon’s own result lists are empty', async () => {
+  it('records "not found" when the store’s result lists are empty', async () => {
     enableOtherStores()
     const knifeId = await createKnife({
       specs: { price: '$150', modelNumber: 'C223GP' },
     })
     const run = deps({
       fetchPage: vi.fn(async (url: string) => ({
-        html: fixture('amazon-search-no-results.html'),
+        html: EMPTY_SEARCH_HTML,
         finalUrl: url,
       })),
     })
@@ -156,45 +160,7 @@ describe('Other stores discovery', () => {
       .prepare('SELECT detail FROM price_discovery WHERE knife_id = ?')
       .get(knifeId) as { detail: string }
     expect(row.detail).toBe(
-      'Amazon had no results for “Spyderco Para 3 C223GP” or “Spyderco Para 3”.',
-    )
-  })
-
-  it('does not record "not found" for a search page without a result list', async () => {
-    enableOtherStores()
-    const knifeId = await createKnife({ specs: { price: '$150' } })
-    const before = Date.now()
-    const run = deps({
-      fetchPage: vi.fn(async () => ({
-        // A checkpoint page the browser's bot-check detection missed.
-        html: fixture('amazon-search-checkpoint.html').replace(
-          'action="/checkpoint/validate"',
-          'action="/checkpoint/next"',
-        ),
-        finalUrl: 'https://www.amazon.com/checkpoint/continue?token=x',
-      })),
-    })
-    expect(await discoverKnife(knifeId, { deps: run })).toMatchObject({
-      status: 'done',
-      result: 'failed',
-      laneOutcome: 'failed',
-    })
-    expect(run.match).not.toHaveBeenCalled()
-    expect(run.fetchPage).toHaveBeenCalledTimes(1)
-    const row = getLocalDb()
-      .prepare(
-        'SELECT status, detail, next_attempt_at FROM price_discovery WHERE knife_id = ?',
-      )
-      .get(knifeId) as {
-      status: string
-      detail: string
-      next_attempt_at: string
-    }
-    expect(row.status).toBe('failed')
-    expect(row.detail).toContain('Amazon showed a page without search results')
-    // Searched again within hours, not after the 30 days of "not found".
-    expect(Date.parse(row.next_attempt_at) - before).toBeLessThan(
-      24 * 60 * 60 * 1000,
+      'Blade HQ had no results for “Spyderco Para 3 C223GP” or “Spyderco Para 3”.',
     )
   })
 
@@ -230,7 +196,7 @@ describe('Other stores discovery', () => {
     expect(nextDiscoveryKnife(getSettings().priceMonitoring)).toBe(knifeId)
   })
 
-  it('finds, verifies and adds the Amazon listing as a monitored source', async () => {
+  it('finds, verifies and adds the Blade HQ listing as a monitored source', async () => {
     enableOtherStores()
     // No product link: Other stores still covers a knife with a price.
     const knifeId = await createKnife({ specs: { price: '$150' } })
@@ -245,19 +211,15 @@ describe('Other stores discovery', () => {
     })
     expect(run.fetchPage).toHaveBeenNthCalledWith(
       1,
-      'https://www.amazon.com/s?k=Spyderco+Para+3',
+      'https://www.bladehq.com/?search=Spyderco+Para+3',
       expect.anything(),
-      'amazon',
-      // Amazon pages first get a delivery address in the marketplace.
-      expect.any(Function),
+      'bladehq.com',
     )
     expect(run.fetchPage).toHaveBeenNthCalledWith(
       2,
-      'https://www.amazon.com/dp/B07PARA003',
+      PRODUCT_URL,
       expect.anything(),
-      'amazon',
-      // Amazon pages first get a delivery address in the marketplace.
-      expect.any(Function),
+      'bladehq.com',
     )
     // AI sees the knife's identity, never what was paid.
     const matchInput = vi.mocked(run.match!).mock.calls[0][0]
@@ -268,15 +230,15 @@ describe('Other stores discovery', () => {
     expect(watch.eligibility.monitored).toBe(true)
     expect(watch.sources).toEqual([
       expect.objectContaining({
-        url: 'https://www.amazon.com/dp/B07PARA003',
-        provider: 'amazon',
-        laneKey: 'amazon',
+        url: PRODUCT_URL,
+        provider: 'generic',
+        laneKey: 'bladehq.com',
         origin: 'manual',
         status: 'pending',
         foundByAi: true,
       }),
     ])
-    // A knife with an Amazon source is not searched again.
+    // A knife with a Blade HQ source is not searched there again.
     expect(nextDiscoveryKnife(getSettings().priceMonitoring)).toBeNull()
 
     const response = await discoveryRoute.GET(
@@ -295,8 +257,7 @@ describe('Other stores discovery', () => {
     }
     expect(all.active).toBe(true)
     expect(all.stores.map((store) => [store.store, store.active])).toEqual([
-      ['amazon', true],
-      ['bladehq', false],
+      ['bladehq', true],
     ])
     const discovery = all.stores[0]
     expect(discovery.counts.found).toBe(1)
@@ -361,7 +322,7 @@ describe('Other stores discovery', () => {
       .prepare('SELECT detail FROM price_discovery WHERE knife_id = ?')
       .get(knifeId) as { detail: string }
     expect(row.detail).toBe(
-      'The Amazon page does not show model number C223GPBK.',
+      'The Blade HQ page does not show model number C223GPBK.',
     )
   })
 
@@ -372,9 +333,9 @@ describe('Other stores discovery', () => {
     })
     const run = deps({
       fetchPage: vi.fn(async (url: string) => ({
-        html: url.includes('/s?')
+        html: url.includes('?search=')
           ? SEARCH_HTML
-          : PRODUCT_HTML.replace('CTS BD1N</span>', 'CTS BD1N - C223GP</span>'),
+          : productHtml('Spyderco Para 3 Folding Knife CTS BD1N - C223GP'),
         finalUrl: url,
       })),
     })
@@ -385,28 +346,7 @@ describe('Other stores discovery', () => {
     expect((await getWatch(knifeId)).sources).toHaveLength(1)
   })
 
-  it('does not record "not found" when Amazon will not deliver to the marketplace', async () => {
-    enableOtherStores()
-    const knifeId = await createKnife({ specs: { price: '$150' } })
-    const run = deps({
-      fetchPage: vi.fn(async () => {
-        throw new AmazonLocationError('Ukraine', '10001')
-      }),
-    })
-    expect(await discoverKnife(knifeId, { deps: run })).toMatchObject({
-      status: 'done',
-      result: 'failed',
-      laneOutcome: 'neutral',
-    })
-    expect(run.match).not.toHaveBeenCalled()
-    const row = getLocalDb()
-      .prepare('SELECT status, detail FROM price_discovery WHERE knife_id = ?')
-      .get(knifeId) as { status: string; detail: string }
-    expect(row.status).toBe('failed')
-    expect(row.detail).toContain('Amazon delivers to Ukraine')
-  })
-
-  it('reports a bot check to the Amazon lane without asking AI', async () => {
+  it('reports a bot check to the store’s lane without asking AI', async () => {
     enableOtherStores()
     const knifeId = await createKnife({ specs: { price: '$150' } })
     const run = deps({
@@ -423,10 +363,7 @@ describe('Other stores discovery', () => {
   })
 
   it('finds a knife on Blade HQ from its live search and product pages', async () => {
-    enableOtherStores(true, {
-      amazon: false,
-      bladehq: true,
-    })
+    enableOtherStores()
     const knifeId = await createKnife({
       specs: { price: '$150', modelNumber: 'C223GPBK' },
     })
@@ -474,7 +411,7 @@ describe('Other stores discovery', () => {
   })
 
   it('says a store blocks this network rather than showing a bot check', async () => {
-    enableOtherStores(true, { amazon: false, bladehq: true })
+    enableOtherStores()
     const knifeId = await createKnife({ specs: { price: '$150' } })
     const run = deps({
       fetchPage: vi.fn(async () => {

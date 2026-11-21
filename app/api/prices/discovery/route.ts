@@ -36,7 +36,7 @@ function overview() {
         ...readDiscoveryOverview(database, {
           settings,
           store: id,
-          marketplace: store.marketplace(settings.otherStores),
+          marketplace: store.marketplace,
           laneKey: store.laneKey,
         }),
       }
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       if (!settings.otherStores.stores[id]) continue
       reset += await retryDiscovery({
         store: id,
-        marketplace: DISCOVERY_STORES[id].marketplace(settings.otherStores),
+        marketplace: DISCOVERY_STORES[id].marketplace,
       })
     }
     getPriceMonitorWorker().resetDiscoveryPause()

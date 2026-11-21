@@ -29,10 +29,7 @@ describe('settings persistence', () => {
           activeHours: [22, 6],
           slowOutOfStock: false,
         },
-        pacing: {
-          minGapSeconds: 90,
-          amazonMinGapSeconds: 600,
-        },
+        pacing: { minGapSeconds: 90 },
         notify: {
           drop: true,
           increase: true,
@@ -64,9 +61,7 @@ describe('settings persistence', () => {
         },
         otherStores: {
           enabled: true,
-          stores: { amazon: true, bladehq: false },
-          amazonMarketplace: 'amazon.de',
-          amazonPostcode: '80331',
+          stores: { bladehq: false },
         },
       },
     })
@@ -82,10 +77,7 @@ describe('settings persistence', () => {
         activeHours: [22, 6],
         slowOutOfStock: false,
       },
-      pacing: {
-        minGapSeconds: 90,
-        amazonMinGapSeconds: 600,
-      },
+      pacing: { minGapSeconds: 90 },
       notify: {
         drop: true,
         increase: true,
@@ -117,9 +109,7 @@ describe('settings persistence', () => {
       },
       otherStores: {
         enabled: true,
-        stores: { amazon: true, bladehq: false },
-        amazonMarketplace: 'amazon.de',
-        amazonPostcode: '80331',
+        stores: { bladehq: false },
       },
     })
     // The AI key is never part of the settings table.

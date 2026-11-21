@@ -1,29 +1,17 @@
 import * as cheerio from 'cheerio'
-import type { Page } from 'playwright'
-import { ensureAmazonDelivery } from '@/lib/price-monitor/amazon-location'
 import {
-  amazonEmptySearchKind,
-  amazonProductUrl,
-  amazonSearchUrl,
   MAX_SEARCH_CANDIDATES,
-  parseAmazonSearchResults,
-  type EmptySearchKind,
   type MatchCandidate,
   type ProductPageDetails,
 } from '@/lib/price-monitor/discovery-ai'
 import { laneKeyForUrl, parseHttpUrl } from '@/lib/price-monitor/shared'
-import { extractAmazonProduct } from '@/lib/scrape-amazon'
-import {
-  amazonDeliveryPostcode,
-  OTHER_STORE_LABELS,
-  type OtherStoreId,
-  type PriceOtherStoresSettings,
-} from '@/lib/settings-shared'
+import { OTHER_STORE_LABELS, type OtherStoreId } from '@/lib/settings-shared'
 
 /**
  * The stores Other stores can search: how to search them, read their
  * result lists and read a product page for AI to confirm. Everything after
  * that (checks, history, drops) is the ordinary price-source pipeline.
+ * Amazon is not one: it forbids automated AI access.
  */
 export type DiscoveryCandidate = MatchCandidate & { url: string }
 
@@ -32,28 +20,11 @@ export type DiscoveryStore = {
   label: string
   /** Scheduling lane shared with the store's price checks. */
   laneKey: string
-  /** Amazon: the marketplace; other stores: their domain. */
-  marketplace: (settings: PriceOtherStoresSettings) => string
-  searchUrl: (settings: PriceOtherStoresSettings, query: string) => string
-  parseResults: (
-    html: string,
-    pageUrl: string,
-    settings: PriceOtherStoresSettings,
-  ) => DiscoveryCandidate[]
-  /**
-   * Whether a search page without products is the store saying it has
-   * none. Stores without it: such a page always counts as empty.
-   */
-  emptySearch?: (html: string) => EmptySearchKind
+  /** The store's domain; with the store, the key of its search records. */
+  marketplace: string
+  searchUrl: (query: string) => string
+  parseResults: (html: string, pageUrl: string) => DiscoveryCandidate[]
   productDetails: (html: string, url: string) => ProductPageDetails | null
-  /**
-   * Runs on each loaded store page before it is read, e.g. Amazon's
-   * delivery location. Its cookies are kept for the store's lane.
-   */
-  preparePage?: (
-    page: Page,
-    settings: PriceOtherStoresSettings,
-  ) => Promise<void>
 }
 
 const TITLE_MAX = 250
@@ -64,18 +35,6 @@ const clean = (value: string) =>
 const truncate = (value: string, max: number) =>
   value.length > max ? `${value.slice(0, max - 1)}…` : value
 const PRICE = /(?:[$€£]\s?\d[\d,]*(?:\.\d{2})?)/
-
-function amazonDetails(html: string, url: string): ProductPageDetails | null {
-  const product = extractAmazonProduct(cheerio.load(html), url)
-  if (!product?.title) return null
-  const attributes = [...product.attributes]
-    .map(([label, value]) => `${label}: ${value}`)
-    .join('\n')
-  return {
-    title: product.title,
-    details: [attributes, product.description].filter(Boolean).join('\n\n'),
-  }
-}
 
 /**
  * Struck-through prices on a result card (MSRP, "was"): left out so the first
@@ -111,7 +70,6 @@ export function parseStoreProductLinks(
         url: base.href,
         title: details.title,
         price: null,
-        sponsored: false,
       },
     ]
   }
@@ -172,7 +130,6 @@ export function parseStoreProductLinks(
       url,
       title: truncate(item.title, TITLE_MAX),
       price: item.price,
-      sponsored: false,
     }))
 }
 
@@ -241,31 +198,14 @@ export function genericProductDetails(html: string): ProductPageDetails | null {
 const BLADEHQ_PRODUCT = /^\/item--[^/]+--\d+\/?$/i
 
 export const DISCOVERY_STORES: Record<OtherStoreId, DiscoveryStore> = {
-  amazon: {
-    id: 'amazon',
-    label: OTHER_STORE_LABELS.amazon,
-    laneKey: 'amazon',
-    marketplace: (settings) => settings.amazonMarketplace,
-    searchUrl: (settings, query) =>
-      amazonSearchUrl(settings.amazonMarketplace, query),
-    parseResults: (html, _pageUrl, settings) =>
-      parseAmazonSearchResults(html).map((candidate) => ({
-        ...candidate,
-        url: amazonProductUrl(settings.amazonMarketplace, candidate.asin),
-      })),
-    emptySearch: amazonEmptySearchKind,
-    productDetails: amazonDetails,
-    preparePage: (page, settings) =>
-      ensureAmazonDelivery(page, amazonDeliveryPostcode(settings)),
-  },
   bladehq: {
     id: 'bladehq',
     label: OTHER_STORE_LABELS.bladehq,
     laneKey: 'bladehq.com',
-    marketplace: () => 'bladehq.com',
+    marketplace: 'bladehq.com',
     // A close match redirects to the model's category page; both list
     // products as item-- links.
-    searchUrl: (_settings, query) => {
+    searchUrl: (query) => {
       const url = new URL('https://www.bladehq.com/')
       url.searchParams.set('search', query)
       return url.href

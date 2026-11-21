@@ -7,7 +7,6 @@ import {
   getShopifyProductJsUrl,
   normalizeAvailability,
 } from '@/lib/scrape-offer'
-import { amazonMarketplaceCurrency } from '@/lib/scrape-amazon'
 
 const fixture = (name: string) =>
   cheerio.load(
@@ -236,84 +235,6 @@ describe('extractOffer', () => {
       })}`,
     )
     expect(extractOffer($, 'not a url')).toMatchObject({ amount: 42 })
-  })
-})
-
-describe('Amazon offers', () => {
-  const amazon = (buyBox: string) =>
-    page(`<span id="productTitle">Vosteed Raccoon Pocket Knife</span>${buyBox}`)
-
-  it('reads the buy-box price in the marketplace currency', () => {
-    const $ = amazon(`
-      <div id="corePriceDisplay_desktop_feature_div">
-        <span class="a-price priceToPay"><span class="a-offscreen">$64.99</span></span>
-      </div>
-      <div id="availability"><span>In Stock</span></div>`)
-    expect(extractOffer($, 'https://www.amazon.ca/dp/B0FRRWK52D')).toEqual({
-      amount: 64.99,
-      currency: 'CAD',
-      availability: 'in_stock',
-      method: 'amazon',
-    })
-    expect(
-      extractOffer($, 'https://www.amazon.com/dp/B0FRRWK52D'),
-    ).toMatchObject({ currency: 'USD' })
-  })
-
-  it('reads dot-thousands prices on European marketplaces', () => {
-    const $ = amazon(`
-      <div id="corePrice_feature_div">
-        <span class="a-price"><span class="a-offscreen">1.249,00 €</span></span>
-      </div>
-      <div id="availability">Nur noch 2 auf Lager</div>`)
-    expect(extractOffer($, 'https://www.amazon.de/dp/B0FRRWK52D')).toEqual({
-      amount: 1249,
-      currency: 'EUR',
-      availability: 'limited',
-      method: 'amazon',
-    })
-  })
-
-  it.each([
-    ['Currently unavailable.', 'out_of_stock'],
-    ['Temporarily out of stock.', 'out_of_stock'],
-    ['Only 3 left in stock - order soon.', 'limited'],
-    ['Available to ship in 1-2 days.', 'in_stock'],
-    ['Pre-order now', 'preorder'],
-    ['No disponible por el momento.', 'out_of_stock'],
-  ])('maps availability "%s"', (text, availability) => {
-    const $ = amazon(`<div id="availability">${text}</div>`)
-    expect(extractOffer($, 'https://www.amazon.com/dp/B0FRRWK52D')).toEqual({
-      amount: null,
-      currency: '',
-      availability,
-      method: 'amazon',
-    })
-  })
-
-  it('treats the out-of-stock buy box as out of stock', () => {
-    const $ = amazon('<div id="outOfStock">See all buying options</div>')
-    expect(
-      extractOffer($, 'https://www.amazon.com/dp/B0FRRWK52D')?.availability,
-    ).toBe('out_of_stock')
-  })
-
-  it('ignores non-product pages such as the checkpoint', () => {
-    const $ = fixture('amazon-checkpoint')
-    expect(extractOffer($, 'https://www.amazon.com/dp/B0FRRWK52D')).toBeNull()
-  })
-
-  it('maps marketplaces to currencies', () => {
-    expect(amazonMarketplaceCurrency('https://www.amazon.co.uk/dp/X')).toBe(
-      'GBP',
-    )
-    expect(amazonMarketplaceCurrency('https://www.amazon.com.mx/dp/X')).toBe(
-      'MXN',
-    )
-    expect(amazonMarketplaceCurrency('https://www.amazon.co.jp/dp/X')).toBe(
-      'JPY',
-    )
-    expect(amazonMarketplaceCurrency('https://example.com/dp/X')).toBe('')
   })
 })
 

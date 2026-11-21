@@ -33,27 +33,27 @@ function apply(state: LaneState, result: LaneOutcome, gapMs = 10 * MIN) {
   return applyLaneOutcome(state, result, {
     now: NOW,
     gapMs,
-    floorMs: laneFloorMs(state.laneKey, pacing),
+    floorMs: laneFloorMs(pacing),
     random: noJitter,
   })
 }
 
 describe('lane pacing', () => {
-  it('uses a slower floor for Amazon', () => {
-    expect(laneFloorMs('amazon', pacing)).toBe(5 * MIN)
-    expect(laneFloorMs('vosteed.com', pacing)).toBe(MIN)
+  it('uses the minimum pause per store as every store’s floor', () => {
+    expect(laneFloorMs(pacing)).toBe(MIN)
+    expect(laneFloorMs({ minGapSeconds: 300 })).toBe(5 * MIN)
   })
 
   it('spreads a store’s checks over the active window', () => {
-    // 100 Amazon products once a day: about one check every 11.5 minutes.
-    const amazon = laneGapMs({
+    // 100 products once a day: about one check every 11.5 minutes.
+    const store = laneGapMs({
       minGapMs: 5 * MIN,
       floorMs: 5 * MIN,
       activeWindowMs: 24 * HOUR,
       sourceCount: 100,
     })
-    expect(amazon).toBeCloseTo(11.52 * MIN, -2)
-    expect(fullPassMs(amazon, 100)).toBeCloseTo(19.2 * HOUR, -3)
+    expect(store).toBeCloseTo(11.52 * MIN, -2)
+    expect(fullPassMs(store, 100)).toBeCloseTo(19.2 * HOUR, -3)
     // Few products: at most two hours apart, never idle all day.
     expect(
       laneGapMs({

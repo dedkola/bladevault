@@ -252,12 +252,8 @@ const END_HOURS = Array.from({ length: 24 }, (_, hour) => hour + 1)
 
 type StoreAction = 'resume' | 'reset_cookies' | 'check' | 'pause' | 'unpause'
 
-const storeName = (laneKey: string) =>
-  laneKey === 'amazon' ? 'Amazon' : laneKey
-
 /** Asks first where an action can backfire; null means go ahead. */
-function confirmText(action: StoreAction, laneKey: string): string | null {
-  const name = storeName(laneKey)
+function confirmText(action: StoreAction, name: string): string | null {
   if (action === 'resume')
     return `Resume checks at ${name} now? It was paused after a bot check or errors and may block again; if it does, it pauses for longer next time.`
   if (action === 'reset_cookies')
@@ -384,7 +380,7 @@ export function PriceMonitoringSettings({
       }
       if (!response.ok)
         throw new Error(data.error ?? 'The store action did not work.')
-      setStoreNotice(DONE_TEXT[action](storeName(laneKey), data.queued))
+      setStoreNotice(DONE_TEXT[action](laneKey, data.queued))
       await loadQueue()
     } catch (error) {
       setStoreNotice(
@@ -451,7 +447,7 @@ export function PriceMonitoringSettings({
         <SettingsRow
           inline
           label="Ignore out of stock on the official site"
-          description="When a knife’s own product link is sold out, it no longer counts as out of stock, does not notify, and is not checked on schedule until Check now finds it in stock again. Use Other stores below to follow the knife on Amazon or Blade HQ instead."
+          description="When a knife’s own product link is sold out, it no longer counts as out of stock, does not notify, and is not checked on schedule until Check now finds it in stock again. Use Other stores below to follow the knife on Blade HQ instead."
         >
           <SettingsSwitch
             aria-label="Ignore out of stock on the official site"
@@ -571,22 +567,6 @@ export function PriceMonitoringSettings({
             onCommit={(minGapSeconds) => updatePacing({ minGapSeconds })}
           />
         </SettingsRow>
-        <SettingsRow
-          label="Minimum pause for Amazon"
-          description="All Amazon marketplaces share this pace."
-        >
-          <NumberField
-            aria-label="Minimum pause for Amazon in seconds"
-            value={settings.pacing.amazonMinGapSeconds}
-            min={PRICE_MONITORING_LIMITS.amazonMinGapSeconds[0]}
-            max={PRICE_MONITORING_LIMITS.amazonMinGapSeconds[1]}
-            unit="seconds"
-            disabled={off}
-            onCommit={(amazonMinGapSeconds) =>
-              updatePacing({ amazonMinGapSeconds })
-            }
-          />
-        </SettingsRow>
       </SettingsSection>
 
       <SettingsSection
@@ -703,7 +683,7 @@ export function PriceMonitoringSettings({
                   <Fragment key={lane.laneKey}>
                     <tr className="border-t border-[var(--bladevault-line)]">
                       <td className="py-1.5 pr-3 font-medium text-foreground">
-                        {storeName(lane.laneKey)}
+                        {lane.laneKey}
                         {lane.strategy === 'http_first' ? (
                           <span className="ml-1.5 text-muted-foreground">
                             · fast HTTP
@@ -752,7 +732,7 @@ export function PriceMonitoringSettings({
                       </td>
                       <td className="py-1 text-right whitespace-nowrap">
                         <StoreButton
-                          label={`Check ${storeName(lane.laneKey)} now`}
+                          label={`Check ${lane.laneKey} now`}
                           busy={storeBusy === `${lane.laneKey}:check`}
                           disabled={disabled || storeBusy !== null}
                           onClick={() =>
@@ -764,8 +744,8 @@ export function PriceMonitoringSettings({
                         <StoreButton
                           label={
                             lane.paused
-                              ? `Resume scheduled checks at ${storeName(lane.laneKey)}`
-                              : `Pause scheduled checks at ${storeName(lane.laneKey)}`
+                              ? `Resume scheduled checks at ${lane.laneKey}`
+                              : `Pause scheduled checks at ${lane.laneKey}`
                           }
                           busy={
                             storeBusy === `${lane.laneKey}:pause` ||
@@ -782,7 +762,7 @@ export function PriceMonitoringSettings({
                           {lane.paused ? <Play /> : <Pause />}
                         </StoreButton>
                         <StoreButton
-                          label={`Reset saved cookies for ${storeName(lane.laneKey)}`}
+                          label={`Reset saved cookies for ${lane.laneKey}`}
                           busy={storeBusy === `${lane.laneKey}:reset_cookies`}
                           disabled={disabled || storeBusy !== null}
                           onClick={() =>

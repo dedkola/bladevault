@@ -64,7 +64,7 @@ export type AdvisorTrigger = 'daily' | 'repeated_blocks' | 'manual'
 // ------------------------------------------------------------ statistics
 
 export type AdvisorLaneStats = {
-  /** Store host name such as "vosteed.com", or "amazon". */
+  /** Store host name such as "vosteed.com" or "bladehq.com". */
   store: string
   sources: number
   checks: number
@@ -145,7 +145,7 @@ export function buildAdvisorInput(input: {
     }
     durations.sort((a, b) => a - b)
     const lane = input.lanes.get(laneKey)
-    const floorMs = laneFloorMs(laneKey, settings.pacing)
+    const floorMs = laneFloorMs(settings.pacing)
     const sources = rows.sources.get(laneKey) ?? 0
     const gapMs = laneGapMs({
       minGapMs: Math.max(lane?.minGapMs ?? floorMs, floorMs),
@@ -568,7 +568,7 @@ export async function runPriceAdvisor(options: {
       lanes: new Map(
         input.stores.map((store) => [
           store.store,
-          { floorMs: laneFloorMs(store.store, settings.pacing) },
+          { floorMs: laneFloorMs(settings.pacing) },
         ]),
       ),
       now,

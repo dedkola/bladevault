@@ -8,6 +8,7 @@ import {
   savePersistedLocalDataDirPreference,
 } from '@/lib/local-data-config'
 import { normalizeKnifeTextFields } from '@/lib/knife-text'
+import { isAmazonUrl } from '@/lib/price-monitor/shared'
 import {
   assertVaultReadable,
   getVaultAccessState,
@@ -1099,6 +1100,47 @@ function migratePriceMonitoringSchema(
   addColumn('system_messages', 'answer', 'TEXT')
   // What changed since the supervisor's run before (JSON), shown per run.
   addColumn('price_agent_runs', 'events', 'TEXT')
+
+  removeAmazonPriceSources(database)
+}
+
+/**
+ * Amazon forbids automated AI access, so Price Drops no longer monitors it.
+ * Its sources are removed the way Remove source does it (their history
+ * stays); its Other stores searches and store pacing are forgotten.
+ * Repeat-safe, so a restored older backup is cleaned up as well.
+ */
+function removeAmazonPriceSources(database: Database.Database) {
+  const sources = (
+    database
+      .prepare(
+        `SELECT id, url, lane_key, provider FROM price_sources
+         WHERE removed_at IS NULL`,
+      )
+      .all() as Array<{
+      id: number
+      url: string
+      lane_key: string
+      provider: string
+    }>
+  ).filter(
+    (source) =>
+      source.lane_key === 'amazon' ||
+      source.provider === 'amazon' ||
+      isAmazonUrl(source.url),
+  )
+  const now = new Date().toISOString()
+  const remove = database.prepare(
+    `UPDATE price_sources SET removed_at = ?, updated_at = ?
+     WHERE id = ? AND removed_at IS NULL`,
+  )
+  database.transaction(() => {
+    for (const source of sources) remove.run(now, now, source.id)
+    database.prepare("DELETE FROM price_discovery WHERE store = 'amazon'").run()
+    database
+      .prepare("DELETE FROM price_host_state WHERE lane_key = 'amazon'")
+      .run()
+  })()
 }
 
 function normalizeKnifeRows(database: Database.Database) {
