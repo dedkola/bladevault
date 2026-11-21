@@ -1101,6 +1101,12 @@ function migratePriceMonitoringSchema(
   addColumn('system_messages', 'answer', 'TEXT')
   // What changed since the supervisor's run before (JSON), shown per run.
   addColumn('price_agent_runs', 'events', 'TEXT')
+  // AI recovery: the variant a source tracks (JSON: id, sku, label), a
+  // search for the product's new link the supervisor asked for, and what
+  // AI recovery did in a check (kind:result, for the weekly numbers).
+  addColumn('price_sources', 'expected_variant', 'TEXT')
+  addColumn('price_sources', 'find_page_at', 'TEXT')
+  addColumn('price_check_log', 'recovery', 'TEXT')
   // Before the new-store backfill, so Amazon sources get no events.
   removeAmazonPriceSources(database)
   // A store's first reading can be a drop or back in stock for the knife,

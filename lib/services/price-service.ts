@@ -85,6 +85,9 @@ const PROBLEM_BY_CODE: Record<string, string> = {
   wrong_currency: 'The store shows prices in another currency.',
   invalid_price: 'The price on the page is not a valid amount.',
   implausible: 'The price changed too much to trust from one reading.',
+  moved: 'The product link leads to another page: the product moved.',
+  soft_missing: 'The store says this product page is gone.',
+  wrong_variant: 'The page shows another variant than the tracked one.',
   cancelled: 'The check was cancelled.',
 }
 

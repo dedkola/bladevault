@@ -5,6 +5,7 @@ import {
   PriceWatchError,
   startKnifeFocus,
 } from '@/lib/price-monitor/store'
+import { applyRelink } from '@/lib/price-monitor/recovery'
 import { getStorage } from '@/lib/storage'
 import {
   readSystemMessages,
@@ -77,6 +78,11 @@ export async function answerPriceQuestion(
           ),
         )()
       })
+    } else if (answer === 'yes' && payload.ask === 'relink') {
+      if (
+        !(await applyRelink({ sourceId: payload.sourceId, url: payload.url }))
+      )
+        throw new PriceWatchError('Source not found', 404)
     } else if (answer === 'no' && payload.ask === 'keep_listing') {
       await applyPriceWatchUpdate(knife, {
         update: [{ id: payload.sourceId, enabled: false }],

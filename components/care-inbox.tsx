@@ -594,6 +594,8 @@ function questionAnswers(
       return { yes: 'Watch closely', no: 'Not now' }
     case 'keep_listing':
       return { yes: 'Keep listing', no: 'Pause listing' }
+    case 'relink':
+      return { yes: 'Use new link', no: 'Keep old link' }
   }
 }
 

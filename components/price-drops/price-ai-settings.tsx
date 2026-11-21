@@ -299,6 +299,32 @@ type AiCallSummary = {
   lastError: { at: string; purpose: string; message: string } | null
   reasoning: boolean
   today: { calls: number; tokens: number }
+  /** AI recovery in the last 7 days, per problem kind. */
+  recovery?: Array<{
+    kind: string
+    tried: number
+    fixed: number
+    asked: number
+  }>
+}
+
+const RECOVERY_LABELS: Record<string, string> = {
+  unreadable: 'unreadable pages',
+  relink: 'moved pages',
+  variant: 'wrong variants',
+  blocked: 'bot checks',
+  doubt: 'doubted prices',
+}
+
+/** One line: what AI recovery tried, fixed and left for you this week. */
+function recoveryLine(summary: AiCallSummary): string | null {
+  const parts = (summary.recovery ?? [])
+    .filter((entry) => entry.tried > 0)
+    .map(
+      (entry) =>
+        `${RECOVERY_LABELS[entry.kind] ?? entry.kind} ${entry.fixed}/${entry.tried} fixed${entry.asked ? `, ${entry.asked} for you` : ''}`,
+    )
+  return parts.length ? `AI recovery, last 7 days: ${parts.join(' · ')}` : null
 }
 
 const PURPOSE_LABELS: Record<string, string> = {
@@ -387,6 +413,9 @@ function AiActivity({
       <div className="flex w-full flex-col gap-1 text-xs text-muted-foreground">
         <p>No AI requests in the last 24 hours.</p>
         <p className="tabular-nums">{budgetLine(usage, summary.today)}</p>
+        {recoveryLine(summary) ? (
+          <p className="tabular-nums">{recoveryLine(summary)}</p>
+        ) : null}
       </div>
     )
   const tokens = summary.promptTokens + summary.completionTokens
@@ -402,6 +431,9 @@ function AiActivity({
     <div className="flex w-full flex-col gap-1 text-xs text-muted-foreground">
       <p className="tabular-nums text-foreground">{parts.join(' · ')}</p>
       <p className="tabular-nums">{budgetLine(usage, summary.today)}</p>
+      {recoveryLine(summary) ? (
+        <p className="tabular-nums">{recoveryLine(summary)}</p>
+      ) : null}
       <p>
         {summary.byPurpose
           .map(
@@ -934,7 +966,7 @@ export function PriceAiSettingsSection({
       <SettingsRow
         inline
         label="Resolve check errors"
-        description="When a check cannot read a price, AI works the product page in the monitoring browser: it can wait, scroll, accept or reject cookie banners, confirm age prompts, close pop-ups, pick a variant or region, open the store's own product data, and read the price. Steps that work are remembered for the store and tried first next time, without AI. After an HTTP error or a timeout it also chooses how long to wait and whether to reset the store's cookies. Within the AI usage limits. AI never buys, signs in, fills forms or solves a bot check: for a bot check, use Solve in browser on Price Drops."
+        description="When a check cannot read a price, AI works the product page in the monitoring browser: it can wait, scroll, accept or reject cookie banners, confirm age prompts, close pop-ups, pick a variant or region, open the store's own product data, and read the price. Steps that work are remembered for the store and tried first next time, without AI. When AI doubts a price, it looks for the tracked product's own price on the page. With Unlimited AI it gets more steps and time, tries once more with fresh cookies, and with a vision model takes a last look at a screenshot. After an HTTP error or a timeout it also chooses how long to wait and whether to reset the store's cookies. Within the AI usage limits. AI never buys, signs in, fills forms or solves a bot check: for a bot check, use Solve in browser on Price Drops."
       >
         <SettingsSwitch
           aria-label="Let AI resolve failed price checks"
@@ -956,6 +988,60 @@ export function PriceAiSettingsSection({
             onCheckedChange={(checked) => update({ vision: checked })}
           />
         </SettingsRow>
+      ) : null}
+      {settings.resolveErrors ? (
+        <>
+          <SettingsRow
+            inline
+            label="Find pages that moved"
+            description="When a product link leads to a category, search or home page, or the store says the page is gone (404, 410 or a “not found” page), AI searches the same store for the knife: it types the knife's brand, name and model number into the store's search box and opens its results. A page counts only when it shows the knife's model number and AI confirms it is the same knife. The new link is proposed in the Inbox; the source keeps its price history."
+          >
+            <SettingsSwitch
+              aria-label="Let AI find product pages that moved"
+              checked={settings.findMovedPages}
+              disabled={off}
+              onCheckedChange={(checked) => update({ findMovedPages: checked })}
+            />
+          </SettingsRow>
+          {settings.findMovedPages ? (
+            <SettingsRow
+              inline
+              label="Use new links without asking"
+              description="Moves the source to the new link right away when the page shows the knife's exact model number. Knives without a model number are always asked about. For the knife's own product link, the knife's link moves too."
+            >
+              <SettingsSwitch
+                aria-label="Use new links AI found without asking"
+                checked={settings.autoRelink}
+                disabled={off}
+                onCheckedChange={(checked) => update({ autoRelink: checked })}
+              />
+            </SettingsRow>
+          ) : null}
+          <SettingsRow
+            inline
+            label="Keep the tracked variant"
+            description="Each source remembers the variant it tracks (the link's variant, or the one its first reading showed). When the page shows another variant, often after the tracked one sold out, its price is not stored: Shopify stores are read for the tracked variant directly, and on other stores AI picks the variant on the page."
+          >
+            <SettingsSwitch
+              aria-label="Let AI keep the tracked variant"
+              checked={settings.fixVariants}
+              disabled={off}
+              onCheckedChange={(checked) => update({ fixVariants: checked })}
+            />
+          </SettingsRow>
+          <SettingsRow
+            inline
+            label="Retry after a bot check"
+            description="After a bot check, tries once more with the store's own product data (Shopify) and then a browser with fresh cookies. Nothing here solves or gets around the bot check: when it stays, use Solve in browser."
+          >
+            <SettingsSwitch
+              aria-label="Retry once after a bot check"
+              checked={settings.retryBlocked}
+              disabled={off}
+              onCheckedChange={(checked) => update({ retryBlocked: checked })}
+            />
+          </SettingsRow>
+        </>
       ) : null}
       <SettingsRow
         label="AI supervisor"

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  AGENT_SCHEMA,
   AGENT_EVENT_BATCH_MS,
   AGENT_EVENT_GAP_LIMITED_MS,
   AGENT_EVENT_GAP_UNLIMITED_MS,
@@ -72,6 +73,7 @@ const ai = {
   dailyTokens: 2_000_000,
   readsPages: true,
   solvesErrors: true,
+  findsPages: true,
 }
 
 describe('readAgentPlan', () => {
@@ -137,6 +139,7 @@ describe('validateAgentPlan', () => {
           reason: '',
         })),
         retryWithAi: [5, 6].map((sourceId) => ({ sourceId, reason: '' })),
+        findPage: [],
         fetchMode: [
           { sourceId: 7, mode: 'browser', reason: '' },
           { sourceId: 5, mode: 'browser', reason: '' },
@@ -193,6 +196,7 @@ describe('validateAgentPlan', () => {
         crossCheck: [],
         check: [],
         retryWithAi: [{ sourceId: 5, reason: '' }],
+        findPage: [],
         fetchMode: [],
         pause: [],
         searchOtherStore: [{ knifeId: 'k1', reason: '' }],
@@ -227,6 +231,7 @@ describe('validateAgentPlan', () => {
           { sourceId: 3, reason: 'not due yet, Black Friday' },
         ],
         retryWithAi: [],
+        findPage: [],
         fetchMode: [],
         pause: [],
         searchOtherStore: ['k1', 'k2', 'k3', 'k4'].map((knifeId) => ({
@@ -304,6 +309,7 @@ describe('watchClosely and crossCheck', () => {
       ask: [],
       check: [],
       retryWithAi: [],
+      findPage: [],
       fetchMode: [],
       pause: [],
       searchOtherStore: [],
@@ -389,6 +395,7 @@ describe('watchClosely and crossCheck', () => {
         ask: [],
         check: [],
         retryWithAi: [],
+        findPage: [],
         fetchMode: [],
         pause: [],
         searchOtherStore: [],
@@ -435,6 +442,7 @@ describe('advise and ask', () => {
     forget: [],
     check: [],
     retryWithAi: [],
+    findPage: [],
     fetchMode: [],
     pause: [],
     searchOtherStore: [],
@@ -719,6 +727,7 @@ describe('remember and forget', () => {
     summary: '',
     check: [],
     retryWithAi: [],
+    findPage: [],
     fetchMode: [],
     pause: [],
     searchOtherStore: [],
@@ -932,5 +941,75 @@ describe('agentDue', () => {
         now: NOW,
       }),
     ).toBeNull()
+  })
+})
+
+describe('findPage', () => {
+  const empty = {
+    summary: '',
+    remember: [],
+    forget: [],
+    advise: [],
+    ask: [],
+    watchClosely: [],
+    crossCheck: [],
+    check: [],
+    retryWithAi: [],
+    fetchMode: [],
+    pause: [],
+    searchOtherStore: [],
+  }
+
+  it('lets AI search for moved pages only, and only when allowed', () => {
+    const sources = [
+      source({ id: 1, status: 'failed', error: 'moved', failures: 2 }),
+      source({ id: 2, status: 'failed', error: 'http_404', failures: 1 }),
+      source({ id: 3, status: 'failed', error: 'timeout', failures: 3 }),
+      source({ id: 4, status: 'blocked', error: 'challenge', failures: 3 }),
+      source({ id: 5, status: 'failed', error: 'moved', monitored: false }),
+    ]
+    const actions = validateAgentPlan(
+      {
+        ...empty,
+        findPage: [1, 2, 3, 4, 5, 9].map((sourceId) => ({
+          sourceId,
+          reason: '',
+        })),
+      },
+      {
+        sources,
+        knives: [knife()],
+        ai,
+        otherStores: false,
+        checkIntervalHours: 6,
+      },
+    )
+    expect(actions.map((action) => [action.sourceId, action.note])).toEqual([
+      [1, null],
+      [2, null],
+      [3, 'the page does not look moved (timeout)'],
+      [4, 'status is blocked'],
+      [5, 'not monitored'],
+      [9, 'unknown source'],
+    ])
+
+    const off = validateAgentPlan(
+      { ...empty, findPage: [{ sourceId: 1, reason: '' }] },
+      {
+        sources,
+        knives: [knife()],
+        ai: { ...ai, findsPages: false },
+        otherStores: false,
+        checkIntervalHours: 6,
+      },
+    )
+    expect(off[0].note).toBe('AI page search is off')
+  })
+
+  it('reads findPage from the model answer and never offers relink questions', () => {
+    expect(
+      readAgentPlan({ findPage: [{ sourceId: 4, reason: 'moved' }] }).findPage,
+    ).toEqual([{ sourceId: 4, reason: 'moved' }])
+    expect(JSON.stringify(AGENT_SCHEMA)).not.toContain('relink')
   })
 })

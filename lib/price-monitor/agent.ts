@@ -64,6 +64,8 @@ import {
  *
  * - check: move sources to the front of their store's queue,
  * - retryWithAi: let AI read or solve a failing page on its next check,
+ * - findPage: let AI search the store for a product whose page seems
+ *   moved or gone, on its next check (a new link is proposed in the Inbox),
  * - fetchMode: load a source in the browser or over plain HTTP,
  * - pause: stop a source whose page keeps failing as gone,
  * - searchOtherStore: look for a knife on other stores (Other stores),
@@ -106,6 +108,7 @@ export const MAX_SNAPSHOT_SOURCES = 600
 export const AGENT_LIMITS = {
   check: 25,
   retryWithAi: 10,
+  findPage: 5,
   fetchMode: 5,
   pause: 3,
   searchOtherStore: 5,
@@ -141,6 +144,10 @@ export const RECHECK_MIN_MS = 30 * MINUTE_MS
 /** Failed checks in a row before the agent may pause a source. */
 export const PAUSE_MIN_FAILURES = 5
 const REASON_MAX = 200
+/** New links are proposed by AI recovery on the page, never by the supervisor. */
+const AGENT_QUESTION_ASKS = PRICE_QUESTION_ASKS.filter(
+  (ask) => ask !== 'relink',
+)
 const SUMMARY_MAX = 600
 
 const RETRYABLE: ReadonlySet<PriceSourceStatus> = new Set([
@@ -156,10 +163,17 @@ const RETRYABLE: ReadonlySet<PriceSourceStatus> = new Set([
 export const PAGE_GONE_ERRORS: ReadonlySet<string> = new Set([
   'not_found',
   'redirect',
+  'moved',
+  'soft_missing',
 ])
 const MISSING_PAGE_ERRORS: ReadonlySet<string> = new Set([
   'http_404',
   'http_410',
+])
+/** Last errors after which AI may search the store for the product's page. */
+const FIND_PAGE_ERRORS: ReadonlySet<string> = new Set([
+  ...PAGE_GONE_ERRORS,
+  ...MISSING_PAGE_ERRORS,
 ])
 
 /** scheduled: the heartbeat; event: changes since the last run woke it. */
@@ -373,6 +387,8 @@ export type AgentSnapshot = {
     dailyTokens: number
     readsPages: boolean
     solvesErrors: boolean
+    /** AI may search a store for a product whose page moved. */
+    findsPages: boolean
   }
   otherStores: boolean
   coverage: AgentCoverage
@@ -667,6 +683,7 @@ export function buildAgentSnapshot(input: {
       dailyTokens: settings.ai.usage.dailyTokens,
       readsPages: settings.ai.extractionFallback,
       solvesErrors: settings.ai.resolveErrors,
+      findsPages: settings.ai.resolveErrors && settings.ai.findMovedPages,
     },
     otherStores: discoveryActive(settings),
     coverage,
@@ -1359,6 +1376,7 @@ export type AgentPlan = {
   summary: string
   check: PlanItem[]
   retryWithAi: PlanItem[]
+  findPage: PlanItem[]
   fetchMode: Array<PlanItem & { mode: FetchOverride }>
   pause: PlanItem[]
   searchOtherStore: KnifeItem[]
@@ -1431,6 +1449,7 @@ export const AGENT_SCHEMA = {
     'summary',
     'check',
     'retryWithAi',
+    'findPage',
     'fetchMode',
     'pause',
     'searchOtherStore',
@@ -1445,6 +1464,7 @@ export const AGENT_SCHEMA = {
     summary: { type: 'string' },
     check: item(),
     retryWithAi: item(),
+    findPage: item(),
     fetchMode: item({ mode: { type: 'string', enum: [...FETCH_OVERRIDES] } }),
     pause: item(),
     searchOtherStore: knifeItems(),
@@ -1483,7 +1503,7 @@ export const AGENT_SCHEMA = {
         ],
         properties: {
           knifeId: { type: 'string' },
-          ask: { type: 'string', enum: [...PRICE_QUESTION_ASKS] },
+          ask: { type: 'string', enum: [...AGENT_QUESTION_ASKS] },
           question: { type: 'string' },
           price: { type: ['string', 'null'] },
           sourceId: { type: ['integer', 'null'] },
@@ -1524,10 +1544,11 @@ export const AGENT_PROMPT = [
   'You supervise price monitoring for a knife collector. Each source is one store product page that BladeVault checks for price and stock. Keep every monitored source fresh and readable, and spend checks where they matter most to the collector right now.',
   "trigger says why you run: event (events woke you: react to them), scheduled (your regular look over everything) or manual (the collector asked). events lists what changed since your last run, newest first: drop and increase (from, to, pct), out_of_stock and back_in_stock, failing (a source's failures in a row reached 3 or 5), bot_check (a store showed a bot check), found_listing (Other stores found the knife at a store). After a move at one store, crossCheck the knife's other stores; after a drop near the target or a restock, consider watchClosely or advise.",
   "The input lists knives, most urgent first. Each knife has its market: regular (the knife's stored regular price), target (the collector's alert price), best (the cheapest in-stock price now) and bestStore, low (lowest in-stock price ever), low90d and high90d, lastPriceChange, lastStockChange, muted, and search (Other stores searches). Under it are its sources: status, price, stock, outOfStockDays, timing in minutes, failures, error, queued and ahead. The input also has each store's pace, coverage, the AI budget, localTime and your recent runs, each action with its note (why it was refused) or outcome (what its next check or search found). Missing fields are unknown.",
-  'Answer with JSON only: {"summary", "check", "retryWithAi", "fetchMode", "pause", "searchOtherStore", "watchClosely", "crossCheck", "advise", "ask", "remember", "forget"}. Leave a list empty when nothing is needed: often nothing is.',
+  'Answer with JSON only: {"summary", "check", "retryWithAi", "findPage", "fetchMode", "pause", "searchOtherStore", "watchClosely", "crossCheck", "advise", "ask", "remember", "forget"}. Leave a list empty when nothing is needed: often nothing is.',
   `check (at most ${AGENT_LIMITS.check}): move sources to the front of their store's line. Each store already checks its most overdue source first, so a due source with ahead 0 is next anyway and a check changes nothing. Use check to put a source that matters more ahead of others (ahead above 0), or to read a source that is not due yet now: a knife near or below its target or regular price, a price that just moved at another store, a restock to confirm, a sale period (look at localTime, e.g. Black Friday and holiday sales). Skip sources marked queued, checked in the last 30 minutes, or not monitored.`,
   'A store checks one product at a time at its own safe pace (minGapSec, fullPassHours), and paused stores (circuit open) wait out their pause. You cannot speed a store up: many checks at one store simply wait in line, so do not ask for more than the stores can do before your next run.',
   `retryWithAi (at most ${AGENT_LIMITS.retryWithAi}): failed or price_unavailable sources where AI reading or working the page may get the price on the next check. Never for blocked sources: a bot check needs the user.`,
+  `findPage (at most ${AGENT_LIMITS.findPage}): failed or price_unavailable sources whose page seems moved or gone (moved, soft_missing, redirect, not_found, http_404, http_410): on the next check AI searches the same store for the product and proposes its new link in the Inbox. Only when ai.findsPages is true.`,
   `fetchMode (at most ${AGENT_LIMITS.fetchMode}): "browser" when a source keeps failing in a way a real browser may fix (scripts, empty pages, timeouts), "http" only for a fast simple page, "auto" to undo. Look at a source's fetch first.`,
   `pause (at most ${AGENT_LIMITS.pause}): only sources that failed at least ${PAUSE_MIN_FAILURES} checks in a row and whose page seems gone (not_found or redirect). Pages not found with HTTP 404 or 410 pause on their own. The user can resume them.`,
   `searchOtherStore (at most ${AGENT_LIMITS.searchOtherStore}): bring a waiting Other stores search forward (a search with nextInDays above 0), for knives whose sources are all out of stock or failing, or that the collector watches closely (a target, a recent drop) and that have a single store. Only when otherStores is true. A search that is due (not_searched, nextInDays 0 or less) or found needs nothing.`,
@@ -1582,6 +1603,7 @@ export function readAgentPlan(answer: unknown): AgentPlan {
       AGENT_LIMITS.retryWithAi,
       sourceItem,
     ),
+    findPage: readItems(record.findPage, AGENT_LIMITS.findPage, sourceItem),
     fetchMode: readItems(record.fetchMode, AGENT_LIMITS.fetchMode, (entry) => {
       const base = sourceItem(entry)
       const mode = entry.mode
@@ -1659,7 +1681,7 @@ export function readAgentPlan(answer: unknown): AgentPlan {
       if (
         !knifeId ||
         !question ||
-        !(PRICE_QUESTION_ASKS as readonly unknown[]).includes(entry.ask)
+        !(AGENT_QUESTION_ASKS as readonly unknown[]).includes(entry.ask)
       )
         return null
       const finite = (value: unknown) =>
@@ -1695,6 +1717,7 @@ const knifeItem = (entry: Record<string, unknown>): KnifeItem | null => {
 export type AgentActionKind =
   | 'check'
   | 'retryWithAi'
+  | 'findPage'
   | 'fetchMode'
   | 'pause'
   | 'searchOtherStore'
@@ -1815,6 +1838,23 @@ export function validateAgentPlan(
             : !RETRYABLE.has(source.status)
               ? `status is ${source.status}`
               : null,
+    )
+  }
+  for (const entry of plan.findPage) {
+    const source = known(entry.sourceId)
+    push(
+      { kind: 'findPage', sourceId: entry.sourceId, reason: entry.reason },
+      !source
+        ? 'unknown source'
+        : !source.monitored
+          ? 'not monitored'
+          : !snapshot.ai.findsPages
+            ? 'AI page search is off'
+            : !RETRYABLE.has(source.status)
+              ? `status is ${source.status}`
+              : !source.error || !FIND_PAGE_ERRORS.has(source.error)
+                ? `the page does not look moved (${source.error ?? 'no error'})`
+                : null,
     )
   }
   for (const entry of plan.fetchMode) {
@@ -2193,6 +2233,8 @@ function askMessage(
       }
       break
     }
+    default:
+      return 'not a question the supervisor asks'
   }
   const invented = inventedAmount(entry.question, known)
   return invented ? `quotes a price not in the data (${invented})` : message
@@ -2214,6 +2256,10 @@ export async function applyAgentActions(
     )
     const clearAi = database.prepare(
       `UPDATE price_sources SET last_ai_at = NULL
+       WHERE id = ? AND removed_at IS NULL AND enabled = 1`,
+    )
+    const findPage = database.prepare(
+      `UPDATE price_sources SET find_page_at = ?, last_ai_at = NULL
        WHERE id = ? AND removed_at IS NULL AND enabled = 1`,
     )
     const fetchMode = database.prepare(
@@ -2257,6 +2303,10 @@ export async function applyAgentActions(
             break
           case 'retryWithAi':
             clearAi.run(action.sourceId)
+            changes = expedite.run(now, now, action.sourceId).changes
+            break
+          case 'findPage':
+            findPage.run(now, action.sourceId)
             changes = expedite.run(now, now, action.sourceId).changes
             break
           case 'fetchMode':

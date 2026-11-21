@@ -344,7 +344,9 @@ describe('Confirm price changes before notifying', () => {
     browserReads(40)
     aiFetch.mockResolvedValueOnce(chat(reject))
     await checkPriceSource(source.id, { trigger: 'manual' })
-    expect(mocks.browser).toHaveBeenCalledTimes(3)
+    // The third browser opening is the solver looking for the right price
+    // after the rejection; it finds none here, so the reading stays out.
+    expect(mocks.browser).toHaveBeenCalledTimes(4)
     expect(aiFetch).toHaveBeenCalledTimes(1)
     expect(requestBody(0)).toContain('far more than usual')
     expect(rows('SELECT * FROM price_change_events')).toEqual([])

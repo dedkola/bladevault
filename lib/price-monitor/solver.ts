@@ -49,6 +49,9 @@ import type { PriceAiSettings } from '@/lib/settings-shared'
  */
 export const MAX_SOLVER_STEPS = 6
 export const SOLVER_BUDGET_MS = 90_000
+/** Unlimited AI: more steps and time for one solver run. */
+export const MAX_SOLVER_STEPS_UNLIMITED = 12
+export const SOLVER_BUDGET_UNLIMITED_MS = 180_000
 export const SOLVER_STEP_TIMEOUT_MS = 20_000
 export const VISION_MIN_CONFIDENCE = 0.9
 export const MAX_RECIPE_STEPS = 6
@@ -57,7 +60,11 @@ const FRAGMENT_BYTES = 6 * 1024
 /** Each solver step sends the page again, so it reads at most this much. */
 const SOLVER_MAX_FRAGMENT_BYTES = 64 * 1024
 
-/** Codes the solver may rescue: page-read problems and slow pages. */
+/**
+ * Codes the solver may rescue: page-read problems, slow pages, a page in
+ * another currency or variant, a reading AI doubts (ai_doubt) and an error
+ * page that still answered (soft_missing).
+ */
 export const SOLVER_CODES: ReadonlySet<string> = new Set([
   'not_found',
   'no_currency',
@@ -65,7 +72,23 @@ export const SOLVER_CODES: ReadonlySet<string> = new Set([
   'timeout',
   'invalid_response',
   'wrong_currency',
+  'wrong_variant',
+  'ai_doubt',
+  'soft_missing',
 ])
+
+/** Steps and time for one solver run: more with Unlimited AI. */
+export function solverLimits(settings: Pick<PriceAiSettings, 'usage'>): {
+  maxSteps: number
+  budgetMs: number
+} {
+  return settings.usage.mode === 'unlimited'
+    ? {
+        maxSteps: MAX_SOLVER_STEPS_UNLIMITED,
+        budgetMs: SOLVER_BUDGET_UNLIMITED_MS,
+      }
+    : { maxSteps: MAX_SOLVER_STEPS, budgetMs: SOLVER_BUDGET_MS }
+}
 
 /** Text of controls the solver must never use. */
 const FORBIDDEN_CONTROL =
@@ -84,6 +107,8 @@ export type SolverAction =
   | { action: 'select'; selector: string; value: string; label: string }
   | { action: 'escape' }
   | { action: 'open'; url: string }
+  /** Types one fixed query into the store's own search box (never replayed). */
+  | { action: 'search'; query: string }
 
 export type SolverLogStep = { action: string; detail: string; result: string }
 
@@ -107,6 +132,19 @@ export type SolverResult = {
   steps: SolverLogStep[]
   aiCalls: number
   note: string | null
+  /** Where the solver ended, and that page's HTML (null for JSON data). */
+  finalUrl?: string | null
+  html?: string | null
+}
+
+/**
+ * Searching the store for a product whose saved link moved or is gone:
+ * the queries the solver may type (brand, name, model number), and a
+ * plain description of the product for the model.
+ */
+export type SolverSearch = {
+  queries: readonly string[]
+  product: string
 }
 
 /** The parts of a Playwright page the solver uses (fakes in tests). */
@@ -236,6 +274,78 @@ export function findAlternatives(html: string, pageUrl: string): string[] {
   add($('link[rel="amphtml"]').attr('href'))
   if (isShopifyProductPage(pageUrl, html)) add(getShopifyProductJsUrl(pageUrl))
   return [...urls].slice(0, 4)
+}
+
+const NOT_PRODUCT_PATH =
+  /\/(cart|checkout|account|login|log-in|signin|sign-in|register|wishlist|blogs?|pages|policies|contact|about|faq|help)(\/|$)/i
+
+const words = (value: string) =>
+  value
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((word) => word.length >= 2)
+
+/**
+ * Same-site links that look like the product, for a solver searching the
+ * store: link text sharing words with the queries, best first. Cart,
+ * account, blog and policy pages are left out.
+ */
+export function findProductLinks(
+  html: string,
+  pageUrl: string,
+  queries: readonly string[],
+  max = 15,
+): Array<{ url: string; text: string }> {
+  const wanted = new Set(queries.flatMap(words))
+  if (!wanted.size) return []
+  const $ = cheerio.load(html)
+  const best = new Map<string, { url: string; text: string; score: number }>()
+  $('a[href]').each((_, element) => {
+    const text = $(element).text().replace(/\s+/g, ' ').trim().slice(0, 100)
+    const title = $(element).attr('title')?.trim() ?? ''
+    const label = text || title
+    if (!label) return
+    let url: URL
+    try {
+      url = new URL($(element).attr('href') ?? '', pageUrl)
+    } catch {
+      return
+    }
+    url.hash = ''
+    if (!sameSite(pageUrl, url.href) || url.href === pageUrl) return
+    if (NOT_PRODUCT_PATH.test(url.pathname)) return
+    const score = words(`${label} ${url.pathname}`).filter((word) =>
+      wanted.has(word),
+    ).length
+    if (score < 1) return
+    const current = best.get(url.href)
+    if (!current || current.score < score)
+      best.set(url.href, { url: url.href, text: label, score })
+  })
+  return [...best.values()]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, max)
+    .map(({ url, text }) => ({ url, text }))
+}
+
+/** The store's own search pages for a query (Shopify and WooCommerce). */
+export function storeSearchUrls(
+  pageUrl: string,
+  html: string,
+  query: string,
+): string[] {
+  if (!query.trim()) return []
+  let origin: string
+  try {
+    origin = new URL(pageUrl).origin
+  } catch {
+    return []
+  }
+  const q = encodeURIComponent(query.trim())
+  const urls = [`${origin}/search?q=${q}`]
+  if (/wp-content|woocommerce/i.test(html))
+    urls.push(`${origin}/?s=${q}&post_type=product`)
+  return urls
 }
 
 /** Recipes from the store row; anything unexpected is dropped. */
@@ -484,6 +594,37 @@ async function perform(
       await page.waitForTimeout(1200)
       return 'selected'
     }
+    case 'search': {
+      const box = page
+        .locator(
+          'input[type="search"], input[name="q"], input[name="s"], input[name="search"], input[name="query"], input[name="keyword"], input[name="keywords"]',
+        )
+        .first()
+      const facts = await box
+        .evaluate(
+          (element) => ({
+            signInForm: Boolean(
+              element.closest('form')?.querySelector('input[type="password"]'),
+            ),
+          }),
+          undefined,
+          { timeout: 3000 },
+        )
+        .catch(() => null)
+      if (!facts) return 'refused: no search box'
+      if (facts.signInForm) return 'refused: part of a sign-in form'
+      await box.fill(step.query, { timeout: 5000 })
+      await box.press('Enter', { timeout: 5000 })
+      await page
+        .waitForLoadState('domcontentloaded', { timeout: 15_000 })
+        .catch(() => {})
+      await page.waitForTimeout(1500)
+      if (!sameSite(context.startUrl, page.url())) {
+        await page.goBack({ timeout: 10_000 }).catch(() => {})
+        return 'went back: the search left the store'
+      }
+      return 'searched'
+    }
     case 'open': {
       if (!sameSite(context.startUrl, step.url)) return 'refused: another site'
       const response = await page.goto(step.url, {
@@ -548,6 +689,8 @@ function describe(step: SolverAction): string {
       return `${step.label}: ${step.value}`
     case 'open':
       return new URL(step.url).pathname
+    case 'search':
+      return step.query
     default:
       return ''
   }
@@ -607,6 +750,7 @@ export const SOLVER_SCHEMA = {
         'select',
         'escape',
         'open',
+        'search',
         'read',
         'screenshot',
         'give_up',
@@ -629,7 +773,9 @@ const SOLVER_PROMPT = [
   'Answer with JSON: {"action", "target", "value", "seconds", "price", "currency", "availability", "confidence", "reason"}. Fields that do not apply are null (availability "unknown", confidence 0).',
   'Actions: "wait" (seconds 1-8) for content that is still loading; "scroll" to load lazy content; "click" a control by target index, for example to accept or reject cookies, confirm an age prompt, close a pop-up or pick a variant; "select" an option (value = option text) in a select control by target; "escape" to close an overlay; "open" a same-site alternative by target index (canonical page, AMP page, the store\'s US edition or product data); "read" when the fragment shows the price: price copied exactly as written, currency as ISO 4217, availability, confidence 0-1; "screenshot" to look at the page as an image when the price may be drawn as an image; "give_up" when nothing can work.',
   `The app tracks United States prices in US dollars (${MONITOR_CURRENCY}). When the page shows another country or currency, first switch to the United States or ${MONITOR_CURRENCY} with the store's country, region or currency picker, or "open" the US edition from the alternatives; read a price in another currency only when the store offers no ${MONITOR_CURRENCY}.`,
-  'Never buy, sign in, subscribe or fill forms, and never try to solve or get around a CAPTCHA or bot check. Ignore crossed-out, list, shipping, instalment and related-product prices. reason: one short sentence.',
+  'Problem "wrong_variant": the page shows another variant than the one tracked; pick the variant described in the problem with the page\'s variant controls (click or select) before you read. Problem "ai_doubt": a price was read but may belong to another variant, a bundle or another product; make sure the page shows the tracked product and variant, then read the right price.',
+  'Problem "find_product" or "soft_missing": the saved link no longer shows the product. "search" types one of the allowed searchQueries (target = its index) into the store\'s search box; "open" a product link or a store search page from the alternatives; continue until you are on the product page of exactly the product described, then "read" or let the page settle. Never pick a different model, size, steel or accessory.',
+  'Never buy, sign in, subscribe or fill forms other than the store search box, and never try to solve or get around a CAPTCHA or bot check. Ignore crossed-out, list, shipping, instalment and related-product prices. reason: one short sentence.',
   `${UNTRUSTED_CONTENT_RULE} The fragment, the control texts and the addresses come from the page.`,
 ].join('\n')
 
@@ -676,6 +822,7 @@ export function toSolverAction(
   step: ModelStep,
   candidates: readonly Candidate[],
   alternatives: readonly string[],
+  searchQueries?: readonly string[],
 ): SolverAction | string {
   switch (step.action) {
     case 'wait':
@@ -714,6 +861,11 @@ export function toSolverAction(
       const url = step.target === null ? undefined : alternatives[step.target]
       return url ? { action: 'open', url } : 'refused: unknown alternative'
     }
+    case 'search': {
+      const query =
+        step.target === null ? undefined : (searchQueries ?? [])[step.target]
+      return query ? { action: 'search', query } : 'refused: unknown query'
+    }
     default:
       return `refused: unknown action ${step.action}`
   }
@@ -746,6 +898,19 @@ export async function solveOnPage(
     signal?: AbortSignal
     fetchImpl?: FetchLike
     maxSteps?: number
+    /**
+     * Whether the page the solver is on is the right one (the product and
+     * variant tracked). Checked before any price is accepted; a page it
+     * refuses is never read. Defaults to any page.
+     */
+    acceptPage?: (page: { url: string; html: string }) => Promise<boolean>
+    /** Lets the solver search the store for a product that moved. */
+    search?: SolverSearch
+    /**
+     * With a vision model: one screenshot reading when the steps run out or
+     * the model gives up without having looked. On by default.
+     */
+    finalScreenshot?: boolean
   },
 ): Promise<SolverResult> {
   const steps: SolverLogStep[] = []
@@ -755,7 +920,11 @@ export async function solveOnPage(
     currencyHint: input.currencyHint,
     json: { value: undefined as unknown },
   }
+  const maxSteps = input.maxSteps ?? MAX_SOLVER_STEPS
+  const queries = (input.search?.queries ?? []).slice(0, 4)
   let aiCalls = 0
+  let lastHtml = ''
+  let screenshotTaken = false
   const result = (
     status: SolverResult['status'],
     extra: Partial<SolverResult> = {},
@@ -767,8 +936,27 @@ export async function solveOnPage(
     steps,
     aiCalls,
     note: null,
+    finalUrl: page.url(),
+    html: lastHtml || null,
     ...extra,
   })
+  // A search finds this product's page: its steps are no recipe for others.
+  const recipe = () =>
+    !input.search && executed.length
+      ? executed.slice(0, MAX_RECIPE_STEPS)
+      : null
+  const pageVerdicts = new Map<string, boolean>()
+  const pageOk = async (url: string, html: string): Promise<boolean> => {
+    if (!input.acceptPage) return true
+    const known = pageVerdicts.get(url)
+    if (known !== undefined) return known
+    const verdict = await input.acceptPage({ url, html }).catch((error) => {
+      if (error instanceof Error && error.name === 'AiClientError') throw error
+      return false
+    })
+    pageVerdicts.set(url, verdict)
+    return verdict
+  }
   const ask = (user: Parameters<typeof requestJsonCompletion>[1]['user']) => {
     // A refused request (daily budget) does not count as asking the model.
     const refusal = aiBudgetRefusal('solver')
@@ -793,24 +981,102 @@ export async function solveOnPage(
     )
   }
 
+  /** Reads the price from a screenshot; null when it is not usable. */
+  const readScreenshot = async (
+    html: string,
+  ): Promise<{ offer: ExtractedOffer | null; result: string }> => {
+    screenshotTaken = true
+    const image = await page.screenshot({ type: 'jpeg', quality: 60 })
+    const refusal = aiBudgetRefusal('vision')
+    if (refusal) throw new AiClientError('budget', refusal)
+    aiCalls += 1
+    const vision = await requestJsonCompletion(
+      input.endpoint,
+      {
+        model: input.settings.model,
+        system: VISION_PROMPT,
+        user: [
+          { type: 'text', text: 'Screenshot of the product page:' },
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:image/jpeg;base64,${Buffer.from(image).toString('base64')}`,
+            },
+          },
+        ],
+        schemaName: 'product_offer',
+        purpose: 'vision',
+        schema: AI_OFFER_SCHEMA,
+        maxTokens: 200,
+      },
+      {
+        timeoutMs: SOLVER_STEP_TIMEOUT_MS,
+        signal: input.signal,
+        fetchImpl: input.fetchImpl,
+      },
+    )
+    const pageText = html ? cheerio.load(html).root().text() : ''
+    let parsed = parseAiOfferAnswer(vision, pageText, input.currencyHint)
+    const confidence = Number((vision as { confidence?: unknown })?.confidence)
+    // Drawn prices are not in the text: accept only very sure readings.
+    if (
+      parsed.status === 'rejected' &&
+      parsed.reason === 'not_in_page' &&
+      confidence >= VISION_MIN_CONFIDENCE
+    )
+      parsed = parseAiOfferAnswer(
+        vision,
+        String((vision as { price?: unknown }).price ?? ''),
+        input.currencyHint,
+      )
+    if (parsed.status === 'ok' && input.accept(parsed.offer))
+      return { offer: parsed.offer, result: 'price read' }
+    return {
+      offer: null,
+      result:
+        parsed.status === 'ok' ? 'rejected: unusable price' : parsed.reason,
+    }
+  }
+
+  /** The last chance with a vision model: one look at the page. */
+  const lastLook = async (state: PageState): Promise<SolverResult | null> => {
+    if (
+      !input.settings.vision ||
+      input.finalScreenshot === false ||
+      screenshotTaken ||
+      state.kind !== 'html' ||
+      !(await pageOk(state.url, state.html))
+    )
+      return null
+    const look = await readScreenshot(state.html)
+    steps.push({
+      action: 'screenshot',
+      detail: 'last look',
+      result: look.result,
+    })
+    return look.offer
+      ? result('solved', { offer: look.offer, readByAi: true, recipe: null })
+      : null
+  }
+
   const run = async (): Promise<SolverResult> => {
     let state = await readState(page, context)
-    for (let turn = 0; turn < (input.maxSteps ?? MAX_SOLVER_STEPS); turn++) {
+    for (let turn = 0; turn < maxSteps; turn++) {
       if (state.kind === 'challenge')
         return result('challenge', {
           note: 'The store showed a bot check while AI worked on the page.',
         })
+      if (state.kind === 'html') lastHtml = state.html
       if (
         state.offer &&
         state.offer.amount !== null &&
-        input.accept(state.offer)
+        input.accept(state.offer) &&
+        (await pageOk(state.url, lastHtml))
       )
-        return result('solved', {
-          offer: state.offer,
-          recipe: executed.length ? executed.slice(0, MAX_RECIPE_STEPS) : null,
-        })
+        return result('solved', { offer: state.offer, recipe: recipe() })
 
       const html = state.kind === 'html' ? state.html : ''
+      const here = state.url
       const fragment = html
         ? buildPriceFragment(
             html,
@@ -824,14 +1090,29 @@ export async function solveOnPage(
           )
         : ''
       const candidates = html ? await readCandidates(page) : []
-      const alternatives = html ? findAlternatives(html, state.url) : []
+      const links =
+        html && input.search ? findProductLinks(html, state.url, queries) : []
+      const alternatives = html
+        ? [
+            ...new Set([
+              ...findAlternatives(html, state.url),
+              // Product links before the search pages: they are the goal.
+              ...links.map((link) => link.url),
+              ...(input.search
+                ? storeSearchUrls(state.url, html, queries[0] ?? '')
+                : []),
+            ]),
+          ].filter((url) => url !== here)
+        : []
+      const linkText = new Map(links.map((link) => [link.url, link.text]))
       const answer = readModelStep(
         await ask(
           JSON.stringify({
             problem: input.problem,
+            ...(input.search ? { product: input.search.product } : {}),
             page: pagePath(state.url),
             step: turn + 1,
-            stepsLeft: (input.maxSteps ?? MAX_SOLVER_STEPS) - turn,
+            stepsLeft: maxSteps - turn,
             visionAvailable: input.settings.vision,
             history: steps,
             controls: candidates.map(
@@ -846,7 +1127,16 @@ export async function solveOnPage(
             alternatives: alternatives.map((url, index) => ({
               index,
               page: pagePath(url),
+              ...(linkText.has(url) ? { text: linkText.get(url) } : {}),
             })),
+            ...(queries.length
+              ? {
+                  searchQueries: queries.map((query, index) => ({
+                    index,
+                    query,
+                  })),
+                }
+              : {}),
             fragment,
           }),
         ),
@@ -854,12 +1144,23 @@ export async function solveOnPage(
 
       if (answer.action === 'give_up') {
         steps.push({ action: 'give_up', detail: '', result: answer.reason })
-        return result('gave_up', {
-          note: answer.reason ? `AI gave up: ${answer.reason}` : null,
-        })
+        return (
+          (await lastLook(state)) ??
+          result('gave_up', {
+            note: answer.reason ? `AI gave up: ${answer.reason}` : null,
+          })
+        )
       }
 
       if (answer.action === 'read') {
+        if (!(await pageOk(state.url, lastHtml))) {
+          steps.push({
+            action: 'read',
+            detail: '',
+            result: 'refused: not the tracked product or variant',
+          })
+          continue
+        }
         const parsed = parseAiOfferAnswer(
           answer.raw,
           fragment,
@@ -870,9 +1171,7 @@ export async function solveOnPage(
           return result('solved', {
             offer: parsed.offer,
             readByAi: true,
-            recipe: executed.length
-              ? executed.slice(0, MAX_RECIPE_STEPS)
-              : null,
+            recipe: recipe(),
           })
         }
         steps.push({
@@ -893,69 +1192,26 @@ export async function solveOnPage(
           })
           continue
         }
-        const image = await page.screenshot({ type: 'jpeg', quality: 60 })
-        const refusal = aiBudgetRefusal('vision')
-        if (refusal) throw new AiClientError('budget', refusal)
-        aiCalls += 1
-        const vision = await requestJsonCompletion(
-          input.endpoint,
-          {
-            model: input.settings.model,
-            system: VISION_PROMPT,
-            user: [
-              { type: 'text', text: 'Screenshot of the product page:' },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:image/jpeg;base64,${Buffer.from(image).toString('base64')}`,
-                },
-              },
-            ],
-            schemaName: 'product_offer',
-            purpose: 'vision',
-            schema: AI_OFFER_SCHEMA,
-            maxTokens: 200,
-          },
-          {
-            timeoutMs: SOLVER_STEP_TIMEOUT_MS,
-            signal: input.signal,
-            fetchImpl: input.fetchImpl,
-          },
-        )
-        const pageText = html ? cheerio.load(html).root().text() : ''
-        let parsed = parseAiOfferAnswer(vision, pageText, input.currencyHint)
-        const confidence = Number(
-          (vision as { confidence?: unknown })?.confidence,
-        )
-        // Drawn prices are not in the text: accept only very sure readings.
-        if (
-          parsed.status === 'rejected' &&
-          parsed.reason === 'not_in_page' &&
-          confidence >= VISION_MIN_CONFIDENCE
-        )
-          parsed = parseAiOfferAnswer(
-            vision,
-            String((vision as { price?: unknown }).price ?? ''),
-            input.currencyHint,
-          )
-        if (parsed.status === 'ok' && input.accept(parsed.offer)) {
-          steps.push({ action: 'screenshot', detail: '', result: 'price read' })
+        if (!(await pageOk(state.url, lastHtml))) {
+          steps.push({
+            action: 'screenshot',
+            detail: '',
+            result: 'refused: not the tracked product or variant',
+          })
+          continue
+        }
+        const look = await readScreenshot(html)
+        steps.push({ action: 'screenshot', detail: '', result: look.result })
+        if (look.offer)
           return result('solved', {
-            offer: parsed.offer,
+            offer: look.offer,
             readByAi: true,
             recipe: null,
           })
-        }
-        steps.push({
-          action: 'screenshot',
-          detail: '',
-          result:
-            parsed.status === 'ok' ? 'rejected: unusable price' : parsed.reason,
-        })
         continue
       }
 
-      const action = toSolverAction(answer, candidates, alternatives)
+      const action = toSolverAction(answer, candidates, alternatives, queries)
       if (typeof action === 'string') {
         steps.push({ action: answer.action, detail: '', result: action })
         continue
@@ -978,12 +1234,22 @@ export async function solveOnPage(
       return result('challenge', {
         note: 'The store showed a bot check while AI worked on the page.',
       })
-    if (state.offer && state.offer.amount !== null && input.accept(state.offer))
-      return result('solved', {
-        offer: state.offer,
-        recipe: executed.length ? executed.slice(0, MAX_RECIPE_STEPS) : null,
+    if (state.kind === 'html') lastHtml = state.html
+    if (
+      state.offer &&
+      state.offer.amount !== null &&
+      input.accept(state.offer) &&
+      (await pageOk(state.url, lastHtml))
+    )
+      return result('solved', { offer: state.offer, recipe: recipe() })
+    return (
+      (await lastLook(state)) ??
+      result('failed', {
+        note: input.search
+          ? 'AI could not find the product on the store.'
+          : 'AI could not reach the price.',
       })
-    return result('failed', { note: 'AI could not reach the price.' })
+    )
   }
   try {
     return await run()

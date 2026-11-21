@@ -86,6 +86,10 @@ export type SourceRow = {
   updated_at: string
   removed_at: string | null
   notify_muted_until: string | null
+  /** The variant this source tracks (JSON ExpectedVariant), once learned. */
+  expected_variant: string | null
+  /** The supervisor asked AI to look for this product's new link. */
+  find_page_at: string | null
 }
 
 type SnapshotRow = {
@@ -753,6 +757,15 @@ export type CheckRecord = {
   aiReview?: 'confirmed' | 'unconfirmed' | null
   /** AI doubts the page parser's reading: the source needs review. */
   needsReview?: boolean
+  /** The variant the source tracks, learned on this check (JSON). */
+  expectedVariant?: string | null
+  /** Forget the learned variant: the next good reading learns it again. */
+  forgetVariant?: boolean
+  /**
+   * What AI recovery did, for the weekly numbers: "kind:result", e.g.
+   * "relink:asked" or "variant:fixed" (see RECOVERY_KINDS).
+   */
+  recovery?: string | null
 }
 
 export type CheckRecordResult = {
@@ -843,8 +856,8 @@ export async function recordCheck(
             `INSERT INTO price_check_log
               (lane_key, trigger, source_id, knife_id, started_at, duration_ms,
                outcome, method, attempt, http_status, error_code, error_message,
-               solver_steps)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               solver_steps, recovery)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             source.lane_key,
@@ -862,6 +875,7 @@ export async function recordCheck(
             record.solverSteps?.length
               ? JSON.stringify(record.solverSteps)
               : null,
+            record.recovery ?? null,
           ).lastInsertRowid,
       )
 
@@ -1109,6 +1123,9 @@ export async function recordCheck(
              priority = 0,
              enabled = CASE WHEN ? THEN 0 ELSE enabled END,
              last_ai_at = CASE WHEN ? THEN ? ELSE last_ai_at END,
+             expected_variant = CASE WHEN ? THEN NULL
+               ELSE COALESCE(?, expected_variant) END,
+             find_page_at = NULL,
              updated_at = ?
            WHERE id = ?`,
         )
@@ -1139,6 +1156,8 @@ export async function recordCheck(
           record.disable ? 1 : 0,
           record.aiUsed ? 1 : 0,
           now,
+          record.forgetVariant ? 1 : 0,
+          record.expectedVariant ?? null,
           now,
           source.id,
         )
@@ -1705,4 +1724,88 @@ export async function requestStoreChecks(
     .filter((candidate) => candidate.laneKey === laneKey && candidate.covered)
     .map((candidate) => candidate.sourceId)
   return ids.length ? requestSourceChecks(ids) : []
+}
+
+/**
+ * Moves a source to its product's new link on the same store, keeping its
+ * price history, and checks it soon. False when the link is not usable or
+ * another active source of the knife already has it.
+ */
+export function relinkSourceRow(
+  database: Database.Database,
+  sourceId: number,
+  url: string,
+  now: string,
+): boolean {
+  const source = readSource(database, sourceId)
+  const normalized = normalizeSourceUrl(url)
+  if (!source || source.removed_at || !normalized) return false
+  if (laneKeyForUrl(url) !== source.lane_key) return false
+  if (normalized === source.normalized_url) return true
+  const taken = readActiveSources(database, source.knife_id).some(
+    (other) => other.id !== source.id && other.normalized_url === normalized,
+  )
+  if (taken) return false
+  database
+    .prepare(
+      `UPDATE price_sources
+       SET url = ?, normalized_url = ?, enabled = 1, status = 'pending',
+           consecutive_failures = 0, last_error_code = NULL,
+           last_error = NULL, expected_variant = NULL, find_page_at = NULL,
+           next_check_at = ?, priority = 1, updated_at = ?
+       WHERE id = ?`,
+    )
+    .run(url, normalized, now, now, sourceId)
+  return true
+}
+
+/** The kinds of AI recovery counted in the weekly numbers. */
+export const RECOVERY_KINDS = [
+  'unreadable',
+  'relink',
+  'variant',
+  'blocked',
+  'doubt',
+] as const
+export type RecoveryKind = (typeof RECOVERY_KINDS)[number]
+
+export type RecoveryStats = Array<{
+  kind: RecoveryKind
+  /** Checks where AI recovery ran. */
+  tried: number
+  /** It got a price (or applied a new link) on its own. */
+  fixed: number
+  /** It left a question or a step for the collector. */
+  asked: number
+}>
+
+/** What AI recovery did in the last `days` days, per kind. */
+export function readRecoveryStats(
+  database: Database.Database,
+  now = Date.now(),
+  days = 7,
+): RecoveryStats {
+  const rows = database
+    .prepare(
+      `SELECT recovery, COUNT(*) AS count FROM price_check_log
+       WHERE recovery IS NOT NULL AND started_at >= ?
+       GROUP BY recovery`,
+    )
+    .all(new Date(now - days * 86_400_000).toISOString()) as Array<{
+    recovery: string
+    count: number
+  }>
+  return RECOVERY_KINDS.map((kind) => {
+    let tried = 0
+    let fixed = 0
+    let asked = 0
+    for (const row of rows) {
+      const [rowKind, result] = row.recovery.split(':')
+      if (rowKind !== kind) continue
+      tried += row.count
+      if (result === 'fixed') fixed += row.count
+      if (result === 'asked') asked += row.count
+    }
+    return { kind, tried, fixed, asked }
+  })
 }

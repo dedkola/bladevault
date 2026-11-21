@@ -23,11 +23,13 @@ export const PRICE_ADVICE_TOPICS: readonly PriceAdviceTopic[] = [
   'restock',
   'watch',
 ]
-export type PriceQuestionAsk = 'set_target' | 'watch_closely' | 'keep_listing'
+export type PriceQuestionAsk =
+  'set_target' | 'watch_closely' | 'keep_listing' | 'relink'
 export const PRICE_QUESTION_ASKS: readonly PriceQuestionAsk[] = [
   'set_target',
   'watch_closely',
   'keep_listing',
+  'relink',
 ]
 export type SystemMessageAnswer = 'yes' | 'no'
 
@@ -59,6 +61,16 @@ export type PriceAgentNote =
       /** A listing Other stores found; No pauses it. */
       sourceId: number
       store: string
+    }
+  | {
+      type: 'question'
+      knifeId: string
+      ask: 'relink'
+      /** A source whose page moved; Yes moves it to `url`. */
+      sourceId: number
+      store: string
+      /** The product's new link AI found on the same store. */
+      url: string
     }
 
 export type SystemMessage = {
@@ -162,6 +174,21 @@ export function readPriceAgentNote(value: unknown): PriceAgentNote | null {
             ask: 'keep_listing',
             sourceId: note.sourceId,
             store: note.store,
+          }
+        : null
+    case 'relink':
+      return Number.isSafeInteger(note.sourceId) &&
+        positive(note.sourceId) &&
+        typeof note.store === 'string' &&
+        typeof note.url === 'string' &&
+        /^https?:\/\//i.test(note.url)
+        ? {
+            type: 'question',
+            knifeId,
+            ask: 'relink',
+            sourceId: note.sourceId,
+            store: note.store,
+            url: note.url,
           }
         : null
     default:
