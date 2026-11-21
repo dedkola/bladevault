@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3'
 import type { Knife } from '@/lib/data'
+import pkg from '@/package.json'
 import { getLocalDb } from '@/lib/local-db'
 import { pruneAiCalls } from '@/lib/price-monitor/ai-journal'
 import {
@@ -1342,7 +1343,8 @@ export function readQueueCandidates(
        JOIN knives k ON k.id = s.knife_id
        LEFT JOIN price_watch w ON w.knife_id = s.knife_id
        LEFT JOIN price_host_state h ON h.lane_key = s.lane_key
-       WHERE s.removed_at IS NULL AND (s.priority >= 2 OR s.enabled = 1)`,
+       WHERE s.removed_at IS NULL AND (s.priority >= 2 OR s.enabled = 1)
+         AND s.provider <> 'amazon' AND s.lane_key <> 'amazon'`,
     )
     .all() as Array<{
     id: number
@@ -1461,44 +1463,123 @@ export async function syncAllAutoSources(): Promise<number> {
 }
 
 export const WORKER_LEASE_STALE_MS = 3 * 60 * 1000
+/**
+ * An older build stands down for this long after a newer one last held
+ * the lease, so a server left running from before an update cannot take
+ * monitoring back when the new one quits or sleeps.
+ */
+export const NEWER_BUILD_PRECEDENCE_MS = 24 * 60 * 60 * 1000
+
+/** The app version this server runs; stored with the lease. */
+export const WORKER_BUILD: string = pkg.version
 
 /**
- * One worker per vault. Takes or renews the lease when it is free, ours, or
- * its heartbeat is older than three minutes.
+ * Compares app versions ("2.5.11") part by part, numerically. A missing
+ * version (a lease written before versions were stored) is the oldest.
+ */
+export function compareBuilds(
+  left: string | null | undefined,
+  right: string | null | undefined,
+): number {
+  if (!left || !right) return left ? 1 : right ? -1 : 0
+  const parts = (value: string) =>
+    value
+      .split(/[.+-]/)
+      .map((part) => (/^\d+$/.test(part) ? Number(part) : part))
+  const a = parts(left)
+  const b = parts(right)
+  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+    const x = a[index] ?? 0
+    const y = b[index] ?? 0
+    if (x === y) continue
+    if (typeof x === 'number' && typeof y === 'number') return x < y ? -1 : 1
+    return String(x) < String(y) ? -1 : 1
+  }
+  return 0
+}
+
+type WorkerLeaseRow = {
+  owner: string
+  heartbeat_at: string
+  build: string | null
+  released_at: string | null
+}
+
+function readWorkerLease(
+  database: Database.Database,
+): WorkerLeaseRow | undefined {
+  return database
+    .prepare(
+      `SELECT owner, heartbeat_at, build, released_at
+       FROM price_worker_lease WHERE id = 1`,
+    )
+    .get() as WorkerLeaseRow | undefined
+}
+
+/**
+ * One worker per vault. Takes or renews the lease when it is free, ours,
+ * released, or its heartbeat is older than three minutes. A newer build
+ * takes it over at once; an older build never takes it while a newer one
+ * holds it or held it within the last day.
  */
 export async function acquireWorkerLease(
   owner: string,
   now = Date.now(),
+  build: string = WORKER_BUILD,
 ): Promise<boolean> {
   return withVaultWrite(async () => {
     const database = db()
-    const row = database
-      .prepare(
-        'SELECT owner, heartbeat_at FROM price_worker_lease WHERE id = 1',
-      )
-      .get() as { owner: string; heartbeat_at: string } | undefined
-    const stale =
+    const row = readWorkerLease(database)
+    const heartbeat = row ? (parseTime(row.heartbeat_at) ?? 0) : 0
+    const order = row ? compareBuilds(build, row.build) : 1
+    if (order < 0 && now - heartbeat < NEWER_BUILD_PRECEDENCE_MS) return false
+    const free =
       !row ||
       row.owner === owner ||
-      now - (parseTime(row.heartbeat_at) ?? 0) > WORKER_LEASE_STALE_MS
-    if (!stale) return false
+      order > 0 ||
+      row.released_at !== null ||
+      now - heartbeat > WORKER_LEASE_STALE_MS
+    if (!free) return false
     database
       .prepare(
-        `INSERT INTO price_worker_lease (id, owner, heartbeat_at)
-         VALUES (1, ?, ?)
+        `INSERT INTO price_worker_lease
+           (id, owner, heartbeat_at, build, released_at)
+         VALUES (1, ?, ?, ?, NULL)
          ON CONFLICT(id) DO UPDATE SET
-           owner = excluded.owner, heartbeat_at = excluded.heartbeat_at`,
+           owner = excluded.owner, heartbeat_at = excluded.heartbeat_at,
+           build = excluded.build, released_at = NULL`,
       )
-      .run(owner, new Date(now).toISOString())
+      .run(owner, new Date(now).toISOString(), build)
     return true
   })
 }
 
-export async function releaseWorkerLease(owner: string): Promise<void> {
+/**
+ * Whether this worker still holds the lease. In-flight work (a check, a
+ * search, an AI run) asks before it writes, so work that was running when
+ * the lease moved to another process (after sleep, or a newer build)
+ * cannot keep writing.
+ */
+export function ownsWorkerLease(owner: string): boolean {
+  const row = readWorkerLease(db())
+  return row !== undefined && row.owner === owner && row.released_at === null
+}
+
+/**
+ * Gives the lease up. The row stays with its version and last heartbeat,
+ * so an older build still knows a newer one held it.
+ */
+export async function releaseWorkerLease(
+  owner: string,
+  now = Date.now(),
+): Promise<void> {
   await withVaultWrite(async () => {
     db()
-      .prepare('DELETE FROM price_worker_lease WHERE id = 1 AND owner = ?')
-      .run(owner)
+      .prepare(
+        `UPDATE price_worker_lease SET released_at = ?
+         WHERE id = 1 AND owner = ? AND released_at IS NULL`,
+      )
+      .run(new Date(now).toISOString(), owner)
   })
 }
 

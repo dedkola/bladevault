@@ -2554,7 +2554,7 @@ export type AgentRunResult =
   | {
       status: 'skipped'
       /** suspended: the computer slept mid-request; it runs again later. */
-      reason: 'disabled' | 'read_only' | 'busy' | 'suspended'
+      reason: 'disabled' | 'read_only' | 'busy' | 'not_owner' | 'suspended'
     }
   | { status: 'done'; run: AgentRun }
 
@@ -2636,6 +2636,12 @@ export async function runPriceAgent(options: {
   signal?: AbortSignal
   fetchImpl?: FetchLike
   now?: () => number
+  /**
+   * The price worker asks whether it still holds the vault's lease before
+   * the run's actions and journal are written (price-monitor/store,
+   * ownsWorkerLease).
+   */
+  canWrite?: () => boolean
 }): Promise<AgentRunResult> {
   const settings = getSettings().priceMonitoring
   if (!agentActive(settings)) return { status: 'skipped', reason: 'disabled' }
@@ -2695,6 +2701,8 @@ export async function runPriceAgent(options: {
     } catch (error) {
       if (error instanceof Error && error.name === 'VaultAccessError')
         throw error
+      if (options.canWrite && !options.canWrite())
+        return { status: 'skipped', reason: 'not_owner' }
       // Sleep is not a failed run: nothing is recorded, so it is due again.
       if (error instanceof AiClientError && error.code === 'suspended')
         return { status: 'skipped', reason: 'suspended' }
@@ -2711,6 +2719,8 @@ export async function runPriceAgent(options: {
       const id = await recordAgentRun(run, access.generation)
       return { status: 'done', run: { ...run, id } }
     }
+    if (options.canWrite && !options.canWrite())
+      return { status: 'skipped', reason: 'not_owner' }
     const validated = validateAgentPlan(plan, snapshot)
     const actions =
       mode === 'act'

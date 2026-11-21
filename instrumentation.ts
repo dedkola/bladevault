@@ -42,6 +42,22 @@ export async function register() {
         await import('./lib/price-monitor/worker')
       startPriceMonitorWorker()
     }
+
+    // Stop the price worker, release its lease and exit on SIGTERM/SIGINT,
+    // and when the desktop app that started this server is gone: Next alone
+    // can wait forever on open connections (lib/server-shutdown).
+    if (process.env.NEXT_PHASE !== 'phase-production-build') {
+      const { installServerShutdown } = await import('./lib/server-shutdown')
+      const parentPid = Number(process.env.BLADEVAULT_PARENT_PID)
+      installServerShutdown({
+        parentPid: Number.isInteger(parentPid) ? parentPid : null,
+        stopWorker: async (timeoutMs) => {
+          const { getPriceMonitorWorker } =
+            await import('./lib/price-monitor/worker')
+          await getPriceMonitorWorker().stop({ timeoutMs })
+        },
+      })
+    }
   }
 }
 
