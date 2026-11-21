@@ -6,7 +6,28 @@ type BladeVaultConfig = {
   localDataDir?: string
 }
 
+/**
+ * Under Vitest, refuse every default data-folder lookup (persisted preference,
+ * home and legacy folders) so a test can never reach a personal vault. Async
+ * work that outlives `createTempVault().cleanup()` lands here instead.
+ */
+export function assertDataDirDiscoveryAllowed(): void {
+  if (process.env.VITEST && !process.env.BLADEVAULT_DATA_DIR?.trim()) {
+    const error = new Error(
+      'BladeVault test guard: BLADEVAULT_DATA_DIR is not set, so the vault ' +
+        'folder would come from default discovery and could open a real vault. ' +
+        'Use createTempVault() from tests/helpers/temp-vault.ts, and await or ' +
+        'stop background vault work before calling its cleanup().',
+    )
+    // Background work often swallows errors; Vitest attributes this log to the
+    // test that was running, which names the leak.
+    console.error(error)
+    throw error
+  }
+}
+
 function getConfigRootDir(): string {
+  assertDataDirDiscoveryAllowed()
   const homeDir = os.homedir().trim()
   if (!homeDir) {
     return process.cwd()
@@ -20,8 +41,10 @@ export function getBladeVaultConfigPath(): string {
 }
 
 function readConfig(): BladeVaultConfig {
+  // Resolved outside the try so the test guard's error is not swallowed.
+  const configPath = getBladeVaultConfigPath()
   try {
-    const raw = fs.readFileSync(getBladeVaultConfigPath(), 'utf8')
+    const raw = fs.readFileSync(configPath, 'utf8')
     const parsed = JSON.parse(raw) as BladeVaultConfig
     if (!parsed || typeof parsed !== 'object') {
       return {}
