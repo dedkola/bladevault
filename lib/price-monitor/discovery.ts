@@ -317,7 +317,8 @@ export async function discoverKnife(
     // first, then brand and name only when that finds nothing.
     let candidates: DiscoveryCandidate[] = []
     let match: Awaited<ReturnType<DiscoveryDeps['match']>> | null = null
-    let notFound = ''
+    let aiNotFound = ''
+    const emptyQueries: string[] = []
     for (const query of queries) {
       let searchPage: DiscoveryPage
       try {
@@ -332,7 +333,15 @@ export async function discoverKnife(
         settings.otherStores,
       )
       if (!candidates.length) {
-        notFound ||= `${store.label} had no results for “${query}”.`
+        // Only the store's own empty result list means it has no such
+        // knife; any other page is no answer, so no 30-day "not found".
+        if (store.emptySearch?.(searchPage.html) === 'unreadable')
+          return await finish({
+            result: 'failed',
+            laneOutcome: 'failed',
+            detail: `${store.label} showed a page without search results: a bot check, an error page or a layout BladeVault cannot read. BladeVault will try again later.`,
+          })
+        emptyQueries.push(query)
         continue
       }
       match = await deps.match({
@@ -343,14 +352,18 @@ export async function discoverKnife(
         signal,
       })
       if (match.candidate) break
-      notFound = match.reason || 'AI found no listing of this knife.'
+      aiNotFound = match.reason || 'AI found no listing of this knife.'
     }
     if (!match?.candidate)
       return await finish({
         result: 'not_found',
         laneOutcome: 'success',
         confidence: match?.confidence ?? null,
-        detail: notFound || 'AI found no listing of this knife.',
+        detail:
+          aiNotFound ||
+          `${store.label} had no results for ${emptyQueries
+            .map((query) => `“${query}”`)
+            .join(' or ')}.`,
       })
 
     // 2. Check: the product page, confirmed by AI.

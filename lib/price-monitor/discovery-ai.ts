@@ -233,6 +233,32 @@ export function parseAmazonSearchResults(html: string): SearchCandidate[] {
     .map((candidate, index) => ({ ...candidate, id: index + 1 }))
 }
 
+/**
+ * Why a search page gave AI nothing to read. 'empty': the store's own
+ * result list with no products in it, so the store has nothing for the
+ * search. 'unreadable': not a result list (a bot check, a sign-in, error or
+ * location page) or product cards BladeVault could not read. Only an empty
+ * page means the knife is not there.
+ */
+export type EmptySearchKind = 'empty' | 'unreadable'
+
+/**
+ * Amazon's search page keeps its result list when nothing matches ("No
+ * results for your search query") and shows products as cards with an
+ * ASIN. Other boxes in the list, such as Shop Direct offers from the
+ * maker's own site, are not cards.
+ */
+export function amazonEmptySearchKind(html: string): EmptySearchKind {
+  const $ = cheerio.load(html)
+  const list = $('[data-component-type="s-search-results"]')
+  if (!list.length) return 'unreadable'
+  const cards = list
+    .find('[data-component-type="s-search-result"], .s-main-slot > [data-asin]')
+    .toArray()
+    .some((el) => ASIN.test(($(el).attr('data-asin') ?? '').trim()))
+  return cards ? 'unreadable' : 'empty'
+}
+
 export type AiDecision = {
   accepted: boolean
   confidence: number
