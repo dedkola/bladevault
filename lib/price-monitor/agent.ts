@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3'
 import { getLocalDb } from '@/lib/local-db'
 import { aiConfigured } from '@/lib/price-monitor/ai'
 import {
+  AiClientError,
   PLANNING_TIMEOUT_MS,
   requestJsonCompletion,
   type FetchLike,
@@ -2550,7 +2551,11 @@ export function agentNextRunAt(input: {
 }
 
 export type AgentRunResult =
-  | { status: 'skipped'; reason: 'disabled' | 'read_only' | 'busy' }
+  | {
+      status: 'skipped'
+      /** suspended: the computer slept mid-request; it runs again later. */
+      reason: 'disabled' | 'read_only' | 'busy' | 'suspended'
+    }
   | { status: 'done'; run: AgentRun }
 
 const RUNNING = Symbol.for('bladevault.price-monitor.agent-running')
@@ -2690,6 +2695,9 @@ export async function runPriceAgent(options: {
     } catch (error) {
       if (error instanceof Error && error.name === 'VaultAccessError')
         throw error
+      // Sleep is not a failed run: nothing is recorded, so it is due again.
+      if (error instanceof AiClientError && error.code === 'suspended')
+        return { status: 'skipped', reason: 'suspended' }
       const run = {
         ...base,
         durationMs: clock() - started,

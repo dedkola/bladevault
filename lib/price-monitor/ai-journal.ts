@@ -18,6 +18,8 @@ import { withVaultWriteSync } from '@/lib/vault-access'
  */
 export const AI_JOURNAL_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
+/** A call the computer's sleep cut short is neutral, not a failure. */
+const FAILED = `ok = 0 AND COALESCE(error_code, '') <> 'suspended'`
 
 export function insertAiCall(
   database: Database.Database,
@@ -143,7 +145,7 @@ export function readAiCallSummary(
   const totals = database
     .prepare(
       `SELECT COUNT(*) AS calls,
-              COALESCE(SUM(ok = 0), 0) AS failed,
+              COALESCE(SUM(${FAILED}), 0) AS failed,
               COALESCE(SUM(prompt_tokens), 0) AS promptTokens,
               COALESCE(SUM(completion_tokens), 0) AS completionTokens
        FROM price_ai_calls WHERE started_at >= ?`,
@@ -164,7 +166,7 @@ export function readAiCallSummary(
   ).map((row) => row.ms)
   const byPurpose = database
     .prepare(
-      `SELECT purpose, COUNT(*) AS calls, COALESCE(SUM(ok = 0), 0) AS failed
+      `SELECT purpose, COUNT(*) AS calls, COALESCE(SUM(${FAILED}), 0) AS failed
        FROM price_ai_calls WHERE started_at >= ?
        GROUP BY purpose ORDER BY calls DESC, purpose`,
     )
@@ -178,7 +180,7 @@ export function readAiCallSummary(
   const lastError = database
     .prepare(
       `SELECT started_at AS at, purpose, error AS message FROM price_ai_calls
-       WHERE ok = 0 AND started_at >= ?
+       WHERE ${FAILED} AND started_at >= ?
        ORDER BY started_at DESC, id DESC LIMIT 1`,
     )
     .get(since) as

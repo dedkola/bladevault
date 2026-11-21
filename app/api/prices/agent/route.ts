@@ -39,6 +39,10 @@ const SKIPPED: Record<string, { status: number; error: string }> = {
     error: 'The vault is read-only while a restore runs.',
   },
   busy: { status: 409, error: 'The AI supervisor is already running.' },
+  suspended: {
+    status: 503,
+    error: 'The computer went to sleep during the AI request. Try again.',
+  },
 }
 
 function state() {

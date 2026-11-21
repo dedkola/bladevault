@@ -39,6 +39,13 @@ import { readOutOfStockSince } from '@/lib/price-monitor/insights'
 import { MONITOR_CURRENCY } from '@/lib/price-monitor/region'
 import { scheduledIntervalMs } from '@/lib/price-monitor/schedule'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
+import { aiNotReached } from '@/lib/price-monitor/ai-client'
+import {
+  clockMark,
+  noteNetworkSuccess,
+  settleNetworkFailure,
+  sleptSince,
+} from '@/lib/price-monitor/power'
 import {
   parseRecipe,
   replayRecipe,
@@ -52,6 +59,7 @@ import {
 } from '@/lib/price-monitor/solver'
 import type { PriceProvider } from '@/lib/price-monitor/shared'
 import {
+  deferSourceCheck,
   hasAnySnapshot,
   markSourceChecking,
   readHostState,
@@ -407,12 +415,6 @@ function evaluate(
   }
 }
 
-/** The daily AI budget refused the request: the model was not asked. */
-const isBudgetRefusal = (error: unknown) =>
-  error instanceof Error &&
-  error.name === 'AiClientError' &&
-  (error as { code?: unknown }).code === 'budget'
-
 type AiReading = {
   /** The model was asked; starts the source's 24 h AI pause. */
   attempted: boolean
@@ -469,8 +471,8 @@ async function readWithAi(input: {
         ? error.message
         : 'The AI request failed.'
     return {
-      // Refused by the daily budget: the model was not asked.
-      attempted: !isBudgetRefusal(error),
+      // Unreachable, unconfigured, over budget or asleep: not asked.
+      attempted: !aiNotReached(error),
       offer: null,
       note: `AI fallback: ${reason}`,
     }
@@ -552,7 +554,7 @@ async function recoverWithAi(input: {
         ? error.message
         : 'The AI request failed.'
     return {
-      attempted: !isBudgetRefusal(error),
+      attempted: !aiNotReached(error),
       plan: null,
       note: `AI troubleshooting: ${reason}`,
     }
@@ -722,6 +724,8 @@ const AI_EXTRACTION_CODES = new Set([
 ])
 
 const RETRY_DELAYS_MS = [10 * 60 * 1000, 60 * 60 * 1000] as const
+/** A check deferred by sleep or an outage runs again this much later. */
+const DEFER_CHECK_MS = 3 * 60 * 1000
 const RETRYABLE_CODES = new Set(['network', 'timeout'])
 /** A page missing this many checks in a row pauses its source. */
 export const MISSING_PAGE_PAUSE_AFTER = 3
@@ -767,6 +771,11 @@ export type LaneOutcomeKind =
 
 export type CheckSummary =
   | { status: 'skipped'; reason: 'missing' | 'read_only' }
+  /**
+   * The computer slept or was offline during the check: nothing counts
+   * against the store, and the source runs again after the hold.
+   */
+  | { status: 'deferred'; reason: 'suspended' | 'offline' }
   | {
       status: 'done'
       outcome: CheckOutcomeKind
@@ -835,6 +844,7 @@ export async function checkPriceSource(
   await markSourceChecking(source.id, generation)
   const hostState = readHostState(database, source.lane_key)
   const startedAt = new Date()
+  const mark = clockMark()
   const operation = createScrapeOperation({
     signal: options.signal,
     timeoutMs: CHECK_BUDGET_MS,
@@ -867,6 +877,9 @@ export async function checkPriceSource(
     extra: { retryAfterMs?: number | null } = {},
   ): Promise<CheckSummary> => {
     const durationMs = Date.now() - startedAt.getTime()
+    // The store answered (a page, a status, a bot check): the network works.
+    if (record.outcome !== 'failed' || record.httpStatus != null)
+      noteNetworkSuccess(startedAt.getTime())
     const result = await recordCheck({
       ...base,
       ...record,
@@ -1180,6 +1193,22 @@ export async function checkPriceSource(
     if (error instanceof Error && error.name === 'VaultAccessError') throw error
     const failure = toScrapeError(error)
     const status = upstreamStatus(error)
+    // Sleep or a local outage is not the store's fault: no failure, no
+    // streak, no circuit, no AI; the source runs again after the hold.
+    const deferral = sleptSince(mark)
+      ? 'suspended'
+      : status === null &&
+          failure.code === 'network' &&
+          (await settleNetworkFailure(source.lane_key, options.signal))
+        ? 'offline'
+        : null
+    if (deferral) {
+      await deferSourceCheck(source.id, generation, {
+        status: source.status,
+        nextCheckAt: new Date(Date.now() + DEFER_CHECK_MS).toISOString(),
+      })
+      return { status: 'deferred', reason: deferral }
+    }
     const outcome: CheckOutcomeKind = isBlockingFailure(error)
       ? 'blocked'
       : 'failed'

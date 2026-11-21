@@ -698,6 +698,33 @@ export async function markSourceChecking(
   })
 }
 
+/**
+ * A check the computer's sleep or a local network outage cut short: the
+ * source gets its previous status back and runs again at `nextCheckAt`.
+ * No check log row, rollup, failure count, store state or AI pause: the
+ * store did nothing wrong. A Check now request stays queued.
+ */
+export async function deferSourceCheck(
+  sourceId: number,
+  generation: string,
+  input: { status: PriceSourceStatus; nextCheckAt: string },
+): Promise<void> {
+  await withVaultWrite(async () => {
+    assertVaultGeneration(generation)
+    db()
+      .prepare(
+        `UPDATE price_sources SET status = ?, next_check_at = ?, updated_at = ?
+         WHERE id = ? AND removed_at IS NULL`,
+      )
+      .run(
+        input.status === 'checking' ? 'pending' : input.status,
+        input.nextCheckAt,
+        new Date().toISOString(),
+        sourceId,
+      )
+  })
+}
+
 export type CheckOutcomeKind = 'ok' | 'no_price' | 'failed' | 'blocked'
 
 export type RecordedObservation = Observation & {

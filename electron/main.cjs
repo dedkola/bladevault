@@ -9,6 +9,7 @@ const {
   clipboard,
   dialog,
   ipcMain,
+  powerMonitor,
   shell,
 } = require('electron')
 const { spawn } = require('child_process')
@@ -1608,6 +1609,44 @@ async function pollPriceNotifications() {
   }
 }
 
+// ------------------------------------------------- sleep and wake
+
+// Tells the embedded server when the computer sleeps and wakes, so price
+// checks and AI calls in flight are not counted as failures and restart
+// after a short warmup. Best effort: a locked app or a stopped server
+// answers nothing, and the server then notices sleep from the clock jump.
+async function notifyServerPower(state) {
+  if (!serverOrigin) return
+  try {
+    const cookies = await session.defaultSession.cookies.get({
+      url: serverOrigin,
+      name: 'bladevault_unlock',
+    })
+    await fetch(new URL('/api/prices/power', serverOrigin), {
+      method: 'POST',
+      cache: 'no-store',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: cookies.map(({ name, value }) => `${name}=${value}`).join('; '),
+      },
+      body: JSON.stringify({ state }),
+      // Suspend leaves little time before the system sleeps.
+      signal: AbortSignal.timeout(state === 'suspend' ? 2000 : 10000),
+    })
+  } catch {
+    // The server's own clock-jump check covers a missed notice.
+  }
+}
+
+function watchPowerState() {
+  powerMonitor.on('suspend', () => {
+    void notifyServerPower('suspend')
+  })
+  powerMonitor.on('resume', () => {
+    void notifyServerPower('resume')
+  })
+}
+
 function buildTrayMenu() {
   return Menu.buildFromTemplate([
     {
@@ -1935,6 +1974,7 @@ app
     }
 
     syncTray()
+    watchPowerState()
     if (!SMOKE_TEST_MODE) {
       setInterval(() => {
         void pollPriceNotifications()
