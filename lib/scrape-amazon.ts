@@ -139,8 +139,39 @@ function buyBoxPrice($: cheerio.CheerioAPI): string {
   return ''
 }
 
-// Amazon shows prices in the marketplace currency by default; "$" alone is
-// ambiguous between amazon.com, .ca, .com.mx, .com.au and .sg.
+const SPEC_LABELS: ReadonlyArray<[RegExp, string]> = [
+  [/^(?:lock(?:ing)?\s*)?mechanism$|^lock(?:ing)?(?:\s*type)?$/, 'lock'],
+  [/^blade\s*(?:steel|material)$|^steel$/, 'steel'],
+  [/^blade\s*length$/, 'blade length'],
+  [/^blade\s*thickness$/, 'blade thickness'],
+  [/^(?:open|overall)\s*length$/, 'overall length'],
+  [/^(?:closed|folded)\s*length$/, 'closed length'],
+  [/^handle\s*length$/, 'handle length'],
+  [/^weight$/, 'weight'],
+  [/^hardness$/, 'hardness'],
+  [/^(?:blade\s*)?(?:finish|coating)$/, 'blade coating'],
+  [/^designer$/, 'designer'],
+]
+
+/**
+ * Brand stores often paste their spec sheet into the description as
+ * "Specifications: Blade Steel: CPM-S30V (58-60 HRC); Open Length: 7.46" …".
+ * Amazon breaks decimals there ("3. 24""), so they are rejoined first.
+ */
+function specSheet(text: string): Map<string, string> {
+  const specs = new Map<string, string>()
+  const normalized = text.replace(/(\d)\.\s+(\d)/g, '$1.$2')
+  for (const part of normalized.split(/[;\n•|]+/)) {
+    const match = part.match(/([A-Za-z][A-Za-z ]{1,30}?)\s*:\s*([^:]{1,80})$/)
+    if (!match) continue
+    const label = match[1].trim().toLowerCase()
+    const key = SPEC_LABELS.find(([pattern]) => pattern.test(label))?.[1]
+    const value = clean(match[2]).replace(/[.,]+$/, '')
+    if (key && value && !specs.has(key)) specs.set(key, value)
+  }
+  return specs
+}
+
 function titleSegment(title: string, word: RegExp): string {
   return (
     title.split(/\s+[-–—|]\s+|,\s*/).find((segment) => word.test(segment)) ?? ''
@@ -165,6 +196,16 @@ export function extractAmazonProduct(
   const rows = detailRows($)
   const row = (...labels: string[]) =>
     labels.map((label) => rows.get(label) ?? '').find(Boolean) ?? ''
+  // The quick-view description repeats the full product description, which
+  // the page otherwise loads late or leaves out.
+  const sheet = specSheet(
+    [
+      clean($('#pqv-description').first().text()),
+      productDescription,
+      ...bullets,
+    ].join('\n'),
+  )
+  const spec = (key: string) => sheet.get(key) ?? ''
 
   const attributes = new Map<string, string>()
   const set = (label: string, value: string) => {
@@ -180,10 +221,28 @@ export function extractAmazonProduct(
     'blade length',
     row('blade length') || (titleLength ? `${titleLength[1]} in` : ''),
   )
-  set('weight', row('item weight', 'weight'))
-  set('blade thickness', row('blade thickness'))
-  set('closed length', row('closed length', 'folded length'))
-  set('overall length', row('overall length', 'open length'))
+  set('weight', row('item weight', 'weight') || spec('weight'))
+  set('blade thickness', row('blade thickness') || spec('blade thickness'))
+  set(
+    'closed length',
+    row('closed length', 'folded length') || spec('closed length'),
+  )
+  // Amazon's "Item Length" is the open length on some listings and the blade
+  // length on others; only a value well beyond the blade reads as overall.
+  const inches = (value: string) => {
+    const match = value.match(/(\d+(?:\.\d+)?)\s*(?:"|”|in\b|inch)/i)
+    return match ? Number(match[1]) : 0
+  }
+  const itemLength = row('item length')
+  const bladeLength = inches(attributes.get('blade length') ?? '')
+  set(
+    'overall length',
+    row('overall length', 'open length') ||
+      spec('overall length') ||
+      (bladeLength && inches(itemLength) > bladeLength * 1.5 ? itemLength : ''),
+  )
+  set('handle length', row('handle length') || spec('handle length'))
+  set('blade coating', spec('blade coating'))
   const listedSteel = row('blade material', 'blade steel')
   set(
     'blade material',
@@ -191,6 +250,7 @@ export function extractAmazonProduct(
       (listedSteel && !GENERIC_BLADE_MATERIAL.test(listedSteel)
         ? listedSteel
         : '') ||
+      spec('steel').match(STEEL_PATTERN)?.[0] ||
       bullets.join('\n').match(STEEL_PATTERN)?.[0] ||
       '',
   )
@@ -198,6 +258,7 @@ export function extractAmazonProduct(
     'locking mechanism',
     title.match(LOCK_PATTERN)?.[0] ||
       row('lock type', 'locking mechanism') ||
+      spec('lock').match(LOCK_PATTERN)?.[0] ||
       bullets.join('\n').match(LOCK_PATTERN)?.[0] ||
       '',
   )
@@ -210,7 +271,17 @@ export function extractAmazonProduct(
       titleModel?.[1] ||
       '',
   )
-  set('hardness', row('hardness', 'item hardness'))
+  // "CPM-S30V (58-60 HRC)" names the hardness next to the steel.
+  const hrc = [spec('hardness'), spec('steel')]
+    .join(' ')
+    .match(
+      /\b(\d{2}(?:\s*[-–]\s*\d{2})?)\s*HRC\b|\bHRC\s*(\d{2}(?:\s*[-–]\s*\d{2})?)\b/i,
+    )
+  set(
+    'hardness',
+    row('hardness', 'item hardness') ||
+      (hrc ? `${(hrc[1] || hrc[2]).replace(/\s+/g, '')} HRC` : ''),
+  )
   set('country of origin', row('country of origin'))
   set('price', buyBoxPrice($))
 

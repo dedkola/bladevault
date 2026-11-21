@@ -14,6 +14,8 @@ import {
   networkBlockError,
 } from '@/lib/scrape'
 import { waitForSogProductContent } from '@/lib/scrape-sog-browser'
+import { isAmazonProductUrl } from '@/lib/scrape-amazon'
+import { ensureAmazonUsDelivery } from '@/lib/scrape-amazon-location'
 import { validateExternalUrl } from '@/lib/url-validation'
 
 export type RenderedPage = {
@@ -222,6 +224,14 @@ export async function fetchRenderedHtml(
           // Unusual markup can still contain useful product data.
           operation.remainingMs()
         })
+      // Outside the US, Amazon hides the price and buy box ("cannot be
+      // shipped to your selected delivery location").
+      if (isAmazonProductUrl(page.url())) {
+        await ensureAmazonUsDelivery(page, () => operation.remainingMs())
+        const reloadedHtml = await page.content()
+        if (isSecurityChallengePage(reloadedHtml))
+          throw new ScrapeError('challenge')
+      }
       const pageUrl = new URL(page.url())
       if (
         (pageUrl.hostname === 'poikiloblade.com' ||

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { isSecurityChallengePage, scrapeProduct } from '@/lib/scrape'
 import { isAmazonProductUrl } from '@/lib/scrape-amazon'
+import { amazonDeliversTo, isAmazonUsHost } from '@/lib/scrape-amazon-location'
 
 const fixture = (name: string) =>
   readFileSync(
@@ -145,6 +146,61 @@ describe('Amazon product scraping', () => {
       price: '109.95 USD',
       country: 'USA',
     })
+  })
+
+  it('reads the price at a US postcode and the brand spec sheet in the description', () => {
+    const { product, warnings } = scrapeProduct(
+      fixture('amazon-benchmade-bugout-535gry-1'),
+      'https://www.amazon.com/dp/B07CSBPN9F?th=1',
+      'https://www.amazon.com/dp/B07CSBPN9F',
+    )
+
+    expect(warnings).toBeUndefined()
+    expect(product).toMatchObject({
+      name: 'Bugout',
+      brand: 'Benchmade',
+      bladeStyle: 'Drop Point',
+      handleMaterial: 'Grivory',
+      specs: {
+        ...emptySpecs,
+        weight: '1.85 ounces',
+        bladeLength: '3.24 inches',
+        bladeMaterial: 'S30V',
+        modelNumber: '535GRY-1',
+        price: '200.00 USD',
+        // From "Specifications: … mechanism: AXIS lock; Blade Steel:
+        // CPM-S30V (58-60 HRC); … Blade Thickness: 0. 090" …".
+        lockingMechanism: 'AXIS lock',
+        hardness: '58-60 HRC',
+        bladeThickness: '0.090" (2.29mm)',
+        overallLength: '7.46" (18.95cm)',
+        handleLength: '4.22" (10.72cm)',
+      },
+    })
+    expect(product.images).toHaveLength(9)
+  })
+
+  it('falls back to Item Length for the overall length', () => {
+    const html = `<html><body>
+      <span id="productTitle">Example Folding Knife</span>
+      <div id="prodDetails"><table>
+        <tr><th>Blade Length</th><td>3.2 inches</td></tr>
+        <tr><th>Item Length</th><td>7.5 inches</td></tr>
+      </table></div>
+    </body></html>`
+    const { product } = scrapeProduct(
+      html,
+      'https://www.amazon.com/dp/B000000001',
+    )
+    expect(product.specs.overallLength).toBe('7.5 inches')
+  })
+
+  it('recognizes the delivery postcode Amazon shows', () => {
+    expect(isAmazonUsHost('www.amazon.com')).toBe(true)
+    expect(isAmazonUsHost('www.amazon.co.uk')).toBe(false)
+    expect(amazonDeliversTo('Beverly H... 90210‌', '90210')).toBe(true)
+    expect(amazonDeliversTo('Ukraine', '90210')).toBe(false)
+    expect(amazonDeliversTo(null, '90210')).toBe(true)
   })
 
   it('treats the "unusual browser activity" checkpoint as a challenge', () => {
