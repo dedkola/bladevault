@@ -17,6 +17,7 @@ import type { CheckSummary } from '@/lib/price-monitor/engine'
 import { requestSourceChecks } from '@/lib/price-monitor/store'
 import {
   buildQueueSnapshot,
+  getPriceMonitorWorker,
   PriceMonitorWorker,
   type WorkerDeps,
 } from '@/lib/price-monitor/worker'
@@ -33,6 +34,9 @@ beforeEach(async () => {
   vault = await createTempVault()
 })
 afterEach(async () => {
+  // The stores route starts and wakes the process-wide worker. Stop it first so
+  // its timers cannot take the lease the harness frees or run after cleanup.
+  await getPriceMonitorWorker().stop()
   for (const worker of workers) await worker.stop()
   workers = []
   await vault?.cleanup()
