@@ -280,7 +280,7 @@ For each knife, AI does the work in three steps:
 
 Searches cover every knife that price monitoring covers, including knives without a product link, and skip knives that already have an Amazon source. They run with scheduled checks, one knife at a time, and share Amazon's pace: a due Amazon price check always goes first, and a bot check pauses both. AI receives the knife's brand, name, and specs and the store's listing titles, never the regular price, notes, or photos.
 
-The section lists recent results. A knife that is not found is searched again after 30 days, and a failed search after a few hours. **Search again for missing** searches those knives at the next free slot. A found listing is never replaced: remove its source to stop monitoring it, and it is not added again.
+The section lists recent results. A knife that is not found is searched again after 30 days, and a failed search after a few hours. Only Amazon's own result list counts as "not found": a search that shows a bot check, an error page, or a page BladeVault cannot read is a failed search. **Search again for missing** searches those knives at the next free slot. A found listing is never replaced: remove its source to stop monitoring it, and it is not added again.
 
 ## Keep checking with the desktop app closed
 

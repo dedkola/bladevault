@@ -2,10 +2,12 @@ import * as cheerio from 'cheerio'
 import type { Page } from 'playwright'
 import { ensureAmazonDelivery } from '@/lib/price-monitor/amazon-location'
 import {
+  amazonEmptySearchKind,
   amazonProductUrl,
   amazonSearchUrl,
   MAX_SEARCH_CANDIDATES,
   parseAmazonSearchResults,
+  type EmptySearchKind,
   type MatchCandidate,
   type ProductPageDetails,
 } from '@/lib/price-monitor/discovery-ai'
@@ -38,6 +40,11 @@ export type DiscoveryStore = {
     pageUrl: string,
     settings: PriceOtherStoresSettings,
   ) => DiscoveryCandidate[]
+  /**
+   * Whether a search page without products is the store saying it has
+   * none. Stores without it: such a page always counts as empty.
+   */
+  emptySearch?: (html: string) => EmptySearchKind
   productDetails: (html: string, url: string) => ProductPageDetails | null
   /**
    * Runs on each loaded store page before it is read, e.g. Amazon's
@@ -246,6 +253,7 @@ export const DISCOVERY_STORES: Record<OtherStoreId, DiscoveryStore> = {
         ...candidate,
         url: amazonProductUrl(settings.amazonMarketplace, candidate.asin),
       })),
+    emptySearch: amazonEmptySearchKind,
     productDetails: amazonDetails,
     preparePage: (page, settings) =>
       ensureAmazonDelivery(page, amazonDeliveryPostcode(settings)),

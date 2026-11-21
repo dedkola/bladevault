@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  amazonEmptySearchKind,
   amazonSearchUrl,
   buildSearchQueries,
   buildSearchQuery,
@@ -11,12 +13,16 @@ import {
 } from '@/lib/price-monitor/discovery-ai'
 import { amazonDeliversTo } from '@/lib/price-monitor/amazon-location'
 import { nextDiscoveryAttempt } from '@/lib/price-monitor/discovery-store'
+import { isSecurityChallengePage } from '@/lib/scrape'
 import {
   amazonDeliveryPostcode,
   DEFAULT_PRICE_MONITORING,
   normalizeAmazonPostcode,
   normalizePriceMonitoring,
 } from '@/lib/settings-shared'
+
+const fixture = (name: string) =>
+  readFileSync(new URL(`../fixtures/scrape/${name}`, import.meta.url), 'utf8')
 
 const SEARCH_HTML = `
 <div class="s-main-slot">
@@ -88,6 +94,66 @@ describe('Other stores search parsing', () => {
       title: 'Vosteed Porcupine ModSwap - 154CM Blade, G10 Handle - A3103',
       sponsored: true,
     })
+  })
+
+  it('reads full titles from the live Amazon search page, not only the brand', () => {
+    // amazon.com/s?k=Kizer+Mini+Harpoon+1040S8: each card has the brand in
+    // one heading ("Kizer") and the product title in the next.
+    const html = fixture('amazon-search-kizer-mini-harpoon-1040s8.html')
+    const results = parseAmazonSearchResults(html)
+    expect(results).toHaveLength(12)
+    expect(results.slice(0, 5).map(({ asin, title }) => [asin, title])).toEqual(
+      [
+        [
+          'B093T6MNZQ',
+          'QSP Hawk Folding Pocket Knife, 3.22" Sandvik 14C28N Two Tone Satin Blade EDC Knife, Dark Brown Rough Micarta Handle, Liner Lock, Ceramic Ball Bearings, SS Deep Carry Clip',
+        ],
+        [
+          'B0BRTCG173',
+          'Smith & Wesson H.R.T Spear Point Neck Knife 5.5 in Overall Length with 2 in Blade Length and Breakaway Lanyard,Black',
+        ],
+        [
+          'B0DT46V5T2',
+          'Kizer Harpoon Bundled with Mini Harpoon Fixed Blade Knife',
+        ],
+        [
+          'B07CCWDP4J',
+          'Cold Steel Mini Tac Bowie 3-5/8" Lightweight Durable 8Cr13MoV Stainless Steel Fixed Blade Clip Point Outdoor Hunting Utility Knife, Griv-Ex Handle, Secure-Ex Sheath - Boxed',
+        ],
+        [
+          'B0DWXL6WNM',
+          'Kizer Mini Harpoon Bundled with Beaver Fixed Blade Knife',
+        ],
+      ],
+    )
+    // Every title says more than the brand.
+    for (const { title } of results)
+      expect(title.split(' ').length).toBeGreaterThan(3)
+    // Shop Direct boxes sell from the maker's own site, not Amazon.
+    expect(results.map((result) => result.asin)).not.toContain('B0HH4VN7CX')
+    // Had the cards not been read, the page would not pass as empty.
+    expect(amazonEmptySearchKind(html)).toBe('unreadable')
+  })
+
+  it('tells Amazon’s empty result list apart from a bot check', () => {
+    // amazon.com/s?k=Vosteed+Porcupine+A3105 delivering to Ukraine: Amazon's
+    // own "No results for your search query".
+    const empty = fixture('amazon-search-no-results.html')
+    expect(parseAmazonSearchResults(empty)).toEqual([])
+    expect(amazonEmptySearchKind(empty)).toBe('empty')
+    expect(isSecurityChallengePage(empty)).toBe(false)
+
+    // A search that Amazon sent to /checkpoint/continue ("I am human"),
+    // with the full site header around it.
+    const checkpoint = fixture('amazon-search-checkpoint.html')
+    expect(parseAmazonSearchResults(checkpoint)).toEqual([])
+    expect(amazonEmptySearchKind(checkpoint)).toBe('unreadable')
+    expect(isSecurityChallengePage(checkpoint)).toBe(true)
+
+    expect(amazonEmptySearchKind(fixture('amazon-checkpoint.html'))).toBe(
+      'unreadable',
+    )
+    expect(amazonEmptySearchKind('<div>No results</div>')).toBe('unreadable')
   })
 
   it('falls back to product links for other layouts', () => {

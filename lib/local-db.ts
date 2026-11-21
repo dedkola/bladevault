@@ -3,6 +3,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import {
+  assertDataDirDiscoveryAllowed,
   getPersistedLocalDataDirPreference,
   savePersistedLocalDataDirPreference,
 } from '@/lib/local-data-config'
@@ -121,6 +122,10 @@ function resolveDataDir(): string {
   if (configuredDataDir) {
     return configuredDataDir
   }
+
+  // The config read above already enforces this; the home and legacy
+  // discovery below must stay unreachable in tests even if that changes.
+  assertDataDirDiscoveryAllowed()
 
   const homeDataDir = getDefaultHomeDataDir()
   const existingCandidates = [
