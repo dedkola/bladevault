@@ -137,7 +137,7 @@ describe('price overview', () => {
   it('summarizes monitored knives, changes and stock', async () => {
     const raccoon = await createKnife('Raccoon', '129.00 USD', [
       'https://shop.example/raccoon',
-      'https://amazon.example/raccoon',
+      'https://dealer.example/raccoon',
     ])
     // A knife without a stored price is tracked but not monitored in Auto.
     const corgi = await createKnife('Corgi', '', ['https://shop.example/corgi'])
@@ -334,17 +334,17 @@ describe('monitoring status', () => {
   it('gives each monitored source a result and counts checks per hour', async () => {
     const raccoon = await createKnife('Raccoon', '129.00 USD', [
       'https://shop.example/raccoon',
-      'https://amazon.example/raccoon',
+      'https://dealer.example/raccoon',
     ])
     const bean = await createKnife('Bean', '45.00 USD', [
       'https://other.example/bean',
     ])
-    const [shop, amazon] = raccoon.sources
+    const [shop, dealer] = raccoon.sources
     await checkAt(0, shop, offer(100))
-    await checkAt(0.01, amazon, offer(95))
+    await checkAt(0.01, dealer, offer(95))
     await checkAt(1, shop, offer(80)) // drop
-    await checkAt(1.01, amazon, offer(null, 'out_of_stock'))
-    await checkAt(1.015, amazon, offer(null, 'out_of_stock')) // confirms it
+    await checkAt(1.01, dealer, offer(null, 'out_of_stock'))
+    await checkAt(1.015, dealer, offer(null, 'out_of_stock')) // confirms it
     await checkAt(1.02, bean.sources[0], offer(null)) // no price on the page
 
     const result = await overview()
@@ -358,7 +358,7 @@ describe('monitoring status', () => {
       changedAt: new Date(START + DAY).toISOString(),
     })
     expect(bySource.get(shop)?.nextCheckAt).toEqual(expect.any(String))
-    expect(bySource.get(amazon)).toMatchObject({
+    expect(bySource.get(dealer)).toMatchObject({
       result: 'out_of_stock',
       previousPriceMinor: null,
     })
@@ -853,7 +853,7 @@ describe('ignore out of stock on the official site', () => {
   it('drops the knife’s own sold-out link from stock counts and the schedule', async () => {
     const knife = await createKnife('Raccoon', '129.00 USD', [
       'https://shop.example/raccoon',
-      'https://amazon.example/raccoon',
+      'https://dealer.example/raccoon',
     ])
     const [official, other] = knife.sources
     await checkAt(0, official, offer(129, 'out_of_stock'))

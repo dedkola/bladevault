@@ -41,11 +41,9 @@ const BLADEHQ_HTML = `
 
 describe('Other stores: Blade HQ', () => {
   it('reads Blade HQ product links, skipping header, nav and footer', () => {
-    const settings = DEFAULT_PRICE_MONITORING.otherStores
     const results = DISCOVERY_STORES.bladehq.parseResults(
       BLADEHQ_HTML,
       'https://www.bladehq.com/cat--Spyderco-Para-3--2475',
-      settings,
     )
     expect(results).toEqual([
       {
@@ -54,7 +52,6 @@ describe('Other stores: Blade HQ', () => {
         title:
           'Spyderco Para 3 Compression Lock Knife Black G-10 (3" Stonewash) C223GP',
         price: '$187.50',
-        sponsored: false,
       },
       {
         id: 2,
@@ -62,12 +59,11 @@ describe('Other stores: Blade HQ', () => {
         title:
           'Spyderco Para 3 Lightweight Compression Lock Knife Blue (3" Satin SPY27)',
         price: '$154.95',
-        sponsored: false,
       },
     ])
-    expect(
-      DISCOVERY_STORES.bladehq.searchUrl(settings, 'Spyderco Para 3'),
-    ).toBe('https://www.bladehq.com/?search=Spyderco+Para+3')
+    expect(DISCOVERY_STORES.bladehq.searchUrl('Spyderco Para 3')).toBe(
+      'https://www.bladehq.com/?search=Spyderco+Para+3',
+    )
   })
 
   it('reads a product page from JSON-LD', () => {
@@ -88,7 +84,6 @@ describe('Other stores: Blade HQ', () => {
     const results = DISCOVERY_STORES.bladehq.parseResults(
       html,
       'https://www.bladehq.com/cat--Spyderco-Para-3--2475',
-      DEFAULT_PRICE_MONITORING.otherStores,
     )
     expect(
       results.map(({ url, title, price }) => ({ url, title, price })),
@@ -144,7 +139,6 @@ describe('Other stores: Blade HQ', () => {
     const results = DISCOVERY_STORES.bladehq.parseResults(
       fixture('bladehq-item-para-3-c223gpbk.html'),
       url,
-      DEFAULT_PRICE_MONITORING.otherStores,
     )
     expect(results).toEqual([
       {
@@ -153,7 +147,6 @@ describe('Other stores: Blade HQ', () => {
         title:
           'Spyderco Para 3 Compression Lock Knife Black G-10 (3" Black DLC) C223GPBK',
         price: null,
-        sponsored: false,
       },
     ])
   })
@@ -175,26 +168,21 @@ describe('Other stores: Blade HQ', () => {
     expect(isNetworkBlockError(new Error('HTTP 403'))).toBe(false)
   })
 
-  it('no longer offers KnifeCenter; old saved settings still load', () => {
-    expect(Object.keys(DISCOVERY_STORES)).toEqual(['amazon', 'bladehq'])
+  it('no longer offers KnifeCenter or Amazon; old saved settings still load', () => {
+    expect(Object.keys(DISCOVERY_STORES)).toEqual(['bladehq'])
     expect(
       normalizePriceMonitoring({
         otherStores: {
           enabled: true,
-          stores: { amazon: false, bladehq: true, knifecenter: true },
+          stores: { amazon: true, bladehq: true, knifecenter: true },
         },
       }).otherStores.stores,
-    ).toEqual({ amazon: false, bladehq: true })
+    ).toEqual({ bladehq: true })
   })
 
   it('lanes and marketplaces follow the store', () => {
     expect(DISCOVERY_STORES.bladehq.laneKey).toBe('bladehq.com')
-    expect(
-      DISCOVERY_STORES.amazon.marketplace({
-        ...DEFAULT_PRICE_MONITORING.otherStores,
-        amazonMarketplace: 'amazon.de',
-      }),
-    ).toBe('amazon.de')
+    expect(DISCOVERY_STORES.bladehq.marketplace).toBe('bladehq.com')
   })
 })
 

@@ -167,10 +167,7 @@ describe('price monitor worker', () => {
   it('starts every store at once, but one check per store, no burst', async () => {
     await knife(['https://kizer.example/a', 'https://kizer.example/b'])
     await knife(['https://vosteed.com/a', 'https://vosteed.com/b'])
-    await knife([
-      'https://www.amazon.com/dp/B000000001',
-      'https://www.amazon.com/dp/B000000002',
-    ])
+    await knife(['https://knives.example/a', 'https://knives.example/b'])
     await knife(['https://bladehq.com/a'])
     const ids = sourceIds()
     const { worker, pending, finish } = harness()
@@ -180,8 +177,8 @@ describe('price monitor worker', () => {
     expect(lanesOf(pending, ids)).toEqual([
       'bladehq.com',
       'kizer.example',
+      'knives.example',
       'vosteed.com',
-      'www.amazon.com',
     ])
 
     // A finished store waits for its gap instead of starting its next product.
@@ -483,8 +480,8 @@ describe('price monitor worker', () => {
     expect(supervise).toHaveBeenCalledWith('event')
   })
 
-  it('searches other stores on the Amazon lane only when it is free', async () => {
-    await knife(['https://www.amazon.com/dp/B000000001'])
+  it('searches other stores on a store’s lane only when it is free', async () => {
+    await knife(['https://www.bladehq.com/item--Other-Knife--2'])
     const lookFor = await knife([])
     saveSettings({
       priceMonitoring: {
@@ -497,9 +494,7 @@ describe('price monitor worker', () => {
         },
         otherStores: {
           enabled: true,
-          stores: { amazon: true, bladehq: false },
-          amazonMarketplace: 'amazon.com',
-          amazonPostcode: '',
+          stores: { bladehq: true },
         },
       },
     })
@@ -519,7 +514,7 @@ describe('price monitor worker', () => {
     })
     worker.start({ scheduled: true })
     await worker.pass()
-    // The due Amazon check goes first; the search waits for the lane.
+    // The due Blade HQ check goes first; the search waits for the lane.
     expect(pending).toHaveLength(1)
     expect(discover).not.toHaveBeenCalled()
     await finish()
@@ -530,9 +525,9 @@ describe('price monitor worker', () => {
     expect(discover).toHaveBeenCalledTimes(1)
     expect(discover.mock.calls[0]).toEqual([
       lookFor,
-      { signal: expect.any(AbortSignal), store: 'amazon' },
+      { signal: expect.any(AbortSignal), store: 'bladehq' },
     ])
-    // The search holds the Amazon lane like a check would.
+    // The search holds the Blade HQ lane like a check would.
     expect(worker.discovering).not.toBeNull()
     await requestSourceChecks([...sourceIds().values()])
     await worker.pass()
@@ -550,7 +545,7 @@ describe('price monitor worker', () => {
     await worker.idle()
     const lane = getLocalDb()
       .prepare(
-        "SELECT last_request_at FROM price_host_state WHERE lane_key = 'amazon'",
+        "SELECT last_request_at FROM price_host_state WHERE lane_key = 'bladehq.com'",
       )
       .get() as { last_request_at: string }
     expect(Date.parse(lane.last_request_at)).toBe(now())
@@ -570,9 +565,7 @@ describe('price monitor worker', () => {
         },
         otherStores: {
           enabled: true,
-          stores: { amazon: false, bladehq: true },
-          amazonMarketplace: 'amazon.com',
-          amazonPostcode: '',
+          stores: { bladehq: true },
         },
       },
     })
@@ -682,9 +675,7 @@ describe('price monitor worker', () => {
         },
         otherStores: {
           enabled: true,
-          stores: { amazon: true, bladehq: false },
-          amazonMarketplace: 'amazon.com',
-          amazonPostcode: '',
+          stores: { bladehq: true },
         },
       },
     })
@@ -701,14 +692,14 @@ describe('price monitor worker', () => {
       nextDiscovery: nextDiscoveryKnife,
       discover,
     })
-    // Amazon has no price sources: only a search can probe it.
+    // Blade HQ has no price sources: only a search can probe it.
     const ended = new Date(now() - MIN).toISOString()
     getLocalDb()
       .prepare(
         `INSERT INTO price_host_state
            (lane_key, min_gap_ms, ready_at, circuit, cooldown_until,
             open_count, updated_at)
-         VALUES ('amazon', 60000, ?, 'open', ?, 1, ?)`,
+         VALUES ('bladehq.com', 60000, ?, 'open', ?, 1, ?)`,
       )
       .run(ended, ended, ended)
     worker.start({ scheduled: true })
@@ -716,11 +707,13 @@ describe('price monitor worker', () => {
     expect(discover).toHaveBeenCalledTimes(1)
     expect(discover.mock.calls[0]).toEqual([
       lookFor,
-      { signal: expect.any(AbortSignal), store: 'amazon' },
+      { signal: expect.any(AbortSignal), store: 'bladehq' },
     ])
     await worker.idle()
     const lane = getLocalDb()
-      .prepare("SELECT circuit FROM price_host_state WHERE lane_key = 'amazon'")
+      .prepare(
+        "SELECT circuit FROM price_host_state WHERE lane_key = 'bladehq.com'",
+      )
       .get() as { circuit: string }
     expect(lane.circuit).toBe('closed')
   })

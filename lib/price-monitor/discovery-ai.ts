@@ -1,4 +1,3 @@
-import * as cheerio from 'cheerio'
 import {
   requestJsonCompletion,
   type AiEndpoint,
@@ -6,7 +5,6 @@ import {
 } from '@/lib/price-monitor/ai-client'
 import { UNTRUSTED_CONTENT_RULE } from '@/lib/price-monitor/ai'
 import type { Knife } from '@/lib/data'
-import type { AmazonMarketplace } from '@/lib/settings-shared'
 
 /**
  * Other stores, the AI part: AI picks the monitored knife out of a store's
@@ -97,166 +95,12 @@ export function buildSearchQueries(identity: KnifeIdentity): string[] {
   return [...new Set(queries)]
 }
 
-export function amazonSearchUrl(
-  marketplace: AmazonMarketplace,
-  query: string,
-): string {
-  const url = new URL(`https://www.${marketplace}/s`)
-  url.searchParams.set('k', query)
-  return url.toString()
-}
-
-export function amazonProductUrl(
-  marketplace: AmazonMarketplace,
-  asin: string,
-): string {
-  return `https://www.${marketplace}/dp/${asin}`
-}
-
 /** One search result as AI sees it. */
 export type MatchCandidate = {
   /** 1-based position in what AI sees. */
   id: number
   title: string
   price: string | null
-  sponsored: boolean
-}
-
-export type SearchCandidate = MatchCandidate & { asin: string }
-
-const ASIN = /^[A-Z0-9]{10}$/
-/** Amazon puts the ad label in the title heading: "Sponsored Ad - Corgi V…". */
-const SPONSORED_PREFIX = /^Sponsored Ad\s*[-–—]\s*/i
-
-/**
- * A search result's title. Amazon often shows the brand in its own heading
- * ("KIZER") above the product title heading, so every heading is read: the
- * longest one is the title, and the brand goes in front when it is missing.
- */
-function amazonResultTitle(
-  $: cheerio.CheerioAPI,
-  block: ReturnType<cheerio.CheerioAPI>,
-): string {
-  const headings = block
-    .find('h2')
-    .toArray()
-    .map((el) =>
-      clean($(el).attr('aria-label') || $(el).text()).replace(
-        SPONSORED_PREFIX,
-        '',
-      ),
-    )
-    .filter(Boolean)
-  const title = headings.reduce(
-    (longest, text) => (text.length > longest.length ? text : longest),
-    '',
-  )
-  if (!title) {
-    return clean(
-      block.find('[data-cy="title-recipe"]').first().text() ||
-        block.find('img.s-image').first().attr('alt') ||
-        '',
-    )
-  }
-  const lower = title.toLowerCase()
-  const brand = headings.find(
-    (text) =>
-      text !== title &&
-      text.length <= 40 &&
-      !lower.includes(text.toLowerCase()),
-  )
-  return brand ? `${brand} ${title}` : title
-}
-
-/**
- * Products on an Amazon search results page: ASIN, title, shown price and
- * whether it is an ad. Falls back to product links when the result blocks
- * are missing (other layouts).
- */
-export function parseAmazonSearchResults(html: string): SearchCandidate[] {
-  const $ = cheerio.load(html)
-  const found: Omit<SearchCandidate, 'id'>[] = []
-  const seen = new Set<string>()
-  $('[data-component-type="s-search-result"][data-asin]').each((_, el) => {
-    const block = $(el)
-    const asin = (block.attr('data-asin') ?? '').trim().toUpperCase()
-    if (!ASIN.test(asin) || seen.has(asin)) return
-    const title = amazonResultTitle($, block)
-    if (!title) return
-    const price = clean(
-      block.find('.a-price:not(.a-text-price) .a-offscreen').first().text(),
-    )
-    seen.add(asin)
-    found.push({
-      asin,
-      title: truncate(title, TITLE_MAX),
-      price: price || null,
-      sponsored:
-        /\bSponsored\b|\bGesponsert\b|\bSponsorisé\b|\bPatrocinado\b/i.test(
-          clean(
-            block
-              .find(
-                '.puis-label-popover, .s-label-popover-default, .a-color-secondary',
-              )
-              .text(),
-          ),
-        ) ||
-        block
-          .find('h2')
-          .toArray()
-          .some((el) =>
-            SPONSORED_PREFIX.test(
-              clean($(el).attr('aria-label') || $(el).text()),
-            ),
-          ),
-    })
-  })
-  if (!found.length) {
-    $('a[href*="/dp/"]').each((_, el) => {
-      const href = $(el).attr('href') ?? ''
-      const asin = href
-        .match(/\/dp\/([A-Z0-9]{10})(?:[/?]|$)/i)?.[1]
-        ?.toUpperCase()
-      const title = clean($(el).text())
-      if (!asin || seen.has(asin) || title.length < 12) return
-      seen.add(asin)
-      found.push({
-        asin,
-        title: truncate(title, TITLE_MAX),
-        price: null,
-        sponsored: false,
-      })
-    })
-  }
-  return found
-    .slice(0, MAX_SEARCH_CANDIDATES)
-    .map((candidate, index) => ({ ...candidate, id: index + 1 }))
-}
-
-/**
- * Why a search page gave AI nothing to read. 'empty': the store's own
- * result list with no products in it, so the store has nothing for the
- * search. 'unreadable': not a result list (a bot check, a sign-in, error or
- * location page) or product cards BladeVault could not read. Only an empty
- * page means the knife is not there.
- */
-export type EmptySearchKind = 'empty' | 'unreadable'
-
-/**
- * Amazon's search page keeps its result list when nothing matches ("No
- * results for your search query") and shows products as cards with an
- * ASIN. Other boxes in the list, such as Shop Direct offers from the
- * maker's own site, are not cards.
- */
-export function amazonEmptySearchKind(html: string): EmptySearchKind {
-  const $ = cheerio.load(html)
-  const list = $('[data-component-type="s-search-results"]')
-  if (!list.length) return 'unreadable'
-  const cards = list
-    .find('[data-component-type="s-search-result"], .s-main-slot > [data-asin]')
-    .toArray()
-    .some((el) => ASIN.test(($(el).attr('data-asin') ?? '').trim()))
-  return cards ? 'unreadable' : 'empty'
 }
 
 export type AiDecision = {
@@ -399,7 +243,6 @@ const MATCHING_RULES = [
 const MATCH_SYSTEM = [
   'You find a knife from a collector’s collection in a store’s search results.',
   MATCHING_RULES,
-  'Sponsored results are ads; they can still be the right product.',
   'Answer with JSON only: {"match", "confidence", "reason"}.',
   'match: the id of the result that sells exactly this knife, or null when none does.',
   'confidence: 0 to 1, how sure you are. reason: one short sentence.',
@@ -439,7 +282,6 @@ export async function matchSearchResults<C extends MatchCandidate>(
           id: candidate.id,
           title: candidate.title,
           price: candidate.price,
-          sponsored: candidate.sponsored,
         })),
       }),
       schemaName: 'search_match',

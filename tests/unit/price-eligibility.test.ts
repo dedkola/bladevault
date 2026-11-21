@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { getEligibility, planAutoSource } from '@/lib/price-monitor/eligibility'
 import {
+  AMAZON_NOT_SUPPORTED,
+  isAmazonUrl,
   laneKeyForUrl,
   MAX_PRICE_SOURCES_PER_KNIFE,
   normalizeSourceUrl,
   parsePriceCheckRequest,
   parsePriceWatchUpdate,
-  providerForUrl,
   registrableDomain,
   storeNameForUrl,
 } from '@/lib/price-monitor/shared'
@@ -93,6 +94,14 @@ describe('planAutoSource', () => {
     expect(planAutoSource('ftp://x', [])).toEqual({ add: null, removeIds: [] })
   })
 
+  it('never adds an Amazon product link', () => {
+    expect(
+      planAutoSource('https://www.amazon.com/dp/B0FRRWK52D', [
+        auto(5, 'https://www.amazon.com/dp/B0FRRWK52D'),
+      ]),
+    ).toEqual({ add: null, removeIds: [5] })
+  })
+
   it('does not duplicate a URL already added by hand', () => {
     expect(
       planAutoSource('https://shop.example/p', [
@@ -109,26 +118,46 @@ describe('source URLs', () => {
         'https://Shop.Example/products/knife/?utm_source=x&variant=2#reviews',
       ),
     ).toBe('https://shop.example/products/knife?variant=2')
-    expect(
-      normalizeSourceUrl(
-        'https://www.amazon.de/Vosteed-Raccoon/dp/b0frrwk52d/ref=sr_1_1?th=1',
-      ),
-    ).toBe('https://www.amazon.de/dp/B0FRRWK52D')
     expect(normalizeSourceUrl('javascript:alert(1)')).toBeNull()
     expect(normalizeSourceUrl('not a url')).toBeNull()
   })
 
   it('groups stores into lanes', () => {
-    expect(laneKeyForUrl('https://www.amazon.co.uk/dp/X')).toBe('amazon')
-    expect(laneKeyForUrl('https://amazon.com/dp/X')).toBe('amazon')
     expect(laneKeyForUrl('https://shop.vosteed.com/p')).toBe('vosteed.com')
     expect(laneKeyForUrl('https://www.knifecenter.co.uk/p')).toBe(
       'knifecenter.co.uk',
     )
     expect(registrableDomain('192.168.1.10')).toBe('192.168.1.10')
     expect(storeNameForUrl('https://www.bladehq.com/item')).toBe('bladehq.com')
-    expect(providerForUrl('https://www.amazon.com/dp/X')).toBe('amazon')
-    expect(providerForUrl('https://kizer.example/p')).toBe('generic')
+  })
+})
+
+describe('Amazon links', () => {
+  it('recognizes every Amazon marketplace and short link', () => {
+    for (const url of [
+      'https://www.amazon.com/dp/B0FRRWK52D',
+      'https://amazon.de/dp/B0FRRWK52D',
+      'https://smile.amazon.co.uk/dp/X',
+      'https://www.amazon.com.au/dp/X',
+      'https://amzn.to/3xYzAbC',
+      'https://a.co/d/abc',
+    ])
+      expect(isAmazonUrl(url)).toBe(true)
+    for (const url of [
+      'https://www.bladehq.com/item--Amazon-Knife--1',
+      'https://notamazon.com/p',
+      'https://shop.example/amazon.com',
+      'not a url',
+    ])
+      expect(isAmazonUrl(url)).toBe(false)
+  })
+
+  it('refuses them as new sources', () => {
+    expect(() =>
+      parsePriceWatchUpdate({
+        add: [{ url: 'https://www.amazon.com/dp/B0FRRWK52D' }],
+      }),
+    ).toThrow(AMAZON_NOT_SUPPORTED)
   })
 })
 

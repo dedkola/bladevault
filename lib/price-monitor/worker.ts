@@ -178,7 +178,7 @@ function normalizeLane(
 ): LaneState {
   return {
     ...lane,
-    minGapMs: Math.max(lane.minGapMs, laneFloorMs(lane.laneKey, pacing)),
+    minGapMs: Math.max(lane.minGapMs, laneFloorMs(pacing)),
   }
 }
 
@@ -269,7 +269,7 @@ export class PriceMonitorWorker {
   private advising: Promise<unknown> | null = null
   private lastAgentCheck = 0
   private supervising: Promise<unknown> | null = null
-  /** Other stores: a search running on the Amazon lane. */
+  /** Other stores: a search running on a store's lane. */
   discovering: Promise<unknown> | null = null
   /** The store lane the running search uses. */
   discoveryLane: string | null = null
@@ -472,10 +472,10 @@ export class PriceMonitorWorker {
       if (inQuietHours(advice, new Date(now))) continue
       const lane = input.lanes.get(laneKey) ?? input.defaultLane(laneKey)
       // After a cooldown the search is the store's probe: a store with no
-      // price sources there (often Amazon) has no check that could probe it,
+      // price sources there has no check that could probe it,
       // and its searches would otherwise stop for good.
       const availability = discoveryAvailability(lane, now, {
-        floorMs: laneFloorMs(laneKey, context.settings.pacing),
+        floorMs: laneFloorMs(context.settings.pacing),
         pauseUntil: advice && advice.expiresAt > now ? advice.pauseUntil : null,
       }).state
       if (availability !== 'ready' && availability !== 'probe') continue
@@ -493,7 +493,7 @@ export class PriceMonitorWorker {
     const lane = input.lanes.get(laneKey) ?? input.defaultLane(laneKey)
     const controller = new AbortController()
     this.controllers.add(controller)
-    const floorMs = laneFloorMs(laneKey, context.settings.pacing)
+    const floorMs = laneFloorMs(context.settings.pacing)
     // The next search waits the store's minimum gap; scheduled checks keep
     // their own spread (below).
     const gapMs = discoveryGapMs(lane, floorMs)
@@ -615,7 +615,7 @@ export class PriceMonitorWorker {
       trigger: pick.trigger,
       startedAt,
     })
-    const floorMs = laneFloorMs(pick.laneKey, context.settings.pacing)
+    const floorMs = laneFloorMs(context.settings.pacing)
     const gapMs = gapAfterCheck({
       lane,
       laneKey: pick.laneKey,
@@ -864,7 +864,7 @@ export function buildQueueSnapshot(
     const laneLoad = load.get(laneKey) ?? 0
     const gapMs = laneGapMs({
       minGapMs: lane.minGapMs,
-      floorMs: laneFloorMs(laneKey, settings.pacing),
+      floorMs: laneFloorMs(settings.pacing),
       activeWindowMs: windowMs,
       sourceCount: laneLoad,
     })

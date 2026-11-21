@@ -1170,7 +1170,7 @@ function readAgentKnives(input: {
         .filter((store) => !lanes.has(store.laneKey))
         .map((store): AgentSearch => {
           const row = searches.get(
-            `${knifeId}\n${store.id}\n${store.marketplace(settings.otherStores)}`,
+            `${knifeId}\n${store.id}\n${store.marketplace}`,
           )
           if (!row)
             return { store: store.label, status: 'not_searched', nextInDays: 0 }

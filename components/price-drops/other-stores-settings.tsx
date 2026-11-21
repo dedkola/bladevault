@@ -4,19 +4,11 @@ import { ExternalLink } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   SettingsRow,
   SettingsSection,
   SettingsSwitch,
 } from '@/components/settings-panels'
 import { relativeTime } from '@/components/price-drops/price-format'
-import { TextField } from '@/components/price-drops/price-ai-settings'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
 import type {
   DiscoveryItemView,
@@ -24,12 +16,8 @@ import type {
   DiscoveryStatus,
 } from '@/lib/price-monitor/discovery-store'
 import {
-  AMAZON_DEFAULT_POSTCODES,
-  AMAZON_MARKETPLACES,
-  normalizeAmazonPostcode,
   OTHER_STORE_IDS,
   OTHER_STORE_LABELS,
-  type AmazonMarketplace,
   type OtherStoreId,
   type PriceOtherStoresSettings,
 } from '@/lib/settings-shared'
@@ -49,8 +37,6 @@ type StoreOverview = DiscoveryOverview & {
 type Overview = { active: boolean; running: boolean; stores: StoreOverview[] }
 
 const STORE_DESCRIPTION: Record<OtherStoreId, string> = {
-  amazon:
-    'Searches the marketplace you choose. A knife that already has an Amazon source is skipped. Amazon checks and searches share one pace and pause together after a bot check.',
   bladehq:
     'Searches bladehq.com (US prices). A knife that already has a Blade HQ source is skipped. Searches share Blade HQ’s pace with its price checks.',
 }
@@ -86,8 +72,9 @@ function summary(overview: StoreOverview): string {
 
 /**
  * Settings → Price monitoring → Other stores: AI looks for every monitored
- * knife at other stores (Amazon first), confirms the listing and adds it as
- * a price source. Works only while AI assistance is connected.
+ * knife at other stores, confirms the listing and adds it as a price
+ * source. Works only while AI assistance is connected. Amazon is not
+ * offered: it forbids automated AI access.
  */
 export function OtherStoresSettings({
   settings,
@@ -134,7 +121,7 @@ export function OtherStoresSettings({
       cancelled = true
       clearInterval(timer)
     }
-  }, [load, settings.amazonMarketplace, settings.enabled, settings.stores])
+  }, [load, settings.enabled, settings.stores])
 
   const update = (patch: Partial<PriceOtherStoresSettings>) =>
     onChange({ ...settings, ...patch })
@@ -197,7 +184,7 @@ export function OtherStoresSettings({
   return (
     <SettingsSection
       title="Other stores"
-      description="A knife’s own store is often sold out. AI looks for every monitored knife at Amazon or Blade HQ, checks that the listing is the same knife, and adds it as a price source. From then on it is checked like any other source, and AI reads the price when the page parsers cannot."
+      description="A knife’s own store is often sold out. AI looks for every monitored knife at Blade HQ, checks that the listing is the same knife, and adds it as a price source. From then on it is checked like any other source, and AI reads the price when the page parsers cannot."
     >
       <SettingsRow
         inline
@@ -230,52 +217,8 @@ export function OtherStoresSettings({
               update({ stores: { ...settings.stores, [id]: checked } })
             }
           />
-          {id === 'amazon' ? (
-            <Select
-              value={settings.amazonMarketplace}
-              disabled={off || !settings.stores.amazon}
-              onValueChange={(value) => {
-                if (value)
-                  update({ amazonMarketplace: value as AmazonMarketplace })
-              }}
-            >
-              <SelectTrigger
-                size="sm"
-                aria-label="Amazon marketplace"
-                className="w-40"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {AMAZON_MARKETPLACES.map((marketplace) => (
-                  <SelectItem key={marketplace} value={marketplace}>
-                    {marketplace}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : null}
         </SettingsRow>
       ))}
-      <SettingsRow
-        label="Amazon delivery postcode"
-        description={`Amazon hides products that do not ship to your address, so searches and checks shop as a buyer at this ZIP or postcode in the marketplace’s country. Leave it empty to use ${AMAZON_DEFAULT_POSTCODES[settings.amazonMarketplace]}.`}
-      >
-        <TextField
-          aria-label="Amazon delivery postcode"
-          value={settings.amazonPostcode}
-          placeholder={AMAZON_DEFAULT_POSTCODES[settings.amazonMarketplace]}
-          disabled={off || !settings.stores.amazon}
-          validate={(value) =>
-            !value || normalizeAmazonPostcode(value)
-              ? null
-              : 'Enter a ZIP or postcode: letters, digits, spaces and dashes.'
-          }
-          onCommit={(value) =>
-            update({ amazonPostcode: normalizeAmazonPostcode(value) ?? '' })
-          }
-        />
-      </SettingsRow>
       {shown.length ? (
         <SettingsRow
           label="Results"

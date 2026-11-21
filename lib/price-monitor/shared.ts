@@ -37,7 +37,7 @@ export const FETCH_OVERRIDES = ['auto', 'browser', 'http'] as const
 /** Per-source override of the store's learned fetch strategy. */
 export type FetchOverride = (typeof FETCH_OVERRIDES)[number]
 
-export type PriceProvider = 'amazon' | 'shopify' | 'generic'
+export type PriceProvider = 'shopify' | 'generic'
 export type PriceSourceOrigin = 'auto' | 'manual'
 
 export type PriceSourceView = {
@@ -169,7 +169,7 @@ const TWO_LABEL_SUFFIXES = new Set([
   'com.be',
 ])
 
-// Amazon links collapse to /dp/<ASIN>, so only cross-site trackers live here.
+// Cross-site trackers only: store-specific parameters can pick the variant.
 const TRACKING_PARAMS =
   /^(?:utm_.+|fbclid|gclid|gbraid|wbraid|msclkid|mc_cid|mc_eid|srsltid|_pos|_sid|_ss|_psq|ref)$/i
 
@@ -182,31 +182,31 @@ export function parseHttpUrl(value: string): URL | null {
   }
 }
 
-function isAmazonHost(host: string): boolean {
-  return /(?:^|\.)amazon\.[a-z.]+$/i.test(host)
-}
+/**
+ * Amazon forbids automated AI access in its Conditions of Use, so Price
+ * Drops never monitors, searches or loads Amazon pages (any marketplace,
+ * including amzn.to short links).
+ */
+export const AMAZON_NOT_SUPPORTED =
+  'Price Drops does not monitor Amazon: Amazon does not allow automated AI access to its pages.'
 
-function amazonAsin(url: URL): string | null {
-  return (
-    url.pathname
-      .match(/\/(?:dp|gp\/product|gp\/aw\/d)\/([A-Z0-9]{10})(?:[/?]|$)/i)?.[1]
-      ?.toUpperCase() ?? null
+export function isAmazonUrl(value: string): boolean {
+  const url = parseHttpUrl(value)
+  return Boolean(
+    url &&
+    /(?:^|\.)(?:amazon\.[a-z.]+|amzn\.[a-z]+|a\.co)$/i.test(url.hostname),
   )
 }
 
 /**
  * Identity of a source URL for de-duplication: lower-case host, no hash, no
- * tracking parameters; Amazon product links collapse to `/dp/<ASIN>`.
+ * tracking parameters.
  */
 export function normalizeSourceUrl(value: string): string | null {
   const url = parseHttpUrl(value)
   if (!url) return null
   url.hostname = url.hostname.toLowerCase()
   url.hash = ''
-  if (isAmazonHost(url.hostname)) {
-    const asin = amazonAsin(url)
-    if (asin) return `https://${url.hostname}/dp/${asin}`
-  }
   for (const key of [...url.searchParams.keys()]) {
     if (TRACKING_PARAMS.test(key)) url.searchParams.delete(key)
   }
@@ -229,23 +229,17 @@ export function registrableDomain(host: string): string {
 
 /**
  * Scheduling lane of a URL: one per store, so a store never sees two parallel
- * checks. All Amazon marketplaces share one lane and one bot protection.
+ * checks.
  */
 export function laneKeyForUrl(value: string): string {
   const url = parseHttpUrl(value)
   if (!url) return 'invalid'
-  if (isAmazonHost(url.hostname)) return 'amazon'
   return registrableDomain(url.hostname)
 }
 
 export function storeNameForUrl(value: string): string {
   const url = parseHttpUrl(value)
   return url ? registrableDomain(url.hostname) : ''
-}
-
-export function providerForUrl(value: string): PriceProvider {
-  const url = parseHttpUrl(value)
-  return url && isAmazonHost(url.hostname) ? 'amazon' : 'generic'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -311,6 +305,7 @@ export function parsePriceWatchUpdate(body: unknown): PriceWatchUpdate {
         throw new Error(
           'Enter a valid product URL starting with http:// or https://.',
         )
+      if (isAmazonUrl(item.url)) throw new Error(AMAZON_NOT_SUPPORTED)
       const storeName = optionalStoreName(item.storeName)
       return { url: item.url.trim(), ...(storeName ? { storeName } : {}) }
     })

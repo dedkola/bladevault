@@ -112,10 +112,12 @@ test('adds a store URL and switches the mode in edit mode', async ({
 
   await editor
     .getByLabel('Add store URL')
-    .fill('https://www.amazon.com/dp/B000000001')
+    .fill('https://dealer.example/products/bugout')
   await editor.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(editor.getByText('Sources 2 / 10')).toBeVisible()
-  await expect(editor.getByText('amazon.com', { exact: true })).toBeVisible()
+  await expect(
+    editor.getByText('dealer.example', { exact: true }),
+  ).toBeVisible()
 
   await editor.getByRole('button', { name: 'Never monitor' }).click()
   await expect(

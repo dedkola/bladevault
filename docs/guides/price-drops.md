@@ -24,7 +24,9 @@ The same controls are under **Price monitoring** when you edit the knife.
 
 ## Add more stores for a knife
 
-A knife can have up to 10 store sources from any store, including Amazon. Each source keeps its own history and status.
+A knife can have up to 10 store sources from any store except Amazon. Each source keeps its own history and status.
+
+Price Drops does not monitor Amazon: Amazon's Conditions of Use forbid automated AI access to its pages. An Amazon link cannot be added as a source, a knife whose product link is an Amazon page has no automatic source, and BladeVault removed any Amazon sources it had (their past prices stay in the knife's history as a removed source). **Add knife** still fills in a knife's details from an Amazon product link.
 
 1. Open the knife's **Market** tab and select **Manage sources** (or select **Edit** and scroll to **Price monitoring**).
 2. Enter a product page in **Add store URL** and select **Add**.
@@ -181,7 +183,7 @@ Open **Settings → Price monitoring** to control automatic checks:
 - **Only check between** limits checks to set hours, in the server's time zone.
 - **Check long out-of-stock pages once a day** (on by default) checks a page that has been out of stock for two weeks or more at most once a day, so a restock still shows within a day while stores get fewer requests. **Check now** and **Check all now** still check it right away.
 
-BladeVault never hits one store with several requests at once. Each store is checked one product at a time, and its checks are spread evenly over the chosen interval; different stores are checked in parallel. A product that has never been checked does not wait for its turn in the spread: it gets its first reading as soon as the store's minimum pause allows. **Pacing** sets the minimum pause between two checks at one store, with a separate, longer pause shared by all Amazon marketplaces.
+BladeVault never hits one store with several requests at once. Each store is checked one product at a time, and its checks are spread evenly over the chosen interval; different stores are checked in parallel. A product that has never been checked does not wait for its turn in the spread: it gets its first reading as soon as the store's minimum pause allows. **Pacing** sets the minimum pause between two checks at one store.
 
 The pace adapts by itself: a store that answers slowly, rate-limits, or shows a bot check is slowed down or paused, and speeds up again after successful checks. The **Stores** table shows each store's current pace, how many of its products are checked only once a day because they have been out of stock for a long time, how long a full pass takes, and any pause. Each store has these actions:
 
@@ -266,21 +268,21 @@ Notes and questions appear only in **Act**, in the Inbox under **System**. Every
 
 ## Find knives at other stores with AI
 
-A knife's own store is often sold out. **Settings → Price monitoring → Other stores** lets AI look for every monitored knife at other stores and add the listings it finds as price sources. Amazon is the first store on the list. It needs [AI assistance](#optional-ai-assistance) connected: with **Use AI** off, or without a base URL and model, nothing is searched.
+A knife's own store is often sold out. **Settings → Price monitoring → Other stores** lets AI look for every monitored knife at other stores and add the listings it finds as price sources. Blade HQ is the store on the list; Amazon is not offered, because it forbids automated AI access. It needs [AI assistance](#optional-ai-assistance) connected: with **Use AI** off, or without a base URL and model, nothing is searched.
 
 1. Connect AI in **AI assistance**.
 2. Turn on **Look for knives at other stores**.
-3. Keep **Amazon** on and choose the marketplace, for example `amazon.com` or `amazon.de`.
+3. Keep **Blade HQ** on.
 
 For each knife, AI does the work in three steps:
 
 - **Find** — BladeVault opens the store's search for the knife's brand, name, and model number, and AI picks the listing that sells exactly this knife. Sheaths, sharpeners, parts, and other models never count.
 - **Check** — BladeVault opens that product page, and AI confirms it is the same knife. A different steel, blade length, or lock is a different knife.
-- **Parse** — the product becomes a source marked **Found by AI** and is checked like any other source. The Amazon parser reads the price, and AI reads it or resolves the check when the parser cannot (with **Read prices the page parsers miss** and **Resolve check errors** on).
+- **Parse** — the product becomes a source marked **Found by AI** and is checked like any other source. The page parsers read the price, and AI reads it or resolves the check when the parser cannot (with **Read prices the page parsers miss** and **Resolve check errors** on).
 
-Searches cover every knife that price monitoring covers, including knives without a product link, and skip knives that already have an Amazon source. They run with scheduled checks, one knife at a time, and share Amazon's pace: a due Amazon price check always goes first, and a bot check pauses both. AI receives the knife's brand, name, and specs and the store's listing titles, never the regular price, notes, or photos.
+Searches cover every knife that price monitoring covers, including knives without a product link, and skip knives that already have a source at that store. They run with scheduled checks, one knife at a time, and share the store's pace: a due price check there always goes first, and a bot check pauses both. AI receives the knife's brand, name, and specs and the store's listing titles, never the regular price, notes, or photos.
 
-The section lists recent results. A knife that is not found is searched again after 30 days, and a failed search after a few hours. Only Amazon's own result list counts as "not found": a search that shows a bot check, an error page, or a page BladeVault cannot read is a failed search. **Search again for missing** searches those knives at the next free slot. A found listing is never replaced: remove its source to stop monitoring it, and it is not added again.
+The section lists recent results. A knife that is not found is searched again after 30 days, and a failed search after a few hours. **Search again for missing** searches those knives at the next free slot. A found listing is never replaced: remove its source to stop monitoring it, and it is not added again.
 
 ## Keep checking with the desktop app closed
 

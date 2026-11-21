@@ -53,14 +53,8 @@ export type LaneOutcome = {
   retryAfterMs: number | null
 }
 
-export function laneFloorMs(
-  laneKey: string,
-  pacing: PriceMonitoringSettings['pacing'],
-): number {
-  return (
-    (laneKey === 'amazon' ? pacing.amazonMinGapSeconds : pacing.minGapSeconds) *
-    1000
-  )
+export function laneFloorMs(pacing: PriceMonitoringSettings['pacing']): number {
+  return pacing.minGapSeconds * 1000
 }
 
 export function defaultLaneState(
@@ -70,7 +64,7 @@ export function defaultLaneState(
 ): LaneState {
   return {
     laneKey,
-    minGapMs: laneFloorMs(laneKey, pacing),
+    minGapMs: laneFloorMs(pacing),
     readyAt: now,
     circuit: 'closed',
     cooldownUntil: null,
