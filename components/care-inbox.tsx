@@ -974,6 +974,18 @@ function priceContextParts(row: PriceNotificationView, now: Date): string[] {
       )
     }
   }
+  if (event.previousStoreName)
+    parts.push(
+      row.kind === 'drop'
+        ? `Cheaper than ${storeLabel(event.previousStoreName)}`
+        : `${storeLabel(event.previousStoreName)} is out of stock`,
+    )
+  if (
+    row.kind === 'out_of_stock' &&
+    !row.resolvedAt &&
+    (context.storeCount ?? 0) > 1
+  )
+    parts.push(`Out of stock at all ${context.storeCount} stores`)
   if (context.knifeMuted) parts.push('Knife muted')
   else if (
     context.sourceMutedUntil &&

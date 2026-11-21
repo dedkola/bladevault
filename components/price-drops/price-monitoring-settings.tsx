@@ -210,12 +210,12 @@ const NOTIFY_OPTIONS: ReadonlyArray<{
   {
     key: 'outOfStock',
     label: 'Out of stock',
-    description: 'A store stopped selling the knife for now.',
+    description: 'No store you monitor has the knife in stock any more.',
   },
   {
     key: 'backInStock',
     label: 'Back in stock',
-    description: 'A store has the knife available again.',
+    description: 'A store has the knife again after every store was out.',
   },
 ]
 

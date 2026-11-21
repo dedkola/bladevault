@@ -142,6 +142,12 @@ export type ChangeEvent = {
   deltaMinor: number | null
   deltaPct: number | null
   occurredAt: string
+  /**
+   * A store's first reading measured against another of the knife's stores
+   * (price-monitor/new-store): that store, cheaper than it (drop) or out of
+   * stock (back in stock). Null for a store's own change.
+   */
+  previousStoreName?: string | null
 }
 
 export type SourceSummary = {
@@ -341,16 +347,21 @@ type EventRow = {
   delta_minor: number | null
   delta_pct: number | null
   occurred_at: string
+  previous_store_name: string | null
 }
 
 const EVENTS_SQL = `
   SELECT id, 'price' AS type, direction AS kind, knife_id, source_id,
          store_name, source_url, previous_price_minor, price_minor, currency,
-         delta_minor, delta_pct, occurred_at
+         delta_minor, delta_pct, occurred_at,
+         (SELECT store_name FROM price_sources
+          WHERE id = previous_source_id) AS previous_store_name
   FROM price_change_events
   UNION ALL
   SELECT id, 'stock' AS type, kind, knife_id, source_id, store_name,
-         source_url, NULL, price_minor, currency, NULL, NULL, occurred_at
+         source_url, NULL, price_minor, currency, NULL, NULL, occurred_at,
+         (SELECT store_name FROM price_sources
+          WHERE id = previous_source_id) AS previous_store_name
   FROM stock_events`
 
 function toEvent(row: EventRow, knives: Map<string, KnifeRow>): ChangeEvent {
@@ -368,6 +379,7 @@ function toEvent(row: EventRow, knives: Map<string, KnifeRow>): ChangeEvent {
     deltaMinor: row.delta_minor,
     deltaPct: row.delta_pct,
     occurredAt: row.occurred_at,
+    previousStoreName: row.previous_store_name ?? null,
   }
 }
 

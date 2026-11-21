@@ -18,6 +18,7 @@ import {
   planAutoSource,
   type EligibilitySettings,
 } from '@/lib/price-monitor/eligibility'
+import { recordNewStoreEvent } from '@/lib/price-monitor/new-store'
 import {
   laneKeyForUrl,
   MAX_PRICE_SOURCES_PER_KNIFE,
@@ -925,10 +926,8 @@ export async function recordCheck(
           readLatestPricedSnapshot(database, source.id),
           observation,
         )
-        const stock = detectStockChange(
-          readStockHistory(database, source.id),
-          observation.availability,
-        )
+        const stockHistory = readStockHistory(database, source.id)
+        const stock = detectStockChange(stockHistory, observation.availability)
         if (detection.action === 'touch' && latest) {
           snapshotId = latest.id
           database
@@ -1043,6 +1042,21 @@ export async function recordCheck(
             sourceId: source.id,
           })
         }
+        // A store's first reading is news for the knife when it sells it
+        // cheaper than its other stores, or while they are out of stock.
+        if (!stockHistory.length && snapshotId !== null) {
+          const knifeEvent = recordNewStoreEvent(database, {
+            knifeId: source.knife_id,
+            sourceId: source.id,
+            sourceUrl: source.url,
+            storeName: source.store_name,
+            snapshotId,
+            reading: observation,
+            extractionMethod: observation.extractionMethod,
+            occurredAt: now,
+          })
+          if (knifeEvent) events.push(knifeEvent)
+        }
         const notifications = record.notifications ?? DEFAULT_PRICE_MONITORING
         // Out of stock on an ignored official link stays in history only.
         const notifiable = events.filter(
@@ -1064,7 +1078,8 @@ export async function recordCheck(
             database,
             planPriceNotifications(
               notifiable,
-              readPriceNotifications(database, { sourceId: source.id }),
+              // The knife's rows: back in stock anywhere closes them all.
+              readPriceNotifications(database, { knifeId: source.knife_id }),
               notifications,
               new Date(now),
               () => alertContext,

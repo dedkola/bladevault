@@ -14,6 +14,11 @@ import {
 } from '@/lib/price-monitor/insights'
 import { cn } from '@/lib/utils'
 import { moneyMajor, storeLabel } from './price-format'
+import {
+  historyEnd,
+  outOfStockEverywhere,
+  storeLinesAt,
+} from './price-history-model'
 import './price-drops.css'
 
 const RANGE_LABEL: Record<HistoryRange, string> = {
@@ -267,15 +272,24 @@ function buildMarkers(
       if (event.currency !== currency || event.priceMinor === null) continue
       const pct =
         event.deltaPct === null ? '' : ` (${Math.abs(event.deltaPct)}%)`
+      const previous = event.previousStoreName
+        ? storeLabel(event.previousStoreName)
+        : null
       markers.push({
         kind: event.kind,
         x,
         minor: event.priceMinor,
-        tip: `${event.kind === 'drop' ? 'Price drop' : 'Price increase'} at ${store}: ${
-          event.previousPriceMinor === null
-            ? ''
-            : `${formatPrice(event.previousPriceMinor)} → `
-        }${formatPrice(event.priceMinor)}${pct}`,
+        tip: previous
+          ? `${store} sells it for less than ${previous}: ${
+              event.previousPriceMinor === null
+                ? ''
+                : `${formatPrice(event.previousPriceMinor)} → `
+            }${formatPrice(event.priceMinor)}${pct}`
+          : `${event.kind === 'drop' ? 'Price drop' : 'Price increase'} at ${store}: ${
+              event.previousPriceMinor === null
+                ? ''
+                : `${formatPrice(event.previousPriceMinor)} → `
+            }${formatPrice(event.priceMinor)}${pct}`,
       })
     } else {
       const source = sources.get(event.sourceId)
@@ -289,7 +303,9 @@ function buildMarkers(
         kind: event.kind,
         x,
         minor,
-        tip: `${event.kind === 'out_of_stock' ? 'Out of stock' : 'Back in stock'} at ${store}`,
+        tip: event.previousStoreName
+          ? `In stock at ${store} while ${storeLabel(event.previousStoreName)} is out`
+          : `${event.kind === 'out_of_stock' ? 'Out of stock' : 'Back in stock'} at ${store}`,
       })
     }
   }
@@ -323,7 +339,8 @@ function buildMarkers(
 }
 
 /**
- * Step lines per source, out-of-stock periods shaded, a dashed line at the
+ * Step lines per source, shading while no store had the knife in stock
+ * (the tooltip lists every store's price and stock), a dashed line at the
  * regular price when it is in the same currency, and markers for price
  * and stock changes, the all-time low and AI-unconfirmed readings.
  */
@@ -355,15 +372,21 @@ export function PriceHistoryChart({
         ? Math.max(...times) - (xMin ?? Math.min(...times))
         : 0
       const minVisible = span * 0.01
-      const outOfStock: Array<[{ xAxis: number }, { xAxis: number }]> = []
+      // Shaded only while no store had the knife: one store selling it
+      // means the knife is in stock.
+      const outOfStock = outOfStockEverywhere(history).map(
+        ([from, to]): [{ xAxis: number }, { xAxis: number }] => [
+          { xAxis: from },
+          { xAxis: to },
+        ],
+      )
+      const end = historyEnd(history)
       const series = history.sources.map((source, index) => {
         const data: Array<[number, number | null]> = []
         const dotted = new Set<number>()
         for (const point of source.points) {
           const from = Date.parse(point.from)
           const to = Math.max(Date.parse(point.to), from)
-          if (point.availability === 'out_of_stock')
-            outOfStock.push([{ xAxis: from }, { xAxis: to }])
           const value =
             point.priceMinor !== null &&
             point.currency &&
@@ -492,12 +515,10 @@ export function PriceHistoryChart({
           backgroundColor: palette.card,
           borderColor: palette.line,
           textStyle: { color: palette.foreground, fontSize: 12 },
+          // Every store at the hovered moment, not only the lines ECharts
+          // finds nearest (it skips some stores and repeats others).
           formatter: (raw) => {
             const params = (Array.isArray(raw) ? raw : [raw]) as Array<{
-              seriesType?: string
-              seriesName?: string
-              marker?: unknown
-              value?: unknown
               axisValue?: unknown
             }>
             const at = Number(params[0]?.axisValue)
@@ -512,15 +533,13 @@ export function PriceHistoryChart({
                   }),
                 )}</div>`,
               )
-            for (const param of params) {
-              if (param.seriesType !== 'line') continue
-              const value = Array.isArray(param.value) ? param.value[1] : null
-              lines.push(
-                `<div>${typeof param.marker === 'string' ? param.marker : ''}${escapeHtml(
-                  param.seriesName ?? '',
-                )}: <b>${typeof value === 'number' ? escapeHtml(formatValue(value)) : '—'}</b></div>`,
-              )
-            }
+            if (Number.isFinite(at))
+              for (const line of storeLinesAt(history, at, end, currency))
+                lines.push(
+                  `<div${line.out ? ' style="opacity:.7"' : ''}><span style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:${colors[line.index % colors.length]}"></span>${escapeHtml(
+                    line.label,
+                  )}: <b>${escapeHtml(line.price)}</b>${line.note ? ` · ${escapeHtml(line.note)}` : ''}</div>`,
+                )
             for (const marker of markers)
               if (Math.abs(marker.x - at) <= tolerance)
                 lines.push(
@@ -617,6 +636,9 @@ export function ChartLegend({ history }: { history: KnifeHistory }) {
   const hasUnconfirmed = history.sources.some(
     (source) => source.unconfirmed?.length,
   )
+  const storeCount = history.sources.filter(
+    (source) => source.points.length,
+  ).length
   return (
     <div className="space-y-1">
       {fitted || hiddenNote ? (
@@ -665,7 +687,7 @@ export function ChartLegend({ history }: { history: KnifeHistory }) {
             aria-hidden="true"
             className="inline-block h-2 w-3.5 bg-[var(--bv-chart-wash)]"
           />
-          Out of stock
+          {storeCount > 1 ? 'Out of stock at every store' : 'Out of stock'}
         </span>
         {history.paid ? (
           <span className="inline-flex items-center gap-1.5">

@@ -464,9 +464,11 @@ describe('price checks', () => {
     expect(
       rows('SELECT id FROM price_snapshots WHERE source_id = ?', second.id),
     ).toHaveLength(2)
+    // Its first reading undercut the first store (a drop of the knife),
+    // then its own drop.
     expect(
       rows('SELECT id FROM price_change_events WHERE source_id = ?', second.id),
-    ).toHaveLength(1)
+    ).toHaveLength(2)
 
     await knifeRoute.DELETE(
       new Request(`http://localhost/api/knives/${knifeId}`, {
