@@ -8,6 +8,7 @@ import {
   savePersistedLocalDataDirPreference,
 } from '@/lib/local-data-config'
 import { normalizeKnifeTextFields } from '@/lib/knife-text'
+import { backfillNewStoreEvents } from '@/lib/price-monitor/new-store'
 import { isAmazonUrl } from '@/lib/price-monitor/shared'
 import {
   assertVaultReadable,
@@ -1100,8 +1101,20 @@ function migratePriceMonitoringSchema(
   addColumn('system_messages', 'answer', 'TEXT')
   // What changed since the supervisor's run before (JSON), shown per run.
   addColumn('price_agent_runs', 'events', 'TEXT')
-
+  // Before the new-store backfill, so Amazon sources get no events.
   removeAmazonPriceSources(database)
+  // A store's first reading can be a drop or back in stock for the knife,
+  // measured against another of its stores (price-monitor/new-store).
+  // Stores added before get theirs once, when the column arrives.
+  const hadPreviousSource = (
+    database
+      .prepare("SELECT name FROM pragma_table_info('price_change_events')")
+      .all() as Array<{ name: string }>
+  ).some((entry) => entry.name === 'previous_source_id')
+  addColumn('price_change_events', 'previous_source_id', 'INTEGER')
+  addColumn('stock_events', 'previous_source_id', 'INTEGER')
+  if (!hadPreviousSource)
+    database.transaction(() => backfillNewStoreEvents(database))()
 }
 
 /**

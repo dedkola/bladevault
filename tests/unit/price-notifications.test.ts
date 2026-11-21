@@ -271,6 +271,59 @@ describe('planPriceNotifications', () => {
     ])
   })
 
+  it("treats stock as the knife's: another store selling it means no change", () => {
+    const on = settings({ notify: { outOfStock: true, backInStock: true } })
+    const elsewhere: PriceAlertContext = {
+      rules: { muted: false, targetPrice: null, belowPaid: false },
+      paidMinor: null,
+      sourceMutedUntil: null,
+      lowestBeforeMinor: null,
+      otherStoresInStock: 1,
+    }
+    const nowhere: PriceAlertContext = { ...elsewhere, otherStoresInStock: 0 }
+    for (const kind of ['out_of_stock', 'back_in_stock'] as const) {
+      expect(shouldNotify(stockEvent(kind), on, elsewhere, NOW)).toBe(false)
+      expect(shouldNotify(stockEvent(kind), on, nowhere, NOW)).toBe(true)
+    }
+    // An open restock of this store still closes when it sells out.
+    const restock = stored({ kind: 'back_in_stock' })
+    const plan = planPriceNotifications(
+      [stockEvent('out_of_stock')],
+      [restock],
+      on,
+      NOW,
+      () => elsewhere,
+    )
+    expect(plan.update).toEqual([
+      { ...restock, resolvedAt: nowIso, updatedAt: nowIso },
+    ])
+    expect(plan.create).toEqual([])
+  })
+
+  it("closes the knife's out of stock at every store when one has it again", () => {
+    const ownStore = stored({ id: 1, kind: 'out_of_stock', sourceId: 1 })
+    const otherStore = stored({ id: 2, kind: 'out_of_stock', sourceId: 2 })
+    const otherKnife = stored({
+      id: 3,
+      kind: 'out_of_stock',
+      sourceId: 3,
+      knifeId: 'knife-2',
+    })
+    const plan = planPriceNotifications(
+      [stockEvent('back_in_stock', 22, 2)],
+      [ownStore, otherStore, otherKnife],
+      DEFAULTS,
+      NOW,
+    )
+    expect(plan.update).toEqual([
+      { ...ownStore, resolvedAt: nowIso, updatedAt: nowIso },
+      { ...otherStore, resolvedAt: nowIso, updatedAt: nowIso },
+    ])
+    expect(plan.create).toEqual([
+      expect.objectContaining({ kind: 'back_in_stock', sourceId: 2 }),
+    ])
+  })
+
   it('resolves a dismissed opposite notification so it stays closed', () => {
     const dismissed = stored({ kind: 'increase', dismissedAt: EARLIER })
     const plan = planPriceNotifications(

@@ -123,7 +123,9 @@ const NARROW_QUERY = '(max-width: 639px)'
 
 const STORAGE = {
   section: 'bladevault.priceDrops.section',
-  grouped: 'bladevault.priceDrops.groupByKnife',
+  // A knife's stores are one item, so the list starts grouped. The key is
+  // new so an older "ungrouped" choice does not hide that.
+  grouped: 'bladevault.priceDrops.groupByKnife.v2',
   statusCollapsed: 'bladevault.priceDrops.statusCollapsed',
 }
 
@@ -846,7 +848,7 @@ export function PriceDropsView({
     initialSection === 'supervisor',
   )
   const showSupervisor = supervisorChoice && hasAgentActivity(agent.state)
-  const [grouped, setGrouped] = useStoredValue(STORAGE.grouped, '0', parseFlag)
+  const [grouped, setGrouped] = useStoredValue(STORAGE.grouped, '1', parseFlag)
   const [statusCollapsed, setStatusCollapsed] = useStoredValue(
     STORAGE.statusCollapsed,
     '0',
