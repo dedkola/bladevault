@@ -997,7 +997,11 @@ describe('AI supervisor', () => {
       [null, 'Kizer restocks on Mondays.'],
     ])
 
-    // The next run reads them, and can forget one.
+    // The next run reads them, and can forget one once it has stood a while
+    // (NOTE_MIN_AGE_HOURS).
+    db.prepare('UPDATE price_agent_notes SET created_at = ?').run(
+      new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString(),
+    )
     aiFetch.mockResolvedValueOnce(
       planResponse({
         ...empty,

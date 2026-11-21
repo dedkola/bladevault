@@ -30,6 +30,7 @@ import {
   buildPriceWatchView,
   readActiveSources,
   readLaneStates,
+  readQueueCandidates,
   readWatchMode,
   requestSourceChecks,
   syncAutoSource,
@@ -399,8 +400,12 @@ export async function getPriceAttention(now = Date.now()) {
     windowDays: 1,
     frequencyMs: frequencyMs(settings.schedule),
   })
-  const monitoredKnives = new Set(
-    overview.monitored.map((source) => source.knife.id),
+  // Sources scheduled monitoring covers; the rest are listed as not
+  // monitored and left out of the counts.
+  const covered = new Set(
+    readQueueCandidates(database, settings)
+      .filter((candidate) => candidate.covered)
+      .map((candidate) => candidate.sourceId),
   )
   const rows = database
     .prepare(
@@ -428,7 +433,7 @@ export async function getPriceAttention(now = Date.now()) {
       sourceId: row.id,
       storeName: row.store_name,
       url: row.url,
-      monitored: monitoredKnives.has(row.knife_id),
+      monitored: covered.has(row.id),
       problem: problemFor(row.status, row.last_error_code),
       consecutiveFailures: row.consecutive_failures,
       lastCheckedAt: row.last_checked_at,
@@ -453,7 +458,8 @@ export async function getPriceAttention(now = Date.now()) {
     lastSuccessAt: overview.kpis.lastSuccessAt,
     failedChecks24h: overview.round.failed24h,
     oldestCheckAt: overview.round.oldestCheckAt,
-    needsAttention: rows.length,
+    needsAttention: rows.filter((row) => covered.has(row.id)).length,
+    notMonitored: rows.filter((row) => !covered.has(row.id)).length,
     ...groups,
     pausedStores,
   }

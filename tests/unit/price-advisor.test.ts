@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   ADVICE_TTL_MS,
+  ADVISOR_MAX_BACKOFF_MS,
+  advisorBackoffMs,
   advisorDue,
   applyAdviceToLane,
   buildAdvisorInput,
   clampAdvice,
   inQuietHours,
+  maxAdvisedGapMs,
+  recentlyHealthy,
   type ActiveLaneAdvice,
 } from '@/lib/price-monitor/advisor'
 import type { AdvisorRows } from '@/lib/price-monitor/advice-store'
@@ -205,7 +209,11 @@ describe('advisorDue', () => {
     expect(
       advisorDue({ lastRunAt: NOW - 2 * HOUR, lanes: [], now: NOW }),
     ).toBeNull()
-    const blocked = lane({ openCount: 2, cooldownUntil: NOW - HOUR })
+    const blocked = lane({
+      openCount: 2,
+      cooldownUntil: NOW - HOUR,
+      lastRequestAt: NOW - HOUR,
+    })
     expect(
       advisorDue({ lastRunAt: NOW - 7 * HOUR, lanes: [blocked], now: NOW }),
     ).toBe('repeated_blocks')
@@ -293,8 +301,40 @@ describe('buildAdvisorInput', () => {
         floorSeconds: 60,
         circuit: 'open',
         recentOpenings: 1,
+        // Only the 21:15 check falls in the last 24 hours.
+        recent: {
+          checks: 1,
+          answered: 0,
+          blocked: 1,
+          failed: 0,
+          lastOutcomes: ['blocked'],
+        },
+        maxGapSeconds: 5760,
       },
     ])
+  })
+
+  it('leaves out stores without active sources', () => {
+    const input = buildAdvisorInput({
+      rows: {
+        ...rows,
+        checks: [
+          ...rows.checks,
+          {
+            laneKey: 'knifecenter.com',
+            outcome: 'blocked',
+            errorCode: 'challenge',
+            durationMs: 1000,
+            startedAt: new Date(NOW - HOUR).toISOString(),
+          },
+        ],
+      },
+      lanes: new Map(),
+      settings: DEFAULT_PRICE_MONITORING,
+      now: NOW,
+      timeZone: 'UTC',
+    })
+    expect(input.stores.map((store) => store.store)).toEqual(['vosteed.com'])
   })
 
   it('contains store host names and numbers only', () => {
@@ -308,5 +348,221 @@ describe('buildAdvisorInput', () => {
       }),
     )
     expect(json).not.toMatch(/https?:|\/products\//)
+  })
+})
+
+describe('advice that cannot leave a store overdue', () => {
+  it('caps the advised gap so every source fits the active window', () => {
+    // 6 h window, 5 sources: 80 % of 6 h over 5 is 57.6 min.
+    expect(
+      maxAdvisedGapMs({
+        activeWindowMs: 6 * HOUR,
+        sourceCount: 5,
+        floorMs: 60_000,
+      }),
+    ).toBe(Math.round((6 * HOUR * 0.8) / 5))
+    expect(
+      maxAdvisedGapMs({ activeWindowMs: 6 * HOUR, sourceCount: 0, floorMs: 1 }),
+    ).toBe(MAX_MIN_GAP_MS)
+    // Never below the store's floor.
+    expect(
+      maxAdvisedGapMs({
+        activeWindowMs: HOUR,
+        sourceCount: 500,
+        floorMs: 60_000,
+      }),
+    ).toBe(60_000)
+
+    const capped = clampAdvice(
+      {
+        stores: [
+          {
+            store: 'vosteed.com',
+            minGapSeconds: 7200,
+            cooldownMinutes: null,
+            quietHours: null,
+            strategy: null,
+            reason: 'slow down',
+          },
+        ],
+      },
+      {
+        lanes: new Map([
+          ['vosteed.com', { floorMs: 60_000, maxGapMs: 57.6 * MIN }],
+        ]),
+        now: NOW,
+      },
+    )
+    expect(capped.lanes[0]).toMatchObject({
+      minGapMs: 57.6 * MIN,
+      adjustments: ['gap capped so every source fits the check interval'],
+    })
+  })
+
+  it('caps advice already stored when it is applied', () => {
+    const applied = applyAdviceToLane(
+      lane(),
+      advice({ minGapMs: 2 * HOUR }),
+      NOW,
+      57.6 * MIN,
+    )
+    expect(applied.minGapMs).toBe(57.6 * MIN)
+    // The store's own adaptive gap is never capped.
+    expect(
+      applyAdviceToLane(
+        lane({ minGapMs: 3 * HOUR }),
+        advice({ minGapMs: 2 * HOUR }),
+        NOW,
+        57.6 * MIN,
+      ).minGapMs,
+    ).toBe(3 * HOUR)
+  })
+
+  it('drops throttling for a store whose recent checks came through', () => {
+    const stats = {
+      circuit: 'closed' as const,
+      recent: {
+        checks: 5,
+        answered: 5,
+        blocked: 0,
+        failed: 0,
+        lastOutcomes: ['ok'],
+      },
+    }
+    expect(recentlyHealthy(stats)).toBe(true)
+    expect(
+      recentlyHealthy({ ...stats, recent: { ...stats.recent, answered: 4 } }),
+    ).toBe(false)
+    expect(
+      recentlyHealthy({
+        ...stats,
+        recent: { ...stats.recent, checks: 1, answered: 1 },
+      }),
+    ).toBe(false)
+    expect(recentlyHealthy({ ...stats, circuit: 'open' })).toBe(false)
+
+    const result = clampAdvice(
+      {
+        stores: [
+          {
+            store: 'vosteed.com',
+            minGapSeconds: 7200,
+            cooldownMinutes: 120,
+            quietHours: { start: 21, end: 1 },
+            strategy: 'browser_first',
+            reason: 'Bot checks last week.',
+          },
+          {
+            store: 'amazon',
+            minGapSeconds: 7200,
+            cooldownMinutes: null,
+            quietHours: null,
+            strategy: null,
+            reason: 'Bot checks last week.',
+          },
+        ],
+      },
+      {
+        lanes: new Map([
+          ['vosteed.com', { floorMs: 60_000, recentOk: true }],
+          ['amazon', { floorMs: 60_000, recentOk: true }],
+        ]),
+        now: NOW,
+      },
+    )
+    // The browser pin stays; the slow-down, pause and quiet hours do not,
+    // and a store with nothing left is left out.
+    expect(result.lanes).toEqual([
+      expect.objectContaining({
+        laneKey: 'vosteed.com',
+        minGapMs: null,
+        pauseUntil: null,
+        quietHours: null,
+        strategy: 'browser_first',
+      }),
+    ])
+  })
+})
+
+describe('advisorDue: stale blocks and failures', () => {
+  const blocked = lane({
+    laneKey: 'sogknives.com',
+    openCount: 6,
+    circuit: 'open',
+    cooldownUntil: NOW + 12 * HOUR,
+    lastRequestAt: NOW - 8 * HOUR,
+  })
+
+  it('skips stores without active sources', () => {
+    const leftover = { ...blocked, laneKey: 'knifecenter.com' }
+    expect(
+      advisorDue({
+        lastRunAt: NOW - 10 * HOUR,
+        lanes: [leftover],
+        activeLanes: new Set(['vosteed.com']),
+        now: NOW,
+      }),
+    ).toBeNull()
+  })
+
+  it('does not run again for blocks it already saw', () => {
+    // Waiting out its cooldown since before the last run: nothing new.
+    expect(
+      advisorDue({ lastRunAt: NOW - 7 * HOUR, lanes: [blocked], now: NOW }),
+    ).toBeNull()
+    // Its probe was blocked again after the last run.
+    expect(
+      advisorDue({
+        lastRunAt: NOW - 9 * HOUR,
+        lanes: [blocked],
+        activeLanes: new Set(['sogknives.com']),
+        now: NOW,
+      }),
+    ).toBe('repeated_blocks')
+  })
+
+  it('backs off after failed runs', () => {
+    expect(advisorBackoffMs(6 * HOUR, 0)).toBe(6 * HOUR)
+    expect(advisorBackoffMs(6 * HOUR, 1)).toBe(6 * HOUR)
+    expect(advisorBackoffMs(6 * HOUR, 2)).toBe(12 * HOUR)
+    expect(advisorBackoffMs(6 * HOUR, 9)).toBe(ADVISOR_MAX_BACKOFF_MS)
+    const fresh = { ...blocked, lastRequestAt: NOW - HOUR }
+    // One failure: the regular 6 hours, never 17 minutes.
+    expect(
+      advisorDue({
+        lastRunAt: NOW - 17 * MIN,
+        lanes: [fresh],
+        failures: 1,
+        now: NOW,
+      }),
+    ).toBeNull()
+    // Two failures in a row: 12 hours.
+    expect(
+      advisorDue({
+        lastRunAt: NOW - 7 * HOUR,
+        lanes: [fresh],
+        failures: 2,
+        now: NOW,
+      }),
+    ).toBeNull()
+    expect(
+      advisorDue({
+        lastRunAt: NOW - 13 * HOUR,
+        lanes: [fresh],
+        failures: 2,
+        now: NOW,
+      }),
+    ).toBe('repeated_blocks')
+    expect(
+      advisorDue({ lastRunAt: NOW - DAY, lanes: [], failures: 2, now: NOW }),
+    ).toBeNull()
+    expect(
+      advisorDue({
+        lastRunAt: NOW - 2 * DAY,
+        lanes: [],
+        failures: 2,
+        now: NOW,
+      }),
+    ).toBe('daily')
   })
 })
