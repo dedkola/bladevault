@@ -1,3 +1,9 @@
+import {
+  clockMark,
+  noteAiNetworkFailure,
+  powerSignal,
+  sleptSince,
+} from '@/lib/price-monitor/power'
 import { redactSecrets } from '@/lib/price-monitor/secret-registry'
 import { normalizeAiBaseUrl } from '@/lib/settings-shared'
 
@@ -29,6 +35,11 @@ export type AiErrorCode =
   | 'invalid_response'
   /** The daily AI budget is used up (Limited mode); nothing was sent. */
   | 'budget'
+  /**
+   * The computer slept during the request (or went to sleep and stopped
+   * it). Not the endpoint's fault: neutral, and the source was not tried.
+   */
+  | 'suspended'
 
 export class AiClientError extends Error {
   constructor(
@@ -61,10 +72,38 @@ function headers(endpoint: AiEndpoint, json: boolean): Headers {
   return result
 }
 
+/**
+ * The caller's signal, the timeout and the sleep signal. Node timers run on
+ * the monotonic clock, so the timeout counts awake time only.
+ */
 function combinedSignal(timeoutMs: number, signal?: AbortSignal) {
   const timeout = AbortSignal.timeout(timeoutMs)
-  return signal ? AbortSignal.any([signal, timeout]) : timeout
+  return AbortSignal.any(
+    signal ? [signal, timeout, powerSignal()] : [timeout, powerSignal()],
+  )
 }
+
+/**
+ * The AI client errors that mean the model was never reached or asked:
+ * nothing configured, no route to the endpoint, the budget refused it, or
+ * the computer slept. They do not start a source's AI pause.
+ */
+export function aiNotReached(error: unknown): boolean {
+  if (!(error instanceof Error) || error.name !== 'AiClientError') return false
+  const code = (error as { code?: unknown }).code
+  return (
+    code === 'config' ||
+    code === 'network' ||
+    code === 'budget' ||
+    code === 'suspended'
+  )
+}
+
+const suspendedError = () =>
+  new AiClientError(
+    'suspended',
+    'The computer went to sleep during the AI request; it runs again after wake.',
+  )
 
 /** The provider's own error text, shortened and without secrets. */
 function providerMessage(body: string): string {
@@ -92,6 +131,7 @@ async function send(
   options: { timeoutMs: number; signal?: AbortSignal; fetchImpl?: FetchLike },
 ): Promise<string> {
   const signal = combinedSignal(options.timeoutMs, options.signal)
+  const mark = clockMark()
   let response: Response
   try {
     response = await (options.fetchImpl ?? fetch)(url, {
@@ -104,6 +144,8 @@ async function send(
   } catch (error) {
     if (options.signal?.aborted)
       throw new AiClientError('cancelled', 'The AI request was cancelled.')
+    // Sleep ends requests with timeouts and dead sockets alike.
+    if (sleptSince(mark)) throw suspendedError()
     if (signal.aborted)
       throw new AiClientError(
         'timeout',
@@ -115,6 +157,7 @@ async function send(
         : error instanceof Error
           ? error.message
           : ''
+    noteAiNetworkFailure(reason)
     throw new AiClientError(
       'network',
       `Could not reach the AI endpoint${reason ? ` (${reason})` : ''}.`,
@@ -124,6 +167,9 @@ async function send(
   try {
     body = await response.text()
   } catch {
+    if (options.signal?.aborted)
+      throw new AiClientError('cancelled', 'The AI request was cancelled.')
+    if (sleptSince(mark)) throw suspendedError()
     throw new AiClientError(
       signal.aborted ? 'timeout' : 'network',
       'The AI endpoint stopped answering.',

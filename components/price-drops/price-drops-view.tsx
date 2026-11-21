@@ -616,7 +616,9 @@ function SourceTableRow({
             {paused}
           </span>
         ) : showNext ? (
-          source.nextCheckAt ? (
+          source.stockIgnored ? (
+            'not monitored'
+          ) : source.nextCheckAt ? (
             nextCheckLabel(source.nextCheckAt, now)
           ) : (
             '—'

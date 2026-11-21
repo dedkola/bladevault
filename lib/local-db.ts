@@ -1114,6 +1114,7 @@ function migratePriceMonitoringSchema(
   addColumn('price_worker_lease', 'released_at', 'TEXT')
   // Before the new-store backfill, so Amazon sources get no events.
   removeAmazonPriceSources(database)
+  forgetDroppedSearchStores(database)
   // A store's first reading can be a drop or back in stock for the knife,
   // measured against another of its stores (price-monitor/new-store).
   // Stores added before get theirs once, when the column arrives.
@@ -1164,6 +1165,36 @@ function removeAmazonPriceSources(database: Database.Database) {
     database
       .prepare("DELETE FROM price_host_state WHERE lane_key = 'amazon'")
       .run()
+  })()
+}
+
+/**
+ * Other stores no longer searches KnifeCenter (#611) or Amazon (#620).
+ * Their unfinished searches are forgotten, and so is their store pacing
+ * once no active source uses the store, so a leftover open circuit does not
+ * keep calling the AI advisor. Searches that found a listing stay: that
+ * listing is a source like any other. Repeat-safe; price history and
+ * removed sources are untouched.
+ */
+const DROPPED_SEARCH_STORES = [
+  { store: 'knifecenter', laneKeys: ['knifecenter.com'] },
+  { store: 'amazon', laneKeys: ['amazon'] },
+] as const
+
+function forgetDroppedSearchStores(database: Database.Database) {
+  const searches = database.prepare(
+    "DELETE FROM price_discovery WHERE store = ? AND status <> 'found'",
+  )
+  const pacing = database.prepare(
+    `DELETE FROM price_host_state WHERE lane_key = ?
+       AND NOT EXISTS (SELECT 1 FROM price_sources
+                       WHERE lane_key = ? AND removed_at IS NULL)`,
+  )
+  database.transaction(() => {
+    for (const { store, laneKeys } of DROPPED_SEARCH_STORES) {
+      searches.run(store)
+      for (const laneKey of laneKeys) pacing.run(laneKey, laneKey)
+    }
   })()
 }
 

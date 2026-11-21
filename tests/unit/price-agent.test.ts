@@ -944,6 +944,89 @@ describe('agentDue', () => {
   })
 })
 
+describe('actions that cannot take effect', () => {
+  const empty: AgentPlan = {
+    summary: '',
+    remember: [],
+    forget: [],
+    check: [],
+    retryWithAi: [],
+    findPage: [],
+    fetchMode: [],
+    pause: [],
+    searchOtherStore: [],
+    watchClosely: [],
+    crossCheck: [],
+    advise: [],
+    ask: [],
+  }
+  const context = (sources: AgentSource[]) => ({
+    sources,
+    knives: [knife()],
+    ai,
+    otherStores: false,
+    checkIntervalHours: 6,
+  })
+
+  it('refuses a retry that already waits behind its store', () => {
+    const actions = validateAgentPlan(
+      {
+        ...empty,
+        retryWithAi: [
+          { sourceId: 122, reason: 'timeouts' },
+          { sourceId: 123, reason: 'timeouts' },
+        ],
+        check: [{ sourceId: 122, reason: 'read it now' }],
+      },
+      context([
+        source({
+          id: 122,
+          status: 'failed',
+          queued: true,
+          aiRetryPending: true,
+          storeHoldMin: 95,
+        }),
+        source({ id: 123, status: 'failed' }),
+      ]),
+    )
+    expect(actions.map((action) => [action.sourceId, action.note])).toEqual([
+      [122, 'already queued; its store is ready in 95 min'],
+      [
+        122,
+        'already waiting for its retry with AI; its store is ready in 95 min',
+      ],
+      [123, null],
+    ])
+  })
+
+  it('lets a fresh note stand instead of rewriting it', () => {
+    const actions = validateAgentPlan(
+      {
+        ...empty,
+        forget: [
+          { noteId: 1, reason: 'rewrite' },
+          { noteId: 2, reason: 'done' },
+        ],
+        remember: [
+          { knifeId: 'k1', note: 'Waits for Black Friday sales.', days: 10 },
+        ],
+      },
+      {
+        ...context([source()]),
+        notes: [
+          { id: 1, knifeId: 'k1', note: 'Watch for a sale.', hoursAgo: 1 },
+          { id: 2, note: 'Old general note.', hoursAgo: 30 },
+        ],
+      },
+    )
+    expect(actions.map((action) => [action.kind, action.note])).toEqual([
+      ['forget', 'noted less than 6 hours ago: let it stand'],
+      ['forget', null],
+      ['remember', 'this knife has a note from the last 6 hours'],
+    ])
+  })
+})
+
 describe('findPage', () => {
   const empty = {
     summary: '',

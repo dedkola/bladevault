@@ -3,9 +3,10 @@ import { getLocalDb } from '@/lib/local-db'
 import { readActiveAdvice } from '@/lib/price-monitor/advice-store'
 import {
   advisorDue,
+  advisorHistory,
   applyAdviceToLane,
   inQuietHours,
-  lastAdvisorRunAt,
+  maxAdvisedGapMs,
   runPriceAdvisor,
   type ActiveLaneAdvice,
   type AdvisorRunResult,
@@ -34,6 +35,7 @@ import {
 import { DISCOVERY_STORES } from '@/lib/price-monitor/discovery-stores'
 import { startPriceDigestIfDue } from '@/lib/price-monitor/digest'
 import { checkPriceSource } from '@/lib/price-monitor/engine'
+import { checkClockJump, monitorHoldMs } from '@/lib/price-monitor/power'
 import {
   applyLaneOutcome,
   defaultLaneState,
@@ -193,14 +195,24 @@ function normalizeLane(
   }
 }
 
-/** A store's pacing with the floor and any AI advice in force. */
+/**
+ * A store's pacing with the floor and any AI advice in force. The advised
+ * gap is capped so the store's `sourceCount` scheduled checks still fit in
+ * the active window (maxAdvisedGapMs).
+ */
 function effectiveLane(
   lane: LaneState,
   pacing: PriceMonitoringSettings['pacing'],
   advice: ActiveLaneAdvice | undefined,
   now: number,
+  cap: { activeWindowMs: number; sourceCount: number },
 ): LaneState {
-  return applyAdviceToLane(normalizeLane(lane, pacing), advice, now)
+  return applyAdviceToLane(
+    normalizeLane(lane, pacing),
+    advice,
+    now,
+    maxAdvisedGapMs({ ...cap, floorMs: laneFloorMs(pacing) }),
+  )
 }
 
 function scheduledCounts(
@@ -372,6 +384,13 @@ export class PriceMonitorWorker {
       const settings = getSettings().priceMonitoring
       const now = this.deps.now()
       if (!(await this.ensureLease(now))) return
+      // Asleep, just awake or offline: checks and AI runs wait (power.ts).
+      checkClockJump()
+      const hold = monitorHoldMs(now)
+      if (hold > 0) {
+        delay = Math.min(MAX_SLEEP_MS, Math.max(SECOND_MS, hold))
+        return
+      }
 
       if (now - this.lastSync >= SYNC_EVERY_MS) {
         this.lastSync = now
@@ -398,14 +417,35 @@ export class PriceMonitorWorker {
             : candidate,
       )
       const stored = readLaneStates(database)
+      const windowMs = activeWindowMs(settings.schedule)
+      const laneCounts = scheduledLoad(candidates, settings.schedule, now)
+      const capFor = (laneKey: string) => ({
+        activeWindowMs: windowMs,
+        sourceCount: laneCounts.get(laneKey) ?? 0,
+      })
       const lanes = new Map(
         [...stored].map(([key, lane]) => [
           key,
-          effectiveLane(lane, settings.pacing, advice.get(key), now),
+          effectiveLane(
+            lane,
+            settings.pacing,
+            advice.get(key),
+            now,
+            capFor(key),
+          ),
         ]),
       )
       if (scheduledActive) {
-        this.maybeAdvise(settings, stored.values(), now)
+        this.maybeAdvise(
+          settings,
+          stored.values(),
+          new Set(
+            candidates
+              .filter((candidate) => candidate.covered)
+              .map((candidate) => candidate.laneKey),
+          ),
+          now,
+        )
         this.maybeSupervise(settings, now)
       }
       // The daily AI summary for the Inbox; runs in the background.
@@ -423,6 +463,7 @@ export class PriceMonitorWorker {
             settings.pacing,
             advice.get(laneKey),
             now,
+            capFor(laneKey),
           ),
         pauses: new Map(
           [...advice].flatMap(([key, item]) =>
@@ -436,8 +477,8 @@ export class PriceMonitorWorker {
         settings,
         generation: access.generation,
         intervalMs: frequencyMs(settings.schedule),
-        windowMs: activeWindowMs(settings.schedule),
-        laneCounts: scheduledLoad(candidates, settings.schedule, now),
+        windowMs,
+        laneCounts,
         firstReadings: scheduledCounts(
           candidates,
           (candidate) => candidate.priority === 1,
@@ -574,18 +615,25 @@ export class PriceMonitorWorker {
 
   /**
    * Starts the AI advisor in the background when it is due (daily, or after
-   * a store blocked us twice within 24 hours). Never blocks the queue.
+   * a store with active sources blocked us twice within 24 hours; later
+   * after failed runs). Never blocks the queue.
    */
   private maybeAdvise(
     settings: PriceMonitoringSettings,
     lanes: Iterable<LaneState>,
+    activeLanes: ReadonlySet<string>,
     now: number,
   ) {
     if (this.advising || !this.deps.advise) return
     if (!aiConfigured(settings.ai) || !settings.ai.advisor) return
     if (now - this.lastAdvisorCheck < ADVISOR_CHECK_EVERY_MS) return
     this.lastAdvisorCheck = now
-    const trigger = advisorDue({ lastRunAt: lastAdvisorRunAt(), lanes, now })
+    const trigger = advisorDue({
+      ...advisorHistory(),
+      lanes,
+      activeLanes,
+      now,
+    })
     if (!trigger) return
     this.advising = this.deps
       .advise(trigger)
@@ -897,13 +945,14 @@ export function buildQueueSnapshot(
   const lanes = [...laneKeys].sort().map((laneKey): QueueLaneView => {
     const raw = stored.get(laneKey)
     const laneAdvice = advice.get(laneKey)
+    const laneLoad = load.get(laneKey) ?? 0
     const lane = effectiveLane(
       raw ?? defaultLaneState(laneKey, settings.pacing, now),
       settings.pacing,
       laneAdvice,
       now,
+      { activeWindowMs: windowMs, sourceCount: laneLoad },
     )
-    const laneLoad = load.get(laneKey) ?? 0
     const gapMs = laneGapMs({
       minGapMs: lane.minGapMs,
       floorMs: laneFloorMs(settings.pacing),
@@ -932,7 +981,18 @@ export function buildQueueSnapshot(
         (laneKey === worker.discoveryLane && Boolean(worker.discovering)),
       advice: laneAdvice
         ? {
-            minGapMs: laneAdvice.minGapMs,
+            // As applied: capped so the store's sources fit the interval.
+            minGapMs:
+              laneAdvice.minGapMs === null
+                ? null
+                : Math.min(
+                    laneAdvice.minGapMs,
+                    maxAdvisedGapMs({
+                      activeWindowMs: windowMs,
+                      sourceCount: laneLoad,
+                      floorMs: laneFloorMs(settings.pacing),
+                    }),
+                  ),
             pauseUntil: iso(laneAdvice.pauseUntil),
             quietHours: laneAdvice.quietHours,
             reason: laneAdvice.reason,
