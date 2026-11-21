@@ -117,7 +117,7 @@ describe('Other stores discovery', () => {
     })
     const fetchPage = vi.fn(async (url: string) => ({
       html: url.includes('C223GP')
-        ? '<div>No results</div>'
+        ? fixture('amazon-search-no-results.html')
         : url.includes('/s?')
           ? SEARCH_HTML
           : // The title leaves the code out; the details show it.
@@ -133,6 +133,69 @@ describe('Other stores discovery', () => {
       'https://www.amazon.com/s?k=Spyderco+Para+3',
       'https://www.amazon.com/dp/B07PARA003',
     ])
+  })
+
+  it('records "not found" when Amazon’s own result lists are empty', async () => {
+    enableOtherStores()
+    const knifeId = await createKnife({
+      specs: { price: '$150', modelNumber: 'C223GP' },
+    })
+    const run = deps({
+      fetchPage: vi.fn(async (url: string) => ({
+        html: fixture('amazon-search-no-results.html'),
+        finalUrl: url,
+      })),
+    })
+    expect(await discoverKnife(knifeId, { deps: run })).toMatchObject({
+      status: 'done',
+      result: 'not_found',
+      laneOutcome: 'success',
+    })
+    expect(run.match).not.toHaveBeenCalled()
+    const row = getLocalDb()
+      .prepare('SELECT detail FROM price_discovery WHERE knife_id = ?')
+      .get(knifeId) as { detail: string }
+    expect(row.detail).toBe(
+      'Amazon had no results for “Spyderco Para 3 C223GP” or “Spyderco Para 3”.',
+    )
+  })
+
+  it('does not record "not found" for a search page without a result list', async () => {
+    enableOtherStores()
+    const knifeId = await createKnife({ specs: { price: '$150' } })
+    const before = Date.now()
+    const run = deps({
+      fetchPage: vi.fn(async () => ({
+        // A checkpoint page the browser's bot-check detection missed.
+        html: fixture('amazon-search-checkpoint.html').replace(
+          'action="/checkpoint/validate"',
+          'action="/checkpoint/next"',
+        ),
+        finalUrl: 'https://www.amazon.com/checkpoint/continue?token=x',
+      })),
+    })
+    expect(await discoverKnife(knifeId, { deps: run })).toMatchObject({
+      status: 'done',
+      result: 'failed',
+      laneOutcome: 'failed',
+    })
+    expect(run.match).not.toHaveBeenCalled()
+    expect(run.fetchPage).toHaveBeenCalledTimes(1)
+    const row = getLocalDb()
+      .prepare(
+        'SELECT status, detail, next_attempt_at FROM price_discovery WHERE knife_id = ?',
+      )
+      .get(knifeId) as {
+      status: string
+      detail: string
+      next_attempt_at: string
+    }
+    expect(row.status).toBe('failed')
+    expect(row.detail).toContain('Amazon showed a page without search results')
+    // Searched again within hours, not after the 30 days of "not found".
+    expect(Date.parse(row.next_attempt_at) - before).toBeLessThan(
+      24 * 60 * 60 * 1000,
+    )
   })
 
   it('ends a search whose page never loads when its time budget runs out', async () => {
