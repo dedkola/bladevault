@@ -77,55 +77,110 @@ export function readAdvisorRows(
   return { daily, checks, sources }
 }
 
-export function readLastAdviceAt(database: Database.Database): number | null {
-  const row = database
-    .prepare('SELECT MAX(created_at) AS createdAt FROM price_regulator_advice')
-    .get() as { createdAt: string | null } | undefined
-  const time = row?.createdAt ? Date.parse(row.createdAt) : Number.NaN
-  return Number.isFinite(time) ? time : null
-}
+/**
+ * Stored on a run while it is in flight. A run that never finishes (the
+ * app quit mid-call) keeps it, and counts as failed.
+ */
+export const ADVICE_UNFINISHED = 'The advisor run did not finish.'
 
 /**
- * Stores one advisor run. A successful run replaces the advice of every
- * store: stores it does not mention fall back to the algorithm. A failed
- * run is only logged and leaves the current advice in place. Nothing is
- * written into a vault restored since the run started.
+ * When the advisor last started a run (finished or not, epoch ms), and how
+ * many runs failed in a row since the last successful one.
  */
-export async function recordAdvice(entry: {
+export function readAdvisorHistory(database: Database.Database): {
+  lastRunAt: number | null
+  failures: number
+} {
+  const rows = database
+    .prepare(
+      `SELECT created_at AS createdAt, error FROM price_regulator_advice
+       ORDER BY created_at DESC, id DESC LIMIT 12`,
+    )
+    .all() as Array<{ createdAt: string; error: string | null }>
+  const time = rows[0] ? Date.parse(rows[0].createdAt) : Number.NaN
+  let failures = 0
+  for (const row of rows) {
+    if (row.error === null) break
+    failures += 1
+  }
+  return { lastRunAt: Number.isFinite(time) ? time : null, failures }
+}
+
+type AdviceStart = {
   generation: string
   createdAt: string
   trigger: AdvisorTrigger
   model: string
   input: AdvisorInput
+}
+
+type AdviceResult = {
   output?: unknown
   applied?: AppliedAdvice
   error?: string
-}): Promise<number | null> {
+}
+
+/**
+ * Records that a run starts, before its AI call: `readAdvisorHistory` then
+ * sees it, so neither a slow call nor a second server on the same vault
+ * starts another run meanwhile. Returns the run's id for `finishAdvice`.
+ */
+export async function startAdvice(entry: AdviceStart): Promise<number> {
   return withVaultWrite(async () => {
     assertVaultGeneration(entry.generation)
+    return Number(
+      getLocalDb()
+        .prepare(
+          `INSERT INTO price_regulator_advice
+            (created_at, trigger, model, input, output, applied, expires_at, error)
+           VALUES (?, ?, ?, ?, NULL, NULL, NULL, ?)`,
+        )
+        .run(
+          entry.createdAt,
+          entry.trigger,
+          entry.model,
+          JSON.stringify(entry.input),
+          ADVICE_UNFINISHED,
+        ).lastInsertRowid,
+    )
+  })
+}
+
+/**
+ * Finishes a run. A successful run replaces the advice of every store:
+ * stores it does not mention fall back to the algorithm. A failed run is
+ * only logged and leaves the current advice in place. Nothing is written
+ * into a vault restored since the run started.
+ */
+export async function finishAdvice(
+  entry: AdviceResult & { generation: string; adviceId: number },
+): Promise<void> {
+  await withVaultWrite(async () => {
+    assertVaultGeneration(entry.generation)
     const database = getLocalDb()
-    return database.transaction(() => {
-      const adviceId = Number(
+    database.transaction(() => {
+      const createdAt = (
         database
-          .prepare(
-            `INSERT INTO price_regulator_advice
-              (created_at, trigger, model, input, output, applied, expires_at, error)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          )
-          .run(
-            entry.createdAt,
-            entry.trigger,
-            entry.model,
-            JSON.stringify(entry.input),
-            entry.output === undefined
-              ? null
-              : JSON.stringify(redactSecretsDeep(entry.output)),
-            entry.applied ? JSON.stringify(entry.applied) : null,
-            entry.applied?.expiresAt ?? null,
-            entry.error ?? null,
-          ).lastInsertRowid,
-      )
-      if (!entry.applied) return adviceId
+          .prepare('SELECT created_at FROM price_regulator_advice WHERE id = ?')
+          .get(entry.adviceId) as { created_at: string } | undefined
+      )?.created_at
+      if (!createdAt) return
+      database
+        .prepare(
+          `UPDATE price_regulator_advice
+           SET output = ?, applied = ?, expires_at = ?, error = ?
+           WHERE id = ?`,
+        )
+        .run(
+          entry.output === undefined
+            ? null
+            : JSON.stringify(redactSecretsDeep(entry.output)),
+          entry.applied ? JSON.stringify(entry.applied) : null,
+          entry.applied?.expiresAt ?? null,
+          entry.applied ? null : (entry.error ?? ADVICE_UNFINISHED),
+          entry.adviceId,
+        )
+      if (!entry.applied) return
       database
         .prepare(
           `UPDATE price_host_state
@@ -151,20 +206,28 @@ export async function recordAdvice(entry: {
         const pin = lane.strategy === 'browser_first'
         upsert.run(
           lane.laneKey,
-          entry.createdAt,
-          adviceId,
+          createdAt,
+          entry.adviceId,
           entry.applied.expiresAt,
           lane.quietHours ? JSON.stringify(lane.quietHours) : null,
           pin ? 'browser_first' : 'auto',
           pin ? entry.applied.expiresAt : null,
-          entry.createdAt,
+          createdAt,
           pin ? 1 : 0,
           pin ? 1 : 0,
         )
       }
-      return adviceId
     })()
   })
+}
+
+/** Records a whole run at once (startAdvice, then finishAdvice). */
+export async function recordAdvice(
+  entry: AdviceStart & AdviceResult,
+): Promise<number> {
+  const adviceId = await startAdvice(entry)
+  await finishAdvice({ ...entry, adviceId })
+  return adviceId
 }
 
 function parseApplied(value: string | null): AppliedAdvice | null {

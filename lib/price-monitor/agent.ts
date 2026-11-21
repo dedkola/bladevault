@@ -1,5 +1,7 @@
 import type Database from 'better-sqlite3'
 import { getLocalDb } from '@/lib/local-db'
+import { readActiveAdvice } from '@/lib/price-monitor/advice-store'
+import { applyAdviceToLane, maxAdvisedGapMs } from '@/lib/price-monitor/advisor'
 import { aiConfigured } from '@/lib/price-monitor/ai'
 import {
   PLANNING_TIMEOUT_MS,
@@ -21,7 +23,8 @@ import {
   toMinorUnits,
 } from '@/lib/price-monitor/money'
 import { byUrgency } from '@/lib/price-monitor/queue'
-import { frequencyMs } from '@/lib/price-monitor/schedule'
+import { laneAvailability, laneFloorMs } from '@/lib/price-monitor/lanes'
+import { activeWindowMs, frequencyMs } from '@/lib/price-monitor/schedule'
 import { redactSecrets } from '@/lib/price-monitor/secret-registry'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
 import {
@@ -143,6 +146,12 @@ export const PAUSE_MIN_FAILURES = 5
 const REASON_MAX = 200
 const SUMMARY_MAX = 600
 
+/**
+ * A note stands at least this long: the supervisor neither forgets it nor
+ * adds another one about the same knife before then.
+ */
+export const NOTE_MIN_AGE_HOURS = 6
+
 const RETRYABLE: ReadonlySet<PriceSourceStatus> = new Set([
   'failed',
   'price_unavailable',
@@ -216,6 +225,7 @@ export type AgentSource = {
   /** Last error code; HTTP errors carry their status, e.g. "http_404". */
   error: string | null
   failures: number
+  /** Null when it is not scheduled (not monitored). */
   dueInMin: number | null
   aiMinAgo: number | null
   /**
@@ -223,6 +233,16 @@ export type AgentSource = {
    * now, or moved forward by an earlier run.
    */
   queued: boolean
+  /**
+   * Queued with AI allowed on its next check (an earlier retryWithAi, or
+   * no AI use yet): asking again changes nothing. Only present when true.
+   */
+  aiRetryPending?: true
+  /**
+   * Queued or due, but its store holds it this many minutes more (pace,
+   * advised pause or circuit cooldown). Only present when above 0.
+   */
+  storeHoldMin?: number
   /**
    * Due checks at the same store that run before this one (0: it is next);
    * null when it is not due.
@@ -389,6 +409,7 @@ export type AgentSnapshot = {
   notes: Array<
     Omit<AgentNote, 'createdAt' | 'expiresAt'> & {
       daysAgo: number
+      hoursAgo: number
       expiresInDays: number
     }
   >
@@ -547,28 +568,86 @@ export function buildAgentSnapshot(input: {
       .sort(byUrgency)
       .forEach((entry, index) => ahead.set(entry.sourceId, index))
 
+  // Each store's pace as the worker applies it: AI advice (capped so its
+  // sources fit the interval) and circuit cooldowns included.
+  const counts = new Map<string, number>()
+  for (const row of rows)
+    if (monitored.has(row.id))
+      counts.set(row.lane_key, (counts.get(row.lane_key) ?? 0) + 1)
+  const lanes = readLaneStates(database)
+  const advice = readActiveAdvice(database, now)
+  const floorMs = laneFloorMs(settings.pacing)
+  const windowMs = activeWindowMs(settings.schedule)
+  const storeViews = new Map<string, AgentStore>()
+  for (const [laneKey, sources] of counts) {
+    const stored = lanes.get(laneKey)
+    const lane = stored
+      ? applyAdviceToLane(
+          { ...stored, minGapMs: Math.max(stored.minGapMs, floorMs) },
+          advice.get(laneKey),
+          now,
+          maxAdvisedGapMs({
+            activeWindowMs: windowMs,
+            sourceCount: sources,
+            floorMs,
+          }),
+        )
+      : null
+    const availability = lane ? laneAvailability(lane, now) : null
+    const minGapMs = Math.max(lane?.minGapMs ?? 0, floorMs)
+    storeViews.set(laneKey, {
+      store: laneKey,
+      sources,
+      circuit: lane?.circuit ?? 'closed',
+      pausedForMin: Math.max(
+        0,
+        minutesUntil(lane?.cooldownUntil ?? null, now) ?? 0,
+      ),
+      readyInMin:
+        availability &&
+        (availability.state === 'waiting' || availability.state === 'cooling')
+          ? Math.max(0, minutesUntil(availability.until, now) ?? 0)
+          : 0,
+      minGapSec: Math.round(minGapMs / 1000),
+      fullPassHours: Math.round(((minGapMs * sources) / HOUR_MS) * 10) / 10,
+    })
+  }
+
   const outOfStockSince = readOutOfStockSince(database)
   const all: AgentSource[] = rows.map((row) => {
     const since =
       row.last_availability === 'out_of_stock'
         ? outOfStockSince.get(row.id)
         : undefined
+    const scheduled = monitored.has(row.id)
+    const queued = row.priority >= 1
+    const hold = storeViews.get(row.lane_key)?.readyInMin ?? 0
     return {
       id: row.id,
       knifeId: row.knife_id,
       knife: [row.brand, row.name].filter(Boolean).join(' ').slice(0, 120),
       store: row.store_name || row.lane_key,
       status: row.status,
-      monitored: monitored.has(row.id),
+      monitored: scheduled,
       fetch: row.fetch_override,
       checkedMinAgo: minutesAgo(row.last_checked_at, now),
       okMinAgo: minutesAgo(row.last_success_at, now),
       error: errorLabel(row.last_error_code, row.last_http_status),
       failures: row.consecutive_failures,
-      dueInMin: minutesUntil(row.next_check_at, now),
+      // An unmonitored source keeps its old next check; it is not due.
+      dueInMin: scheduled ? minutesUntil(row.next_check_at, now) : null,
       aiMinAgo: minutesAgo(row.last_ai_at, now),
       // Never-checked sources and earlier agent picks wait at the front.
-      queued: row.priority >= 1,
+      queued,
+      ...(queued &&
+      row.last_checked_at !== null &&
+      row.last_ai_at === null &&
+      RETRYABLE.has(row.status)
+        ? { aiRetryPending: true as const }
+        : {}),
+      ...(hold > 0 && (queued || ahead.has(row.id))
+        ? { storeHoldMin: hold }
+        : {}),
       ahead: ahead.get(row.id) ?? null,
       price:
         row.last_price_minor !== null && row.last_currency
@@ -602,34 +681,9 @@ export function buildAgentSnapshot(input: {
       .length,
   }
 
-  const laneOf = new Map(rows.map((row) => [row.id, row.lane_key]))
-  const counts = new Map<string, number>()
-  for (const source of watched) {
-    const lane = laneOf.get(source.id)!
-    counts.set(lane, (counts.get(lane) ?? 0) + 1)
-  }
-  const lanes = readLaneStates(database)
-  const stores: AgentStore[] = [...counts]
-    .map(([laneKey, sources]) => {
-      const lane = lanes.get(laneKey)
-      const minGapMs = Math.max(
-        lane?.minGapMs ?? 0,
-        settings.pacing.minGapSeconds * 1000,
-      )
-      return {
-        store: laneKey,
-        sources,
-        circuit: lane?.circuit ?? 'closed',
-        pausedForMin: Math.max(
-          0,
-          minutesUntil(lane?.cooldownUntil ?? null, now) ?? 0,
-        ),
-        readyInMin: Math.max(0, minutesUntil(lane?.readyAt ?? null, now) ?? 0),
-        minGapSec: Math.round(minGapMs / 1000),
-        fullPassHours: Math.round(((minGapMs * sources) / HOUR_MS) * 10) / 10,
-      }
-    })
-    .sort((a, b) => b.sources - a.sources || a.store.localeCompare(b.store))
+  const stores: AgentStore[] = [...storeViews.values()].sort(
+    (a, b) => b.sources - a.sources || a.store.localeCompare(b.store),
+  )
 
   const sorted = [...all].sort(
     (a, b) =>
@@ -685,6 +739,7 @@ export function buildAgentSnapshot(input: {
       ({ createdAt, expiresAt, ...note }) => ({
         ...note,
         daysAgo: Math.floor((now - Date.parse(createdAt)) / DAY_MS),
+        hoursAgo: Math.floor((now - Date.parse(createdAt)) / HOUR_MS),
         expiresInDays: Math.max(
           0,
           Math.ceil((Date.parse(expiresAt) - now) / DAY_MS),
@@ -1526,8 +1581,8 @@ export const AGENT_PROMPT = [
   "The input lists knives, most urgent first. Each knife has its market: regular (the knife's stored regular price), target (the collector's alert price), best (the cheapest in-stock price now) and bestStore, low (lowest in-stock price ever), low90d and high90d, lastPriceChange, lastStockChange, muted, and search (Other stores searches). Under it are its sources: status, price, stock, outOfStockDays, timing in minutes, failures, error, queued and ahead. The input also has each store's pace, coverage, the AI budget, localTime and your recent runs, each action with its note (why it was refused) or outcome (what its next check or search found). Missing fields are unknown.",
   'Answer with JSON only: {"summary", "check", "retryWithAi", "fetchMode", "pause", "searchOtherStore", "watchClosely", "crossCheck", "advise", "ask", "remember", "forget"}. Leave a list empty when nothing is needed: often nothing is.',
   `check (at most ${AGENT_LIMITS.check}): move sources to the front of their store's line. Each store already checks its most overdue source first, so a due source with ahead 0 is next anyway and a check changes nothing. Use check to put a source that matters more ahead of others (ahead above 0), or to read a source that is not due yet now: a knife near or below its target or regular price, a price that just moved at another store, a restock to confirm, a sale period (look at localTime, e.g. Black Friday and holiday sales). Skip sources marked queued, checked in the last 30 minutes, or not monitored.`,
-  'A store checks one product at a time at its own safe pace (minGapSec, fullPassHours), and paused stores (circuit open) wait out their pause. You cannot speed a store up: many checks at one store simply wait in line, so do not ask for more than the stores can do before your next run.',
-  `retryWithAi (at most ${AGENT_LIMITS.retryWithAi}): failed or price_unavailable sources where AI reading or working the page may get the price on the next check. Never for blocked sources: a bot check needs the user.`,
+  'A store checks one product at a time at its own safe pace (minGapSec, fullPassHours), and paused stores (circuit open) wait out their pause. You cannot speed a store up: many checks at one store simply wait in line, so do not ask for more than the stores can do before your next run. A source with storeHoldMin is held by its store that long; asking again for it changes nothing.',
+  `retryWithAi (at most ${AGENT_LIMITS.retryWithAi}): failed or price_unavailable sources where AI reading or working the page may get the price on the next check. Never for blocked sources: a bot check needs the user. Not for sources marked aiRetryPending: their retry already waits in line (storeHoldMin says for how long its store holds it).`,
   `fetchMode (at most ${AGENT_LIMITS.fetchMode}): "browser" when a source keeps failing in a way a real browser may fix (scripts, empty pages, timeouts), "http" only for a fast simple page, "auto" to undo. Look at a source's fetch first.`,
   `pause (at most ${AGENT_LIMITS.pause}): only sources that failed at least ${PAUSE_MIN_FAILURES} checks in a row and whose page seems gone (not_found or redirect). Pages not found with HTTP 404 or 410 pause on their own. The user can resume them.`,
   `searchOtherStore (at most ${AGENT_LIMITS.searchOtherStore}): bring a waiting Other stores search forward (a search with nextInDays above 0), for knives whose sources are all out of stock or failing, or that the collector watches closely (a target, a recent drop) and that have a single store. Only when otherStores is true. A search that is due (not_searched, nextInDays 0 or less) or found needs nothing.`,
@@ -1535,7 +1590,7 @@ export const AGENT_PROMPT = [
   `crossCheck (at most ${AGENT_LIMITS.crossCheck}): read all other sources of a knife now, for example after its price moved or it came back in stock at one store, so the collector sees the whole market. Sources checked in the last 30 minutes, queued or blocked are left out.`,
   `advise (at most ${AGENT_LIMITS.advise}, ${ADVICE_PER_DAY} a day): a short note in the collector's Inbox when something is worth acting on: topic "deal" (a price at or below the target or regular price, a new 90-day low, a big drop), "restock" (back in stock after a long time, or the only store in stock), "watch" (a trend to keep an eye on). title: one line naming the knife; detail: one or two plain sentences. Quote only prices that appear in the input, exactly as written there, never computed amounts (say "23% below regular" for differences). Never for muted knives, and not again for the same knife and topic within ${ADVICE_REPEAT_DAYS} days (see inbox.advice). Fewer, better notes: the collector already gets an alert for every drop.`,
   `ask (at most ${AGENT_LIMITS.ask}, ${MAX_OPEN_QUESTIONS} open at once, one per knife): a yes/no question in the Inbox when the collector's answer changes what you do. "set_target" proposes an alert target price (price, e.g. "95.00 USD", in the currency of the knife's prices) for a knife without a fitting target. "watch_closely" asks to watch a knife closely (hours, everyHours, as for watchClosely) when you are not sure it is wanted. "keep_listing" asks whether a listing Other stores found (sourceId of a source with foundByAi) is the right knife, when its price or stock looks off; No pauses it. question: one plain sentence. Never repeat a question from inbox.questions within ${QUESTION_REPEAT_DAYS} days, and respect its answer. Use null for fields an ask does not use.`,
-  `remember (at most ${AGENT_LIMITS.remember}, ${MAX_AGENT_NOTES} kept at once): a short note (at most ${NOTE_MAX_LENGTH} characters) for your later runs, about one knife (knifeId) or in general (knifeId null), kept for days (at most ${NOTE_MAX_DAYS}): what you are waiting for, a pattern you noticed (a store that restocks on Mondays, a knife whose price moves before sales), what the collector's answers told you. Not facts the input already shows. Your notes are in notes; forget (at most ${AGENT_LIMITS.forget}) notes that are done or wrong, by noteId.`,
+  `remember (at most ${AGENT_LIMITS.remember}, ${MAX_AGENT_NOTES} kept at once): a short note (at most ${NOTE_MAX_LENGTH} characters) for your later runs, about one knife (knifeId) or in general (knifeId null), kept for days (at most ${NOTE_MAX_DAYS}): what you are waiting for, a pattern you noticed (a store that restocks on Mondays, a knife whose price moves before sales), what the collector's answers told you. Not facts the input already shows. Your notes are in notes; forget (at most ${AGENT_LIMITS.forget}) notes that are done or wrong, by noteId. A note stands for at least ${NOTE_MIN_AGE_HOURS} hours (hoursAgo): do not rewrite or replace it sooner.`,
   'Learn from your recent runs, inbox and notes: do not repeat actions that were refused or did not help.',
   'Every item needs a short reason. summary: one to three plain sentences for the collector: notable market news (drops, prices at or below target or regular price, restocks) and what you did. If nothing changed since your last run, say so in one short sentence.',
 ].join('\n')
@@ -1743,7 +1798,9 @@ function checkRefusal(source: AgentSource | null): string | null {
     : !source.monitored
       ? 'not monitored'
       : source.queued
-        ? 'already queued'
+        ? source.storeHoldMin
+          ? `already queued; its store is ready in ${source.storeHoldMin} min`
+          : 'already queued'
         : source.checkedMinAgo !== null &&
             source.checkedMinAgo * MINUTE_MS < RECHECK_MIN_MS
           ? 'checked less than 30 minutes ago'
@@ -1765,7 +1822,11 @@ export function validateAgentPlan(
     'sources' | 'knives' | 'ai' | 'otherStores' | 'checkIntervalHours'
   > & {
     inbox?: AgentInbox
-    notes?: Pick<AgentSnapshot['notes'][number], 'id' | 'knifeId' | 'note'>[]
+    notes?: Array<
+      Pick<AgentSnapshot['notes'][number], 'id' | 'knifeId' | 'note'> & {
+        hoursAgo?: number
+      }
+    >
   },
 ): AgentAction[] {
   const inbox = snapshot.inbox ?? EMPTY_INBOX
@@ -1814,7 +1875,11 @@ export function validateAgentPlan(
             ? 'AI page reading and error solving are off'
             : !RETRYABLE.has(source.status)
               ? `status is ${source.status}`
-              : null,
+              : source.aiRetryPending
+                ? source.storeHoldMin
+                  ? `already waiting for its retry with AI; its store is ready in ${source.storeHoldMin} min`
+                  : 'already waiting for its retry with AI'
+                : null,
     )
   }
   for (const entry of plan.fetchMode) {
@@ -2000,10 +2065,17 @@ export function validateAgentPlan(
 
   // Forgetting first frees room for new notes.
   let kept = notes.length
+  const fresh = (note: (typeof notes)[number]) =>
+    (note.hoursAgo ?? Infinity) < NOTE_MIN_AGE_HOURS
   for (const entry of plan.forget) {
+    const note = notes.find((item) => item.id === entry.noteId)
     push(
       { kind: 'forget', noteId: entry.noteId, reason: entry.reason },
-      notes.some((note) => note.id === entry.noteId) ? null : 'unknown note',
+      !note
+        ? 'unknown note'
+        : fresh(note)
+          ? `noted less than ${NOTE_MIN_AGE_HOURS} hours ago: let it stand`
+          : null,
     )
     if (actions.at(-1)?.status !== 'refused') kept -= 1
   }
@@ -2038,9 +2110,14 @@ export function validateAgentPlan(
                     (note.knifeId ?? null) === entry.knifeId,
                 )
               ? 'already noted'
-              : kept >= MAX_AGENT_NOTES
-                ? `already ${MAX_AGENT_NOTES} notes: forget one first`
-                : null,
+              : entry.knifeId &&
+                  notes.some(
+                    (note) => note.knifeId === entry.knifeId && fresh(note),
+                  )
+                ? `this knife has a note from the last ${NOTE_MIN_AGE_HOURS} hours`
+                : kept >= MAX_AGENT_NOTES
+                  ? `already ${MAX_AGENT_NOTES} notes: forget one first`
+                  : null,
     )
     if (actions.at(-1)?.status !== 'refused') kept += 1
   }

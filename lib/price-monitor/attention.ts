@@ -1,6 +1,9 @@
 import type Database from 'better-sqlite3'
 import { getLocalDb } from '@/lib/local-db'
+import type { EligibilitySettings } from '@/lib/price-monitor/eligibility'
 import type { PriceSourceStatus } from '@/lib/price-monitor/shared'
+import { readQueueCandidates } from '@/lib/price-monitor/store'
+import { getSettings } from '@/lib/settings'
 import {
   reportSystemMessage,
   resolveSystemMessages,
@@ -11,7 +14,9 @@ import {
  * were blocked by a bot check, or found no price. One message lists them all.
  * It is reported (unread, on top) when a source newly runs into a problem,
  * and resolved once every monitored source reads fine again; a source that
- * stays in trouble does not notify again.
+ * stays in trouble does not notify again. Sources scheduled monitoring does
+ * not cover (watch mode Off, a knife without a regular price, a sold knife)
+ * are left out: nothing checks them, so nothing about them needs attention.
  */
 export const ATTENTION_STATUSES: ReadonlySet<PriceSourceStatus> = new Set([
   'failed',
@@ -28,18 +33,35 @@ export type AttentionRow = {
   status: PriceSourceStatus
 }
 
-export function readAttentionRows(database: Database.Database): AttentionRow[] {
-  return database
-    .prepare(
-      `SELECT k.brand AS brand, k.name AS name, s.store_name AS storeName,
-              s.status AS status
-       FROM price_sources s JOIN knives k ON k.id = s.knife_id
-       WHERE s.removed_at IS NULL AND s.enabled = 1
-         AND s.status IN ('failed', 'blocked', 'price_unavailable',
-                          'needs_review')
-       ORDER BY s.last_checked_at DESC, s.id DESC`,
-    )
-    .all() as AttentionRow[]
+export function readAttentionRows(
+  database: Database.Database,
+  settings: EligibilitySettings = getSettings().priceMonitoring,
+): AttentionRow[] {
+  const covered = new Set(
+    readQueueCandidates(database, settings)
+      .filter((candidate) => candidate.covered)
+      .map((candidate) => candidate.sourceId),
+  )
+  return (
+    database
+      .prepare(
+        `SELECT s.id AS id, k.brand AS brand, k.name AS name,
+                s.store_name AS storeName, s.status AS status
+         FROM price_sources s JOIN knives k ON k.id = s.knife_id
+         WHERE s.removed_at IS NULL AND s.enabled = 1
+           AND s.status IN ('failed', 'blocked', 'price_unavailable',
+                            'needs_review')
+         ORDER BY s.last_checked_at DESC, s.id DESC`,
+      )
+      .all() as Array<AttentionRow & { id: number }>
+  )
+    .filter((row) => covered.has(row.id))
+    .map(({ brand, name, storeName, status }) => ({
+      brand,
+      name,
+      storeName,
+      status,
+    }))
 }
 
 const PROBLEM: Record<string, string> = {
