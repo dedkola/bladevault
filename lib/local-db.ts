@@ -1101,6 +1101,11 @@ function migratePriceMonitoringSchema(
   addColumn('system_messages', 'answer', 'TEXT')
   // What changed since the supervisor's run before (JSON), shown per run.
   addColumn('price_agent_runs', 'events', 'TEXT')
+  // The price worker lease names the app version that holds it, so a newer
+  // build takes over from an older one (price-monitor/store,
+  // acquireWorkerLease). A released lease keeps its row and version.
+  addColumn('price_worker_lease', 'build', 'TEXT')
+  addColumn('price_worker_lease', 'released_at', 'TEXT')
   // Before the new-store backfill, so Amazon sources get no events.
   removeAmazonPriceSources(database)
   // A store's first reading can be a drop or back in stock for the knife,
