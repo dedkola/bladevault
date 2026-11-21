@@ -378,6 +378,7 @@ describe('supervisor answers', () => {
     dailyTokens: 2_000_000,
     readsPages: true,
     solvesErrors: true,
+    findsPages: true,
   }
 
   it('caps an oversized plan and its texts', () => {
@@ -389,6 +390,7 @@ describe('supervisor answers', () => {
       summary: 's'.repeat(100_000),
       check: many,
       retryWithAi: many,
+      findPage: [],
       fetchMode: many.map((entry) => ({ ...entry, mode: 'browser' })),
       pause: many,
       searchOtherStore: many.map(() => ({ knifeId: 'k'.repeat(10_000) })),
@@ -441,6 +443,7 @@ describe('supervisor answers', () => {
         crossCheck: [],
         check: [],
         retryWithAi: [],
+        findPage: [],
         fetchMode: [],
         pause: [1, 2, 3, 4, 5, 6, 7].map((sourceId) => ({
           sourceId,
@@ -476,6 +479,7 @@ describe('supervisor answers', () => {
           { sourceId: 2, reason: '' },
         ],
         retryWithAi: [{ sourceId: 1, reason: '' }],
+        findPage: [],
         fetchMode: [],
         pause: [],
         searchOtherStore: [],

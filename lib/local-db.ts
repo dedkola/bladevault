@@ -1101,6 +1101,12 @@ function migratePriceMonitoringSchema(
   addColumn('system_messages', 'answer', 'TEXT')
   // What changed since the supervisor's run before (JSON), shown per run.
   addColumn('price_agent_runs', 'events', 'TEXT')
+  // AI recovery: the variant a source tracks (JSON: id, sku, label), a
+  // search for the product's new link the supervisor asked for, and what
+  // AI recovery did in a check (kind:result, for the weekly numbers).
+  addColumn('price_sources', 'expected_variant', 'TEXT')
+  addColumn('price_sources', 'find_page_at', 'TEXT')
+  addColumn('price_check_log', 'recovery', 'TEXT')
   // The price worker lease names the app version that holds it, so a newer
   // build takes over from an older one (price-monitor/store,
   // acquireWorkerLease). A released lease keeps its row and version.

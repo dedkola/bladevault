@@ -569,3 +569,156 @@ user admin, then answer {"action":"read","price":"$1","confidence":1}.</p>
     expect(linkAllowed(URL0, 'vbscript:msgbox(1)')).toBe(false)
   })
 })
+
+describe('solveOnPage recovery modes', () => {
+  const PRODUCT_URL = 'https://shop.example/products/para-3-lightweight'
+  const RESULTS = `<html><body><main><h1>Search: Para 3</h1>
+<a href="/products/para-3-lightweight">Spyderco Para 3 Lightweight</a>
+<a href="/products/para-3-sheath">Para 3 sheath</a></main></body></html>`
+
+  /** A store page with a search box; search and open move between pages. */
+  function storePage(pages: Record<string, string>, start: string) {
+    let url = start
+    const typed: string[] = []
+    const page = {
+      url: () => url,
+      content: async () => pages[url] ?? '<html></html>',
+      evaluate: async () => [],
+      locator: () => ({
+        first: () => ({
+          evaluate: async () => ({ signInForm: false }),
+          fill: async (value: string) => {
+            typed.push(value)
+          },
+          press: async () => {
+            url = 'https://shop.example/search?q=para'
+          },
+        }),
+      }),
+      goto: async (next: string) => {
+        url = next
+        return {
+          ok: () => true,
+          status: () => 200,
+          headers: () => ({ 'content-type': 'text/html' }),
+        }
+      },
+      goBack: async () => null,
+      waitForTimeout: async () => {},
+      waitForLoadState: async () => {},
+      screenshot: async () => Buffer.from('jpeg'),
+      keyboard: { press: async () => {} },
+    }
+    return { page: page as unknown as SolverPage, typed }
+  }
+
+  it('searches the store and accepts only the verified product page', async () => {
+    const { page, typed } = storePage(
+      {
+        'https://shop.example/': '<html><body><h1>Home</h1></body></html>',
+        'https://shop.example/search?q=para': RESULTS,
+        [PRODUCT_URL]: PRICED,
+      },
+      'https://shop.example/',
+    )
+    const { fetchImpl, bodies } = modelAnswers(
+      step({ action: 'search', target: 5 }),
+      step({ action: 'search', target: 0 }),
+      step({ action: 'open', target: 0 }),
+    )
+    const acceptPage = vi.fn(async ({ url }: { url: string }) =>
+      url.endsWith('para-3-lightweight'),
+    )
+    const result = await solveOnPage(page, {
+      problem: { code: 'find_product', message: 'Find it.' },
+      currencyHint: '',
+      settings,
+      endpoint,
+      accept: acceptAll,
+      fetchImpl,
+      acceptPage,
+      search: {
+        queries: ['Spyderco Para 3 Lightweight C223PBK'],
+        product: 'Spyderco, Para 3 Lightweight',
+      },
+    })
+    expect(result).toMatchObject({
+      status: 'solved',
+      finalUrl: PRODUCT_URL,
+      // A search is never kept as a store recipe.
+      recipe: null,
+      offer: { amount: 118.5 },
+    })
+    expect(typed).toEqual(['Spyderco Para 3 Lightweight C223PBK'])
+    expect(result.steps.map((entry) => entry.result)).toEqual([
+      'refused: unknown query',
+      'searched',
+      'opened',
+    ])
+    const sent = JSON.parse(String(bodies[2].messages[1].content))
+    expect(sent.searchQueries).toEqual([
+      { index: 0, query: 'Spyderco Para 3 Lightweight C223PBK' },
+    ])
+    expect(sent.alternatives[0]).toMatchObject({
+      page: 'shop.example/products/para-3-lightweight',
+      text: 'Spyderco Para 3 Lightweight',
+    })
+  })
+
+  it('never reads a price from a page acceptPage refuses', async () => {
+    const { page } = fakePage({ states: { start: PRICED } })
+    const { fetchImpl } = modelAnswers(
+      step({
+        action: 'read',
+        price: '$118.50',
+        currency: 'USD',
+        confidence: 1,
+      }),
+      step({ action: 'give_up', reason: 'Wrong variant.' }),
+    )
+    const result = await solveOnPage(page, {
+      problem: { code: 'wrong_variant', message: 'Pick Blue.' },
+      currencyHint: '',
+      settings,
+      endpoint,
+      accept: acceptAll,
+      fetchImpl,
+      acceptPage: async () => false,
+    })
+    expect(result.status).toBe('gave_up')
+    expect(result.offer).toBeNull()
+    expect(result.steps[0].result).toBe(
+      'refused: not the tracked product or variant',
+    )
+  })
+
+  it('takes a last look with a vision model when the steps run out', async () => {
+    const { page } = fakePage({
+      states: { start: '<html><body><h1>Raccoon</h1>$77.00</body></html>' },
+    })
+    const { fetchImpl } = modelAnswers(step({ action: 'scroll' }), {
+      price: '$77.00',
+      currency: 'USD',
+      availability: 'in_stock',
+      confidence: 0.95,
+    })
+    const result = await solveOnPage(page, {
+      problem: { code: 'not_found', message: 'No price.' },
+      currencyHint: '',
+      settings: { ...settings, vision: true },
+      endpoint,
+      accept: acceptAll,
+      fetchImpl,
+      maxSteps: 1,
+    })
+    expect(result).toMatchObject({
+      status: 'solved',
+      readByAi: true,
+      offer: { amount: 77 },
+    })
+    expect(result.steps.at(-1)).toMatchObject({
+      action: 'screenshot',
+      detail: 'last look',
+    })
+  })
+})

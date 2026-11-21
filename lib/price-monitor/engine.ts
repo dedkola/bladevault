@@ -3,10 +3,27 @@ import { readPriceAlertContext } from '@/lib/price-monitor/notification-store'
 import { syncPriceAttention } from '@/lib/price-monitor/attention'
 import { reportServerError } from '@/lib/sentry/server'
 import {
+  aiConfigured,
   aiFallbackAllowed,
+  aiSourceReady,
   extractOfferWithAi,
   type AiAnswerRejection,
 } from '@/lib/price-monitor/ai'
+import { aiBudgetRefusal, type AiEndpoint } from '@/lib/price-monitor/ai-client'
+import {
+  applyRelink,
+  askToRelink,
+  describeVariant,
+  detectMovedPage,
+  expectedVariantFor,
+  isSoftMissingPage,
+  productPageAcceptor,
+  productPageUrl,
+  readPageVariant,
+  relinkSafeToApply,
+  relinkSearch,
+  variantMismatch,
+} from '@/lib/price-monitor/recovery'
 import {
   clearBrowserState,
   loadBrowserState,
@@ -49,15 +66,20 @@ import {
 import {
   parseRecipe,
   replayRecipe,
-  SOLVER_BUDGET_MS,
   solveOnPage,
   solverAllowed,
+  solverLimits,
   summarizeSteps,
   type SolverAction,
   type SolverLogStep,
   type SolverResult,
+  type SolverSearch,
 } from '@/lib/price-monitor/solver'
-import { isAmazonUrl, type PriceProvider } from '@/lib/price-monitor/shared'
+import {
+  isAmazonUrl,
+  normalizeSourceUrl,
+  type PriceProvider,
+} from '@/lib/price-monitor/shared'
 import {
   deferSourceCheck,
   hasAnySnapshot,
@@ -126,6 +148,11 @@ const MESSAGES: Record<string, string> = {
   no_currency: 'A price was found, but not its currency.',
   wrong_currency: 'The store shows prices in another currency than US dollars.',
   invalid_price: 'The price on the page is not a valid amount.',
+  moved:
+    'The product link now leads to another page (a category, search or home page): the product moved or was renamed.',
+  soft_missing: 'The store says this product page is gone or not available.',
+  wrong_variant:
+    'The page shows another variant than the one this source tracks, so its price was not stored.',
   implausible:
     'The price changed too much to trust from one reading; it was not stored.',
   cancelled: 'The check was cancelled.',
@@ -143,6 +170,16 @@ const AI_REJECTIONS: Record<AiAnswerRejection | 'empty_page', string> = {
 function messageFor(code: string, error?: unknown): string {
   if (code === 'http' && error instanceof Error) return error.message
   return MESSAGES[code] ?? 'The check failed.'
+}
+
+/** The AI endpoint from the settings and the stored key. */
+async function endpointFor(settings: PriceAiSettings): Promise<AiEndpoint> {
+  return {
+    baseUrl: settings.baseUrl,
+    apiKey: await readPriceAiKey(),
+    headers: settings.headers,
+    maxAnswerTokens: settings.maxAnswerTokens,
+  }
 }
 
 type Strategy = 'http' | 'browser'
@@ -261,41 +298,64 @@ class CheckFlow {
   /**
    * The AI problem solver on a fresh browser reading with its own budget.
    * Never throws for page problems: a bot check or a failed load comes back
-   * as a result.
+   * as a result. `startUrl` opens another page of the same store (a search
+   * for a product that moved starts on the store's home page);
+   * `freshCookies` starts without the store's saved cookies (and with a
+   * visible browser where Docker has one).
    */
   async solve(input: {
     problem: { code: string; message: string }
     settings: PriceAiSettings
     accept: (offer: ExtractedOffer) => boolean
     signal?: AbortSignal
+    startUrl?: string
+    freshCookies?: boolean
+    acceptPage?: (page: { url: string; html: string }) => Promise<boolean>
+    search?: SolverSearch
   }): Promise<SolverResult> {
-    const storageState = await loadBrowserState(this.source.lane_key)
-    const apiKey = await readPriceAiKey()
+    const limits = solverLimits(input.settings)
+    const storageState = input.freshCookies
+      ? undefined
+      : await loadBrowserState(this.source.lane_key)
+    const endpoint = await endpointFor(input.settings)
     const operation = createScrapeOperation({
       signal: input.signal,
-      timeoutMs: SOLVER_BUDGET_MS,
+      timeoutMs: limits.budgetMs,
     })
     let result: SolverResult | null = null
     try {
-      await checkViaBrowser(this.source.url, operation, {
-        storageState,
-        budgetMs: SOLVER_BUDGET_MS,
-        interact: async (page) => {
-          result = await solveOnPage(page, {
-            problem: input.problem,
-            currencyHint: this.currencyHint,
-            settings: input.settings,
-            endpoint: {
-              baseUrl: input.settings.baseUrl,
-              apiKey,
-              headers: input.settings.headers,
-              maxAnswerTokens: input.settings.maxAnswerTokens,
-            },
-            accept: input.accept,
-            signal: operation.signal,
-          })
+      const page = await checkViaBrowser(
+        input.startUrl ?? this.source.url,
+        operation,
+        {
+          storageState,
+          budgetMs: limits.budgetMs,
+          headless:
+            input.freshCookies && headedRetryAvailable() ? false : undefined,
+          interact: async (page) => {
+            result = await solveOnPage(page, {
+              problem: input.problem,
+              currencyHint: this.currencyHint,
+              settings: input.settings,
+              endpoint,
+              accept: input.accept,
+              signal: operation.signal,
+              maxSteps: limits.maxSteps,
+              acceptPage: input.acceptPage,
+              search: input.search,
+            })
+          },
         },
-      })
+      )
+      // Fresh cookies that led to a price replace the store's saved ones.
+      if (
+        input.freshCookies &&
+        (result as SolverResult | null)?.offer &&
+        page.storageState
+      )
+        await saveBrowserState(this.source.lane_key, page.storageState).catch(
+          () => {},
+        )
     } catch (error) {
       if (error instanceof Error && error.name === 'VaultAccessError')
         throw error
@@ -330,6 +390,54 @@ class CheckFlow {
         note: null,
       }
     )
+  }
+
+  /**
+   * After a bot check: the store's own product data (Shopify), then one
+   * browser reading with fresh cookies. Nothing here touches the bot check.
+   */
+  async retryBlocked(): Promise<Reading | null> {
+    if (this.shopify) {
+      const reading = await this.http().catch(() => null)
+      if (reading?.check.offer) return reading
+    }
+    const operation = createScrapeOperation({
+      signal: this.operation.signal,
+      timeoutMs: CHECK_BUDGET_MS,
+    })
+    try {
+      const page = await checkViaBrowser(this.source.url, operation, {
+        headless: headedRetryAvailable() ? false : undefined,
+      })
+      if (page.isShopify) this.shopify = true
+      if (page.offer && page.storageState)
+        await saveBrowserState(this.source.lane_key, page.storageState).catch(
+          () => {},
+        )
+      return { check: page, method: 'browser' }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'VaultAccessError')
+        throw error
+      return null
+    } finally {
+      operation.dispose()
+    }
+  }
+
+  /** Shopify's product data for one variant: no page, no AI. */
+  async readVariant(variantId: string): Promise<Reading | null> {
+    let url: URL
+    try {
+      url = new URL(this.source.url)
+    } catch {
+      return null
+    }
+    url.searchParams.set('variant', variantId)
+    const check = await checkViaHttp(url.href, this.operation, {
+      shopify: true,
+      currencyHint: this.currencyHint,
+    }).catch(() => null)
+    return check ? { check, method: 'http' } : null
   }
 
   /** HTTP first when learned; any HTTP problem falls back to the browser. */
@@ -716,6 +824,31 @@ async function reviewWithAi(input: {
   }
 }
 
+/** A product page that moved or is gone: AI may search for its new link. */
+const RELINK_CODES = new Set(['moved', 'soft_missing'])
+/** Wrong-variant checks in a row before a learned variant is learned again. */
+export const WRONG_VARIANT_RELEARN_AFTER = 3
+/** Page problems that pause a source after MISSING_PAGE_PAUSE_AFTER checks. */
+const PAGE_PROBLEM_CODES = new Set(['moved', 'soft_missing'])
+
+/** The store's home page, where a search for a moved product starts. */
+function storeHome(url: string): string {
+  try {
+    return `${new URL(url).origin}/`
+  } catch {
+    return url
+  }
+}
+
+function urlPath(url: string): string {
+  try {
+    const parsed = new URL(url)
+    return `${parsed.pathname}${parsed.search}`
+  } catch {
+    return url
+  }
+}
+
 /** Page-read problems the AI extraction fallback may fix. */
 const AI_EXTRACTION_CODES = new Set([
   'not_found',
@@ -792,6 +925,9 @@ const NEUTRAL_CODES = new Set([
   'browser',
   'cancelled',
   'implausible',
+  'moved',
+  'soft_missing',
+  'wrong_variant',
 ])
 
 function laneOutcomeFor(
@@ -945,8 +1081,44 @@ export async function checkPriceSource(
   let aiUsed = false
   let solverSteps: SolverLogStep[] | null = null
   let solverNote: string | null = null
+  /** What AI recovery did, for the weekly numbers ("kind:result"). */
+  let recovery: string | null = null
   const withSolverNote = (message: string) =>
     solverNote ? `${message} ${solverNote}` : message
+  /** AI recovery is on: AI configured and Resolve check errors allowed. */
+  const recoveryOn = aiConfigured(aiSettings) && aiSettings.resolveErrors
+  const solverMay = (errorCode: string) =>
+    solverAllowed({
+      settings: aiSettings,
+      errorCode,
+      lastAiAt: source.last_ai_at,
+      consecutiveFailures: source.consecutive_failures,
+      now: Date.now(),
+    })
+  // Searching the store for a moved product opens a browser and asks AI.
+  const relinkMay = () =>
+    recoveryOn &&
+    aiSettings.findMovedPages &&
+    !aiBudgetRefusal('solver') &&
+    aiSourceReady({
+      settings: aiSettings,
+      lastAiAt: source.last_ai_at,
+      consecutiveFailures: source.consecutive_failures,
+      now: Date.now(),
+    })
+  const acceptsPrice = (offer: ExtractedOffer) => {
+    const result = evaluate(offer, source, knife.specs.price)
+    return (
+      result.kind === 'observation' && result.observation.priceMinor !== null
+    )
+  }
+  /** Keeps a solver's steps as the store's recipe when the parsers read it. */
+  const keepRecipe = (solved: SolverResult) => {
+    if (solved.recipe && !solved.readByAi) {
+      flow.recipe = solved.recipe
+      flow.host = { ...flow.host, solverRecipe: JSON.stringify(solved.recipe) }
+    }
+  }
 
   try {
     const validation = await validateExternalUrl(source.url, {
@@ -961,23 +1133,35 @@ export async function checkPriceSource(
         validation.reason,
       )
 
-    // Slow or unreadable pages may still be rescued by the solver below.
+    // Slow, unreadable, missing or blocked pages may still be rescued below.
     let reading: Reading | null = null
     let readError: unknown = null
     try {
       reading = await flow.read(chooseStrategy(source, hostState, Date.now()))
     } catch (error) {
-      if (
-        !solverAllowed({
-          settings: aiSettings,
-          errorCode: toScrapeError(error).code,
-          lastAiAt: source.last_ai_at,
-          consecutiveFailures: source.consecutive_failures,
-          now: Date.now(),
-        })
-      )
-        throw error
-      readError = error
+      const code = toScrapeError(error).code
+      const status = upstreamStatus(error)
+      if (code === 'challenge' && recoveryOn && aiSettings.retryBlocked) {
+        // A bot check: the store's own product data, then fresh cookies.
+        // Nothing here touches the bot check itself.
+        const retry = await flow.retryBlocked()
+        recovery = retry?.check.offer ? 'blocked:fixed' : 'blocked:asked'
+        if (retry?.check.offer) reading = retry
+      } else if (
+        recoveryOn &&
+        source.fetch_override === 'http' &&
+        (code === 'network' ||
+          code === 'timeout' ||
+          (status !== null && status >= 500))
+      ) {
+        // Only plain HTTP was tried: one browser reading.
+        reading = await flow.browser().catch(() => null)
+      }
+      if (!reading) {
+        const gone = status === 404 || status === 410
+        if (!(gone && relinkMay()) && !solverMay(code)) throw error
+        readError = error
+      }
     }
     let method: CheckRecord['method'] = reading?.method ?? null
     let evaluated: Evaluated = reading
@@ -988,6 +1172,121 @@ export async function checkPriceSource(
           errorCode: toScrapeError(readError).code,
         }
     let aiNote: string | null = null
+    let relinkNote: string | null = null
+    /** The page a solver ended on, when its reading is the one kept. */
+    let solverPage: { url: string; html: string } | null = null
+
+    // A redirect to a category or home page, or a "not found" page: the
+    // product moved or is gone. No AI reads a price from such a page.
+    if (reading && evaluated.kind === 'rejected') {
+      if (
+        detectMovedPage({
+          sourceUrl: source.url,
+          finalUrl: reading.check.finalUrl,
+          html: reading.check.html,
+          hasPrice: false,
+        })
+      )
+        evaluated = { kind: 'rejected', outcome: 'failed', errorCode: 'moved' }
+      else if (isSoftMissingPage(reading.check.html, false))
+        evaluated = {
+          kind: 'rejected',
+          outcome: 'failed',
+          errorCode: 'soft_missing',
+        }
+    }
+
+    // Moved or gone: AI searches the same store for the product's new link.
+    const readStatus = readError ? upstreamStatus(readError) : null
+    const pageGone = !reading && (readStatus === 404 || readStatus === 410)
+    const lookForPage =
+      pageGone ||
+      (evaluated.kind === 'rejected' &&
+        (RELINK_CODES.has(evaluated.errorCode) ||
+          (source.find_page_at !== null &&
+            AI_EXTRACTION_CODES.has(evaluated.errorCode))))
+    let relinkTried = false
+    if (lookForPage && relinkMay()) {
+      relinkTried = true
+      const endpoint = await endpointFor(aiSettings)
+      const moved =
+        reading &&
+        evaluated.kind === 'rejected' &&
+        evaluated.errorCode === 'moved'
+      const found = await flow.solve({
+        problem: {
+          code: 'find_product',
+          message:
+            'The saved product link no longer shows this product. Find its product page on this store.',
+        },
+        settings: aiSettings,
+        accept: acceptsPrice,
+        signal: options.signal,
+        // A category page the store redirected to is a good place to start.
+        startUrl: moved ? reading!.check.finalUrl : storeHome(source.url),
+        search: relinkSearch(knife),
+        acceptPage: productPageAcceptor({
+          knife,
+          endpoint,
+          model: aiSettings.model,
+          signal: options.signal,
+        }),
+      })
+      aiUsed = aiUsed || found.aiCalls > 0
+      if (found.steps.length) solverSteps = found.steps
+      const foundUrl =
+        found.offer && found.finalUrl ? productPageUrl(found.finalUrl) : null
+      if (found.offer && foundUrl) {
+        const path = urlPath(foundUrl)
+        if (normalizeSourceUrl(foundUrl) === source.normalized_url) {
+          // The product was on its own page after all.
+          evaluated = evaluate(found.offer, source, knife.specs.price)
+          method = 'solver'
+          readError = null
+          recovery = 'relink:fixed'
+          solverPage = found.html ? { url: foundUrl, html: found.html } : null
+        } else if (
+          aiSettings.autoRelink &&
+          relinkSafeToApply(knife, found.html ?? null) &&
+          (await applyRelink({ sourceId: source.id, url: foundUrl }))
+        ) {
+          evaluated = evaluate(found.offer, source, knife.specs.price)
+          method = 'solver'
+          readError = null
+          recovery = 'relink:fixed'
+          solverPage = found.html ? { url: foundUrl, html: found.html } : null
+          relinkNote = `AI found the product at its new link (${path}) and moved this source there.`
+        } else {
+          await askToRelink({
+            knife,
+            sourceId: source.id,
+            store: source.store_name,
+            url: foundUrl,
+          })
+          evaluated = {
+            kind: 'rejected',
+            outcome: 'failed',
+            errorCode: 'moved',
+          }
+          readError = null
+          recovery = 'relink:asked'
+          relinkNote = `AI found the product at ${path}: answer the question in the Inbox to use the new link.`
+        }
+      } else {
+        recovery = 'relink:failed'
+        solverNote =
+          found.status === 'challenge'
+            ? 'AI reached a bot check while searching the store.'
+            : [
+                found.note,
+                found.steps.length
+                  ? `Tried: ${summarizeSteps(found.steps)}.`
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' ') || null
+      }
+    }
 
     if (
       reading &&
@@ -1013,41 +1312,56 @@ export async function checkPriceSource(
     // The AI problem solver works the page when nothing else read a price.
     if (
       evaluated.kind === 'rejected' &&
-      solverAllowed({
-        settings: aiSettings,
-        errorCode: evaluated.errorCode,
-        lastAiAt: source.last_ai_at,
-        consecutiveFailures: source.consecutive_failures,
-        now: Date.now(),
-      })
+      !relinkTried &&
+      solverMay(evaluated.errorCode)
     ) {
       const problemCode = evaluated.errorCode
-      const solved = await flow.solve({
-        problem: { code: problemCode, message: messageFor(problemCode) },
+      const problem = { code: problemCode, message: messageFor(problemCode) }
+      let solved = await flow.solve({
+        problem,
         settings: aiSettings,
-        accept: (offer) => {
-          const result = evaluate(offer, source, knife.specs.price)
-          return (
-            result.kind === 'observation' &&
-            result.observation.priceMinor !== null
-          )
-        },
+        accept: acceptsPrice,
         signal: options.signal,
       })
+      // Unlimited AI: one more run with fresh cookies when AI worked the
+      // page and still found nothing (stale cookies hide prices too).
+      if (
+        !solved.offer &&
+        solved.status !== 'challenge' &&
+        solved.aiCalls > 0 &&
+        aiSettings.usage.mode === 'unlimited' &&
+        !aiBudgetRefusal('solver')
+      ) {
+        const fresh = await flow.solve({
+          problem,
+          settings: aiSettings,
+          accept: acceptsPrice,
+          signal: options.signal,
+          freshCookies: true,
+        })
+        solved = {
+          ...fresh,
+          aiCalls: solved.aiCalls + fresh.aiCalls,
+          steps: [...solved.steps, ...fresh.steps],
+        }
+      }
       aiUsed = aiUsed || solved.aiCalls > 0
       solverSteps = solved.steps.length ? solved.steps : null
+      recovery = solved.offer
+        ? 'unreadable:fixed'
+        : solved.status === 'challenge'
+          ? 'unreadable:asked'
+          : 'unreadable:failed'
       if (solved.offer) {
         evaluated = evaluate(solved.offer, source, knife.specs.price)
         method = 'solver'
         readError = null
         aiNote = null
-        if (solved.recipe && !solved.readByAi) {
-          flow.recipe = solved.recipe
-          flow.host = {
-            ...flow.host,
-            solverRecipe: JSON.stringify(solved.recipe),
-          }
-        }
+        solverPage =
+          solved.html && solved.finalUrl
+            ? { url: solved.finalUrl, html: solved.html }
+            : null
+        keepRecipe(solved)
       } else {
         solverNote =
           solved.status === 'challenge'
@@ -1069,13 +1383,7 @@ export async function checkPriceSource(
       evaluated.observation.currency &&
       evaluated.observation.currency !== MONITOR_CURRENCY &&
       !aiUsed &&
-      solverAllowed({
-        settings: aiSettings,
-        errorCode: 'wrong_currency',
-        lastAiAt: source.last_ai_at,
-        consecutiveFailures: source.consecutive_failures,
-        now: Date.now(),
-      })
+      solverMay('wrong_currency')
     ) {
       const solved = await flow.solve({
         problem: {
@@ -1099,13 +1407,83 @@ export async function checkPriceSource(
       if (solved.offer) {
         evaluated = evaluate(solved.offer, source, knife.specs.price)
         method = 'solver'
-        if (solved.recipe && !solved.readByAi) {
-          flow.recipe = solved.recipe
-          flow.host = {
-            ...flow.host,
-            solverRecipe: JSON.stringify(solved.recipe),
+        solverPage =
+          solved.html && solved.finalUrl
+            ? { url: solved.finalUrl, html: solved.html }
+            : null
+        keepRecipe(solved)
+      }
+    }
+
+    // The variant the source tracks: a page showing another one (often the
+    // store's default after the tracked one sold out) is not its price.
+    let learnedVariant: string | null = null
+    const variantPage =
+      method === 'solver'
+        ? solverPage
+        : reading?.check.html
+          ? { url: reading.check.finalUrl, html: reading.check.html }
+          : null
+    if (
+      evaluated.kind === 'observation' &&
+      variantPage &&
+      recoveryOn &&
+      aiSettings.fixVariants
+    ) {
+      const expected = expectedVariantFor(source)
+      const seen = readPageVariant(variantPage.html, variantPage.url)
+      if (expected && variantMismatch(expected, seen)) {
+        let fixed = false
+        // Shopify: the tracked variant's own product data, without AI.
+        if (expected.id && flow.shopify) {
+          const variantReading = await flow.readVariant(expected.id)
+          const result = variantReading
+            ? evaluate(variantReading.check.offer, source, knife.specs.price)
+            : null
+          if (result?.kind === 'observation') {
+            evaluated = result
+            method = 'http'
+            fixed = true
           }
         }
+        if (!fixed && solverMay('wrong_variant')) {
+          const solved = await flow.solve({
+            problem: {
+              code: 'wrong_variant',
+              message: `The page shows ${seen ? describeVariant(seen) : 'another variant'}, but this source tracks ${describeVariant(expected)}. Choose the tracked variant, then read its price.`,
+            },
+            settings: aiSettings,
+            accept: acceptsPrice,
+            signal: options.signal,
+            acceptPage: async ({ url, html }) => {
+              const now = readPageVariant(html, url)
+              return Boolean(now) && !variantMismatch(expected, now)
+            },
+          })
+          aiUsed = aiUsed || solved.aiCalls > 0
+          if (solved.steps.length) solverSteps = solved.steps
+          if (solved.offer) {
+            const result = evaluate(solved.offer, source, knife.specs.price)
+            if (result.kind === 'observation') {
+              evaluated = result
+              method = 'solver'
+              fixed = true
+              solverPage =
+                solved.html && solved.finalUrl
+                  ? { url: solved.finalUrl, html: solved.html }
+                  : null
+            }
+          }
+        }
+        recovery = fixed ? 'variant:fixed' : 'variant:failed'
+        if (!fixed)
+          evaluated = {
+            kind: 'rejected',
+            outcome: 'failed',
+            errorCode: 'wrong_variant',
+          }
+      } else if (!source.expected_variant && seen && method !== 'solver') {
+        learnedVariant = JSON.stringify(seen)
       }
     }
 
@@ -1117,7 +1495,8 @@ export async function checkPriceSource(
     )
       flow.host = { ...flow.host, solverRecipe: null }
     if (readError) throw readError
-    if (!reading && evaluated.kind === 'rejected')
+    // A missing page AI found elsewhere is recorded below as moved.
+    if (!reading && evaluated.kind === 'rejected' && !relinkTried)
       throw new ScrapeError('unknown')
 
     if (
@@ -1145,6 +1524,7 @@ export async function checkPriceSource(
           attempt: 2,
           aiUsed,
           solverSteps,
+          recovery,
           errorCode: 'implausible',
           errorMessage: messageFor('implausible'),
           nextCheckAt: nextCheckAfterFailure({
@@ -1158,25 +1538,56 @@ export async function checkPriceSource(
     }
 
     if (evaluated.kind === 'rejected') {
+      const failures = source.consecutive_failures + 1
+      // A page that stays moved or gone pauses its source, like a 404.
+      const pause =
+        PAGE_PROBLEM_CODES.has(evaluated.errorCode) &&
+        failures >= MISSING_PAGE_PAUSE_AFTER
+      // A learned variant that no page shows any more is learned again.
+      const forgetVariant =
+        evaluated.errorCode === 'wrong_variant' &&
+        failures >= WRONG_VARIANT_RELEARN_AFTER &&
+        Boolean(source.expected_variant)
+      const base = aiNote
+        ? `${messageFor(evaluated.errorCode)} ${aiNote}`
+        : messageFor(evaluated.errorCode)
       return done({
         outcome: evaluated.outcome,
         method,
         aiUsed,
         solverSteps,
+        recovery,
         errorCode: evaluated.errorCode,
-        errorMessage: withSolverNote(
-          aiNote
-            ? `${messageFor(evaluated.errorCode)} ${aiNote}`
-            : messageFor(evaluated.errorCode),
-        ),
-        nextCheckAt: nextOk(),
+        errorMessage: [
+          withSolverNote(base),
+          relinkNote,
+          pause
+            ? 'It happened three times in a row, so this source is paused until you check the link and resume it.'
+            : null,
+          forgetVariant
+            ? 'After three tries, the next check tracks the variant the page shows; check the link if that is not the one you want.'
+            : null,
+        ]
+          .filter(Boolean)
+          .join(' '),
+        disable: pause,
+        forgetVariant,
+        nextCheckAt:
+          evaluated.outcome === 'failed'
+            ? nextCheckAfterFailure({
+                failures,
+                retryable: false,
+                intervalMs,
+                now: Date.now(),
+              })
+            : nextOk(),
       })
     }
 
     // A solver reading came from its own page; the fetched one is stale.
-    const review = await reviewWithAi({
+    let review = await reviewWithAi({
       observation: evaluated.observation,
-      html: method === 'solver' ? undefined : reading?.check.html,
+      html: method === 'solver' ? solverPage?.html : reading?.check.html,
       source,
       knife,
       settings: aiSettings,
@@ -1185,16 +1596,73 @@ export async function checkPriceSource(
       parserReading: method !== 'ai' && method !== 'solver',
       signal: options.signal,
     })
+    // AI doubts the reading: the solver looks for the tracked product's own
+    // price on the page; a different price it finds is checked again.
+    if (
+      (review.aiReview === 'unconfirmed' || review.needsReview) &&
+      source.status !== 'needs_review' &&
+      method !== 'solver' &&
+      solverMay('ai_doubt')
+    ) {
+      const doubted = evaluated.observation
+      const expected = expectedVariantFor(source)
+      const solved = await flow.solve({
+        problem: {
+          code: 'ai_doubt',
+          message:
+            'AI doubts the price read from this page: it may belong to another variant, a bundle or another product. Find the tracked product’s own price.',
+        },
+        settings: aiSettings,
+        accept: acceptsPrice,
+        signal: options.signal,
+        acceptPage: expected
+          ? async ({ url, html }) =>
+              !variantMismatch(expected, readPageVariant(html, url))
+          : undefined,
+      })
+      aiUsed = aiUsed || solved.aiCalls > 0
+      if (solved.steps.length) solverSteps = solved.steps
+      recovery = 'doubt:failed'
+      const next = solved.offer
+        ? evaluate(solved.offer, source, knife.specs.price)
+        : null
+      if (
+        next?.kind === 'observation' &&
+        (next.observation.priceMinor !== doubted.priceMinor ||
+          next.observation.currency !== doubted.currency)
+      ) {
+        const second = await reviewWithAi({
+          observation: next.observation,
+          html: solved.html ?? undefined,
+          source,
+          knife,
+          settings: aiSettings,
+          notifications: { notify, thresholds, ignoreOfficialOutOfStock },
+          implausible,
+          parserReading: false,
+          signal: options.signal,
+        })
+        if (second.aiReview !== 'unconfirmed') {
+          evaluated = next
+          method = 'solver'
+          review = second
+          recovery = 'doubt:fixed'
+        }
+      }
+    }
     return done({
       outcome: 'ok',
       method,
       aiUsed,
       solverSteps,
+      recovery,
+      expectedVariant: learnedVariant,
       observation: evaluated.observation,
       aiReview: review.aiReview,
       needsReview: review.needsReview,
       errorCode: review.errorCode,
-      errorMessage: review.message,
+      errorMessage:
+        [review.message, relinkNote].filter(Boolean).join(' ') || null,
       nextCheckAt: nextOk(evaluated.observation),
     })
   } catch (error) {
@@ -1281,6 +1749,7 @@ export async function checkPriceSource(
         disable,
         aiUsed: aiUsed || (ai?.attempted ?? false),
         solverSteps,
+        recovery,
       },
       { retryAfterMs: retryAfterMs(error) },
     )

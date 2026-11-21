@@ -328,6 +328,7 @@ function CoverageMeter({ coverage }: { coverage: AgentCoverage }) {
 const KIND_SUMMARY: Record<AgentAction['kind'], [string, string]> = {
   check: ['check moved forward', 'checks moved forward'],
   retryWithAi: ['page retried with AI', 'pages retried with AI'],
+  findPage: ['moved page searched for', 'moved pages searched for'],
   fetchMode: ['loading change', 'loading changes'],
   pause: ['page paused', 'pages paused'],
   searchOtherStore: ['other-store search', 'other-store searches'],
@@ -521,6 +522,7 @@ const STATUS_RESULT: Record<AgentAction['status'] | 'failed', string> = {
 const ACTION_LABEL: Record<AgentAction['kind'], string> = {
   check: 'Check first',
   retryWithAi: 'Retry with AI',
+  findPage: 'Find new link',
   fetchMode: 'Load page',
   pause: 'Pause',
   searchOtherStore: 'Other stores',

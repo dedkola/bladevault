@@ -545,6 +545,27 @@ export type PriceAiSettings = {
   /** The model reads images: the solver may read a price from a screenshot. */
   vision: boolean
   /**
+   * With resolveErrors: when a product page moved (a redirect to a category
+   * or home page) or is gone (404, 410, a "not found" page), AI searches the
+   * same store for the product and proposes its new link in the Inbox.
+   */
+  findMovedPages: boolean
+  /**
+   * Apply a new link AI found without asking, when the page shows the
+   * knife's exact model number. Off: every new link is a question.
+   */
+  autoRelink: boolean
+  /**
+   * With resolveErrors: when the page shows another variant than the one the
+   * source tracks, AI picks the right variant before the price is read.
+   */
+  fixVariants: boolean
+  /**
+   * With resolveErrors: after a bot check, one more try with fresh cookies
+   * and the store's own product data. AI never solves the bot check.
+   */
+  retryBlocked: boolean
+  /**
    * Before a price change notifies (or an implausible jump is stored), AI
    * checks it against the page; a confident rejection skips the
    * notification (price-monitor/verify).
@@ -634,6 +655,10 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
     advisor: true,
     resolveErrors: true,
     vision: false,
+    findMovedPages: true,
+    autoRelink: false,
+    fixVariants: true,
+    retryBlocked: true,
     confirmChanges: true,
     spotCheck: true,
     dailyDigest: true,
@@ -801,6 +826,10 @@ function normalizePriceAi(
       | 'advisor'
       | 'resolveErrors'
       | 'vision'
+      | 'findMovedPages'
+      | 'autoRelink'
+      | 'fixVariants'
+      | 'retryBlocked'
       | 'confirmChanges'
       | 'spotCheck'
       | 'dailyDigest',
@@ -820,6 +849,10 @@ function normalizePriceAi(
     advisor: flag('advisor'),
     resolveErrors: flag('resolveErrors'),
     vision: flag('vision'),
+    findMovedPages: flag('findMovedPages'),
+    autoRelink: flag('autoRelink'),
+    fixVariants: flag('fixVariants'),
+    retryBlocked: flag('retryBlocked'),
     confirmChanges: flag('confirmChanges'),
     spotCheck: flag('spotCheck'),
     dailyDigest: flag('dailyDigest'),
