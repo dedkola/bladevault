@@ -47,10 +47,10 @@ Open **Price Drops** in the sidebar. From top to bottom the page shows:
 - **The table** — every monitored store listing, with the price now, the latest change in money and percent, and the difference from the regular price. Switch between tabs:
   - **All** — every monitored source.
   - **Changes** — drops, increases, and out-of-stock sources together.
-  - **Drops** and **Increases** — sources whose latest price change in the last 30 days is still the current price.
+  - **Drops** — everything you can buy cheaper now: in-stock sources below the knife's regular price, including a store that was only just added, and sources whose latest price cut in the last 30 days is still the current price. The biggest saving is listed first.
+  - **Increases** — sources whose latest price rise in the last 30 days is still the current price.
   - **Restocked** — sources that came back in stock in the last 7 days, marked like **Restocked · 2 d ago**.
   - **Out of stock** — sources that currently show the knife as unavailable, with how long, like **Out of stock · 41 d**.
-  - **Below regular price** — in-stock sources that cost less than the regular price.
   - **Needs attention** — failed, blocked, unavailable, or doubtful readings. They keep their last known price, shown muted with its date (**as of Nov 3**), and show when each is checked next, such as **next in 3 hours**, **due now**, or **overdue 9 h**. Sources that have never been checked are not problems: they show as **Waiting** in **All** and in their own timeline lane until their first check.
   - **Recently monitored** — the 30 latest checks.
   - **Supervisor** — with AI connected, the supervisor's recent runs as a timeline, newest first, each with what started it (changes, the schedule, or **Run now**). Select a run to see its summary, coverage, the changes since the run before, and every action in a table with the knife, store, reason, and result; repeated actions at one store collapse into one row you can expand. Select a knife name to open it in the table.

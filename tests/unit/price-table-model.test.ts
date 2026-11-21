@@ -55,7 +55,7 @@ function source(overrides: Partial<MonitoredSource> = {}): MonitoredSource {
 
 describe('price table model', () => {
   it('parses sections and filters below-paid and restocked rows', () => {
-    expect(parseSection('below_paid')).toBe('below_paid')
+    expect(parseSection('below_paid')).toBe('drops')
     expect(parseSection('nope')).toBeNull()
     const cheaper = source({ paidMinor: 12000 })
     const gone = source({ paidMinor: 12000, result: 'out_of_stock' })
@@ -64,6 +64,25 @@ describe('price table model', () => {
     const back = source({ result: 'restocked' })
     expect(SECTION_FILTER.restocked(back)).toBe(true)
     expect(SECTION_FILTER.changes(back)).toBe(true)
+  })
+
+  it('lists anything cheaper than its regular price as a drop', () => {
+    // A store found today already selling under the regular price.
+    const newStore = source({
+      result: 'restocked',
+      priceMinor: 8385,
+      paidMinor: 12900,
+    })
+    const cut = source({ result: 'drop', deltaPct: -10, paidMinor: null })
+    const full = source({ priceMinor: 12900, paidMinor: 12900 })
+    const gone = source({
+      result: 'out_of_stock',
+      priceMinor: 8000,
+      paidMinor: 12900,
+    })
+    const drops = [full, cut, gone, newStore].filter(SECTION_FILTER.drops)
+    expect(drops).toEqual([cut, newStore])
+    expect(sortRows('drops', drops, null)).toEqual([newStore, cut])
   })
 
   it('compares with the regular price in money and percent', () => {
