@@ -103,7 +103,10 @@ const realDeps: DiscoveryDeps = {
 }
 
 export type DiscoverySummary =
-  | { status: 'skipped'; reason: 'disabled' | 'missing' | 'read_only' }
+  | {
+      status: 'skipped'
+      reason: 'disabled' | 'missing' | 'read_only' | 'not_owner'
+    }
   | {
       status: 'done'
       result: DiscoveryStatus
@@ -208,11 +211,19 @@ export async function discoverKnife(
     signal?: AbortSignal
     deps?: Partial<DiscoveryDeps>
     store?: OtherStoreId
+    /**
+     * The price worker asks whether it still holds the vault's lease before
+     * the result is saved (price-monitor/store, ownsWorkerLease).
+     */
+    canWrite?: () => boolean
   } = {},
 ): Promise<DiscoverySummary> {
   const deps = { ...realDeps, ...options.deps }
   const storeId = options.store ?? DISCOVERY_STORE
   const store = DISCOVERY_STORES[storeId]
+  // Never Amazon (it forbids automated AI access), even from old settings.
+  if (!store || String(store.laneKey) === 'amazon')
+    return { status: 'skipped', reason: 'disabled' }
   const access = getVaultAccessState()
   if (access.readOnly) return { status: 'skipped', reason: 'read_only' }
   const settings = getSettings().priceMonitoring
@@ -245,6 +256,8 @@ export async function discoverKnife(
     detail?: string | null
     retryAfterMs?: number | null
   }): Promise<DiscoverySummary> => {
+    if (options.canWrite && !options.canWrite())
+      return { status: 'skipped', reason: 'not_owner' }
     const recorded = await recordDiscovery({
       generation: access.generation,
       knifeId,
