@@ -274,11 +274,15 @@ describe('collection statistics', () => {
   })
 
   it('aggregates categories, distributions, completeness, and activity', () => {
+    // Activity is bucketed by local calendar day, so build the fixture times in
+    // local time: the day keys then match in every time zone.
+    const at = (month: number, day: number, hour: number) =>
+      new Date(2026, month - 1, day, hour).toISOString()
     const knives = [
       createKnife({
         id: 'one',
         brand: 'Benchmade',
-        addedAt: '2026-08-10T12:00:00.000Z',
+        addedAt: at(8, 10, 12),
         pinned: true,
       }),
       createKnife({
@@ -286,7 +290,7 @@ describe('collection statistics', () => {
         brand: 'benchmade',
         bladeStyle: 'Tanto',
         handleMaterial: '',
-        addedAt: '2026-08-10T18:00:00.000Z',
+        addedAt: at(8, 10, 18),
         specs: {
           ...createKnife().specs,
           bladeLength: '88.9 mm',
@@ -299,7 +303,7 @@ describe('collection statistics', () => {
       createKnife({
         id: 'three',
         brand: 'Spyderco',
-        addedAt: '2026-06-01T12:00:00.000Z',
+        addedAt: at(6, 1, 12),
         specs: {
           ...createKnife().specs,
           bladeLength: '',
@@ -311,42 +315,42 @@ describe('collection statistics', () => {
     const stats = createCollectionStats(
       knives,
       'all',
-      new Date('2026-08-12T12:00:00.000Z'),
+      new Date(2026, 7, 12, 12),
       [
         {
           knifeId: 'one',
           type: 'created',
-          occurredAt: '2026-08-10T12:00:00.000Z',
+          occurredAt: at(8, 10, 12),
         },
         {
           knifeId: 'two',
           type: 'created',
-          occurredAt: '2026-08-10T18:00:00.000Z',
+          occurredAt: at(8, 10, 18),
         },
         {
           knifeId: 'three',
           type: 'created',
-          occurredAt: '2026-06-01T12:00:00.000Z',
+          occurredAt: at(6, 1, 12),
         },
         {
           knifeId: 'one',
           type: 'updated',
-          occurredAt: '2026-08-11T12:00:00.000Z',
+          occurredAt: at(8, 11, 12),
         },
         {
           knifeId: 'one',
           type: 'updated',
-          occurredAt: '2026-08-11T18:00:00.000Z',
+          occurredAt: at(8, 11, 18),
         },
         {
           knifeId: 'two',
           type: 'updated',
-          occurredAt: '2026-08-11T20:00:00.000Z',
+          occurredAt: at(8, 11, 20),
         },
         {
           knifeId: 'one',
           type: 'maintained',
-          occurredAt: '2026-08-12T08:00:00.000Z',
+          occurredAt: at(8, 12, 8),
         },
       ],
     )

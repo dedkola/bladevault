@@ -380,10 +380,21 @@ describe('MeasurementDetail', () => {
 })
 
 describe('LibraryDetail', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('renders total, yearly additions, and pinned count', () => {
+    // "This year" is the local calendar year of today, so pin today and give
+    // the knives local added dates in that year (one on its first moment).
+    vi.useFakeTimers({ now: new Date(2026, 5, 15, 12), toFake: ['Date'] })
     setKnives([
-      createKnife({ id: 'a', pinned: true }),
-      createKnife({ id: 'b' }),
+      createKnife({
+        id: 'a',
+        pinned: true,
+        addedAt: new Date(2026, 0, 1).toISOString(),
+      }),
+      createKnife({ id: 'b', addedAt: new Date(2026, 5, 1).toISOString() }),
     ])
     render(<LibraryDetail />)
 

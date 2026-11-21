@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as achievementsRoute from '@/app/api/achievements/route'
 import * as knifeRoute from '@/app/api/knives/[id]/route'
 import * as knivesRoute from '@/app/api/knives/route'
@@ -24,9 +24,19 @@ import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 let vault: TempVault | null = null
 
+// Habit badges read the local clock (weekends, before 4 am, 25 December,
+// Friday the 13th), so pin it to a plain weekday noon in local time. Only
+// `Date` is faked; timers stay real for the vault code.
+const WEEKDAY_NOON = new Date(2026, 5, 10, 12) // Wednesday 10 June 2026
+
+beforeEach(() => {
+  vi.useFakeTimers({ now: WEEKDAY_NOON, toFake: ['Date'] })
+})
+
 afterEach(async () => {
   await vault?.cleanup()
   vault = null
+  vi.useRealTimers()
 })
 
 function request(method: string, body?: unknown): Request {
@@ -53,6 +63,9 @@ async function addKnives(count: number, start = 0): Promise<string[]> {
     )
     expect(response.ok).toBe(true)
     ids.push(((await response.json()) as { knife: { id: string } }).knife.id)
+    // The pinned clock stands still: step it so each knife keeps its own,
+    // later added time.
+    vi.advanceTimersByTime(1_000)
   }
   return ids
 }
