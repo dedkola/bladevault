@@ -12,13 +12,14 @@ export const SECTIONS = [
   'increases',
   'restocked',
   'oos',
-  'below_paid',
   'attention',
   'recent',
 ] as const
 export type Section = (typeof SECTIONS)[number]
 
 export function parseSection(value: string | null | undefined): Section | null {
+  // The old Below regular price tab is part of Drops now.
+  if (value === 'below_paid') return 'drops'
   return (SECTIONS as readonly string[]).includes(value ?? '')
     ? (value as Section)
     : null
@@ -31,7 +32,6 @@ export const SECTION_LABEL: Record<Section, string> = {
   increases: 'Increases',
   restocked: 'Restocked',
   oos: 'Out of stock',
-  below_paid: 'Below regular price',
   attention: 'Needs attention',
   recent: 'Recently monitored',
 }
@@ -58,11 +58,12 @@ export const SECTION_FILTER: Record<
     source.result === 'increase' ||
     source.result === 'restocked' ||
     source.result === 'out_of_stock',
-  drops: (source) => source.result === 'drop',
+  // What a buyer counts as a drop: a store cut its price, or the knife can
+  // be bought below its regular price now, even at a store just added.
+  drops: (source) => source.result === 'drop' || isBelowPaid(source),
   increases: (source) => source.result === 'increase',
   restocked: (source) => source.result === 'restocked',
   oos: (source) => source.result === 'out_of_stock',
-  below_paid: isBelowPaid,
   attention: (source) =>
     source.result === 'attention' || source.retireHint !== null,
   recent: (source) => Boolean(source.lastCheckedAt),
@@ -71,11 +72,11 @@ export const SECTION_FILTER: Record<
 export const EMPTY_TEXT: Record<Section, string> = {
   all: 'Nothing is monitored yet.',
   changes: 'No price or stock changes in the last 30 days.',
-  drops: 'No price drops in the last 30 days.',
+  drops:
+    'Nothing is cheaper than its regular price or dropped in the last 30 days.',
   increases: 'No price increases in the last 30 days.',
   restocked: 'Nothing came back in stock in the last 7 days.',
   oos: 'Nothing is out of stock.',
-  below_paid: 'No store sells a knife below its regular price.',
   attention: 'Every store page was read on its last check.',
   recent: 'Nothing has been checked yet.',
 }
@@ -172,7 +173,22 @@ const byName = (a: MonitoredSource, b: MonitoredSource) =>
   )
 
 /**
- * Rows for a section: by result (drops first) unless a column is sorted.
+ * How much cheaper a row is, in percent: against the regular price, or the
+ * store's own cut when that is bigger.
+ */
+function savingPct(source: MonitoredSource): number {
+  const regular = vsPaid(source)
+  return Math.max(
+    regular && regular.pct < 0 ? -regular.pct : 0,
+    source.result === 'drop' && source.deltaPct !== null
+      ? Math.abs(source.deltaPct)
+      : 0,
+  )
+}
+
+/**
+ * Rows for a section: by result (drops first) unless a column is sorted;
+ * Drops puts the biggest saving first.
  * Missing values always sort last. Recently monitored keeps the newest 30.
  */
 export function sortRows(
@@ -190,7 +206,14 @@ export function sortRows(
         return left === right ? byName(a, b) : left === null ? 1 : -1
       return (left - right) * factor || byName(a, b)
     })
-  } else if (section === 'recent')
+  } else if (section === 'drops')
+    sorted.sort(
+      (a, b) =>
+        savingPct(b) - savingPct(a) ||
+        (b.changedAt ?? '').localeCompare(a.changedAt ?? '') ||
+        byName(a, b),
+    )
+  else if (section === 'recent')
     sorted.sort((a, b) =>
       (b.lastCheckedAt ?? '').localeCompare(a.lastCheckedAt ?? ''),
     )
