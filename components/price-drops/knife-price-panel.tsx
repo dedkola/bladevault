@@ -274,10 +274,20 @@ function SourceLine({
         </div>
       </div>
       <span className="flex flex-col items-end">
-        <span className="text-sm font-semibold tabular-nums">
-          {source.lastAvailability === 'out_of_stock'
-            ? '—'
-            : money(source.lastPriceMinor, source.lastCurrency)}
+        {/* Out of stock keeps the store's listed price, muted. */}
+        <span
+          className={cn(
+            'text-sm font-semibold tabular-nums',
+            source.lastAvailability === 'out_of_stock' &&
+              'text-muted-foreground',
+          )}
+          title={
+            source.lastAvailability === 'out_of_stock'
+              ? 'Listed price while out of stock'
+              : undefined
+          }
+        >
+          {money(source.lastPriceMinor, source.lastCurrency)}
         </span>
         {source.lastAvailability &&
         AVAILABILITY_LABEL[source.lastAvailability] ? (
