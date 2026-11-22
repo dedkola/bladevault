@@ -36,6 +36,7 @@ import {
 import { DISCOVERY_STORES } from '@/lib/price-monitor/discovery-stores'
 import { startPriceDigestIfDue } from '@/lib/price-monitor/digest'
 import { checkPriceSource } from '@/lib/price-monitor/engine'
+import { countMonitorScopeKnives } from '@/lib/price-monitor/scope'
 import { checkClockJump, monitorHoldMs } from '@/lib/price-monitor/power'
 import {
   applyLaneOutcome,
@@ -81,6 +82,7 @@ import type {
   ActiveHours,
   OtherStoreId,
   PriceMonitoringSettings,
+  PriceMonitorScopeKind,
 } from '@/lib/settings-shared'
 import { getVaultAccessState, withVaultWrite } from '@/lib/vault-access'
 
@@ -872,6 +874,11 @@ export type QueueSnapshot = {
     startedAt: string
   }>
   lanes: QueueLaneView[]
+  /**
+   * What to monitor: the scope kind and how many existing knives it covers
+   * (null for the whole collection).
+   */
+  scope: { kind: PriceMonitorScopeKind; knives: number | null }
 }
 
 const iso = (value: number | null) =>
@@ -1027,5 +1034,9 @@ export function buildQueueSnapshot(
       startedAt: new Date(entry.startedAt).toISOString(),
     })),
     lanes,
+    scope: {
+      kind: settings.scope.kind,
+      knives: countMonitorScopeKnives(database, settings.scope),
+    },
   }
 }

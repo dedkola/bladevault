@@ -1,4 +1,5 @@
 import { parseStoredPrice } from '@/lib/price-monitor/money'
+import type { PriceMonitorScope } from '@/lib/settings-shared'
 import {
   normalizeSourceUrl,
   type PriceSourceOrigin,
@@ -11,6 +12,13 @@ export type EligibilitySettings = {
   skipSoldKnives: boolean
   /** Out of stock on the knife's own product link is ignored. */
   ignoreOfficialOutOfStock?: boolean
+  /** Which knives monitoring covers; missing means the whole collection. */
+  scope?: PriceMonitorScope
+  /**
+   * The scope resolved to knife ids (see `withMonitorScope`); null or
+   * missing covers every knife.
+   */
+  scopeKnifeIds?: ReadonlySet<string> | null
 }
 
 /**
@@ -36,17 +44,21 @@ export const DEFAULT_ELIGIBILITY_SETTINGS: EligibilitySettings = {
 /**
  * Whether scheduled monitoring covers a knife.
  * - off: never.
+ * - outside the monitoring scope (What to monitor): never, also with
+ *   Always monitor.
  * - on: whenever it has an enabled source.
  * - auto: when its stored regular price is above 0, it is not sold (unless
  *   the setting allows sold knives), and it has an enabled source.
  */
 export function getEligibility(
-  knife: { sold: boolean; specs: { price?: string } },
+  knife: { id: string; sold: boolean; specs: { price?: string } },
   mode: PriceWatchMode,
   enabledSourceCount: number,
   settings: EligibilitySettings = DEFAULT_ELIGIBILITY_SETTINGS,
 ): PriceWatchEligibility {
   if (mode === 'off') return { monitored: false, reason: 'off' }
+  if (settings.scopeKnifeIds && !settings.scopeKnifeIds.has(knife.id))
+    return { monitored: false, reason: 'out_of_scope' }
   if (mode === 'auto') {
     if (!parseStoredPrice(knife.specs.price))
       return { monitored: false, reason: 'no_price' }

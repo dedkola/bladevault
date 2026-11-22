@@ -4,6 +4,7 @@ import {
   type EligibilitySettings,
 } from '@/lib/price-monitor/eligibility'
 import { parseStoredPrice, toMinorUnits } from '@/lib/price-monitor/money'
+import { withMonitorScope } from '@/lib/price-monitor/scope'
 import {
   classifyPriceMoves,
   type PriceMoveClass,
@@ -195,16 +196,17 @@ export function buildMarketSummaries(
     ).map((row) => [row.source_id, row.at]),
   )
 
+  const scoped = withMonitorScope(database, settings)
   const result: Record<string, KnifeMarketSummary> = {}
   for (const [knifeId, list] of sourcesByKnife) {
     const knife = knives.get(knifeId)
     if (!knife) continue
     const purchase = storedPrice(knife.specs)
     const monitored = getEligibility(
-      { sold: knife.sold === 1, specs: { price: purchase } },
+      { id: knifeId, sold: knife.sold === 1, specs: { price: purchase } },
       knife.mode,
       list.length,
-      settings,
+      scoped,
     ).monitored
 
     const inStock = list.filter(

@@ -75,6 +75,7 @@ const REASON_TEXT: Record<EligibilityReason, string> = {
   no_price: 'no regular price stored, so not monitored',
   sold: 'sold, so not monitored',
   no_source: 'no product URL yet',
+  out_of_scope: 'not in What to monitor, so not checked on schedule',
 }
 
 const POLL_MS = 3000
@@ -715,6 +716,17 @@ export function KnifePricePanel({
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {REASON_TEXT[watch.eligibility.reason]}
+                    {watch.eligibility.reason === 'out_of_scope' ? (
+                      <>
+                        {' · '}
+                        <Link
+                          href="/settings?tab=prices"
+                          className="underline hover:text-foreground"
+                        >
+                          Change
+                        </Link>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               ) : null}

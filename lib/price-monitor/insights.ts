@@ -5,6 +5,7 @@ import {
   type EligibilitySettings,
 } from '@/lib/price-monitor/eligibility'
 import { parseStoredPrice, toMinorUnits } from '@/lib/price-monitor/money'
+import { withMonitorScope } from '@/lib/price-monitor/scope'
 import {
   classifyPriceMoves,
   type PriceMoveClass,
@@ -476,10 +477,12 @@ function stockRules(
 
 /** Knives scheduled monitoring covers: eligible, with an enabled source. */
 function monitoredKnifeIds(
+  database: Database.Database,
   sources: readonly SourceRow[],
   knives: Map<string, KnifeRow>,
   settings: EligibilitySettings,
 ): Set<string> {
+  const scoped = withMonitorScope(database, settings)
   const enabledByKnife = new Map<string, number>()
   for (const source of sources)
     if (source.enabled === 1)
@@ -493,10 +496,14 @@ function monitoredKnifeIds(
     if (
       knife &&
       getEligibility(
-        { sold: knife.sold === 1, specs: { price: storedPrice(knife.specs) } },
+        {
+          id: knifeId,
+          sold: knife.sold === 1,
+          specs: { price: storedPrice(knife.specs) },
+        },
         knife.mode,
         count,
-        settings,
+        scoped,
       ).monitored
     )
       monitored.add(knifeId)
@@ -543,7 +550,7 @@ export function buildKnifeSummaries(
 ): KnifeSummary[] {
   const knives = readKnives(database)
   const sources = database.prepare(SOURCE_SQL).all() as SourceRow[]
-  const monitored = monitoredKnifeIds(sources, knives, settings)
+  const monitored = monitoredKnifeIds(database, sources, knives, settings)
   const { ignored, soldOut } = stockRules(settings)
   const lastChangeByKnife = new Map(
     (
@@ -645,7 +652,7 @@ export function buildPriceOverview(
   const sources = database.prepare(SOURCE_SQL).all() as SourceRow[]
   const { ignored, soldOut } = stockRules(settings)
 
-  const monitored = monitoredKnifeIds(sources, knives, settings)
+  const monitored = monitoredKnifeIds(database, sources, knives, settings)
 
   const windowRows = database
     .prepare(
