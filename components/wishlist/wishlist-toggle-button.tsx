@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Heart, Loader2 } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useWishlist } from '@/components/providers/wishlist-provider'
@@ -11,23 +11,14 @@ import {
 } from '@/lib/knife-action-styles'
 import { cn } from '@/lib/utils'
 
-/** Knife page action: adds the knife to the wishlist or takes it off. */
-export function WishlistToggleButton({
-  knifeId,
-  knifeName,
-  disabled,
-}: {
-  knifeId: string
-  knifeName: string
-  disabled?: boolean
-}) {
+/** Adds a knife to the wishlist or takes it off, with toast feedback. */
+export function useWishlistToggle(knifeId: string, knifeName: string) {
   const { available, has, mutate, loading, error } = useWishlist()
   const { showFeedback } = useKnives()
   const [saving, setSaving] = useState(false)
-  if (!available) return null
   const listed = has(knifeId)
 
-  async function toggle() {
+  const toggle = useCallback(async () => {
     setSaving(true)
     try {
       await mutate(
@@ -46,15 +37,38 @@ export function WishlistToggleButton({
     } finally {
       setSaving(false)
     }
+  }, [listed, mutate, knifeId, knifeName, showFeedback])
+
+  return {
+    available,
+    listed,
+    saving,
+    disabled: saving || loading || Boolean(error),
+    toggle,
   }
+}
+
+/** Knife page action: adds the knife to the wishlist or takes it off. */
+export function WishlistToggleButton({
+  knifeId,
+  knifeName,
+  disabled,
+}: {
+  knifeId: string
+  knifeName: string
+  disabled?: boolean
+}) {
+  const wishlist = useWishlistToggle(knifeId, knifeName)
+  if (!wishlist.available) return null
+  const { listed, saving } = wishlist
 
   return (
     <Button
       variant="outline"
       size="sm"
-      onClick={() => void toggle()}
+      onClick={() => void wishlist.toggle()}
       aria-pressed={listed}
-      disabled={disabled || saving || loading || Boolean(error)}
+      disabled={disabled || wishlist.disabled}
       className={cn(
         'text-[var(--bladevault-olive)] hover:text-[var(--bladevault-olive)] dark:text-[var(--bladevault-gold)] dark:hover:text-[var(--bladevault-gold)]',
         listed && activeKnifeOutlineClassName,

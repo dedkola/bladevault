@@ -8,6 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModernCollectionInspector } from '@/components/modern-collection-inspector'
 import { createKnife } from '@/tests/fixtures/knife'
 
+vi.mock('@/components/providers/knives-provider', () => ({
+  useKnives: () => ({ showFeedback: vi.fn() }),
+}))
+
 beforeEach(() => {
   vi.stubGlobal(
     'matchMedia',
