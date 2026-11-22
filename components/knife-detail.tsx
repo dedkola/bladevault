@@ -1,6 +1,7 @@
 'use client'
 
 import { useComparisons } from '@/components/providers/comparisons-provider'
+import { WishlistToggleButton } from '@/components/wishlist/wishlist-toggle-button'
 
 import { useEffect, useId, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -468,6 +469,11 @@ export default function KnifeDetail({
                   ? `In ${comparisonCount} ${comparisonCount === 1 ? 'list' : 'lists'}`
                   : 'Compare'}
               </Button>
+              <WishlistToggleButton
+                knifeId={knife.id}
+                knifeName={knife.name}
+                disabled={isSaving}
+              />
               <Button
                 variant="outline"
                 size="sm"
@@ -580,6 +586,7 @@ export default function KnifeDetail({
                 ? `In ${comparisonCount} ${comparisonCount === 1 ? 'list' : 'lists'}`
                 : 'Compare'}
             </Button>
+            <WishlistToggleButton knifeId={knife.id} knifeName={knife.name} />
             <Button
               variant="outline"
               size="sm"

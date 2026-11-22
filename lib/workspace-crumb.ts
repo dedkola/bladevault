@@ -6,6 +6,7 @@ export function workspaceCrumb(pathname: string): [string, string] {
   if (pathname.startsWith('/add')) return ['Collection', 'Add knife']
   if (pathname === '/studio') return ['Studio', 'Visual library']
   if (pathname.startsWith('/compare')) return ['Compare', 'Saved comparisons']
+  if (pathname.startsWith('/wishlist')) return ['Collection', 'Wishlist']
   if (pathname.startsWith('/price-drops')) return ['Collection', 'Price Drops']
   if (pathname.startsWith('/maintenance')) return ['Activity', 'Maintenance']
   if (pathname.startsWith('/logs')) return ['Activity', 'History']

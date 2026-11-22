@@ -25,6 +25,7 @@ const tabs = [
   { href: '/collection', label: 'Collection' },
   { href: '/studio', label: 'Studio' },
   { href: '/compare', label: 'Compare' },
+  { href: '/wishlist', label: 'Wishlist' },
   { href: '/price-drops', label: 'Price Drops' },
   { href: '/maintenance', label: 'Maintenance' },
   { href: '/logs', label: 'History' },
@@ -96,7 +97,11 @@ export function LedgerShell({ children }: { children: React.ReactNode }) {
         </Link>
         <nav aria-label="Main navigation" data-ledger-tabs>
           {tabs
-            .filter(({ href }) => href !== '/price-drops' || hasServerRuntime())
+            .filter(
+              ({ href }) =>
+                (href !== '/price-drops' && href !== '/wishlist') ||
+                hasServerRuntime(),
+            )
             .map(({ href, label }) => {
               const selected =
                 pathname === href || pathname.startsWith(href + '/')

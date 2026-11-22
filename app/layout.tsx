@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { ComparisonsProvider } from '@/components/providers/comparisons-provider'
+import { WishlistProvider } from '@/components/providers/wishlist-provider'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import './alloy.css'
@@ -196,7 +197,9 @@ export default async function RootLayout({
                           <TooltipProvider>
                             <Suspense>
                               <ComparisonsProvider>
-                                <AppShell>{children}</AppShell>
+                                <WishlistProvider>
+                                  <AppShell>{children}</AppShell>
+                                </WishlistProvider>
                               </ComparisonsProvider>
                             </Suspense>
                             <GlobalKnifeSearch />
