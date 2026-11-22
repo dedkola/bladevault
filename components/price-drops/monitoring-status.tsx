@@ -300,7 +300,10 @@ function lanesFor(group: Group, sources: MonitoredSource[]): Lane[] {
   const stores = [...byStore.values()].sort((a, b) => b.length - a.length)
   const lanes: Lane[] = stores.slice(0, MAX_STORE_LANES).map((list) => ({
     key: list[0].laneKey,
-    label: storeLabel(list[0].storeName),
+    // Every Amazon marketplace shares one lane.
+    label: storeLabel(
+      list[0].laneKey === 'amazon' ? 'amazon' : list[0].storeName,
+    ),
     sources: list,
   }))
   const rest = stores.slice(MAX_STORE_LANES)

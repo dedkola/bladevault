@@ -9,7 +9,6 @@ import {
 } from '@/lib/local-data-config'
 import { normalizeKnifeTextFields } from '@/lib/knife-text'
 import { backfillNewStoreEvents } from '@/lib/price-monitor/new-store'
-import { isAmazonUrl } from '@/lib/price-monitor/shared'
 import {
   assertVaultReadable,
   getVaultAccessState,
@@ -1112,8 +1111,6 @@ function migratePriceMonitoringSchema(
   // acquireWorkerLease). A released lease keeps its row and version.
   addColumn('price_worker_lease', 'build', 'TEXT')
   addColumn('price_worker_lease', 'released_at', 'TEXT')
-  // Before the new-store backfill, so Amazon sources get no events.
-  removeAmazonPriceSources(database)
   forgetDroppedSearchStores(database)
   // A store's first reading can be a drop or back in stock for the knife,
   // measured against another of its stores (price-monitor/new-store).
@@ -1127,45 +1124,6 @@ function migratePriceMonitoringSchema(
   addColumn('stock_events', 'previous_source_id', 'INTEGER')
   if (!hadPreviousSource)
     database.transaction(() => backfillNewStoreEvents(database))()
-}
-
-/**
- * Amazon forbids automated AI access, so Price Drops no longer monitors it.
- * Its sources are removed the way Remove source does it (their history
- * stays); its Other stores searches and store pacing are forgotten.
- * Repeat-safe, so a restored older backup is cleaned up as well.
- */
-function removeAmazonPriceSources(database: Database.Database) {
-  const sources = (
-    database
-      .prepare(
-        `SELECT id, url, lane_key, provider FROM price_sources
-         WHERE removed_at IS NULL`,
-      )
-      .all() as Array<{
-      id: number
-      url: string
-      lane_key: string
-      provider: string
-    }>
-  ).filter(
-    (source) =>
-      source.lane_key === 'amazon' ||
-      source.provider === 'amazon' ||
-      isAmazonUrl(source.url),
-  )
-  const now = new Date().toISOString()
-  const remove = database.prepare(
-    `UPDATE price_sources SET removed_at = ?, updated_at = ?
-     WHERE id = ? AND removed_at IS NULL`,
-  )
-  database.transaction(() => {
-    for (const source of sources) remove.run(now, now, source.id)
-    database.prepare("DELETE FROM price_discovery WHERE store = 'amazon'").run()
-    database
-      .prepare("DELETE FROM price_host_state WHERE lane_key = 'amazon'")
-      .run()
-  })()
 }
 
 /**

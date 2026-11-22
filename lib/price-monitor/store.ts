@@ -21,11 +21,10 @@ import {
 } from '@/lib/price-monitor/eligibility'
 import { recordNewStoreEvent } from '@/lib/price-monitor/new-store'
 import {
-  AMAZON_NOT_SUPPORTED,
-  isAmazonUrl,
   laneKeyForUrl,
   MAX_PRICE_SOURCES_PER_KNIFE,
   normalizeSourceUrl,
+  providerForUrl,
   storeNameForUrl,
   type Availability,
   type FetchOverride,
@@ -476,18 +475,18 @@ export function insertSource(
     throw new PriceWatchError(
       'Enter a valid product URL starting with http:// or https://.',
     )
-  if (isAmazonUrl(url)) throw new PriceWatchError(AMAZON_NOT_SUPPORTED)
   database
     .prepare(
       `INSERT INTO price_sources
         (knife_id, url, normalized_url, provider, lane_key, store_name, origin,
          priority, created_at, updated_at)
-       VALUES (?, ?, ?, 'generic', ?, ?, ?, 1, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
     )
     .run(
       knifeId,
       url,
       normalized,
+      providerForUrl(url),
       laneKeyForUrl(url),
       storeName || storeNameForUrl(url),
       origin,
@@ -528,9 +527,44 @@ function applyAutoSourcePlan(
   if (plan.add) {
     const active = readActiveSources(database, knife.id)
     // A full manual list leaves no room for the auto source.
-    if (active.length < MAX_PRICE_SOURCES_PER_KNIFE)
+    if (active.length >= MAX_PRICE_SOURCES_PER_KNIFE) return
+    if (!restoreAutoSource(database, knife.id, plan.add, now))
       insertSource(database, knife.id, plan.add, 'auto', undefined, now)
   }
+}
+
+/**
+ * Brings back the knife's removed auto source for the same link, with its
+ * price history, instead of starting a new one. Auto sources are only ever
+ * removed by the app (the product link changed, or Amazon was left out of
+ * Price Drops for a while), never by the person. It is checked again soon.
+ */
+function restoreAutoSource(
+  database: Database.Database,
+  knifeId: string,
+  url: string,
+  now: string,
+): boolean {
+  const normalized = normalizeSourceUrl(url)
+  if (!normalized) return false
+  const removed = database
+    .prepare(
+      `SELECT id FROM price_sources
+       WHERE knife_id = ? AND origin = 'auto' AND normalized_url = ?
+         AND removed_at IS NOT NULL
+       ORDER BY removed_at DESC, id DESC LIMIT 1`,
+    )
+    .get(knifeId, normalized) as { id: number } | undefined
+  if (!removed) return false
+  database
+    .prepare(
+      `UPDATE price_sources
+       SET removed_at = NULL, url = ?, provider = ?, lane_key = ?,
+           status = 'pending', next_check_at = NULL, updated_at = ?
+       WHERE id = ?`,
+    )
+    .run(url, providerForUrl(url), laneKeyForUrl(url), now, removed.id)
+  return true
 }
 
 /**
@@ -1362,8 +1396,7 @@ export function readQueueCandidates(
        JOIN knives k ON k.id = s.knife_id
        LEFT JOIN price_watch w ON w.knife_id = s.knife_id
        LEFT JOIN price_host_state h ON h.lane_key = s.lane_key
-       WHERE s.removed_at IS NULL AND (s.priority >= 2 OR s.enabled = 1)
-         AND s.provider <> 'amazon' AND s.lane_key <> 'amazon'`,
+       WHERE s.removed_at IS NULL AND (s.priority >= 2 OR s.enabled = 1)`,
     )
     .all() as Array<{
     id: number
