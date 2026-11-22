@@ -27,13 +27,13 @@ export function parseSection(value: string | null | undefined): Section | null {
 
 export const SECTION_LABEL: Record<Section, string> = {
   all: 'All',
-  changes: 'Changes',
-  drops: 'Drops',
-  increases: 'Increases',
+  changes: 'Changed',
+  drops: '↓ Down',
+  increases: '↑ Up',
   restocked: 'Restocked',
   oos: 'Out of stock',
   attention: 'Needs attention',
-  recent: 'Recently monitored',
+  recent: 'Recently checked',
 }
 
 /** In stock, read on its last check and cheaper than the regular price. */
@@ -189,7 +189,7 @@ function savingPct(source: MonitoredSource): number {
 /**
  * Rows for a section: by result (drops first) unless a column is sorted;
  * Drops puts the biggest saving first.
- * Missing values always sort last. Recently monitored keeps the newest 30.
+ * Missing values always sort last. Recently checked keeps the newest 30.
  */
 export function sortRows(
   section: Section,
