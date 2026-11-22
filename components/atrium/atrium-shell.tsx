@@ -219,7 +219,6 @@ export function AtriumShell({ children }: { children: React.ReactNode }) {
               </Link>
             )
           })}
-        <span data-atrium-dock-divider aria-hidden="true" />
         <Link
           href="/add"
           data-atrium-dock-extra
