@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import os from 'node:os'
 
 /**
@@ -8,7 +9,10 @@ import os from 'node:os'
  * socket, which is not the endpoint's or the store's fault. The desktop app
  * reports suspend and resume (POST /api/prices/power); without it (locked
  * app, web server, Docker) a wall-clock jump the monotonic clock did not
- * see tells the same story.
+ * see tells the same story on Linux. On macOS Node's monotonic clock keeps
+ * counting through sleep and the desktop app gets no notice for maintenance
+ * sleeps (Power Nap, DarkWake), so the kernel's own last sleep and wake
+ * times (sysctl kern.sleeptime / kern.waketime) are read instead.
  *
  * Several stores failing with network errors together, or the AI host
  * failing DNS, means this computer is offline: those checks are deferred
@@ -31,6 +35,37 @@ export const OUTAGE_HOLD_MS = 2 * 60_000
 /** A failing check waits this long for others failing at the same time. */
 export const OUTAGE_SETTLE_MS = 1_500
 
+/** Last system sleep and wake (epoch ms), or null when unknown. */
+export type SystemSleepTimes = { sleepAt: number; wakeAt: number }
+
+const SYSCTL_TIME = /sec\s*=\s*(\d+),\s*usec\s*=\s*(\d+)/
+
+/** `{ sec = 1795334615, usec = 12720 } …` as epoch ms, or null. */
+export function parseSysctlTime(line: string): number | null {
+  const match = SYSCTL_TIME.exec(line)
+  if (!match) return null
+  const ms = Number(match[1]) * 1000 + Math.floor(Number(match[2]) / 1000)
+  return Number.isFinite(ms) && ms > 0 ? ms : null
+}
+
+/** macOS: the kernel's last sleep and wake times; null elsewhere. */
+function readDarwinSleepTimes(): SystemSleepTimes | null {
+  if (process.platform !== 'darwin') return null
+  try {
+    const [sleepLine = '', wakeLine = ''] = execFileSync(
+      '/usr/sbin/sysctl',
+      ['-n', 'kern.sleeptime', 'kern.waketime'],
+      { encoding: 'utf8', timeout: 1000, stdio: ['ignore', 'pipe', 'ignore'] },
+    ).split('\n')
+    const sleepAt = parseSysctlTime(sleepLine)
+    const wakeAt = parseSysctlTime(wakeLine)
+    return sleepAt !== null && wakeAt !== null ? { sleepAt, wakeAt } : null
+  } catch {
+    // Unknown: the clock checks still apply.
+    return null
+  }
+}
+
 export class PowerSuspendError extends Error {
   constructor() {
     super('The computer went to sleep.')
@@ -52,8 +87,11 @@ type PowerState = {
   lastWall: number
   lastMono: number
   settleMs: number
+  /** The last system wake already accounted for (macOS); null until read. */
+  seenWakeAt: number | null
   /** Overridable for tests. */
   hasNetworkInterface: () => boolean
+  systemSleepTimes: () => SystemSleepTimes | null
 }
 
 const STATE = Symbol.for('bladevault.price-monitor.power')
@@ -82,7 +120,9 @@ function freshState(): PowerState {
     lastWall: Date.now(),
     lastMono: performance.now(),
     settleMs: OUTAGE_SETTLE_MS,
+    seenWakeAt: null,
     hasNetworkInterface: hasExternalInterface,
+    systemSleepTimes: readDarwinSleepTimes,
   }
 }
 
@@ -93,7 +133,11 @@ function state(): PowerState {
 
 /** Tests: forget everything (and stop the watchdog). */
 export function resetPowerState(
-  options: { settleMs?: number; hasNetworkInterface?: () => boolean } = {},
+  options: {
+    settleMs?: number
+    hasNetworkInterface?: () => boolean
+    systemSleepTimes?: () => SystemSleepTimes | null
+  } = {},
 ): void {
   const current = state()
   if (current.watch) clearInterval(current.watch)
@@ -101,6 +145,7 @@ export function resetPowerState(
   if (options.settleMs !== undefined) next.settleMs = options.settleMs
   if (options.hasNetworkInterface)
     next.hasNetworkInterface = options.hasNetworkInterface
+  next.systemSleepTimes = options.systemSleepTimes ?? (() => null)
   ;(globalThis as typeof globalThis & { [STATE]?: PowerState })[STATE] = next
 }
 
@@ -112,9 +157,10 @@ export function clockMark(): ClockMark {
 }
 
 /**
- * The computer slept since the mark: a suspend was reported, or the wall
- * clock moved more than CLOCK_JUMP_MS beyond the monotonic clock (which
- * stops during sleep on macOS and Linux).
+ * The computer slept since the mark: a suspend was reported, the system
+ * reports a sleep after it (macOS), or the wall clock moved more than
+ * CLOCK_JUMP_MS beyond the monotonic clock (which stops during sleep on
+ * Linux; on macOS it keeps counting, hence the system's own sleep time).
  */
 export function sleptSince(
   mark: ClockMark,
@@ -123,7 +169,11 @@ export function sleptSince(
     mono: performance.now(),
   },
 ): boolean {
-  if (state().epoch !== mark.epoch) return true
+  const current = state()
+  if (current.epoch !== mark.epoch) return true
+  const system = current.systemSleepTimes()
+  if (system && system.sleepAt >= mark.wall && system.sleepAt <= now.wall)
+    return true
   return now.wall - mark.wall - (now.mono - mark.mono) > CLOCK_JUMP_MS
 }
 
@@ -157,12 +207,16 @@ export function notePowerResume(now = Date.now()): void {
   current.outageUntil = 0
   current.lastWall = Date.now()
   current.lastMono = performance.now()
+  // This wake is accounted for: the watchdog need not report it again.
+  const system = current.systemSleepTimes()
+  if (system) current.seenWakeAt = system.wakeAt
 }
 
 /**
- * One watchdog tick: a wall-clock jump beyond the monotonic clock is a
- * sleep nobody reported (no desktop notice, or a DarkWake in between).
- * Returns whether a jump was seen. Exported for tests.
+ * One watchdog tick: a wall-clock jump beyond the monotonic clock, or a
+ * system wake newer than the last one seen (macOS), is a sleep nobody
+ * reported (no desktop notice, or a DarkWake in between). Returns whether
+ * one was seen. Exported for tests.
  */
 export function checkClockJump(
   now: { wall: number; mono: number } = {
@@ -175,7 +229,15 @@ export function checkClockJump(
     now.wall - current.lastWall - (now.mono - current.lastMono) > CLOCK_JUMP_MS
   current.lastWall = now.wall
   current.lastMono = now.mono
-  if (!jumped) return false
+  const system = current.systemSleepTimes()
+  // The first reading is the baseline: a wake before this process started
+  // says nothing.
+  const woke =
+    system !== null &&
+    current.seenWakeAt !== null &&
+    system.wakeAt > current.seenWakeAt
+  if (system) current.seenWakeAt = system.wakeAt
+  if (!jumped && !woke) return false
   notePowerSuspend(now.wall)
   notePowerResume(now.wall)
   return true
@@ -187,6 +249,7 @@ export function ensurePowerWatch(): void {
   if (current.watch) return
   current.lastWall = Date.now()
   current.lastMono = performance.now()
+  current.seenWakeAt = current.systemSleepTimes()?.wakeAt ?? null
   current.watch = setInterval(() => checkClockJump(), WATCH_EVERY_MS)
   current.watch.unref?.()
 }

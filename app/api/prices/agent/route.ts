@@ -4,6 +4,7 @@ import { getLocalDb } from '@/lib/local-db'
 import {
   agentActive,
   agentEventGapMs,
+  agentFailureStreak,
   agentHeartbeatMs,
   agentNextRunAt,
   agentRunning,
@@ -69,7 +70,13 @@ function state() {
     nextRunAt:
       active && settings.enabled
         ? new Date(
-            agentNextRunAt({ settings, lastRunAt: last, now, events }),
+            agentNextRunAt({
+              settings,
+              lastRunAt: last,
+              now,
+              events,
+              failures: agentFailureStreak(database),
+            }),
           ).toISOString()
         : null,
     blockedStores: readBlockedStores(database),
