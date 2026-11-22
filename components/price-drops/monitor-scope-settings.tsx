@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ListChecks, Search, Square } from 'lucide-react'
+import { Heart, ListChecks, Search, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -15,8 +15,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { SegmentedControl, SettingsRow } from '@/components/settings-panels'
 import { useKnives } from '@/components/providers/knives-provider'
-import { useComparisons } from '@/components/providers/comparisons-provider'
-import type { Comparison } from '@/lib/comparisons'
+import { useWishlist } from '@/components/providers/wishlist-provider'
 import type { Knife } from '@/lib/data'
 import type {
   PriceMonitorScope,
@@ -26,13 +25,17 @@ import { cn } from '@/lib/utils'
 
 const KIND_LABEL: Record<PriceMonitorScopeKind, string> = {
   all: 'Whole collection',
+  wishlist: 'Wishlist',
   selected: 'Selected knives',
-  compare: 'Compare lists',
 }
 
-const KIND_OPTIONS = (Object.keys(KIND_LABEL) as PriceMonitorScopeKind[]).map(
-  (value) => ({ value, label: KIND_LABEL[value] }),
-)
+/** Dialog tabs; Wishlist comes first and opens by default. */
+type DialogKind = Exclude<PriceMonitorScopeKind, 'all'>
+const DIALOG_KINDS: DialogKind[] = ['wishlist', 'selected']
+const KIND_OPTIONS = DIALOG_KINDS.map((value) => ({
+  value,
+  label: KIND_LABEL[value],
+}))
 
 const knifeLabel = (knife: Pick<Knife, 'brand' | 'name'>) =>
   `${knife.brand} ${knife.name}`.trim() || 'Untitled knife'
@@ -44,39 +47,26 @@ export const knivesLabel = (count: number) =>
 function scopeKnifeCount(
   scope: PriceMonitorScope,
   knives: readonly Knife[],
-  lists: readonly Comparison[],
+  wishlistIds: readonly string[],
 ): number | null {
   if (scope.kind === 'all') return null
   const existing = new Set(knives.map((knife) => knife.id))
-  const ids =
-    scope.kind === 'selected'
-      ? scope.knifeIds
-      : lists
-          .filter((list) => scope.comparisonIds.includes(list.id))
-          .flatMap((list) => list.ids)
+  const ids = scope.kind === 'selected' ? scope.knifeIds : wishlistIds
   return new Set(ids.filter((id) => existing.has(id))).size
 }
 
 export function scopeSummary(
   scope: PriceMonitorScope,
   knives: readonly Knife[],
-  lists: readonly Comparison[],
+  wishlistIds: readonly string[],
 ): string {
   if (scope.kind === 'all') return 'Whole collection'
-  const count = scopeKnifeCount(scope, knives, lists) ?? 0
+  const count = scopeKnifeCount(scope, knives, wishlistIds) ?? 0
   if (scope.kind === 'selected')
     return count
       ? `${count} selected ${count === 1 ? 'knife' : 'knives'}`
       : 'Nothing: monitoring is stopped'
-  const names = lists
-    .filter((list) => scope.comparisonIds.includes(list.id))
-    .map((list) => `“${list.name}”`)
-  if (!names.length) return 'No compare list chosen'
-  const shown =
-    names.length > 2
-      ? `${names.slice(0, 2).join(', ')} +${names.length - 2}`
-      : names.join(', ')
-  return `${shown} · ${knivesLabel(count)}`
+  return count ? knivesLabel(count) : 'empty, nothing is monitored'
 }
 
 export function MonitorScopeSettings({
@@ -89,18 +79,21 @@ export function MonitorScopeSettings({
   onChange: (next: PriceMonitorScope) => void
 }) {
   const { knives } = useKnives()
-  const { lists } = useComparisons()
+  const { items: wishlistItems } = useWishlist()
+  const wishlistIds = useMemo(
+    () => wishlistItems.map((item) => item.knifeId),
+    [wishlistItems],
+  )
   const [editing, setEditing] = useState(false)
   const [confirmStop, setConfirmStop] = useState(false)
   const [undo, setUndo] = useState<PriceMonitorScope | null>(null)
 
   const stopped = scope.kind === 'selected' && scope.knifeIds.length === 0
-  const summary = scopeSummary(scope, knives, lists)
+  const summary = scopeSummary(scope, knives, wishlistIds)
 
   const stopAll = () => {
     setUndo(scope)
-    // Keep the chosen compare lists so switching back is one click.
-    onChange({ ...scope, kind: 'selected', knifeIds: [] })
+    onChange({ kind: 'selected', knifeIds: [] })
     setConfirmStop(false)
   }
 
@@ -167,7 +160,7 @@ export function MonitorScopeSettings({
         <ScopeDialog
           scope={scope}
           knives={knives}
-          lists={lists}
+          wishlistIds={wishlistIds}
           onClose={() => setEditing(false)}
           onApply={(next) => {
             setUndo(null)
@@ -215,17 +208,22 @@ export function MonitorScopeSettings({
 function ScopeDialog({
   scope,
   knives,
-  lists,
+  wishlistIds,
   onClose,
   onApply,
 }: {
   scope: PriceMonitorScope
   knives: readonly Knife[]
-  lists: readonly Comparison[]
+  wishlistIds: readonly string[]
   onClose: () => void
   onApply: (next: PriceMonitorScope) => void
 }) {
-  const [draft, setDraft] = useState<PriceMonitorScope>(scope)
+  const [draft, setDraft] = useState<{ kind: DialogKind; knifeIds: string[] }>(
+    () => ({
+      kind: scope.kind === 'selected' ? 'selected' : 'wishlist',
+      knifeIds: scope.knifeIds,
+    }),
+  )
   const [query, setQuery] = useState('')
   const [selectedOnly, setSelectedOnly] = useState(false)
 
@@ -259,13 +257,10 @@ function ScopeDialog({
         ? draft.knifeIds.filter((value) => value !== id)
         : [...draft.knifeIds, id],
     )
-  const toggleList = (id: string) =>
-    setDraft((current) => ({
-      ...current,
-      comparisonIds: current.comparisonIds.includes(id)
-        ? current.comparisonIds.filter((value) => value !== id)
-        : [...current.comparisonIds, id],
-    }))
+  const wishlistKnives = useMemo(() => {
+    const ids = new Set(wishlistIds)
+    return sorted.filter((knife) => ids.has(knife.id))
+  }, [sorted, wishlistIds])
 
   return (
     <Dialog
@@ -292,12 +287,39 @@ function ScopeDialog({
           }
         />
 
-        {draft.kind === 'all' ? (
-          <p className="text-sm text-muted-foreground">
-            Every knife is monitored by its own mode: Auto when a regular price
-            is stored, Always monitor, or Off.
-          </p>
-        ) : draft.kind === 'selected' ? (
+        {draft.kind === 'wishlist' ? (
+          <div className="min-w-0 rounded-lg border border-[var(--bladevault-line)]">
+            {wishlistKnives.length ? (
+              <ul
+                aria-label="Wishlist knives"
+                className="max-h-[min(45vh,22rem)] overflow-y-auto"
+              >
+                {wishlistKnives.map((knife) => (
+                  <li
+                    key={knife.id}
+                    className="flex items-center gap-2.5 border-t border-[var(--bladevault-line)]/60 px-3 py-2 text-sm first:border-t-0"
+                  >
+                    <Heart
+                      aria-hidden
+                      className="size-3.5 shrink-0 text-[var(--bladevault-gold)]"
+                    />
+                    <span className="min-w-0 flex-1 truncate">
+                      {knifeLabel(knife)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="px-3 py-4 text-sm text-muted-foreground">
+                The Wishlist is empty. Add knives to it from a knife page or the
+                Wishlist.
+              </p>
+            )}
+            <p className="border-t border-[var(--bladevault-line)] px-3 py-2 text-xs text-muted-foreground">
+              Follows the Wishlist: knives added to it later are monitored too.
+            </p>
+          </div>
+        ) : (
           <div className="min-w-0 rounded-lg border border-[var(--bladevault-line)]">
             <div className="flex flex-wrap items-center gap-2 border-b border-[var(--bladevault-line)] p-2">
               <div className="relative min-w-40 flex-1">
@@ -378,45 +400,18 @@ function ScopeDialog({
               </span>
             </div>
           </div>
-        ) : (
-          <div className="min-w-0 rounded-lg border border-[var(--bladevault-line)]">
-            {lists.length ? (
-              <ul
-                aria-label="Compare lists"
-                className="max-h-72 overflow-y-auto"
-              >
-                {lists.map((list) => (
-                  <li
-                    key={list.id}
-                    className="border-t border-[var(--bladevault-line)]/60 first:border-t-0"
-                  >
-                    <label className="flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm hover:bg-[var(--bladevault-surface-soft)]">
-                      <Checkbox
-                        checked={draft.comparisonIds.includes(list.id)}
-                        onCheckedChange={() => toggleList(list.id)}
-                      />
-                      <span className="min-w-0 flex-1 truncate">
-                        {list.name}
-                      </span>
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {knivesLabel(list.ids.length)}
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="px-3 py-4 text-sm text-muted-foreground">
-                No compare lists yet. Add knives to Compare to create one.
-              </p>
-            )}
-            <p className="border-t border-[var(--bladevault-line)] px-3 py-2 text-xs text-muted-foreground">
-              Follows the lists: knives added to them later are monitored too.
-            </p>
-          </div>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="sm:items-center">
+          {scope.kind !== 'all' ? (
+            <button
+              type="button"
+              className="mr-auto text-xs text-muted-foreground underline hover:text-foreground"
+              onClick={() => onApply({ kind: 'all', knifeIds: scope.knifeIds })}
+            >
+              Monitor whole collection
+            </button>
+          ) : null}
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>

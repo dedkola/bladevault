@@ -1,5 +1,6 @@
 'use client'
 
+import type { PriceMonitorScopeKind } from '@/lib/settings-shared'
 import Link from 'next/link'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import {
@@ -109,10 +110,10 @@ type QueueSnapshot = {
   checkedSince: number | null
   lanes: QueueLane[]
   /** What to monitor; `knives` is null for the whole collection. */
-  scope?: { kind: 'all' | 'selected' | 'compare'; knives: number | null }
+  scope?: { kind: PriceMonitorScopeKind; knives: number | null }
 }
 
-const SCOPE_LABEL = { selected: 'Selected knives', compare: 'Compare lists' }
+const SCOPE_LABEL = { wishlist: 'Wishlist', selected: 'Selected knives' }
 
 /** A running Check all: when it started (server time) and how many. */
 type CheckAllRun = { startedAt: string; total: number }
@@ -1103,7 +1104,9 @@ export function PriceDropsView({
             >
               {queue.scope.knives
                 ? `${SCOPE_LABEL[queue.scope.kind]} · ${queue.scope.knives} ${queue.scope.knives === 1 ? 'knife' : 'knives'}`
-                : 'Monitoring stopped for every knife'}
+                : queue.scope.kind === 'wishlist'
+                  ? 'Wishlist is empty: nothing is monitored'
+                  : 'Monitoring stopped for every knife'}
               <span className="underline">Change</span>
             </Link>
           ) : null}

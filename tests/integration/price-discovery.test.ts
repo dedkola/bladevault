@@ -16,12 +16,14 @@ import { networkBlockError } from '@/lib/scrape'
 import { ScrapeError } from '@/lib/scrape-errors'
 import { getSettings, saveSettings } from '@/lib/settings'
 import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
+import { monitorWholeCollection } from '@/tests/helpers/monitor-whole-collection'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 let vault: TempVault | null = null
 
 beforeEach(async () => {
   vault = await createTempVault()
+  monitorWholeCollection()
 })
 afterEach(async () => {
   await getPriceMonitorWorker().stop()
@@ -61,6 +63,7 @@ function enableOtherStores(ai = true, stores = { bladehq: true }) {
   saveSettings({
     priceMonitoring: {
       ...DEFAULT_PRICE_MONITORING,
+      scope: { kind: 'all', knifeIds: [] },
       ai: {
         ...DEFAULT_PRICE_MONITORING.ai,
         enabled: ai,

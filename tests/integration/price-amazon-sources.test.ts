@@ -5,6 +5,7 @@ import { closeLocalDb, getLocalDb } from '@/lib/local-db'
 import type { PriceWatchView } from '@/lib/price-monitor/shared'
 import { syncAllAutoSources } from '@/lib/price-monitor/store'
 import { getPriceMonitorWorker } from '@/lib/price-monitor/worker'
+import { monitorWholeCollection } from '@/tests/helpers/monitor-whole-collection'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 // A product link is checked whatever store it is on, Amazon included.
@@ -13,6 +14,7 @@ let vault: TempVault | null = null
 
 beforeEach(async () => {
   vault = await createTempVault()
+  monitorWholeCollection()
 })
 afterEach(async () => {
   await getPriceMonitorWorker().stop()

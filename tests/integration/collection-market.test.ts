@@ -11,6 +11,7 @@ import type { PriceWatchView } from '@/lib/price-monitor/shared'
 import type { ExtractedOffer } from '@/lib/scrape-offer'
 import type { Knife } from '@/lib/data'
 import { matchesCollection } from '@/lib/smart-collections'
+import { monitorWholeCollection } from '@/tests/helpers/monitor-whole-collection'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 const mocks = vi.hoisted(() => ({ browser: vi.fn() }))
@@ -34,6 +35,7 @@ beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(START)
   vault = await createTempVault()
+  monitorWholeCollection()
   vi.resetAllMocks()
 })
 afterEach(async () => {

@@ -20,6 +20,7 @@ import {
 } from '@/lib/price-monitor/worker'
 import { createServerShutdown } from '@/lib/server-shutdown'
 import { getSettings } from '@/lib/settings'
+import { monitorWholeCollection } from '@/tests/helpers/monitor-whole-collection'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 const NOW = Date.UTC(2026, 10, 21, 12)
@@ -28,6 +29,7 @@ let workers: PriceMonitorWorker[] = []
 
 beforeEach(async () => {
   vault = await createTempVault()
+  monitorWholeCollection()
 })
 afterEach(async () => {
   await getPriceMonitorWorker().stop()

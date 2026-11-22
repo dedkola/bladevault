@@ -12,16 +12,13 @@ const knives = [
   { id: 'b', brand: 'Benchmade', name: 'Bugout', sold: false, specs: {} },
   { id: 'c', brand: 'Spyderco', name: 'Para 3', sold: true, specs: {} },
 ]
-const lists = [
-  { id: 'edc', name: 'EDC', ids: ['a', 'b'] },
-  { id: 'big', name: 'Big', ids: ['c'] },
-]
+const wishlist = [{ knifeId: 'b' }, { knifeId: 'c' }, { knifeId: 'gone' }]
 
 vi.mock('@/components/providers/knives-provider', () => ({
   useKnives: () => ({ knives }),
 }))
-vi.mock('@/components/providers/comparisons-provider', () => ({
-  useComparisons: () => ({ lists }),
+vi.mock('@/components/providers/wishlist-provider', () => ({
+  useWishlist: () => ({ items: wishlist }),
 }))
 
 const { MonitorScopeSettings } =
@@ -46,7 +43,7 @@ function Harness({
   )
 }
 
-const ALL: PriceMonitorScope = { kind: 'all', knifeIds: [], comparisonIds: [] }
+const ALL: PriceMonitorScope = { kind: 'all', knifeIds: [] }
 
 afterEach(cleanup)
 
@@ -66,7 +63,6 @@ it('stops monitoring every knife after confirming, and undoes it', async () => {
   expect(onChange).toHaveBeenLastCalledWith({
     kind: 'selected',
     knifeIds: [],
-    comparisonIds: [],
   })
   expect(screen.getByText(/Nothing: monitoring is stopped/)).toBeVisible()
   expect(
@@ -94,30 +90,33 @@ it('picks knives with search and applies the selection', async () => {
   expect(onChange).toHaveBeenLastCalledWith({
     kind: 'selected',
     knifeIds: ['c', 'a'],
-    comparisonIds: [],
   })
   expect(screen.getByText(/2 selected knives/)).toBeVisible()
 })
 
-it('follows chosen compare lists and cancels without saving', async () => {
+it('opens on the Wishlist tab and follows the Wishlist', async () => {
   const onChange = vi.fn()
   const user = userEvent.setup()
   render(<Harness initial={ALL} onChange={onChange} />)
 
   await user.click(screen.getByRole('button', { name: /Change/ }))
-  await user.click(screen.getByRole('radio', { name: 'Compare lists' }))
+  expect(screen.getByRole('radio', { name: 'Wishlist' })).toBeChecked()
+  expect(
+    screen.queryByRole('radio', { name: 'Compare lists' }),
+  ).not.toBeInTheDocument()
+  const list = screen.getByRole('list', { name: 'Wishlist knives' })
+  expect(within(list).getAllByRole('listitem')).toHaveLength(2)
   await user.click(screen.getByRole('button', { name: 'Cancel' }))
   expect(onChange).not.toHaveBeenCalled()
 
   await user.click(screen.getByRole('button', { name: /Change/ }))
-  await user.click(screen.getByRole('radio', { name: 'Compare lists' }))
-  await user.click(screen.getByRole('checkbox', { name: /EDC/ }))
   await user.click(screen.getByRole('button', { name: 'Apply' }))
+  expect(onChange).toHaveBeenLastCalledWith({ kind: 'wishlist', knifeIds: [] })
+  expect(screen.getByText(/Wishlist: 2 knives/)).toBeVisible()
 
-  expect(onChange).toHaveBeenLastCalledWith({
-    kind: 'compare',
-    knifeIds: [],
-    comparisonIds: ['edc'],
-  })
-  expect(screen.getByText(/“EDC” · 2 knives/)).toBeVisible()
+  await user.click(screen.getByRole('button', { name: /Change/ }))
+  await user.click(
+    screen.getByRole('button', { name: 'Monitor whole collection' }),
+  )
+  expect(onChange).toHaveBeenLastCalledWith(ALL)
 })

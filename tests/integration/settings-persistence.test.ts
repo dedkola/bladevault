@@ -23,7 +23,7 @@ describe('settings persistence', () => {
       priceMonitoring: {
         ...getSettings().priceMonitoring,
         enabled: false,
-        scope: { kind: 'compare', knifeIds: ['k1'], comparisonIds: ['edc'] },
+        scope: { kind: 'wishlist', knifeIds: ['k1'] },
         schedule: {
           mode: 'custom',
           intervalHours: 6,
@@ -76,7 +76,7 @@ describe('settings persistence', () => {
       enabled: false,
       skipSoldKnives: true,
       ignoreOfficialOutOfStock: false,
-      scope: { kind: 'compare', knifeIds: ['k1'], comparisonIds: ['edc'] },
+      scope: { kind: 'wishlist', knifeIds: ['k1'] },
       schedule: {
         mode: 'custom',
         intervalHours: 6,
