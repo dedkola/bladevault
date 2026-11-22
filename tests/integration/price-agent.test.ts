@@ -27,6 +27,7 @@ import {
 } from '@/lib/settings-shared'
 import { getStorage } from '@/lib/storage'
 import type { SystemMessage } from '@/lib/system-messages'
+import { monitorWholeCollection } from '@/tests/helpers/monitor-whole-collection'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 let vault: TempVault
@@ -34,6 +35,7 @@ let aiFetch: ReturnType<typeof vi.fn<typeof fetch>>
 
 beforeEach(async () => {
   vault = await createTempVault()
+  monitorWholeCollection()
   aiFetch = vi.fn<typeof fetch>()
   vi.stubGlobal('fetch', aiFetch)
 })

@@ -24,6 +24,7 @@ import {
 import { getSettings, saveSettings } from '@/lib/settings'
 import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
 import { getVaultAccessState } from '@/lib/vault-access'
+import { monitorWholeCollection } from '@/tests/helpers/monitor-whole-collection'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 const MIN = 60_000
@@ -32,6 +33,7 @@ let workers: PriceMonitorWorker[] = []
 
 beforeEach(async () => {
   vault = await createTempVault()
+  monitorWholeCollection()
 })
 afterEach(async () => {
   // The stores route starts and wakes the process-wide worker. Stop it first so

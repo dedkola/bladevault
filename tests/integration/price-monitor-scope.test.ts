@@ -3,7 +3,7 @@ import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 import { createKnife } from '@/tests/fixtures/knife'
 import { LocalStorage } from '@/lib/storage/local'
 import { getLocalDb } from '@/lib/local-db'
-import { mutateComparison } from '@/lib/comparison-storage'
+import { mutateWishlist } from '@/lib/wishlist-storage'
 import type { EligibilitySettings } from '@/lib/price-monitor/eligibility'
 import {
   readMonitorScopeKnifeIds,
@@ -26,16 +26,16 @@ afterEach(async () => {
   await vault.cleanup()
 })
 
-function createList(name: string, ids: string[]) {
-  const result = mutateComparison({ action: 'create', name, ids })
-  return result.listId!
-}
-
 describe('monitoring scope', () => {
-  it('covers the whole collection by default', () => {
-    expect(readMonitorScopeKnifeIds(getLocalDb(), undefined)).toBeNull()
+  it('defaults to the Wishlist; no scope or all covers everything', () => {
+    const db = getLocalDb()
+    expect(DEFAULT_PRICE_MONITOR_SCOPE.kind).toBe('wishlist')
+    expect(readMonitorScopeKnifeIds(db, DEFAULT_PRICE_MONITOR_SCOPE)).toEqual(
+      new Set(),
+    )
+    expect(readMonitorScopeKnifeIds(db, undefined)).toBeNull()
     expect(
-      readMonitorScopeKnifeIds(getLocalDb(), DEFAULT_PRICE_MONITOR_SCOPE),
+      readMonitorScopeKnifeIds(db, { kind: 'all', knifeIds: [] }),
     ).toBeNull()
   })
 
@@ -45,44 +45,40 @@ describe('monitoring scope', () => {
       readMonitorScopeKnifeIds(db, {
         kind: 'selected',
         knifeIds: ['first'],
-        comparisonIds: ['ignored'],
       }),
     ).toEqual(new Set(['first']))
     expect(
       readMonitorScopeKnifeIds(db, {
         kind: 'selected',
         knifeIds: [],
-        comparisonIds: [],
       }),
     ).toEqual(new Set())
   })
 
-  it('follows compare lists live and skips deleted ones', () => {
+  it('follows the Wishlist live', () => {
     const db = getLocalDb()
-    const edc = createList('EDC', ['first'])
-    const big = createList('Big', ['first', 'second'])
-    const scope = {
-      kind: 'compare' as const,
-      knifeIds: [],
-      comparisonIds: [edc, big, 'deleted-list'],
-    }
+    const scope = { kind: 'wishlist' as const, knifeIds: ['ignored'] }
+    expect(readMonitorScopeKnifeIds(db, scope)).toEqual(new Set())
+    mutateWishlist({
+      action: 'add',
+      knifeIds: ['first', 'second'],
+      lane: 'next',
+    })
     expect(readMonitorScopeKnifeIds(db, scope)).toEqual(
       new Set(['first', 'second']),
     )
-    mutateComparison({ action: 'add', id: edc, ids: ['third'] })
+    mutateWishlist({ action: 'remove', knifeIds: ['first'] })
+    mutateWishlist({ action: 'add', knifeIds: ['third'], lane: 'someday' })
     expect(readMonitorScopeKnifeIds(db, scope)).toEqual(
-      new Set(['first', 'second', 'third']),
+      new Set(['second', 'third']),
     )
-    expect(
-      readMonitorScopeKnifeIds(db, { ...scope, comparisonIds: [] }),
-    ).toEqual(new Set())
   })
 
   it('resolves once and keeps an already resolved scope', () => {
     const db = getLocalDb()
     const settings: EligibilitySettings = {
       skipSoldKnives: true,
-      scope: { kind: 'selected', knifeIds: ['second'], comparisonIds: [] },
+      scope: { kind: 'selected', knifeIds: ['second'] },
     }
     const resolved = withMonitorScope(db, settings)
     expect(resolved.scopeKnifeIds).toEqual(new Set(['second']))
@@ -91,10 +87,11 @@ describe('monitoring scope', () => {
 })
 
 describe('normalizePriceMonitorScope', () => {
-  it('keeps old settings on the whole collection', () => {
-    expect(normalizePriceMonitoring({}).scope).toEqual(
-      DEFAULT_PRICE_MONITOR_SCOPE,
-    )
+  it('puts settings without a scope on the Wishlist', () => {
+    expect(normalizePriceMonitoring({}).scope).toEqual({
+      kind: 'wishlist',
+      knifeIds: [],
+    })
   })
 
   it('cleans kinds and ids', () => {
@@ -102,29 +99,24 @@ describe('normalizePriceMonitorScope', () => {
       normalizePriceMonitorScope({
         kind: 'everything',
         knifeIds: [' a ', 'a', 3, '', 'b'],
-        comparisonIds: 'nope',
       }),
-    ).toEqual({ kind: 'all', knifeIds: ['a', 'b'], comparisonIds: [] })
+    ).toEqual({ kind: 'wishlist', knifeIds: ['a', 'b'] })
+    // Compare lists were dropped as a scope; such settings fall back.
+    expect(
+      normalizePriceMonitorScope({ kind: 'compare', comparisonIds: ['x'] }),
+    ).toEqual({ kind: 'wishlist', knifeIds: [] })
   })
 
   it('merges a partial update over the current settings', () => {
     const current = normalizePriceMonitoring({
-      scope: { kind: 'compare', comparisonIds: ['x'] },
+      scope: { kind: 'selected', knifeIds: ['x'] },
     })
-    expect(current.scope).toEqual({
-      kind: 'compare',
-      knifeIds: [],
-      comparisonIds: ['x'],
-    })
+    expect(current.scope).toEqual({ kind: 'selected', knifeIds: ['x'] })
     const next = normalizePriceMonitoring(
-      { scope: { kind: 'selected', knifeIds: [] } },
+      { scope: { kind: 'wishlist' } },
       current,
     )
-    expect(next.scope).toEqual({
-      kind: 'selected',
-      knifeIds: [],
-      comparisonIds: ['x'],
-    })
+    expect(next.scope).toEqual({ kind: 'wishlist', knifeIds: ['x'] })
     expect(next.enabled).toBe(current.enabled)
   })
 })

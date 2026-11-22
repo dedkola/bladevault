@@ -18,6 +18,7 @@ import { getSettings, saveSettings } from '@/lib/settings'
 import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
 import type { ExtractedOffer } from '@/lib/scrape-offer'
 import { getSystemMessages } from '@/lib/system-message-store'
+import { monitorWholeCollection } from '@/tests/helpers/monitor-whole-collection'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 const mocks = vi.hoisted(() => ({
@@ -53,6 +54,7 @@ let aiFetch: ReturnType<typeof vi.fn<typeof fetch>>
 
 beforeEach(async () => {
   vault = await createTempVault()
+  monitorWholeCollection()
   vi.resetAllMocks()
   aiFetch = vi.fn<typeof fetch>()
   vi.stubGlobal('fetch', aiFetch)

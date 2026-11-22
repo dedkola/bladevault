@@ -442,7 +442,11 @@ export type PriceScheduleMode = (typeof PRICE_SCHEDULE_MODES)[number]
 /** [startHour, endHour) in server local time; start > end wraps midnight. */
 export type ActiveHours = [number, number]
 
-export const PRICE_MONITOR_SCOPE_KINDS = ['all', 'selected', 'compare'] as const
+export const PRICE_MONITOR_SCOPE_KINDS = [
+  'all',
+  'wishlist',
+  'selected',
+] as const
 export type PriceMonitorScopeKind = (typeof PRICE_MONITOR_SCOPE_KINDS)[number]
 
 /** Knives a scope can list; far above any real collection. */
@@ -450,23 +454,21 @@ export const PRICE_MONITOR_SCOPE_MAX_IDS = 20_000
 
 /**
  * A filter on top of each knife's own mode (Auto, Always monitor, Off):
- * - all: the whole collection, as before.
+ * - all: the whole collection.
+ * - wishlist (default): knives on the Wishlist, read live, so a knife added
+ *   to it later is monitored too.
  * - selected: only `knifeIds`; an empty list monitors nothing.
- * - compare: knives in the `comparisonIds` lists, read live, so a knife
- *   added to a list later is monitored too.
  * Knives outside the scope are not checked on schedule, even with Always
  * monitor; their sources, history and modes stay as they are.
  */
 export type PriceMonitorScope = {
   kind: PriceMonitorScopeKind
   knifeIds: string[]
-  comparisonIds: string[]
 }
 
 export const DEFAULT_PRICE_MONITOR_SCOPE: PriceMonitorScope = {
-  kind: 'all',
+  kind: 'wishlist',
   knifeIds: [],
-  comparisonIds: [],
 }
 
 export type PriceMonitoringSettings = {
@@ -1029,7 +1031,6 @@ export function normalizePriceMonitorScope(
       ? (record.kind as PriceMonitorScopeKind)
       : fallback.kind,
     knifeIds: uniqueIds(record.knifeIds, fallback.knifeIds),
-    comparisonIds: uniqueIds(record.comparisonIds, fallback.comparisonIds),
   }
 }
 

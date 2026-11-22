@@ -4,8 +4,8 @@ import type { PriceMonitorScope } from '@/lib/settings-shared'
 
 /**
  * The knives a monitoring scope covers, or null for the whole collection.
- * Compare lists are read live, so knives added to a list later count and a
- * deleted list simply drops out.
+ * The Wishlist is read live, so knives added to it later count and removed
+ * ones drop out.
  */
 export function readMonitorScopeKnifeIds(
   database: Database.Database,
@@ -13,13 +13,9 @@ export function readMonitorScopeKnifeIds(
 ): Set<string> | null {
   if (!scope || scope.kind === 'all') return null
   if (scope.kind === 'selected') return new Set(scope.knifeIds)
-  if (!scope.comparisonIds.length) return new Set()
   const rows = database
-    .prepare(
-      `SELECT DISTINCT knife_id FROM comparison_items
-       WHERE list_id IN (SELECT value FROM json_each(?))`,
-    )
-    .all(JSON.stringify(scope.comparisonIds)) as Array<{ knife_id: string }>
+    .prepare('SELECT knife_id FROM wishlist_items')
+    .all() as Array<{ knife_id: string }>
   return new Set(rows.map((row) => row.knife_id))
 }
 

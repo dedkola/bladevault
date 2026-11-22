@@ -15,6 +15,7 @@ import {
 import type { ExtractedOffer } from '@/lib/scrape-offer'
 import { LocalStorage } from '@/lib/storage/local'
 import type { CreateKnifeInput } from '@/lib/storage/types'
+import { monitorWholeCollection } from '@/tests/helpers/monitor-whole-collection'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 const mocks = vi.hoisted(() => ({ browser: vi.fn() }))
@@ -66,6 +67,7 @@ beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(START)
   vault = await createTempVault()
+  monitorWholeCollection()
   vi.resetAllMocks()
 })
 

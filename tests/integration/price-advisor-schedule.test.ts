@@ -15,6 +15,7 @@ import { writeLaneState } from '@/lib/price-monitor/store'
 import { getPriceMonitorWorker } from '@/lib/price-monitor/worker'
 import { getSettings } from '@/lib/settings'
 import { getVaultAccessState } from '@/lib/vault-access'
+import { monitorWholeCollection } from '@/tests/helpers/monitor-whole-collection'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 // The AI advisor and supervisor: what they run on and how often.
@@ -23,6 +24,7 @@ let vault: TempVault | null = null
 
 beforeEach(async () => {
   vault = await createTempVault()
+  monitorWholeCollection()
 })
 afterEach(async () => {
   await getPriceMonitorWorker().stop()

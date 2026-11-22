@@ -19,6 +19,7 @@ import { readQueueCandidates } from '@/lib/price-monitor/store'
 import type { ExtractedOffer } from '@/lib/scrape-offer'
 import { getSettings, saveSettings } from '@/lib/settings'
 import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
+import { monitorWholeCollection } from '@/tests/helpers/monitor-whole-collection'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 const mocks = vi.hoisted(() => ({ browser: vi.fn() }))
@@ -42,6 +43,7 @@ beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(START)
   vault = await createTempVault()
+  monitorWholeCollection()
   vi.resetAllMocks()
 })
 afterEach(async () => {
@@ -842,6 +844,7 @@ describe('ignore out of stock on the official site', () => {
     saveSettings({
       priceMonitoring: {
         ...DEFAULT_PRICE_MONITORING,
+        scope: { kind: 'all', knifeIds: [] },
         ignoreOfficialOutOfStock: true,
       },
     })

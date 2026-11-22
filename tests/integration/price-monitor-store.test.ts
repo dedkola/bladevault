@@ -10,6 +10,7 @@ import type { PriceWatchView } from '@/lib/price-monitor/shared'
 import { readHostState } from '@/lib/price-monitor/store'
 import type { ExtractedOffer } from '@/lib/scrape-offer'
 import { ScrapeError } from '@/lib/scrape-errors'
+import { monitorWholeCollection } from '@/tests/helpers/monitor-whole-collection'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 const mocks = vi.hoisted(() => ({
@@ -34,6 +35,7 @@ let vault: TempVault | null = null
 
 beforeEach(async () => {
   vault = await createTempVault()
+  monitorWholeCollection()
   vi.resetAllMocks()
 })
 afterEach(async () => {
