@@ -43,6 +43,7 @@ const links = [
   { href: '/studio', label: 'Studio' },
   { href: '/insights', label: 'Insights' },
   { href: '/compare', label: 'Compare' },
+  { href: '/wishlist', label: 'Wishlist' },
   { href: '/price-drops', label: 'Price Drops' },
   { href: '/maintenance', label: 'Maintenance' },
   { href: '/logs', label: 'History' },
@@ -119,7 +120,11 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
         </Link>
         <nav aria-label="Main navigation" data-alloy-nav>
           {links
-            .filter(({ href }) => href !== '/price-drops' || hasServerRuntime())
+            .filter(
+              ({ href }) =>
+                (href !== '/price-drops' && href !== '/wishlist') ||
+                hasServerRuntime(),
+            )
             .map(({ href, label }) => {
               const selected =
                 pathname === href || pathname.startsWith(href + '/')

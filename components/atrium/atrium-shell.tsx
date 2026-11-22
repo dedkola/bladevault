@@ -14,6 +14,7 @@ import {
   GalleryVertical,
   History,
   TrendingDown,
+  Heart,
   Wrench,
   LayoutDashboard,
   Library,
@@ -38,6 +39,7 @@ const dockLinks = [
   { href: '/collection', label: 'Collection', icon: Library },
   { href: '/studio', label: 'Studio', icon: GalleryVertical },
   { href: '/compare', label: 'Compare', icon: CompareIcon },
+  { href: '/wishlist', label: 'Wishlist', icon: Heart },
   { href: '/price-drops', label: 'Price Drops', icon: TrendingDown },
   { href: '/maintenance', label: 'Maintenance', icon: Wrench },
   { href: '/logs', label: 'History', icon: History },
@@ -186,7 +188,11 @@ export function AtriumShell({ children }: { children: React.ReactNode }) {
       <WorkspaceFooter />
       <nav aria-label="Main navigation" data-atrium-dock>
         {dockLinks
-          .filter(({ href }) => href !== '/price-drops' || hasServerRuntime())
+          .filter(
+            ({ href }) =>
+              (href !== '/price-drops' && href !== '/wishlist') ||
+              hasServerRuntime(),
+          )
           .map(({ href, label, icon: Icon }) => {
             const selected =
               pathname === href || pathname.startsWith(href + '/')

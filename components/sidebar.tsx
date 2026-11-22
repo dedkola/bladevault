@@ -30,6 +30,7 @@ import {
   Pin,
   History,
   TrendingDown,
+  Heart,
   Wrench,
   Inbox,
   X,
@@ -69,6 +70,7 @@ const links = [
   { href: '/collection', label: 'Collection', icon: Library },
   { href: '/studio', label: 'Studio', icon: GalleryVertical },
   { href: '/compare', label: 'Compare', icon: CompareIcon },
+  { href: '/wishlist', label: 'Wishlist', icon: Heart },
   { href: '/price-drops', label: 'Price Drops', icon: TrendingDown },
   { href: '/maintenance', label: 'Maintenance', icon: Wrench },
   { href: '/logs', label: 'History', icon: History },
@@ -312,7 +314,11 @@ export function Sidebar() {
           </div>
           {links.map((link) => {
             if (link.href === '/inbox' && !inboxEnabled) return null
-            if (link.href === '/price-drops' && !hasServerRuntime()) return null
+            if (
+              (link.href === '/price-drops' || link.href === '/wishlist') &&
+              !hasServerRuntime()
+            )
+              return null
             if (link.href === '/compare')
               return (
                 <ComparisonNavigation

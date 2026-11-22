@@ -1358,6 +1358,9 @@ export class LocalStorage implements Storage {
         database
           .prepare('DELETE FROM comparison_items WHERE knife_id = ?')
           .run(id)
+        database
+          .prepare('DELETE FROM wishlist_items WHERE knife_id = ?')
+          .run(id)
         for (const image of knife.images)
           database
             .prepare('DELETE FROM webpage_screenshots WHERE path = ?')
@@ -2051,6 +2054,7 @@ export class LocalStorage implements Storage {
 
       getDb().prepare('DELETE FROM comparison_items').run()
       getDb().prepare('DELETE FROM comparison_lists').run()
+      getDb().prepare('DELETE FROM wishlist_items').run()
       await this.migrateCompareList(compareIds)
     })
   }

@@ -29,6 +29,7 @@ const navLinks = [
   { href: '/insights', label: 'Insights' },
   { href: '/studio', label: 'Studio' },
   { href: '/compare', label: 'Compare' },
+  { href: '/wishlist', label: 'Wishlist' },
   { href: '/price-drops', label: 'Price Drops' },
   { href: '/maintenance', label: 'Maintenance' },
   { href: '/logs', label: 'History' },
@@ -124,7 +125,9 @@ export function ShelfShell({ children }: { children: React.ReactNode }) {
             <nav aria-label="Main navigation" data-shelf-nav>
               {navLinks
                 .filter(
-                  ({ href }) => href !== '/price-drops' || hasServerRuntime(),
+                  ({ href }) =>
+                    (href !== '/price-drops' && href !== '/wishlist') ||
+                    hasServerRuntime(),
                 )
                 .map(({ href, label }) => {
                   const selected =

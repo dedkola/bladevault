@@ -23,7 +23,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 12
+export const LOCAL_DB_SCHEMA_VERSION = 13
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -714,8 +714,41 @@ function migrateSchema(database: Database.Database) {
 
   migratePriceMonitoringSchema(database, tables)
   migrateAchievementSchema(database, tables)
+  migrateWishlistSchema(database, tables)
 
   normalizeKnifeRows(database)
+}
+
+/**
+ * Wishlist (schema 13): knives the collector plans to buy, by priority lane,
+ * plus a small key/value table for the monthly budget. Target prices are the
+ * knife's price alert target in `price_watch`. Additive and repeat-safe.
+ */
+function migrateWishlistSchema(
+  database: Database.Database,
+  tables: Array<{ name: string }>,
+) {
+  const has = (name: string) => tables.some((t) => t.name === name)
+  if (!has('wishlist_items')) {
+    database.exec(`
+      CREATE TABLE wishlist_items (
+        knife_id TEXT PRIMARY KEY REFERENCES knives(id) ON DELETE CASCADE,
+        lane TEXT NOT NULL CHECK (lane IN ('next', 'saving', 'someday')),
+        position INTEGER NOT NULL,
+        added_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX wishlist_items_lane ON wishlist_items (lane, position);
+    `)
+  }
+  if (!has('wishlist_meta')) {
+    database.exec(`
+      CREATE TABLE wishlist_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `)
+  }
 }
 
 /**
