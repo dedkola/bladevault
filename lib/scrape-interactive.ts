@@ -15,6 +15,7 @@ import {
 } from '@/lib/scrape-operation'
 import { ScrapeError, toScrapeError } from '@/lib/scrape-errors'
 import { validateExternalUrl } from '@/lib/url-validation'
+import { withRegionCookies } from '@/lib/price-monitor/region'
 
 export type InteractiveSessionStatus =
   'waiting' | 'ready' | 'scraping' | 'completed' | 'error' | 'cancelled'
@@ -109,6 +110,8 @@ export async function startInteractiveSession(
           timezoneId: 'America/New_York',
           serviceWorkers: 'block',
           extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
+          // The store's US edition in USD, as Add-from-link and price checks use.
+          storageState: withRegionCookies(url, undefined),
         }),
       )
       await installScrapeBrowserInitScript(context)

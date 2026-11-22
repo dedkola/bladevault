@@ -242,6 +242,52 @@ describe('scrape API deadlines and errors', () => {
     })
   })
 
+  it('asks the store for its US edition in USD on every fetch', async () => {
+    const shopifyUrl = 'https://www.shop.example.com/products/chief'
+    rendered.mockResolvedValue({
+      html: `${productHtml}<script>Shopify.shop = 'shop.example.com'</script>`,
+      finalUrl: shopifyUrl,
+    })
+    requestExternalUrl.mockResolvedValue(
+      new Response(JSON.stringify({ product: { title: 'Native Chief' } }), {
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+
+    const response = await scrapeRoute.POST(request(shopifyUrl))
+
+    expect(response.status).toBe(200)
+    const renderOptions = rendered.mock.calls[0][2]
+    expect(renderOptions.storageState.cookies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'localization',
+          value: 'US',
+          domain: '.shop.example.com',
+        }),
+        expect.objectContaining({ name: 'cart_currency', value: 'USD' }),
+      ]),
+    )
+    // Shopify's .json variant prices are in the presentment currency.
+    const [jsonUrl, , init] = requestExternalUrl.mock.calls[0]
+    expect(String(jsonUrl)).toBe(`${shopifyUrl}.json`)
+    expect((init.headers as Record<string, string>).Cookie).toContain(
+      'cart_currency=USD',
+    )
+  })
+
+  it('sends the US region cookies on the HTML fallback', async () => {
+    rendered.mockRejectedValue(new Error('Renderer unavailable'))
+    requestExternalUrl.mockResolvedValue(htmlResponse(productHtml))
+
+    await scrapeRoute.POST(request())
+
+    const [, , init] = requestExternalUrl.mock.calls[0]
+    expect((init.headers as Record<string, string>).Cookie).toMatch(
+      /localization=US.*cart_currency=USD/,
+    )
+  })
+
   it('keeps usable product details when optional Shopify enrichment stalls', async () => {
     vi.useFakeTimers()
     const shopifyUrl = 'https://shop.example.com/products/chief'

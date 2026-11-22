@@ -345,6 +345,7 @@ const SYSTEM_PROMPT = [
   'price: the price copied exactly as it is written in the fragment (for example "$129.99" or "129,99 €"), or null when there is none.',
   'Ignore crossed-out or list prices, prices of other or related products, shipping costs and instalments.',
   'currency: ISO 4217 code or null. availability: in_stock, limited, preorder, out_of_stock or unknown.',
+  'The app tracks United States prices in US dollars: when the fragment shows the price in USD and in another currency, answer the USD one. Answer the currency the price is actually written in (for example UAH for "7 559 ₴" or "UAH 7,559"); never call another currency USD.',
   'confidence: 0 to 1, how sure you are that this is the current price of the main product.',
 ].join('\n')
 

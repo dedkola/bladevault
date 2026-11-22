@@ -14,6 +14,7 @@ import {
   selectJsonLdOffer,
 } from './scrape-offer'
 import { parseMoneyText } from './price-monitor/money'
+import { regionCookieHeader } from './price-monitor/region'
 import {
   embedPoikiloGalleryImages,
   isPoikiloProductUrl,
@@ -272,6 +273,8 @@ async function enrichProduct(
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
               Accept: 'application/json',
               'Accept-Language': 'en-US,en;q=0.9',
+              // Variant prices are in the presentment currency; ask for USD.
+              Cookie: regionCookieHeader(),
             },
           }),
         )
