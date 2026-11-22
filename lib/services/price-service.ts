@@ -16,8 +16,6 @@ import { laneAvailability } from '@/lib/price-monitor/lanes'
 import { fromMinorUnits } from '@/lib/price-monitor/money'
 import { frequencyMs } from '@/lib/price-monitor/schedule'
 import {
-  AMAZON_NOT_SUPPORTED,
-  isAmazonUrl,
   MAX_PRICE_SOURCES_PER_KNIFE,
   normalizeSourceUrl,
   type EligibilityReason,
@@ -573,10 +571,6 @@ async function validatePriceWatchChange(input: PriceWatchChangeInput) {
       errors.push(
         `add: "${url}" is not a valid product URL starting with http:// or https://`,
       )
-      continue
-    }
-    if (isAmazonUrl(url)) {
-      errors.push(`add: "${url}": ${AMAZON_NOT_SUPPORTED}`)
       continue
     }
     if (known.has(normalized)) {

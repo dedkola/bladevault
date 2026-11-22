@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as knivesRoute from '@/app/api/knives/route'
 import * as priceWatchRoute from '@/app/api/knives/[id]/price-watch/route'
 import { getLocalDb } from '@/lib/local-db'
-import { checkPriceSource, type CheckSummary } from '@/lib/price-monitor/engine'
+import type { CheckSummary } from '@/lib/price-monitor/engine'
 import {
   acquireWorkerLease,
   compareBuilds,
@@ -224,7 +224,7 @@ describe('price worker ownership', () => {
 })
 
 describe('Amazon sources', () => {
-  it('are neither queued nor checked if rows reappear', async () => {
+  it('are queued like any store, on the shared Amazon lane', async () => {
     const id = await knifeWithSource('https://kizer.example/amazon')
     getLocalDb()
       .prepare(
@@ -235,14 +235,10 @@ describe('Amazon sources', () => {
       .run(id)
     const settings = getSettings().priceMonitoring
     expect(
-      readQueueCandidates(getLocalDb(), settings, NOW).map(
-        (row) => row.sourceId,
+      readQueueCandidates(getLocalDb(), settings, NOW).find(
+        (row) => row.sourceId === id,
       ),
-    ).not.toContain(id)
-    expect(await checkPriceSource(id, { trigger: 'manual' })).toEqual({
-      status: 'skipped',
-      reason: 'unsupported',
-    })
+    ).toMatchObject({ laneKey: 'amazon' })
   })
 })
 

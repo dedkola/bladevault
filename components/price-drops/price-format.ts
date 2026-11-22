@@ -122,6 +122,7 @@ export function percentLabel(pct: number): string {
 
 const STORE_LABELS: Record<string, string> = {
   amazon: 'Amazon',
+  'amazon.com': 'Amazon',
   'bladehq.com': 'Blade HQ',
 }
 

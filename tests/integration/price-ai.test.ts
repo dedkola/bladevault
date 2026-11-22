@@ -550,6 +550,42 @@ describe('AI extraction fallback in a check', () => {
     await checkPriceSource(source.id, { trigger: 'manual' })
     expect(aiFetch).toHaveBeenCalledTimes(1)
   })
+
+  it('checks an Amazon page without AI, whatever the AI settings say', async () => {
+    enableAi({
+      usage: { ...DEFAULT_PRICE_MONITORING.ai.usage, mode: 'unlimited' },
+    })
+    await writePriceAiKey(KEY)
+    const url = 'https://www.amazon.com/Benchmade-Bugout/dp/B07B4JJZ5W'
+    const { source } = await createKnife('Bugout', url)
+    expect(source.lane_key).toBe('amazon')
+    const amazonPage = (offer: ExtractedOffer | null) =>
+      mocks.browser.mockResolvedValueOnce({
+        offer,
+        serverOffer: null,
+        finalUrl: url,
+        isShopify: false,
+        html: PAGE,
+      })
+
+    // The page parsers find no price: AI would normally read it.
+    amazonPage(null)
+    const missed = await checkPriceSource(source.id, { trigger: 'manual' })
+    expect(missed).toMatchObject({ status: 'done', outcome: 'no_price' })
+
+    amazonPage({
+      amount: 160,
+      currency: 'USD',
+      availability: 'in_stock',
+      method: 'amazon',
+    })
+    const read = await checkPriceSource(source.id, { trigger: 'manual' })
+    expect(read).toMatchObject({ status: 'done', outcome: 'ok' })
+    expect(aiFetch).not.toHaveBeenCalled()
+    expect(
+      rows('SELECT price_minor, extraction_method FROM price_snapshots'),
+    ).toEqual([{ price_minor: 16000, extraction_method: 'amazon' }])
+  })
 })
 
 describe('AI troubleshooting of failed checks', () => {

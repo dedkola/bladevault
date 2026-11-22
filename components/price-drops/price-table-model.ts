@@ -123,7 +123,7 @@ export function storeOptions(sources: MonitoredSource[]): StoreOption[] {
   for (const source of sources) {
     const option = byLane.get(source.laneKey) ?? {
       laneKey: source.laneKey,
-      label: source.storeName,
+      label: source.laneKey === 'amazon' ? 'Amazon' : source.storeName,
       count: 0,
     }
     option.count += 1

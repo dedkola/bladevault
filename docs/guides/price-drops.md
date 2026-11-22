@@ -24,9 +24,9 @@ The same controls are under **Price monitoring** when you edit the knife.
 
 ## Add more stores for a knife
 
-A knife can have up to 10 store sources from any store except Amazon. Each source keeps its own history and status.
+A knife can have up to 10 store sources from any store, including Amazon. Each source keeps its own history and status.
 
-Price Drops does not monitor Amazon: Amazon's Conditions of Use forbid automated AI access to its pages. An Amazon link cannot be added as a source, a knife whose product link is an Amazon page has no automatic source, and BladeVault removed any Amazon sources it had (their past prices stay in the knife's history as a removed source). **Add knife** still fills in a knife's details from an Amazon product link.
+Amazon pages are checked like any other store's, and all Amazon marketplaces share one pace. The AI features of Price Drops leave them alone: AI does not read, verify, or troubleshoot Amazon prices, and **Other stores** does not search Amazon. Amazon sources that an earlier version removed come back with their price history when the knife's product link is still on Amazon.
 
 1. Open the knife's **Market** tab and select **Manage sources** (or select **Edit** and scroll to **Price monitoring**).
 2. Enter a product page in **Add store URL** and select **Add**.
@@ -268,7 +268,7 @@ Notes and questions appear only in **Act**, in the Inbox under **System**. Every
 
 ## Find knives at other stores with AI
 
-A knife's own store is often sold out. **Settings → Price monitoring → Other stores** lets AI look for every monitored knife at other stores and add the listings it finds as price sources. Blade HQ is the store on the list; Amazon is not offered, because it forbids automated AI access. It needs [AI assistance](#optional-ai-assistance) connected: with **Use AI** off, or without a base URL and model, nothing is searched.
+A knife's own store is often sold out. **Settings → Price monitoring → Other stores** lets AI look for every monitored knife at other stores and add the listings it finds as price sources. Blade HQ is the store on the list; Amazon is not searched. It needs [AI assistance](#optional-ai-assistance) connected: with **Use AI** off, or without a base URL and model, nothing is searched.
 
 1. Connect AI in **AI assistance**.
 2. Turn on **Look for knives at other stores**.

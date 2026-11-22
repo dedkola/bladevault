@@ -1,6 +1,5 @@
 import { parseStoredPrice } from '@/lib/price-monitor/money'
 import {
-  isAmazonUrl,
   normalizeSourceUrl,
   type PriceSourceOrigin,
   type PriceWatchEligibility,
@@ -78,16 +77,13 @@ export type AutoSourcePlan = {
  * Keeps the knife's single auto source in line with its `sourceUrl`. Manual
  * sources are never touched. The auto source cannot be removed by the user
  * (only paused), so re-adding it never resurrects something they deleted.
- * A manual source with the same URL already covers it. An Amazon product
- * link is never monitored, so it gives the knife no auto source.
+ * A manual source with the same URL already covers it.
  */
 export function planAutoSource(
   sourceUrl: string,
   active: readonly ExistingSource[],
 ): AutoSourcePlan {
-  const normalized = isAmazonUrl(sourceUrl)
-    ? null
-    : normalizeSourceUrl(sourceUrl)
+  const normalized = normalizeSourceUrl(sourceUrl)
   const autos = active.filter((source) => source.origin === 'auto')
   if (!normalized) return { add: null, removeIds: autos.map((s) => s.id) }
   const keep = autos.find((source) => source.normalizedUrl === normalized)

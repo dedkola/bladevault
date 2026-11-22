@@ -903,7 +903,7 @@ export type LaneOutcomeKind =
   'success' | 'throttled' | 'blocked' | 'failed' | 'neutral'
 
 export type CheckSummary =
-  | { status: 'skipped'; reason: 'missing' | 'read_only' | 'unsupported' }
+  | { status: 'skipped'; reason: 'missing' | 'read_only' }
   /**
    * The computer slept or was offline during the check: nothing counts
    * against the store, and the source runs again after the hold.
@@ -952,6 +952,15 @@ export function retryAfterMs(error: unknown, now = Date.now()): number | null {
   return Number.isFinite(date) ? Math.max(0, date - now) : null
 }
 
+/** Any Amazon marketplace, including sources saved before #620. */
+function isAmazonSource(source: SourceRow): boolean {
+  return (
+    String(source.provider) === 'amazon' ||
+    source.lane_key === 'amazon' ||
+    isAmazonUrl(source.url)
+  )
+}
+
 /**
  * Checks one source: fetch (learned HTTP or Playwright, headed retry in
  * Docker), extract, validate, confirm implausible jumps with a second
@@ -974,14 +983,6 @@ export async function checkPriceSource(
   const source = readSource(database, sourceId)
   if (!source || source.removed_at)
     return { status: 'skipped', reason: 'missing' }
-  // Price Drops never loads Amazon pages, even if such a source reappears
-  // (an older build, a restored backup) before the vault-open cleanup.
-  if (
-    String(source.provider) === 'amazon' ||
-    source.lane_key === 'amazon' ||
-    isAmazonUrl(source.url)
-  )
-    return { status: 'skipped', reason: 'unsupported' }
   const knife = await getStorage().getKnifeById(source.knife_id)
   if (!knife) return { status: 'skipped', reason: 'missing' }
 
@@ -1006,9 +1007,14 @@ export async function checkPriceSource(
     notify,
     thresholds,
     ignoreOfficialOutOfStock,
-    ai: aiSettings,
+    ai: monitoringAi,
     schedule,
   } = getSettings().priceMonitoring
+  // Amazon pages are checked without AI: no AI reading, verifying, solving
+  // or troubleshooting, whatever the AI settings say.
+  const aiSettings: PriceAiSettings = isAmazonSource(source)
+    ? { ...monitoringAi, enabled: false }
+    : monitoringAi
   const base = {
     generation,
     sourceId: source.id,
