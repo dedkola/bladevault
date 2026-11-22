@@ -382,71 +382,6 @@
   color: var(--muted-foreground);
   white-space: nowrap;
 }
-.pd-status-foot {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 210px;
-  gap: 20px;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--bladevault-line);
-}
-.pd-hours {
-  margin: 0;
-  min-width: 0;
-}
-.pd-hours-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px 16px;
-}
-/* Square swatches, matching the bars rather than the timeline's pins. */
-.pd-hours-head .pd-legend li::before {
-  border-radius: 2px;
-}
-.pd-hours svg {
-  display: block;
-  width: 100%;
-  height: auto;
-  margin-top: 6px;
-}
-.pd-hours rect[data-result] {
-  fill: var(--pd-color);
-}
-.pd-hours-base {
-  stroke: var(--bladevault-line);
-}
-.pd-hours-axis {
-  fill: var(--muted-foreground);
-  font-size: 11px;
-}
-.pd-hours-empty {
-  margin: 8px 0 0;
-  font-size: 12px;
-  color: var(--muted-foreground);
-}
-.pd-round {
-  margin: 0;
-  font-size: 12px;
-}
-.pd-round > div:not(.pd-eyebrow) {
-  display: flex;
-  justify-content: space-between;
-  padding: 5px 0;
-  border-bottom: 1px solid var(--bladevault-line);
-}
-.pd-round .pd-eyebrow {
-  padding-bottom: 6px;
-}
-.pd-round dt {
-  color: var(--muted-foreground);
-}
-.pd-round dd {
-  margin: 0;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-}
 .pd-badge {
   display: inline-flex;
   align-items: center;
@@ -471,9 +406,6 @@
   opacity: 0.85;
 }
 @media (max-width: 760px) {
-  .pd-status-foot {
-    grid-template-columns: 1fr;
-  }
   .pd-tl-axis,
   .pd-tl-lane {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);

@@ -1271,7 +1271,6 @@ export function PriceDropsView({
           <AgentStrip controls={agent} now={now} />
           <MonitoringStatus
             overview={overview}
-            pausedStores={pausedStores}
             selectedKnife={selectedKnife}
             now={now}
             collapsed={statusCollapsed === '1'}

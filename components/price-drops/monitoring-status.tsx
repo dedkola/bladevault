@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react'
 import { AppWindow, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type {
-  CheckHour,
   MonitoredSource,
   PriceOverview,
   SourceResult,
@@ -615,118 +614,8 @@ function StatusTimeline({
   )
 }
 
-const HOUR_ORDER = [
-  'same',
-  'attention',
-  'out_of_stock',
-  'restocked',
-  'increase',
-  'drop',
-] as const
-
-/** Checks started per hour over the last day, stacked by what they found. */
-function ChecksPerHour({ hours, now }: { hours: CheckHour[]; now: number }) {
-  const width = 1000
-  const height = 100
-  const step = width / Math.max(hours.length, 1)
-  const totals = hours.map((hour) =>
-    HOUR_ORDER.reduce((sum, key) => sum + hour[key], 0),
-  )
-  const max = Math.max(1, ...totals)
-  const all = totals.reduce((sum, value) => sum + value, 0)
-  return (
-    <figure className="pd-hours">
-      <figcaption className="pd-hours-head">
-        <span className="pd-eyebrow">Checks per hour · last 24 h</span>
-        {all === 0 ? null : (
-          <ul className="pd-legend" aria-label="Bar colours">
-            {[...HOUR_ORDER].reverse().map((key) => (
-              <li key={key} data-result={key}>
-                {key === 'attention'
-                  ? 'Unavailable or failed'
-                  : RESULT_LABEL[key]}
-              </li>
-            ))}
-          </ul>
-        )}
-      </figcaption>
-      {all === 0 ? (
-        <p className="pd-hours-empty">No checks in the last 24 hours.</p>
-      ) : (
-        <svg
-          viewBox={`0 0 ${width} ${height + 16}`}
-          role="img"
-          aria-label={`${all} checks in the last 24 hours`}
-        >
-          <line
-            className="pd-hours-base"
-            x1="0"
-            x2={width}
-            y1={height}
-            y2={height}
-          />
-          {hours.map((hour, index) => {
-            let y = height
-            const ago = Math.round((now - Date.parse(hour.hour)) / HOUR_MS)
-            const summary = HOUR_ORDER.filter((key) => hour[key])
-              .map(
-                (key) =>
-                  `${key === 'attention' ? 'Unavailable or failed' : RESULT_LABEL[key]}: ${hour[key]}`,
-              )
-              .join(', ')
-            return (
-              <g key={hour.hour}>
-                <title>
-                  {`${ago <= 0 ? 'This hour' : `${ago} h ago`} · ${totals[index]} checks${summary ? ` (${summary})` : ''}`}
-                </title>
-                {HOUR_ORDER.map((key) => {
-                  if (!hour[key]) return null
-                  const size = (hour[key] / max) * (height - 12)
-                  y -= size
-                  return (
-                    <rect
-                      key={key}
-                      data-result={key}
-                      x={index * step + 3}
-                      y={y + 1}
-                      width={step - 6}
-                      height={Math.max(size - 2, 1.5)}
-                      rx="2"
-                    />
-                  )
-                })}
-                <rect
-                  x={index * step}
-                  y="0"
-                  width={step}
-                  height={height}
-                  fill="transparent"
-                />
-              </g>
-            )
-          })}
-          {[0, 6, 12, 18, hours.length - 1].map((index) => (
-            <text
-              key={index}
-              className="pd-hours-axis"
-              x={index * step + step / 2}
-              y={height + 13}
-              textAnchor="middle"
-            >
-              {index === hours.length - 1
-                ? 'now'
-                : `−${hours.length - 1 - index} h`}
-            </text>
-          ))}
-        </svg>
-      )}
-    </figure>
-  )
-}
-
 export function MonitoringStatus({
   overview,
-  pausedStores,
   selectedKnife,
   now,
   collapsed = false,
@@ -734,10 +623,9 @@ export function MonitoringStatus({
   onSelect,
 }: {
   overview: PriceOverview
-  pausedStores: number
   selectedKnife: string | null
   now: number
-  /** Only the counts show; the timeline and hourly chart are hidden. */
+  /** Only the counts show; the timeline is hidden. */
   collapsed?: boolean
   onCollapsedChange?: (collapsed: boolean) => void
   onSelect: (knifeId: string) => void
@@ -847,38 +735,6 @@ export function MonitoringStatus({
             onSelect={onSelect}
           />
         ) : null}
-        {collapsed ? null : (
-          <div className="pd-status-foot">
-            <ChecksPerHour hours={overview.checksByHour} now={now} />
-            <dl className="pd-round">
-              <div className="pd-eyebrow">Round</div>
-              <div>
-                <dt>Check every</dt>
-                <dd>{interval ? `${interval} h` : '—'}</dd>
-              </div>
-              <div>
-                <dt>Stores</dt>
-                <dd>{overview.kpis.stores}</dd>
-              </div>
-              <div>
-                <dt>Stores paused</dt>
-                <dd>{pausedStores}</dd>
-              </div>
-              <div>
-                <dt>Failed in 24 h</dt>
-                <dd>{overview.round.failed24h}</dd>
-              </div>
-              <div>
-                <dt>Oldest result</dt>
-                <dd>
-                  {overview.round.oldestCheckAt
-                    ? relativeTime(overview.round.oldestCheckAt, now)
-                    : '—'}
-                </dd>
-              </div>
-            </dl>
-          </div>
-        )}
       </div>
     </section>
   )

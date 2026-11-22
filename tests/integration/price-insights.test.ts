@@ -162,7 +162,6 @@ describe('price overview', () => {
     })
     // The overview carries only what the page uses; no per-knife lists.
     expect(Object.keys(result).sort()).toEqual([
-      'checksByHour',
       'kpis',
       'monitored',
       'round',
@@ -364,26 +363,6 @@ describe('monitoring status', () => {
     })
     expect(bySource.get(bean.sources[0])?.result).toBe('attention')
 
-    // The day-old baseline checks fall outside the 24 hourly buckets.
-    expect(result.checksByHour).toHaveLength(24)
-    expect(result.checksByHour.at(-1)).toMatchObject({
-      drop: 1,
-      out_of_stock: 1,
-      attention: 1,
-      same: 1,
-    })
-    const total = result.checksByHour.reduce(
-      (sum, hour) =>
-        sum +
-        hour.drop +
-        hour.increase +
-        hour.restocked +
-        hour.out_of_stock +
-        hour.same +
-        hour.attention,
-      0,
-    )
-    expect(total).toBe(4)
     expect(result.round).toMatchObject({
       failed24h: 0,
       oldestCheckAt: new Date(START + DAY).toISOString(),
@@ -422,7 +401,6 @@ describe('monitoring status', () => {
       since: new Date(START + 2 * DAY).toISOString(),
       restockedAt: null,
     })
-    expect(result.checksByHour.reduce((n, h) => n + h.restocked, 0)).toBe(0)
 
     // After a week the restock is old news.
     vi.setSystemTime(START + 11 * DAY)
@@ -434,7 +412,7 @@ describe('monitoring status', () => {
     })
   })
 
-  it('counts a restock check in its hour and keeps the price date on failure', async () => {
+  it('keeps the price date on failure', async () => {
     const raccoon = await createKnife('Raccoon', '129.00 USD', [
       'https://shop.example/raccoon',
     ])
@@ -442,9 +420,7 @@ describe('monitoring status', () => {
     await checkAt(0, shop, offer(100, 'out_of_stock'))
     await checkAt(0.5, shop, offer(100, 'out_of_stock')) // confirms it
     await checkAt(1, shop, offer(100))
-    await checkAt(1.01, shop, offer(100)) // confirms it, same hour
-    const result = await overview()
-    expect(result.checksByHour.at(-1)?.restocked).toBe(1)
+    await checkAt(1.01, shop, offer(100)) // confirms it
 
     // A page without a price keeps the last price and its date.
     await checkAt(2, shop, offer(null))
@@ -550,8 +526,6 @@ describe('noise on the page', () => {
     // Only the drift crossing and the two flap moves count; the 0.3% and
     // the small steps stay in history but not in the KPIs.
     expect(result.kpis).toMatchObject({ drops: 2, increases: 1 })
-    const lastHour = result.checksByHour.at(-1)!
-    expect(lastHour).toMatchObject({ drop: 0, same: 1 })
 
     // At 0% every move counts again, as in notifications.
     const settingsModule = await import('@/lib/settings')
