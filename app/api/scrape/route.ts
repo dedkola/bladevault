@@ -9,6 +9,10 @@ import {
   toScrapeError,
 } from '@/lib/scrape-errors'
 import { createScrapeOperation } from '@/lib/scrape-operation'
+import {
+  regionCookieHeader,
+  withRegionCookies,
+} from '@/lib/price-monitor/region'
 import { vaultAccessErrorResponse } from '@/lib/vault-access'
 import {
   recordScrapeFailure,
@@ -61,7 +65,11 @@ export async function POST(request: Request) {
         try {
           const { fetchRenderedHtml } = await import('@/lib/scrape-playwright')
           const rendered = await operation.run(() =>
-            fetchRenderedHtml(normalizedUrl, operation),
+            // Ask for the store's US edition in USD, whatever the IP country,
+            // so the imported price matches what price checks will read.
+            fetchRenderedHtml(normalizedUrl, operation, {
+              storageState: withRegionCookies(normalizedUrl, undefined),
+            }),
           )
           html = rendered.html
           finalUrl = rendered.finalUrl
@@ -87,6 +95,7 @@ export async function POST(request: Request) {
               Accept:
                 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
               'Accept-Language': 'en-US,en;q=0.9',
+              Cookie: regionCookieHeader(),
             },
           })
 

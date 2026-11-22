@@ -29,6 +29,7 @@ import {
 } from '@/lib/price-monitor/discovery-store'
 import { retryAfterMs, type LaneOutcomeKind } from '@/lib/price-monitor/engine'
 import { upstreamStatus } from '@/lib/price-monitor/fetch'
+import { withRegionCookies } from '@/lib/price-monitor/region'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
 import { isNetworkBlockError } from '@/lib/scrape'
 import { toScrapeError } from '@/lib/scrape-errors'
@@ -84,7 +85,8 @@ async function renderWithLaneCookies(
       screenshot: false,
       light: true,
       captureStorageState: true,
-      storageState,
+      // Found listings are checked in USD from the US edition, as price checks are.
+      storageState: withRegionCookies(url, storageState),
     })
     if (page.storageState)
       await saveBrowserState(laneKey, page.storageState).catch(() => {})
