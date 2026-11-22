@@ -220,15 +220,9 @@ export type MonitoredSource = SourceSummary & {
   retireHint: RetireHint | null
 }
 
-/** Checks started in one hour, counted by what they found. */
-export type CheckHour = {
-  /** Start of the hour (ISO). */
-  hour: string
-} & Record<Exclude<SourceResult, 'pending'>, number>
-
 /**
  * What the Price Drops page polls every minute: KPIs, every monitored
- * listing, checks per hour and the round. Kept small on purpose; per-knife
+ * listing and the round. Kept small on purpose; per-knife
  * history comes from /api/prices/history.
  */
 export type PriceOverview = {
@@ -246,8 +240,6 @@ export type PriceOverview = {
   }
   /** Every enabled source of a monitored knife. */
   monitored: MonitoredSource[]
-  /** The last 24 hours of checks, oldest first. */
-  checksByHour: CheckHour[]
   round: {
     /** How often each source is checked, or null when unknown. */
     intervalHours: number | null
@@ -686,7 +678,6 @@ export function buildPriceOverview(
     },
   )
   const dayAgo = new Date(now - DAY_MS).toISOString()
-  const checksByHour = readChecksByHour(database, now, significant)
   const oldestCheckAt =
     monitoredSources
       .map((source) => source.lastCheckedAt)
@@ -722,7 +713,6 @@ export function buildPriceOverview(
       lastSuccessAt: lastSuccess ?? null,
     },
     monitored: monitoredSources,
-    checksByHour,
     round: {
       intervalHours: options.frequencyMs
         ? Math.round((options.frequencyMs / HOUR_MS) * 10) / 10
@@ -906,75 +896,6 @@ function buildMonitoredSources(
       }),
     }
   })
-}
-
-type CheckLogRow = {
-  started_at: string
-  outcome: string
-  change: 'drop' | 'increase' | null
-  /** The price event behind `change`. */
-  change_id: number | null
-  stock: 'out_of_stock' | 'back_in_stock' | null
-  /** 1 when the page loaded but showed no price. */
-  missing: number | null
-}
-
-/** 24 hourly buckets ending with the current hour. */
-function readChecksByHour(
-  database: Database.Database,
-  now: number,
-  significant: ReadonlySet<number>,
-) {
-  const currentHour = Math.floor(now / HOUR_MS) * HOUR_MS
-  const first = currentHour - 23 * HOUR_MS
-  const hours: CheckHour[] = Array.from({ length: 24 }, (_, index) => ({
-    hour: new Date(first + index * HOUR_MS).toISOString(),
-    drop: 0,
-    increase: 0,
-    restocked: 0,
-    out_of_stock: 0,
-    same: 0,
-    attention: 0,
-  }))
-  // A check that stored a new snapshot links to it; the snapshot links to
-  // the price or stock event it produced. A check that only confirmed the
-  // previous reading extended that snapshot, so the earliest snapshot still
-  // seen at or after the check started is the one it read.
-  const rows = database
-    .prepare(
-      `SELECT l.started_at, l.outcome,
-              (SELECT e.direction FROM price_snapshots s
-                 JOIN price_change_events e ON e.to_snapshot_id = s.id
-               WHERE s.check_log_id = l.id LIMIT 1) AS change,
-              (SELECT e.id FROM price_snapshots s
-                 JOIN price_change_events e ON e.to_snapshot_id = s.id
-               WHERE s.check_log_id = l.id LIMIT 1) AS change_id,
-              (SELECT e.kind FROM price_snapshots s
-                 JOIN stock_events e ON e.to_snapshot_id = s.id
-               WHERE s.check_log_id = l.id LIMIT 1) AS stock,
-              (SELECT s.price_minor IS NULL
-                      AND s.availability != 'out_of_stock'
-               FROM price_snapshots s
-               WHERE s.source_id = l.source_id
-                 AND s.last_seen_at >= l.started_at
-               ORDER BY s.id LIMIT 1) AS missing
-       FROM price_check_log l WHERE l.started_at >= ?`,
-    )
-    .all(new Date(first).toISOString()) as CheckLogRow[]
-  for (const row of rows) {
-    const index = Math.floor((Date.parse(row.started_at) - first) / HOUR_MS)
-    const bucket = hours[index]
-    if (!bucket) continue
-    if (row.outcome !== 'ok') bucket.attention += 1
-    else if (row.stock === 'out_of_stock') bucket.out_of_stock += 1
-    else if (row.missing === 1) bucket.attention += 1
-    // A move under the Minimum change found no change worth showing.
-    else if (row.change && significant.has(row.change_id ?? -1))
-      bucket[row.change] += 1
-    else if (row.stock === 'back_in_stock') bucket.restocked += 1
-    else bucket.same += 1
-  }
-  return hours
 }
 
 export type HistoryPoint = {
