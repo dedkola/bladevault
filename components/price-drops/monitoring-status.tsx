@@ -21,13 +21,13 @@ import './price-drops.css'
 
 /** Lane names and legend labels, in display order. */
 export const RESULT_LABEL: Record<SourceResult, string> = {
-  drop: 'Dropped',
-  increase: 'Rose',
+  drop: '↓ Down',
+  increase: '↑ Up',
   restocked: 'Restocked',
   out_of_stock: 'Out of stock',
-  same: 'No change',
+  same: 'Unchanged',
   attention: 'Needs attention',
-  pending: 'Waiting for first check',
+  pending: 'Pending',
 }
 
 /** "−0.3%", "+1.2%", "<0.1%": a small move under the Minimum change. */
@@ -796,12 +796,16 @@ export function ResultBadge({
             ? 'Review'
             : 'Failed'
       : source.result === 'pending'
-        ? 'Waiting'
-        : source.result === 'restocked' && source.restockedAt && now
-          ? `Restocked · ${daysAgo(source.restockedAt, now).replace(/ d$/, ' d ago')}`
-          : source.result === 'out_of_stock' && source.since && now
-            ? `Out of stock · ${daysAgo(source.since, now)}`
-            : RESULT_LABEL[source.result]
+        ? 'Pending'
+        : source.result === 'drop'
+          ? 'Down'
+          : source.result === 'increase'
+            ? 'Up'
+            : source.result === 'restocked' && source.restockedAt && now
+              ? `Restocked · ${daysAgo(source.restockedAt, now).replace(/ d$/, ' d ago')}`
+              : source.result === 'out_of_stock' && source.since && now
+                ? `Out of stock · ${daysAgo(source.since, now)}`
+                : RESULT_LABEL[source.result]
   if (source.result === 'attention' && solveUnavailable)
     return (
       <span
