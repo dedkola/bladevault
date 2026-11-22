@@ -269,49 +269,70 @@ html[data-theme-variant='atrium']
   bottom: 56px;
   z-index: 35;
   display: flex;
-  gap: 4px;
-  padding: 6px;
-  border: 1px solid var(--atrium-line);
-  border-radius: 20px;
-  background: rgb(255 255 255 / 92%);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 16px 40px -18px rgb(0 0 0 / 30%);
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid #e4e4e4;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow:
+    0 1px 0 rgb(0 0 0 / 4%),
+    0 12px 28px -16px rgb(0 0 0 / 22%);
   transform: translateX(-50%);
 }
 
+/* Index tabs: hairline-divided cells with small uppercase labels. */
 [data-atrium-dock] a {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  width: 74px;
-  padding: 8px 0 6px;
-  border-radius: 14px;
+  justify-content: center;
+  gap: 5px;
+  width: 86px;
+  padding: 11px 0 9px;
+  border-right: 1px solid #f0f0f0;
   color: var(--atrium-muted);
-  font-size: 11.5px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   transition:
     background 0.15s,
     color 0.15s;
 }
 
+[data-atrium-dock] a:last-child {
+  border-right: 0;
+}
+
 [data-atrium-dock] a:hover {
-  background: var(--atrium-hover);
+  background: var(--atrium-soft);
   color: var(--atrium-ink);
 }
 
 [data-atrium-dock] a[aria-current='page'] {
+  background: linear-gradient(#fff7f0, #ffffff 70%);
   color: var(--atrium-ink);
 }
 
-[data-atrium-dock] a[aria-current='page']::after {
+/* Orange tab marker along the top edge of the current page. */
+[data-atrium-dock] a[aria-current='page']::before {
   content: '';
   position: absolute;
-  bottom: 1px;
-  width: 4px;
-  height: 4px;
-  border-radius: 99px;
+  top: 0;
+  right: 18px;
+  left: 18px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
   background: var(--atrium-accent);
+}
+
+[data-atrium-dock] a[aria-current='page'] svg {
+  color: var(--atrium-accent-ink);
+}
+
+[data-atrium-dock] a:focus-visible {
+  outline-offset: -3px;
 }
 
 [data-atrium-dock] svg {
@@ -322,23 +343,34 @@ html[data-theme-variant='atrium']
 
 [data-atrium-dock-count] {
   position: absolute;
-  top: 3px;
-  right: 14px;
+  top: 7px;
+  right: 20px;
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
-  border-radius: 99px;
+  border-radius: 4px;
   background: var(--atrium-accent);
   color: #ffffff;
   font-size: 10px;
   font-weight: 600;
+  letter-spacing: 0;
   line-height: 16px;
 }
 
-[data-atrium-dock-divider] {
-  width: 1px;
-  margin: 8px 4px;
-  background: var(--atrium-line);
+/* Add: a solid ink cell closing the bar. */
+[data-atrium-dock] a[data-atrium-dock-extra] {
+  width: 64px;
+  background: var(--atrium-ink);
+  color: #ffffff;
+}
+
+[data-atrium-dock] a[data-atrium-dock-extra]:hover {
+  background: #2a2a2e;
+  color: #ffffff;
+}
+
+[data-atrium-dock] a[data-atrium-dock-extra][aria-current='page'] svg {
+  color: #ffffff;
 }
 
 /* Collection -------------------------------------------------------- */
@@ -1072,14 +1104,31 @@ html[data-theme-variant='atrium']
     max-width: calc(100vw - 16px);
   }
 
+  /* Icon-only cells on phones; the label stays as the accessible name. */
   [data-atrium-dock] a {
-    width: 60px;
-    font-size: 10.5px;
+    width: 50px;
+    padding: 13px 0;
   }
 
-  [data-atrium-dock-divider],
+  [data-atrium-dock] a > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  [data-atrium-dock-count] {
+    right: 6px;
+  }
+
   [data-atrium-dock-extra] {
     display: none !important;
+  }
+
+  [data-atrium-dock] a:nth-last-child(2) {
+    border-right: 0;
   }
 
   [data-atrium-tray] {
