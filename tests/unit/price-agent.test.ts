@@ -7,6 +7,7 @@ import {
   AGENT_HEARTBEAT_LIMITED_MS,
   AGENT_HEARTBEAT_UNLIMITED_MS,
   AGENT_LIMITS,
+  AGENT_RETRY_DELAYS_MS,
   agentDue,
   agentNextRunAt,
   quotedAmounts,
@@ -924,6 +925,30 @@ describe('agentDue', () => {
     expect(next(null)).toBe(NOW - 5 * MIN + AGENT_HEARTBEAT_UNLIMITED_MS)
     // The gap ends 5 minutes from now; the batch already passed.
     expect(next(4 * MIN)).toBe(NOW + 5 * MIN)
+  })
+
+  it('retries a failed run after 5 and then 15 minutes, then waits for the heartbeat', () => {
+    const due = (count: number, endedAgo: number) =>
+      agentDue({
+        settings: unlimited,
+        lastRunAt: NOW - endedAgo - 6 * MIN,
+        now: NOW,
+        failures: { count, endedAt: NOW - endedAgo },
+      })
+    expect(due(1, AGENT_RETRY_DELAYS_MS[0] - 1)).toBeNull()
+    expect(due(1, AGENT_RETRY_DELAYS_MS[0])).toBe('scheduled')
+    expect(due(2, AGENT_RETRY_DELAYS_MS[0])).toBeNull()
+    expect(due(2, AGENT_RETRY_DELAYS_MS[1])).toBe('scheduled')
+    expect(due(3, 30 * MIN)).toBeNull()
+    expect(
+      agentNextRunAt({
+        settings: unlimited,
+        lastRunAt: NOW - 7 * MIN,
+        now: NOW,
+        events: { total: 0, oldestAt: null },
+        failures: { count: 1, endedAt: NOW - MIN },
+      }),
+    ).toBe(NOW - MIN + AGENT_RETRY_DELAYS_MS[0])
   })
 
   it('never runs when off or without AI', () => {

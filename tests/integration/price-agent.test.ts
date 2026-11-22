@@ -5,6 +5,7 @@ import * as watchRoute from '@/app/api/knives/[id]/price-watch/route'
 import * as messagesRoute from '@/app/api/system-messages/route'
 import { getLocalDb } from '@/lib/local-db'
 import {
+  agentFailureStreak,
   agentModelInput,
   buildAgentSnapshot,
   pruneAgentRuns,
@@ -250,6 +251,8 @@ describe('AI supervisor', () => {
       error: expect.stringContaining('HTTP 500'),
     })
     expect(readAgentRuns(getLocalDb())).toHaveLength(2)
+    // The failed run is tried again soon instead of waiting for the heartbeat.
+    expect(agentFailureStreak(getLocalDb())).toMatchObject({ count: 1 })
   })
 
   it('leaves 404 pages to the engine and never clears AI waits on paused sources', async () => {

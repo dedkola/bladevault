@@ -97,6 +97,12 @@ export const AGENT_EVENT_GAP_UNLIMITED_MS = 10 * MINUTE_MS
 export const AGENT_EVENT_GAP_LIMITED_MS = 60 * MINUTE_MS
 /** The first event waits this long, so a burst of changes is seen at once. */
 export const AGENT_EVENT_BATCH_MS = 2 * MINUTE_MS
+/**
+ * A failed run (the endpoint timed out or could not be reached) is tried
+ * again this long after it ended, once per entry; after that the heartbeat
+ * and events decide as usual.
+ */
+export const AGENT_RETRY_DELAYS_MS = [5 * MINUTE_MS, 15 * MINUTE_MS] as const
 /** Events shown per run, newest first. */
 export const MAX_AGENT_EVENTS = 40
 /** A first run looks back this far for events. */
@@ -2564,6 +2570,45 @@ export function lastAgentRunAt(database: Database.Database): number | null {
   return row.at ? Date.parse(row.at) : null
 }
 
+/** The failed runs since the last good one, or null after a good run. */
+export type AgentFailureStreak = {
+  /** Failed runs in a row, newest first. */
+  count: number
+  /** When the newest failed run ended. */
+  endedAt: number
+}
+
+export function agentFailureStreak(
+  database: Database.Database,
+): AgentFailureStreak | null {
+  const rows = database
+    .prepare(
+      `SELECT started_at, duration_ms, ok FROM price_agent_runs
+       ORDER BY started_at DESC, id DESC LIMIT ?`,
+    )
+    .all(AGENT_RETRY_DELAYS_MS.length + 1) as {
+    started_at: string
+    duration_ms: number | null
+    ok: number
+  }[]
+  const latest = rows[0]
+  if (!latest || latest.ok) return null
+  const count = rows.findIndex((row) => row.ok)
+  return {
+    count: count === -1 ? rows.length : count,
+    endedAt: Date.parse(latest.started_at) + (latest.duration_ms ?? 0),
+  }
+}
+
+/** When a failed run is tried again, or null when no retry is left. */
+export function agentRetryAt(
+  failures: AgentFailureStreak | null | undefined,
+): number | null {
+  if (!failures || failures.count < 1) return null
+  const delay = AGENT_RETRY_DELAYS_MS[failures.count - 1]
+  return delay === undefined ? null : failures.endedAt + delay
+}
+
 /** Drops old runs, expired notes and notes about deleted knives. */
 export function pruneAgentRuns(database: Database.Database, now = Date.now()) {
   database
@@ -2631,9 +2676,10 @@ export function agentActive(settings: PriceMonitoringSettings): boolean {
 }
 
 /**
- * Whether a run is due, and why: the heartbeat, or events waiting since the
- * last run (once the first is AGENT_EVENT_BATCH_MS old and the event gap
- * has passed). Null when no run is due. Pure.
+ * Whether a run is due, and why: the heartbeat, a retry after a failed run
+ * (AGENT_RETRY_DELAYS_MS), or events waiting since the last run (once the
+ * first is AGENT_EVENT_BATCH_MS old and the event gap has passed). Null
+ * when no run is due. Pure.
  */
 export function agentDue(input: {
   settings: PriceMonitoringSettings
@@ -2641,11 +2687,15 @@ export function agentDue(input: {
   now: number
   /** Events since the last run; omitted when not read. */
   events?: Pick<AgentEvents, 'total' | 'oldestAt'>
+  /** Failed runs since the last good one; omitted after a good run. */
+  failures?: AgentFailureStreak | null
 }): Exclude<AgentTrigger, 'manual'> | null {
   const { settings, lastRunAt, now, events } = input
   if (!agentActive(settings)) return null
   if (lastRunAt === null || now - lastRunAt >= agentHeartbeatMs(settings))
     return 'scheduled'
+  const retryAt = agentRetryAt(input.failures)
+  if (retryAt !== null && now >= retryAt) return 'scheduled'
   if (
     events &&
     events.total > 0 &&
@@ -2663,10 +2713,14 @@ export function agentNextRunAt(input: {
   lastRunAt: number | null
   now: number
   events: Pick<AgentEvents, 'total' | 'oldestAt'>
+  failures?: AgentFailureStreak | null
 }): number {
   const { settings, lastRunAt, now, events } = input
   if (lastRunAt === null) return now
-  const heartbeat = lastRunAt + agentHeartbeatMs(settings)
+  const heartbeat = Math.min(
+    lastRunAt + agentHeartbeatMs(settings),
+    agentRetryAt(input.failures) ?? Infinity,
+  )
   if (!events.total || events.oldestAt === null) return heartbeat
   return Math.min(
     heartbeat,

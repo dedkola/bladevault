@@ -15,6 +15,7 @@ import {
 import {
   agentActive,
   agentDue,
+  agentFailureStreak,
   agentEventGapMs,
   lastAgentRunAt,
   pruneAgentRuns,
@@ -666,7 +667,13 @@ export class PriceMonitorWorker {
       lastRunAt !== null && now - lastRunAt >= agentEventGapMs(settings)
         ? readAgentEvents(database, lastRunAt, 0)
         : undefined
-    const trigger = agentDue({ settings, lastRunAt, now, events })
+    const trigger = agentDue({
+      settings,
+      lastRunAt,
+      now,
+      events,
+      failures: agentFailureStreak(database),
+    })
     if (!trigger) return
     this.supervising = this.deps
       .supervise(trigger, { canWrite: this.ownsLease })

@@ -13,6 +13,7 @@ import {
   noteNetworkSuccess,
   notePowerResume,
   notePowerSuspend,
+  parseSysctlTime,
   powerSignal,
   resetPowerState,
   sleptSince,
@@ -73,6 +74,58 @@ describe('sleep and wake', () => {
     ).toBe(true)
     expect(signal.aborted).toBe(true)
     expect(monitorHoldMs()).toBeGreaterThan(RESUME_WARMUP_MS - 5_000)
+  })
+})
+
+describe('macOS system sleep (monotonic clock counts through sleep)', () => {
+  it('reads sysctl sleep and wake times', () => {
+    expect(
+      parseSysctlTime(
+        '{ sec = 1795334615, usec = 12720 } Sun Nov 22 10:03:35 2026',
+      ),
+    ).toBe(1795334615012)
+    expect(parseSysctlTime('')).toBeNull()
+  })
+
+  it('counts a system sleep after the mark even when both clocks agree', () => {
+    let times = { sleepAt: NOW - 3_600_000, wakeAt: NOW - 3_500_000 }
+    resetPowerState({ settleMs: 0, systemSleepTimes: () => times })
+    const mark = clockMark()
+    // Both clocks moved 938 s together, as on macOS through a sleep.
+    const after = { wall: mark.wall + 938_000, mono: mark.mono + 938_000 }
+    expect(sleptSince(mark, after)).toBe(false)
+    times = { sleepAt: mark.wall + 31_000, wakeAt: mark.wall + 938_000 }
+    expect(sleptSince(mark, after)).toBe(true)
+  })
+
+  it('treats a new system wake as an unreported sleep, once', () => {
+    let times = { sleepAt: NOW - 3_600_000, wakeAt: NOW - 3_500_000 }
+    resetPowerState({ settleMs: 0, systemSleepTimes: () => times })
+    const signal = powerSignal()
+    const start = clockMark()
+    const tick = (ms: number) =>
+      checkClockJump({ wall: start.wall + ms, mono: start.mono + ms })
+    expect(tick(15_000)).toBe(false)
+    times = { sleepAt: start.wall + 20_000, wakeAt: start.wall + 900_000 }
+    expect(tick(900_000)).toBe(true)
+    expect(signal.aborted).toBe(true)
+    expect(monitorHoldMs()).toBeGreaterThan(0)
+    expect(tick(915_000)).toBe(false)
+  })
+
+  it('does not report a wake the desktop app already reported', () => {
+    let times = { sleepAt: NOW - 3_600_000, wakeAt: NOW - 3_500_000 }
+    resetPowerState({ settleMs: 0, systemSleepTimes: () => times })
+    powerSignal()
+    const start = clockMark()
+    times = { sleepAt: start.wall + 20_000, wakeAt: start.wall + 900_000 }
+    notePowerResume()
+    expect(
+      checkClockJump({
+        wall: start.wall + 915_000,
+        mono: start.mono + 915_000,
+      }),
+    ).toBe(false)
   })
 })
 
