@@ -3,6 +3,7 @@ import type { Knife } from '@/lib/data'
 import pkg from '@/package.json'
 import { getLocalDb } from '@/lib/local-db'
 import { pruneAiCalls } from '@/lib/price-monitor/ai-journal'
+import { withMonitorScope } from '@/lib/price-monitor/scope'
 import {
   detectChange,
   detectStockChange,
@@ -394,6 +395,7 @@ export function buildPriceWatchView(
   settings: EligibilitySettings = DEFAULT_ELIGIBILITY_SETTINGS,
 ): PriceWatchView {
   const database = db()
+  const scoped = withMonitorScope(database, settings)
   const mode = readWatchMode(database, knife.id)
   const sources = readActiveSources(database, knife.id)
   const found = readDiscoveredSourceIds(database, knife.id)
@@ -429,7 +431,7 @@ export function buildPriceWatchView(
       knife,
       mode,
       sources.filter((source) => source.enabled === 1).length,
-      settings,
+      scoped,
     ),
     sources: sources.map(withHints),
     maxSources: MAX_PRICE_SOURCES_PER_KNIFE,
@@ -1417,6 +1419,7 @@ export function readQueueCandidates(
     store_paused: number
   }>
   const outOfStockSince = readOutOfStockSince(database)
+  const scoped = withMonitorScope(database, settings)
   const eligible = new Map<string, boolean>()
   return rows.map((row) => {
     let monitored = eligible.get(row.knife_id)
@@ -1428,10 +1431,10 @@ export function readQueueCandidates(
         price = undefined
       }
       monitored = getEligibility(
-        { sold: row.sold === 1, specs: { price } },
+        { id: row.knife_id, sold: row.sold === 1, specs: { price } },
         row.mode,
         1,
-        settings,
+        scoped,
       ).monitored
       eligible.set(row.knife_id, monitored)
     }

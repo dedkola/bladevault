@@ -105,6 +105,7 @@ describe('normalizePriceMonitoring', () => {
       enabled: false,
       skipSoldKnives: true,
       ignoreOfficialOutOfStock: false,
+      scope: { kind: 'all', knifeIds: [], comparisonIds: [] },
       schedule: {
         mode: 'custom',
         intervalHours: 168,

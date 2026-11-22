@@ -442,6 +442,33 @@ export type PriceScheduleMode = (typeof PRICE_SCHEDULE_MODES)[number]
 /** [startHour, endHour) in server local time; start > end wraps midnight. */
 export type ActiveHours = [number, number]
 
+export const PRICE_MONITOR_SCOPE_KINDS = ['all', 'selected', 'compare'] as const
+export type PriceMonitorScopeKind = (typeof PRICE_MONITOR_SCOPE_KINDS)[number]
+
+/** Knives a scope can list; far above any real collection. */
+export const PRICE_MONITOR_SCOPE_MAX_IDS = 20_000
+
+/**
+ * A filter on top of each knife's own mode (Auto, Always monitor, Off):
+ * - all: the whole collection, as before.
+ * - selected: only `knifeIds`; an empty list monitors nothing.
+ * - compare: knives in the `comparisonIds` lists, read live, so a knife
+ *   added to a list later is monitored too.
+ * Knives outside the scope are not checked on schedule, even with Always
+ * monitor; their sources, history and modes stay as they are.
+ */
+export type PriceMonitorScope = {
+  kind: PriceMonitorScopeKind
+  knifeIds: string[]
+  comparisonIds: string[]
+}
+
+export const DEFAULT_PRICE_MONITOR_SCOPE: PriceMonitorScope = {
+  kind: 'all',
+  knifeIds: [],
+  comparisonIds: [],
+}
+
 export type PriceMonitoringSettings = {
   /** Scheduled checks; Check now works either way. */
   enabled: boolean
@@ -454,6 +481,8 @@ export type PriceMonitoringSettings = {
    * stores (Blade HQ) carry the knife instead.
    */
   ignoreOfficialOutOfStock: boolean
+  /** Which knives scheduled monitoring covers; Check now works for any. */
+  scope: PriceMonitorScope
   /** Target frequency per source; the queue spreads checks across it. */
   schedule: {
     mode: PriceScheduleMode
@@ -637,6 +666,7 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
   enabled: true,
   skipSoldKnives: true,
   ignoreOfficialOutOfStock: false,
+  scope: DEFAULT_PRICE_MONITOR_SCOPE,
   schedule: {
     mode: 'daily',
     intervalHours: 24,
@@ -975,6 +1005,34 @@ function normalizeActiveHours(
   return [start, end]
 }
 
+function uniqueIds(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) return fallback
+  const ids = new Set<string>()
+  for (const item of value) {
+    if (typeof item !== 'string') continue
+    const id = item.trim()
+    if (id) ids.add(id)
+    if (ids.size >= PRICE_MONITOR_SCOPE_MAX_IDS) break
+  }
+  return [...ids]
+}
+
+export function normalizePriceMonitorScope(
+  value: unknown,
+  fallback: PriceMonitorScope = DEFAULT_PRICE_MONITOR_SCOPE,
+): PriceMonitorScope {
+  const record = plainObject(value)
+  return {
+    kind: (PRICE_MONITOR_SCOPE_KINDS as readonly unknown[]).includes(
+      record.kind,
+    )
+      ? (record.kind as PriceMonitorScopeKind)
+      : fallback.kind,
+    knifeIds: uniqueIds(record.knifeIds, fallback.knifeIds),
+    comparisonIds: uniqueIds(record.comparisonIds, fallback.comparisonIds),
+  }
+}
+
 export function normalizePriceMonitoring(
   value: unknown,
   fallback: PriceMonitoringSettings = DEFAULT_PRICE_MONITORING,
@@ -1000,6 +1058,10 @@ export function normalizePriceMonitoring(
       typeof record.ignoreOfficialOutOfStock === 'boolean'
         ? record.ignoreOfficialOutOfStock
         : fallback.ignoreOfficialOutOfStock,
+    scope:
+      'scope' in record
+        ? normalizePriceMonitorScope(record.scope, fallback.scope)
+        : fallback.scope,
     schedule: {
       mode,
       intervalHours: boundedInteger(

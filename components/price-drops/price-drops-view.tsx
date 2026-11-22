@@ -108,7 +108,11 @@ type QueueSnapshot = {
   /** Sources checked since the `since` asked for, else null. */
   checkedSince: number | null
   lanes: QueueLane[]
+  /** What to monitor; `knives` is null for the whole collection. */
+  scope?: { kind: 'all' | 'selected' | 'compare'; knives: number | null }
 }
+
+const SCOPE_LABEL = { selected: 'Selected knives', compare: 'Compare lists' }
 
 /** A running Check all: when it started (server time) and how many. */
 type CheckAllRun = { startedAt: string; total: number }
@@ -1089,6 +1093,19 @@ export function PriceDropsView({
                 ? ` · last check ${relativeTime(overview.kpis.lastSuccessAt, now)}`
                 : ''}
             </span>
+          ) : null}
+          {queue?.scope && queue.scope.kind !== 'all' ? (
+            <Link
+              href="/settings?tab=prices"
+              data-price-scope={queue.scope.kind}
+              title="What to monitor: change it in Settings"
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--bladevault-line)] px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              {queue.scope.knives
+                ? `${SCOPE_LABEL[queue.scope.kind]} · ${queue.scope.knives} ${queue.scope.knives === 1 ? 'knife' : 'knives'}`
+                : 'Monitoring stopped for every knife'}
+              <span className="underline">Change</span>
+            </Link>
           ) : null}
           <Button
             size="sm"

@@ -116,6 +116,8 @@ const ELIGIBILITY_TEXT: Record<EligibilityReason, string> = {
   no_price: 'Not monitored: Auto mode needs a regular price above 0.',
   sold: 'Not monitored: the knife is sold and Auto mode skips sold knives.',
   no_source: 'Not monitored: no active store URL.',
+  out_of_scope:
+    'Not monitored: the knife is outside What to monitor in the price settings.',
 }
 
 // --------------------------------------------------------------- events

@@ -57,6 +57,8 @@ const ELIGIBILITY_TEXT: Record<EligibilityReason, string> = {
     'Not monitored: no regular price is stored. Add a price or choose Always monitor.',
   sold: 'Not monitored: the knife is marked as sold. Choose Always monitor to keep watching it.',
   no_source: 'Not monitored yet: add a product URL below.',
+  out_of_scope:
+    'Not monitored: this knife is outside What to monitor in Settings. Check now still works.',
 }
 
 const FETCH_LABEL: Record<FetchOverride, string> = {

@@ -12,9 +12,42 @@ import {
   storeNameForUrl,
 } from '@/lib/price-monitor/shared'
 
-const knife = (price: string, sold = false) => ({ sold, specs: { price } })
+const knife = (price: string, sold = false, id = 'k1') => ({
+  id,
+  sold,
+  specs: { price },
+})
 
 describe('getEligibility', () => {
+  it('leaves knives outside the monitoring scope out, even Always monitor', () => {
+    const scoped = {
+      skipSoldKnives: true,
+      scopeKnifeIds: new Set(['k1']),
+    }
+    expect(getEligibility(knife('50'), 'auto', 1, scoped).monitored).toBe(true)
+    expect(getEligibility(knife('50', false, 'k2'), 'auto', 1, scoped)).toEqual(
+      { monitored: false, reason: 'out_of_scope' },
+    )
+    expect(getEligibility(knife('', false, 'k2'), 'on', 1, scoped).reason).toBe(
+      'out_of_scope',
+    )
+    // Off stays the knife's own answer.
+    expect(
+      getEligibility(knife('50', false, 'k2'), 'off', 1, scoped).reason,
+    ).toBe('off')
+    // An empty scope (Stop monitoring all) covers nothing; null covers all.
+    expect(
+      getEligibility(knife('50'), 'on', 1, {
+        ...scoped,
+        scopeKnifeIds: new Set(),
+      }).reason,
+    ).toBe('out_of_scope')
+    expect(
+      getEligibility(knife('50'), 'auto', 1, { ...scoped, scopeKnifeIds: null })
+        .monitored,
+    ).toBe(true)
+  })
+
   it('monitors Auto knives with a stored price above zero', () => {
     expect(getEligibility(knife('129.00 USD'), 'auto', 1)).toEqual({
       monitored: true,

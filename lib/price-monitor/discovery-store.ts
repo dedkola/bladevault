@@ -1,16 +1,17 @@
 import type Database from 'better-sqlite3'
 import { getLocalDb } from '@/lib/local-db'
-import { getEligibility } from '@/lib/price-monitor/eligibility'
+import {
+  getEligibility,
+  type EligibilitySettings,
+} from '@/lib/price-monitor/eligibility'
+import { withMonitorScope } from '@/lib/price-monitor/scope'
 import {
   MAX_PRICE_SOURCES_PER_KNIFE,
   normalizeSourceUrl,
   type PriceWatchMode,
 } from '@/lib/price-monitor/shared'
 import { insertSource, readActiveSources } from '@/lib/price-monitor/store'
-import type {
-  OtherStoreId,
-  PriceMonitoringSettings,
-} from '@/lib/settings-shared'
+import type { OtherStoreId } from '@/lib/settings-shared'
 import { assertVaultGeneration, withVaultWrite } from '@/lib/vault-access'
 
 /**
@@ -91,7 +92,10 @@ function storedPrice(specs: string): string | undefined {
 export function readDiscoveryQueue(
   database: Database.Database,
   input: {
-    settings: Pick<PriceMonitoringSettings, 'skipSoldKnives'>
+    settings: Pick<
+      EligibilitySettings,
+      'skipSoldKnives' | 'scope' | 'scopeKnifeIds'
+    >
     store: OtherStoreId
     marketplace: string
     /** The store's price-source lane; a knife with a source there is skipped. */
@@ -120,6 +124,7 @@ export function readDiscoveryQueue(
       input.store,
       input.marketplace,
     ) as QueueRow[]
+  const scoped = withMonitorScope(database, input.settings)
   const due: string[] = []
   for (const row of rows) {
     if (row.has_store_source || row.source_count >= MAX_PRICE_SOURCES_PER_KNIFE)
@@ -130,11 +135,15 @@ export function readDiscoveryQueue(
       if (Number.isFinite(at) && at > input.now) continue
     }
     const eligibility = getEligibility(
-      { sold: row.sold === 1, specs: { price: storedPrice(row.specs) } },
+      {
+        id: row.id,
+        sold: row.sold === 1,
+        specs: { price: storedPrice(row.specs) },
+      },
       row.mode,
       // A knife without a product link is exactly what Other stores is for.
       1,
-      input.settings,
+      scoped,
     )
     if (!eligibility.monitored) continue
     due.push(row.id)
@@ -281,7 +290,10 @@ export type DiscoveryOverview = {
 export function readDiscoveryOverview(
   database: Database.Database,
   input: {
-    settings: Pick<PriceMonitoringSettings, 'skipSoldKnives'>
+    settings: Pick<
+      EligibilitySettings,
+      'skipSoldKnives' | 'scope' | 'scopeKnifeIds'
+    >
     store: OtherStoreId
     marketplace: string
     laneKey?: string

@@ -83,6 +83,7 @@ export type EligibilityReason =
   | 'no_price'
   | 'sold'
   | 'no_source'
+  | 'out_of_scope'
 
 export type PriceWatchEligibility = {
   monitored: boolean

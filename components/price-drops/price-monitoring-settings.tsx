@@ -33,6 +33,7 @@ import { getHourCycle } from '@/lib/time-format'
 import { clockTime, hourLabel } from '@/components/price-drops/price-format'
 import { OtherStoresSettings } from '@/components/price-drops/other-stores-settings'
 import { DesktopBackgroundSettings } from '@/components/price-drops/desktop-background-settings'
+import { MonitorScopeSettings } from '@/components/price-drops/monitor-scope-settings'
 import {
   PRICE_MONITORING_LIMITS,
   type ActiveHours,
@@ -432,6 +433,11 @@ export function PriceMonitoringSettings({
             onCheckedChange={(checked) => update({ enabled: checked })}
           />
         </SettingsRow>
+        <MonitorScopeSettings
+          scope={settings.scope}
+          disabled={disabled}
+          onChange={(scope) => update({ scope })}
+        />
         <SettingsRow
           inline
           label="Skip sold knives"
