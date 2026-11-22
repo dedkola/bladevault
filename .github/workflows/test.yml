@@ -11,9 +11,12 @@ permissions:
   contents: read
 
 jobs:
+  # The PR run already checked the merged code, so pushes to main only publish
+  # the container instead of repeating the whole test job.
   test:
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
       - name: Check out repository
@@ -47,17 +50,10 @@ jobs:
       - name: Run unit and integration tests
         run: npm run test
 
-      - name: Build Cloudflare static app
-        run: npm run build:static
-
-      - name: Install Chromium and system dependencies
-        run: npx playwright install --with-deps chromium
-
+      # Cloudflare Workers Builds builds the static app on every commit, and
+      # browser tests run locally (`npm run test:e2e`), not on every PR.
       - name: Build production app
         run: npm run build
-
-      - name: Run browser smoke tests
-        run: npx playwright test
 
       # The Electron smoke covers what the web suite cannot: launch, the
       # preload boundary and better-sqlite3 built for Electron. Run it on PRs
@@ -89,21 +85,9 @@ jobs:
         if: steps.desktop.outputs.required == 'true'
         run: xvfb-run -a npm run desktop:smoke
 
-      - name: Upload Playwright artifacts
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: playwright-artifacts
-          path: |
-            playwright-report/
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 7
-
   publish-container:
     name: Verify & publish container
     if: github.event_name == 'push'
-    needs: test
     permissions:
       attestations: write
       contents: read
