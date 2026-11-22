@@ -1,12 +1,13 @@
 'use client'
 
 import { memo, useCallback, useState } from 'react'
-import { ImageIcon, Pin } from 'lucide-react'
+import { Heart, ImageIcon, Pin } from 'lucide-react'
 import { CompareIcon } from '@/components/icons/compare-icon'
 import Image from '@/components/vault-image'
 import { SoldBadge } from '@/components/sold-badge'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useComparisons } from '@/components/providers/comparisons-provider'
+import { useWishlistToggle } from '@/components/wishlist/wishlist-toggle-button'
 import { useCollectionItemNavigation } from '@/hooks/use-collection-item-navigation'
 import { getImageUrl, getKnifeImageCount, type Knife } from '@/lib/data'
 import { getVisibleCardFields } from '@/lib/card-fields'
@@ -69,6 +70,7 @@ const ForgeCollectionCard = memo(function ForgeCollectionCard({
     dimensionUnit,
   )
   const added = formatAddedDate(knife.addedAt)
+  const wishlist = useWishlistToggle(knife.id, label)
 
   const handlePin = useCallback(
     async (event: React.MouseEvent) => {
@@ -151,6 +153,27 @@ const ForgeCollectionCard = memo(function ForgeCollectionCard({
           )}
           {knife.sold && <SoldBadge />}
         </span>
+        {wishlist.available && (
+          <button
+            type="button"
+            data-forge-wish
+            data-on={wishlist.listed || undefined}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              void wishlist.toggle()
+            }}
+            disabled={wishlist.disabled}
+            aria-pressed={wishlist.listed}
+            aria-label={`${wishlist.listed ? 'Remove' : 'Add'} ${label} ${wishlist.listed ? 'from' : 'to'} the wishlist`}
+            title={wishlist.listed ? 'Remove from wishlist' : 'Add to wishlist'}
+          >
+            <Heart
+              aria-hidden="true"
+              fill={wishlist.listed ? 'currentColor' : 'none'}
+            />
+          </button>
+        )}
       </div>
 
       <div data-forge-card-body>

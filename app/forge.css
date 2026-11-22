@@ -836,6 +836,7 @@ html[data-theme-variant] [data-forge-card-open]:focus-visible {
 }
 
 html[data-theme-variant] [data-forge-pin],
+html[data-theme-variant] [data-forge-wish],
 html[data-theme-variant] [data-forge-compare] {
   position: absolute;
   z-index: 3;
@@ -855,6 +856,14 @@ html[data-theme-variant] [data-forge-compare] {
 html[data-theme-variant] [data-forge-pin] {
   top: 10px;
   right: 10px;
+}
+
+html[data-theme-variant] [data-forge-wish] {
+  right: 10px;
+  bottom: 10px;
+}
+
+html[data-theme-variant] :is([data-forge-pin], [data-forge-wish]) {
   width: 28px;
   height: 28px;
   border-color: var(--forge-chip-line);
@@ -865,19 +874,19 @@ html[data-theme-variant] [data-forge-pin] {
   opacity: 0;
 }
 
-html[data-theme-variant] [data-forge-pin] svg {
+html[data-theme-variant] :is([data-forge-pin], [data-forge-wish]) svg {
   width: 13px;
   height: 13px;
 }
 
 html[data-theme-variant]
   [data-forge-card]:is(:hover, :focus-within)
-  [data-forge-pin],
-html[data-theme-variant] [data-forge-pin][data-on] {
+  :is([data-forge-pin], [data-forge-wish]),
+html[data-theme-variant] :is([data-forge-pin], [data-forge-wish])[data-on] {
   opacity: 1;
 }
 
-html[data-theme-variant] [data-forge-pin][data-on] {
+html[data-theme-variant] :is([data-forge-pin], [data-forge-wish])[data-on] {
   border-color: transparent;
   background: var(--primary);
   color: var(--primary-foreground);
@@ -900,7 +909,8 @@ html[data-theme-variant] [data-forge-compare] svg {
 }
 
 html[data-theme-variant] [data-forge-compare]:hover,
-html[data-theme-variant] [data-forge-pin]:not([data-on]):hover {
+html[data-theme-variant]
+  :is([data-forge-pin], [data-forge-wish]):not([data-on]):hover {
   border-color: var(--forge-accent);
   color: var(--bladevault-title);
 }
@@ -912,6 +922,7 @@ html[data-theme-variant] [data-forge-compare][data-on] {
 }
 
 html[data-theme-variant] [data-forge-pin]:focus-visible,
+html[data-theme-variant] [data-forge-wish]:focus-visible,
 html[data-theme-variant] [data-forge-compare]:focus-visible {
   opacity: 1;
   outline: 2px solid var(--ring);
@@ -919,6 +930,7 @@ html[data-theme-variant] [data-forge-compare]:focus-visible {
 }
 
 html[data-theme-variant] [data-forge-pin]:disabled,
+html[data-theme-variant] [data-forge-wish]:disabled,
 html[data-theme-variant] [data-forge-compare]:disabled {
   cursor: default;
   opacity: 0.6;
@@ -1886,7 +1898,7 @@ html[data-theme-variant] [data-forge-compare] {
   font-size: 11px;
 }
 
-html[data-theme-variant] [data-forge-pin] {
+html[data-theme-variant] :is([data-forge-pin], [data-forge-wish]) {
   width: 26px;
   height: 26px;
   border-color: var(--gl-line);
@@ -1896,13 +1908,16 @@ html[data-theme-variant] [data-forge-pin] {
 }
 
 html[data-theme-variant]
-  :is([data-forge-compare], [data-forge-pin]):not(:disabled):hover {
+  :is([data-forge-compare], [data-forge-pin], [data-forge-wish]):not(
+    :disabled
+  ):hover {
   border-color: var(--gl-lit);
   box-shadow: var(--gl-halo);
   color: var(--foreground);
 }
 
-html[data-theme-variant] :is([data-forge-compare], [data-forge-pin])[data-on] {
+html[data-theme-variant]
+  :is([data-forge-compare], [data-forge-pin], [data-forge-wish])[data-on] {
   border-color: var(--gl-sel);
   background: transparent;
   box-shadow: var(--gl-selected);

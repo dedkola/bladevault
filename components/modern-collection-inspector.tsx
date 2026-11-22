@@ -7,6 +7,7 @@ import { SoldBadge } from '@/components/sold-badge'
 import {
   ChevronLeft,
   ChevronRight,
+  Heart,
   ImageIcon,
   Pencil,
   Pin,
@@ -17,6 +18,7 @@ import Image from '@/components/vault-image'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { formatDimension } from '@/lib/measurements'
 import { InspectorTabs } from '@/components/inspector-tabs'
+import { useWishlistToggle } from '@/components/wishlist/wishlist-toggle-button'
 import type { DimensionUnit } from '@/lib/settings-shared'
 import { getImageUrl, type Knife } from '@/lib/data'
 
@@ -72,6 +74,7 @@ export function ModernCollectionInspector({
     phoneInspectorSnapshot,
     desktopInspectorSnapshot,
   )
+  const wishlist = useWishlistToggle(knife.id, `${knife.brand} ${knife.name}`)
   const isPhoneDialog = variant === 'alloy' && isPhone && !autoSelected
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const contents = (
@@ -185,6 +188,25 @@ export function ModernCollectionInspector({
             <CompareIcon data-inspector-action-icon aria-hidden="true" />
             {inCompare ? 'In list' : 'Compare'}
           </Button>
+          {wishlist.available && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void wishlist.toggle()}
+              aria-pressed={wishlist.listed}
+              disabled={wishlist.disabled}
+              title={
+                wishlist.listed ? 'Remove from wishlist' : 'Add to wishlist'
+              }
+            >
+              <Heart
+                data-inspector-action-icon
+                aria-hidden="true"
+                fill={wishlist.listed ? 'currentColor' : 'none'}
+              />
+              {wishlist.listed ? 'Wishlisted' : 'Wishlist'}
+            </Button>
+          )}
         </div>
         <InspectorTabs
           knife={knife}
