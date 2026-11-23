@@ -408,6 +408,13 @@ html[data-theme-variant='ledger']
   background: var(--ledger-brass);
 }
 
+/* Dark nav bar in both modes: use the dark-mode drop green. */
+[data-ledger-tabs] a:not([aria-current='page']) [data-wishlist-sale-count] {
+  border-radius: 4px;
+  background: #8fca7a26;
+  color: #8fca7a;
+}
+
 [data-ledger-tabs] small {
   min-width: 17px;
   padding: 0 5px;

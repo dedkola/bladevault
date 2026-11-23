@@ -5,6 +5,11 @@ import {
   priceDropsCountLabel,
   usePriceDropsUnread,
 } from '@/components/price-drops/price-drops-nav-count'
+import {
+  WishlistSaleBadge,
+  useWishlistNavCounts,
+  wishlistCountLabel,
+} from '@/components/wishlist/wishlist-nav-count'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -104,6 +109,7 @@ export function AtriumShell({ children }: { children: React.ReactNode }) {
   const isStudio = pathname === '/studio'
   const compareCount = active?.ids.length ?? 0
   const priceUnread = usePriceDropsUnread()
+  const wishlist = useWishlistNavCounts()
 
   return (
     <div data-modern-shell data-lumen-shell="atrium">
@@ -213,6 +219,19 @@ export function AtriumShell({ children }: { children: React.ReactNode }) {
                       {priceDropsCountLabel(priceUnread)}
                     </span>
                   </small>
+                )}
+                {href === '/wishlist' && wishlist.total > 0 && (
+                  <>
+                    <span className="sr-only">
+                      {wishlistCountLabel(wishlist.total, wishlist.onSale)}
+                    </span>
+                    {wishlist.onSale > 0 && (
+                      <WishlistSaleBadge count={wishlist.onSale} />
+                    )}
+                    <small data-atrium-dock-count aria-hidden="true">
+                      {formatNavCount(wishlist.total)}
+                    </small>
+                  </>
                 )}
                 {href === '/compare' && compareCount > 0 && (
                   <small

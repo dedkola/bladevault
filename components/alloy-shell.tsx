@@ -5,6 +5,11 @@ import {
   priceDropsCountLabel,
   usePriceDropsUnread,
 } from '@/components/price-drops/price-drops-nav-count'
+import {
+  WishlistSaleBadge,
+  useWishlistNavCounts,
+  wishlistCountLabel,
+} from '@/components/wishlist/wishlist-nav-count'
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
@@ -52,6 +57,7 @@ const links = [
 export function AlloyShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const priceUnread = usePriceDropsUnread()
+  const wishlist = useWishlistNavCounts()
   const params = useSearchParams()
   const { knives, isAutoBackupActive, showFeedback } = useKnives()
   const { reminders: careReminders, statusById: careStatusById } = useCare()
@@ -144,6 +150,19 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
                         {priceDropsCountLabel(priceUnread)}
                       </span>
                     </span>
+                  )}
+                  {href === '/wishlist' && wishlist.total > 0 && (
+                    <>
+                      <span className="sr-only">
+                        {wishlistCountLabel(wishlist.total, wishlist.onSale)}
+                      </span>
+                      {wishlist.onSale > 0 && (
+                        <WishlistSaleBadge count={wishlist.onSale} />
+                      )}
+                      <span data-alloy-nav-count aria-hidden="true">
+                        {formatNavCount(wishlist.total)}
+                      </span>
+                    </>
                   )}
                   {href === '/compare' && Boolean(active?.ids.length) && (
                     <span data-alloy-nav-count aria-hidden="true">

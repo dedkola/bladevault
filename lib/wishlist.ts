@@ -5,6 +5,7 @@
  * regular price, 30-day trend, 90-day range) rather than a target.
  */
 import { z } from 'zod'
+import type { KnifeMarketSummary } from '@/lib/market-status'
 
 export const WISHLIST_REFRESH_EVENT = 'bladevault:wishlist-refresh'
 
@@ -167,4 +168,23 @@ export function wishlistDeal({
   if (vsRegular === null || Math.abs(vsRegular) <= WISHLIST_REGULAR_TOLERANCE)
     return 'regular'
   return vsRegular < 0 ? 'sale' : 'above'
+}
+
+/** Deal group straight from a knife's market summary (nav counts). */
+export function wishlistSummaryDeal(
+  summary:
+    | Pick<
+        KnifeMarketSummary,
+        'bestPriceMinor' | 'currency' | 'paidMinor' | 'outOfStock'
+      >
+    | undefined,
+): WishlistDeal {
+  const live = summary?.bestPriceMinor != null && Boolean(summary.currency)
+  return wishlistDeal({
+    live,
+    outOfStock: Boolean(summary?.outOfStock),
+    vsRegular: live
+      ? priceChange(summary!.bestPriceMinor, summary!.paidMinor)
+      : null,
+  })
 }

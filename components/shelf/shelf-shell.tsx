@@ -5,6 +5,11 @@ import {
   priceDropsCountLabel,
   usePriceDropsUnread,
 } from '@/components/price-drops/price-drops-nav-count'
+import {
+  WishlistSaleBadge,
+  useWishlistNavCounts,
+  wishlistCountLabel,
+} from '@/components/wishlist/wishlist-nav-count'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -63,6 +68,7 @@ export function ShelfShell({ children }: { children: React.ReactNode }) {
   const isAll = pathname === '/collection' && params.get('all') === '1'
   const compareCount = active?.ids.length ?? 0
   const priceUnread = usePriceDropsUnread()
+  const wishlist = useWishlistNavCounts()
 
   useEffect(() => {
     const open = () => setIsPaletteOpen(true)
@@ -152,6 +158,22 @@ export function ShelfShell({ children }: { children: React.ReactNode }) {
                             {priceDropsCountLabel(priceUnread)}
                           </span>
                         </small>
+                      )}
+                      {href === '/wishlist' && wishlist.total > 0 && (
+                        <>
+                          <span className="sr-only">
+                            {wishlistCountLabel(
+                              wishlist.total,
+                              wishlist.onSale,
+                            )}
+                          </span>
+                          {wishlist.onSale > 0 && (
+                            <WishlistSaleBadge count={wishlist.onSale} />
+                          )}
+                          <small aria-hidden="true">
+                            {formatNavCount(wishlist.total)}
+                          </small>
+                        </>
                       )}
                       {href === '/compare' && compareCount > 0 && (
                         <small aria-label={`${compareCount} in comparison`}>

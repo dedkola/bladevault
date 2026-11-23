@@ -290,6 +290,13 @@ html[data-theme-style='alloy'] [data-alloy-shell] {
   background: var(--alloy-gold);
   content: '';
 }
+/* Dark nav bar in both modes: use the dark-mode drop green. */
+[data-alloy-nav] [data-wishlist-sale-count] {
+  border-radius: 4px;
+  background: #8fca7a26;
+  color: #8fca7a;
+}
+
 [data-alloy-nav-count] {
   border-radius: 4px;
   background: #ffffff15;

@@ -45,6 +45,7 @@ import { useCare } from '@/components/providers/care-provider'
 import { useMarketFilter } from '@/components/providers/market-provider'
 import { useCareInbox } from '@/components/providers/care-inbox-provider'
 import { CareInboxCount } from '@/components/care-inbox'
+import { WishlistNavCount } from '@/components/wishlist/wishlist-nav-count'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -378,6 +379,9 @@ export function Sidebar() {
                         {priceDropsCountLabel(priceUnread)}
                       </span>
                     </span>
+                  ) : null}
+                  {link.href === '/wishlist' ? (
+                    <WishlistNavCount active={isActive} />
                   ) : null}
                   {link.href === '/inbox' ? <CareInboxCount /> : null}
                 </span>

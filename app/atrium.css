@@ -357,6 +357,24 @@ html[data-theme-variant='atrium']
   line-height: 16px;
 }
 
+/* Wishlist on-sale count: mirrors the total at the icon's other corner. */
+[data-atrium-dock] [data-wishlist-sale-count] {
+  position: absolute;
+  top: 7px;
+  left: 6px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--price-drop);
+  color: #ffffff;
+}
+
+[data-atrium-dock] [data-wishlist-sale-count] svg {
+  width: 10px;
+  height: 10px;
+  color: inherit;
+}
+
 /* Add: a solid ink cell closing the bar. */
 [data-atrium-dock] a[data-atrium-dock-extra] {
   width: 64px;
@@ -1121,6 +1139,10 @@ html[data-theme-variant='atrium']
 
   [data-atrium-dock-count] {
     right: 6px;
+  }
+
+  [data-atrium-dock] [data-wishlist-sale-count] {
+    left: 6px;
   }
 
   [data-atrium-dock-extra] {
