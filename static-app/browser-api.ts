@@ -176,7 +176,11 @@ export function resetSession() {
   sessionStorage.removeItem(SESSION_KEY)
 }
 export function readSessionStartPage() {
-  return normalizeStartPage(getState().settings.startPage)
+  const startPage = normalizeStartPage(getState().settings.startPage)
+  // The static app has no Wishlist or Price Drops pages.
+  return startPage === 'wishlist' || startPage === 'price-drops'
+    ? 'insights'
+    : startPage
 }
 
 export function readSessionKnife(id: string) {

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { closeLocalDb, getLocalDb } from '@/lib/local-db'
 import { getSettings, saveSettings } from '@/lib/settings'
+import { START_PAGES } from '@/lib/settings-shared'
 import Page from '@/app/page'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
@@ -167,7 +168,7 @@ describe('settings persistence', () => {
     )
   })
 
-  it.each(['insights', 'studio', 'collection'] as const)(
+  it.each(START_PAGES)(
     'persists %s as the start page and uses it when opening the app',
     async (startPage) => {
       vault = await createTempVault('bladevault-settings-')
