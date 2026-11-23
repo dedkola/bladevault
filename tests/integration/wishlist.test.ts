@@ -12,7 +12,6 @@ import {
   getWishlist,
   mutateWishlist,
 } from '@/lib/wishlist-storage'
-import { wishlistSignal } from '@/lib/wishlist'
 import * as route from '@/app/api/wishlist/route'
 
 let vault: TempVault
@@ -158,19 +157,12 @@ describe('wishlist', () => {
     const trend = buildWishlistTrends(db, ['first', 'second'], now).first
     expect(trend.currency).toBe('USD')
     expect(trend.lowMinor).toBe(9000)
+    expect(trend.highMinor).toBe(15000)
     expect(trend.daily).toHaveLength(30)
     expect(trend.daily[0]).toBe(15000) // 29 days ago: only store A
     expect(trend.daily[22]).toBeNull() // 7 days ago: A out of stock, B not yet
     expect(trend.daily[29]).toBe(14000)
     expect(buildWishlistTrends(db, ['second'], now)).toEqual({})
-  })
-
-  it('signals buy, close and wait against the target', () => {
-    expect(wishlistSignal(12000, 'USD', 12500, 'USD')).toBe('buy')
-    expect(wishlistSignal(13000, 'USD', 12500, 'USD')).toBe('close')
-    expect(wishlistSignal(15000, 'USD', 12500, 'USD')).toBe('wait')
-    expect(wishlistSignal(12000, 'EUR', 12500, 'USD')).toBe('none')
-    expect(wishlistSignal(12000, 'USD', null, null)).toBe('none')
   })
 
   it('validates requests through the API', async () => {
