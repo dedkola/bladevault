@@ -263,14 +263,31 @@
   color: var(--destructive);
 }
 
-[data-wishlist] [data-wishlist-spark] polyline {
-  stroke: var(--wl-neutral);
+[data-wishlist] [data-wishlist-spark] {
+  --wl-spark: var(--wl-neutral);
 }
-[data-wishlist] [data-wishlist-spark='down'] polyline {
-  stroke: var(--wl-sale);
+[data-wishlist] [data-wishlist-spark='down'] {
+  --wl-spark: var(--wl-sale);
 }
-[data-wishlist] [data-wishlist-spark='up'] polyline {
-  stroke: var(--wl-up);
+[data-wishlist] [data-wishlist-spark='up'] {
+  --wl-spark: var(--wl-up);
+}
+[data-wishlist] [data-wishlist-spark-line] {
+  stroke: var(--wl-spark);
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+}
+[data-wishlist] [data-wishlist-spark-fill] {
+  fill: color-mix(in srgb, var(--wl-spark) 16%, transparent);
+}
+[data-wishlist] [data-wishlist-spark-dot] {
+  fill: var(--wl-spark);
+}
+[data-wishlist] [data-wishlist-spark-regular] {
+  stroke: var(--muted-foreground);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  opacity: 0.6;
 }
 [data-wishlist] [data-wishlist-spark-empty] {
   color: var(--muted-foreground);

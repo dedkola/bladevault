@@ -19,6 +19,9 @@ describe('wishlist price info', () => {
     const trend = {
       currency: 'USD',
       daily: [null, 10000, 9500, null, 9000],
+      steps: [],
+      since: 0,
+      until: 0,
       lowMinor: 9000,
       highMinor: 10000,
     }

@@ -162,7 +162,47 @@ describe('wishlist', () => {
     expect(trend.daily[0]).toBe(15000) // 29 days ago: only store A
     expect(trend.daily[22]).toBeNull() // 7 days ago: A out of stock, B not yet
     expect(trend.daily[29]).toBe(14000)
+    // Steps at the real change times across a full 30-day window.
+    expect(trend.since).toBe(now - 30 * day)
+    expect(trend.until).toBe(now)
+    expect(trend.steps).toEqual([
+      { at: now - 30 * day, price: 15000 },
+      { at: now - 10 * day, price: null },
+      { at: now - 5 * day, price: 14000 },
+    ])
     expect(buildWishlistTrends(db, ['second'], now)).toEqual({})
+  })
+
+  it('starts the chart when tracking began and keeps a same-day drop', () => {
+    const db = getLocalDb()
+    const now = Date.parse('2026-06-30T12:00:00Z')
+    const hour = 60 * 60 * 1000
+    db.prepare(
+      `INSERT INTO price_sources
+         (knife_id, url, normalized_url, provider, lane_key, store_name,
+          origin, created_at, updated_at)
+       VALUES ('third', 'https://c.example/p', 'https://c.example/p',
+               'generic', 'c', 'c', 'manual', 't', 't')`,
+    ).run()
+    const snapshot = db.prepare(
+      `INSERT INTO price_snapshots
+         (knife_id, source_id, price_minor, currency, availability,
+          extraction_status, extraction_method, observed_at, last_seen_at)
+       VALUES ('third', 1, ?, 'USD', 'in_stock', 'ok', 'json_ld', ?, ?)`,
+    )
+    const iso = (hoursAgo: number) =>
+      new Date(now - hoursAgo * hour).toISOString()
+    snapshot.run(13500, iso(20), iso(5))
+    snapshot.run(9450, iso(5), iso(0))
+
+    const trend = buildWishlistTrends(db, ['third'], now).third
+    expect(trend.since).toBe(now - 20 * hour)
+    expect(trend.steps).toEqual([
+      { at: now - 20 * hour, price: 13500 },
+      { at: now - 5 * hour, price: 9450 },
+    ])
+    // The daily samples miss the 15-hour regular price.
+    expect(trend.daily.filter((value) => value !== null)).toEqual([9450])
   })
 
   it('validates requests through the API', async () => {
