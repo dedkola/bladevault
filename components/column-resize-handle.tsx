@@ -95,6 +95,7 @@ export function ColumnResizeHandle({
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
           event.currentTarget.releasePointerCapture(event.pointerId)
         }
+        onResizeEnd?.()
       }}
       onPointerCancel={() => onResizeEnd?.()}
       onLostPointerCapture={() => onResizeEnd?.()}
