@@ -566,10 +566,10 @@ const SYSTEM_MESSAGE_HREF: Record<SystemMessage['kind'], string> = {
   'price-question': '/price-drops',
 }
 
-/** AI supervisor messages open the knife's Market tab. */
+/** AI supervisor messages open the knife's Price Drops details. */
 function systemMessageHref(message: SystemMessage): string {
   return message.payload
-    ? `/collection/${encodeURIComponent(message.payload.knifeId)}?tab=market`
+    ? `/price-drops?knife=${encodeURIComponent(message.payload.knifeId)}`
     : SYSTEM_MESSAGE_HREF[message.kind]
 }
 
@@ -1019,7 +1019,8 @@ function PriceNotificationRow({
   const contextParts = compact ? [] : priceContextParts(notification, now)
   const ids = [notification.id]
   const { event } = notification
-  const marketHref = `/collection/${encodeURIComponent(event.knife.id)}?tab=market`
+  // The knife's Price Drops details: chart and every store in one place.
+  const marketHref = `/price-drops?knife=${encodeURIComponent(event.knife.id)}`
   const markRead = () => {
     if (unread) onAction({ action: 'read', ids })
   }
@@ -1651,7 +1652,7 @@ export function CareInboxView() {
               data-inbox-filter={tab.filter}
               onClick={() => setFilter(tab.filter)}
               className={cn(
-                '-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                '-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
                 selected
                   ? 'border-[var(--bladevault-title)] font-semibold text-foreground'
                   : 'border-transparent text-muted-foreground hover:text-foreground',
