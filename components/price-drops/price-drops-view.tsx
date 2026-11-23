@@ -870,6 +870,8 @@ export function PriceDropsView({
   const [solveTarget, setSolveTarget] = useState<SolveTarget | null>(null)
   const [selected, setSelected] = useState<string | null>(initialKnife ?? null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  // The listing clicked last, so ungrouped details open under that row.
+  const [openSource, setOpenSource] = useState<number | null>(null)
   const [checking, setChecking] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -910,12 +912,14 @@ export function PriceDropsView({
   const rows = sortRows(section, filtered.filter(SECTION_FILTER[section]), sort)
   const visibleKnives = new Set(rows.map((source) => source.knife.id))
   const monitoredKnives = new Set(monitored.map((source) => source.knife.id))
-  // The panel follows the table: a selection the current tab hides gives
-  // way to its first row. A knife that is not monitored stays selected.
+  // Details open only for a chosen knife. A selection the current tab hides
+  // closes; a knife that is not monitored stays open above the table.
   const selectedKnife =
     selected && (visibleKnives.has(selected) || !monitoredKnives.has(selected))
       ? selected
-      : (rows[0]?.knife.id ?? selected ?? monitored[0]?.knife.id ?? null)
+      : null
+  const selectedUnlisted =
+    selectedKnife !== null && !visibleKnives.has(selectedKnife)
 
   // Keep the tab and an explicit selection in the URL without new history.
   useEffect(() => {
@@ -936,7 +940,7 @@ export function PriceDropsView({
     scrollTarget.current = null
     listRef.current
       ?.querySelector<HTMLElement>(`[data-knife-row="${CSS.escape(target)}"]`)
-      ?.scrollIntoView({ block: 'nearest' })
+      ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
   }, [selectedKnife, overview])
 
   const changeSection = (value: Section) => {
@@ -946,8 +950,13 @@ export function PriceDropsView({
   }
 
   const selectRow = (knifeId: string) => {
-    setSelected(knifeId)
-    if (narrow) setSheetOpen(true)
+    if (narrow) {
+      setSelected(knifeId)
+      setSheetOpen(true)
+      return
+    }
+    // A click on the open knife closes its details.
+    setSelected(knifeId === selectedKnife ? null : knifeId)
   }
 
   /** A timeline pin or AI note: clear filters that would hide the knife. */
@@ -958,7 +967,8 @@ export function PriceDropsView({
       setStore('all')
     }
     scrollTarget.current = knifeId
-    selectRow(knifeId)
+    setSelected(knifeId)
+    if (narrow) setSheetOpen(true)
   }
 
   const checkAll = async () => {
@@ -1195,7 +1205,20 @@ export function PriceDropsView({
         canSolve={canSolve}
         group={options.group}
         child={options.child}
-        onSelect={() => selectRow(source.knife.id)}
+        onSelect={() => {
+          // Ungrouped, another listing of the open knife moves its details.
+          if (
+            !groups &&
+            !narrow &&
+            source.knife.id === selectedKnife &&
+            source.sourceId !== openSource
+          ) {
+            setOpenSource(source.sourceId)
+            return
+          }
+          setOpenSource(source.sourceId)
+          selectRow(source.knife.id)
+        }}
         onToggleChecked={() => toggleChecked(ids)}
         onCheckNow={() => void checkOne(source)}
         onResolve={() => {
@@ -1211,16 +1234,27 @@ export function PriceDropsView({
     )
   }
 
+  // On a phone the knife opens in a sheet with its own close button.
   const panel = selectedKnife ? (
     <KnifePricePanel
       key={selectedKnife}
       knifeId={selectedKnife}
-      variant="page"
-      // On a phone the sheet has its own close button.
-      onClose={!narrow && selected ? () => setSelected(null) : undefined}
+      // A knife without a table row keeps its own header.
+      variant={narrow || selectedUnlisted ? 'page' : 'inline'}
+      onClose={narrow ? undefined : () => setSelected(null)}
       onChanged={() => setVersion((value) => value + 1)}
     />
   ) : null
+  const detailRow = (knifeId: string) =>
+    !narrow && panel && knifeId === selectedKnife ? (
+      <tr key={`detail-${knifeId}`} data-price-detail-row>
+        <td colSpan={7} className="px-4 pt-1 pb-4">
+          <div role="region" aria-label="Knife prices">
+            {panel}
+          </div>
+        </td>
+      </tr>
+    ) : null
 
   return (
     <div data-price-drops className="w-full">
@@ -1543,12 +1577,21 @@ export function PriceDropsView({
                 />
               </div>
             ) : (
-              <div className="grid items-start lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
+              <div>
+                {!narrow && selectedUnlisted && panel ? (
+                  <section
+                    aria-label="Knife prices"
+                    data-price-detail-unlisted
+                    className="mx-3 mb-3 rounded-lg border border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] p-4"
+                  >
+                    {panel}
+                  </section>
+                ) : null}
                 <div
                   ref={listRef}
                   role="tabpanel"
                   aria-label={SECTION_LABEL[section]}
-                  className="min-w-0 overflow-x-auto px-3 pb-2 lg:max-h-[720px] lg:overflow-y-auto"
+                  className="min-w-0 overflow-x-auto px-3 pb-2"
                 >
                   {rows.length ? (
                     <table
@@ -1638,10 +1681,11 @@ export function PriceDropsView({
                                         renderRow(source, { child: true }),
                                       )
                                     : null}
+                                  {detailRow(group.knifeId)}
                                 </Fragment>
                               )
                             })
-                          : rows.flatMap((source) => [
+                          : rows.flatMap((source, index) => [
                               renderRow(source),
                               section === 'attention' && source.retireHint ? (
                                 <RetireRow
@@ -1654,6 +1698,20 @@ export function PriceDropsView({
                                   }
                                 />
                               ) : null,
+                              // Details open under the clicked listing, or
+                              // the knife's first one.
+                              source.knife.id === selectedKnife &&
+                              (source.sourceId === openSource ||
+                                (!rows.some(
+                                  (row) =>
+                                    row.sourceId === openSource &&
+                                    row.knife.id === selectedKnife,
+                                ) &&
+                                  rows.findIndex(
+                                    (row) => row.knife.id === selectedKnife,
+                                  ) === index))
+                                ? detailRow(source.knife.id)
+                                : null,
                             ])}
                       </tbody>
                     </table>
@@ -1665,18 +1723,6 @@ export function PriceDropsView({
                     </p>
                   )}
                 </div>
-                {narrow ? null : (
-                  <aside
-                    aria-label="Selected knife"
-                    className="border-t border-[var(--bladevault-line)]/60 p-4 lg:sticky lg:top-0 lg:border-t-0 lg:border-l"
-                  >
-                    {panel ?? (
-                      <p className="py-6 text-sm text-muted-foreground">
-                        Select a knife to see its price history.
-                      </p>
-                    )}
-                  </aside>
-                )}
               </div>
             )}
           </Card>

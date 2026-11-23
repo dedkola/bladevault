@@ -9,6 +9,7 @@ import {
   History,
   Loader2,
   RefreshCw,
+  ChevronUp,
   X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -384,7 +385,13 @@ function signedMoney(minor: number, currency: string | null): string {
 }
 
 /** Lowest and highest seen, tracking since and the gap to the regular price. */
-function HistoryStats({ stats }: { stats: KnifeHistoryStats }) {
+function HistoryStats({
+  stats,
+  className,
+}: {
+  stats: KnifeHistoryStats
+  className?: string
+}) {
   const items: Array<{ label: string; value: string; note?: string }> = [
     {
       label: 'Lowest seen',
@@ -425,7 +432,10 @@ function HistoryStats({ stats }: { stats: KnifeHistoryStats }) {
   return (
     <dl
       data-price-stats
-      className="grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-x-4 gap-y-2"
+      className={cn(
+        'grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-x-4 gap-y-2',
+        className,
+      )}
     >
       {items.map((item) => (
         <div key={item.label} className="min-w-0">
@@ -492,13 +502,17 @@ export function KnifePricePanel({
   onChanged,
 }: {
   knifeId: string
-  variant: 'page' | 'tab'
+  /** page: the phone sheet; inline: opened under a price table row; tab: a
+   *  knife's Market tab. */
+  variant: 'page' | 'tab' | 'inline'
   onClose?: () => void
   onChanged?: () => void
 }) {
-  // The chart range is remembered per browser, separately for each place.
+  const inline = variant === 'inline'
+  // The chart range is remembered per browser, separately for each place;
+  // the price table's sheet and inline details share one.
   const [range, setRange] = useStoredValue<HistoryRange>(
-    `bladevault.priceDrops.range.${variant}`,
+    `bladevault.priceDrops.range.${variant === 'tab' ? 'tab' : 'page'}`,
     variant === 'tab' ? '1m' : '3m',
     (raw) =>
       (HISTORY_RANGES as readonly (string | null)[]).includes(raw)
@@ -616,6 +630,33 @@ export function KnifePricePanel({
   const queued = new Set(watch?.queuedSourceIds ?? [])
   const enabledSources = watch?.sources.filter((source) => source.enabled) ?? []
 
+  const dropNotice = latestDrop ? (
+    <div
+      data-price-drop-link
+      data-result="drop"
+      className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] px-3 py-2 text-sm"
+    >
+      <ChangePill event={latestDrop} />
+      <span>
+        Price dropped at{' '}
+        <StoreLink
+          url={latestDrop.sourceUrl}
+          storeName={latestDrop.storeName}
+          className="font-semibold"
+        />
+      </span>
+      <span className="tabular-nums text-muted-foreground">
+        {money(latestDrop.previousPriceMinor, latestDrop.currency)} →{' '}
+        <span className="font-semibold text-foreground">
+          {money(latestDrop.priceMinor, latestDrop.currency)}
+        </span>
+      </span>
+      <span className="ml-auto text-xs text-muted-foreground">
+        {relativeTime(latestDrop.occurredAt, now)}
+      </span>
+    </div>
+  ) : null
+
   return (
     <div data-knife-price-panel={variant} className="space-y-3">
       {variant === 'page' && history ? (
@@ -696,7 +737,7 @@ export function KnifePricePanel({
               />
             ) : null}
           </div>
-          {variant === 'tab' ? (
+          {variant !== 'page' ? (
             <>
               <div>
                 <div className={LABEL}>Regular price</div>
@@ -707,8 +748,14 @@ export function KnifePricePanel({
                       ? money(stats.paidMinor, stats.currency)
                       : '—'}
                 </div>
+                {inline ? (
+                  <div className="text-xs text-muted-foreground">
+                    {watch?.sources.length ?? 0}{' '}
+                    {watch?.sources.length === 1 ? 'source' : 'sources'}
+                  </div>
+                ) : null}
               </div>
-              {watch ? (
+              {watch && !inline ? (
                 <div>
                   <div className={LABEL}>Monitoring</div>
                   <div className="text-sm font-semibold">
@@ -732,155 +779,160 @@ export function KnifePricePanel({
               ) : null}
             </>
           ) : null}
+          {inline ? dropNotice : null}
         </div>
         <RangeButtons value={range} onChange={setRange} />
       </div>
 
-      {latestDrop ? (
-        <div
-          data-price-drop-link
-          data-result="drop"
-          className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-[var(--bladevault-line)] bg-[var(--bladevault-surface-soft)] px-3 py-2 text-sm"
-        >
-          <ChangePill event={latestDrop} />
-          <span>
-            Price dropped at{' '}
-            <StoreLink
-              url={latestDrop.sourceUrl}
-              storeName={latestDrop.storeName}
-              className="font-semibold"
+      {inline ? null : dropNotice}
+      <div
+        data-price-detail-body={inline || undefined}
+        className={cn(
+          inline
+            ? 'grid gap-x-6 gap-y-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(16rem,1fr)]'
+            : 'space-y-3',
+        )}
+      >
+        {stats ? (
+          <div className="[grid-area:stats]">
+            <HistoryStats
+              stats={stats}
+              className={inline ? 'lg:grid-cols-2' : undefined}
             />
-          </span>
-          <span className="tabular-nums text-muted-foreground">
-            {money(latestDrop.previousPriceMinor, latestDrop.currency)} →{' '}
-            <span className="font-semibold text-foreground">
-              {money(latestDrop.priceMinor, latestDrop.currency)}
-            </span>
-          </span>
-          <span className="ml-auto text-xs text-muted-foreground">
-            {relativeTime(latestDrop.occurredAt, now)}
-          </span>
-        </div>
-      ) : null}
-      {stats ? <HistoryStats stats={stats} /> : null}
+          </div>
+        ) : null}
 
-      {historyState.status === 'error' ? (
-        <p className="text-xs text-destructive">{historyState.message}</p>
-      ) : history ? (
-        <>
-          <PriceHistoryChart
-            history={history}
-            className={variant === 'tab' ? 'h-48' : 'h-52'}
-          />
-          <ChartLegend history={history} />
-        </>
-      ) : (
-        <div className="grid h-48 place-items-center text-xs text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" />
+        <div className="space-y-3 [grid-area:chart]">
+          {historyState.status === 'error' ? (
+            <p className="text-xs text-destructive">{historyState.message}</p>
+          ) : history ? (
+            <>
+              <PriceHistoryChart
+                history={history}
+                className={
+                  variant === 'tab' ? 'h-48' : inline ? 'h-72' : 'h-52'
+                }
+              />
+              <ChartLegend history={history} />
+            </>
+          ) : (
+            <div
+              className={cn(
+                'grid place-items-center text-xs text-muted-foreground',
+                inline ? 'h-72' : 'h-48',
+              )}
+            >
+              <Loader2 className="size-4 animate-spin" />
+            </div>
+          )}
         </div>
-      )}
 
-      <div>
-        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-          <span className={LABEL}>Sources</span>
-          <div className="flex flex-wrap items-center gap-1">
-            {enabledSources.length && !managing ? (
+        <div className="[grid-area:sources]">
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <span className={LABEL}>Sources</span>
+            <div className="flex flex-wrap items-center gap-1">
+              {enabledSources.length && !managing ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  disabled={pending}
+                  onClick={() =>
+                    void startCheck({ scope: 'knife', id: knifeId })
+                  }
+                >
+                  {pending ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="size-3" />
+                  )}
+                  Check all sources
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="ghost"
                 size="xs"
-                disabled={pending}
-                onClick={() => void startCheck({ scope: 'knife', id: knifeId })}
+                aria-expanded={managing}
+                aria-controls={manageId}
+                onClick={() => setManaging((value) => !value)}
               >
-                {pending ? (
-                  <Loader2 className="size-3 animate-spin" />
-                ) : (
-                  <RefreshCw className="size-3" />
-                )}
-                Check all sources
+                Manage sources
+                <ChevronDown
+                  className={cn(
+                    'size-3 transition-transform',
+                    managing && 'rotate-180',
+                  )}
+                />
               </Button>
-            ) : null}
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              aria-expanded={managing}
-              aria-controls={manageId}
-              onClick={() => setManaging((value) => !value)}
+            </div>
+          </div>
+          {managing ? (
+            <div
+              id={manageId}
+              data-price-manage-sources
+              className="rounded-lg border border-[var(--bladevault-line)] p-3"
             >
-              Manage sources
-              <ChevronDown
-                className={cn(
-                  'size-3 transition-transform',
-                  managing && 'rotate-180',
-                )}
-              />
-            </Button>
-          </div>
-        </div>
-        {managing ? (
-          <div
-            id={manageId}
-            data-price-manage-sources
-            className="rounded-lg border border-[var(--bladevault-line)] p-3"
-          >
-            <PriceWatchEditor
-              knifeId={knifeId}
-              onChanged={() => setVersion((value) => value + 1)}
-            />
-          </div>
-        ) : watch && watch.sources.length ? (
-          <ul>
-            {watch.sources.map((source) => (
-              <SourceLine
-                key={source.id}
-                source={source}
+              <PriceWatchEditor
                 knifeId={knifeId}
-                queued={queued.has(source.id)}
-                now={now}
-                canSolve={canSolve}
-                onCheck={() =>
-                  void startCheck({ scope: 'source', id: source.id })
-                }
-                onSolve={() =>
-                  setSolveTarget({
-                    sourceId: source.id,
-                    url: source.url,
-                    storeName: source.storeName,
-                    status: source.status,
-                  })
-                }
-                onHistory={() =>
-                  setHistoryTarget({
-                    sourceId: source.id,
-                    storeName: source.storeName,
-                  })
-                }
-                onPaused={() => {
-                  setVersion((value) => value + 1)
-                  onChanged?.()
-                }}
+                onChanged={() => setVersion((value) => value + 1)}
               />
-            ))}
-          </ul>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            No product URLs yet. Add one under Manage sources.
-          </p>
-        )}
-        {canSolve === false &&
-        watch?.sources.some((source) =>
-          ['blocked', 'failed', 'price_unavailable'].includes(source.status),
-        ) ? (
-          <p className="mt-1 text-xs text-muted-foreground">
-            {SOLVE_UNAVAILABLE_TEXT}
-          </p>
+            </div>
+          ) : watch && watch.sources.length ? (
+            <ul>
+              {watch.sources.map((source) => (
+                <SourceLine
+                  key={source.id}
+                  source={source}
+                  knifeId={knifeId}
+                  queued={queued.has(source.id)}
+                  now={now}
+                  canSolve={canSolve}
+                  onCheck={() =>
+                    void startCheck({ scope: 'source', id: source.id })
+                  }
+                  onSolve={() =>
+                    setSolveTarget({
+                      sourceId: source.id,
+                      url: source.url,
+                      storeName: source.storeName,
+                      status: source.status,
+                    })
+                  }
+                  onHistory={() =>
+                    setHistoryTarget({
+                      sourceId: source.id,
+                      storeName: source.storeName,
+                    })
+                  }
+                  onPaused={() => {
+                    setVersion((value) => value + 1)
+                    onChanged?.()
+                  }}
+                />
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              No product URLs yet. Add one under Manage sources.
+            </p>
+          )}
+          {canSolve === false &&
+          watch?.sources.some((source) =>
+            ['blocked', 'failed', 'price_unavailable'].includes(source.status),
+          ) ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {SOLVE_UNAVAILABLE_TEXT}
+            </p>
+          ) : null}
+        </div>
+
+        {history && history.events.length ? (
+          <div className="[grid-area:changes]">
+            <LatestChanges events={history.events} now={now} />
+          </div>
         ) : null}
       </div>
-
-      {history && history.events.length ? (
-        <LatestChanges events={history.events} now={now} />
-      ) : null}
 
       {variant === 'tab' && watch ? (
         <PriceAlertRules
@@ -896,9 +948,29 @@ export function KnifePricePanel({
 
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
-      <div className="flex justify-end">
-        <PriceExportButton knifeId={knifeId} />
-      </div>
+      {inline ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--bladevault-line)]/60 pt-2">
+          <Link
+            href={`/collection/${encodeURIComponent(knifeId)}?tab=market`}
+            className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            Open knife page
+          </Link>
+          <div className="flex items-center gap-1">
+            <PriceExportButton knifeId={knifeId} />
+            {onClose ? (
+              <Button type="button" variant="ghost" size="xs" onClick={onClose}>
+                <ChevronUp className="size-3" />
+                Collapse
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <div className="flex justify-end">
+          <PriceExportButton knifeId={knifeId} />
+        </div>
+      )}
       <SolveInBrowserDialog
         target={solveTarget}
         onClose={() => setSolveTarget(null)}
