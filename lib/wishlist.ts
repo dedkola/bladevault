@@ -1,8 +1,8 @@
 /**
  * Client-safe wishlist types, commands and price signals. The wishlist holds
  * knives from the vault that the collector plans to buy, grouped into
- * priority lanes. A knife's target price is its Price Drops alert target, so
- * reaching it also notifies.
+ * priority lanes. Each knife shows its own market price info (store price vs
+ * regular price, 30-day trend, 90-day range) rather than a target.
  */
 import { z } from 'zod'
 
@@ -10,15 +10,6 @@ export const WISHLIST_REFRESH_EVENT = 'bladevault:wishlist-refresh'
 
 export const WISHLIST_LANES = ['next', 'saving', 'someday'] as const
 export type WishlistLane = (typeof WISHLIST_LANES)[number]
-
-export const WISHLIST_LANE_LABELS: Record<
-  WishlistLane,
-  { title: string; hint: string }
-> = {
-  next: { title: 'Next up', hint: 'Buying soon' },
-  saving: { title: 'Saving for', hint: 'When the price is right' },
-  someday: { title: 'Someday', hint: 'Dream list' },
-}
 
 export type WishlistItem = {
   knifeId: string
@@ -38,6 +29,8 @@ export type WishlistTrend = {
   daily: Array<number | null>
   /** Lowest in-stock price over the last 90 days. */
   lowMinor: number | null
+  /** Highest in-stock price over the last 90 days. */
+  highMinor: number | null
 }
 
 export type WishlistBudget = {
@@ -98,45 +91,80 @@ export const wishlistCommandSchema = z.discriminatedUnion('action', [
 ])
 export type WishlistCommand = z.infer<typeof wishlistCommandSchema>
 
-/** A target counts as close while the price is at most this much above it. */
-export const WISHLIST_CLOSE_RATIO = 1.1
+/** Prices within half a percent of the regular price count as regular. */
+export const WISHLIST_REGULAR_TOLERANCE = 0.005
 
-export type WishlistSignal = 'buy' | 'close' | 'wait' | 'none'
+export type WishlistDeal = 'sale' | 'regular' | 'above' | 'out' | 'unknown'
 
-export const WISHLIST_SIGNAL_LABELS: Record<WishlistSignal, string> = {
-  buy: 'Buy now',
-  close: 'Close',
-  wait: 'Wait',
-  none: 'No target',
+export const WISHLIST_DEALS: readonly WishlistDeal[] = [
+  'sale',
+  'regular',
+  'above',
+  'out',
+  'unknown',
+]
+
+export const WISHLIST_DEAL_LABELS: Record<
+  WishlistDeal,
+  { title: string; hint: string }
+> = {
+  sale: { title: 'On sale now', hint: 'Below regular price' },
+  regular: { title: 'Regular price', hint: 'No discount right now' },
+  above: { title: 'Above regular', hint: 'Better to wait' },
+  out: { title: 'Out of stock', hint: 'Watching for a restock' },
+  unknown: { title: 'No store price yet', hint: 'Add a store link to compare' },
 }
 
-/** How the current price compares with the target, in the same currency. */
-export function wishlistSignal(
+/** Relative change from `base` to `price`: -0.2 is 20% lower. */
+export function priceChange(
   priceMinor: number | null,
-  priceCurrency: string | null,
-  targetMinor: number | null,
-  targetCurrency: string | null,
-): WishlistSignal {
+  baseMinor: number | null,
+): number | null {
+  if (priceMinor === null || !baseMinor) return null
+  return priceMinor / baseMinor - 1
+}
+
+/** Change from the first to the last priced day of the trend. */
+export function trendChange(trend: WishlistTrend | undefined): number | null {
+  const priced = (trend?.daily ?? []).filter(
+    (value): value is number => value !== null,
+  )
+  if (priced.length < 2) return null
+  return priceChange(priced[priced.length - 1], priced[0])
+}
+
+/** Where a price sits between the 90-day low (0) and high (1). */
+export function rangePosition(
+  priceMinor: number | null,
+  lowMinor: number | null,
+  highMinor: number | null,
+): number | null {
   if (
     priceMinor === null ||
-    targetMinor === null ||
-    !targetMinor ||
-    priceCurrency !== targetCurrency
+    lowMinor === null ||
+    highMinor === null ||
+    highMinor <= lowMinor
   )
-    return 'none'
-  if (priceMinor <= targetMinor) return 'buy'
-  if (priceMinor <= targetMinor * WISHLIST_CLOSE_RATIO) return 'close'
-  return 'wait'
+    return null
+  return Math.min(
+    1,
+    Math.max(0, (priceMinor - lowMinor) / (highMinor - lowMinor)),
+  )
 }
 
-/** Price relative to target: -0.05 is 5% under, 0.1 is 10% over. */
-export function wishlistTargetGap(
-  priceMinor: number | null,
-  priceCurrency: string | null,
-  targetMinor: number | null,
-  targetCurrency: string | null,
-): number | null {
-  if (priceMinor === null || !targetMinor || priceCurrency !== targetCurrency)
-    return null
-  return priceMinor / targetMinor - 1
+/** Which deal group a knife belongs to, from its live store price. */
+export function wishlistDeal({
+  live,
+  outOfStock,
+  vsRegular,
+}: {
+  live: boolean
+  outOfStock: boolean
+  vsRegular: number | null
+}): WishlistDeal {
+  if (outOfStock) return 'out'
+  if (!live) return 'unknown'
+  if (vsRegular === null || Math.abs(vsRegular) <= WISHLIST_REGULAR_TOLERANCE)
+    return 'regular'
+  return vsRegular < 0 ? 'sale' : 'above'
 }

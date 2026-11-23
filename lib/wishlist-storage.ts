@@ -81,9 +81,10 @@ type SnapshotRow = {
 }
 
 /**
- * Daily best in-stock price over the last 30 days and the 90-day low, from
- * the price snapshots of each knife's active store links. A snapshot holds
- * its price until the next snapshot of the same store replaces it.
+ * Daily best in-stock price over the last 30 days and the 90-day low and
+ * high, from the price snapshots of each knife's active store links. A
+ * snapshot holds its price until the next snapshot of the same store
+ * replaces it.
  */
 export function buildWishlistTrends(
   db: Database.Database,
@@ -141,12 +142,12 @@ export function buildWishlistTrends(
       }
       daily.push(best)
     }
+    const prices = priced.filter(inCurrency).map((row) => row.price_minor!)
     trends[knifeId] = {
       currency,
       daily,
-      lowMinor: Math.min(
-        ...priced.filter(inCurrency).map((row) => row.price_minor!),
-      ),
+      lowMinor: Math.min(...prices),
+      highMinor: Math.max(...prices),
     }
   }
   return trends

@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo, useRef, useState, type DragEvent } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Bell, BellOff, Heart, Loader2, Plus, X } from 'lucide-react'
 import Image from '@/components/vault-image'
 import { EmptyState } from '@/components/empty-state'
 import { PageHeader } from '@/components/page-header'
-import { money } from '@/components/price-drops/price-format'
+import { money, relativeTime } from '@/components/price-drops/price-format'
+import { useMinuteClock } from '@/components/price-drops/price-ui'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useMarket } from '@/components/providers/market-provider'
 import { useWishlist } from '@/components/providers/wishlist-provider'
@@ -24,21 +25,17 @@ import {
   announcePriceDataUpdated,
   type KnifeMarketSummary,
 } from '@/lib/market-status'
+import { parseStoredPrice, toMinorUnits } from '@/lib/price-monitor/money'
 import {
-  fromMinorUnits,
-  parseStoredPrice,
-  toMinorUnits,
-} from '@/lib/price-monitor/money'
-import { cn } from '@/lib/utils'
-import {
-  WISHLIST_LANE_LABELS,
-  WISHLIST_LANES,
-  WISHLIST_SIGNAL_LABELS,
-  wishlistSignal,
-  wishlistTargetGap,
+  WISHLIST_DEAL_LABELS,
+  WISHLIST_DEALS,
+  WISHLIST_REGULAR_TOLERANCE,
+  priceChange,
+  rangePosition,
+  trendChange,
+  wishlistDeal,
+  type WishlistDeal,
   type WishlistItem,
-  type WishlistLane,
-  type WishlistSignal,
   type WishlistTrend,
 } from '@/lib/wishlist'
 import './wishlist.css'
@@ -52,8 +49,18 @@ type Row = {
   priceMinor: number | null
   currency: string | null
   live: boolean
-  signal: WishlistSignal
-  gap: number | null
+  /** Regular price in `currency`, when comparable. */
+  regularMinor: number | null
+  /** Store price vs regular price: -0.2 is 20% below. */
+  vsRegular: number | null
+  /** Change over the last 30 days of store prices. */
+  change30: number | null
+  /** Price range for the bar: 90-day store low/high, today's and regular price. */
+  rangeLow: number | null
+  rangeHigh: number | null
+  /** Where today's price sits in that range, 0 = low, 1 = high. */
+  rangePos: number | null
+  deal: WishlistDeal
 }
 
 const DEFAULT_CURRENCY = 'USD'
@@ -66,18 +73,35 @@ function buildRow(
 ): Row {
   let priceMinor: number | null = null,
     currency: string | null = null,
+    regularMinor: number | null = null,
     live = false
   if (summary?.bestPriceMinor != null && summary.currency) {
     priceMinor = summary.bestPriceMinor
     currency = summary.currency
+    regularMinor = summary.paidMinor
     live = true
   } else {
     const regular = parseStoredPrice(knife.specs.price)
     if (regular) {
       currency = regular.currency || DEFAULT_CURRENCY
       priceMinor = toMinorUnits(regular.amount, currency)
+      regularMinor = priceMinor
     }
   }
+  const vsRegular = live ? priceChange(priceMinor, regularMinor) : null
+  const sameCurrency = live && trend?.currency === currency
+  // The regular price widens the range, so a discount shows on the bar even
+  // before the store history has moved.
+  const bounds = live
+    ? [
+        priceMinor,
+        regularMinor,
+        sameCurrency ? trend!.lowMinor : null,
+        sameCurrency ? trend!.highMinor : null,
+      ].filter((value): value is number => value !== null)
+    : []
+  const rangeLow = bounds.length ? Math.min(...bounds) : null,
+    rangeHigh = bounds.length ? Math.max(...bounds) : null
   return {
     item,
     knife,
@@ -86,23 +110,29 @@ function buildRow(
     priceMinor,
     currency,
     live,
-    signal: live
-      ? wishlistSignal(
-          priceMinor,
-          currency,
-          item.targetMinor,
-          item.targetCurrency,
-        )
-      : 'none',
-    gap: live
-      ? wishlistTargetGap(
-          priceMinor,
-          currency,
-          item.targetMinor,
-          item.targetCurrency,
-        )
-      : null,
+    regularMinor,
+    vsRegular,
+    change30: sameCurrency ? trendChange(trend) : null,
+    rangeLow,
+    rangeHigh,
+    rangePos: rangePosition(priceMinor, rangeLow, rangeHigh),
+    deal: wishlistDeal({
+      live,
+      outOfStock: Boolean(summary?.outOfStock),
+      vsRegular,
+    }),
   }
+}
+
+/** Biggest discount first, then closest to the 90-day low, then newest. */
+function compareDeals(a: Row, b: Row): number {
+  return (
+    (a.vsRegular ?? Number.POSITIVE_INFINITY) -
+      (b.vsRegular ?? Number.POSITIVE_INFINITY) ||
+    (a.rangePos ?? Number.POSITIVE_INFINITY) -
+      (b.rangePos ?? Number.POSITIVE_INFINITY) ||
+    b.item.addedAt.localeCompare(a.item.addedAt)
+  )
 }
 
 function mostCommonCurrency(rows: Row[]): string {
@@ -113,13 +143,25 @@ function mostCommonCurrency(rows: Row[]): string {
   return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? DEFAULT_CURRENCY
 }
 
-function gapLabel(gap: number): string {
-  const pct = Math.round(gap * 100)
-  return pct === 0 ? 'at target' : `${pct > 0 ? '+' : ''}${pct}% vs target`
+/** "−20%", "+5%", "±0%". */
+function pct(value: number): string {
+  const rounded = Math.round(value * 100)
+  if (!rounded) return '±0%'
+  return `${rounded < 0 ? '−' : '+'}${Math.abs(rounded)}%`
+}
+
+function changeDirection(value: number | null): 'down' | 'up' | 'flat' {
+  if (value === null || Math.abs(value) < WISHLIST_REGULAR_TOLERANCE)
+    return 'flat'
+  return value < 0 ? 'down' : 'up'
 }
 
 function knifeTitle(knife: Knife) {
   return [knife.brand, knife.name].filter(Boolean).join(' ')
+}
+
+function storesLabel(sources: number) {
+  return `${sources} ${sources === 1 ? 'store' : 'stores'}`
 }
 
 /* ---------- small pieces ---------- */
@@ -142,47 +184,94 @@ function Thumb({ knife, size }: { knife: Knife; size: 'sm' | 'md' | 'lg' }) {
   )
 }
 
-function SignalPill({ signal }: { signal: WishlistSignal }) {
-  if (signal === 'none') return null
-  return (
-    <span data-wishlist-signal={signal}>{WISHLIST_SIGNAL_LABELS[signal]}</span>
+function isAtLow(row: Row): boolean {
+  const low = row.trend?.lowMinor
+  return Boolean(
+    row.live &&
+    low != null &&
+    row.trend?.currency === row.currency &&
+    row.priceMinor !== null &&
+    row.priceMinor <= low &&
+    // A price that never moved is not news: show it only after a higher one.
+    row.trend?.daily.some((value) => value !== null && value > row.priceMinor!),
   )
 }
 
-function LowPill({ row }: { row: Row }) {
-  const low = row.trend?.lowMinor
-  if (
-    !row.live ||
-    low == null ||
-    row.trend?.currency !== row.currency ||
-    row.priceMinor === null ||
-    row.priceMinor > low ||
-    // A price that never moved is not news: show it only after a higher one.
-    !row.trend?.daily.some((value) => value !== null && value > row.priceMinor!)
+/** Sale, 90-day low, recent drop and stock badges for one knife. */
+function DealPills({ row }: { row: Row }) {
+  const now = useMinuteClock()
+  const { summary, deal, vsRegular } = row
+  if (deal === 'out')
+    return <span data-wishlist-signal="out">Out of stock</span>
+  return (
+    <>
+      {deal === 'sale' && vsRegular !== null && (
+        <span data-wishlist-signal="sale">On sale {pct(vsRegular)}</span>
+      )}
+      {deal === 'above' && vsRegular !== null && (
+        <span data-wishlist-signal="above">{pct(vsRegular)} above regular</span>
+      )}
+      {isAtLow(row) && <span data-wishlist-signal="low">90-day low</span>}
+      {summary?.droppedAt ? (
+        <span
+          data-wishlist-signal="drop"
+          title={`Price dropped ${relativeTime(summary.droppedAt, now)}`}
+        >
+          ↓{' '}
+          {summary.dropPct !== null
+            ? `${Math.round(Math.abs(summary.dropPct))}% `
+            : ''}
+          {relativeTime(summary.droppedAt, now, 'short')}
+        </span>
+      ) : summary?.restockedAt ? (
+        <span data-wishlist-signal="restock">Back in stock</span>
+      ) : null}
+    </>
   )
-    return null
-  return <span data-wishlist-signal="low">90-day low</span>
+}
+
+function Change({ value }: { value: number | null }) {
+  if (value === null) return <span data-wishlist-sub>—</span>
+  return <span data-wishlist-change={changeDirection(value)}>{pct(value)}</span>
 }
 
 function Sparkline({
-  trend,
-  signal,
+  row,
   width = 84,
   height = 26,
 }: {
-  trend: WishlistTrend | undefined
-  signal: WishlistSignal
+  row: Row
   width?: number
   height?: number
 }) {
-  const points = (trend?.daily ?? [])
+  const points = (row.trend?.daily ?? [])
     .map((value, index) => ({ value, index }))
     .filter((p): p is { value: number; index: number } => p.value !== null)
-  if (points.length < 2)
+  if (!points.length)
     return (
       <span data-wishlist-spark-empty style={{ width }}>
         No history yet
       </span>
+    )
+  // One day of data: a flat dashed line until the history grows.
+  if (points.length === 1)
+    return (
+      <svg
+        data-wishlist-spark="flat"
+        data-placeholder
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label="Only one day of store prices so far"
+      >
+        <polyline
+          points={`1,${height / 2} ${width - 1},${height / 2}`}
+          fill="none"
+          strokeWidth="2"
+          strokeDasharray="3 4"
+        />
+      </svg>
     )
   // Span the days with data, so a short history still reads as a line.
   const first = points[0].index,
@@ -198,7 +287,7 @@ function Sparkline({
     .join(' ')
   return (
     <svg
-      data-wishlist-spark={signal}
+      data-wishlist-spark={changeDirection(row.change30)}
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
@@ -215,24 +304,55 @@ function Sparkline({
   )
 }
 
-function TargetBar({ row }: { row: Row }) {
-  const { priceMinor, item } = row
-  if (
-    priceMinor === null ||
-    !item.targetMinor ||
-    item.targetCurrency !== row.currency
-  )
-    return <div data-wishlist-bar aria-hidden />
-  const max = Math.max(priceMinor, item.targetMinor) * 1.15
+/** The 90-day low–high range, with today's price and the regular price. */
+function RangeBar({ row }: { row: Row }) {
+  const { rangeLow: low, rangeHigh: high, currency } = row
+  if (low === null || high === null)
+    return <div data-wishlist-range aria-hidden />
+  const flat = high <= low
+  const at = (value: number) => (flat ? 0 : (value - low) / (high - low))
+  const regular = row.regularMinor
   return (
-    <div data-wishlist-bar aria-hidden>
-      <i
-        data-signal={row.signal}
-        style={{ width: `${(priceMinor / max) * 100}%` }}
-      />
-      <b style={{ left: `${(item.targetMinor / max) * 100}%` }} />
+    <div
+      data-wishlist-range
+      role="img"
+      aria-label={
+        flat
+          ? `${money(low, currency)}, no price change yet`
+          : `Price range ${money(low, currency)} to ${money(high, currency)}, now ${money(row.priceMinor, currency)}`
+      }
+    >
+      <div data-wishlist-range-track data-flat={flat || undefined}>
+        {regular !== null && !flat && (
+          <b style={{ left: `${at(regular) * 100}%` }} title="Regular price" />
+        )}
+        {row.priceMinor !== null && (
+          <i style={{ left: `${at(row.priceMinor) * 100}%` }} />
+        )}
+      </div>
+      <div data-wishlist-range-ends>
+        <span>{money(low, currency)}</span>
+        <span>{flat ? 'no change yet' : money(high, currency)}</span>
+      </div>
     </div>
   )
+}
+
+/** "~~$229~~ · save $45", "regular $135" when above it, "regular price", … */
+function PriceNote({ row }: { row: Row }) {
+  if (!row.live)
+    return <>{row.priceMinor !== null ? 'regular price' : 'no price yet'}</>
+  if (row.regularMinor === null) return <>best store price</>
+  if (row.deal === 'sale')
+    return (
+      <>
+        <s>{money(row.regularMinor, row.currency)}</s> · save{' '}
+        {money(row.regularMinor - row.priceMinor!, row.currency)}
+      </>
+    )
+  if (row.deal === 'above')
+    return <>regular {money(row.regularMinor, row.currency)}</>
+  return <>regular price</>
 }
 
 function WatchBell({ row }: { row: Row }) {
@@ -300,106 +420,6 @@ function WatchBell({ row }: { row: Row }) {
   )
 }
 
-function TargetEditor({ row }: { row: Row }) {
-  const { refresh } = useWishlist()
-  const { showFeedback } = useKnives()
-  const [busy, setBusy] = useState(false)
-  const currency = row.item.targetCurrency ?? row.currency ?? DEFAULT_CURRENCY
-  const [editing, setEditing] = useState(false)
-  const [value, setValue] = useState('')
-  const input = useRef<HTMLInputElement>(null)
-
-  function start() {
-    setValue(
-      row.item.targetMinor
-        ? String(fromMinorUnits(row.item.targetMinor, currency))
-        : '',
-    )
-    setEditing(true)
-    requestAnimationFrame(() => input.current?.select())
-  }
-  async function save() {
-    const trimmed = value.trim().replace(',', '.')
-    const amount = trimmed ? Number(trimmed) : 0
-    if (!Number.isFinite(amount) || amount < 0) {
-      showFeedback('Enter a target price as a number.', 'error')
-      return
-    }
-    setBusy(true)
-    try {
-      // The target is the knife's price alert target, shared with Price Drops.
-      const response = await fetch(
-        `/api/knives/${encodeURIComponent(row.knife.id)}/price-watch`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            alerts: { targetPrice: amount ? { amount, currency } : null },
-          }),
-        },
-      )
-      if (!response.ok) {
-        const data = (await response.json().catch(() => ({}))) as {
-          error?: string
-        }
-        throw new Error(data.error || 'Could not save the target.')
-      }
-      await refresh()
-      announcePriceDataUpdated()
-      setEditing(false)
-    } catch (error) {
-      showFeedback(
-        error instanceof Error ? error.message : 'Could not save the target.',
-        'error',
-      )
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  if (editing)
-    return (
-      <form
-        data-wishlist-target-form
-        onSubmit={(event) => {
-          event.preventDefault()
-          void save()
-        }}
-      >
-        <label className="sr-only" htmlFor={`target-${row.knife.id}`}>
-          Target price in {currency}. Price Drops alerts you when it is reached.
-        </label>
-        <Input
-          ref={input}
-          id={`target-${row.knife.id}`}
-          inputMode="decimal"
-          value={value}
-          placeholder={currency}
-          onChange={(event) => setValue(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') setEditing(false)
-          }}
-          className="h-7 w-24 text-xs"
-        />
-        <Button type="submit" size="sm" className="h-7" disabled={busy}>
-          Save
-        </Button>
-      </form>
-    )
-  return (
-    <button
-      type="button"
-      data-wishlist-target
-      title="Also your Price Drops alert target"
-      onClick={start}
-    >
-      {row.item.targetMinor
-        ? `Target ${money(row.item.targetMinor, row.item.targetCurrency)}`
-        : 'Set target price'}
-    </button>
-  )
-}
-
 function RemoveButton({ row }: { row: Row }) {
   const { mutate, busy } = useWishlist()
   const { showFeedback } = useKnives()
@@ -427,186 +447,78 @@ function RemoveButton({ row }: { row: Row }) {
   )
 }
 
-/* ---------- board ---------- */
+/* ---------- grouped by deal ---------- */
 
-function WishCard({
-  row,
-  onDragStart,
-  onDropBefore,
-  dragging,
-}: {
-  row: Row
-  onDragStart: (id: string) => void
-  onDropBefore: (event: DragEvent, beforeId: string) => void
-  dragging: boolean
-}) {
-  const { mutate, busy } = useWishlist()
-  const { showFeedback } = useKnives()
+function DealGroups({ rows }: { rows: Row[] }) {
   return (
-    <article
-      data-wishlist-card
-      data-dragging={dragging || undefined}
-      draggable
-      onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = 'move'
-        event.dataTransfer.setData('text/plain', row.knife.id)
-        onDragStart(row.knife.id)
-      }}
-      onDragOver={(event) => event.preventDefault()}
-      onDrop={(event) => onDropBefore(event, row.knife.id)}
-    >
-      <div data-wishlist-card-top>
-        <Thumb knife={row.knife} size="sm" />
-        <div className="min-w-0">
-          <div data-wishlist-brand>{row.knife.brand}</div>
-          <Link
-            href={`/collection/${encodeURIComponent(row.knife.id)}`}
-            data-wishlist-name
-          >
-            {row.knife.name}
-          </Link>
-          <div data-wishlist-pills>
-            <SignalPill signal={row.signal} />
-            <LowPill row={row} />
-          </div>
-        </div>
-        <div data-wishlist-card-actions>
-          <WatchBell row={row} />
-          <RemoveButton row={row} />
-        </div>
-      </div>
-      <div data-wishlist-card-mid>
-        <div className="min-w-0">
-          <span data-wishlist-price>{money(row.priceMinor, row.currency)}</span>{' '}
-          <span data-wishlist-sub>
-            {row.gap !== null
-              ? gapLabel(row.gap)
-              : row.live
-                ? 'best store price'
-                : row.priceMinor !== null
-                  ? 'regular price'
-                  : 'no price yet'}
-          </span>
-        </div>
-        <Sparkline trend={row.trend} signal={row.signal} />
-      </div>
-      <TargetBar row={row} />
-      <div data-wishlist-card-foot>
-        <TargetEditor row={row} />
-        <span className="flex items-center gap-2">
-          {row.summary?.sources ? (
-            <Link
-              href={`/price-drops?knife=${encodeURIComponent(row.knife.id)}`}
-            >
-              {row.summary.sources}{' '}
-              {row.summary.sources === 1 ? 'store' : 'stores'}
-            </Link>
-          ) : (
-            <span>No store links</span>
-          )}
-          <label className="sr-only" htmlFor={`lane-${row.knife.id}`}>
-            Move {row.knife.name} to
-          </label>
-          <select
-            id={`lane-${row.knife.id}`}
-            data-wishlist-lane-select
-            value={row.item.lane}
-            disabled={busy}
-            onChange={(event) =>
-              void mutate({
-                action: 'move',
-                knifeId: row.knife.id,
-                lane: event.target.value as WishlistLane,
-              }).catch((error) =>
-                showFeedback(
-                  error instanceof Error ? error.message : 'Could not move.',
-                  'error',
-                ),
-              )
-            }
-          >
-            {WISHLIST_LANES.map((lane) => (
-              <option key={lane} value={lane}>
-                {WISHLIST_LANE_LABELS[lane].title}
-              </option>
-            ))}
-          </select>
-        </span>
-      </div>
-    </article>
-  )
-}
-
-function Board({ rows, currency }: { rows: Row[]; currency: string }) {
-  const { mutate } = useWishlist()
-  const { showFeedback } = useKnives()
-  const [dragId, setDragId] = useState<string | null>(null)
-  const [overLane, setOverLane] = useState<WishlistLane | null>(null)
-
-  function drop(event: DragEvent, lane: WishlistLane, beforeId?: string) {
-    event.preventDefault()
-    event.stopPropagation()
-    const id = dragId ?? event.dataTransfer.getData('text/plain')
-    setDragId(null)
-    setOverLane(null)
-    if (!id || id === beforeId) return
-    void mutate({
-      action: 'move',
-      knifeId: id,
-      lane,
-      beforeKnifeId: beforeId ?? null,
-    }).catch((error) =>
-      showFeedback(
-        error instanceof Error ? error.message : 'Could not move.',
-        'error',
-      ),
-    )
-  }
-
-  return (
-    <div data-wishlist-lanes onDragEnd={() => setDragId(null)}>
-      {WISHLIST_LANES.map((lane) => {
-        const laneRows = rows.filter((row) => row.item.lane === lane)
-        const total = laneRows.reduce(
-          (sum, row) =>
-            sum + (row.currency === currency ? (row.priceMinor ?? 0) : 0),
-          0,
-        )
+    <div data-wishlist-groups>
+      {WISHLIST_DEALS.map((deal) => {
+        const groupRows = rows
+          .filter((row) => row.deal === deal)
+          .sort(compareDeals)
+        if (!groupRows.length) return null
+        const { title, hint } = WISHLIST_DEAL_LABELS[deal]
         return (
           <section
-            key={lane}
-            data-wishlist-lane={lane}
-            data-over={overLane === lane || undefined}
-            aria-label={WISHLIST_LANE_LABELS[lane].title}
-            onDragOver={(event) => {
-              event.preventDefault()
-              if (overLane !== lane) setOverLane(lane)
-            }}
-            onDragLeave={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget as Node))
-                setOverLane(null)
-            }}
-            onDrop={(event) => drop(event, lane)}
+            key={deal}
+            data-wishlist-group={deal}
+            aria-labelledby={`wishlist-group-${deal}`}
           >
             <header>
-              <h2>{WISHLIST_LANE_LABELS[lane].title}</h2>
-              <span>{total ? money(total, currency) : ''}</span>
+              <h2 id={`wishlist-group-${deal}`}>{title}</h2>
+              <span data-wishlist-sub>
+                {hint} · {groupRows.length}
+              </span>
             </header>
-            <p>
-              {WISHLIST_LANE_LABELS[lane].hint} · {laneRows.length}
-            </p>
-            {laneRows.map((row) => (
-              <WishCard
-                key={row.knife.id}
-                row={row}
-                dragging={dragId === row.knife.id}
-                onDragStart={setDragId}
-                onDropBefore={(event, beforeId) => drop(event, lane, beforeId)}
-              />
-            ))}
-            {!laneRows.length && (
-              <div data-wishlist-lane-empty>Drag a knife here</div>
-            )}
+            <ul data-wishlist-list>
+              {groupRows.map((row) => (
+                <li key={row.knife.id} data-wishlist-row>
+                  <Thumb knife={row.knife} size="sm" />
+                  <div className="min-w-0">
+                    <Link
+                      href={`/collection/${encodeURIComponent(row.knife.id)}`}
+                      data-wishlist-name
+                    >
+                      {row.knife.name}
+                    </Link>
+                    <span data-wishlist-sub className="block truncate">
+                      {[
+                        row.knife.brand,
+                        row.summary?.sources
+                          ? storesLabel(row.summary.sources)
+                          : 'No store links',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
+                    <div data-wishlist-pills>
+                      <DealPills row={row} />
+                    </div>
+                  </div>
+                  <div data-wishlist-row-price>
+                    <b>{money(row.priceMinor, row.currency)}</b>
+                    <span data-wishlist-sub>
+                      <PriceNote row={row} />
+                    </span>
+                  </div>
+                  <div data-wishlist-row-range>
+                    <RangeBar row={row} />
+                  </div>
+                  <div data-wishlist-row-trend>
+                    <Sparkline row={row} width={110} />
+                    {row.change30 !== null && (
+                      <span data-wishlist-sub>
+                        30d <Change value={row.change30} />
+                      </span>
+                    )}
+                  </div>
+                  <div data-wishlist-row-actions>
+                    <WatchBell row={row} />
+                    <RemoveButton row={row} />
+                  </div>
+                </li>
+              ))}
+            </ul>
           </section>
         )
       })}
@@ -614,208 +526,27 @@ function Board({ rows, currency }: { rows: Row[]; currency: string }) {
   )
 }
 
-/* ---------- ranked list ---------- */
-
-function RankedList({ rows }: { rows: Row[] }) {
-  const ranked = [...rows].sort(
-    (a, b) =>
-      (a.gap ?? Number.POSITIVE_INFINITY) -
-        (b.gap ?? Number.POSITIVE_INFINITY) ||
-      WISHLIST_LANES.indexOf(a.item.lane) -
-        WISHLIST_LANES.indexOf(b.item.lane) ||
-      a.item.position - b.item.position,
-  )
-  return (
-    <div data-wishlist-list role="table" aria-label="Wishlist ranked by price">
-      <div data-wishlist-row="head" role="row">
-        <span role="columnheader">#</span>
-        <span role="columnheader" aria-label="Photo" />
-        <span role="columnheader">Knife</span>
-        <span role="columnheader">Now</span>
-        <span role="columnheader">Lane</span>
-        <span role="columnheader">Distance to target</span>
-        <span role="columnheader">30 days</span>
-        <span role="columnheader" aria-label="Watch" />
-      </div>
-      {ranked.map((row, index) => (
-        <div key={row.knife.id} data-wishlist-row role="row">
-          <span role="cell" data-wishlist-sub>
-            {index + 1}
-          </span>
-          <span role="cell">
-            <Thumb knife={row.knife} size="sm" />
-          </span>
-          <span role="cell" className="min-w-0">
-            <Link
-              href={`/collection/${encodeURIComponent(row.knife.id)}`}
-              data-wishlist-name
-            >
-              {row.knife.name}
-            </Link>
-            <span data-wishlist-sub className="block">
-              {row.knife.brand}
-              {row.summary?.sources
-                ? ` · ${row.summary.sources} ${row.summary.sources === 1 ? 'store' : 'stores'}`
-                : ''}{' '}
-              <LowPill row={row} />
-            </span>
-          </span>
-          <span role="cell">
-            <b>{money(row.priceMinor, row.currency)}</b>
-            <span data-wishlist-sub className="block">
-              {row.item.targetMinor
-                ? `target ${money(row.item.targetMinor, row.item.targetCurrency)}`
-                : 'no target'}
-            </span>
-          </span>
-          <span role="cell" data-wishlist-sub>
-            {WISHLIST_LANE_LABELS[row.item.lane].title}
-          </span>
-          <span role="cell">
-            <span className="flex items-center gap-2">
-              <SignalPill signal={row.signal} />
-              {row.gap !== null && (
-                <span data-wishlist-sub>{gapLabel(row.gap)}</span>
-              )}
-            </span>
-            <TargetBar row={row} />
-          </span>
-          <span role="cell">
-            <Sparkline trend={row.trend} signal={row.signal} width={100} />
-          </span>
-          <span role="cell">
-            <WatchBell row={row} />
-          </span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 /* ---------- summary ---------- */
-
-function BudgetCard({
-  currency,
-  plannedMinor,
-}: {
-  currency: string
-  plannedMinor: number
-}) {
-  const { budget, mutate, busy } = useWishlist()
-  const { showFeedback } = useKnives()
-  const [editing, setEditing] = useState(false)
-  const [value, setValue] = useState('')
-  const budgetCurrency = budget.currency ?? currency
-  const amount = budget.amountMinor
-  const comparable = amount !== null && budgetCurrency === currency
-
-  async function save() {
-    const parsed = Number(value.trim().replace(',', '.') || 0)
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      showFeedback('Enter the budget as a number.', 'error')
-      return
-    }
-    try {
-      await mutate({
-        action: 'budget',
-        amountMinor: parsed ? toMinorUnits(parsed, currency) : null,
-        currency: parsed ? currency : null,
-      })
-      setEditing(false)
-    } catch (error) {
-      showFeedback(
-        error instanceof Error ? error.message : 'Could not save the budget.',
-        'error',
-      )
-    }
-  }
-
-  return (
-    <div data-wishlist-stat>
-      <div data-wishlist-stat-label>Budget this month</div>
-      {editing ? (
-        <form
-          data-wishlist-target-form
-          onSubmit={(event) => {
-            event.preventDefault()
-            void save()
-          }}
-        >
-          <label className="sr-only" htmlFor="wishlist-budget">
-            Monthly budget in {currency}
-          </label>
-          <Input
-            id="wishlist-budget"
-            autoFocus
-            inputMode="decimal"
-            value={value}
-            placeholder={currency}
-            onChange={(event) => setValue(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') setEditing(false)
-            }}
-            className="h-8 w-28"
-          />
-          <Button type="submit" size="sm" disabled={busy}>
-            Save
-          </Button>
-        </form>
-      ) : (
-        <button
-          type="button"
-          data-wishlist-stat-value
-          data-editable
-          onClick={() => {
-            setValue(
-              amount ? String(fromMinorUnits(amount, budgetCurrency)) : '',
-            )
-            setEditing(true)
-          }}
-        >
-          {amount ? money(amount, budgetCurrency) : 'Set budget'}
-        </button>
-      )}
-      {comparable && (
-        <div data-wishlist-meter aria-hidden>
-          <i
-            data-over={plannedMinor > amount! || undefined}
-            style={{
-              width: `${Math.min(100, (plannedMinor / amount!) * 100)}%`,
-            }}
-          />
-        </div>
-      )}
-      <div data-wishlist-stat-label>
-        {money(plannedMinor, currency)} planned in “Next up”
-        {comparable && plannedMinor > amount! ? ' · over budget' : ''}
-      </div>
-    </div>
-  )
-}
 
 function Summary({ rows, currency }: { rows: Row[]; currency: string }) {
   const inCurrency = rows.filter(
     (row) => row.currency === currency && row.priceMinor !== null,
   )
   const today = inCurrency.reduce((sum, row) => sum + row.priceMinor!, 0)
-  const atTarget = inCurrency.reduce(
-    (sum, row) =>
-      sum +
-      (row.item.targetMinor && row.item.targetCurrency === currency
-        ? Math.min(row.priceMinor!, row.item.targetMinor)
-        : row.priceMinor!),
+  const onSale = inCurrency.filter(
+    (row) => row.deal === 'sale' && row.regularMinor !== null,
+  )
+  const savings = onSale.reduce(
+    (sum, row) => sum + (row.regularMinor! - row.priceMinor!),
     0,
   )
-  const planned = inCurrency
-    .filter((row) => row.item.lane === 'next')
-    .reduce((sum, row) => sum + row.priceMinor!, 0)
   const other = rows.length - inCurrency.length
+  const outOfStock = rows.filter((row) => row.deal === 'out').length
   const watched = rows.filter((row) => row.summary?.monitored)
   const pages = watched.reduce(
     (sum, row) => sum + (row.summary?.sources ?? 0),
     0,
   )
-  const ready = rows.filter((row) => row.signal === 'buy').length
   return (
     <div data-wishlist-summary>
       <div data-wishlist-stat>
@@ -824,26 +555,27 @@ function Summary({ rows, currency }: { rows: Row[]; currency: string }) {
         <div data-wishlist-stat-label>
           {inCurrency.length} {inCurrency.length === 1 ? 'knife' : 'knives'}
           {other ? ` · ${other} without a ${currency} price` : ''}
+          {outOfStock ? ` · ${outOfStock} out of stock` : ''}
         </div>
       </div>
       <div data-wishlist-stat>
-        <div data-wishlist-stat-label>At your target prices</div>
-        <div data-wishlist-stat-value>{money(atTarget, currency)}</div>
+        <div data-wishlist-stat-label>On sale now</div>
+        <div data-wishlist-stat-value data-good={savings > 0 || undefined}>
+          {savings > 0 ? `${money(savings, currency)} off` : 'Nothing yet'}
+        </div>
         <div data-wishlist-stat-label>
-          {today > atTarget
-            ? `${money(today - atTarget, currency)} less if you wait`
-            : 'Set targets to see what waiting saves'}
+          {onSale.length
+            ? `${onSale.length} of ${rows.length} ${rows.length === 1 ? 'knife' : 'knives'} below regular price`
+            : 'No knife is below its regular price'}
         </div>
       </div>
-      <BudgetCard currency={currency} plannedMinor={planned} />
       <div data-wishlist-stat data-wishlist-watch>
         <div data-wishlist-stat-label>Price Drops watches</div>
         <div data-wishlist-stat-value>
           {watched.length} / {rows.length}
         </div>
         <div data-wishlist-stat-label>
-          {pages} store {pages === 1 ? 'page' : 'pages'}
-          {ready ? ` · ${ready} at or under target` : ''} ·{' '}
+          {pages} store {pages === 1 ? 'page' : 'pages'} ·{' '}
           <Link href="/price-drops">Open Price Drops</Link>
         </div>
       </div>
@@ -855,46 +587,28 @@ function BestDeal({ rows }: { rows: Row[] }) {
   const { mutate, busy } = useWishlist()
   const { showFeedback } = useKnives()
   const best = rows
-    .filter((row) => row.signal === 'buy' || row.signal === 'close')
-    .sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0))[0]
+    .filter((row) => row.deal === 'sale' && row.regularMinor !== null)
+    .sort(compareDeals)[0]
   if (!best) return null
-  const under =
-    best.item.targetMinor !== null && best.priceMinor !== null
-      ? best.item.targetMinor - best.priceMinor
-      : 0
-  const first = best.trend?.daily.find((value) => value !== null) ?? null
+  const saved = best.regularMinor! - best.priceMinor!
+  const sources = best.summary?.sources ?? 0
   return (
-    <section data-wishlist-hero data-signal={best.signal}>
+    <section data-wishlist-hero>
       <Thumb knife={best.knife} size="lg" />
       <div className="min-w-0">
-        <div data-wishlist-eyebrow>
-          {best.signal === 'buy' ? 'Best moment to buy' : 'Almost there'}
-        </div>
+        <div data-wishlist-eyebrow>Best deal right now</div>
         <h2>{knifeTitle(best.knife)}</h2>
         <div data-wishlist-hero-price>
           <span data-wishlist-big>{money(best.priceMinor, best.currency)}</span>
-          {first !== null &&
-            best.priceMinor !== null &&
-            first > best.priceMinor && (
-              <s data-wishlist-sub>{money(first, best.currency)}</s>
-            )}
-          {under >= 0 ? (
-            <span data-wishlist-signal="buy">
-              {under
-                ? `${money(under, best.currency)} under target`
-                : 'At target'}
-            </span>
-          ) : (
-            <span data-wishlist-signal="close">
-              {money(-under, best.currency)} above target
-            </span>
-          )}
-          <LowPill row={best} />
+          <s data-wishlist-sub>{money(best.regularMinor, best.currency)}</s>
+          <DealPills row={best} />
         </div>
         <div data-wishlist-sub>
-          {best.summary?.sources ?? 0}{' '}
-          {best.summary?.sources === 1 ? 'store' : 'stores'} · in “
-          {WISHLIST_LANE_LABELS[best.item.lane].title}”
+          {money(saved, best.currency)} below regular price
+          {best.change30 !== null && best.change30 < 0
+            ? ` · ${pct(best.change30)} in 30 days`
+            : ''}{' '}
+          · {storesLabel(sources)}
         </div>
       </div>
       <div data-wishlist-hero-actions>
@@ -943,7 +657,6 @@ function AddKnivesDialog({
   const { has, mutate, busy } = useWishlist()
   const { showFeedback } = useKnives()
   const [query, setQuery] = useState('')
-  const [lane, setLane] = useState<WishlistLane>('saving')
   const results = useMemo(() => {
     const q = query.trim().toLowerCase()
     return knives
@@ -980,22 +693,6 @@ function AddKnivesDialog({
             autoFocus
             onChange={(event) => setQuery(event.target.value)}
           />
-          <label className="sr-only" htmlFor="wishlist-add-lane">
-            Lane for new knives
-          </label>
-          <select
-            id="wishlist-add-lane"
-            data-wishlist-lane-select
-            data-size="md"
-            value={lane}
-            onChange={(event) => setLane(event.target.value as WishlistLane)}
-          >
-            {WISHLIST_LANES.map((value) => (
-              <option key={value} value={value}>
-                {WISHLIST_LANE_LABELS[value].title}
-              </option>
-            ))}
-          </select>
         </div>
         <div className="max-h-80 overflow-y-auto">
           {results.map((knife) => {
@@ -1021,8 +718,8 @@ function AddKnivesDialog({
                   aria-label={`Add ${knifeTitle(knife)} to the wishlist`}
                   onClick={() =>
                     void mutate(
-                      { action: 'add', knifeIds: [knife.id], lane },
-                      `Added ${knife.name} to ${WISHLIST_LANE_LABELS[lane].title}`,
+                      { action: 'add', knifeIds: [knife.id], lane: 'saving' },
+                      `Added ${knife.name} to the wishlist`,
                     ).catch((error) =>
                       showFeedback(
                         error instanceof Error
@@ -1055,7 +752,6 @@ export function WishlistView() {
   const { knives, isLoading: knivesLoading } = useKnives()
   const { byId } = useMarket()
   const { available, items, trends, loading, error } = useWishlist()
-  const [view, setView] = useState<'board' | 'list'>('board')
   const [adding, setAdding] = useState(false)
 
   const rows = useMemo(() => {
@@ -1072,7 +768,7 @@ export function WishlistView() {
   const header = (
     <PageHeader
       title="Wishlist"
-      description="Knives you plan to buy, by priority and price"
+      description="Knives you plan to buy, with live store prices"
       actions={
         available ? (
           <>
@@ -1126,7 +822,7 @@ export function WishlistView() {
         <EmptyState
           icon={<Heart className="size-8" />}
           title="Your wishlist is empty"
-          description="Add knives you plan to buy. Set a target price, and the wishlist tells you when it’s a good moment to buy."
+          description="Add knives you plan to buy. The wishlist shows store prices against the regular price, so you can see what’s on sale."
           action={
             <Button onClick={() => setAdding(true)}>
               <Plus className="size-4" />
@@ -1139,33 +835,12 @@ export function WishlistView() {
           <Summary rows={rows} currency={currency} />
           <BestDeal rows={rows} />
           <div data-wishlist-toolbar>
-            <div data-wishlist-seg role="group" aria-label="View">
-              <button
-                type="button"
-                aria-pressed={view === 'board'}
-                onClick={() => setView('board')}
-              >
-                Board
-              </button>
-              <button
-                type="button"
-                aria-pressed={view === 'list'}
-                onClick={() => setView('list')}
-              >
-                Ranked by price
-              </button>
-            </div>
             <div data-wishlist-legend>
-              <span data-wishlist-signal="buy">Buy now</span> at or under target
-              <span data-wishlist-signal="close">Close</span> within 10%
-              <span data-wishlist-signal="wait">Wait</span> further
-              <span data-wishlist-signal="low">90-day low</span>
+              Price now vs regular · price range with regular price tick · last
+              30 days
             </div>
           </div>
-          <div className={cn(view !== 'board' && 'hidden')}>
-            <Board rows={rows} currency={currency} />
-          </div>
-          {view === 'list' && <RankedList rows={rows} />}
+          <DealGroups rows={rows} />
         </>
       )}
       <AddKnivesDialog open={adding} onOpenChange={setAdding} />

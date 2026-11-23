@@ -3,7 +3,7 @@ import { WishlistView } from '@/components/wishlist/wishlist-view'
 
 export const metadata: Metadata = {
   title: 'BladeVault | Wishlist',
-  description: 'Knives you plan to buy, by priority and price.',
+  description: 'Knives you plan to buy, with live store prices.',
 }
 
 export default function WishlistPage() {
