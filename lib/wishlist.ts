@@ -28,6 +28,15 @@ export type WishlistTrend = {
   currency: string | null
   /** Oldest first, one value per day; null where nothing was in stock. */
   daily: Array<number | null>
+  /**
+   * Best in-stock price at each change from `since`, oldest first: `at` is
+   * epoch ms, `price` null while nothing was in stock. Drawn as steps.
+   */
+  steps: Array<{ at: number; price: number | null }>
+  /** Chart start (epoch ms): when tracking began, at most 30 days ago. */
+  since: number
+  /** Chart end (epoch ms): when the trend was built. */
+  until: number
   /** Lowest in-stock price over the last 90 days. */
   lowMinor: number | null
   /** Highest in-stock price over the last 90 days. */

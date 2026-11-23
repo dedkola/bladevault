@@ -235,71 +235,100 @@ function Change({ value }: { value: number | null }) {
   return <span data-wishlist-change={changeDirection(value)}>{pct(value)}</span>
 }
 
+/**
+ * Stock-style price chart over the last 30 days, or since tracking began when
+ * that is shorter (the history fills the width from day one): the best store
+ * price as steps at the moments it changed, shaded beneath, and the regular
+ * price dashed across like a stock's previous close.
+ */
 function Sparkline({
   row,
-  width = 84,
-  height = 26,
+  width = 110,
+  height = 30,
 }: {
   row: Row
   width?: number
   height?: number
 }) {
-  const points = (row.trend?.daily ?? [])
-    .map((value, index) => ({ value, index }))
-    .filter((p): p is { value: number; index: number } => p.value !== null)
-  if (!points.length)
+  const trend = row.trend
+  const steps = trend?.steps ?? []
+  const prices = steps
+    .map((step) => step.price)
+    .filter((price): price is number => price !== null)
+  if (!trend || !prices.length)
     return (
       <span data-wishlist-spark-empty style={{ width }}>
         No history yet
       </span>
     )
-  // One day of data: a flat dashed line until the history grows.
-  if (points.length === 1)
-    return (
-      <svg
-        data-wishlist-spark="flat"
-        data-placeholder
-        width={width}
-        height={height}
-        viewBox={`0 0 ${width} ${height}`}
-        role="img"
-        aria-label="Only one day of store prices so far"
-      >
-        <polyline
-          points={`1,${height / 2} ${width - 1},${height / 2}`}
-          fill="none"
-          strokeWidth="2"
-          strokeDasharray="3 4"
-        />
-      </svg>
-    )
-  // Span the days with data, so a short history still reads as a line.
-  const first = points[0].index,
-    days = points[points.length - 1].index - first || 1
-  const values = points.map((p) => p.value)
-  const min = Math.min(...values),
-    range = Math.max(...values) - min || 1
-  const line = points
-    .map(
-      (p) =>
-        `${(((p.index - first) / days) * (width - 2) + 1).toFixed(1)},${(height - 3 - ((p.value - min) / range) * (height - 6)).toFixed(1)}`,
-    )
-    .join(' ')
+  const regular =
+    row.live && trend.currency === row.currency ? row.regularMinor : null
+  const scale = regular === null ? prices : [...prices, regular]
+  const high = Math.max(...scale),
+    top = Math.min(...scale)
+  // Room below the lowest price, so the shading reads even on a flat line.
+  const low = top - (high - top || top * 0.2) * 0.8,
+    range = high - low || 1
+  const span = Math.max(trend.until - trend.since, 1)
+  const x = (at: number) => ((at - trend.since) / span) * (width - 4) + 1
+  const y = (price: number) =>
+    height - 2 - ((price - low) / range) * (height - 5)
+
+  // One path per in-stock stretch; out of stock leaves a gap.
+  const runs: string[] = []
+  let path = ''
+  steps.forEach((step, index) => {
+    const next = steps[index + 1]?.at ?? trend.until
+    if (step.price === null) {
+      if (path) runs.push(path)
+      path = ''
+      return
+    }
+    const py = y(step.price).toFixed(1)
+    path += path
+      ? ` V${py} H${x(next).toFixed(1)}`
+      : `M${x(step.at).toFixed(1)},${py} H${x(next).toFixed(1)}`
+  })
+  if (path) runs.push(path)
+  const last = steps[steps.length - 1]
+  const startX = (run: string) => run.slice(1, run.indexOf(','))
+  const direction = changeDirection(row.vsRegular)
   return (
     <svg
-      data-wishlist-spark={changeDirection(row.change30)}
+      data-wishlist-spark={direction}
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
-      aria-label="Best store price over the last 30 days"
+      aria-label="Best store price over the last 30 days, or since tracking began"
     >
-      <polyline
-        points={line}
-        fill="none"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
+      {regular !== null && (
+        <line
+          data-wishlist-spark-regular
+          x1="1"
+          x2={width - 3}
+          y1={y(regular).toFixed(1)}
+          y2={y(regular).toFixed(1)}
+        />
+      )}
+      {runs.map((run) => (
+        <path
+          key={`fill-${run}`}
+          data-wishlist-spark-fill
+          d={`${run} V${height} H${startX(run)} Z`}
+        />
+      ))}
+      {runs.map((run) => (
+        <path key={run} data-wishlist-spark-line d={run} fill="none" />
+      ))}
+      {last.price !== null && (
+        <circle
+          data-wishlist-spark-dot
+          cx={x(trend.until).toFixed(1)}
+          cy={y(last.price).toFixed(1)}
+          r="2.2"
+        />
+      )}
     </svg>
   )
 }
@@ -519,12 +548,15 @@ function DealGroups({ rows }: { rows: Row[] }) {
                     <RangeBar row={row} />
                   </div>
                   <div data-wishlist-row-trend>
-                    <Sparkline row={row} width={110} />
-                    {row.change30 !== null && (
-                      <span data-wishlist-sub>
-                        30d <Change value={row.change30} />
-                      </span>
-                    )}
+                    <Sparkline row={row} />
+                    {row.vsRegular !== null &&
+                      (changeDirection(row.vsRegular) === 'flat' ? (
+                        <span data-wishlist-sub>at regular</span>
+                      ) : (
+                        <span data-wishlist-sub>
+                          <Change value={row.vsRegular} /> vs regular
+                        </span>
+                      ))}
                   </div>
                   <div data-wishlist-row-actions>
                     <PriceDetailsLink row={row} />

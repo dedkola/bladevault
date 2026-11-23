@@ -124,9 +124,8 @@ export function buildWishlistTrends(
       list.push(row)
       bySource.set(row.source_id, list)
     }
-    const daily: Array<number | null> = []
-    for (let day = WISHLIST_TREND_DAYS - 1; day >= 0; day--) {
-      const end = new Date(now - day * DAY_MS).toISOString()
+    /** Best in-stock price across the stores as of `end` (an ISO time). */
+    const bestAt = (end: string) => {
       let best: number | null = null
       for (const list of bySource.values()) {
         let latest: SnapshotRow | undefined
@@ -140,12 +139,35 @@ export function buildWishlistTrends(
               ? latest.price_minor!
               : Math.min(best, latest.price_minor!)
       }
-      daily.push(best)
+      return best
+    }
+    const daily: Array<number | null> = []
+    for (let day = WISHLIST_TREND_DAYS - 1; day >= 0; day--)
+      daily.push(bestAt(new Date(now - day * DAY_MS).toISOString()))
+
+    // The chart starts when tracking began, or 30 days ago if earlier, and
+    // steps at every snapshot after that where the best price changed.
+    const windowStart = now - WISHLIST_TREND_DAYS * DAY_MS
+    const first = Date.parse(rows[0].observed_at)
+    const chartStart = Math.max(first, windowStart)
+    const steps: WishlistTrend['steps'] = []
+    const times = new Set([chartStart])
+    for (const row of rows) {
+      const at = Date.parse(row.observed_at)
+      if (at > chartStart && at <= now) times.add(at)
+    }
+    for (const at of [...times].sort((a, b) => a - b)) {
+      const price = bestAt(new Date(at).toISOString())
+      if (!steps.length || steps[steps.length - 1].price !== price)
+        steps.push({ at, price })
     }
     const prices = priced.filter(inCurrency).map((row) => row.price_minor!)
     trends[knifeId] = {
       currency,
       daily,
+      steps,
+      since: chartStart,
+      until: now,
       lowMinor: Math.min(...prices),
       highMinor: Math.max(...prices),
     }
