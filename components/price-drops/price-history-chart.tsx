@@ -512,6 +512,11 @@ export function PriceHistoryChart({
         grid: { left: 8, right: 12, top: 14, bottom: 4, containLabel: true },
         tooltip: {
           trigger: 'axis',
+          // Keep the tooltip inside the chart: on a narrow panel it would
+          // otherwise run past the card's edge and get clipped.
+          confine: true,
+          extraCssText:
+            'max-width:calc(100% - 16px);white-space:normal;overflow-wrap:anywhere;',
           backgroundColor: palette.card,
           borderColor: palette.line,
           textStyle: { color: palette.foreground, fontSize: 12 },
