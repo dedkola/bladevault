@@ -102,6 +102,18 @@ async function httpGet(
 }
 
 /**
+ * One plain HTTP request for a store's JSON (Shopify search suggestions or
+ * `/products/<handle>.js`), with the same headers, block-page and HTTP
+ * status handling as price checks (429 carries its Retry-After).
+ */
+export async function fetchStoreJson(
+  url: string,
+  operation: ScrapeOperation,
+): Promise<{ body: string; finalUrl: string }> {
+  return httpGet(url, operation, 'application/json')
+}
+
+/**
  * The currency Shopify presents prices in for our US cookies: `.js` product
  * data carries amounts only. Null when the cart cannot be read.
  */

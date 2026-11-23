@@ -3,9 +3,18 @@ import { describe, expect, it } from 'vitest'
 import { isIgnoredOfficialOutOfStock } from '@/lib/price-monitor/eligibility'
 import {
   DISCOVERY_STORES,
+  SHOPIFY_SEARCH_GAP_MS,
   genericProductDetails,
   withoutBrandPrefix,
 } from '@/lib/price-monitor/discovery-stores'
+import {
+  DISCOVERY_MIN_GAP_MS,
+  defaultLaneState,
+  discoveryAvailability,
+  discoveryGapMs,
+} from '@/lib/price-monitor/lanes'
+import { providerForUrl } from '@/lib/price-monitor/shared'
+import { extractShopifyOffer } from '@/lib/scrape-offer'
 import { extractOfferFromHtml } from '@/lib/price-monitor/fetch'
 import { pageShowsModelNumber } from '@/lib/price-monitor/discovery-ai'
 import {
@@ -175,6 +184,8 @@ describe('Other stores: Blade HQ', () => {
       'bladehq',
       'smkw',
       'dlttrading',
+      'knifejoy',
+      'northwestknives',
     ])
     expect(
       normalizePriceMonitoring({
@@ -183,7 +194,13 @@ describe('Other stores: Blade HQ', () => {
           stores: { amazon: true, bladehq: true, knifecenter: true },
         },
       }).otherStores.stores,
-    ).toEqual({ bladehq: true, smkw: false, dlttrading: false })
+    ).toEqual({
+      bladehq: true,
+      smkw: false,
+      dlttrading: false,
+      knifejoy: false,
+      northwestknives: false,
+    })
   })
 
   it('lanes and marketplaces follow the store', () => {
@@ -205,12 +222,20 @@ describe('Other stores: SMKW', () => {
       bladehq: true,
       smkw: false,
       dlttrading: false,
+      knifejoy: false,
+      northwestknives: false,
     })
     expect(
       normalizePriceMonitoring({
         otherStores: { enabled: true, stores: { smkw: true } },
       }).otherStores.stores,
-    ).toEqual({ bladehq: true, smkw: true, dlttrading: false })
+    ).toEqual({
+      bladehq: true,
+      smkw: true,
+      dlttrading: false,
+      knifejoy: false,
+      northwestknives: false,
+    })
     expect(storeLabel('smkw.com')).toBe('SMKW')
   })
 
@@ -312,7 +337,13 @@ describe('Other stores: DLT Trading', () => {
       normalizePriceMonitoring({
         otherStores: { enabled: true, stores: { dlttrading: true } },
       }).otherStores.stores,
-    ).toEqual({ bladehq: true, smkw: false, dlttrading: true })
+    ).toEqual({
+      bladehq: true,
+      smkw: false,
+      dlttrading: true,
+      knifejoy: false,
+      northwestknives: false,
+    })
     expect(storeLabel('dlttrading.com')).toBe('DLT Trading')
   })
 
@@ -423,6 +454,197 @@ describe('Brand prefix on store SKUs', () => {
     expect(withoutBrandPrefix('A4501', 'Vosteed')).toBeNull()
     expect(withoutBrandPrefix('VOSTEED', 'Vosteed')).toBeNull()
     expect(withoutBrandPrefix('', 'Vosteed')).toBeNull()
+  })
+})
+
+describe('Other stores: Shopify stores (KnifeJoy, Northwest Knives)', () => {
+  it('are off by default, keep a saved choice and have labels', () => {
+    const { stores } = DEFAULT_PRICE_MONITORING.otherStores
+    expect(stores.knifejoy).toBe(false)
+    expect(stores.northwestknives).toBe(false)
+    expect(
+      normalizePriceMonitoring({
+        otherStores: { enabled: true, stores: { knifejoy: true } },
+      }).otherStores.stores.knifejoy,
+    ).toBe(true)
+    expect(storeLabel('knifejoy.com')).toBe('KnifeJoy')
+    expect(storeLabel('northwestknives.com')).toBe('Northwest Knives')
+    expect(DISCOVERY_STORES.knifejoy).toMatchObject({
+      label: 'KnifeJoy',
+      laneKey: 'knifejoy.com',
+      marketplace: 'knifejoy.com',
+      shopify: true,
+    })
+    expect(DISCOVERY_STORES.northwestknives.laneKey).toBe('northwestknives.com')
+  })
+
+  it('search at a slower pace than the other stores', () => {
+    const lane = defaultLaneState(
+      'knifejoy.com',
+      { ...DEFAULT_PRICE_MONITORING.pacing, minGapSeconds: 30 },
+      0,
+    )
+    const storeGap = DISCOVERY_STORES.knifejoy.searchGapMs
+    expect(storeGap).toBe(SHOPIFY_SEARCH_GAP_MS)
+    expect(discoveryGapMs(lane, 30_000, storeGap)).toBe(SHOPIFY_SEARCH_GAP_MS)
+    expect(discoveryGapMs(lane, 30_000)).toBe(DISCOVERY_MIN_GAP_MS)
+    expect(DISCOVERY_STORES.bladehq.searchGapMs).toBeUndefined()
+    // Five minutes after the last request it still waits, even with a check due.
+    const searched = { ...lane, lastRequestAt: 0, readyAt: 60_000 }
+    expect(
+      discoveryAvailability(searched, 5 * 60_000, {
+        floorMs: 30_000,
+        storeGapMs: storeGap,
+      }).state,
+    ).toBe('waiting')
+  })
+
+  it('search through Shopify’s search suggestions JSON', () => {
+    expect(DISCOVERY_STORES.knifejoy.searchUrl('Spyderco Para 3 C223GP')).toBe(
+      'https://knifejoy.com/search/suggest.json?q=Spyderco+Para+3+C223GP&resources%5Btype%5D=product&resources%5Blimit%5D=10',
+    )
+    expect(
+      DISCOVERY_STORES.northwestknives.searchUrl('Spyderco Para 3'),
+    ).toMatch(/^https:\/\/northwestknives\.com\/search\/suggest\.json\?q=/)
+  })
+
+  it('reads the live KnifeJoy suggestions: product links without tracking, selling price', () => {
+    const pageUrl = DISCOVERY_STORES.knifejoy.searchUrl('Spyderco Para 3')
+    const results = DISCOVERY_STORES.knifejoy.parseResults(
+      fixture('knifejoy-search-para-3.json'),
+      pageUrl,
+    )
+    expect(results).toHaveLength(10)
+    expect(results[2]).toEqual({
+      id: 3,
+      url: 'https://knifejoy.com/products/spyderco-c223sbk-para-3-lightweight-black',
+      title: 'Spyderco C223SBK Para 3 Lightweight Black',
+      price: '$139.50',
+    })
+    // The brand is added when the title leaves it out.
+    expect(results.at(-1)?.title).toBe(
+      'Byrd Cara Cara 2 Knife BY03PBK2 Lightweight Black FRN PlainEdge Blade',
+    )
+    expect(results.every((item) => !item.url.includes('?'))).toBe(true)
+  })
+
+  it('reads the live Northwest Knives suggestions', () => {
+    const results = DISCOVERY_STORES.northwestknives.parseResults(
+      fixture('northwestknives-search-para-3.json'),
+      DISCOVERY_STORES.northwestknives.searchUrl('Spyderco Para 3'),
+    )
+    expect(results.find((item) => item.title.includes('C223GPBK'))).toEqual({
+      id: 5,
+      url: 'https://northwestknives.com/products/spyderco-paramilitary-3-black-g10-black-cpm-s30v-blade-c223gpbk',
+      title:
+        'Spyderco Paramilitary 3 - Black G10 / Black CPM-S45VN Blade - C223GPBK',
+      price: '$212.50',
+    })
+  })
+
+  it('ignores suggestions for other sites and empty or broken data', () => {
+    const pageUrl = DISCOVERY_STORES.knifejoy.searchUrl('x')
+    const json = JSON.stringify({
+      resources: {
+        results: {
+          products: [
+            { url: 'https://evil.example/products/spyderco-para-3-knife' },
+            {
+              handle: 'spyderco-para-3',
+              title: 'Spyderco Para 3 G-10',
+              price: '0.00',
+            },
+          ],
+        },
+      },
+    })
+    expect(DISCOVERY_STORES.knifejoy.parseResults(json, pageUrl)).toEqual([
+      {
+        id: 1,
+        url: 'https://knifejoy.com/products/spyderco-para-3',
+        title: 'Spyderco Para 3 G-10',
+        price: null,
+      },
+    ])
+    expect(DISCOVERY_STORES.knifejoy.parseResults('{}', pageUrl)).toEqual([])
+    expect(DISCOVERY_STORES.knifejoy.parseResults('null', pageUrl)).toEqual([])
+  })
+
+  it('reads product JSON: brand, SKU without a brand prefix, variants, description', () => {
+    const details = DISCOVERY_STORES.knifejoy.productDetails(
+      JSON.stringify({
+        title: 'Spyderco Para 3 Lightweight Black',
+        vendor: 'Spyderco',
+        description: '<p>Compression Lock &amp; <b>BD1N</b> steel.</p>',
+        variants: [
+          { title: 'Plain', sku: 'SPYC223SBK' },
+          { title: 'Plain', sku: 'SPYC223SBK' },
+        ],
+      }),
+      'https://knifejoy.com/products/spyderco-c223sbk-para-3-lightweight-black',
+    )
+    expect(details).toEqual({
+      title: 'Spyderco Para 3 Lightweight Black',
+      details: [
+        'Brand: Spyderco',
+        'SKU: SPYC223SBK',
+        "SKU without the store's brand prefix SPY: C223SBK",
+        'Variants: Plain; Plain',
+        'Compression Lock & BD1N steel.',
+      ].join('\n'),
+    })
+    expect(
+      pageShowsModelNumber('C223SBK', `${details?.title}\n${details?.details}`),
+    ).toBe(true)
+    expect(DISCOVERY_STORES.knifejoy.productDetails('{"title":""}', '')).toBe(
+      null,
+    )
+  })
+
+  it('reads a product page reached by browsing the store as an ordinary page', () => {
+    const details = DISCOVERY_STORES.northwestknives.productDetails(
+      `<script type="application/ld+json">{"@type":"Product","name":"Spyderco Para 3 C223GPBK","sku":"C223GPBK"}</script>`,
+      'https://northwestknives.com/products/x',
+    )
+    expect(details).toEqual({
+      title: 'Spyderco Para 3 C223GPBK',
+      details: 'SKU: C223GPBK',
+    })
+  })
+
+  it('reads the Northwest Knives product data, and price checks read its price', () => {
+    const url =
+      'https://northwestknives.com/products/spyderco-paramilitary-3-black-g10-black-cpm-s30v-blade-c223gpbk'
+    const body = fixture('northwestknives-item-para-3-c223gpbk.json')
+    const details = DISCOVERY_STORES.northwestknives.productDetails(body, url)
+    expect(details?.title).toBe(
+      'Spyderco Paramilitary 3 - Black G10 / Black CPM-S45VN Blade - C223GPBK',
+    )
+    expect(details?.details).toMatch(/^Brand: Spyderco\n/)
+    expect(
+      pageShowsModelNumber(
+        'C223GPBK',
+        `${details?.title}\n${details?.details}`,
+      ),
+    ).toBe(true)
+    expect(extractShopifyOffer(JSON.parse(body), url, 'USD')).toMatchObject({
+      amount: 212.5,
+      currency: 'USD',
+      availability: 'in_stock',
+    })
+  })
+
+  it('checks found product links through Shopify product data from the start', () => {
+    expect(
+      providerForUrl('https://knifejoy.com/products/spyderco-c223sbk-para-3'),
+    ).toBe('shopify')
+    expect(
+      providerForUrl(
+        'https://www.northwestknives.com/collections/spyderco/products/para-3',
+      ),
+    ).toBe('shopify')
+    expect(providerForUrl('https://knifejoy.com/pages/about')).toBe('generic')
+    expect(providerForUrl('https://www.bladehq.com/item--x--1')).toBe('generic')
   })
 })
 

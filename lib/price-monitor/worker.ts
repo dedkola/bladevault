@@ -544,6 +544,7 @@ export class PriceMonitorWorker {
       const availability = discoveryAvailability(lane, now, {
         floorMs: laneFloorMs(context.settings.pacing),
         pauseUntil: advice && advice.expiresAt > now ? advice.pauseUntil : null,
+        storeGapMs: DISCOVERY_STORES[store].searchGapMs,
       }).state
       if (availability !== 'ready' && availability !== 'probe') continue
       const knifeId = nextDiscovery(context.settings, now, store)
@@ -563,7 +564,11 @@ export class PriceMonitorWorker {
     const floorMs = laneFloorMs(context.settings.pacing)
     // The next search waits the store's minimum gap; scheduled checks keep
     // their own spread (below).
-    const gapMs = discoveryGapMs(lane, floorMs)
+    const gapMs = discoveryGapMs(
+      lane,
+      floorMs,
+      DISCOVERY_STORES[store].searchGapMs,
+    )
     this.discoveryLane = laneKey
     this.discovering = (async () => {
       try {

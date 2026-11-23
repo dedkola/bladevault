@@ -28,7 +28,11 @@ import {
   type DiscoveryStatus,
 } from '@/lib/price-monitor/discovery-store'
 import { retryAfterMs, type LaneOutcomeKind } from '@/lib/price-monitor/engine'
-import { checkViaBrowser, upstreamStatus } from '@/lib/price-monitor/fetch'
+import {
+  checkViaBrowser,
+  fetchStoreJson,
+  upstreamStatus,
+} from '@/lib/price-monitor/fetch'
 import {
   productPageAcceptor,
   productPageUrl,
@@ -44,6 +48,7 @@ import {
 } from '@/lib/price-monitor/solver'
 import { isNetworkBlockError } from '@/lib/scrape'
 import { toScrapeError } from '@/lib/scrape-errors'
+import { getShopifyProductJsUrl } from '@/lib/scrape-offer'
 import { createScrapeOperation, runWithSignal } from '@/lib/scrape-operation'
 import type { BrowserStorageState } from '@/lib/scrape-playwright'
 import { getSettings } from '@/lib/settings'
@@ -58,7 +63,9 @@ import { getVaultAccessState } from '@/lib/vault-access'
 
 /**
  * Other stores: AI looks for a monitored knife at the stores turned on in
- * settings (Blade HQ, SMKW, DLT Trading; never Amazon: it forbids automated AI access). It reads the store's search results and
+ * settings (Blade HQ, SMKW, DLT Trading, KnifeJoy, Northwest Knives; never
+ * Amazon: it forbids automated AI access). It reads the store's search
+ * results (Shopify stores: their search JSON, without the browser) and
  * picks the knife, then reads the product page and confirms it; only then
  * does the product become a price source, checked and parsed like every
  * other source from then on. A store's searches share its lane with its
@@ -212,8 +219,41 @@ async function renderWithLaneCookies(
   }
 }
 
+/**
+ * Shopify stores: one plain HTTP request for their JSON. A search URL is
+ * fetched as it is (search suggestions); a product link is read through
+ * `/products/<handle>.js` and keeps its storefront URL as the source.
+ */
+async function fetchShopifyJson(
+  url: string,
+  signal: AbortSignal,
+): Promise<DiscoveryPage> {
+  const operation = createScrapeOperation({ signal, timeoutMs: 30_000 })
+  try {
+    const productJs = getShopifyProductJsUrl(url)
+    const { body, finalUrl } = await fetchStoreJson(productJs ?? url, operation)
+    return { html: body, finalUrl: productJs ? url : finalUrl }
+  } finally {
+    operation.dispose()
+  }
+}
+
+/** Shopify stores through their JSON, every other store in the browser. */
+function fetchDiscoveryPage(
+  url: string,
+  signal: AbortSignal,
+  laneKey: string,
+): Promise<DiscoveryPage> {
+  const shopify = Object.values(DISCOVERY_STORES).some(
+    (store) => store.shopify && store.laneKey === laneKey,
+  )
+  return shopify
+    ? fetchShopifyJson(url, signal)
+    : renderWithLaneCookies(url, signal, laneKey)
+}
+
 const realDeps: DiscoveryDeps = {
-  fetchPage: renderWithLaneCookies,
+  fetchPage: fetchDiscoveryPage,
   match: matchSearchResults,
   verify: verifyProductPage,
   readKey: readPriceAiKey,
