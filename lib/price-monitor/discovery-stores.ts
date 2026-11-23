@@ -11,6 +11,8 @@ import { OTHER_STORE_LABELS, type OtherStoreId } from '@/lib/settings-shared'
  * The stores Other stores can search: how to search them, read their
  * result lists and read a product page for AI to confirm. Everything after
  * that (checks, history, drops) is the ordinary price-source pipeline.
+ * Shopify stores (KnifeJoy, Northwest Knives) are searched and read through
+ * their JSON instead of a rendered page.
  * Amazon is not one: it forbids automated AI access.
  */
 export type DiscoveryCandidate = MatchCandidate & { url: string }
@@ -25,6 +27,13 @@ export type DiscoveryStore = {
   searchUrl: (query: string) => string
   parseResults: (html: string, pageUrl: string) => DiscoveryCandidate[]
   productDetails: (html: string, url: string) => ProductPageDetails | null
+  /**
+   * Shopify stores are searched and read through their JSON with plain
+   * HTTP (search suggestions, `/products/<handle>.js`), not the browser.
+   */
+  shopify?: boolean
+  /** The store's own minimum gap between two searches (a slower pace). */
+  searchGapMs?: number
 }
 
 const TITLE_MAX = 250
@@ -349,6 +358,170 @@ export function smkwProductDetails(html: string): ProductPageDetails | null {
   }
 }
 
+/** Shopify product links: /products/<handle>, also under a collection. */
+const SHOPIFY_PRODUCT = /^(?:\/collections\/[^/]+)?\/products\/[^/.]+\/?$/i
+
+/** Small Shopify stores: at most one Other stores search in this time. */
+export const SHOPIFY_SEARCH_GAP_MS = 15 * 60_000
+
+/** Shopify's product search suggestions as JSON (no page, no browser). */
+export function shopifySearchUrl(origin: string, query: string): string {
+  const url = new URL('/search/suggest.json', origin)
+  url.searchParams.set('q', query)
+  url.searchParams.set('resources[type]', 'product')
+  url.searchParams.set('resources[limit]', '10')
+  return url.href
+}
+
+/** Shopify money as text: "159.95" in search suggestions. */
+function shopifyPrice(value: unknown): string | null {
+  const amount =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim()
+        ? Number(value)
+        : Number.NaN
+  if (!Number.isFinite(amount) || amount <= 0) return null
+  return `$${amount.toFixed(2)}`
+}
+
+function parseJson(body: string): unknown {
+  try {
+    return JSON.parse(body)
+  } catch {
+    return undefined
+  }
+}
+
+function htmlText(value: unknown): string {
+  return typeof value === 'string' ? clean(decodeEntities(value)) : ''
+}
+
+/**
+ * Shopify search suggestions (`/search/suggest.json`): one candidate per
+ * product at its selling price, linked as `/products/<handle>` without the
+ * search's tracking parameters. A storefront page (a search that came back
+ * as HTML) is read for its product links instead.
+ */
+export function parseShopifySearch(
+  body: string,
+  pageUrl: string,
+): DiscoveryCandidate[] {
+  const base = parseHttpUrl(pageUrl)
+  if (!base) return []
+  const json = parseJson(body) as
+    { resources?: { results?: { products?: unknown } } } | null | undefined
+  if (json === undefined)
+    return parseStoreProductLinks(body, pageUrl, (path) =>
+      SHOPIFY_PRODUCT.test(path),
+    )
+  const products = json?.resources?.results?.products
+  if (!Array.isArray(products)) return []
+  const lane = laneKeyForUrl(base.href)
+  const byUrl = new Map<string, { title: string; price: string | null }>()
+  for (const item of products) {
+    if (!item || typeof item !== 'object') continue
+    const product = item as Record<string, unknown>
+    const handle = typeof product.handle === 'string' ? product.handle : ''
+    let url: URL
+    try {
+      url = handle
+        ? new URL(`/products/${encodeURIComponent(handle)}`, base)
+        : new URL(String(product.url ?? ''), base)
+    } catch {
+      continue
+    }
+    if (laneKeyForUrl(url.href) !== lane) continue
+    if (!SHOPIFY_PRODUCT.test(url.pathname)) continue
+    url.search = ''
+    url.hash = ''
+    let title = htmlText(product.title)
+    const vendor = htmlText(product.vendor)
+    // The brand helps AI when the store leaves it out of the title.
+    if (vendor && !title.toLowerCase().includes(vendor.toLowerCase()))
+      title = `${vendor} ${title}`
+    if (!byUrl.has(url.href))
+      byUrl.set(url.href, { title, price: shopifyPrice(product.price) })
+  }
+  return [...byUrl]
+    .filter(([, item]) => item.title.length >= 8)
+    .slice(0, MAX_SEARCH_CANDIDATES)
+    .map(([url, item], index) => ({
+      id: index + 1,
+      url,
+      title: truncate(item.title, TITLE_MAX),
+      price: item.price,
+    }))
+}
+
+/**
+ * A Shopify product from `/products/<handle>.js`: title, vendor as brand,
+ * the variants' SKUs (often the maker's model number, sometimes behind the
+ * store's brand prefix) and the description. A product page reached in the
+ * browser (AI browsing the store) is read as an ordinary page.
+ */
+export function shopifyProductDetails(body: string): ProductPageDetails | null {
+  const json = parseJson(body)
+  if (json === undefined) return genericProductDetails(body)
+  if (!json || typeof json !== 'object') return null
+  const wrapped = (json as { product?: unknown }).product
+  const product = (
+    wrapped && typeof wrapped === 'object' ? wrapped : json
+  ) as Record<string, unknown>
+  const title = htmlText(product.title)
+  if (!title) return null
+  const brand = htmlText(product.vendor)
+  const variants = (
+    Array.isArray(product.variants) ? product.variants : []
+  ).filter(
+    (variant): variant is Record<string, unknown> =>
+      Boolean(variant) && typeof variant === 'object',
+  )
+  const skus = [...new Set(variants.map((variant) => htmlText(variant.sku)))]
+    .filter(Boolean)
+    .slice(0, 5)
+  const options = variants
+    .map((variant) => htmlText(variant.title))
+    .filter((name) => name && name !== 'Default Title')
+    .slice(0, 5)
+  const lines = [
+    brand && `Brand: ${brand}`,
+    ...skus.flatMap((sku) => {
+      const unprefixed = withoutBrandPrefix(sku, brand || title)
+      return [
+        `SKU: ${sku}`,
+        unprefixed &&
+          `SKU without the store's brand prefix ${unprefixed.prefix}: ${unprefixed.code}`,
+      ]
+    }),
+    options.length > 0 && `Variants: ${options.join('; ')}`,
+    htmlText(product.description),
+  ].filter(Boolean)
+  return {
+    title: truncate(title, TITLE_MAX),
+    details: truncate(lines.join('\n'), DETAILS_MAX),
+  }
+}
+
+/** A Shopify store searched through its JSON at a slow pace. */
+function shopifyStore(
+  id: OtherStoreId,
+  origin: string,
+  laneKey: string,
+): DiscoveryStore {
+  return {
+    id,
+    label: OTHER_STORE_LABELS[id],
+    laneKey,
+    marketplace: laneKey,
+    shopify: true,
+    searchGapMs: SHOPIFY_SEARCH_GAP_MS,
+    searchUrl: (query) => shopifySearchUrl(origin, query),
+    parseResults: (body, pageUrl) => parseShopifySearch(body, pageUrl),
+    productDetails: (body) => shopifyProductDetails(body),
+  }
+}
+
 export const DISCOVERY_STORES: Record<OtherStoreId, DiscoveryStore> = {
   bladehq: {
     id: 'bladehq',
@@ -396,4 +569,10 @@ export const DISCOVERY_STORES: Record<OtherStoreId, DiscoveryStore> = {
     parseResults: (html, pageUrl) => parseSmkwResults(html, pageUrl),
     productDetails: (html) => genericProductDetails(html),
   },
+  knifejoy: shopifyStore('knifejoy', 'https://knifejoy.com', 'knifejoy.com'),
+  northwestknives: shopifyStore(
+    'northwestknives',
+    'https://northwestknives.com',
+    'northwestknives.com',
+  ),
 }

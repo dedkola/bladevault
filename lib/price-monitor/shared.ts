@@ -257,9 +257,26 @@ export function storeNameForUrl(value: string): string {
   return url ? registrableDomain(url.hostname) : ''
 }
 
+/**
+ * Stores known to run on Shopify (Other stores searches them through its
+ * JSON): their product links are checked through `/products/<handle>.js`
+ * from the first check, without loading the page.
+ */
+export const SHOPIFY_STORE_LANES: ReadonlySet<string> = new Set([
+  'knifejoy.com',
+  'northwestknives.com',
+])
+
 export function providerForUrl(value: string): PriceProvider {
   const url = parseHttpUrl(value)
-  return url && isAmazonHost(url.hostname) ? 'amazon' : 'generic'
+  if (!url) return 'generic'
+  if (isAmazonHost(url.hostname)) return 'amazon'
+  if (
+    SHOPIFY_STORE_LANES.has(registrableDomain(url.hostname)) &&
+    /\/products\/[^/]+\/?$/.test(url.pathname)
+  )
+    return 'shopify'
+  return 'generic'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -126,6 +126,8 @@ const STORE_LABELS: Record<string, string> = {
   'bladehq.com': 'Blade HQ',
   'smkw.com': 'SMKW',
   'dlttrading.com': 'DLT Trading',
+  'knifejoy.com': 'KnifeJoy',
+  'northwestknives.com': 'Northwest Knives',
 }
 
 export function storeLabel(storeName: string): string {

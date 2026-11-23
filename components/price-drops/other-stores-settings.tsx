@@ -42,6 +42,10 @@ const STORE_DESCRIPTION: Record<OtherStoreId, string> = {
   smkw: 'Searches smkw.com, Smoky Mountain Knife Works (US prices). A knife that already has an SMKW source is skipped. Searches share SMKW’s pace with its price checks.',
   dlttrading:
     'Searches dlttrading.com (US prices). A knife that already has a DLT Trading source is skipped. Searches share DLT Trading’s pace with its price checks.',
+  knifejoy:
+    'Searches knifejoy.com through its Shopify search data (US prices), at most one search every 15 minutes. A knife that already has a KnifeJoy source is skipped. Searches share KnifeJoy’s pace with its price checks.',
+  northwestknives:
+    'Searches northwestknives.com through its Shopify search data (US prices), at most one search every 15 minutes. A knife that already has a Northwest Knives source is skipped. Searches share Northwest Knives’ pace with its price checks.',
 }
 
 const STATUS_LABEL: Record<DiscoveryStatus, string> = {

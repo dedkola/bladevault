@@ -342,7 +342,13 @@ describe('AI supervisor', () => {
         ...getSettings().priceMonitoring,
         otherStores: {
           enabled: true,
-          stores: { bladehq: true, smkw: false, dlttrading: false },
+          stores: {
+            bladehq: true,
+            smkw: false,
+            dlttrading: false,
+            knifejoy: false,
+            northwestknives: false,
+          },
         },
       },
     })

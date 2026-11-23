@@ -67,7 +67,13 @@ describe('settings persistence', () => {
         },
         otherStores: {
           enabled: true,
-          stores: { bladehq: false, smkw: false, dlttrading: false },
+          stores: {
+            bladehq: false,
+            smkw: false,
+            dlttrading: false,
+            knifejoy: false,
+            northwestknives: false,
+          },
         },
       },
     })
@@ -120,7 +126,13 @@ describe('settings persistence', () => {
       },
       otherStores: {
         enabled: true,
-        stores: { bladehq: false, smkw: false, dlttrading: false },
+        stores: {
+          bladehq: false,
+          smkw: false,
+          dlttrading: false,
+          knifejoy: false,
+          northwestknives: false,
+        },
       },
     })
     // The AI key is never part of the settings table.

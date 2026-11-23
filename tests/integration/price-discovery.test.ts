@@ -62,7 +62,13 @@ const fixture = (name: string) =>
 
 function enableOtherStores(
   ai = true,
-  stores = { bladehq: true, smkw: false, dlttrading: false },
+  stores = {
+    bladehq: true,
+    smkw: false,
+    dlttrading: false,
+    knifejoy: false,
+    northwestknives: false,
+  },
 ) {
   saveSettings({
     priceMonitoring: {
@@ -193,7 +199,13 @@ describe('Other stores discovery', () => {
   })
 
   it('finds the knife on SMKW too, from its result cards and SKU', async () => {
-    enableOtherStores(true, { bladehq: true, smkw: true, dlttrading: false })
+    enableOtherStores(true, {
+      bladehq: true,
+      smkw: true,
+      dlttrading: false,
+      knifejoy: false,
+      northwestknives: false,
+    })
     const knifeId = await createKnife({
       specs: { price: '$150', modelNumber: 'C223GP' },
     })
@@ -238,6 +250,60 @@ describe('Other stores discovery', () => {
     const settings = getSettings().priceMonitoring
     expect(nextDiscoveryKnife(settings, Date.now(), 'smkw')).toBeNull()
     expect(nextDiscoveryKnife(settings, Date.now(), 'bladehq')).toBe(knifeId)
+  })
+
+  it('finds the knife on Northwest Knives through Shopify JSON, as a Shopify source', async () => {
+    enableOtherStores(true, {
+      bladehq: false,
+      smkw: false,
+      dlttrading: false,
+      knifejoy: false,
+      northwestknives: true,
+    })
+    const knifeId = await createKnife({
+      specs: { price: '$212', modelNumber: 'C223GPBK' },
+    })
+    const productUrl =
+      'https://northwestknives.com/products/spyderco-paramilitary-3-black-g10-black-cpm-s30v-blade-c223gpbk'
+    const fetchPage = vi.fn(
+      async (url: string, _signal: AbortSignal, _laneKey: string) => ({
+        html: url.includes('/search/suggest.json')
+          ? fixture('northwestknives-search-para-3.json')
+          : fixture('northwestknives-item-para-3-c223gpbk.json'),
+        finalUrl: url,
+      }),
+    )
+    const match = vi.fn(async ({ candidates }) => ({
+      accepted: true,
+      confidence: 0.9,
+      reason: 'Same model.',
+      candidate: candidates.find((item: { title: string }) =>
+        item.title.includes('C223GPBK'),
+      ),
+    }))
+    const summary = await discoverKnife(knifeId, {
+      deps: deps({ fetchPage, match }),
+      store: 'northwestknives',
+    })
+
+    expect(summary).toMatchObject({ status: 'done', result: 'found' })
+    expect(fetchPage.mock.calls.map(([url, , lane]) => [url, lane])).toEqual([
+      [
+        'https://northwestknives.com/search/suggest.json?q=Spyderco+Para+3+C223GPBK&resources%5Btype%5D=product&resources%5Blimit%5D=10',
+        'northwestknives.com',
+      ],
+      [productUrl, 'northwestknives.com'],
+    ])
+    const watch = await getWatch(knifeId)
+    expect(watch.sources).toEqual([
+      expect.objectContaining({
+        url: productUrl,
+        laneKey: 'northwestknives.com',
+        // Checked through /products/<handle>.js from the first check.
+        provider: 'shopify',
+        foundByAi: true,
+      }),
+    ])
   })
 
   it('does nothing until AI is connected and the store is on', async () => {
@@ -317,6 +383,8 @@ describe('Other stores discovery', () => {
       ['bladehq', true],
       ['smkw', false],
       ['dlttrading', false],
+      ['knifejoy', false],
+      ['northwestknives', false],
     ])
     const discovery = all.stores[0]
     expect(discovery.counts.found).toBe(1)
