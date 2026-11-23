@@ -124,6 +124,7 @@ const STORE_LABELS: Record<string, string> = {
   amazon: 'Amazon',
   'amazon.com': 'Amazon',
   'bladehq.com': 'Blade HQ',
+  'smkw.com': 'SMKW',
 }
 
 export function storeLabel(storeName: string): string {

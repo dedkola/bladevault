@@ -126,17 +126,17 @@ describe('Other stores scheduling and settings', () => {
     expect(hoursLater(nextDiscoveryAttempt('failed', 9, now))).toBe(168)
   })
 
-  it('is off by default and searches Blade HQ only', () => {
+  it('is off by default; Blade HQ is on and SMKW off until chosen', () => {
     expect(DEFAULT_PRICE_MONITORING.otherStores).toEqual({
       enabled: false,
-      stores: { bladehq: true },
+      stores: { bladehq: true, smkw: false },
     })
     const next = normalizePriceMonitoring({
       otherStores: { enabled: true, stores: { ebay: true } },
     })
     expect(next.otherStores).toEqual({
       enabled: true,
-      stores: { bladehq: true },
+      stores: { bladehq: true, smkw: false },
     })
   })
 
@@ -153,7 +153,7 @@ describe('Other stores scheduling and settings', () => {
     expect(saved.pacing).toEqual({ minGapSeconds: 90 })
     expect(saved.otherStores).toEqual({
       enabled: true,
-      stores: { bladehq: false },
+      stores: { bladehq: false, smkw: false },
     })
   })
 })
