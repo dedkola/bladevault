@@ -9,6 +9,9 @@ import {
   readMonitorScopeKnifeIds,
   withMonitorScope,
 } from '@/lib/price-monitor/scope'
+import { readAgentNotes, readBlockedStores } from '@/lib/price-monitor/agent'
+import { readDigestData } from '@/lib/price-monitor/digest'
+import { insertSource, readCoveredKnifeIds } from '@/lib/price-monitor/store'
 import {
   DEFAULT_PRICE_MONITOR_SCOPE,
   normalizePriceMonitorScope,
@@ -83,6 +86,53 @@ describe('monitoring scope', () => {
     const resolved = withMonitorScope(db, settings)
     expect(resolved.scopeKnifeIds).toEqual(new Set(['second']))
     expect(withMonitorScope(db, resolved)).toBe(resolved)
+  })
+})
+
+describe('knives outside the scope on Price Drops', () => {
+  it('hides their notes, bot checks and digest lines, and keeps the data', () => {
+    const db = getLocalDb()
+    const now = new Date().toISOString()
+    const later = new Date(Date.now() + 7 * 86_400_000).toISOString()
+    for (const [knifeId, store] of [
+      ['first', 'https://kizer.example/first'],
+      ['second', 'https://sog.example/second'],
+    ])
+      insertSource(db, knifeId, store, 'manual', undefined, now)
+    db.prepare(
+      `UPDATE price_sources SET enabled = 1, status = 'blocked',
+         last_price_minor = 10000, last_currency = 'USD'`,
+    ).run()
+    const note = db.prepare(
+      `INSERT INTO price_agent_notes (knife_id, note, created_at, expires_at)
+       VALUES (?, ?, ?, ?)`,
+    )
+    note.run('first', 'Watching first.', now, later)
+    note.run('second', 'Watching second.', now, later)
+    note.run(null, 'A general note.', now, later)
+
+    const settings: EligibilitySettings = {
+      skipSoldKnives: true,
+      scope: { kind: 'selected', knifeIds: ['first'] },
+    }
+    const covered = readCoveredKnifeIds(db, settings)
+    expect(covered).toEqual(new Set(['first']))
+    expect(
+      readAgentNotes(db, Date.now(), covered).map((row) => row.note),
+    ).toEqual(['Watching first.', 'A general note.'])
+    expect(readBlockedStores(db, settings)).toEqual(['kizer.example'])
+    const digest = readDigestData(db, Date.now(), settings)
+    expect(digest.monitoredSources).toBe(1)
+    expect(digest.needAttention.map((row) => row.knife)).toEqual([
+      'Benchmade first',
+    ])
+
+    // Nothing is deleted: back in scope, everything shows again.
+    expect(readAgentNotes(db, Date.now())).toHaveLength(3)
+    expect(readBlockedStores(db, { ...settings, scope: undefined })).toEqual([
+      'kizer.example',
+      'sog.example',
+    ])
   })
 })
 

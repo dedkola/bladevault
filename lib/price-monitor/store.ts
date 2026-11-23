@@ -1463,6 +1463,23 @@ export function readQueueCandidates(
   })
 }
 
+/**
+ * Knives scheduled monitoring covers right now: in What to monitor, eligible
+ * (watch mode, regular price, sold) and with an enabled source. Price Drops
+ * and the AI supervisor leave everything else out.
+ */
+export function readCoveredKnifeIds(
+  database: Database.Database,
+  settings: EligibilitySettings,
+  now = Date.now(),
+): Set<string> {
+  return new Set(
+    readQueueCandidates(database, settings, now)
+      .filter((candidate) => candidate.covered)
+      .map((candidate) => candidate.knifeId),
+  )
+}
+
 /** Marks sources for Check now; the queue runs them at the next free slot. */
 export async function requestSourceChecks(
   sourceIds: readonly number[],

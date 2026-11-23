@@ -17,7 +17,9 @@ import {
   parseStoredPrice,
   toMinorUnits,
 } from '@/lib/price-monitor/money'
+import type { EligibilitySettings } from '@/lib/price-monitor/eligibility'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
+import { readQueueCandidates } from '@/lib/price-monitor/store'
 import { reportServerError } from '@/lib/sentry/server'
 import { getSettings } from '@/lib/settings'
 import type { PriceMonitoringSettings } from '@/lib/settings-shared'
@@ -139,19 +141,26 @@ function suspectAgainstStored(
   return suspectBelowRegular(priceMinor, toMinorUnits(paid.amount, code))
 }
 
-/** Aggregated monitoring data for the digest. Reads only. */
+/**
+ * Aggregated monitoring data for the digest. Reads only. Only sources that
+ * scheduled monitoring covers count: knives outside What to monitor keep
+ * their last readings, which are not news.
+ */
 export function readDigestData(
   database: Database.Database,
   now = Date.now(),
+  settings: EligibilitySettings = getSettings().priceMonitoring,
 ): DigestData {
   const since = new Date(now - DAY_MS).toISOString()
   const active = `s.removed_at IS NULL AND s.enabled = 1`
+  const covered = new Set(
+    readQueueCandidates(database, settings, now)
+      .filter((candidate) => candidate.covered)
+      .map((candidate) => candidate.sourceId),
+  )
+  const isCovered = (row: { source_id: number }) => covered.has(row.source_id)
 
-  const monitoredSources = (
-    database
-      .prepare(`SELECT COUNT(*) AS n FROM price_sources s WHERE ${active}`)
-      .get() as { n: number }
-  ).n
+  const monitoredSources = covered.size
 
   const checks = database
     .prepare(
@@ -165,13 +174,14 @@ export function readDigestData(
 
   const priced = database
     .prepare(
-      `SELECT k.brand, k.name, k.specs, s.store_name, s.last_price_minor,
-              s.last_currency
+      `SELECT s.id AS source_id, k.brand, k.name, k.specs, s.store_name,
+              s.last_price_minor, s.last_currency
        FROM price_sources s JOIN knives k ON k.id = s.knife_id
        WHERE ${active} AND s.status = 'ok' AND k.sold = 0
          AND s.last_price_minor IS NOT NULL AND s.last_currency IS NOT NULL`,
     )
     .all() as Array<{
+    source_id: number
     brand: string
     name: string
     specs: string
@@ -180,7 +190,7 @@ export function readDigestData(
     last_currency: string
   }>
   const deals: DigestDeal[] = []
-  for (const row of priced) {
+  for (const row of priced.filter(isCovered)) {
     const paid = parseStoredPrice(storedPrice(row.specs))
     const currency = normalizeCurrencyCode(row.last_currency)
     if (!paid || !currency || (paid.currency && paid.currency !== currency))
@@ -200,25 +210,28 @@ export function readDigestData(
   }
   deals.sort((a, b) => b.belowRegularPct - a.belowRegularPct)
 
-  const changes = database
-    .prepare(
-      `SELECT e.direction, e.previous_price_minor, e.price_minor, e.currency,
-              e.delta_pct, e.store_name, k.brand, k.name, k.specs
+  const changes = (
+    database
+      .prepare(
+        `SELECT e.source_id, e.direction, e.previous_price_minor, e.price_minor,
+              e.currency, e.delta_pct, e.store_name, k.brand, k.name, k.specs
        FROM price_change_events e JOIN knives k ON k.id = e.knife_id
        WHERE e.occurred_at >= ?
        ORDER BY e.delta_pct ASC`,
-    )
-    .all(since) as Array<{
-    direction: 'drop' | 'increase'
-    previous_price_minor: number
-    price_minor: number
-    currency: string
-    delta_pct: number
-    store_name: string
-    brand: string
-    name: string
-    specs: string
-  }>
+      )
+      .all(since) as Array<{
+      source_id: number
+      direction: 'drop' | 'increase'
+      previous_price_minor: number
+      price_minor: number
+      currency: string
+      delta_pct: number
+      store_name: string
+      brand: string
+      name: string
+      specs: string
+    }>
+  ).filter(isCovered)
   const drops = changes
     .filter(
       (row) =>
@@ -234,20 +247,24 @@ export function readDigestData(
       pct: row.delta_pct,
     }))
 
-  const stock = database
-    .prepare(
-      `SELECT e.kind, e.price_minor, e.currency, e.store_name, k.brand, k.name
+  const stock = (
+    database
+      .prepare(
+        `SELECT e.source_id, e.kind, e.price_minor, e.currency, e.store_name,
+              k.brand, k.name
        FROM stock_events e JOIN knives k ON k.id = e.knife_id
        WHERE e.occurred_at >= ? ORDER BY e.occurred_at DESC`,
-    )
-    .all(since) as Array<{
-    kind: 'out_of_stock' | 'back_in_stock'
-    price_minor: number | null
-    currency: string | null
-    store_name: string
-    brand: string
-    name: string
-  }>
+      )
+      .all(since) as Array<{
+      source_id: number
+      kind: 'out_of_stock' | 'back_in_stock'
+      price_minor: number | null
+      currency: string | null
+      store_name: string
+      brand: string
+      name: string
+    }>
+  ).filter(isCovered)
   const restocks = stock
     .filter((row) => row.kind === 'back_in_stock')
     .slice(0, LISTED)
@@ -260,21 +277,24 @@ export function readDigestData(
           : null,
     }))
 
-  const attention = database
-    .prepare(
-      `SELECT k.brand, k.name, s.store_name, s.status
+  const attention = (
+    database
+      .prepare(
+        `SELECT s.id AS source_id, k.brand, k.name, s.store_name, s.status
        FROM price_sources s JOIN knives k ON k.id = s.knife_id
        WHERE ${active}
          AND s.status IN ('failed', 'blocked', 'price_unavailable',
                           'needs_review')
        ORDER BY s.last_checked_at DESC, s.id DESC`,
-    )
-    .all() as Array<{
-    brand: string
-    name: string
-    store_name: string
-    status: string
-  }>
+      )
+      .all() as Array<{
+      source_id: number
+      brand: string
+      name: string
+      store_name: string
+      status: string
+    }>
+  ).filter(isCovered)
 
   const log = database
     .prepare(
@@ -506,7 +526,7 @@ export async function runPriceDigest(
   const database = getLocalDb()
   if (!options.force && !digestDue(readLastDigestAt(database), now))
     return { status: 'skipped', reason: 'not_due' }
-  const data = readDigestData(database, now)
+  const data = readDigestData(database, now, settings)
   if (!data.monitoredSources) return { status: 'skipped', reason: 'no_sources' }
   if (!digestHasNews(data)) return { status: 'skipped', reason: 'no_news' }
 
