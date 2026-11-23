@@ -502,6 +502,29 @@
   }
 }
 
+/* Price details opened under a table row: a wide chart beside the stats
+   and sources, stacked when the table is narrow. */
+[data-price-detail-body] {
+  grid-template-areas: 'stats' 'chart' 'sources' 'changes';
+}
+@media (min-width: 64rem) {
+  [data-price-detail-body] {
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      'chart stats'
+      'chart sources'
+      'changes sources';
+  }
+}
+/* The open row and its details read as one block. */
+[data-price-grid] tr[data-selected]:has(+ tr[data-price-detail-row]) {
+  border-bottom-color: transparent;
+}
+[data-price-grid] tr[data-price-detail-row] {
+  background: var(--bladevault-surface-soft);
+  box-shadow: inset 3px 0 0 var(--bladevault-gold, var(--foreground));
+}
+
 /* Narrow screens: each listing is a card so price and change stay visible;
    the knife panel opens as a sheet instead of below every row. */
 @media (max-width: 639px) {
