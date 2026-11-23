@@ -18,6 +18,7 @@ import {
   normalizeCareIntervalOverrides,
   normalizePriceMonitoring,
   normalizeAchievementSettings,
+  normalizeKnifeDetailPanelWidth,
   type AppSettings,
   type AppTheme,
   type CardField,
@@ -56,6 +57,7 @@ const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
   careDeferrals: 'care_deferrals',
   priceMonitoring: 'price_monitoring',
   achievements: 'achievements',
+  knifeDetailPanelWidth: 'knife_detail_panel_width',
 }
 
 function parseMaintenanceReminders(value: string | undefined) {
@@ -232,6 +234,9 @@ export function getSettings(): AppSettings {
       map.get(SETTINGS_KEYS.priceMonitoring),
     ),
     achievements: parseAchievementSettings(map.get(SETTINGS_KEYS.achievements)),
+    knifeDetailPanelWidth: normalizeKnifeDetailPanelWidth(
+      map.get(SETTINGS_KEYS.knifeDetailPanelWidth) || undefined,
+    ),
   }
 }
 
@@ -292,6 +297,13 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
               settings.achievements,
               current.achievements,
             ),
+      knifeDetailPanelWidth:
+        settings.knifeDetailPanelWidth === undefined
+          ? current.knifeDetailPanelWidth
+          : normalizeKnifeDetailPanelWidth(
+              settings.knifeDetailPanelWidth,
+              current.knifeDetailPanelWidth,
+            ),
     }
 
     const insert = getDb().prepare(
@@ -317,6 +329,12 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
       ['careDeferrals', JSON.stringify(next.careDeferrals)],
       ['priceMonitoring', JSON.stringify(next.priceMonitoring)],
       ['achievements', JSON.stringify(next.achievements)],
+      [
+        'knifeDetailPanelWidth',
+        next.knifeDetailPanelWidth === null
+          ? 'null'
+          : String(next.knifeDetailPanelWidth),
+      ],
     ]
 
     const transaction = getDb().transaction(() => {

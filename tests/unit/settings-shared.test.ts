@@ -18,6 +18,9 @@ import {
   isModernThemeFamily,
   readThemeStyleFromElement,
   normalizeDimensionUnit,
+  normalizeKnifeDetailPanelWidth,
+  KNIFE_DETAIL_PANEL_MAX,
+  KNIFE_DETAIL_PANEL_MIN,
   QUICK_SWITCH_THEME_STYLES,
   THEME_STYLES,
 } from '@/lib/settings-shared'
@@ -309,5 +312,21 @@ describe('normalizeDimensionUnit', () => {
   it('preserves the saved preference for an invalid or unrelated update', () => {
     expect(normalizeDimensionUnit(undefined, 'both')).toBe('both')
     expect(normalizeDimensionUnit('cm', 'mm')).toBe('mm')
+  })
+})
+
+describe('normalizeKnifeDetailPanelWidth', () => {
+  it('rounds and clamps pixel widths', () => {
+    expect(normalizeKnifeDetailPanelWidth(455.4)).toBe(455)
+    expect(normalizeKnifeDetailPanelWidth('600')).toBe(600)
+    expect(normalizeKnifeDetailPanelWidth(10)).toBe(KNIFE_DETAIL_PANEL_MIN)
+    expect(normalizeKnifeDetailPanelWidth(5000)).toBe(KNIFE_DETAIL_PANEL_MAX)
+  })
+
+  it('treats null as a reset and keeps the fallback for anything else', () => {
+    expect(normalizeKnifeDetailPanelWidth(null, 500)).toBeNull()
+    expect(normalizeKnifeDetailPanelWidth(undefined, 500)).toBe(500)
+    expect(normalizeKnifeDetailPanelWidth('wide', 500)).toBe(500)
+    expect(normalizeKnifeDetailPanelWidth(Number.NaN)).toBeNull()
   })
 })

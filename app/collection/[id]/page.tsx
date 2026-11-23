@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { getStorage } from '@/lib/storage'
 import KnifeDetail from '@/components/knife-detail'
 import { requireUnlockedPage } from '@/lib/app-lock-page'
+import { getSettings } from '@/lib/settings'
 
 export default async function KnifeDetailPage({
   params,
@@ -24,6 +25,7 @@ export default async function KnifeDetailPage({
       key={knife.id}
       knife={knife}
       initialEditing={query.edit === '1'}
+      initialPanelWidth={getSettings().knifeDetailPanelWidth}
       initialTab={
         query.tab === 'maintenance' || query.tab === 'market'
           ? query.tab

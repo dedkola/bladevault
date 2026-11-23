@@ -3,7 +3,8 @@
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import { WishlistToggleButton } from '@/components/wishlist/wishlist-toggle-button'
 
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -49,6 +50,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import { ColumnResizeHandle } from '@/components/column-resize-handle'
+import { useKnifeDetailPanelWidth } from '@/components/use-knife-detail-panel-width'
 import { SoldBadge } from '@/components/sold-badge'
 import {
   activeKnifeActionStyle,
@@ -226,10 +229,13 @@ export default function KnifeDetail({
   knife: initialKnife,
   initialEditing = false,
   initialTab = 'details',
+  initialPanelWidth,
 }: {
   knife: Knife
   initialEditing?: boolean
   initialTab?: 'details' | 'maintenance' | 'market'
+  /** Saved info-panel width from the server; undefined loads it client-side. */
+  initialPanelWidth?: number | null
 }) {
   const router = useRouter()
   const {
@@ -296,6 +302,14 @@ export default function KnifeDetail({
   const [isTogglingCompare, setIsTogglingCompare] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [customFields, setCustomFields] = useState<CustomField[]>([])
+  const layoutRef = useRef<HTMLDivElement>(null)
+  const infoPanelId = useId()
+  const panelWidth = useKnifeDetailPanelWidth(
+    layoutRef,
+    initialPanelWidth ?? null,
+  )
+  const { adoptSavedWidth } = panelWidth
+  const needsSavedPanelWidth = initialPanelWidth === undefined
 
   useEffect(() => {
     let cancelled = false
@@ -305,10 +319,17 @@ export default function KnifeDetail({
         const response = await fetch('/api/settings', { cache: 'no-store' })
         const data = await readJsonResponse<{
           error?: string
-          settings?: { customFields?: CustomField[] }
+          settings?: {
+            customFields?: CustomField[]
+            knifeDetailPanelWidth?: number | null
+          }
         }>(response)
-        if (!cancelled && response.ok && data.settings?.customFields) {
+        if (cancelled || !response.ok) return
+        if (data.settings?.customFields) {
           setCustomFields(data.settings.customFields)
+        }
+        if (needsSavedPanelWidth) {
+          adoptSavedWidth(data.settings?.knifeDetailPanelWidth)
         }
       } catch {
         // ignore
@@ -319,7 +340,7 @@ export default function KnifeDetail({
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [adoptSavedWidth, needsSavedPanelWidth])
 
   const finishEditing = () => {
     setIsEditing(false)
@@ -641,7 +662,22 @@ export default function KnifeDetail({
 
       <KnifeVariantSwitcher key={knife.id} knife={knife} />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.25fr_380px] 2xl:grid-cols-[1.5fr_420px]">
+      <div
+        ref={layoutRef}
+        className={cn(
+          'grid grid-cols-1 gap-6 lg:gap-x-0',
+          'lg:grid-cols-[minmax(0,1fr)_24px_clamp(320px,var(--detail-panel-w,380px),calc(100%-444px))]',
+          '2xl:grid-cols-[minmax(0,1fr)_24px_clamp(320px,var(--detail-panel-w,420px),calc(100%-444px))]',
+          panelWidth.isResizing && 'cursor-col-resize select-none',
+        )}
+        style={
+          panelWidth.width === null
+            ? undefined
+            : ({
+                '--detail-panel-w': `${panelWidth.width}px`,
+              } as CSSProperties)
+        }
+      >
         <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-6">
           <div className="order-1 min-w-0 lg:order-none">
             <Gallery
@@ -671,7 +707,14 @@ export default function KnifeDetail({
           </div>
         </div>
 
+        <ColumnResizeHandle
+          label="Knife info panel width"
+          controls={infoPanelId}
+          {...panelWidth.handleProps}
+        />
+
         <Tabs
+          id={infoPanelId}
           defaultValue={initialTab}
           className="order-2 min-w-0 gap-4 lg:order-none"
         >
