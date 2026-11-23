@@ -31,8 +31,13 @@ export type DiscoveryStatus = (typeof DISCOVERY_STATUSES)[number]
 
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
-/** No match: the store may list it later. */
-export const DISCOVERY_RETRY_NOT_FOUND_MS = 30 * DAY_MS
+/**
+ * No match, or a match the checks turned down: looked for again every day,
+ * since the store may list it (or show its model number) any day.
+ */
+export const DISCOVERY_RETRY_NOT_FOUND_MS = DAY_MS
+/** The knife has nothing to search for; only a later edit changes that. */
+export const DISCOVERY_RETRY_SKIPPED_MS = 30 * DAY_MS
 export const DISCOVERY_RETRY_BLOCKED_MS = 12 * HOUR_MS
 const FAILED_BASE_MS = 6 * HOUR_MS
 const FAILED_MAX_MS = 7 * DAY_MS
@@ -48,8 +53,9 @@ export function nextDiscoveryAttempt(
       return null
     case 'not_found':
     case 'rejected':
-    case 'skipped':
       return new Date(now + DISCOVERY_RETRY_NOT_FOUND_MS).toISOString()
+    case 'skipped':
+      return new Date(now + DISCOVERY_RETRY_SKIPPED_MS).toISOString()
     case 'blocked':
       return new Date(now + DISCOVERY_RETRY_BLOCKED_MS).toISOString()
     case 'failed':

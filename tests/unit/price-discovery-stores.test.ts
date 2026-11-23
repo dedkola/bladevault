@@ -4,6 +4,7 @@ import { isIgnoredOfficialOutOfStock } from '@/lib/price-monitor/eligibility'
 import {
   DISCOVERY_STORES,
   genericProductDetails,
+  withoutBrandPrefix,
 } from '@/lib/price-monitor/discovery-stores'
 import { extractOfferFromHtml } from '@/lib/price-monitor/fetch'
 import { pageShowsModelNumber } from '@/lib/price-monitor/discovery-ai'
@@ -381,6 +382,47 @@ describe('Other stores: DLT Trading', () => {
       currency: 'USD',
       availability: 'in_stock',
     })
+  })
+
+  it('sees the maker’s number behind DLT’s brand prefix (VOSA4501 is Vosteed A4501)', () => {
+    const html = fixture('dlt-item-vosteed-raccoon-tislim-a4501.html')
+    const details = DISCOVERY_STORES.dlttrading.productDetails(
+      html,
+      'https://www.dlttrading.com/vosteed-raccoon-tislim-gray-titanium-satin-154cm-blade-101',
+    )
+    expect(details?.details).toContain('SKU: VOSA4501')
+    expect(details?.details).toContain(
+      "SKU without the store's brand prefix VOS: A4501",
+    )
+    const page = `${details?.title}\n${details?.details}`
+    expect(pageShowsModelNumber('A4501', page)).toBe(true)
+    // Another variant of the same knife still fails the check.
+    expect(pageShowsModelNumber('A4506', page)).toBe(false)
+  })
+})
+
+describe('Brand prefix on store SKUs', () => {
+  it('splits off the start of the brand name only', () => {
+    expect(withoutBrandPrefix('VOSA4501', 'Vosteed')).toEqual({
+      prefix: 'VOS',
+      code: 'A4501',
+    })
+    expect(withoutBrandPrefix('CIVC190461', 'CIVIVI')).toEqual({
+      prefix: 'CIV',
+      code: 'C190461',
+    })
+    // The page title stands in when the page names no brand.
+    expect(withoutBrandPrefix('KI1108A3', 'Kizer Whiskey Jack 154CM')).toEqual({
+      prefix: 'KI',
+      code: '1108A3',
+    })
+  })
+
+  it('leaves SKUs alone that do not start with the brand', () => {
+    expect(withoutBrandPrefix('C223PBK', 'Spyderco')).toBeNull()
+    expect(withoutBrandPrefix('A4501', 'Vosteed')).toBeNull()
+    expect(withoutBrandPrefix('VOSTEED', 'Vosteed')).toBeNull()
+    expect(withoutBrandPrefix('', 'Vosteed')).toBeNull()
   })
 })
 

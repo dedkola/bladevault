@@ -117,9 +117,11 @@ describe('Other stores scheduling and settings', () => {
   const hoursLater = (iso: string | null) =>
     iso === null ? null : (Date.parse(iso) - now) / 3_600_000
 
-  it('never searches again for found knives and backs off failures', () => {
+  it('never searches again for found knives, retries misses daily and backs off failures', () => {
     expect(nextDiscoveryAttempt('found', 1, now)).toBeNull()
-    expect(hoursLater(nextDiscoveryAttempt('not_found', 1, now))).toBe(720)
+    expect(hoursLater(nextDiscoveryAttempt('not_found', 1, now))).toBe(24)
+    expect(hoursLater(nextDiscoveryAttempt('rejected', 1, now))).toBe(24)
+    expect(hoursLater(nextDiscoveryAttempt('skipped', 1, now))).toBe(720)
     expect(hoursLater(nextDiscoveryAttempt('blocked', 1, now))).toBe(12)
     expect(hoursLater(nextDiscoveryAttempt('failed', 1, now))).toBe(6)
     expect(hoursLater(nextDiscoveryAttempt('failed', 3, now))).toBe(24)
