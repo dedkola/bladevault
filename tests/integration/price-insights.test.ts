@@ -414,6 +414,21 @@ describe('monitoring status', () => {
     })
   })
 
+  it('lists a source that needs attention there even when out of stock', async () => {
+    const raccoon = await createKnife('Raccoon', '129.00 USD', [
+      'https://shop.example/raccoon',
+    ])
+    const [shop] = raccoon.sources
+    await checkAt(0, shop, offer(100, 'out_of_stock'))
+    await checkAt(0.5, shop, offer(100, 'out_of_stock')) // confirms it
+    // AI doubts the reading; the out-of-stock reading stays on the source.
+    getLocalDb()
+      .prepare(`UPDATE price_sources SET status = 'needs_review' WHERE id = ?`)
+      .run(shop)
+    const source = (await overview()).monitored[0]
+    expect(source.result).toBe('attention')
+  })
+
   it('keeps the price date on failure', async () => {
     const raccoon = await createKnife('Raccoon', '129.00 USD', [
       'https://shop.example/raccoon',

@@ -830,9 +830,9 @@ function sourceResult(
   ignored: boolean,
 ): SourceResult {
   if (!source.last_checked_at) return 'pending'
-  // An ignored official link shows its last price without the stock alarm.
-  if (source.last_availability === 'out_of_stock' && !ignored)
-    return 'out_of_stock'
+  // A problem comes before stock, so every source the Inbox reports as
+  // needing attention is listed under Needs attention, even when its last
+  // stock reading was out of stock.
   if (
     source.status === 'failed' ||
     source.status === 'blocked' ||
@@ -840,6 +840,9 @@ function sourceResult(
     source.status === 'needs_review'
   )
     return 'attention'
+  // An ignored official link shows its last price without the stock alarm.
+  if (source.last_availability === 'out_of_stock' && !ignored)
+    return 'out_of_stock'
   // Only a counted change that still stands; noise and bounces are no change.
   if (move && move.result !== 'same') return move.result
   if (restockedAt && Date.parse(restockedAt) >= now - RESTOCK_DAYS * DAY_MS)
