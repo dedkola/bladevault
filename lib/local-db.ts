@@ -128,34 +128,79 @@ function resolveDataDir(): string {
   assertDataDirDiscoveryAllowed()
 
   const homeDataDir = getDefaultHomeDataDir()
-  const existingCandidates = [
+  return discoverExistingDataDir(
+    [homeDataDir, LEGACY_DATA_DIR, ...getLegacyDesktopDataDirs()],
     homeDataDir,
-    LEGACY_DATA_DIR,
-    ...getLegacyDesktopDataDirs(),
-  ].filter((candidate, index, allCandidates) => {
-    const normalized = path.resolve(candidate)
-    return (
-      allCandidates.findIndex(
-        (otherCandidate) => path.resolve(otherCandidate) === normalized,
-      ) === index && hasExistingDb(candidate)
-    )
-  })
+  )
+}
 
-  if (existingCandidates.length > 0) {
-    // Prefer the existing database with the most knives to keep desktop upgrades on the active vault.
-    const [bestCandidate] = existingCandidates
-      .map((candidate) => ({
-        candidate,
-        knifeCount: getExistingDbKnifeCount(candidate),
-      }))
-      .sort((left, right) => right.knifeCount - left.knifeCount)
+const DATA_DIR_DISCOVERY_KEY = Symbol.for('bladevault.data-dir-discovery')
 
-    if (bestCandidate) {
-      return bestCandidate.candidate
-    }
+function discoveryCache(): { dataDir?: string } {
+  const runtimeGlobal = globalThis as typeof globalThis & {
+    [DATA_DIR_DISCOVERY_KEY]?: { dataDir?: string }
+  }
+  return (runtimeGlobal[DATA_DIR_DISCOVERY_KEY] ??= {})
+}
+
+/** Forget the discovered vault so the next lookup scans candidates again. */
+export function clearDataDirDiscoveryCache(): void {
+  delete discoveryCache().dataDir
+}
+
+/** Identifies a database file so case or symlink aliases count once. */
+function dbFileIdentity(dataDir: string): string {
+  const stats = fs.statSync(joinRuntimePath(dataDir, 'bladevault.sqlite'))
+  return `${stats.dev}:${stats.ino}`
+}
+
+/**
+ * Picks the existing database with the most knives to keep desktop upgrades on
+ * the active vault. The vault path is resolved on nearly every request, and
+ * counting knives opens each candidate database, which dirties its WAL index.
+ * Remember the result for the process so discovery runs once, not per query.
+ */
+export function discoverExistingDataDir(
+  candidates: string[],
+  fallback: string,
+): string {
+  const cache = discoveryCache()
+  if (
+    cache.dataDir &&
+    candidates.includes(cache.dataDir) &&
+    hasExistingDb(cache.dataDir)
+  ) {
+    return cache.dataDir
   }
 
-  return homeDataDir
+  const seen = new Set<string>()
+  const existingCandidates = candidates.filter((candidate) => {
+    if (!hasExistingDb(candidate)) return false
+    let identity: string
+    try {
+      identity = dbFileIdentity(candidate)
+    } catch {
+      identity = path.resolve(candidate)
+    }
+    if (seen.has(identity)) return false
+    seen.add(identity)
+    return true
+  })
+
+  const [bestCandidate] = existingCandidates
+    .map((candidate) => ({
+      candidate,
+      knifeCount: getExistingDbKnifeCount(candidate),
+    }))
+    .sort((left, right) => right.knifeCount - left.knifeCount)
+
+  if (!bestCandidate) {
+    // Nothing exists yet; check again later instead of pinning the fallback.
+    delete cache.dataDir
+    return fallback
+  }
+  cache.dataDir = bestCandidate.candidate
+  return bestCandidate.candidate
 }
 
 type LocalDbRuntimeState = {
@@ -217,7 +262,9 @@ export function setPersistedLocalDataDirPath(
     )
   }
 
-  return savePersistedLocalDataDirPreference(nextDataDir)
+  const saved = savePersistedLocalDataDirPreference(nextDataDir)
+  clearDataDirDiscoveryCache()
+  return saved
 }
 
 export function isContainerizedRuntime(): boolean {
