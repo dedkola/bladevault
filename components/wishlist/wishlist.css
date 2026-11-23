@@ -160,27 +160,11 @@
   gap: 8px;
 }
 
-/* toolbar */
-[data-wishlist-toolbar] {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 12px;
-}
+/* focus */
 [data-wishlist] button:focus-visible,
 [data-wishlist] select:focus-visible {
   outline: 2px solid var(--ring, var(--primary));
   outline-offset: 2px;
-}
-[data-wishlist-legend] {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 8px;
-  color: var(--muted-foreground);
-  font-size: 12px;
 }
 
 /* knife name and badges */

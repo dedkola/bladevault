@@ -768,7 +768,6 @@ export function WishlistView() {
   const header = (
     <PageHeader
       title="Wishlist"
-      description="Knives you plan to buy, with live store prices"
       actions={
         available ? (
           <>
@@ -834,12 +833,6 @@ export function WishlistView() {
         <>
           <Summary rows={rows} currency={currency} />
           <BestDeal rows={rows} />
-          <div data-wishlist-toolbar>
-            <div data-wishlist-legend>
-              Price now vs regular · price range with regular price tick · last
-              30 days
-            </div>
-          </div>
           <DealGroups rows={rows} />
         </>
       )}
