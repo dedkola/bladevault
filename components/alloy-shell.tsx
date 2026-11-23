@@ -1,12 +1,8 @@
 'use client'
 
 import {
-  formatNavCount,
-  priceDropsCountLabel,
-  usePriceDropsUnread,
-} from '@/components/price-drops/price-drops-nav-count'
-import {
   WishlistSaleBadge,
+  formatNavCount,
   useWishlistNavCounts,
   wishlistCountLabel,
 } from '@/components/wishlist/wishlist-nav-count'
@@ -56,7 +52,6 @@ const links = [
 
 export function AlloyShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const priceUnread = usePriceDropsUnread()
   const wishlist = useWishlistNavCounts()
   const params = useSearchParams()
   const { knives, isAutoBackupActive, showFeedback } = useKnives()
@@ -141,16 +136,6 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
                   aria-current={selected ? 'page' : undefined}
                 >
                   {label}
-                  {href === '/price-drops' && priceUnread > 0 && (
-                    <span data-alloy-nav-count data-price-drops-count>
-                      <span aria-hidden="true">
-                        {formatNavCount(priceUnread)}
-                      </span>
-                      <span className="sr-only">
-                        {priceDropsCountLabel(priceUnread)}
-                      </span>
-                    </span>
-                  )}
                   {href === '/wishlist' && wishlist.total > 0 && (
                     <>
                       <span className="sr-only">

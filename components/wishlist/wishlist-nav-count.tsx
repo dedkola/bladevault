@@ -5,9 +5,12 @@ import { ArrowDown } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useMarket } from '@/components/providers/market-provider'
 import { useWishlist } from '@/components/providers/wishlist-provider'
-import { formatNavCount } from '@/components/price-drops/price-drops-nav-count'
 import { wishlistSummaryDeal } from '@/lib/wishlist'
 import { cn } from '@/lib/utils'
+
+export function formatNavCount(count: number) {
+  return count > 99 ? '99+' : String(count)
+}
 
 /** Wishlisted knives still in the vault, and how many are on sale now. */
 export function useWishlistNavCounts(): { total: number; onSale: number } {

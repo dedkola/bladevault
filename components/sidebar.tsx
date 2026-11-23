@@ -1,10 +1,5 @@
 'use client'
 
-import {
-  formatNavCount,
-  priceDropsCountLabel,
-  usePriceDropsUnread,
-} from '@/components/price-drops/price-drops-nav-count'
 import { BrandMark } from '@/components/brand-mark'
 import Link from 'next/link'
 import { Menu as MenuPrimitive } from '@base-ui/react/menu'
@@ -104,7 +99,6 @@ export function Sidebar() {
   const careStatusFilter = careReminders.enabled ? careStatusById : undefined
   const marketFilter = useMarketFilter()
   const { visible: inboxEnabled, unreadCount: inboxUnread } = useCareInbox()
-  const priceUnread = usePriceDropsUnread()
   const { update, downloadUpdate } = useDesktopUpdates()
   const [brandsOpen, setBrandsOpen] = useState(true)
   const [pinnedOpen, setPinnedOpen] = useState(true)
@@ -359,25 +353,6 @@ export function Sidebar() {
                       )}
                     >
                       {knives.length}
-                    </span>
-                  ) : null}
-                  {link.href === '/price-drops' && priceUnread > 0 ? (
-                    <span
-                      data-sidebar-count
-                      data-price-drops-count
-                      className={cn(
-                        'inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none',
-                        isActive
-                          ? 'bg-[var(--bladevault-gold)] text-[var(--bladevault-olive)]'
-                          : 'bg-muted text-foreground',
-                      )}
-                    >
-                      <span aria-hidden="true">
-                        {formatNavCount(priceUnread)}
-                      </span>
-                      <span className="sr-only">
-                        {priceDropsCountLabel(priceUnread)}
-                      </span>
                     </span>
                   ) : null}
                   {link.href === '/wishlist' ? (
