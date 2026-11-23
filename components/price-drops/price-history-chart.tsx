@@ -13,7 +13,7 @@ import {
   type KnifeHistory,
 } from '@/lib/price-monitor/insights'
 import { cn } from '@/lib/utils'
-import { moneyMajor, storeLabel } from './price-format'
+import { money, moneyMajor, storeLabel } from './price-format'
 import {
   historyEnd,
   outOfStockEverywhere,
@@ -706,7 +706,18 @@ export function ChartLegend({ history }: { history: KnifeHistory }) {
           <MarkerSwatch kind="stock" label="Stock change" />
         ) : null}
         {history.stats?.lowest && history.stats.currency === currency ? (
-          <MarkerSwatch kind="low" label="Lowest seen" />
+          <MarkerSwatch
+            kind="low"
+            label={
+              // With several stores, which one had the lowest price matters.
+              storeCount > 1
+                ? `Lowest seen: ${money(
+                    history.stats.lowest.priceMinor,
+                    currency,
+                  )} at ${storeLabel(history.stats.lowest.storeName)}`
+                : 'Lowest seen'
+            }
+          />
         ) : null}
         {hasUnconfirmed ? (
           <MarkerSwatch kind="unconfirmed" label="AI unconfirmed" />

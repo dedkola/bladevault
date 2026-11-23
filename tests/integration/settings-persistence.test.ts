@@ -66,7 +66,7 @@ describe('settings persistence', () => {
         },
         otherStores: {
           enabled: true,
-          stores: { bladehq: false },
+          stores: { bladehq: false, smkw: false },
         },
       },
     })
@@ -119,7 +119,7 @@ describe('settings persistence', () => {
       },
       otherStores: {
         enabled: true,
-        stores: { bladehq: false },
+        stores: { bladehq: false, smkw: false },
       },
     })
     // The AI key is never part of the settings table.

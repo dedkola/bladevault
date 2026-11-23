@@ -342,7 +342,7 @@ describe('AI supervisor', () => {
         ...getSettings().priceMonitoring,
         otherStores: {
           enabled: true,
-          stores: { bladehq: true },
+          stores: { bladehq: true, smkw: false },
         },
       },
     })

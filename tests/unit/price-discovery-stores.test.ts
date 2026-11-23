@@ -14,6 +14,7 @@ import {
   networkBlockError,
 } from '@/lib/scrape'
 import { toScrapeError } from '@/lib/scrape-errors'
+import { storeLabel } from '@/components/price-drops/price-format'
 import {
   DEFAULT_PRICE_MONITORING,
   normalizePriceMonitoring,
@@ -169,7 +170,7 @@ describe('Other stores: Blade HQ', () => {
   })
 
   it('no longer offers KnifeCenter or Amazon; old saved settings still load', () => {
-    expect(Object.keys(DISCOVERY_STORES)).toEqual(['bladehq'])
+    expect(Object.keys(DISCOVERY_STORES)).toEqual(['bladehq', 'smkw'])
     expect(
       normalizePriceMonitoring({
         otherStores: {
@@ -177,12 +178,118 @@ describe('Other stores: Blade HQ', () => {
           stores: { amazon: true, bladehq: true, knifecenter: true },
         },
       }).otherStores.stores,
-    ).toEqual({ bladehq: true })
+    ).toEqual({ bladehq: true, smkw: false })
   })
 
   it('lanes and marketplaces follow the store', () => {
     expect(DISCOVERY_STORES.bladehq.laneKey).toBe('bladehq.com')
     expect(DISCOVERY_STORES.bladehq.marketplace).toBe('bladehq.com')
+    expect(DISCOVERY_STORES.smkw.laneKey).toBe('smkw.com')
+    expect(DISCOVERY_STORES.smkw.marketplace).toBe('smkw.com')
+  })
+})
+
+describe('Other stores: SMKW', () => {
+  const SEARCH_URL = 'https://smkw.com/shop/?search_query=spyderco%20para%203'
+  const ITEM_URL = 'https://smkw.com/spyderco-para-3-folding-knife-black-g-10'
+
+  it('is off by default and keeps a saved choice', () => {
+    expect(DEFAULT_PRICE_MONITORING.otherStores.stores).toEqual({
+      bladehq: true,
+      smkw: false,
+    })
+    expect(
+      normalizePriceMonitoring({
+        otherStores: { enabled: true, stores: { smkw: true } },
+      }).otherStores.stores,
+    ).toEqual({ bladehq: true, smkw: true })
+    expect(storeLabel('smkw.com')).toBe('SMKW')
+  })
+
+  it('searches the SMKW shop page', () => {
+    expect(DISCOVERY_STORES.smkw.searchUrl('Spyderco Para 3')).toBe(
+      'https://smkw.com/shop/?search_query=Spyderco+Para+3',
+    )
+  })
+
+  it('reads the result cards at the selling price, skipping header, nav, footer and filters', () => {
+    const results = DISCOVERY_STORES.smkw.parseResults(
+      fixture('smkw-search-para-3.html'),
+      SEARCH_URL,
+    )
+    expect(results).toEqual([
+      {
+        id: 1,
+        url: ITEM_URL,
+        title:
+          'Spyderco Para 3 Folding Knife Black G-10 Handle CPM S45VN Drop Point Blade SPC223GP',
+        price: '$197.25',
+      },
+      {
+        id: 2,
+        url: 'https://smkw.com/spyderco-para-3-lightweight-folding-knife-black-frn',
+        title:
+          'Spyderco Para 3 Lightweight Folding Knife Black 2.92in Plain Edge Blade SPC223PBBK',
+        price: '$154.50',
+      },
+      {
+        id: 3,
+        url: 'https://smkw.com/spyderco-para-3-maxamet-folding-knife-dark-gray-g-10/',
+        title:
+          'Spyderco Para 3 Maxamet Dark Gray 2.93 Inch Plain Satin Clip Point SPC223GPDGY',
+        // Not the $275.25 MSRP / Was price on the same card.
+        price: '$219.99',
+      },
+    ])
+  })
+
+  it('takes a search that lands on a product page as its one result', () => {
+    expect(
+      DISCOVERY_STORES.smkw.parseResults(
+        fixture('smkw-item-para-3-c223gbk.html'),
+        `${ITEM_URL}?search_query=C223GP`,
+      ),
+    ).toEqual([
+      {
+        id: 1,
+        url: ITEM_URL,
+        title:
+          'Spyderco Para 3 Folding Knife Black G-10 Handle CPM S45VN Drop Point Blade SPC223GP',
+        price: null,
+      },
+    ])
+  })
+
+  it('reads the product page: decoded description, MPN, SKU without the brand prefix, price', () => {
+    const html = fixture('smkw-item-para-3-c223gbk.html')
+    const details = DISCOVERY_STORES.smkw.productDetails(html, ITEM_URL)
+    expect(details?.details).toContain('Brand: Spyderco Knives')
+    expect(details?.details).toContain('MPN: C223GBK')
+    expect(details?.details).toContain('SKU: SPC223GP')
+    expect(details?.details).toContain(
+      "SKU without SMKW's brand prefix SP: C223GP",
+    )
+    expect(details?.details).toContain(
+      'The Spyderco Para 3 Folding Knife with Black G‑10 Handle',
+    )
+    expect(details?.details).toContain('The blade’s compact size')
+    expect(details?.details).not.toContain('%20')
+    const text = `${details?.title}\n${details?.details}`
+    expect(pageShowsModelNumber('C223GP', text)).toBe(true)
+    expect(pageShowsModelNumber('C223GBK', text)).toBe(true)
+    expect(pageShowsModelNumber('C223GPDGY', text)).toBe(false)
+    expect(extractOfferFromHtml(html, ITEM_URL)).toMatchObject({
+      amount: 197.25,
+      currency: 'USD',
+      availability: 'in_stock',
+    })
+  })
+
+  it('leaves ordinary descriptions with a percent sign alone', () => {
+    const details = genericProductDetails(
+      `<script type="application/ld+json">{"@type":"Product","name":"Knife","description":"Save 20%25 today"}</script>`,
+    )
+    expect(details?.details).toBe('Save 20%25 today')
   })
 })
 

@@ -164,12 +164,28 @@ function jsonLdProduct($: cheerio.CheerioAPI): Record<string, unknown> | null {
   return null
 }
 
+/**
+ * Some stores (SMKW) put a percent-encoded description in their structured
+ * data ("The%20Spyderco%20Para%203…"). Text without escapes, or with a broken
+ * one, is kept as it is.
+ */
+function decodePercentEscapes(value: string): string {
+  if (!/%[0-9A-F]{2}/i.test(value) || /\s/.test(value)) return value
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
 /** Title and details of an ordinary store product page. */
 export function genericProductDetails(html: string): ProductPageDetails | null {
   const $ = cheerio.load(html)
   const product = jsonLdProduct($)
   const text = (value: unknown) =>
-    typeof value === 'string' ? clean(decodeEntities(value)) : ''
+    typeof value === 'string'
+      ? clean(decodeEntities(decodePercentEscapes(value)))
+      : ''
   const title =
     text(product?.name) ||
     clean($('meta[property="og:title"]').attr('content') ?? '') ||
@@ -197,6 +213,109 @@ export function genericProductDetails(html: string): ProductPageDetails | null {
 /** www.bladehq.com/item--Spyderco-Para-3-Lightweight--106189 */
 const BLADEHQ_PRODUCT = /^\/item--[^/]+--\d+\/?$/i
 
+/** A page that is itself a product (a search that matched one product). */
+function isProductPage($: cheerio.CheerioAPI): boolean {
+  return (
+    ($('meta[property="og:type"]').attr('content') ?? '').toLowerCase() ===
+    'product'
+  )
+}
+
+/**
+ * SMKW (BigCommerce with Searchspring) search results. Product and category
+ * URLs are both one-segment slugs (smkw.com/spyderco-para-3-…), so results
+ * are read from the result cards, never from every link on the page. The
+ * card's data-product-price is the selling price (MSRP and "Was" are
+ * separate elements).
+ */
+export function parseSmkwResults(
+  html: string,
+  pageUrl: string,
+): DiscoveryCandidate[] {
+  const $ = cheerio.load(html)
+  const base = parseHttpUrl(pageUrl)
+  if (!base) return []
+  const lane = laneKeyForUrl(base.href)
+  if (isProductPage($)) {
+    const details = genericProductDetails(html)
+    if (!details) return []
+    base.search = ''
+    base.hash = ''
+    return [{ id: 1, url: base.href, title: details.title, price: null }]
+  }
+  const byUrl = new Map<string, { title: string; price: string | null }>()
+  $('article.card').each((_, el) => {
+    const card = $(el)
+    if (card.closest('header, nav, footer, [role="navigation"]').length) return
+    let url: URL
+    try {
+      url = new URL(
+        card
+          .find('.card-title a[href], a.card-figure__link[href]')
+          .first()
+          .attr('href') ?? '',
+        base,
+      )
+    } catch {
+      return
+    }
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return
+    if (laneKeyForUrl(url.href) !== lane || url.pathname === '/') return
+    url.search = ''
+    url.hash = ''
+    const title = clean(
+      card.attr('data-name') ||
+        card.find('.card-title').first().text() ||
+        card.find('img').first().attr('alt') ||
+        '',
+    )
+    const amount = Number.parseFloat(card.attr('data-product-price') ?? '')
+    let price: string | null = null
+    if (Number.isFinite(amount) && amount > 0) price = `$${amount.toFixed(2)}`
+    else {
+      const selling = card.clone()
+      selling
+        .find(
+          `${STRUCK_PRICES}, .price--rrp, .price--non-sale, .rrp-price--withoutTax, .non-sale-price--withoutTax`,
+        )
+        .remove()
+      price = clean(selling.text()).match(PRICE)?.[0] ?? null
+    }
+    if (!byUrl.has(url.href)) byUrl.set(url.href, { title, price })
+  })
+  return [...byUrl]
+    .filter(([, item]) => item.title.length >= 8)
+    .slice(0, MAX_SEARCH_CANDIDATES)
+    .map(([url, item], index) => ({
+      id: index + 1,
+      url,
+      title: truncate(item.title, TITLE_MAX),
+      price: item.price,
+    }))
+}
+
+/**
+ * SMKW puts a brand prefix in front of most SKUs (SPC223GP for Spyderco
+ * C223GP, BM535BK2 for Benchmade 535BK2) and often leaves the maker's
+ * number out of the title. The SKU without that prefix is added so the
+ * model-number check and AI can see the maker's number.
+ */
+export function smkwProductDetails(html: string): ProductPageDetails | null {
+  const details = genericProductDetails(html)
+  if (!details) return null
+  const sku = details.details.match(
+    /^SKU: ([A-Z]{2})([A-Z0-9][A-Z0-9.\-]{3,})$/im,
+  )
+  if (!sku || !/\d/.test(sku[2])) return details
+  return {
+    ...details,
+    details: truncate(
+      `${details.details}\nSKU without SMKW's brand prefix ${sku[1]}: ${sku[2]}`,
+      DETAILS_MAX,
+    ),
+  }
+}
+
 export const DISCOVERY_STORES: Record<OtherStoreId, DiscoveryStore> = {
   bladehq: {
     id: 'bladehq',
@@ -215,5 +334,19 @@ export const DISCOVERY_STORES: Record<OtherStoreId, DiscoveryStore> = {
         BLADEHQ_PRODUCT.test(path),
       ),
     productDetails: (html) => genericProductDetails(html),
+  },
+  smkw: {
+    id: 'smkw',
+    label: OTHER_STORE_LABELS.smkw,
+    laneKey: 'smkw.com',
+    marketplace: 'smkw.com',
+    // Results are rendered by Searchspring in the browser.
+    searchUrl: (query) => {
+      const url = new URL('https://smkw.com/shop/')
+      url.searchParams.set('search_query', query)
+      return url.href
+    },
+    parseResults: (html, pageUrl) => parseSmkwResults(html, pageUrl),
+    productDetails: (html) => smkwProductDetails(html),
   },
 }

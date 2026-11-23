@@ -39,6 +39,7 @@ type Overview = { active: boolean; running: boolean; stores: StoreOverview[] }
 const STORE_DESCRIPTION: Record<OtherStoreId, string> = {
   bladehq:
     'Searches bladehq.com (US prices). A knife that already has a Blade HQ source is skipped. Searches share Blade HQ’s pace with its price checks.',
+  smkw: 'Searches smkw.com, Smoky Mountain Knife Works (US prices). A knife that already has an SMKW source is skipped. Searches share SMKW’s pace with its price checks.',
 }
 
 const STATUS_LABEL: Record<DiscoveryStatus, string> = {
@@ -184,7 +185,7 @@ export function OtherStoresSettings({
   return (
     <SettingsSection
       title="Other stores"
-      description="A knife’s own store is often sold out. AI looks for every monitored knife at Blade HQ, checks that the listing is the same knife, and adds it as a price source. From then on it is checked like any other source, and AI reads the price when the page parsers cannot."
+      description="A knife’s own store is often sold out. AI looks for every monitored knife at the stores turned on below, checks that the listing is the same knife, and adds it as a price source. From then on it is checked like any other source, and AI reads the price when the page parsers cannot."
     >
       <SettingsRow
         inline

@@ -85,7 +85,7 @@ Open a knife and select the **Market** tab. It shows:
 
 - **Best price now** across its sources, the store that has it, linked to its product page, and **Regular price** when a regular price is stored. When the stores show another currency than the regular price, a note such as **UAH price** under the best price says they are not compared.
 - **Lowest seen** and **Highest seen** in-stock prices, **Tracking since** (the first reading), and **Now vs regular price**: the best current price minus the regular price, in money and percent. These cover the whole history, whatever range the chart shows.
-- A price chart for 7 days up to all history, with each store as its own line and out-of-stock periods shaded. When the range reaches back before the first reading, the chart starts at that reading and says **Tracking since** that date. Markers show price drops and increases, stock changes, and the lowest price seen; hover over the chart for details. Stores that show a price in another currency than the chart are left out and noted below it, for example "1 store in EUR not shown".
+- A price chart for 7 days up to all history, with each store as its own line and out-of-stock periods shaded. When the range reaches back before the first reading, the chart starts at that reading and says **Tracking since** that date. Markers show price drops and increases, stock changes, and the lowest price seen; with more than one store, the legend also names the store that had the lowest price. Hover over the chart for every store's price at that moment, with the cheapest one marked. Stores that show a price in another currency than the chart are left out and noted below it, for example "1 store in EUR not shown".
 - **Sources** with each store's status: **Checked**, **Price unavailable**, **Out of stock**, **Failed**, **Blocked**, or **Not checked yet**, and **Low stock** or **Preorder** when the store says so. **Check all sources** checks every store of the knife now.
 - **Latest changes** for the knife.
 
@@ -267,11 +267,11 @@ Notes and questions appear only in **Act**, in the Inbox under **System**. Every
 
 ## Find knives at other stores with AI
 
-A knife's own store is often sold out. **Settings → Price monitoring → Other stores** lets AI look for every monitored knife at other stores and add the listings it finds as price sources. Blade HQ is the store on the list; Amazon is not searched. It needs [AI assistance](#optional-ai-assistance) connected: with **Use AI** off, or without a base URL and model, nothing is searched.
+A knife's own store is often sold out. **Settings → Price monitoring → Other stores** lets AI look for every monitored knife at other stores and add the listings it finds as price sources. The list has Blade HQ (on by default) and SMKW (Smoky Mountain Knife Works, off until you turn it on); Amazon is not searched. Each store has its own switch, and more stores can be added later. It needs [AI assistance](#optional-ai-assistance) connected: with **Use AI** off, or without a base URL and model, nothing is searched.
 
 1. Connect AI in **AI assistance**.
 2. Turn on **Look for knives at other stores**.
-3. Keep **Blade HQ** on.
+3. Turn on the stores to search: **Blade HQ**, **SMKW**, or both.
 
 For each knife, AI does the work in three steps:
 

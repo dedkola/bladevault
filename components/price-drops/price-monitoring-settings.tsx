@@ -453,7 +453,7 @@ export function PriceMonitoringSettings({
         <SettingsRow
           inline
           label="Ignore out of stock on the official site"
-          description="When a knife’s own product link is sold out, it no longer counts as out of stock, does not notify, and is not checked on schedule until Check now finds it in stock again. Use Other stores below to follow the knife on Blade HQ instead."
+          description="When a knife’s own product link is sold out, it no longer counts as out of stock, does not notify, and is not checked on schedule until Check now finds it in stock again. Use Other stores below to follow the knife at other stores instead."
         >
           <SettingsSwitch
             aria-label="Ignore out of stock on the official site"

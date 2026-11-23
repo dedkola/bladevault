@@ -59,7 +59,7 @@ function productHtml(
 const fixture = (name: string) =>
   readFileSync(new URL(`../fixtures/scrape/${name}`, import.meta.url), 'utf8')
 
-function enableOtherStores(ai = true, stores = { bladehq: true }) {
+function enableOtherStores(ai = true, stores = { bladehq: true, smkw: false }) {
   saveSettings({
     priceMonitoring: {
       ...DEFAULT_PRICE_MONITORING,
@@ -186,6 +186,54 @@ describe('Other stores discovery', () => {
     }
   })
 
+  it('finds the knife on SMKW too, from its result cards and SKU', async () => {
+    enableOtherStores(true, { bladehq: true, smkw: true })
+    const knifeId = await createKnife({
+      specs: { price: '$150', modelNumber: 'C223GP' },
+    })
+    const smkwUrl = 'https://smkw.com/spyderco-para-3-folding-knife-black-g-10'
+    const fetchPage = vi.fn(
+      async (url: string, _signal: AbortSignal, _laneKey: string) => ({
+        html: url.startsWith('https://smkw.com/shop/')
+          ? fixture('smkw-search-para-3.html')
+          : fixture('smkw-item-para-3-c223gbk.html'),
+        finalUrl: url,
+      }),
+    )
+    const run = deps({
+      fetchPage,
+      match: vi.fn(async ({ candidates }) => ({
+        accepted: true,
+        confidence: 0.9,
+        reason: 'Same model.',
+        candidate: candidates[0],
+      })),
+    })
+    const summary = await discoverKnife(knifeId, { deps: run, store: 'smkw' })
+
+    expect(summary).toMatchObject({ status: 'done', result: 'found' })
+    expect(fetchPage.mock.calls.map(([url, , lane]) => [url, lane])).toEqual([
+      [
+        'https://smkw.com/shop/?search_query=Spyderco+Para+3+C223GP',
+        'smkw.com',
+      ],
+      [smkwUrl, 'smkw.com'],
+    ])
+    const watch = await getWatch(knifeId)
+    expect(watch.sources).toEqual([
+      expect.objectContaining({
+        url: smkwUrl,
+        laneKey: 'smkw.com',
+        storeName: 'smkw.com',
+        foundByAi: true,
+      }),
+    ])
+    // Found at SMKW; Blade HQ still searches for it.
+    const settings = getSettings().priceMonitoring
+    expect(nextDiscoveryKnife(settings, Date.now(), 'smkw')).toBeNull()
+    expect(nextDiscoveryKnife(settings, Date.now(), 'bladehq')).toBe(knifeId)
+  })
+
   it('does nothing until AI is connected and the store is on', async () => {
     const knifeId = await createKnife({ specs: { price: '$150' } })
     expect(nextDiscoveryKnife(getSettings().priceMonitoring)).toBeNull()
@@ -261,6 +309,7 @@ describe('Other stores discovery', () => {
     expect(all.active).toBe(true)
     expect(all.stores.map((store) => [store.store, store.active])).toEqual([
       ['bladehq', true],
+      ['smkw', false],
     ])
     const discovery = all.stores[0]
     expect(discovery.counts.found).toBe(1)

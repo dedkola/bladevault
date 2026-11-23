@@ -480,7 +480,7 @@ export type PriceMonitoringSettings = {
    * Out of stock on the knife's own product link (its official store) is
    * ignored: it does not count as out of stock, does not notify, and the
    * link is not checked on schedule while it stays out of stock. Other
-   * stores (Blade HQ) carry the knife instead.
+   * stores (Blade HQ, SMKW) carry the knife instead.
    */
   ignoreOfficialOutOfStock: boolean
   /** Which knives scheduled monitoring covers; Check now works for any. */
@@ -534,11 +534,12 @@ export type PriceMonitoringSettings = {
  * Stores AI can search for monitored knives, in search order. Amazon is not
  * one: it forbids automated AI access, so Price Drops never loads its pages.
  */
-export const OTHER_STORE_IDS = ['bladehq'] as const
+export const OTHER_STORE_IDS = ['bladehq', 'smkw'] as const
 export type OtherStoreId = (typeof OTHER_STORE_IDS)[number]
 
 export const OTHER_STORE_LABELS: Record<OtherStoreId, string> = {
   bladehq: 'Blade HQ',
+  smkw: 'SMKW',
 }
 
 export type PriceOtherStoresSettings = {
@@ -706,7 +707,8 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
   },
   otherStores: {
     enabled: false,
-    stores: { bladehq: true },
+    // New stores start off: turning one on is the user's choice.
+    stores: { bladehq: true, smkw: false },
   },
 }
 
