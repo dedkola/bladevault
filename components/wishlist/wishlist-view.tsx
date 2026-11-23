@@ -476,7 +476,7 @@ function DealGroups({ rows }: { rows: Row[] }) {
                   <Thumb knife={row.knife} size="sm" />
                   <div className="min-w-0">
                     <Link
-                      href={`/collection/${encodeURIComponent(row.knife.id)}`}
+                      href={`/collection/${encodeURIComponent(row.knife.id)}?tab=market`}
                       data-wishlist-name
                     >
                       {row.knife.name}
