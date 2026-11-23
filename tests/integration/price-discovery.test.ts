@@ -8,6 +8,7 @@ import { AiClientError } from '@/lib/price-monitor/ai-client'
 import {
   discoverKnife,
   nextDiscoveryKnife,
+  type BrowseInput,
   type DiscoveryDeps,
 } from '@/lib/price-monitor/discovery'
 import type { PriceWatchView } from '@/lib/price-monitor/shared'
@@ -115,6 +116,8 @@ function deps(overrides: Partial<DiscoveryDeps> = {}): Partial<DiscoveryDeps> {
       confidence: 0.95,
       reason: 'The page sells the Para 3 in BD1N.',
     })),
+    // Never a real browser in tests: AI browsing finds nothing by default.
+    browse: vi.fn(async () => ({ page: null, note: null })),
     ...overrides,
   }
 }
@@ -355,9 +358,10 @@ describe('Other stores discovery', () => {
       .prepare('SELECT * FROM price_discovery WHERE knife_id = ?')
       .get(knifeId) as { detail: string; next_attempt_at: string }
     expect(row.detail).toBe('The page sells the Para Military 2.')
-    expect(Date.parse(row.next_attempt_at)).toBeGreaterThan(
-      Date.now() + 29 * 24 * 3_600_000,
-    )
+    // Looked for again the next day, not a month later.
+    const wait = Date.parse(row.next_attempt_at) - Date.now()
+    expect(wait).toBeGreaterThan(23 * 3_600_000)
+    expect(wait).toBeLessThanOrEqual(24 * 3_600_000)
 
     const retry = await discoveryRoute.POST(
       new Request('http://localhost/api/prices/discovery', { method: 'POST' }),
@@ -380,6 +384,87 @@ describe('Other stores discovery', () => {
     expect(row.detail).toBe(
       'The Blade HQ page does not show model number C223GPBK.',
     )
+  })
+
+  it('lets AI browse the store when its search finds nothing, and adds what AI confirmed', async () => {
+    enableOtherStores()
+    const knifeId = await createKnife({
+      specs: { price: '$150', modelNumber: 'C223GP' },
+    })
+    const browsedUrl = 'https://www.bladehq.com/item--Spyderco-Para-3--999'
+    const browse = vi.fn(async (_input: BrowseInput) => ({
+      page: {
+        html: productHtml('Spyderco Para 3 Folding Knife CTS BD1N - C223GP'),
+        finalUrl: browsedUrl,
+      },
+      note: null,
+    }))
+    const run = deps({
+      fetchPage: vi.fn(async (url: string) => ({
+        html: EMPTY_SEARCH_HTML,
+        finalUrl: url,
+      })),
+      browse,
+    })
+    expect(await discoverKnife(knifeId, { deps: run })).toMatchObject({
+      status: 'done',
+      result: 'found',
+    })
+    expect(browse).toHaveBeenCalledTimes(1)
+    expect(browse.mock.calls[0][0]).toMatchObject({
+      store: { id: 'bladehq' },
+      knife: { id: knifeId },
+    })
+    const sources = (await getWatch(knifeId)).sources
+    expect(sources).toHaveLength(1)
+    expect(sources[0].url).toBe(browsedUrl)
+    const row = getLocalDb()
+      .prepare('SELECT status, detail FROM price_discovery WHERE knife_id = ?')
+      .get(knifeId) as { status: string; detail: string }
+    expect(row).toEqual({
+      status: 'found',
+      detail:
+        "AI found it by browsing Blade HQ after the store's search did not lead to it.",
+    })
+  })
+
+  it('keeps a turned-down listing rejected when AI browsing finds nothing either', async () => {
+    enableOtherStores()
+    const knifeId = await createKnife({
+      specs: { price: '$150', modelNumber: 'C223GPBK' },
+    })
+    const browse = vi.fn(async () => ({
+      page: null,
+      note: 'AI also browsed Blade HQ and did not find it.',
+    }))
+    const summary = await discoverKnife(knifeId, { deps: deps({ browse }) })
+    expect(summary).toMatchObject({ status: 'done', result: 'rejected' })
+    expect(browse).toHaveBeenCalledTimes(1)
+    const row = getLocalDb()
+      .prepare('SELECT detail FROM price_discovery WHERE knife_id = ?')
+      .get(knifeId) as { detail: string }
+    expect(row.detail).toBe(
+      'The Blade HQ page does not show model number C223GPBK. AI also browsed Blade HQ and did not find it.',
+    )
+  })
+
+  it('does not browse the store when AI may not solve problems in the browser', async () => {
+    enableOtherStores()
+    const settings = getSettings().priceMonitoring
+    saveSettings({
+      priceMonitoring: {
+        ...settings,
+        ai: { ...settings.ai, resolveErrors: false },
+      },
+    })
+    const knifeId = await createKnife({
+      specs: { price: '$150', modelNumber: 'C223GPBK' },
+    })
+    const browse = vi.fn(async () => ({ page: null, note: null }))
+    expect(
+      await discoverKnife(knifeId, { deps: deps({ browse }) }),
+    ).toMatchObject({ status: 'done', result: 'rejected' })
+    expect(browse).not.toHaveBeenCalled()
   })
 
   it('adds a listing whose page shows the knife’s model number', async () => {

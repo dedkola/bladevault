@@ -179,6 +179,33 @@ function decodePercentEscapes(value: string): string {
 }
 
 /** Title and details of an ordinary store product page. */
+/**
+ * Stores glue the brand's first letters onto the maker's number in their
+ * SKU: DLT Trading and Blade HQ list Vosteed A4501 as VOSA4501 and CIVIVI
+ * C19046-1 as CIVC190461. That prefix is split off (only when it is the
+ * start of the brand's name) so the model-number check and AI see the
+ * maker's number. `brand` may be the page title when the page names no
+ * brand; its first word is the brand there.
+ */
+export function withoutBrandPrefix(
+  sku: string,
+  brand: string,
+): { prefix: string; code: string } | null {
+  const letters = (brand.trim().split(/\s+/)[0] ?? '')
+    .replace(/[^\p{L}]/gu, '')
+    .toUpperCase()
+  const upper = sku.trim().toUpperCase()
+  for (const length of [4, 3, 2]) {
+    if (letters.length < length) continue
+    const prefix = letters.slice(0, length)
+    if (!upper.startsWith(prefix)) continue
+    const code = sku.trim().slice(length)
+    if (/^[A-Z0-9][A-Z0-9.\-]{2,}$/i.test(code) && /\d/.test(code))
+      return { prefix: sku.trim().slice(0, length), code }
+  }
+  return null
+}
+
 export function genericProductDetails(html: string): ProductPageDetails | null {
   const $ = cheerio.load(html)
   const product = jsonLdProduct($)
@@ -197,10 +224,14 @@ export function genericProductDetails(html: string): ProductPageDetails | null {
       ? (brand as Record<string, unknown>).name
       : brand,
   )
+  const sku = text(product?.sku)
+  const unprefixed = withoutBrandPrefix(sku, brandName || title)
   const lines = [
     brandName && `Brand: ${brandName}`,
     text(product?.mpn) && `MPN: ${text(product?.mpn)}`,
-    text(product?.sku) && `SKU: ${text(product?.sku)}`,
+    sku && `SKU: ${sku}`,
+    unprefixed &&
+      `SKU without the store's brand prefix ${unprefixed.prefix}: ${unprefixed.code}`,
     text(product?.description) ||
       clean($('meta[name="description"]').attr('content') ?? ''),
   ].filter(Boolean)

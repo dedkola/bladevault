@@ -28,9 +28,20 @@ import {
   type DiscoveryStatus,
 } from '@/lib/price-monitor/discovery-store'
 import { retryAfterMs, type LaneOutcomeKind } from '@/lib/price-monitor/engine'
-import { upstreamStatus } from '@/lib/price-monitor/fetch'
+import { checkViaBrowser, upstreamStatus } from '@/lib/price-monitor/fetch'
+import {
+  productPageAcceptor,
+  productPageUrl,
+  relinkSearch,
+} from '@/lib/price-monitor/recovery'
 import { withRegionCookies } from '@/lib/price-monitor/region'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
+import { laneKeyForUrl } from '@/lib/price-monitor/shared'
+import {
+  solveOnPage,
+  solverLimits,
+  type SolverResult,
+} from '@/lib/price-monitor/solver'
 import { isNetworkBlockError } from '@/lib/scrape'
 import { toScrapeError } from '@/lib/scrape-errors'
 import { createScrapeOperation, runWithSignal } from '@/lib/scrape-operation'
@@ -39,6 +50,7 @@ import { getSettings } from '@/lib/settings'
 import {
   OTHER_STORE_IDS,
   type OtherStoreId,
+  type PriceAiSettings,
   type PriceMonitoringSettings,
 } from '@/lib/settings-shared'
 import { getStorage } from '@/lib/storage'
@@ -55,6 +67,8 @@ import { getVaultAccessState } from '@/lib/vault-access'
 export const DISCOVERY_STORE: OtherStoreId = 'bladehq'
 /** Two searches, a product page and three AI answers fit in this. */
 const DISCOVERY_BUDGET_MS = 240_000
+/** AI browsing the store: the solver's own time plus its page checks. */
+const BROWSE_MARGIN_MS = 60_000
 
 export type DiscoveryPage = { html: string; finalUrl: string }
 
@@ -69,6 +83,108 @@ export type DiscoveryDeps = {
   verify: typeof verifyProductPage
   readKey: () => Promise<string | null>
   getKnife: (id: string) => Promise<Knife | null | undefined>
+  /**
+   * When the store's search turned up nothing usable: AI browses the store
+   * in the monitoring browser (its search box, menus, categories) and
+   * returns the product page it confirmed, or why it found none.
+   */
+  browse: (input: BrowseInput) => Promise<BrowseResult>
+}
+
+export type BrowseInput = {
+  store: DiscoveryStore
+  knife: Knife
+  settings: PriceAiSettings
+  endpoint: AiEndpoint
+  signal: AbortSignal
+}
+
+export type BrowseResult = {
+  page: DiscoveryPage | null
+  /** Why nothing was found, for the search's detail line. */
+  note: string | null
+}
+
+/** The store's home page, where AI starts browsing. */
+function storeHome(store: DiscoveryStore): string {
+  return `${new URL(store.searchUrl('knife')).origin}/`
+}
+
+/**
+ * The AI problem solver, started on the store's home page with the knife's
+ * search terms. It stays on the store's site, never buys or signs in, and
+ * only stops on a page that shows the knife's model number and that AI
+ * confirmed (recovery, productPageAcceptor).
+ */
+async function browseStore(input: BrowseInput): Promise<BrowseResult> {
+  const { store, knife, settings, endpoint } = input
+  const limits = solverLimits(settings)
+  const operation = createScrapeOperation({
+    signal: input.signal,
+    timeoutMs: limits.budgetMs,
+  })
+  let result: SolverResult | null = null
+  try {
+    const storageState = await loadBrowserState(store.laneKey)
+    await checkViaBrowser(storeHome(store), operation, {
+      storageState,
+      budgetMs: limits.budgetMs,
+      interact: async (page) => {
+        result = await solveOnPage(page, {
+          problem: {
+            code: 'find_product',
+            message: `The ${store.label} search results did not lead to this knife. Find its product page on this store.`,
+          },
+          // Other stores are read in USD from the US edition.
+          currencyHint: 'USD',
+          settings,
+          endpoint,
+          accept: (offer) =>
+            offer.amount !== null || offer.availability === 'out_of_stock',
+          signal: operation.signal,
+          maxSteps: limits.maxSteps,
+          acceptPage: productPageAcceptor({
+            knife,
+            endpoint,
+            model: settings.model,
+            signal: operation.signal,
+          }),
+          search: relinkSearch(knife),
+        })
+      },
+    })
+  } catch (error) {
+    if (error instanceof Error && error.name === 'VaultAccessError') throw error
+    if (!result) {
+      const code = toScrapeError(error).code
+      return {
+        page: null,
+        note:
+          code === 'challenge'
+            ? `AI reached a bot check while browsing ${store.label}.`
+            : `AI could not browse ${store.label}.`,
+      }
+    }
+  } finally {
+    operation.dispose()
+  }
+  const solved = result as SolverResult | null
+  const url = solved?.finalUrl ? productPageUrl(solved.finalUrl) : null
+  // Only a product page of this store, never a page AI wandered off to.
+  if (
+    solved?.offer &&
+    url &&
+    solved.html &&
+    laneKeyForUrl(url) === store.laneKey
+  )
+    return { page: { html: solved.html, finalUrl: url }, note: null }
+  return {
+    page: null,
+    note:
+      solved?.status === 'challenge'
+        ? `AI reached a bot check while browsing ${store.label}.`
+        : `AI also browsed ${store.label} and did not find it.`,
+  }
 }
 
 async function renderWithLaneCookies(
@@ -102,6 +218,7 @@ const realDeps: DiscoveryDeps = {
   verify: verifyProductPage,
   readKey: readPriceAiKey,
   getKnife: (id) => getStorage().getKnifeById(id),
+  browse: browseStore,
 }
 
 export type DiscoverySummary =
@@ -249,7 +366,7 @@ export async function discoverKnife(
     maxAnswerTokens: settings.ai.maxAnswerTokens,
   }
 
-  const finish = async (input: {
+  type Outcome = {
     result: DiscoveryStatus
     laneOutcome: LaneOutcomeKind
     url?: string | null
@@ -257,7 +374,8 @@ export async function discoverKnife(
     confidence?: number | null
     detail?: string | null
     retryAfterMs?: number | null
-  }): Promise<DiscoverySummary> => {
+  }
+  const finish = async (input: Outcome): Promise<DiscoverySummary> => {
     if (options.canWrite && !options.canWrite())
       return { status: 'skipped', reason: 'not_owner' }
     const recorded = await recordDiscovery({
@@ -280,6 +398,56 @@ export async function discoverKnife(
       retryAfterMs: input.retryAfterMs ?? null,
       sourceId: recorded.sourceId,
     }
+  }
+
+  /**
+   * The store's search found no listing, or its listing was turned down:
+   * before that is recorded, AI browses the store itself (when AI may solve
+   * problems in the browser). What it finds passed the model-number check
+   * and AI's confirmation on the page.
+   */
+  const missed = async (outcome: Outcome): Promise<DiscoverySummary> => {
+    if (!settings.ai.resolveErrors || aiBudgetRefusal('solver'))
+      return finish(outcome)
+    const limits = solverLimits(settings.ai)
+    // Its own time: the search's budget may be mostly spent.
+    const browseSignal = AbortSignal.any([
+      ...(options.signal ? [options.signal] : []),
+      AbortSignal.timeout(limits.budgetMs + BROWSE_MARGIN_MS),
+    ])
+    let browsed: BrowseResult
+    try {
+      browsed = await deps.browse({
+        store,
+        knife,
+        settings: settings.ai,
+        endpoint,
+        signal: browseSignal,
+      })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'VaultAccessError')
+        throw error
+      if (options.signal?.aborted) throw error
+      browsed = { page: null, note: `AI could not browse ${store.label}.` }
+    }
+    if (browsed.page) {
+      const details = store.productDetails(
+        browsed.page.html,
+        browsed.page.finalUrl,
+      )
+      return finish({
+        result: 'found',
+        laneOutcome: 'success',
+        url: browsed.page.finalUrl,
+        title: details?.title ?? outcome.title ?? null,
+        confidence: null,
+        detail: `AI found it by browsing ${store.label} after the store's search did not lead to it.`,
+      })
+    }
+    return finish({
+      ...outcome,
+      detail: [outcome.detail, browsed.note].filter(Boolean).join(' '),
+    })
   }
 
   try {
@@ -339,7 +507,7 @@ export async function discoverKnife(
       aiNotFound = match.reason || 'AI found no listing of this knife.'
     }
     if (!match?.candidate)
-      return await finish({
+      return await missed({
         result: 'not_found',
         laneOutcome: 'success',
         confidence: match?.confidence ?? null,
@@ -384,7 +552,7 @@ export async function discoverKnife(
       signal,
     })
     if (!verdict.accepted)
-      return await finish({
+      return await missed({
         result: 'rejected',
         laneOutcome: 'success',
         url,
@@ -402,7 +570,7 @@ export async function discoverKnife(
         `${details.title}\n${details.details}`,
       )
     )
-      return await finish({
+      return await missed({
         result: 'rejected',
         laneOutcome: 'success',
         url,
