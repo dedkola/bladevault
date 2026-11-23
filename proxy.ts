@@ -7,6 +7,7 @@ import {
   VaultAccessError,
   vaultAccessErrorResponse,
 } from '@/lib/vault-access'
+import { getSettings } from '@/lib/settings'
 
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
@@ -32,7 +33,18 @@ export function proxy(request: NextRequest) {
         if (state.readOnly)
           throw new VaultAccessError('VAULT_RESTORE_BUSY', state)
       }
-      const response = NextResponse.next()
+      // Send `/` straight to the start page. Redirecting from app/page.tsx
+      // streams the app shell for `/` first (a "Page not found" breadcrumb and
+      // an empty page) before the client follows the redirect.
+      const response =
+        pathname === '/' && !mutation
+          ? NextResponse.redirect(
+              new URL(
+                `/${getSettings().startPage}${request.nextUrl.search}`,
+                requestOrigin(request),
+              ),
+            )
+          : NextResponse.next()
       response.headers.set(VAULT_GENERATION_HEADER, state.generation)
       return response
     }
@@ -60,16 +72,20 @@ export function proxy(request: NextRequest) {
     }
     throw error
   }
+  const url = new URL('/unlock', requestOrigin(request))
+  url.searchParams.set('next', `${pathname}${request.nextUrl.search}`)
+  const response = NextResponse.redirect(url)
+  response.headers.set('Cache-Control', 'no-store')
+  return response
+}
+
+function requestOrigin(request: NextRequest) {
   const protocol =
     request.headers.get('x-forwarded-proto') === 'https'
       ? 'https:'
       : request.nextUrl.protocol
   const host = request.headers.get('host') || request.nextUrl.host
-  const url = new URL('/unlock', `${protocol}//${host}`)
-  url.searchParams.set('next', `${pathname}${request.nextUrl.search}`)
-  const response = NextResponse.redirect(url)
-  response.headers.set('Cache-Control', 'no-store')
-  return response
+  return `${protocol}//${host}`
 }
 
 export const config = {
