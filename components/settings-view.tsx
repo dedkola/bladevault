@@ -192,10 +192,27 @@ const themeStyleLabels: Record<ThemeStyle, { name: string; note: string }> = {
   ledger: { name: 'Ledger', note: 'Green-bar ledger' },
 }
 
-const startPageOptions = START_PAGES.map((startPage) => ({
-  value: startPage,
-  label: startPage.charAt(0).toUpperCase() + startPage.slice(1),
-}))
+const START_PAGE_LABELS: Record<StartPage, string> = {
+  insights: 'Insights',
+  studio: 'Studio',
+  collection: 'Collection',
+  wishlist: 'Wishlist',
+  'price-drops': 'Price Drops',
+}
+/** Wishlist and Price Drops need the server, so the static app leaves them out. */
+const SERVER_ONLY_START_PAGES: readonly StartPage[] = [
+  'wishlist',
+  'price-drops',
+]
+function getStartPageOptions() {
+  return START_PAGES.filter(
+    (startPage) =>
+      hasServerRuntime() || !SERVER_ONLY_START_PAGES.includes(startPage),
+  ).map((startPage) => ({
+    value: startPage,
+    label: START_PAGE_LABELS[startPage],
+  }))
+}
 const colorModeOptions = APP_THEMES.map((theme) => ({
   value: theme,
   label: theme.charAt(0).toUpperCase() + theme.slice(1),
@@ -2184,7 +2201,7 @@ export default function SettingsView() {
                       <SegmentedControl
                         aria-label="Start page"
                         value={settings.startPage ?? DEFAULT_SETTINGS.startPage}
-                        options={startPageOptions}
+                        options={getStartPageOptions()}
                         onValueChange={handleStartPageChange}
                       />
                     </SettingsRow>
