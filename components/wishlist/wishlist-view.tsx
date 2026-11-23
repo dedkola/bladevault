@@ -785,19 +785,10 @@ export function WishlistView() {
       title="Wishlist"
       actions={
         available ? (
-          <>
-            <Button
-              variant="outline"
-              render={<Link href="/add" />}
-              nativeButton={false}
-            >
-              New knife
-            </Button>
-            <Button onClick={() => setAdding(true)}>
-              <Plus className="size-4" />
-              Add knives
-            </Button>
-          </>
+          <Button onClick={() => setAdding(true)}>
+            <Plus className="size-4" />
+            Add to wishlist
+          </Button>
         ) : undefined
       }
     />
