@@ -5,6 +5,7 @@ import { AtriumCollection } from '@/components/atrium/atrium-collection'
 import { ShelfCollection } from '@/components/shelf/shelf-collection'
 import { LedgerCollection } from '@/components/ledger/ledger-collection'
 import { useComparisons } from '@/components/providers/comparisons-provider'
+import { useWishlist } from '@/components/providers/wishlist-provider'
 
 import {
   Suspense,
@@ -23,12 +24,12 @@ import {
   ChevronDown,
   Grid3X3,
   LayoutGrid,
+  Heart,
   List,
   PencilLine,
   Pin,
   PinOff,
   SlidersHorizontal,
-  ArrowDownWideNarrow,
   Columns3,
   Trash2,
   X,
@@ -195,6 +196,8 @@ function CollectionContent() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
   const [isBulkPinning, setIsBulkPinning] = useState(false)
+  const wishlist = useWishlist()
+  const [isBulkWishlisting, setIsBulkWishlisting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const density = collectionDisplay.density
   const isClassicTable = !isWorkspaceCollection && density === 'table'
@@ -634,15 +637,17 @@ function CollectionContent() {
   const requestedKnifeType = searchParams.get('knifeType')
   const modernScope = isPinnedView
     ? 'pinned'
-    : requestedKnifeType === 'fixed' || requestedKnifeType === 'folding'
-      ? requestedKnifeType
-      : 'all'
+    : isFamilyView
+      ? 'families'
+      : requestedKnifeType === 'fixed' || requestedKnifeType === 'folding'
+        ? requestedKnifeType
+        : 'all'
   const setModernScope = (scope: string) => {
     replaceParams((params) => {
       params.delete('view')
       params.delete('knifeType')
       params.delete('lockingMechanism')
-      if (scope === 'pinned') params.set('view', 'pinned')
+      if (scope === 'pinned' || scope === 'families') params.set('view', scope)
       if (scope === 'fixed' || scope === 'folding')
         params.set('knifeType', scope)
     })
@@ -908,6 +913,33 @@ function CollectionContent() {
     }
   }
 
+  const selectedOffWishlist = useMemo(
+    () => [...selectedIds].filter((id) => !wishlist.has(id)),
+    [selectedIds, wishlist],
+  )
+
+  // Adds only the selected knives that are not on the wishlist yet.
+  const handleBulkWishlist = async () => {
+    const ids = selectedOffWishlist
+    if (ids.length === 0) return
+    setIsBulkWishlisting(true)
+    try {
+      await wishlist.mutate(
+        { action: 'add', knifeIds: ids, lane: 'saving' },
+        `Added ${ids.length} ${ids.length === 1 ? 'knife' : 'knives'} to the wishlist`,
+      )
+    } catch (error) {
+      showFeedback(
+        error instanceof Error
+          ? error.message
+          : 'Could not update the wishlist.',
+        'error',
+      )
+    } finally {
+      setIsBulkWishlisting(false)
+    }
+  }
+
   const handleBulkDelete = async () => {
     const ids = [...selectedIds]
     if (
@@ -1049,42 +1081,48 @@ function CollectionContent() {
       {isWorkspaceCollection && knives.length > 0 && (
         <div data-modern-collection-toolbar>
           <nav aria-label="Collection type" data-modern-collection-scopes>
-            {(['all', 'folding', 'fixed', 'pinned'] as const).map((scope) => (
-              <button
-                key={scope}
-                type="button"
-                aria-pressed={modernScope === scope}
-                onClick={() => setModernScope(scope)}
-                disabled={isSelectionMode}
-                title={
-                  scope === 'fixed' || scope === 'folding'
-                    ? 'Based on the recorded locking mechanism'
-                    : undefined
-                }
-              >
-                {scope === 'all'
-                  ? isAlloy
-                    ? 'All knives'
-                    : 'All'
-                  : scope === 'fixed' && isAlloy
-                    ? 'Fixed blade'
-                    : scope.charAt(0).toUpperCase() + scope.slice(1)}
-                {isAlloy && (
-                  <span data-alloy-scope-count>
-                    {scope === 'all'
-                      ? knives.length
-                      : scope === 'pinned'
-                        ? knives.filter((knife) => knife.pinned).length
-                        : knives.filter((knife) =>
-                            matchesCollection(
-                              knife,
-                              new URLSearchParams({ knifeType: scope }),
-                            ),
-                          ).length}
-                  </span>
-                )}
-              </button>
-            ))}
+            {(['all', 'folding', 'fixed', 'families', 'pinned'] as const).map(
+              (scope) => (
+                <button
+                  key={scope}
+                  type="button"
+                  aria-pressed={modernScope === scope}
+                  onClick={() => setModernScope(scope)}
+                  disabled={isSelectionMode}
+                  title={
+                    scope === 'fixed' || scope === 'folding'
+                      ? 'Based on the recorded locking mechanism'
+                      : undefined
+                  }
+                >
+                  {scope === 'all'
+                    ? isAlloy
+                      ? 'All knives'
+                      : 'All'
+                    : scope === 'fixed' && isAlloy
+                      ? 'Fixed blade'
+                      : scope === 'families'
+                        ? 'Model families'
+                        : scope.charAt(0).toUpperCase() + scope.slice(1)}
+                  {isAlloy && (
+                    <span data-alloy-scope-count>
+                      {scope === 'all'
+                        ? knives.length
+                        : scope === 'pinned'
+                          ? knives.filter((knife) => knife.pinned).length
+                          : scope === 'families'
+                            ? familiesByKey.size
+                            : knives.filter((knife) =>
+                                matchesCollection(
+                                  knife,
+                                  new URLSearchParams({ knifeType: scope }),
+                                ),
+                              ).length}
+                    </span>
+                  )}
+                </button>
+              ),
+            )}
           </nav>
           <div data-modern-collection-tools>
             {isAlloy && (
@@ -1107,15 +1145,27 @@ function CollectionContent() {
                 setVisibleCount(PAGE_SIZE)
               }}
             />
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Filters and collection tools"
-              aria-expanded={isFiltersOpen}
-              onClick={() => setIsFiltersOpen((current) => !current)}
-            >
-              <ArrowDownWideNarrow className="size-4" />
-            </Button>
+            {/* Modern variants filter through the chip bar. Alloy keeps its
+                field filter grid behind this button; every other tool lives
+                in this row. */}
+            {!usesChipFilter && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-expanded={isFiltersOpen}
+                aria-controls="collection-filters"
+                onClick={() => setIsFiltersOpen((current) => !current)}
+              >
+                <SlidersHorizontal className="size-3" aria-hidden="true" />
+                Filters
+                {activeFilters.length + extraFilters.length > 0 && (
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold tabular-nums">
+                    {activeFilters.length + extraFilters.length}
+                  </span>
+                )}
+              </Button>
+            )}
             {renderColumnsMenu()}
             <select
               aria-label="Sort collection"
@@ -1141,6 +1191,7 @@ function CollectionContent() {
             >
               {workspaceViewButtons}
             </div>
+            {renderSelectionToggle()}
             <Button
               variant="outline"
               size="sm"
@@ -1247,7 +1298,10 @@ function CollectionContent() {
           >
             <div
               data-collection-toolbar
-              className="flex flex-wrap items-center gap-2"
+              className={cn(
+                'flex flex-wrap items-center gap-2',
+                isWorkspaceCollection && 'hidden',
+              )}
             >
               {isWorkspaceCollection && (
                 <select
@@ -1393,13 +1447,13 @@ function CollectionContent() {
                 renderColumnsMenu(
                   'flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 )}
-              {isWorkspaceCollection && renderSelectionToggle()}
             </div>
 
             <div
               id="collection-filters"
               className={cn(
-                'mt-3 gap-2 sm:grid-cols-2 lg:gap-2.5 xl:grid-cols-4',
+                'gap-2 sm:grid-cols-2 lg:gap-2.5 xl:grid-cols-4',
+                !isWorkspaceCollection && 'mt-3',
                 isFiltersOpen && !usesChipFilter ? 'grid' : 'hidden',
               )}
             >
@@ -1765,7 +1819,7 @@ function CollectionContent() {
                   : `${selectedIds.size} ${selectedIds.size === 1 ? 'knife' : 'knives'} selected`}
               </div>
               <div className="text-xs text-muted-foreground">
-                Edit, compare, pin, or delete the selected knives.
+                Edit, compare, wishlist, pin, or delete the selected knives.
               </div>
             </div>
             <fieldset
@@ -1803,6 +1857,32 @@ function CollectionContent() {
               >
                 Compare selected
               </Button>
+              {wishlist.available && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={
+                    selectedOffWishlist.length === 0 ||
+                    isBulkWishlisting ||
+                    wishlist.loading ||
+                    Boolean(wishlist.error)
+                  }
+                  onClick={() => void handleBulkWishlist()}
+                >
+                  <Heart
+                    className={cn(
+                      'mr-1.5 size-3.5',
+                      selectedIds.size > 0 &&
+                        selectedOffWishlist.length === 0 &&
+                        'fill-current',
+                    )}
+                  />
+                  {selectedIds.size > 0 && selectedOffWishlist.length === 0
+                    ? 'On wishlist'
+                    : 'Add to wishlist'}
+                </Button>
+              )}
               {isWorkspaceCollection && (
                 <Button
                   variant="destructive"
