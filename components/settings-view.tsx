@@ -117,6 +117,7 @@ import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useVaultRestore } from '@/components/providers/vault-restore-provider'
 import './settings-view.css'
+import './theme-style-swatch.css'
 
 type StatusTone = 'idle' | 'loading' | 'success' | 'error'
 type LocalBackupManifest = {

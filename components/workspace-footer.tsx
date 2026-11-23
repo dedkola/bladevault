@@ -2,7 +2,7 @@
 
 import { Search } from 'lucide-react'
 import { ClassicFooterActions } from '@/components/classic-footer-actions'
-import { ThemeCycleButton } from '@/components/theme-cycle-button'
+import { ThemeQuickSwitcher } from '@/components/theme-quick-switcher'
 import { ReloadDataButton } from '@/components/reload-data-button'
 import { OPEN_GLOBAL_SEARCH_EVENT } from '@/components/global-knife-search'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -38,7 +38,7 @@ export function WorkspaceFooter() {
           <Search />
           Search
         </button>
-        <ThemeCycleButton />
+        <ThemeQuickSwitcher />
         <ReloadDataButton />
       </div>
     </footer>
