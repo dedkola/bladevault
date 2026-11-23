@@ -46,7 +46,7 @@ import { getVaultAccessState } from '@/lib/vault-access'
 
 /**
  * Other stores: AI looks for a monitored knife at the stores turned on in
- * settings (Blade HQ, SMKW; never Amazon: it forbids automated AI access). It reads the store's search results and
+ * settings (Blade HQ, SMKW, DLT Trading; never Amazon: it forbids automated AI access). It reads the store's search results and
  * picks the knife, then reads the product page and confirms it; only then
  * does the product become a price source, checked and parsed like every
  * other source from then on. A store's searches share its lane with its

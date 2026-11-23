@@ -59,7 +59,10 @@ function productHtml(
 const fixture = (name: string) =>
   readFileSync(new URL(`../fixtures/scrape/${name}`, import.meta.url), 'utf8')
 
-function enableOtherStores(ai = true, stores = { bladehq: true, smkw: false }) {
+function enableOtherStores(
+  ai = true,
+  stores = { bladehq: true, smkw: false, dlttrading: false },
+) {
   saveSettings({
     priceMonitoring: {
       ...DEFAULT_PRICE_MONITORING,
@@ -187,7 +190,7 @@ describe('Other stores discovery', () => {
   })
 
   it('finds the knife on SMKW too, from its result cards and SKU', async () => {
-    enableOtherStores(true, { bladehq: true, smkw: true })
+    enableOtherStores(true, { bladehq: true, smkw: true, dlttrading: false })
     const knifeId = await createKnife({
       specs: { price: '$150', modelNumber: 'C223GP' },
     })
@@ -310,6 +313,7 @@ describe('Other stores discovery', () => {
     expect(all.stores.map((store) => [store.store, store.active])).toEqual([
       ['bladehq', true],
       ['smkw', false],
+      ['dlttrading', false],
     ])
     const discovery = all.stores[0]
     expect(discovery.counts.found).toBe(1)

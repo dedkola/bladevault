@@ -170,7 +170,11 @@ describe('Other stores: Blade HQ', () => {
   })
 
   it('no longer offers KnifeCenter or Amazon; old saved settings still load', () => {
-    expect(Object.keys(DISCOVERY_STORES)).toEqual(['bladehq', 'smkw'])
+    expect(Object.keys(DISCOVERY_STORES)).toEqual([
+      'bladehq',
+      'smkw',
+      'dlttrading',
+    ])
     expect(
       normalizePriceMonitoring({
         otherStores: {
@@ -178,7 +182,7 @@ describe('Other stores: Blade HQ', () => {
           stores: { amazon: true, bladehq: true, knifecenter: true },
         },
       }).otherStores.stores,
-    ).toEqual({ bladehq: true, smkw: false })
+    ).toEqual({ bladehq: true, smkw: false, dlttrading: false })
   })
 
   it('lanes and marketplaces follow the store', () => {
@@ -186,6 +190,8 @@ describe('Other stores: Blade HQ', () => {
     expect(DISCOVERY_STORES.bladehq.marketplace).toBe('bladehq.com')
     expect(DISCOVERY_STORES.smkw.laneKey).toBe('smkw.com')
     expect(DISCOVERY_STORES.smkw.marketplace).toBe('smkw.com')
+    expect(DISCOVERY_STORES.dlttrading.laneKey).toBe('dlttrading.com')
+    expect(DISCOVERY_STORES.dlttrading.marketplace).toBe('dlttrading.com')
   })
 })
 
@@ -197,12 +203,13 @@ describe('Other stores: SMKW', () => {
     expect(DEFAULT_PRICE_MONITORING.otherStores.stores).toEqual({
       bladehq: true,
       smkw: false,
+      dlttrading: false,
     })
     expect(
       normalizePriceMonitoring({
         otherStores: { enabled: true, stores: { smkw: true } },
       }).otherStores.stores,
-    ).toEqual({ bladehq: true, smkw: true })
+    ).toEqual({ bladehq: true, smkw: true, dlttrading: false })
     expect(storeLabel('smkw.com')).toBe('SMKW')
   })
 
@@ -290,6 +297,90 @@ describe('Other stores: SMKW', () => {
       `<script type="application/ld+json">{"@type":"Product","name":"Knife","description":"Save 20%25 today"}</script>`,
     )
     expect(details?.details).toBe('Save 20%25 today')
+  })
+})
+
+describe('Other stores: DLT Trading', () => {
+  const SEARCH_URL =
+    'https://www.dlttrading.com/search.php?search_query=spyderco+para+3'
+  const ITEM_URL = 'https://www.dlttrading.com/spyderco-para-3-lightweight'
+
+  it('is off by default, keeps a saved choice and has a label', () => {
+    expect(DEFAULT_PRICE_MONITORING.otherStores.stores.dlttrading).toBe(false)
+    expect(
+      normalizePriceMonitoring({
+        otherStores: { enabled: true, stores: { dlttrading: true } },
+      }).otherStores.stores,
+    ).toEqual({ bladehq: true, smkw: false, dlttrading: true })
+    expect(storeLabel('dlttrading.com')).toBe('DLT Trading')
+  })
+
+  it('searches the BigCommerce search page', () => {
+    expect(DISCOVERY_STORES.dlttrading.searchUrl('Spyderco Para 3')).toBe(
+      'https://www.dlttrading.com/search.php?search_query=Spyderco+Para+3',
+    )
+  })
+
+  it('reads result cards at Our Price, not MSRP or Was, skipping nav links', () => {
+    const results = DISCOVERY_STORES.dlttrading.parseResults(
+      fixture('dlt-search-para-3.html'),
+      SEARCH_URL,
+    )
+    expect(results).toEqual([
+      {
+        id: 1,
+        url: 'https://www.dlttrading.com/spyderco-mountain-range-t-shirt',
+        title: 'Spyderco Mountain Range T-Shirt',
+        price: '$23.95',
+      },
+      {
+        id: 2,
+        url: 'https://www.dlttrading.com/spyderco-para-3-lightweight-fully-serrated',
+        title: 'Spyderco Para 3 Lightweight - Fully Serrated',
+        price: '$139.50',
+      },
+      {
+        id: 3,
+        url: ITEM_URL,
+        title: 'Spyderco Para 3 Lightweight',
+        price: '$139.50',
+      },
+    ])
+  })
+
+  it('takes a search that lands on a product page as its one result', () => {
+    expect(
+      DISCOVERY_STORES.dlttrading.parseResults(
+        fixture('dlt-item-para-3-lightweight-c223pbk.html'),
+        `${ITEM_URL}?search_query=C223PBK`,
+      ),
+    ).toEqual([
+      {
+        id: 1,
+        url: ITEM_URL,
+        title: 'Spyderco Para 3 Lightweight',
+        price: null,
+      },
+    ])
+  })
+
+  it('reads the product page: model number from the SKU, price not MSRP', () => {
+    // The page also carries a script that adds another product's structured
+    // data, but only on /buck-muffins; it must never be read here.
+    const html = fixture('dlt-item-para-3-lightweight-c223pbk.html')
+    const details = DISCOVERY_STORES.dlttrading.productDetails(html, ITEM_URL)
+    expect(details?.title).toBe('Spyderco Para 3 Lightweight')
+    expect(details?.details).toContain('Brand: Spyderco')
+    expect(details?.details).toContain('SKU: C223PBK')
+    expect(details?.details).not.toContain('Buck Muffins')
+    expect(
+      pageShowsModelNumber('C223PBK', `${details?.title}\n${details?.details}`),
+    ).toBe(true)
+    expect(extractOfferFromHtml(html, ITEM_URL)).toMatchObject({
+      amount: 139.5,
+      currency: 'USD',
+      availability: 'in_stock',
+    })
   })
 })
 

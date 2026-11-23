@@ -40,6 +40,8 @@ const STORE_DESCRIPTION: Record<OtherStoreId, string> = {
   bladehq:
     'Searches bladehq.com (US prices). A knife that already has a Blade HQ source is skipped. Searches share Blade HQ’s pace with its price checks.',
   smkw: 'Searches smkw.com, Smoky Mountain Knife Works (US prices). A knife that already has an SMKW source is skipped. Searches share SMKW’s pace with its price checks.',
+  dlttrading:
+    'Searches dlttrading.com (US prices). A knife that already has a DLT Trading source is skipped. Searches share DLT Trading’s pace with its price checks.',
 }
 
 const STATUS_LABEL: Record<DiscoveryStatus, string> = {

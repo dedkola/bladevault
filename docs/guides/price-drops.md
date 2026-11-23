@@ -267,11 +267,11 @@ Notes and questions appear only in **Act**, in the Inbox under **System**. Every
 
 ## Find knives at other stores with AI
 
-A knife's own store is often sold out. **Settings → Price monitoring → Other stores** lets AI look for every monitored knife at other stores and add the listings it finds as price sources. The list has Blade HQ (on by default) and SMKW (Smoky Mountain Knife Works, off until you turn it on); Amazon is not searched. Each store has its own switch, and more stores can be added later. It needs [AI assistance](#optional-ai-assistance) connected: with **Use AI** off, or without a base URL and model, nothing is searched.
+A knife's own store is often sold out. **Settings → Price monitoring → Other stores** lets AI look for every monitored knife at other stores and add the listings it finds as price sources. The list has Blade HQ (on by default), SMKW (Smoky Mountain Knife Works) and DLT Trading (both off until you turn them on); Amazon is not searched. Each store has its own switch, and more stores can be added later. It needs [AI assistance](#optional-ai-assistance) connected: with **Use AI** off, or without a base URL and model, nothing is searched.
 
 1. Connect AI in **AI assistance**.
 2. Turn on **Look for knives at other stores**.
-3. Turn on the stores to search: **Blade HQ**, **SMKW**, or both.
+3. Turn on the stores to search: **Blade HQ**, **SMKW**, **DLT Trading**, or any mix of them.
 
 For each knife, AI does the work in three steps:
 
