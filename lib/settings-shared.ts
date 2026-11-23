@@ -1194,6 +1194,8 @@ export type AppSettings = {
   careDeferrals: CareDeferrals
   priceMonitoring: PriceMonitoringSettings
   achievements: AchievementSettings
+  /** Width in px of the info panel beside the knife gallery; null = default. */
+  knifeDetailPanelWidth: number | null
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -1215,6 +1217,27 @@ export const DEFAULT_SETTINGS: AppSettings = {
   careDeferrals: {},
   priceMonitoring: DEFAULT_PRICE_MONITORING,
   achievements: DEFAULT_ACHIEVEMENTS,
+  knifeDetailPanelWidth: null,
+}
+
+export const KNIFE_DETAIL_PANEL_MIN = 320
+export const KNIFE_DETAIL_PANEL_MAX = 960
+
+/**
+ * Accepts a finite pixel width (rounded and clamped), or an explicit null to
+ * reset to the layout default. Anything else keeps the fallback.
+ */
+export function normalizeKnifeDetailPanelWidth(
+  value: unknown,
+  fallback: number | null = null,
+): number | null {
+  if (value === null) return null
+  const width = typeof value === 'string' ? Number(value) : value
+  if (typeof width !== 'number' || !Number.isFinite(width)) return fallback
+  return Math.min(
+    KNIFE_DETAIL_PANEL_MAX,
+    Math.max(KNIFE_DETAIL_PANEL_MIN, Math.round(width)),
+  )
 }
 
 export function normalizeStartPage(

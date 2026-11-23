@@ -290,4 +290,27 @@ describe('settings persistence', () => {
       .run('cm', 'dimension_unit')
     expect(getSettings().dimensionUnit).toBe('in')
   })
+
+  it('stores the knife detail panel width, keeps it across saves, and resets it', async () => {
+    vault = await createTempVault('bladevault-settings-')
+    expect(getSettings().knifeDetailPanelWidth).toBeNull()
+
+    saveSettings({ knifeDetailPanelWidth: 512.6 })
+    expect(getSettings().knifeDetailPanelWidth).toBe(513)
+    const stored = getLocalDb()
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get('knife_detail_panel_width') as { value: string }
+    expect(stored.value).toBe('513')
+
+    saveSettings({ dimensionUnit: 'mm' })
+    expect(getSettings().knifeDetailPanelWidth).toBe(513)
+
+    saveSettings({ knifeDetailPanelWidth: null })
+    expect(getSettings().knifeDetailPanelWidth).toBeNull()
+
+    getLocalDb()
+      .prepare('UPDATE settings SET value = ? WHERE key = ?')
+      .run('wide', 'knife_detail_panel_width')
+    expect(getSettings().knifeDetailPanelWidth).toBeNull()
+  })
 })

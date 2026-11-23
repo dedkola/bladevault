@@ -2,10 +2,13 @@
 
 import { useEffect, useId, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import { GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  ColumnResizeHandle,
+  COLUMN_RESIZE_HANDLE_WIDTH,
+} from '@/components/column-resize-handle'
 
-const DIVIDER_WIDTH = 24
+const DIVIDER_WIDTH = COLUMN_RESIZE_HANDLE_WIDTH
 const MIN_PANE_WIDTH = 320
 const DEFAULT_FORM_SHARE = 25
 
@@ -67,71 +70,31 @@ export function ResizablePreviewLayout({
 
       {hasPreview && (
         <>
-          <div
-            role="separator"
-            tabIndex={0}
-            aria-label="Knife form width"
-            aria-orientation="vertical"
-            aria-controls={formPaneId}
-            aria-valuemin={Math.round(minShare)}
-            aria-valuemax={Math.round(maxShare)}
-            aria-valuenow={Math.round(visibleShare)}
-            aria-valuetext={`${Math.round(visibleShare)}% form, ${Math.round(100 - visibleShare)}% preview`}
-            title="Drag or use Left/Right arrows to resize. Double-click to reset."
-            className="group relative hidden cursor-col-resize touch-none select-none justify-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset lg:flex"
-            onDoubleClick={() => setFormShare(DEFAULT_FORM_SHARE)}
-            onKeyDown={(event) => {
-              const step = event.shiftKey ? 10 : 2
-              switch (event.key) {
-                case 'ArrowLeft':
-                  resize(visibleShare - step)
-                  break
-                case 'ArrowRight':
-                  resize(visibleShare + step)
-                  break
-                case 'Home':
-                  resize(minShare)
-                  break
-                case 'End':
-                  resize(maxShare)
-                  break
-                default:
-                  return
-              }
-              event.preventDefault()
-            }}
-            onPointerDown={(event) => {
-              if (event.button !== 0 || !event.isPrimary) return
-              event.preventDefault()
-              event.currentTarget.focus({ preventScroll: true })
-              event.currentTarget.setPointerCapture(event.pointerId)
-              setIsResizing(true)
-            }}
-            onPointerMove={(event) => {
-              if (!event.currentTarget.hasPointerCapture(event.pointerId))
-                return
+          <ColumnResizeHandle
+            label="Knife form width"
+            controls={formPaneId}
+            valueMin={minShare}
+            valueMax={maxShare}
+            valueNow={visibleShare}
+            valueText={`${Math.round(visibleShare)}% form, ${Math.round(100 - visibleShare)}% preview`}
+            onReset={() => setFormShare(DEFAULT_FORM_SHARE)}
+            onStep={(direction, large) =>
+              resize(visibleShare + direction * (large ? 10 : 2))
+            }
+            onHome={() => resize(minShare)}
+            onEnd={() => resize(maxShare)}
+            onResizeStart={() => setIsResizing(true)}
+            onResizeEnd={() => setIsResizing(false)}
+            onPointerX={(clientX) => {
               const bounds = layoutRef.current?.getBoundingClientRect()
               if (!bounds || bounds.width <= DIVIDER_WIDTH) return
               resize(
-                ((event.clientX - bounds.left - DIVIDER_WIDTH / 2) /
+                ((clientX - bounds.left - DIVIDER_WIDTH / 2) /
                   (bounds.width - DIVIDER_WIDTH)) *
                   100,
               )
             }}
-            onPointerUp={(event) => {
-              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                event.currentTarget.releasePointerCapture(event.pointerId)
-              }
-              setIsResizing(false)
-            }}
-            onPointerCancel={() => setIsResizing(false)}
-            onLostPointerCapture={() => setIsResizing(false)}
-          >
-            <span className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-[var(--bladevault-line)] group-hover:bg-primary group-focus-visible:bg-primary" />
-            <span className="pointer-events-none sticky top-24 mt-12 flex h-10 w-4 items-center justify-center rounded-full border border-[var(--bladevault-line)] bg-background text-muted-foreground group-hover:border-primary group-hover:text-primary group-focus-visible:border-primary group-focus-visible:text-primary">
-              <GripVertical className="size-3.5" />
-            </span>
-          </div>
+          />
           <div className="relative min-h-0 min-w-0">
             {preview}
             {isResizing && (
