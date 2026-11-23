@@ -1,10 +1,11 @@
 'use client'
 
 import {
+  WishlistSaleBadge,
   formatNavCount,
-  priceDropsCountLabel,
-  usePriceDropsUnread,
-} from '@/components/price-drops/price-drops-nav-count'
+  useWishlistNavCounts,
+  wishlistCountLabel,
+} from '@/components/wishlist/wishlist-nav-count'
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
@@ -51,7 +52,7 @@ const links = [
 
 export function AlloyShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const priceUnread = usePriceDropsUnread()
+  const wishlist = useWishlistNavCounts()
   const params = useSearchParams()
   const { knives, isAutoBackupActive, showFeedback } = useKnives()
   const { reminders: careReminders, statusById: careStatusById } = useCare()
@@ -135,15 +136,18 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
                   aria-current={selected ? 'page' : undefined}
                 >
                   {label}
-                  {href === '/price-drops' && priceUnread > 0 && (
-                    <span data-alloy-nav-count data-price-drops-count>
-                      <span aria-hidden="true">
-                        {formatNavCount(priceUnread)}
-                      </span>
+                  {href === '/wishlist' && wishlist.total > 0 && (
+                    <>
                       <span className="sr-only">
-                        {priceDropsCountLabel(priceUnread)}
+                        {wishlistCountLabel(wishlist.total, wishlist.onSale)}
                       </span>
-                    </span>
+                      {wishlist.onSale > 0 && (
+                        <WishlistSaleBadge count={wishlist.onSale} />
+                      )}
+                      <span data-alloy-nav-count aria-hidden="true">
+                        {formatNavCount(wishlist.total)}
+                      </span>
+                    </>
                   )}
                   {href === '/compare' && Boolean(active?.ids.length) && (
                     <span data-alloy-nav-count aria-hidden="true">

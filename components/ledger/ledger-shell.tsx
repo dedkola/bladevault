@@ -1,10 +1,11 @@
 'use client'
 
 import {
+  WishlistSaleBadge,
   formatNavCount,
-  priceDropsCountLabel,
-  usePriceDropsUnread,
-} from '@/components/price-drops/price-drops-nav-count'
+  useWishlistNavCounts,
+  wishlistCountLabel,
+} from '@/components/wishlist/wishlist-nav-count'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
@@ -60,7 +61,7 @@ export function LedgerShell({ children }: { children: React.ReactNode }) {
   const [isImportOpen, setIsImportOpen] = useState(false)
   const showSearch = pathname !== '/collection' && pathname !== '/studio'
   const compareCount = active?.ids.length ?? 0
-  const priceUnread = usePriceDropsUnread()
+  const wishlist = useWishlistNavCounts()
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -112,15 +113,18 @@ export function LedgerShell({ children }: { children: React.ReactNode }) {
                   aria-current={selected ? 'page' : undefined}
                 >
                   {label}
-                  {href === '/price-drops' && priceUnread > 0 && (
-                    <small data-price-drops-count>
-                      <span aria-hidden="true">
-                        {formatNavCount(priceUnread)}
-                      </span>
+                  {href === '/wishlist' && wishlist.total > 0 && (
+                    <>
                       <span className="sr-only">
-                        {priceDropsCountLabel(priceUnread)}
+                        {wishlistCountLabel(wishlist.total, wishlist.onSale)}
                       </span>
-                    </small>
+                      {wishlist.onSale > 0 && (
+                        <WishlistSaleBadge count={wishlist.onSale} />
+                      )}
+                      <small aria-hidden="true">
+                        {formatNavCount(wishlist.total)}
+                      </small>
+                    </>
                   )}
                   {href === '/compare' && compareCount > 0 && (
                     <small>
