@@ -19,6 +19,7 @@ import {
 } from '@/lib/price-monitor/agent'
 import { aiConfigured } from '@/lib/price-monitor/ai'
 import { NO_STORE, priceAiErrorResponse } from '@/lib/price-monitor/ai-route'
+import { readCoveredKnifeIds } from '@/lib/price-monitor/store'
 import { getPriceMonitorWorker } from '@/lib/price-monitor/worker'
 import { reportServerError } from '@/lib/sentry/server'
 import { getSettings, saveSettings } from '@/lib/settings'
@@ -79,10 +80,14 @@ function state() {
             }),
           ).toISOString()
         : null,
-    blockedStores: readBlockedStores(database),
+    blockedStores: readBlockedStores(database, settings),
     runs,
     labels: readAgentLabels(database, runs),
-    notes: readAgentNotes(database, now),
+    notes: readAgentNotes(
+      database,
+      now,
+      readCoveredKnifeIds(database, settings, now),
+    ),
   }
 }
 

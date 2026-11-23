@@ -479,6 +479,39 @@ describe('advise and ask', () => {
     detail,
   })
 
+  it('gives no advice, questions or notes for knives monitoring skips', () => {
+    const actions = validateAgentPlan(
+      {
+        ...empty,
+        advise: [advice('k4', 'Old knife dropped.')],
+        ask: [
+          {
+            knifeId: 'k4',
+            ask: 'set_target',
+            question: 'Alert me at this price?',
+            price: null,
+            sourceId: null,
+            hours: null,
+            everyHours: null,
+          },
+        ],
+        remember: [{ knifeId: 'k4', note: 'Waiting for a restock.', days: 7 }],
+      },
+      {
+        ...snapshot(),
+        knives: [
+          ...snapshot().knives,
+          knife({ knifeId: 'k4', knife: 'Old', notMonitored: true }),
+        ],
+      },
+    )
+    expect(actions.map((action) => [action.kind, action.note])).toEqual([
+      ['advise', 'this knife is not monitored'],
+      ['ask', 'this knife is not monitored'],
+      ['remember', 'this knife is not monitored'],
+    ])
+  })
+
   it('finds the amounts a text quotes', () => {
     expect(
       quotedAmounts('Now $99, was 129.00 USD (1,299.50 JPY), 23% off'),

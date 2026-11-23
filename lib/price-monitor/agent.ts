@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3'
+import type { EligibilitySettings } from '@/lib/price-monitor/eligibility'
 import { getLocalDb } from '@/lib/local-db'
 import { readActiveAdvice } from '@/lib/price-monitor/advice-store'
 import { applyAdviceToLane, maxAdvisedGapMs } from '@/lib/price-monitor/advisor'
@@ -297,6 +298,11 @@ export type AgentKnife = {
   target: string | null
   /** Notifications for this knife are muted. */
   muted: boolean
+  /**
+   * Scheduled monitoring does not cover the knife (outside What to monitor,
+   * watch mode Off, sold or no regular price): no advice, questions or notes.
+   */
+  notMonitored?: true
   /** The cheapest in-stock price now and its store. */
   best: string | null
   bestStore: string | null
@@ -547,10 +553,18 @@ export function buildAgentSnapshot(input: {
     lastRunAt ?? now - FIRST_RUN_EVENTS_MS,
   )
   const intervalMs = frequencyMs(settings.schedule)
+  const candidates = readQueueCandidates(database, settings, now)
   const monitored = new Set(
-    readQueueCandidates(database, settings, now)
+    candidates
       .filter((candidate) => candidate.scheduled)
       .map((candidate) => candidate.sourceId),
+  )
+  // Knives outside What to monitor (or Off, sold, without a regular price)
+  // get no advice, questions or notes; their old notes are left out.
+  const coveredKnives = new Set(
+    candidates
+      .filter((candidate) => candidate.covered)
+      .map((candidate) => candidate.knifeId),
   )
   const rows = database
     .prepare(
@@ -754,12 +768,13 @@ export function buildAgentSnapshot(input: {
       database,
       settings,
       sources: shown,
+      covered: coveredKnives,
       now,
     }),
     omitted: Math.max(0, sorted.length - MAX_SNAPSHOT_SOURCES),
     recentRuns: readRecentRuns(database, 3),
     inbox: readAgentInbox(database, now),
-    notes: readAgentNotes(database, now).map(
+    notes: readAgentNotes(database, now, coveredKnives).map(
       ({ createdAt, expiresAt, ...note }) => ({
         ...note,
         daysAgo: Math.floor((now - Date.parse(createdAt)) / DAY_MS),
@@ -777,6 +792,11 @@ export function buildAgentSnapshot(input: {
 export function readAgentNotes(
   database: Database.Database,
   now = Date.now(),
+  /**
+   * Knives monitoring covers (see readCoveredKnifeIds): notes about other
+   * knives stay stored until they expire, but are not shown or sent to AI.
+   */
+  coveredKnifeIds?: ReadonlySet<string>,
 ): AgentNote[] {
   return (
     database
@@ -796,18 +816,25 @@ export function readAgentNotes(
       created_at: string
       expires_at: string
     }>
-  ).map((row) => ({
-    id: row.id,
-    ...(row.knife_id
-      ? {
-          knifeId: row.knife_id,
-          knife: [row.brand, row.name].filter(Boolean).join(' '),
-        }
-      : {}),
-    note: row.note,
-    createdAt: row.created_at,
-    expiresAt: row.expires_at,
-  }))
+  )
+    .filter(
+      (row) =>
+        !coveredKnifeIds ||
+        row.knife_id === null ||
+        coveredKnifeIds.has(row.knife_id),
+    )
+    .map((row) => ({
+      id: row.id,
+      ...(row.knife_id
+        ? {
+            knifeId: row.knife_id,
+            knife: [row.brand, row.name].filter(Boolean).join(' '),
+          }
+        : {}),
+      note: row.note,
+      createdAt: row.created_at,
+      expiresAt: row.expires_at,
+    }))
 }
 
 /** Forgets one note (the collector's Forget). Returns whether it existed. */
@@ -1040,9 +1067,11 @@ function readAgentKnives(input: {
   database: Database.Database
   settings: PriceMonitoringSettings
   sources: readonly AgentSource[]
+  /** Knives monitoring covers; others are marked notMonitored. */
+  covered?: ReadonlySet<string>
   now: number
 }): AgentKnife[] {
-  const { database, settings, sources, now } = input
+  const { database, settings, sources, covered, now } = input
   const knifeIds = [...new Set(sources.map((source) => source.knifeId))]
   if (!knifeIds.length) return []
   const knives = new Map(
@@ -1216,6 +1245,9 @@ function readAgentKnives(input: {
           ? moneyText(knife.target_price_minor, knife.target_currency)
           : null,
       muted: knife?.muted === 1,
+      ...(covered && !covered.has(knifeId)
+        ? { notMonitored: true as const }
+        : {}),
       best: best ? moneyText(best.last_price_minor, best.last_currency) : null,
       bestStore: best ? best.store_name || best.lane_key : null,
       low: range && currency ? moneyText(range.low, currency) : null,
@@ -1605,7 +1637,7 @@ export const AGENT_SCHEMA = {
 export const AGENT_PROMPT = [
   'You supervise price monitoring for a knife collector. Each source is one store product page that BladeVault checks for price and stock. Keep every monitored source fresh and readable, and spend checks where they matter most to the collector right now.',
   "trigger says why you run: event (events woke you: react to them), scheduled (your regular look over everything) or manual (the collector asked). events lists what changed since your last run, newest first: drop and increase (from, to, pct), out_of_stock and back_in_stock, failing (a source's failures in a row reached 3 or 5), bot_check (a store showed a bot check), found_listing (Other stores found the knife at a store). After a move at one store, crossCheck the knife's other stores; after a drop near the target or a restock, consider watchClosely or advise.",
-  "The input lists knives, most urgent first. Each knife has its market: regular (the knife's stored regular price), target (the collector's alert price), best (the cheapest in-stock price now) and bestStore, low (lowest in-stock price ever), low90d and high90d, lastPriceChange, lastStockChange, muted, and search (Other stores searches). Under it are its sources: status, price, stock, outOfStockDays, timing in minutes, failures, error, queued and ahead. The input also has each store's pace, coverage, the AI budget, localTime and your recent runs, each action with its note (why it was refused) or outcome (what its next check or search found). Missing fields are unknown.",
+  "The input lists knives, most urgent first. Each knife has its market: regular (the knife's stored regular price), target (the collector's alert price), best (the cheapest in-stock price now) and bestStore, low (lowest in-stock price ever), low90d and high90d, lastPriceChange, lastStockChange, muted, notMonitored (not covered by scheduled monitoring: no advise, ask or remember for it), and search (Other stores searches). Under it are its sources: status, price, stock, outOfStockDays, timing in minutes, failures, error, queued and ahead. The input also has each store's pace, coverage, the AI budget, localTime and your recent runs, each action with its note (why it was refused) or outcome (what its next check or search found). Missing fields are unknown.",
   'Answer with JSON only: {"summary", "check", "retryWithAi", "findPage", "fetchMode", "pause", "searchOtherStore", "watchClosely", "crossCheck", "advise", "ask", "remember", "forget"}. Leave a list empty when nothing is needed: often nothing is.',
   `check (at most ${AGENT_LIMITS.check}): move sources to the front of their store's line. Each store already checks its most overdue source first, so a due source with ahead 0 is next anyway and a check changes nothing. Use check to put a source that matters more ahead of others (ahead above 0), or to read a source that is not due yet now: a knife near or below its target or regular price, a price that just moved at another store, a restock to confirm, a sale period (look at localTime, e.g. Black Friday and holiday sales). Skip sources marked queued, checked in the last 30 minutes, or not monitored.`,
   'A store checks one product at a time at its own safe pace (minGapSec, fullPassHours), and paused stores (circuit open) wait out their pause. You cannot speed a store up: many checks at one store simply wait in line, so do not ask for more than the stores can do before your next run. A source with storeHoldMin is held by its store that long; asking again for it changes nothing.',
@@ -2049,21 +2081,23 @@ export function validateAgentPlan(
       },
       !knife
         ? 'unknown knife'
-        : knife.muted
-          ? 'notifications for this knife are muted'
-          : adviceToday >= ADVICE_PER_DAY
-            ? `already ${ADVICE_PER_DAY} notes today`
-            : inbox.advice.some(
-                  (note) =>
-                    note.knifeId === entry.knifeId &&
-                    note.topic === entry.topic,
-                )
-              ? `same advice in the last ${ADVICE_REPEAT_DAYS} days`
-              : LINK.test(`${entry.title} ${entry.detail}`)
-                ? 'links are not allowed'
-                : invented
-                  ? `quotes a price not in the data (${invented})`
-                  : null,
+        : knife.notMonitored
+          ? 'this knife is not monitored'
+          : knife.muted
+            ? 'notifications for this knife are muted'
+            : adviceToday >= ADVICE_PER_DAY
+              ? `already ${ADVICE_PER_DAY} notes today`
+              : inbox.advice.some(
+                    (note) =>
+                      note.knifeId === entry.knifeId &&
+                      note.topic === entry.topic,
+                  )
+                ? `same advice in the last ${ADVICE_REPEAT_DAYS} days`
+                : LINK.test(`${entry.title} ${entry.detail}`)
+                  ? 'links are not allowed'
+                  : invented
+                    ? `quotes a price not in the data (${invented})`
+                    : null,
     )
     if (actions.at(-1)?.status !== 'refused') adviceToday += 1
   }
@@ -2077,21 +2111,23 @@ export function validateAgentPlan(
     const knife = knives.get(entry.knifeId)
     let refusal: string | null = !knife
       ? 'unknown knife'
-      : knife.muted
-        ? 'notifications for this knife are muted'
-        : waiting.has(entry.knifeId)
-          ? 'a question about this knife is waiting'
-          : waiting.size >= MAX_OPEN_QUESTIONS
-            ? `already ${MAX_OPEN_QUESTIONS} open questions`
-            : inbox.questions.some(
-                  (question) =>
-                    question.knifeId === entry.knifeId &&
-                    question.ask === entry.ask,
-                )
-              ? `asked the same in the last ${QUESTION_REPEAT_DAYS} days`
-              : LINK.test(entry.question)
-                ? 'links are not allowed'
-                : null
+      : knife.notMonitored
+        ? 'this knife is not monitored'
+        : knife.muted
+          ? 'notifications for this knife are muted'
+          : waiting.has(entry.knifeId)
+            ? 'a question about this knife is waiting'
+            : waiting.size >= MAX_OPEN_QUESTIONS
+              ? `already ${MAX_OPEN_QUESTIONS} open questions`
+              : inbox.questions.some(
+                    (question) =>
+                      question.knifeId === entry.knifeId &&
+                      question.ask === entry.ask,
+                  )
+                ? `asked the same in the last ${QUESTION_REPEAT_DAYS} days`
+                : LINK.test(entry.question)
+                  ? 'links are not allowed'
+                  : null
     let message: AgentMessage | undefined
     if (knife && !refusal) {
       const asked = askMessage(entry, knife, snapshot, byId)
@@ -2147,24 +2183,26 @@ export function validateAgentPlan(
       },
       entry.knifeId && !knife
         ? 'unknown knife'
-        : LINK.test(entry.note)
-          ? 'links are not allowed'
-          : invented
-            ? `quotes a price not in the data (${invented})`
-            : notes.some(
-                  (note) =>
-                    note.note === entry.note &&
-                    (note.knifeId ?? null) === entry.knifeId,
-                )
-              ? 'already noted'
-              : entry.knifeId &&
-                  notes.some(
-                    (note) => note.knifeId === entry.knifeId && fresh(note),
+        : knife?.notMonitored
+          ? 'this knife is not monitored'
+          : LINK.test(entry.note)
+            ? 'links are not allowed'
+            : invented
+              ? `quotes a price not in the data (${invented})`
+              : notes.some(
+                    (note) =>
+                      note.note === entry.note &&
+                      (note.knifeId ?? null) === entry.knifeId,
                   )
-                ? `this knife has a note from the last ${NOTE_MIN_AGE_HOURS} hours`
-                : kept >= MAX_AGENT_NOTES
-                  ? `already ${MAX_AGENT_NOTES} notes: forget one first`
-                  : null,
+                ? 'already noted'
+                : entry.knifeId &&
+                    notes.some(
+                      (note) => note.knifeId === entry.knifeId && fresh(note),
+                    )
+                  ? `this knife has a note from the last ${NOTE_MIN_AGE_HOURS} hours`
+                  : kept >= MAX_AGENT_NOTES
+                    ? `already ${MAX_AGENT_NOTES} notes: forget one first`
+                    : null,
     )
     if (actions.at(-1)?.status !== 'refused') kept += 1
   }
@@ -2795,16 +2833,30 @@ export function readAgentLabels(
 }
 
 /** Stores whose checks hit a bot check: only the user can pass it. */
-export function readBlockedStores(database: Database.Database): string[] {
-  return (
-    database
-      .prepare(
-        `SELECT DISTINCT store_name AS store FROM price_sources
-         WHERE status = 'blocked' AND enabled = 1 AND removed_at IS NULL
-         ORDER BY store_name`,
-      )
-      .all() as Array<{ store: string }>
-  ).map((row) => row.store)
+/** Stores with a bot check on a source that monitoring covers. */
+export function readBlockedStores(
+  database: Database.Database,
+  settings: EligibilitySettings,
+): string[] {
+  const covered = new Set(
+    readQueueCandidates(database, settings)
+      .filter((candidate) => candidate.covered)
+      .map((candidate) => candidate.sourceId),
+  )
+  const stores = new Set(
+    (
+      database
+        .prepare(
+          `SELECT id, store_name AS store FROM price_sources
+           WHERE status = 'blocked' AND enabled = 1 AND removed_at IS NULL
+           ORDER BY store_name`,
+        )
+        .all() as Array<{ id: number; store: string }>
+    )
+      .filter((row) => covered.has(row.id))
+      .map((row) => row.store),
+  )
+  return [...stores]
 }
 
 /**
