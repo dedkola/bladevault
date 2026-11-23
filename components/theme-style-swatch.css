@@ -1,0 +1,369 @@
+/* Mini previews of each theme style, shared by Settings and the footer theme popup. */
+
+.theme-style-swatch {
+  display: flex;
+  height: 3.5rem;
+  width: 100%;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
+  border-radius: 0.5rem;
+}
+
+.theme-style-swatch-rail {
+  width: 27%;
+  flex: 0 0 27%;
+}
+
+.theme-style-swatch-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.24rem;
+  padding: 0.55rem 0.45rem;
+}
+
+.theme-style-swatch-title,
+.theme-style-swatch-line,
+.theme-style-swatch-card {
+  display: block;
+  border-radius: 999px;
+}
+
+.theme-style-swatch-title {
+  height: 0.28rem;
+  width: 55%;
+  margin-bottom: 0.12rem;
+}
+
+.theme-style-swatch-line {
+  height: 0.2rem;
+  width: 82%;
+}
+
+.theme-style-swatch-line.is-short {
+  width: 58%;
+}
+
+.theme-style-swatch-card {
+  height: 0.8rem;
+  width: 100%;
+  margin-top: auto;
+  border-radius: 0.25rem;
+}
+
+.theme-style-swatch.is-classic {
+  background: #fcfcfb;
+}
+
+.theme-style-swatch.is-classic .theme-style-swatch-rail {
+  background: #2e3417;
+}
+
+.theme-style-swatch.is-classic .theme-style-swatch-title {
+  background: #c89c3d;
+}
+
+.theme-style-swatch.is-classic .theme-style-swatch-line {
+  background: #d3c097;
+}
+
+.theme-style-swatch.is-classic .theme-style-swatch-card {
+  border: 1px solid #e8dcc0;
+  background: #f7f1e5;
+}
+
+.theme-style-swatch.is-modern {
+  background: #f5f5f7;
+}
+
+.theme-style-swatch.is-modern .theme-style-swatch-rail {
+  background: #ffffff;
+  border-right: 1px solid #e5e5ea;
+}
+
+.theme-style-swatch.is-modern .theme-style-swatch-title {
+  background: #0071e3;
+}
+
+.theme-style-swatch.is-modern .theme-style-swatch-line {
+  background: #c7c7cc;
+}
+
+.theme-style-swatch.is-modern .theme-style-swatch-card {
+  border: 1px solid #e5e5ea;
+  background: #ffffff;
+}
+
+.theme-style-swatch.is-alloy {
+  flex-direction: column;
+  background: #1d1c19;
+  border-color: #39352d;
+}
+
+.theme-style-swatch.is-alloy .theme-style-swatch-rail {
+  width: 100%;
+  flex: 0 0 0.6rem;
+  background: #080808;
+  border-bottom: 1px solid #d6b76a;
+}
+
+.theme-style-swatch.is-alloy .theme-style-swatch-body {
+  padding: 0.3rem 0.45rem;
+}
+
+.theme-style-swatch.is-alloy .theme-style-swatch-title {
+  background: #d6b76a;
+}
+
+.theme-style-swatch.is-alloy .theme-style-swatch-line {
+  background: #8c816b;
+}
+
+.theme-style-swatch.is-alloy .theme-style-swatch-card {
+  border: 1px solid #d6b76a;
+  background: #dedbd4;
+}
+
+.theme-style-meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.theme-style-name {
+  color: var(--foreground);
+  font-size: 0.78125rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.theme-style-note {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  line-height: 1.3;
+}
+
+/* Forge, Titanium, Field, Lumen and Espresso previews. */
+.theme-style-swatch.is-forge {
+  background: #141416;
+}
+
+.theme-style-swatch.is-forge .theme-style-swatch-rail {
+  background: #0e0e10;
+  border-right: 1px solid rgb(255 255 255 / 8%);
+}
+
+.theme-style-swatch.is-forge .theme-style-swatch-title {
+  background: linear-gradient(135deg, #ffb067, #ff6a2b 50%, #e2361c);
+}
+
+.theme-style-swatch.is-forge .theme-style-swatch-line {
+  background: #55534e;
+}
+
+.theme-style-swatch.is-forge .theme-style-swatch-card {
+  border: 1px solid rgb(255 255 255 / 10%);
+  background: #e6e3dd;
+}
+
+.theme-style-swatch.is-titanium {
+  background: #15141a;
+}
+
+.theme-style-swatch.is-titanium .theme-style-swatch-rail {
+  background: #100f14;
+  border-right: 1px solid rgb(255 255 255 / 8%);
+}
+
+.theme-style-swatch.is-titanium .theme-style-swatch-title {
+  background: linear-gradient(120deg, #8b6cff, #3dd9c1 50%, #e9b867);
+}
+
+.theme-style-swatch.is-titanium .theme-style-swatch-line {
+  background: #5e5a69;
+}
+
+.theme-style-swatch.is-titanium .theme-style-swatch-card {
+  border: 1px solid rgb(255 255 255 / 10%);
+  background: #e4e1ea;
+}
+
+.theme-style-swatch.is-field {
+  background: #ecebe4;
+}
+
+.theme-style-swatch.is-field .theme-style-swatch-rail {
+  background: #12130f;
+}
+
+.theme-style-swatch.is-field .theme-style-swatch-title {
+  background: #c8f031;
+}
+
+.theme-style-swatch.is-field .theme-style-swatch-line {
+  background: #9a9b90;
+}
+
+.theme-style-swatch.is-field .theme-style-swatch-card {
+  border: 1px solid rgb(18 19 15 / 14%);
+  background: #fafaf6;
+}
+
+.theme-style-swatch.is-lumen {
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px #ebebeb;
+}
+
+.theme-style-swatch.is-lumen .theme-style-swatch-rail {
+  background: #ffffff;
+  border-right: 1px solid #ebebeb;
+}
+
+.theme-style-swatch.is-lumen .theme-style-swatch-title {
+  background: #f6821f;
+}
+
+.theme-style-swatch.is-lumen .theme-style-swatch-line {
+  background: #d4d4d4;
+}
+
+.theme-style-swatch.is-lumen .theme-style-swatch-card {
+  border: 1px solid #ebebeb;
+  background: #ffffff;
+}
+
+.theme-style-swatch.is-espresso {
+  background: #f8f2e7;
+  box-shadow: inset 0 0 0 1px #e6d9c0;
+}
+
+.theme-style-swatch.is-espresso .theme-style-swatch-rail {
+  background: #1f1812;
+}
+
+.theme-style-swatch.is-espresso .theme-style-swatch-title {
+  background: #f59e0b;
+}
+
+.theme-style-swatch.is-espresso .theme-style-swatch-line {
+  background: #d9c8a8;
+}
+
+.theme-style-swatch.is-espresso .theme-style-swatch-card {
+  border: 1px solid #e6d9c0;
+  background: #fffcf6;
+}
+
+.theme-style-swatch.is-phosphor {
+  border-radius: 2px;
+  background: #0d0b08;
+  box-shadow: inset 0 0 0 1px #3a2e1e;
+}
+
+.theme-style-swatch.is-phosphor .theme-style-swatch-rail {
+  background: #0d0b08;
+  border-right: 1px solid #2a2218;
+}
+
+.theme-style-swatch.is-phosphor .theme-style-swatch-title {
+  background: #ffb000;
+}
+
+.theme-style-swatch.is-phosphor .theme-style-swatch-line {
+  background: #a8875a;
+}
+
+.theme-style-swatch.is-phosphor .theme-style-swatch-card {
+  border: 1px solid #ffb000;
+  background: #15110b;
+  box-shadow: 0 0 6px -1px rgb(255 176 0 / 45%);
+}
+
+/* Atrium preview: no rail, a dark title and photo tiles. */
+.theme-style-swatch.is-atrium {
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px #ebebeb;
+}
+
+.theme-style-swatch.is-atrium .theme-style-swatch-rail {
+  display: none;
+}
+
+.theme-style-swatch.is-atrium .theme-style-swatch-title {
+  background: #18181b;
+}
+
+.theme-style-swatch.is-atrium .theme-style-swatch-line {
+  background: #d4d4d4;
+}
+
+.theme-style-swatch.is-atrium .theme-style-swatch-card {
+  border: 0;
+  border-radius: 6px;
+  background: #f5f5f5;
+  box-shadow: inset 0 -3px 0 #f6821f;
+}
+
+/* Shelf preview: an ivory catalogue page with a serif title, an ink rule
+ * and an oxblood mark. */
+.theme-style-swatch.is-shelf {
+  background: #f5f3ef;
+  box-shadow: inset 0 0 0 1px #e3ded6;
+}
+
+.theme-style-swatch.is-shelf .theme-style-swatch-rail {
+  display: none;
+}
+
+.theme-style-swatch.is-shelf .theme-style-swatch-title {
+  height: 0.34rem;
+  border-radius: 1px;
+  background: linear-gradient(90deg, #8c1d2e 0 18%, #1b1715 18%);
+  box-shadow: 0 0.22rem 0 -0.16rem #1b1715;
+}
+
+.theme-style-swatch.is-shelf .theme-style-swatch-line {
+  background: #cbc3b8;
+}
+
+.theme-style-swatch.is-shelf .theme-style-swatch-card {
+  border: 0;
+  border-radius: 2px;
+  background: radial-gradient(ellipse at 50% 40%, #ffffff, #efece6);
+  box-shadow: inset 0 0 0 1px rgb(27 23 21 / 8%);
+}
+
+/* Ledger preview: a green cloth band over green-bar paper with a red rule. */
+.theme-style-swatch.is-ledger {
+  background:
+    linear-gradient(#123d2c, #123d2c) 0 0 / 100% 22% no-repeat,
+    linear-gradient(#c9a24a, #c9a24a) 0 22% / 100% 1px no-repeat,
+    repeating-linear-gradient(180deg, #f7f8f2 0 6px, #eef4e6 6px 12px);
+  box-shadow: inset 0 0 0 1px #dbe3d3;
+}
+
+.theme-style-swatch.is-ledger .theme-style-swatch-rail {
+  display: none;
+}
+
+.theme-style-swatch.is-ledger .theme-style-swatch-body {
+  padding-top: 28%;
+}
+
+.theme-style-swatch.is-ledger .theme-style-swatch-title {
+  background: #16241d;
+}
+
+.theme-style-swatch.is-ledger .theme-style-swatch-line {
+  background: #c3cfb9;
+}
+
+.theme-style-swatch.is-ledger .theme-style-swatch-card {
+  border: 0;
+  border-left: 2px solid #b4362c;
+  border-radius: 2px;
+  background: #fdfdf9;
+}

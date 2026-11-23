@@ -75,8 +75,8 @@ export type ThemeFamily = 'classic' | 'modern' | 'alloy'
 export type TimeFormat = (typeof TIME_FORMATS)[number]
 
 /**
- * Styles the footer's theme quick switcher cycles through: every style, in
- * the order Modern, its variants, Classic, Alloy.
+ * Styles the footer's theme quick switcher lists: every style, in the order
+ * Modern, its variants, Classic, Alloy.
  */
 export const QUICK_SWITCH_THEME_STYLES: readonly ThemeStyle[] = [
   'modern',
