@@ -5,7 +5,7 @@ import type { Availability } from '@/lib/price-monitor/shared'
 /**
  * A knife's stores are one item. A store's first reading is only a baseline
  * for that store, but for the knife it can be news: a store just added
- * (often found by Other stores on Blade HQ or SMKW, or added from Amazon) may sell it cheaper
+ * (often found by Other stores on Blade HQ, SMKW or DLT Trading, or added from Amazon) may sell it cheaper
  * than its other stores, or sell it while every other store is out. Those
  * become a price drop or a back-in-stock event of the new store, measured
  * against the knife's other stores (`previous_source_id`), so Price Drops,

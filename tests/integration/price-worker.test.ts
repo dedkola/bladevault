@@ -502,7 +502,7 @@ describe('price monitor worker', () => {
         },
         otherStores: {
           enabled: true,
-          stores: { bladehq: true, smkw: false },
+          stores: { bladehq: true, smkw: false, dlttrading: false },
         },
       },
     })
@@ -577,7 +577,7 @@ describe('price monitor worker', () => {
         },
         otherStores: {
           enabled: true,
-          stores: { bladehq: true, smkw: false },
+          stores: { bladehq: true, smkw: false, dlttrading: false },
         },
       },
     })
@@ -691,7 +691,7 @@ describe('price monitor worker', () => {
         },
         otherStores: {
           enabled: true,
-          stores: { bladehq: true, smkw: false },
+          stores: { bladehq: true, smkw: false, dlttrading: false },
         },
       },
     })

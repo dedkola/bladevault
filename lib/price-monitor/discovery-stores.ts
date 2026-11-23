@@ -222,11 +222,13 @@ function isProductPage($: cheerio.CheerioAPI): boolean {
 }
 
 /**
- * SMKW (BigCommerce with Searchspring) search results. Product and category
- * URLs are both one-segment slugs (smkw.com/spyderco-para-3-…), so results
- * are read from the result cards, never from every link on the page. The
- * card's data-product-price is the selling price (MSRP and "Was" are
- * separate elements).
+ * BigCommerce result cards: SMKW (with Searchspring) and DLT Trading.
+ * Product and category URLs are both one-segment slugs
+ * (smkw.com/spyderco-para-3-…, dlttrading.com/spyderco-para-3), so results
+ * are read from the result cards, never from every link on the page. SMKW's
+ * card data-product-price is the selling price; DLT Trading shows
+ * "Our Price", MSRP and "Was" as separate elements, and only Our Price is
+ * kept.
  */
 export function parseSmkwResults(
   html: string,
@@ -348,5 +350,19 @@ export const DISCOVERY_STORES: Record<OtherStoreId, DiscoveryStore> = {
     },
     parseResults: (html, pageUrl) => parseSmkwResults(html, pageUrl),
     productDetails: (html) => smkwProductDetails(html),
+  },
+  dlttrading: {
+    id: 'dlttrading',
+    label: OTHER_STORE_LABELS.dlttrading,
+    laneKey: 'dlttrading.com',
+    marketplace: 'dlttrading.com',
+    // BigCommerce search; its SKU is the maker's model number (C223PBK).
+    searchUrl: (query) => {
+      const url = new URL('https://www.dlttrading.com/search.php')
+      url.searchParams.set('search_query', query)
+      return url.href
+    },
+    parseResults: (html, pageUrl) => parseSmkwResults(html, pageUrl),
+    productDetails: (html) => genericProductDetails(html),
   },
 }
