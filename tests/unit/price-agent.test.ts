@@ -595,6 +595,30 @@ describe('advise and ask', () => {
       }),
     )
     expect(repeated[0].note).toBe('same advice in the last 3 days')
+
+    // A Prices message already announced the change: no second note.
+    const alerted = validateAgentPlan(
+      {
+        ...empty,
+        advise: [
+          advice('k3', 'Mini is back.', 'restock'),
+          advice('k1', 'Kizer keeps slipping each week.', 'watch'),
+        ],
+      },
+      snapshot({
+        advice: [],
+        questions: [],
+        alerts: [
+          { knifeId: 'k3', hoursAgo: 1 },
+          { knifeId: 'k1', hoursAgo: 40 },
+        ],
+      }),
+    )
+    // Trends are not a single change, so watch notes still go out.
+    expect(alerted.map((action) => action.note)).toEqual([
+      'a Prices message already covers this change',
+      null,
+    ])
   })
 
   it('asks only answerable questions, one per knife', () => {

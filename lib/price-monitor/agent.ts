@@ -386,6 +386,12 @@ export type AgentInbox = {
     daysAgo: number
     status: 'open' | 'yes' | 'no' | 'dismissed' | 'expired'
   }>
+  /**
+   * Knives with a Prices message (drop, increase, restock, out of stock) in
+   * the last ADVICE_REPEAT_DAYS days. That message already tells the
+   * collector, so deal or restock advice would repeat it.
+   */
+  alerts?: Array<{ knifeId: string; hoursAgo: number }>
 }
 
 const EMPTY_INBOX: AgentInbox = { advice: [], questions: [] }
@@ -1021,7 +1027,26 @@ function readAgentInbox(database: Database.Database, now: number): AgentInbox {
     resolved_at: string | null
     answer: string | null
   }>
-  const inbox: AgentInbox = { advice: [], questions: [] }
+  const alerts = database
+    .prepare(
+      `SELECT knife_id, MAX(occurred_at) AS occurred_at
+       FROM price_notifications
+       WHERE occurred_at >= ?
+       GROUP BY knife_id`,
+    )
+    .all(new Date(now - ADVICE_REPEAT_DAYS * DAY_MS).toISOString()) as Array<{
+    knife_id: string
+    occurred_at: string
+  }>
+  const inbox: AgentInbox = {
+    advice: [],
+    questions: [],
+    alerts: alerts.map((row) => ({
+      knifeId: row.knife_id,
+      hoursAgo:
+        Math.round(((now - Date.parse(row.occurred_at)) / HOUR_MS) * 10) / 10,
+    })),
+  }
   for (const row of rows) {
     let note: PriceAgentNote | null = null
     try {
@@ -1648,7 +1673,7 @@ export const AGENT_PROMPT = [
   `searchOtherStore (at most ${AGENT_LIMITS.searchOtherStore}): bring a waiting Other stores search forward (a search with nextInDays above 0), for knives whose sources are all out of stock or failing, or that the collector watches closely (a target, a recent drop) and that have a single store. Only when otherStores is true. A search that is due (not_searched, nextInDays 0 or less) or found needs nothing.`,
   `watchClosely (at most ${AGENT_LIMITS.watchClosely}, ${MAX_FOCUSED_KNIVES} knives at once): check a knife's sources every everyHours (at least ${FOCUS_MIN_EVERY_HOURS}, below checkIntervalHours) for the next hours (at most ${FOCUS_MAX_HOURS}): a knife near or below its target or regular price, a fresh drop that may go lower, a restock to catch, a sale period. Asking again for a watched knife replaces its watch. The stores' pace still applies.`,
   `crossCheck (at most ${AGENT_LIMITS.crossCheck}): read all other sources of a knife now, for example after its price moved or it came back in stock at one store, so the collector sees the whole market. Sources checked in the last 30 minutes, queued or blocked are left out.`,
-  `advise (at most ${AGENT_LIMITS.advise}, ${ADVICE_PER_DAY} a day): a short note in the collector's Inbox when something is worth acting on: topic "deal" (a price at or below the target or regular price, a new 90-day low, a big drop), "restock" (back in stock after a long time, or the only store in stock), "watch" (a trend to keep an eye on). title: one line naming the knife; detail: one or two plain sentences. Quote only prices that appear in the input, exactly as written there, never computed amounts (say "23% below regular" for differences). Never for muted knives, and not again for the same knife and topic within ${ADVICE_REPEAT_DAYS} days (see inbox.advice). Fewer, better notes: the collector already gets an alert for every drop.`,
+  `advise (at most ${AGENT_LIMITS.advise}, ${ADVICE_PER_DAY} a day): a short note in the collector's Inbox when something is worth acting on: topic "deal" (a price at or below the target or regular price, a new 90-day low, a big drop), "restock" (back in stock after a long time, or the only store in stock), "watch" (a trend to keep an eye on). title: one line naming the knife; detail: one or two plain sentences. Quote only prices that appear in the input, exactly as written there, never computed amounts (say "23% below regular" for differences). Never for muted knives, and not again for the same knife and topic within ${ADVICE_REPEAT_DAYS} days (see inbox.advice). Fewer, better notes: the collector already gets a Prices message for every price or stock change, so never advise "deal" or "restock" for a knife listed in inbox.alerts; news about a new price or stock belongs only in that message.`,
   `ask (at most ${AGENT_LIMITS.ask}, ${MAX_OPEN_QUESTIONS} open at once, one per knife): a yes/no question in the Inbox when the collector's answer changes what you do. "set_target" proposes an alert target price (price, e.g. "95.00 USD", in the currency of the knife's prices) for a knife without a fitting target. "watch_closely" asks to watch a knife closely (hours, everyHours, as for watchClosely) when you are not sure it is wanted. "keep_listing" asks whether a listing Other stores found (sourceId of a source with foundByAi) is the right knife, when its price or stock looks off; No pauses it. question: one plain sentence. Never repeat a question from inbox.questions within ${QUESTION_REPEAT_DAYS} days, and respect its answer. Use null for fields an ask does not use.`,
   `remember (at most ${AGENT_LIMITS.remember}, ${MAX_AGENT_NOTES} kept at once): a short note (at most ${NOTE_MAX_LENGTH} characters) for your later runs, about one knife (knifeId) or in general (knifeId null), kept for days (at most ${NOTE_MAX_DAYS}): what you are waiting for, a pattern you noticed (a store that restocks on Mondays, a knife whose price moves before sales), what the collector's answers told you. Not facts the input already shows. Your notes are in notes; forget (at most ${AGENT_LIMITS.forget}) notes that are done or wrong, by noteId. A note stands for at least ${NOTE_MIN_AGE_HOURS} hours (hoursAgo): do not rewrite or replace it sooner.`,
   'Learn from your recent runs, inbox and notes: do not repeat actions that were refused or did not help.',
@@ -2055,6 +2080,8 @@ export function validateAgentPlan(
     )
   }
 
+  // Price and stock news belongs only in the Prices message itself.
+  const alerted = new Set((inbox.alerts ?? []).map((alert) => alert.knifeId))
   let adviceToday = inbox.advice.filter((entry) => entry.hoursAgo < 24).length
   for (const entry of plan.advise) {
     const knife = knives.get(entry.knifeId)
@@ -2093,11 +2120,13 @@ export function validateAgentPlan(
                       note.topic === entry.topic,
                   )
                 ? `same advice in the last ${ADVICE_REPEAT_DAYS} days`
-                : LINK.test(`${entry.title} ${entry.detail}`)
-                  ? 'links are not allowed'
-                  : invented
-                    ? `quotes a price not in the data (${invented})`
-                    : null,
+                : entry.topic !== 'watch' && alerted.has(entry.knifeId)
+                  ? 'a Prices message already covers this change'
+                  : LINK.test(`${entry.title} ${entry.detail}`)
+                    ? 'links are not allowed'
+                    : invented
+                      ? `quotes a price not in the data (${invented})`
+                      : null,
     )
     if (actions.at(-1)?.status !== 'refused') adviceToday += 1
   }
