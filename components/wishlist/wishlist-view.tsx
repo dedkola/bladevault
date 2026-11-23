@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Bell, BellOff, Heart, Loader2, Plus, X } from 'lucide-react'
+import { Bell, BellOff, ChartLine, Heart, Loader2, Plus, X } from 'lucide-react'
 import Image from '@/components/vault-image'
 import { EmptyState } from '@/components/empty-state'
 import { PageHeader } from '@/components/page-header'
@@ -420,6 +420,20 @@ function WatchBell({ row }: { row: Row }) {
   )
 }
 
+function PriceDetailsLink({ row }: { row: Row }) {
+  const label = `See ${knifeTitle(row.knife)} on Price Drops`
+  return (
+    <Link
+      href={`/price-drops?knife=${encodeURIComponent(row.knife.id)}`}
+      data-wishlist-details
+      aria-label={label}
+      title="Price details on Price Drops"
+    >
+      <ChartLine className="size-3.5" />
+    </Link>
+  )
+}
+
 function RemoveButton({ row }: { row: Row }) {
   const { mutate, busy } = useWishlist()
   const { showFeedback } = useKnives()
@@ -513,6 +527,7 @@ function DealGroups({ rows }: { rows: Row[] }) {
                     )}
                   </div>
                   <div data-wishlist-row-actions>
+                    <PriceDetailsLink row={row} />
                     <WatchBell row={row} />
                     <RemoveButton row={row} />
                   </div>
