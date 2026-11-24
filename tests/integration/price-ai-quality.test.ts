@@ -437,15 +437,27 @@ describe('Spot-check page readings (Unlimited)', () => {
 })
 
 describe('Daily Inbox digest', () => {
-  async function knifeWithHistory() {
+  /** A drop; without its own Inbox card unless `keepCard`. */
+  async function knifeWithHistory({ keepCard = false } = {}) {
     enableAi({ confirmChanges: false })
     const { source } = await createKnife()
     browserReads(118.5)
     await checkPriceSource(source.id, { trigger: 'manual' })
     browserReads(100)
     await checkPriceSource(source.id, { trigger: 'manual' })
+    if (!keepCard) getLocalDb().prepare('DELETE FROM price_notifications').run()
     return source
   }
+
+  it('leaves out drops that already have their own Inbox card', async () => {
+    await knifeWithHistory({ keepCard: true })
+    expect(rows('SELECT kind FROM price_notifications')).toContainEqual({
+      kind: 'drop',
+    })
+    const data = readDigestData(getLocalDb())
+    expect(data.deals).toEqual([])
+    expect(data.drops).toEqual([])
+  })
 
   it('reads aggregated data: deals against the regular price and drops', async () => {
     await knifeWithHistory()
