@@ -78,7 +78,7 @@ To remove an entry, select its trash button, **Delete maintenance entry**, and c
 
 ## Get care reminders
 
-BladeVault reminds you when a knife is due for sharpening, cleaning, or lubrication. By default sharpening is due every 90 days, cleaning every 60, and lubrication every 180; a stropping entry counts as sharpening. Change these in **Settings → Maintenance**, or select **Customize…** under a knife's **Maintenance** to give that knife its own intervals.
+BladeVault reminds you when a knife is due for sharpening, cleaning, or lubrication. By default sharpening is due every 90 days, cleaning every 60, and lubrication every 180; a stropping entry counts as sharpening. Turn reminders on or off and set the due-soon window in **Settings → Notifications → Maintenance reminders**. Change the intervals in **Settings → Maintenance**, or select **Customize…** under a knife's **Maintenance** to give that knife its own intervals.
 
 Each kind of care counts from the last time you logged it. A kind of care you have never logged on a knife has no date to count from, so it gives no reminder until you log it once. A knife that is only ever sharpened is reminded about sharpening alone. Its status is one of:
 

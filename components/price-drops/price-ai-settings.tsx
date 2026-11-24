@@ -1120,18 +1120,6 @@ export function PriceAiSettingsSection({
       </SettingsRow>
       <SettingsRow
         inline
-        label="Daily summary in the Inbox"
-        description="Once a day, AI writes a short summary: the best current prices against regular prices, drops and restocks of the last 24 hours, store pages that broke, and what AI fixed. Each day's summary replaces the last. Only knife names, store names and prices are sent: no notes, photos or links."
-      >
-        <SettingsSwitch
-          aria-label="Let AI write a daily price summary in the Inbox"
-          checked={settings.dailyDigest}
-          disabled={off}
-          onCheckedChange={(checked) => update({ dailyDigest: checked })}
-        />
-      </SettingsRow>
-      <SettingsRow
-        inline
         label="Pacing advisor"
         description="Once a day, or after a store blocked checks twice, AI reviews each store's check statistics and may slow a store down, pause it or set quiet hours, within fixed limits. Only store host names and statistics are sent: no product links, knife names or keys."
       >

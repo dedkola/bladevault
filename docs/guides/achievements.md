@@ -18,7 +18,7 @@ Seven badges are secret. Turn on **Show secret achievements** to list them as �
 
 ## Settings
 
-Open **Settings → Achievements** to turn achievements, on-screen messages, Inbox notes, and secret badges on or off. **Reset…** clears every unlock; badges your vault still meets come back quietly.
+Open **Settings → Achievements** to turn achievements and secret badges on or off. On-screen celebrations and Inbox notes are under **Settings → Notifications → System notifications**. **Reset…** clears every unlock; badges your vault still meets come back quietly.
 
 Market badges need price monitoring. Money badges count prices in USD, EUR, GBP, CHF, CAD and AUD, and collection-wide badges need at least 10 knives.
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -18,7 +19,7 @@ import {
 } from '@/lib/settings-shared'
 
 /** A day count that saves on blur or Enter and reverts invalid input. */
-function DaysInput({
+export function DaysInput({
   value,
   min,
   max,
@@ -89,20 +90,18 @@ export function MaintenanceSettings({
 
   return (
     <div className="settings-grid">
-      <SettingsSection title="Care reminders">
-        <SettingsRow
-          inline
-          label="Show care reminders"
-          description="Due badges on cards, the Care filter in the collection, and the Care status card on Insights. Everything is worked out from your maintenance log."
-        >
-          <SettingsSwitch
-            aria-label="Show care reminders"
-            checked={reminders.enabled}
-            disabled={disabled}
-            onCheckedChange={(checked) => update({ enabled: checked })}
-          />
-        </SettingsRow>
-      </SettingsSection>
+      {!reminders.enabled ? (
+        <p className="text-sm text-muted-foreground">
+          Care reminders are off. Turn them on in{' '}
+          <Link
+            href="/settings?tab=notifications"
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            Settings → Notifications
+          </Link>
+          .
+        </p>
+      ) : null}
 
       <SettingsSection
         title="Default intervals"
@@ -145,19 +144,6 @@ export function MaintenanceSettings({
       </SettingsSection>
 
       <SettingsSection title="How due dates are counted">
-        <SettingsRow
-          label="“Due soon” window"
-          description="How many days before the deadline a knife is flagged as due soon."
-        >
-          <DaysInput
-            aria-label="Due soon window in days"
-            value={reminders.dueSoonDays}
-            min={0}
-            max={365}
-            disabled={isOff}
-            onCommit={(value) => update({ dueSoonDays: value })}
-          />
-        </SettingsRow>
         <SettingsRow
           inline
           label="Stropping counts as edge care"

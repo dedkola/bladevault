@@ -7,8 +7,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import Link from 'next/link'
 import { Cookie, Loader2, Pause, Play, RefreshCw } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -38,7 +39,6 @@ import {
   PRICE_MONITORING_LIMITS,
   type ActiveHours,
   type PriceMonitoringSettings,
-  type PriceNotifyCategories,
   type PriceScheduleMode,
 } from '@/lib/settings-shared'
 
@@ -99,7 +99,7 @@ function formatDuration(ms: number): string {
  * A number that saves on blur or Enter and reverts invalid input. Rounded to
  * `decimals` places (whole numbers by default).
  */
-function NumberField({
+export function NumberField({
   value,
   min,
   max,
@@ -192,33 +192,6 @@ function HourSelect({
     </Select>
   )
 }
-
-const NOTIFY_OPTIONS: ReadonlyArray<{
-  key: keyof PriceNotifyCategories
-  label: string
-  description: string
-}> = [
-  {
-    key: 'drop',
-    label: 'Price drops',
-    description: 'A store lowered the price.',
-  },
-  {
-    key: 'increase',
-    label: 'Price increases',
-    description: 'A store raised the price.',
-  },
-  {
-    key: 'outOfStock',
-    label: 'Out of stock',
-    description: 'No store you monitor has the knife in stock any more.',
-  },
-  {
-    key: 'backInStock',
-    label: 'Back in stock',
-    description: 'A store has the knife again after every store was out.',
-  },
-]
 
 function StoreButton({
   label,
@@ -401,13 +374,6 @@ export function PriceMonitoringSettings({
   ) => update({ schedule: { ...settings.schedule, ...patch } })
   const updatePacing = (patch: Partial<PriceMonitoringSettings['pacing']>) =>
     update({ pacing: { ...settings.pacing, ...patch } })
-  const updateNotify = (patch: Partial<PriceNotifyCategories>) =>
-    update({ notify: { ...settings.notify, ...patch } })
-  const updateThresholds = (
-    patch: Partial<PriceMonitoringSettings['thresholds']>,
-  ) => update({ thresholds: { ...settings.thresholds, ...patch } })
-  // The minimum amount only filters notifications, unlike the percent.
-  const priceAlertsOn = settings.notify.drop || settings.notify.increase
 
   const off = disabled || !settings.enabled
   const hours: ActiveHours | null =
@@ -575,68 +541,17 @@ export function PriceMonitoringSettings({
         </SettingsRow>
       </SettingsSection>
 
-      <SettingsSection
-        title="Notifications"
-        description="Changes found by a check show up in the Inbox under Prices. Repeats for the same store update one notification instead of adding more."
-      >
-        {NOTIFY_OPTIONS.map((option) => (
-          <SettingsRow
-            key={option.key}
-            inline
-            label={option.label}
-            description={option.description}
+      <SettingsSection title="Notifications">
+        <SettingsRow
+          label="Price and stock notifications"
+          description="Which changes notify you, the minimum change and the daily AI summary."
+        >
+          <Link
+            href="/settings?tab=notifications"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
           >
-            <SettingsSwitch
-              aria-label={`Notify about ${option.label.toLowerCase()}`}
-              checked={settings.notify[option.key]}
-              disabled={disabled}
-              onCheckedChange={(checked) =>
-                updateNotify({ [option.key]: checked })
-              }
-            />
-          </SettingsRow>
-        ))}
-        <SettingsRow
-          label="Minimum change"
-          description="Price changes smaller than this don't notify and show as No change on Price Drops, with the small move as a hint. Set it to 0 to count every price change. Stock changes always notify."
-        >
-          <NumberField
-            aria-label="Minimum price change in percent"
-            value={settings.thresholds.minPercent}
-            min={PRICE_MONITORING_LIMITS.minPercent[0]}
-            max={PRICE_MONITORING_LIMITS.minPercent[1]}
-            decimals={1}
-            unit="%"
-            disabled={disabled}
-            onCommit={(minPercent) => updateThresholds({ minPercent })}
-          />
-        </SettingsRow>
-        <SettingsRow
-          label="Minimum amount"
-          description="Price notifications also skip changes smaller than this, in each price's own currency (3 means $3, €3 or ₴3). A change must pass both the percent and the amount. 0 turns it off."
-        >
-          <NumberField
-            aria-label="Minimum price change in the price's currency"
-            value={settings.thresholds.minAmount}
-            min={PRICE_MONITORING_LIMITS.minAmount[0]}
-            max={PRICE_MONITORING_LIMITS.minAmount[1]}
-            decimals={2}
-            unit="in its currency"
-            disabled={disabled || !priceAlertsOn}
-            onCommit={(minAmount) => updateThresholds({ minAmount })}
-          />
-        </SettingsRow>
-        <SettingsRow
-          inline
-          label="Always notify about a new lowest price"
-          description="A drop to the lowest price a store has shown for a knife notifies even below the minimum percent. Needs Price drops on; the minimum amount still applies."
-        >
-          <SettingsSwitch
-            aria-label="Always notify about a new lowest price"
-            checked={settings.thresholds.allTimeLow}
-            disabled={disabled || !settings.notify.drop}
-            onCheckedChange={(allTimeLow) => updateThresholds({ allTimeLow })}
-          />
+            Open Notifications
+          </Link>
         </SettingsRow>
       </SettingsSection>
 

@@ -1456,11 +1456,11 @@ const FOOTNOTE: Record<InboxFilter, string> = {
   maintenance:
     'A reminder arrives when a knife turns due soon or overdue, and resolves itself once that care is logged.',
   prices:
-    'A message arrives when a monitored store changes a price or its stock. A later change the other way closes it. Choose which changes notify in Settings → Price monitoring, and set a target price or mute a knife in its Price monitoring editor.',
+    'A message arrives when a monitored store changes a price or its stock. A later change the other way closes it. Choose which changes notify in Settings → Notifications, and set a target price or mute a knife in its Price monitoring editor.',
   system:
     'A failed Google Drive backup stays here until a later backup works. Successful backups only show a short notice.',
   achievements:
-    'Each unlocked achievement leaves a note here. Badges stay unlocked when you dismiss the note. Turn the notes or achievements off in Settings → Achievements.',
+    'Each unlocked achievement leaves a note here. Badges stay unlocked when you dismiss the note. Turn the notes off in Settings → Notifications, or achievements off in Settings → Achievements.',
 }
 
 /** Newest first, like mail. Done messages sort by when they closed. */
@@ -1725,8 +1725,11 @@ export function CareInboxView() {
       {filter === 'maintenance' && !enabled ? (
         <p className="rounded-xl border border-[var(--bladevault-line)]/70 bg-card px-4 py-10 text-center text-sm text-muted-foreground">
           Care reminders are off. Turn them on in{' '}
-          <Link href="/settings" className="underline underline-offset-2">
-            Settings → Maintenance
+          <Link
+            href="/settings?tab=notifications"
+            className="underline underline-offset-2"
+          >
+            Settings → Notifications
           </Link>{' '}
           to get messages when a knife is due.
         </p>
@@ -1786,8 +1789,11 @@ export function CareInboxView() {
           <>
             {' '}
             Care reminders are off; turn them on in{' '}
-            <Link href="/settings" className="underline underline-offset-2">
-              Settings → Maintenance
+            <Link
+              href="/settings?tab=notifications"
+              className="underline underline-offset-2"
+            >
+              Settings → Notifications
             </Link>
             .
           </>
