@@ -13,12 +13,9 @@ import { Menu } from '@base-ui/react/menu'
 import {
   Bookmark,
   ChevronDown,
-  Cloud,
-  CloudOff,
   Moon,
   Pin,
   Plus,
-  Settings,
   Sun,
 } from 'lucide-react'
 import Image from '@/components/vault-image'
@@ -33,7 +30,6 @@ import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-act
 import { readJsonResponse } from '@/lib/api-response'
 import { matchesCollection } from '@/lib/smart-collections'
 import { SETTINGS_UPDATED_EVENT, type AppSettings } from '@/lib/settings-shared'
-import { CareInboxBell } from '@/components/care-inbox'
 import { hasServerRuntime } from '@/lib/runtime-capabilities'
 
 const links = [
@@ -51,7 +47,7 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const wishlist = useWishlistNavCounts()
   const params = useSearchParams()
-  const { knives, isAutoBackupActive, showFeedback } = useKnives()
+  const { knives, showFeedback } = useKnives()
   const { reminders: careReminders, statusById: careStatusById } = useCare()
   const careStatusFilter = careReminders.enabled ? careStatusById : undefined
   const marketFilter = useMarketFilter()
@@ -152,25 +148,6 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
               <GlobalKnifeSearch embedded />
             </div>
           )}
-          <CareInboxBell />
-          <Link
-            href="/settings?tab=backup"
-            aria-label="Cloud backup"
-            title={
-              isAutoBackupActive
-                ? 'Cloud auto backup is active'
-                : 'Cloud auto backup is inactive'
-            }
-          >
-            {isAutoBackupActive ? <Cloud /> : <CloudOff />}
-          </Link>
-          <Link
-            href="/settings"
-            aria-label="Workspace settings"
-            aria-current={pathname === '/settings' ? 'page' : undefined}
-          >
-            <Settings />
-          </Link>
           <button
             type="button"
             onClick={() => void toggleAppearance()}

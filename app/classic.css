@@ -728,7 +728,7 @@ html:not([data-theme-style='modern'], [data-theme-style='alloy'])
   border-radius: 16px;
 }
 
-/* Workspace footer: Classic carries the sidebar shortcuts on the left and
+/* Workspace footer: Classic carries the sidebar shortcuts on the right and
  * borrows the sidebar surface, so the full-width bar reads as one strip
  * instead of a card-colored band under the main column. */
 html:not([data-theme-style='modern'], [data-theme-style='alloy'])
@@ -739,7 +739,6 @@ html:not([data-theme-style='modern'], [data-theme-style='alloy'])
 html:not([data-theme-style='modern'], [data-theme-style='alloy'])
   [data-workspace-footer]
   [data-workspace-footer-actions] {
-  margin-right: auto;
   gap: 6px;
 }
 

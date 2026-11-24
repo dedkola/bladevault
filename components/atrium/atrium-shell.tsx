@@ -10,8 +10,6 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  Cloud,
-  CloudOff,
   GalleryVertical,
   History,
   TrendingDown,
@@ -21,7 +19,6 @@ import {
   Library,
   Plus,
   Search,
-  Settings,
 } from 'lucide-react'
 import { BrandMark } from '@/components/brand-mark'
 import { CompareIcon } from '@/components/icons/compare-icon'
@@ -29,10 +26,8 @@ import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import { WorkspaceFooter } from '@/components/workspace-footer'
 import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
-import { useKnives } from '@/components/providers/knives-provider'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import { useLumenCollection } from '@/components/lumen/use-lumen-collection'
-import { CareInboxBell } from '@/components/care-inbox'
 import { hasServerRuntime } from '@/lib/runtime-capabilities'
 
 const dockLinks = [
@@ -96,7 +91,6 @@ function CollectionSearchField() {
  */
 export function AtriumShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { isAutoBackupActive } = useKnives()
   const { active } = useComparisons()
   const [headerActions, setHeaderActions] = useState<HTMLElement | null>(null)
   const [isImportOpen, setIsImportOpen] = useState(false)
@@ -131,36 +125,6 @@ export function AtriumShell({ children }: { children: React.ReactNode }) {
           {isStudio && (
             <span id="studio-header-actions" ref={setHeaderActions} />
           )}
-          <CareInboxBell data-atrium-icon-button="" />
-          <Link
-            href="/settings?tab=backup"
-            data-atrium-icon-button
-            aria-label="Cloud backup"
-            title={
-              isAutoBackupActive
-                ? 'Cloud auto backup is active'
-                : 'Cloud auto backup is inactive'
-            }
-            onClick={() =>
-              window.dispatchEvent(
-                new Event('bladevault:open-cloud-backup-settings'),
-              )
-            }
-          >
-            {isAutoBackupActive ? (
-              <Cloud data-atrium-accent-icon />
-            ) : (
-              <CloudOff />
-            )}
-          </Link>
-          <Link
-            href="/settings"
-            data-atrium-icon-button
-            aria-label="Workspace settings"
-            aria-current={pathname === '/settings' ? 'page' : undefined}
-          >
-            <Settings />
-          </Link>
           <button
             type="button"
             data-atrium-button
