@@ -71,12 +71,14 @@ describe('local database migrations', () => {
     const insert = getLocalDb().prepare(
       `INSERT INTO price_host_state
          (lane_key, min_gap_ms, ready_at, circuit, updated_at)
-       VALUES (?, ?, 't', ?, 't')`,
+       VALUES (?, ?, ?, ?, 't')`,
     )
-    insert.run('bladehq.com', 5_606_969, 'closed')
-    insert.run('knifejoy.com', 10_408_435, 'closed')
-    insert.run('dlttrading.com', 11_435_061, 'open')
-    insert.run('vosteed.com', 600_000, 'closed')
+    // Inflated gaps left each store's next check slot hours ahead.
+    const farReadyAt = new Date(Date.now() + 3 * 3_600_000).toISOString()
+    insert.run('bladehq.com', 5_606_969, farReadyAt, 'closed')
+    insert.run('knifejoy.com', 10_408_435, farReadyAt, 'closed')
+    insert.run('dlttrading.com', 11_435_061, farReadyAt, 'open')
+    insert.run('vosteed.com', 600_000, farReadyAt, 'closed')
     const gaps = () =>
       Object.fromEntries(
         (
@@ -97,6 +99,19 @@ describe('local database migrations', () => {
     expect(getLocalDb().pragma('user_version', { simple: true })).toBe(
       LOCAL_DB_SCHEMA_VERSION,
     )
+    // The check slot the inflated gap pushed hours ahead is due now; the
+    // paused store and other stores keep theirs.
+    const readyAt = Object.fromEntries(
+      (
+        getLocalDb()
+          .prepare('SELECT lane_key, ready_at FROM price_host_state')
+          .all() as Array<{ lane_key: string; ready_at: string }>
+      ).map((row) => [row.lane_key, row.ready_at]),
+    )
+    expect(Date.parse(readyAt['bladehq.com'])).toBeLessThanOrEqual(Date.now())
+    expect(Date.parse(readyAt['knifejoy.com'])).toBeLessThanOrEqual(Date.now())
+    expect(readyAt['dlttrading.com']).toBe(farReadyAt)
+    expect(readyAt['vosteed.com']).toBe(farReadyAt)
 
     // Once only: a store slowed later by throttling keeps its gap on reopen.
     getLocalDb()
