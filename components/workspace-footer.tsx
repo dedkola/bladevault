@@ -4,6 +4,7 @@ import { Search } from 'lucide-react'
 import { ClassicFooterActions } from '@/components/classic-footer-actions'
 import { ThemeQuickSwitcher } from '@/components/theme-quick-switcher'
 import { ReloadDataButton } from '@/components/reload-data-button'
+import { UpdateCheckButton } from '@/components/update-check-button'
 import { OPEN_GLOBAL_SEARCH_EVENT } from '@/components/global-knife-search'
 import { useKnives } from '@/components/providers/knives-provider'
 import { isModernThemeFamily } from '@/lib/settings-shared'
@@ -40,6 +41,7 @@ export function WorkspaceFooter() {
         </button>
         <ThemeQuickSwitcher />
         <ReloadDataButton />
+        <UpdateCheckButton />
       </div>
     </footer>
   )

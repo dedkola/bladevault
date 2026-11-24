@@ -19,8 +19,6 @@ import {
   Layers,
   Link2,
   PenLine,
-  Download,
-  Loader2,
   Menu,
   Pin,
   History,
@@ -49,7 +47,6 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { THEME_STYLE_NAMES, isModernThemeFamily } from '@/lib/settings-shared'
-import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
 import {
   Dialog,
   DialogClose,
@@ -99,19 +96,11 @@ export function Sidebar() {
   const careStatusFilter = careReminders.enabled ? careStatusById : undefined
   const marketFilter = useMarketFilter()
   const { visible: inboxEnabled, unreadCount: inboxUnread } = useCareInbox()
-  const { update, downloadUpdate } = useDesktopUpdates()
   const [brandsOpen, setBrandsOpen] = useState(true)
   const [pinnedOpen, setPinnedOpen] = useState(true)
   const [smartCollectionsOpen, setSmartCollectionsOpen] = useState(true)
   const [mobileNavSession, setMobileNavSession] = useState<string | null>(null)
   const isMobileNavOpen = mobileNavSession === routeKey
-  const hasUpdate = update.status === 'available'
-  const isUpdateBusy =
-    update.status === 'checking' || update.status === 'downloading'
-
-  const handleUpdateClick = async () => {
-    if (hasUpdate) await downloadUpdate()
-  }
 
   const brands = useMemo(() => {
     const counts = new Map<string, number>()
@@ -270,32 +259,6 @@ export function Sidebar() {
             </div>
           </div>
         )}
-
-        {hasUpdate || isUpdateBusy ? (
-          <div className="flex justify-center px-4 pb-2">
-            <button
-              type="button"
-              onClick={handleUpdateClick}
-              disabled={isUpdateBusy}
-              className={cn(
-                'inline-flex h-6 items-center gap-1.5 rounded-full border px-2 text-[9px] font-semibold uppercase tracking-[0.12em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bladevault-gold)]/60',
-                'border-[var(--bladevault-gold)]/70 bg-[var(--bladevault-gold)]/15 text-[var(--bladevault-title)] hover:bg-[var(--bladevault-gold)]/25 dark:text-[var(--bladevault-gold)]',
-              )}
-              title={
-                hasUpdate
-                  ? `Download BladeVault ${update.version}`
-                  : 'Checking for BladeVault updates'
-              }
-            >
-              {isUpdateBusy ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Download className="h-3 w-3" />
-              )}
-              {hasUpdate ? 'Update' : 'Checking'}
-            </button>
-          </div>
-        ) : null}
 
         <nav
           data-sidebar-nav

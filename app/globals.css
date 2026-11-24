@@ -2480,7 +2480,8 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
 [data-workspace-footer] button:where(:not([data-footer-action])) svg {
   display: none;
 }
-[data-workspace-footer] :is([data-theme-cycle], [data-reload-data]) {
+[data-workspace-footer]
+  :is([data-theme-cycle], [data-reload-data], [data-update-check]) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2492,18 +2493,37 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
     background-color 150ms,
     color 150ms;
 }
-[data-workspace-footer] :is([data-theme-cycle], [data-reload-data]):hover {
+[data-workspace-footer]
+  :is([data-theme-cycle], [data-reload-data], [data-update-check]):hover {
   background: var(--accent);
   color: var(--foreground);
 }
-[data-workspace-footer] :is([data-theme-cycle], [data-reload-data]) svg {
+[data-workspace-footer]
+  :is([data-theme-cycle], [data-reload-data], [data-update-check])
+  svg {
   display: block;
   width: 15px;
   height: 15px;
   stroke-width: 1.6;
 }
-[data-workspace-footer] [data-reload-data]:disabled {
+[data-workspace-footer] :is([data-reload-data], [data-update-check]):disabled {
   cursor: progress;
+}
+[data-workspace-footer] [data-update-check] {
+  position: relative;
+}
+[data-workspace-footer] [data-update-check][data-update-available] {
+  color: var(--bladevault-gold);
+}
+[data-workspace-footer] [data-update-dot] {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--destructive);
+  box-shadow: 0 0 0 1.5px var(--card);
 }
 [data-workspace-footer] kbd {
   padding: 1px 4px;

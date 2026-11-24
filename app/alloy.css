@@ -310,7 +310,7 @@ html[data-theme-style='alloy'] [data-alloy-shell] {
   gap: 5px;
   margin-left: auto;
 }
-[data-alloy-utilities] > :is(a, button, [data-alloy-update]) {
+[data-alloy-utilities] > :is(a, button) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -343,9 +343,6 @@ html[data-theme-style='alloy'] [data-alloy-shell] {
 [data-alloy-utilities] > [data-alloy-add]:hover {
   background: #e5ca87;
   color: #17130d;
-}
-[data-alloy-utilities] > [data-alloy-update] {
-  color: var(--alloy-gold);
 }
 [data-alloy-global-search] {
   position: relative;
