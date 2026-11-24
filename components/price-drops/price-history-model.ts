@@ -3,6 +3,7 @@ import type {
   KnifeHistory,
   SourceHistory,
 } from '@/lib/price-monitor/insights'
+import { fromMinorUnits } from '@/lib/price-monitor/money'
 import { money, storeLabel } from './price-format'
 
 /**
@@ -11,7 +12,7 @@ import { money, storeLabel } from './price-format'
  * rather than whichever store's line is nearest. Pure, for tests.
  */
 
-type Span = { from: number; to: number; point: HistoryPoint }
+export type SourceSpan = { from: number; to: number; point: HistoryPoint }
 
 /** The latest moment the history knows about: its newest reading. */
 export function historyEnd(history: Pick<KnifeHistory, 'sources'>): number {
@@ -25,9 +26,11 @@ export function historyEnd(history: Pick<KnifeHistory, 'sources'>): number {
 /**
  * When each reading was in force: until the next reading began; the last
  * one until it was last seen, or for a store still monitored, until the
- * history's end (its newest reading is what the store shows now).
+ * history's end (its newest reading is what the store shows now). The
+ * chart draws these spans as its step lines, so a single snapshot still
+ * gets a visible line.
  */
-function sourceSpans(source: SourceHistory, end: number): Span[] {
+export function sourceSpans(source: SourceHistory, end: number): SourceSpan[] {
   return source.points.map((point, index) => {
     const from = Date.parse(point.from)
     const next = source.points[index + 1]
@@ -42,6 +45,32 @@ function sourceSpans(source: SourceHistory, end: number): Span[] {
 }
 
 /**
+ * A store's step-line data for the chart: each reading's span as a pair of
+ * [time, price] points, with a null price when the reading has no price or
+ * shows another currency than the chart (so the line breaks there).
+ * `dotted` holds the indexes of priced spans too short to see as a line
+ * (at most `minVisible` long), which the chart draws as dots instead.
+ */
+export function storeLineData(
+  source: SourceHistory,
+  end: number,
+  currency: string | null,
+  minVisible: number,
+): { data: Array<[number, number | null]>; dotted: Set<number> } {
+  const data: Array<[number, number | null]> = []
+  const dotted = new Set<number>()
+  for (const { from, to, point } of sourceSpans(source, end)) {
+    const value =
+      point.priceMinor !== null && point.currency && point.currency === currency
+        ? fromMinorUnits(point.priceMinor, point.currency)
+        : null
+    if (value !== null && to - from <= minVisible) dotted.add(data.length)
+    data.push([from, value], [to, value])
+  }
+  return { data, dotted }
+}
+
+/**
  * What a store showed at a moment, or null before its first reading and
  * after a removed store's last one.
  */
@@ -50,7 +79,7 @@ export function readingAt(
   at: number,
   end: number,
 ): HistoryPoint | null {
-  let found: Span | null = null
+  let found: SourceSpan | null = null
   for (const span of sourceSpans(source, end)) {
     if (span.from > at) break
     found = span

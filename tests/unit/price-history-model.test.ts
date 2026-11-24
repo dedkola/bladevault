@@ -3,6 +3,8 @@ import {
   historyEnd,
   outOfStockEverywhere,
   readingAt,
+  sourceSpans,
+  storeLineData,
   storeLinesAt,
 } from '@/components/price-drops/price-history-model'
 import type { HistoryPoint, SourceHistory } from '@/lib/price-monitor/insights'
@@ -42,6 +44,51 @@ describe('price history model', () => {
     const removed = { ...steps, removed: true }
     expect(readingAt(removed, ms(9), ms(10))).toBeNull()
     expect(historyEnd(militaw)).toBe(ms(8))
+  })
+
+  const spanTimes = (source: SourceHistory, end: number) =>
+    sourceSpans(source, end).map((span) => [span.from, span.to])
+
+  it('spans the single snapshot of a live store to the history end', () => {
+    expect(spanTimes(bladeHq, ms(10))).toEqual([[ms(6), ms(10)]])
+  })
+
+  it('stops a removed store at the last time it was seen', () => {
+    expect(spanTimes({ ...bladeHq, removed: true }, ms(10))).toEqual([
+      [ms(6), ms(6)],
+    ])
+  })
+
+  it('steps at the next reading rather than at last seen', () => {
+    const steps = source(1, 'a.example', [point(0, 1, 100), point(4, 5, 90)])
+    expect(spanTimes(steps, ms(10))).toEqual([
+      [ms(0), ms(4)],
+      [ms(4), ms(10)],
+    ])
+  })
+
+  it('draws a single reading as a line, not a dot', () => {
+    const { data, dotted } = storeLineData(bladeHq, ms(10), 'USD', 60_000)
+    expect(data).toEqual([
+      [ms(6), 67.95],
+      [ms(10), 67.95],
+    ])
+    expect(dotted.size).toBe(0)
+  })
+
+  it('dots the single reading of a removed store and breaks on other currencies', () => {
+    const removed = { ...bladeHq, removed: true }
+    expect(storeLineData(removed, ms(10), 'USD', 0)).toEqual({
+      data: [
+        [ms(6), 67.95],
+        [ms(6), 67.95],
+      ],
+      dotted: new Set([0]),
+    })
+    expect(storeLineData(bladeHq, ms(10), 'EUR', 0).data).toEqual([
+      [ms(6), null],
+      [ms(10), null],
+    ])
   })
 
   it('shades only while no store had the knife in stock', () => {
