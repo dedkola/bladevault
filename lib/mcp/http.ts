@@ -5,6 +5,7 @@ import { recordMcpHttpRequest } from '@/lib/mcp/activity'
 import { getMcpAuthToken, isMcpEnabled } from '@/lib/mcp/config'
 import { isAppLockEnabled } from '@/lib/app-lock'
 import { requestPriceChecks } from '@/lib/price-monitor/worker'
+import { vaultAccessErrorResponse } from '@/lib/vault-access'
 
 const handler = createMcpHandler(
   () => createBladeVaultMcpServer('http', { requestPriceChecks }),
@@ -77,6 +78,20 @@ function allowedOrigin(request: Request): boolean {
 export async function handleMcpHttpRequest(
   request: Request,
 ): Promise<Response> {
+  try {
+    return await routeMcpHttpRequest(request)
+  } catch (error) {
+    // `/mcp` bypasses the Next.js proxy, so it must answer a restore switch
+    // itself. Reading settings or the token while the restored vault is being
+    // installed throws VaultAccessError; return the same retryable 503/423 the
+    // proxy sends API routes instead of an unhandled request error.
+    const busy = vaultAccessErrorResponse(error)
+    if (busy) return busy
+    throw error
+  }
+}
+
+async function routeMcpHttpRequest(request: Request): Promise<Response> {
   if (!isMcpEnabled()) {
     return Response.json({ error: 'Not found' }, { status: 404 })
   }
