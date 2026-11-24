@@ -5,6 +5,7 @@ import {
   parseMoneyText,
 } from '@/lib/price-monitor/money'
 import type { ExtractedOffer, OfferAvailability } from '@/lib/scrape-offer'
+import { hasAmazonDeliveryGate } from '@/lib/scrape-amazon-location'
 
 const clean = (value: string) =>
   value
@@ -194,8 +195,20 @@ const AVAILABILITY_PATTERNS: ReadonlyArray<[RegExp, OfferAvailability]> = [
   ],
 ]
 
+/**
+ * Amazon puts "cannot be shipped to your selected delivery location" in the
+ * same `#outOfStock` box it uses for sold-out items. That says nothing about
+ * stock: the shopper's location (outside the US) hides the buy box.
+ */
+export function amazonDeliveryGated($: cheerio.CheerioAPI): boolean {
+  return hasAmazonDeliveryGate(
+    clean($('#outOfStock, #exports_desktop_undeliverable_buybox').text()),
+  )
+}
+
 /** Stock status from the buy box (`#availability`, `#outOfStock`). */
 export function amazonAvailability($: cheerio.CheerioAPI): OfferAvailability {
+  if (amazonDeliveryGated($)) return 'unknown'
   if ($('#outOfStock').length) return 'out_of_stock'
   const text = clean(
     $('#availability').first().text() ||

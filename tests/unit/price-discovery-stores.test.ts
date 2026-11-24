@@ -4,7 +4,10 @@ import { isIgnoredOfficialOutOfStock } from '@/lib/price-monitor/eligibility'
 import {
   DISCOVERY_STORES,
   SHOPIFY_SEARCH_GAP_MS,
+  amazonEmptySearchKind,
+  amazonProductDetails,
   genericProductDetails,
+  parseAmazonSearchResults,
   withoutBrandPrefix,
 } from '@/lib/price-monitor/discovery-stores'
 import {
@@ -179,13 +182,14 @@ describe('Other stores: Blade HQ', () => {
     expect(isNetworkBlockError(new Error('HTTP 403'))).toBe(false)
   })
 
-  it('no longer offers KnifeCenter or Amazon; old saved settings still load', () => {
+  it('offers Amazon again but not KnifeCenter; old saved settings still load', () => {
     expect(Object.keys(DISCOVERY_STORES)).toEqual([
       'bladehq',
       'smkw',
       'dlttrading',
       'knifejoy',
       'northwestknives',
+      'amazon',
     ])
     expect(
       normalizePriceMonitoring({
@@ -200,10 +204,16 @@ describe('Other stores: Blade HQ', () => {
       dlttrading: false,
       knifejoy: false,
       northwestknives: false,
+      amazon: true,
     })
   })
 
   it('lanes and marketplaces follow the store', () => {
+    expect(DISCOVERY_STORES.amazon.laneKey).toBe('amazon')
+    expect(DISCOVERY_STORES.amazon.marketplace).toBe('amazon.com')
+    expect(DISCOVERY_STORES.amazon.searchUrl('Kizer 1040S8')).toBe(
+      'https://www.amazon.com/s?k=Kizer+1040S8',
+    )
     expect(DISCOVERY_STORES.bladehq.laneKey).toBe('bladehq.com')
     expect(DISCOVERY_STORES.bladehq.marketplace).toBe('bladehq.com')
     expect(DISCOVERY_STORES.smkw.laneKey).toBe('smkw.com')
@@ -224,6 +234,7 @@ describe('Other stores: SMKW', () => {
       dlttrading: false,
       knifejoy: false,
       northwestknives: false,
+      amazon: false,
     })
     expect(
       normalizePriceMonitoring({
@@ -235,6 +246,7 @@ describe('Other stores: SMKW', () => {
       dlttrading: false,
       knifejoy: false,
       northwestknives: false,
+      amazon: false,
     })
     expect(storeLabel('smkw.com')).toBe('SMKW')
   })
@@ -343,6 +355,7 @@ describe('Other stores: DLT Trading', () => {
       dlttrading: true,
       knifejoy: false,
       northwestknives: false,
+      amazon: false,
     })
     expect(storeLabel('dlttrading.com')).toBe('DLT Trading')
   })
@@ -687,5 +700,97 @@ describe('Ignore out of stock on the official site', () => {
         { ignoreOfficialOutOfStock: false },
       ),
     ).toBe(false)
+  })
+})
+
+const SEARCH_HTML = `
+<div data-component-type="s-search-results"><div class="s-main-slot">
+  <div data-component-type="s-search-result" data-asin="B0SPONSOR1">
+    <span class="puis-label-popover">Sponsored</span>
+    <h2><span>Knife Sharpener for Pocket Knives</span></h2>
+    <span class="a-price"><span class="a-offscreen">$19.99</span></span>
+  </div>
+  <div data-component-type="s-search-result" data-asin="B07PARA003">
+    <h2><a href="/dp/B07PARA003"><span>Spyderco Para 3 Lightweight Folding Knife, CTS BD1N, Black FRN</span></a></h2>
+    <span class="a-price a-text-price"><span class="a-offscreen">$149.95</span></span>
+    <span class="a-price"><span class="a-offscreen">$124.95</span></span>
+  </div>
+  <div data-component-type="s-search-result" data-asin="">
+    <h2>Empty ASIN block</h2>
+  </div>
+  <div data-component-type="s-search-result" data-asin="B07PARA003">
+    <h2>Duplicate</h2>
+  </div>
+</div></div>`
+
+const amazonFixture = (name: string) =>
+  readFileSync(
+    new URL(`../fixtures/scrape/${name}.html`, import.meta.url),
+    'utf8',
+  )
+
+describe('Amazon search for Other stores', () => {
+  const page = 'https://www.amazon.com/s?k=para+3'
+
+  it('reads product links, titles and current prices, leaving out ads', () => {
+    expect(parseAmazonSearchResults(SEARCH_HTML, page)).toEqual([
+      {
+        id: 1,
+        url: 'https://www.amazon.com/dp/B07PARA003',
+        title: 'Spyderco Para 3 Lightweight Folding Knife, CTS BD1N, Black FRN',
+        price: '$124.95',
+      },
+    ])
+  })
+
+  it('puts the brand heading in front and drops the ad label', () => {
+    const html = `
+      <div data-component-type="s-search-result" data-asin="B0KIZERDB1">
+        <div data-cy="title-recipe">
+          <div class="a-row"><h2 class="a-size-mini"><span>KIZER</span></h2></div>
+          <a href="/dp/B0KIZERDB1"><h2 aria-label="Drop Bear Pocket Knife, 154CM Blade, Micarta Handle"><span>Drop Bear Pocket Knife, 154CM Blade, Micarta Handle</span></h2></a>
+        </div>
+      </div>
+      <div data-component-type="s-search-result" data-asin="B0GVSLQJD2">
+        <h2 aria-label="Vosteed">Vosteed</h2>
+        <h2 aria-label="Sponsored Ad - Porcupine ModSwap - 154CM Blade, G10 Handle - A3103"></h2>
+      </div>`
+    expect(
+      parseAmazonSearchResults(html, page).map((result) => result.title),
+    ).toEqual(['KIZER Drop Bear Pocket Knife, 154CM Blade, Micarta Handle'])
+  })
+
+  it('reads the live search page and tells an empty search from a bot check', () => {
+    // amazon.com/s?k=Kizer+Mini+Harpoon+1040S8
+    const html = amazonFixture('amazon-search-kizer-mini-harpoon-1040s8')
+    const results = parseAmazonSearchResults(html, page)
+    expect(results).toHaveLength(12)
+    expect(results.slice(0, 3).map((result) => result.url)).toEqual([
+      'https://www.amazon.com/dp/B093T6MNZQ',
+      'https://www.amazon.com/dp/B0BRTCG173',
+      'https://www.amazon.com/dp/B0DT46V5T2',
+    ])
+    // Shop Direct boxes sell from the maker's own site, not Amazon.
+    expect(results.map((result) => result.url)).not.toContain(
+      'https://www.amazon.com/dp/B0HH4VN7CX',
+    )
+    expect(amazonEmptySearchKind(html)).toBe('unreadable')
+
+    const empty = amazonFixture('amazon-search-no-results')
+    expect(parseAmazonSearchResults(empty, page)).toEqual([])
+    expect(amazonEmptySearchKind(empty)).toBe('empty')
+
+    const checkpoint = amazonFixture('amazon-search-checkpoint')
+    expect(parseAmazonSearchResults(checkpoint, page)).toEqual([])
+    expect(amazonEmptySearchKind(checkpoint)).toBe('unreadable')
+  })
+
+  it('gives AI the product page title and spec rows', () => {
+    const details = amazonProductDetails(
+      amazonFixture('amazon-benchmade-bugout-535gry-1'),
+      'https://www.amazon.com/dp/B07CSBPN9F',
+    )
+    expect(details?.title).toContain('Bugout')
+    expect(details?.details).toContain('535GRY-1')
   })
 })

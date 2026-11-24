@@ -137,6 +137,7 @@ describe('Other stores scheduling and settings', () => {
         dlttrading: false,
         knifejoy: false,
         northwestknives: false,
+        amazon: false,
       },
     })
     const next = normalizePriceMonitoring({
@@ -150,11 +151,12 @@ describe('Other stores scheduling and settings', () => {
         dlttrading: false,
         knifejoy: false,
         northwestknives: false,
+        amazon: false,
       },
     })
   })
 
-  it('loads settings saved while Amazon was offered, without Amazon', () => {
+  it('loads settings saved by an older Amazon search, keeping its switch', () => {
     const saved = normalizePriceMonitoring({
       pacing: { minGapSeconds: 90, amazonMinGapSeconds: 600 },
       otherStores: {
@@ -173,6 +175,7 @@ describe('Other stores scheduling and settings', () => {
         dlttrading: false,
         knifejoy: false,
         northwestknives: false,
+        amazon: true,
       },
     })
   })

@@ -442,6 +442,7 @@ export const PRICE_SCHEDULE_MODES = [
   'twice_daily',
   'every_12h',
   'custom',
+  'slots',
 ] as const
 export type PriceScheduleMode = (typeof PRICE_SCHEDULE_MODES)[number]
 
@@ -499,6 +500,12 @@ export type PriceMonitoringSettings = {
     /** Null: around the clock (Twice daily defaults to 8–22). */
     activeHours: ActiveHours | null
     /**
+     * Set times mode: the hours (server local time, 0–23, sorted) at which
+     * every source is checked once, each store at its minimum gap. Nothing
+     * is checked on schedule between the runs.
+     */
+    slotHours: number[]
+    /**
      * Pages out of stock for two weeks or more are checked at most once a
      * day, so a restock is still caught within a day.
      */
@@ -536,16 +543,14 @@ export type PriceMonitoringSettings = {
   otherStores: PriceOtherStoresSettings
 }
 
-/**
- * Stores AI can search for monitored knives, in search order. Amazon is not
- * one: it forbids automated AI access, so Price Drops never loads its pages.
- */
+/** Stores AI can search for monitored knives, in search order. */
 export const OTHER_STORE_IDS = [
   'bladehq',
   'smkw',
   'dlttrading',
   'knifejoy',
   'northwestknives',
+  'amazon',
 ] as const
 export type OtherStoreId = (typeof OTHER_STORE_IDS)[number]
 
@@ -555,6 +560,7 @@ export const OTHER_STORE_LABELS: Record<OtherStoreId, string> = {
   dlttrading: 'DLT Trading',
   knifejoy: 'KnifeJoy',
   northwestknives: 'Northwest Knives',
+  amazon: 'Amazon',
 }
 
 export type PriceOtherStoresSettings = {
@@ -673,6 +679,10 @@ export type PriceNotifyCategories = {
   backInStock: boolean
 }
 
+/** Set times: morning, lunch and evening. */
+export const DEFAULT_SLOT_HOURS: readonly number[] = [9, 14, 20]
+export const MAX_SLOT_HOURS = 6
+
 export const PRICE_MONITORING_LIMITS = {
   intervalHours: [1, 168],
   minGapSeconds: [30, 3600],
@@ -689,6 +699,7 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
     mode: 'daily',
     intervalHours: 24,
     activeHours: null,
+    slotHours: [...DEFAULT_SLOT_HOURS],
     slowOutOfStock: true,
   },
   pacing: { minGapSeconds: 60 },
@@ -729,6 +740,7 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
       dlttrading: false,
       knifejoy: false,
       northwestknives: false,
+      amazon: false,
     },
   },
 }
@@ -1030,6 +1042,23 @@ function normalizeActiveHours(
   return [start, end]
 }
 
+/** Whole hours 0–23, sorted and unique; 1–MAX_SLOT_HOURS of them. */
+export function normalizeSlotHours(
+  value: unknown,
+  fallback: readonly number[],
+): number[] {
+  if (!Array.isArray(value)) return [...fallback]
+  const hours = [
+    ...new Set(
+      value.filter(
+        (hour): hour is number =>
+          Number.isInteger(hour) && hour >= 0 && hour <= 23,
+      ),
+    ),
+  ].sort((a, b) => a - b)
+  return hours.length && hours.length <= MAX_SLOT_HOURS ? hours : [...fallback]
+}
+
 function uniqueIds(value: unknown, fallback: string[]): string[] {
   if (!Array.isArray(value)) return fallback
   const ids = new Set<string>()
@@ -1100,6 +1129,10 @@ export function normalizePriceMonitoring(
               fallback.schedule.activeHours,
             )
           : fallback.schedule.activeHours,
+      slotHours: normalizeSlotHours(
+        schedule.slotHours,
+        fallback.schedule.slotHours ?? DEFAULT_SLOT_HOURS,
+      ),
       slowOutOfStock:
         typeof schedule.slowOutOfStock === 'boolean'
           ? schedule.slowOutOfStock

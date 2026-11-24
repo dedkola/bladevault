@@ -348,6 +348,7 @@ describe('AI supervisor', () => {
             dlttrading: false,
             knifejoy: false,
             northwestknives: false,
+            amazon: false,
           },
         },
       },

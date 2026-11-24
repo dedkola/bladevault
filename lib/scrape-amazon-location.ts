@@ -29,6 +29,46 @@ export function amazonDeliversTo(
   return location.replace(/[^0-9]/g, '').includes(postcode)
 }
 
+const DELIVERY_GATE =
+  /cannot be shipped to your selected delivery location|doesn['’]t ship to your (?:selected )?(?:delivery )?location/i
+
+/**
+ * The "Deliver to …" line of a server-rendered Amazon page, or null when the
+ * page has none. Amazon pads it with zero-width characters and entities.
+ */
+export function amazonDeliveryLine(html: string): string | null {
+  const match = html.match(
+    /id=["']glow-ingress-line2["'][^>]*>([\s\S]{0,300}?)<\/span>/i,
+  )
+  if (!match) return null
+  const text = match[1]
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&(?:zwnj|zwj|nbsp|lrm|rlm);|&#x?[0-9a-f]+;/gi, ' ')
+    .replace(/[\u200b-\u200f\u00a0\s]+/g, ' ')
+    .trim()
+  return text || null
+}
+
+/** Amazon's "cannot be shipped to your selected delivery location" notice. */
+export function hasAmazonDeliveryGate(text: string): boolean {
+  return DELIVERY_GATE.test(text)
+}
+
+/**
+ * True when an Amazon page is not delivering to the US postcode: its
+ * location line names another place, or it shows the shipping notice and no
+ * location line at all. An amazon.com page that already delivers to the
+ * postcode is never gated, even for an item that does not ship there.
+ */
+export function amazonDeliveryBlocked(
+  html: string,
+  postcode = AMAZON_US_POSTCODE,
+): boolean {
+  const line = amazonDeliveryLine(html)
+  if (line) return !amazonDeliversTo(line, postcode)
+  return hasAmazonDeliveryGate(html)
+}
+
 async function readLocation(
   page: Page,
   timeout: number,
