@@ -23,7 +23,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 13
+export const LOCAL_DB_SCHEMA_VERSION = 14
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -766,6 +766,38 @@ function migrateSchema(database: Database.Database) {
   normalizeKnifeRows(database)
 }
 
+/** Lanes of the Other stores searches (DISCOVERY_STORES in discovery-stores.ts). */
+const OTHER_STORE_LANES = [
+  'bladehq.com',
+  'smkw.com',
+  'dlttrading.com',
+  'knifejoy.com',
+  'northwestknives.com',
+] as const
+
+/**
+ * Schema 14: before it, every Other stores search counted as a slow check
+ * and stretched its store's gap until one request every few hours held up
+ * the store's price checks too. Resets those gaps to the 60 s default once;
+ * the worker raises it to the user's floor, and real throttling slows the
+ * store again. Paused (open) stores keep their cooldown.
+ */
+function resetOtherStoreLaneGaps(database: Database.Database) {
+  const exists = database
+    .prepare(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'price_host_state'",
+    )
+    .get()
+  if (!exists) return
+  database
+    .prepare(
+      `UPDATE price_host_state SET min_gap_ms = 60000
+        WHERE circuit = 'closed' AND min_gap_ms > 60000
+          AND lane_key IN (${OTHER_STORE_LANES.map(() => '?').join(', ')})`,
+    )
+    .run(...OTHER_STORE_LANES)
+}
+
 /**
  * Wishlist (schema 13): knives the collector plans to buy, by priority lane,
  * plus a small key/value table for the monthly budget. Target prices are the
@@ -1454,6 +1486,7 @@ function initSchema(database: Database.Database) {
   const currentSchemaVersion = Number(
     database.pragma('user_version', { simple: true }),
   )
+  if (currentSchemaVersion < 14) resetOtherStoreLaneGaps(database)
   if (currentSchemaVersion < LOCAL_DB_SCHEMA_VERSION) {
     database.pragma(`user_version = ${LOCAL_DB_SCHEMA_VERSION}`)
   }
