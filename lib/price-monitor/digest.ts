@@ -159,6 +159,21 @@ export function readDigestData(
       .map((candidate) => candidate.sourceId),
   )
   const isCovered = (row: { source_id: number }) => covered.has(row.source_id)
+  // Drops and restocks with their own Inbox card (open, or from the last
+  // 24 hours) are left out: the card already tells it, with the photo.
+  const carded = (kind: 'drop' | 'back_in_stock') =>
+    new Set(
+      (
+        database
+          .prepare(
+            `SELECT DISTINCT source_id FROM price_notifications
+             WHERE kind = ? AND (resolved_at IS NULL OR occurred_at >= ?)`,
+          )
+          .all(kind, since) as Array<{ source_id: number }>
+      ).map((row) => row.source_id),
+    )
+  const dropCards = carded('drop')
+  const restockCards = carded('back_in_stock')
 
   const monitoredSources = covered.size
 
@@ -191,6 +206,7 @@ export function readDigestData(
   }>
   const deals: DigestDeal[] = []
   for (const row of priced.filter(isCovered)) {
+    if (dropCards.has(row.source_id)) continue
     const paid = parseStoredPrice(storedPrice(row.specs))
     const currency = normalizeCurrencyCode(row.last_currency)
     if (!paid || !currency || (paid.currency && paid.currency !== currency))
@@ -236,6 +252,7 @@ export function readDigestData(
     .filter(
       (row) =>
         row.direction === 'drop' &&
+        !dropCards.has(row.source_id) &&
         !suspectAgainstStored(row.price_minor, row.currency, row.specs),
     )
     .slice(0, LISTED)
@@ -266,7 +283,9 @@ export function readDigestData(
     }>
   ).filter(isCovered)
   const restocks = stock
-    .filter((row) => row.kind === 'back_in_stock')
+    .filter(
+      (row) => row.kind === 'back_in_stock' && !restockCards.has(row.source_id),
+    )
     .slice(0, LISTED)
     .map((row) => ({
       knife: knifeLabel(row.brand, row.name),
@@ -362,6 +381,7 @@ export const DIGEST_SCHEMA = {
 const SYSTEM_PROMPT = [
   "You write a short daily summary for the Inbox of a knife collector's price tracker.",
   'The data covers the last 24 hours: current prices below the stored regular price (deals), price drops, restocks, store pages that need attention, and what AI did (prices it read when the page parsers could not, checks it worked through, readings it doubted).',
+  'Drops and restocks that already have their own Inbox card are left out of the data; never mention a knife or price that is not in it.',
   'Answer with JSON only: {"title", "summary"}.',
   `title: at most 60 characters, naming the most useful news. summary: plain text, no markdown, at most 5 short sentences and ${DIGEST_SUMMARY_MAX - 200} characters.`,
   'Lead with what is worth acting on: a good deal or a notable drop, then restocks, then problems and what AI fixed. Skip empty topics.',
