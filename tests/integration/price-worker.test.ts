@@ -755,6 +755,68 @@ describe('price monitor worker', () => {
       .get() as { circuit: string }
     expect(lane.circuit).toBe('closed')
   })
+
+  it('does not slow a store for long AI searches; throttling still does', async () => {
+    await knife([])
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        ai: {
+          ...DEFAULT_PRICE_MONITORING.ai,
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          model: 'test-model',
+        },
+        otherStores: {
+          enabled: true,
+          stores: {
+            bladehq: true,
+            smkw: false,
+            dlttrading: false,
+            knifejoy: false,
+            northwestknives: false,
+          },
+        },
+      },
+    })
+    let laneOutcome: DiscoverySummary & { status: 'done' } = {
+      status: 'done',
+      result: 'not_found',
+      laneOutcome: 'success',
+      aiProblem: false,
+      // Three minutes of AI matching and browsing.
+      durationMs: 3 * MIN,
+      retryAfterMs: null,
+      sourceId: null,
+    }
+    const discover = vi.fn(async (): Promise<DiscoverySummary> => laneOutcome)
+    const { worker, advance } = harness({
+      nextDiscovery: nextDiscoveryKnife,
+      discover,
+    })
+    const minGap = () =>
+      (
+        getLocalDb()
+          .prepare(
+            "SELECT min_gap_ms FROM price_host_state WHERE lane_key = 'bladehq.com'",
+          )
+          .get() as { min_gap_ms: number }
+      ).min_gap_ms
+    worker.start({ scheduled: true })
+    for (let search = 1; search <= 3; search += 1) {
+      await worker.pass()
+      await worker.idle()
+      expect(discover).toHaveBeenCalledTimes(search)
+      expect(minGap()).toBe(MIN)
+      advance(10 * MIN)
+    }
+
+    laneOutcome = { ...laneOutcome, laneOutcome: 'throttled' }
+    await worker.pass()
+    await worker.idle()
+    expect(discover).toHaveBeenCalledTimes(4)
+    expect(minGap()).toBe(2 * MIN)
+  })
 })
 
 async function storeAction(laneKey: string, action: string) {

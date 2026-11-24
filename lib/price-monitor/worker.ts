@@ -586,7 +586,12 @@ export class PriceMonitorWorker {
           normalizeLane(current, context.settings.pacing),
           {
             kind: summary.laneOutcome,
-            durationMs: summary.durationMs,
+            // A search's duration is mostly AI matching and browsing, not
+            // the store answering slowly. Counting it as a slow check
+            // stretched the store's gap by a quarter after every search,
+            // until one request every few hours held up its price checks
+            // too. Throttled, blocked and failed searches still slow it.
+            durationMs: 0,
             retryAfterMs: summary.retryAfterMs,
           },
           { now: this.deps.now(), gapMs, floorMs, random: this.deps.random },

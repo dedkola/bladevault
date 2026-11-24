@@ -66,6 +66,48 @@ describe('local database migrations', () => {
     ).toEqual({ checks: 3 })
   })
 
+  it('resets Other stores gaps slowed by long searches once, keeping paused stores', async () => {
+    vault = await createTempVault()
+    const insert = getLocalDb().prepare(
+      `INSERT INTO price_host_state
+         (lane_key, min_gap_ms, ready_at, circuit, updated_at)
+       VALUES (?, ?, 't', ?, 't')`,
+    )
+    insert.run('bladehq.com', 5_606_969, 'closed')
+    insert.run('knifejoy.com', 10_408_435, 'closed')
+    insert.run('dlttrading.com', 11_435_061, 'open')
+    insert.run('vosteed.com', 600_000, 'closed')
+    const gaps = () =>
+      Object.fromEntries(
+        (
+          getLocalDb()
+            .prepare('SELECT lane_key, min_gap_ms FROM price_host_state')
+            .all() as Array<{ lane_key: string; min_gap_ms: number }>
+        ).map((row) => [row.lane_key, row.min_gap_ms]),
+      )
+
+    getLocalDb().pragma('user_version = 13')
+    closeLocalDb()
+    expect(gaps()).toEqual({
+      'bladehq.com': 60_000,
+      'knifejoy.com': 60_000,
+      'dlttrading.com': 11_435_061,
+      'vosteed.com': 600_000,
+    })
+    expect(getLocalDb().pragma('user_version', { simple: true })).toBe(
+      LOCAL_DB_SCHEMA_VERSION,
+    )
+
+    // Once only: a store slowed later by throttling keeps its gap on reopen.
+    getLocalDb()
+      .prepare(
+        "UPDATE price_host_state SET min_gap_ms = 120000 WHERE lane_key = 'bladehq.com'",
+      )
+      .run()
+    closeLocalDb()
+    expect(gaps()['bladehq.com']).toBe(120_000)
+  })
+
   it('adds the alert rule columns to an older price schema, keeping its rows', async () => {
     vault = await createTempVault()
     const database = getLocalDb()
