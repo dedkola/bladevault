@@ -17,7 +17,7 @@ import { money, moneyMajor, storeLabel } from './price-format'
 import {
   historyEnd,
   outOfStockEverywhere,
-  sourceSpans,
+  storeLineData,
   storeLinesAt,
 } from './price-history-model'
 import './price-drops.css'
@@ -383,23 +383,15 @@ export function PriceHistoryChart({
       )
       const end = historyEnd(history)
       const series = history.sources.map((source, index) => {
-        const data: Array<[number, number | null]> = []
-        const dotted = new Set<number>()
         // A reading stays in force until the next one (and a live store's
-        // latest reading to the chart end), so a store with one snapshot
-        // still draws a line rather than a single dot.
-        for (const span of sourceSpans(source, end)) {
-          const point = span.point
-          const value =
-            point.priceMinor !== null &&
-            point.currency &&
-            point.currency === currency
-              ? fromMinorUnits(point.priceMinor, point.currency)
-              : null
-          if (value !== null && span.to - span.from <= minVisible)
-            dotted.add(data.length)
-          data.push([span.from, value], [span.to, value])
-        }
+        // latest one until the history's newest reading), so a store with
+        // one snapshot still draws a line rather than a single dot.
+        const { data, dotted } = storeLineData(
+          source,
+          end,
+          currency,
+          minVisible,
+        )
         return {
           type: 'line' as const,
           name: `${storeLabel(source.storeName)}${source.removed ? ' (removed)' : ''}`,

@@ -4,6 +4,7 @@ import {
   outOfStockEverywhere,
   readingAt,
   sourceSpans,
+  storeLineData,
   storeLinesAt,
 } from '@/components/price-drops/price-history-model'
 import type { HistoryPoint, SourceHistory } from '@/lib/price-monitor/insights'
@@ -45,25 +46,48 @@ describe('price history model', () => {
     expect(historyEnd(militaw)).toBe(ms(8))
   })
 
-  it('spans a single snapshot to the chart end so it draws a line', () => {
-    const bladeHq = source(2, 'bladehq.com', [point(6, 6, 6795)])
-    expect(
-      sourceSpans(bladeHq, ms(10)).map((span) => [span.from, span.to]),
-    ).toEqual([[ms(6), ms(10)]])
-    // A removed store stops at the last time it was seen.
-    expect(
-      sourceSpans({ ...bladeHq, removed: true }, ms(10)).map((span) => [
-        span.from,
-        span.to,
-      ]),
-    ).toEqual([[ms(6), ms(6)]])
-    // Multiple readings step at the next reading, not at last seen.
+  const spanTimes = (source: SourceHistory, end: number) =>
+    sourceSpans(source, end).map((span) => [span.from, span.to])
+
+  it('spans the single snapshot of a live store to the history end', () => {
+    expect(spanTimes(bladeHq, ms(10))).toEqual([[ms(6), ms(10)]])
+  })
+
+  it('stops a removed store at the last time it was seen', () => {
+    expect(spanTimes({ ...bladeHq, removed: true }, ms(10))).toEqual([
+      [ms(6), ms(6)],
+    ])
+  })
+
+  it('steps at the next reading rather than at last seen', () => {
     const steps = source(1, 'a.example', [point(0, 1, 100), point(4, 5, 90)])
-    expect(
-      sourceSpans(steps, ms(10)).map((span) => [span.from, span.to]),
-    ).toEqual([
+    expect(spanTimes(steps, ms(10))).toEqual([
       [ms(0), ms(4)],
       [ms(4), ms(10)],
+    ])
+  })
+
+  it('draws a single reading as a line, not a dot', () => {
+    const { data, dotted } = storeLineData(bladeHq, ms(10), 'USD', 60_000)
+    expect(data).toEqual([
+      [ms(6), 67.95],
+      [ms(10), 67.95],
+    ])
+    expect(dotted.size).toBe(0)
+  })
+
+  it('dots the single reading of a removed store and breaks on other currencies', () => {
+    const removed = { ...bladeHq, removed: true }
+    expect(storeLineData(removed, ms(10), 'USD', 0)).toEqual({
+      data: [
+        [ms(6), 67.95],
+        [ms(6), 67.95],
+      ],
+      dotted: new Set([0]),
+    })
+    expect(storeLineData(bladeHq, ms(10), 'EUR', 0).data).toEqual([
+      [ms(6), null],
+      [ms(10), null],
     ])
   })
 

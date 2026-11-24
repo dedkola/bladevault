@@ -3,6 +3,7 @@ import type {
   KnifeHistory,
   SourceHistory,
 } from '@/lib/price-monitor/insights'
+import { fromMinorUnits } from '@/lib/price-monitor/money'
 import { money, storeLabel } from './price-format'
 
 /**
@@ -41,6 +42,32 @@ export function sourceSpans(source: SourceHistory, end: number): SourceSpan[] {
         : Math.max(seen, end)
     return { from, to, point }
   })
+}
+
+/**
+ * A store's step-line data for the chart: each reading's span as a pair of
+ * [time, price] points, with a null price when the reading has no price or
+ * shows another currency than the chart (so the line breaks there).
+ * `dotted` holds the indexes of priced spans too short to see as a line
+ * (at most `minVisible` long), which the chart draws as dots instead.
+ */
+export function storeLineData(
+  source: SourceHistory,
+  end: number,
+  currency: string | null,
+  minVisible: number,
+): { data: Array<[number, number | null]>; dotted: Set<number> } {
+  const data: Array<[number, number | null]> = []
+  const dotted = new Set<number>()
+  for (const { from, to, point } of sourceSpans(source, end)) {
+    const value =
+      point.priceMinor !== null && point.currency && point.currency === currency
+        ? fromMinorUnits(point.priceMinor, point.currency)
+        : null
+    if (value !== null && to - from <= minVisible) dotted.add(data.length)
+    data.push([from, value], [to, value])
+  }
+  return { data, dotted }
 }
 
 /**
