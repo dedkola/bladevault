@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server'
 import { requireAppUnlock } from '@/lib/app-lock'
-import { parsePriceWatchUpdate } from '@/lib/price-monitor/shared'
+import type { Knife } from '@/lib/data'
+import { getLocalDb } from '@/lib/local-db'
+import { readKnifeStores } from '@/lib/price-monitor/knife-stores'
+import {
+  parsePriceWatchUpdate,
+  type PriceWatchView,
+} from '@/lib/price-monitor/shared'
 import {
   applyPriceWatchUpdate,
   buildPriceWatchView,
@@ -14,6 +20,15 @@ import { vaultAccessErrorResponse } from '@/lib/vault-access'
 import { withVaultMutationRequest } from '@/lib/vault-mutation-request'
 
 const NO_STORE = { 'Cache-Control': 'no-store' }
+
+/** The knife's monitoring view plus where it is sold, store by store. */
+function watchWithStores(knife: Knife): PriceWatchView {
+  const settings = getSettings().priceMonitoring
+  return {
+    ...buildPriceWatchView(knife, settings),
+    stores: readKnifeStores(getLocalDb(), [knife.id], settings).get(knife.id),
+  }
+}
 
 /** A knife's price monitoring mode, sources and eligibility. */
 export async function GET(
@@ -34,7 +49,7 @@ export async function GET(
       if (!vaultAccessErrorResponse(error)) throw error
     })
     return NextResponse.json(
-      { watch: buildPriceWatchView(knife, getSettings().priceMonitoring) },
+      { watch: watchWithStores(knife) },
       { headers: NO_STORE },
     )
   } catch (error) {
@@ -70,7 +85,7 @@ export async function PUT(
         return NextResponse.json({ error: 'Knife not found' }, { status: 404 })
       await applyPriceWatchUpdate(knife, update)
       return NextResponse.json(
-        { watch: buildPriceWatchView(knife, getSettings().priceMonitoring) },
+        { watch: watchWithStores(knife) },
         { headers: NO_STORE },
       )
     } catch (error) {

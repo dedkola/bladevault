@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Knife } from '@/lib/data'
+import type { VerifyDecision } from '@/lib/price-monitor/discovery-ai'
 import {
   describeVariant,
   detectMovedPage,
@@ -205,10 +206,12 @@ describe('finding a moved product', () => {
   })
 
   it('accepts a page only with the model number and AI’s yes', async () => {
-    const verify = vi.fn(async () => ({
+    const verify = vi.fn(async (): Promise<VerifyDecision> => ({
       accepted: true,
       confidence: 0.9,
       reason: 'same',
+      kind: null,
+      sameModel: false,
     }))
     const accept = productPageAcceptor({
       knife: knife(),
@@ -227,8 +230,19 @@ describe('finding a moved product', () => {
       accepted: false,
       confidence: 0.9,
       reason: '',
+      kind: null,
+      sameModel: false,
     })
     expect(await accept({ url: 'u', html: PRODUCT })).toBe(false)
+    // The exact model number on a knife page wins over AI's doubts.
+    verify.mockResolvedValueOnce({
+      accepted: false,
+      confidence: 0.9,
+      reason: 'The blade shape is described differently.',
+      kind: 'knife',
+      sameModel: true,
+    })
+    expect(await accept({ url: 'u', html: PRODUCT })).toBe(true)
   })
 
   it('applies a new link without asking only with the exact model number', () => {

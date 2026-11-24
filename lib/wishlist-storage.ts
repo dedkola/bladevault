@@ -1,5 +1,7 @@
 import type Database from 'better-sqlite3'
 import { getLocalDb } from '@/lib/local-db'
+import { readKnifeStores } from '@/lib/price-monitor/knife-stores'
+import { getSettings } from '@/lib/settings'
 import { withVaultWriteSync } from '@/lib/vault-access'
 import {
   WISHLIST_LANES,
@@ -178,14 +180,14 @@ export function buildWishlistTrends(
 export function getWishlist(now = Date.now()): WishlistResponse {
   const db = getLocalDb()
   const items = readItems(db)
+  const knifeIds = items.map((item) => item.knifeId)
   return {
     items,
-    trends: buildWishlistTrends(
-      db,
-      items.map((item) => item.knifeId),
-      now,
-    ),
+    trends: buildWishlistTrends(db, knifeIds, now),
     budget: readBudget(db),
+    stores: Object.fromEntries(
+      readKnifeStores(db, knifeIds, getSettings().priceMonitoring),
+    ),
   }
 }
 

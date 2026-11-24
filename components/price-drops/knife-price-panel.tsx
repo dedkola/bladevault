@@ -57,6 +57,7 @@ import {
   useMinuteClock,
   useStoredValue,
 } from './price-ui'
+import { KnifeStoresList } from './knife-stores-list'
 import { PriceWatchEditor } from './price-watch-editor'
 import { RetireHintNotice } from './retire-hint'
 import {
@@ -629,6 +630,10 @@ export function KnifePricePanel({
       : null
   const queued = new Set(watch?.queuedSourceIds ?? [])
   const enabledSources = watch?.sources.filter((source) => source.enabled) ?? []
+  // Stores Other stores searched without finding this knife; the store
+  // links themselves are listed under Sources.
+  const searchedElsewhere =
+    watch?.stores?.filter((entry) => entry.state !== 'listed') ?? []
 
   const dropNotice = latestDrop ? (
     <div
@@ -924,6 +929,12 @@ export function KnifePricePanel({
             <p className="mt-1 text-xs text-muted-foreground">
               {SOLVE_UNAVAILABLE_TEXT}
             </p>
+          ) : null}
+          {searchedElsewhere.length && !managing ? (
+            <div data-price-other-stores className="mt-3">
+              <div className={cn('mb-1', LABEL)}>Other stores</div>
+              <KnifeStoresList entries={searchedElsewhere} now={now} />
+            </div>
           ) : null}
         </div>
 

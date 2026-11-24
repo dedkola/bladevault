@@ -114,6 +114,7 @@ function deps(overrides: Partial<DiscoveryDeps> = {}): Partial<DiscoveryDeps> {
     })),
     match: vi.fn(async ({ candidates }) => ({
       accepted: true,
+      variants: [],
       confidence: 0.9,
       reason: 'Same model and steel.',
       candidate: candidates[1],
@@ -122,6 +123,8 @@ function deps(overrides: Partial<DiscoveryDeps> = {}): Partial<DiscoveryDeps> {
       accepted: true,
       confidence: 0.95,
       reason: 'The page sells the Para 3 in BD1N.',
+      kind: null,
+      sameModel: false,
     })),
     // Never a real browser in tests: AI browsing finds nothing by default.
     browse: vi.fn(async () => ({ page: null, note: null })),
@@ -224,6 +227,7 @@ describe('Other stores discovery', () => {
       fetchPage,
       match: vi.fn(async ({ candidates }) => ({
         accepted: true,
+        variants: [],
         confidence: 0.9,
         reason: 'Same model.',
         candidate: candidates[0],
@@ -278,6 +282,7 @@ describe('Other stores discovery', () => {
     )
     const match = vi.fn(async ({ candidates }) => ({
       accepted: true,
+      variants: [],
       confidence: 0.9,
       reason: 'Same model.',
       candidate: candidates.find((item: { title: string }) =>
@@ -419,6 +424,8 @@ describe('Other stores discovery', () => {
           accepted: false,
           confidence: 0.9,
           reason: 'The page sells the Para Military 2.',
+          kind: null,
+          sameModel: false,
         })),
       }),
     })
@@ -559,6 +566,154 @@ describe('Other stores discovery', () => {
     expect((await getWatch(knifeId)).sources).toHaveLength(1)
   })
 
+  it('adds a page that shows the exact model number even when AI words a spec differently', async () => {
+    enableOtherStores()
+    const knifeId = await createKnife({
+      brand: 'Vosteed',
+      name: 'Raccoon',
+      specs: { price: '$69', modelNumber: 'A2918' },
+    })
+    const productUrl = 'https://www.bladehq.com/item--Vosteed-Raccoon--2918'
+    const match = vi.fn(async () => ({
+      accepted: false,
+      confidence: 0.4,
+      reason: 'The result names a bowie blade, not a flat one.',
+      candidate: null,
+      variants: [],
+    }))
+    const run = deps({
+      fetchPage: vi.fn(async (url: string) => ({
+        html: url.includes('?search=')
+          ? `<main><div class="card"><a href="/item--Vosteed-Raccoon--2918">Vosteed Raccoon Bowie A2918</a><span>$69.00</span></div></main>`
+          : productHtml('Vosteed Raccoon Bowie 14C28N A2918', 'Bowie blade'),
+        finalUrl: url,
+      })),
+      match: match as unknown as DiscoveryDeps['match'],
+      verify: vi.fn(async () => ({
+        accepted: false,
+        confidence: 0.8,
+        reason: 'The page describes a bowie blade, not a flat one.',
+        kind: 'knife' as const,
+        sameModel: true,
+      })),
+    })
+
+    expect(await discoverKnife(knifeId, { deps: run })).toMatchObject({
+      status: 'done',
+      result: 'found',
+    })
+    const sources = (await getWatch(knifeId)).sources
+    expect(sources.map((source) => source.url)).toEqual([productUrl])
+    const row = getLocalDb()
+      .prepare(
+        'SELECT detail, confidence FROM price_discovery WHERE knife_id = ?',
+      )
+      .get(knifeId)
+    expect(row).toEqual({
+      detail: 'The Blade HQ page shows model number A2918.',
+      confidence: null,
+    })
+  })
+
+  it('never adds an accessory page, even when it shows the model number', async () => {
+    enableOtherStores()
+    const knifeId = await createKnife({
+      specs: { price: '$150', modelNumber: 'C223GP' },
+    })
+    const run = deps({
+      fetchPage: vi.fn(async (url: string) => ({
+        html: url.includes('?search=')
+          ? SEARCH_HTML
+          : productHtml('Leather Sheath for Spyderco Para 3 C223GP'),
+        finalUrl: url,
+      })),
+      verify: vi.fn(async () => ({
+        accepted: false,
+        confidence: 0.9,
+        reason: '',
+        kind: 'accessory' as const,
+        sameModel: false,
+      })),
+    })
+    expect(await discoverKnife(knifeId, { deps: run })).toMatchObject({
+      status: 'done',
+      result: 'rejected',
+    })
+    expect((await getWatch(knifeId)).sources).toEqual([])
+    const row = getLocalDb()
+      .prepare('SELECT detail FROM price_discovery WHERE knife_id = ?')
+      .get(knifeId) as { detail: string }
+    expect(row.detail).toBe(
+      'AI says the Blade HQ page sells an accessory, not the knife.',
+    )
+  })
+
+  it('keeps other variants of the model as related listings, not as sources', async () => {
+    enableOtherStores()
+    const knifeId = await createKnife({
+      brand: 'Vosteed',
+      name: 'Porcupine TiSlim',
+      specs: { price: '$139', modelNumber: 'A4804' },
+    })
+    const search = `<main>
+      <div class="card"><a href="/item--Vosteed-Porcupine-TiSlim--4801">Vosteed Porcupine TiSlim A4801 Black</a><span>$129.00</span></div>
+      <div class="card"><a href="/item--Vosteed-Porcupine-TiSlim--4815">Vosteed Porcupine TiSlim A4815 S90V</a><span>$189.00</span></div>
+    </main>`
+    const run = deps({
+      fetchPage: vi.fn(async (url: string) => ({
+        html: url.includes('?search=')
+          ? search
+          : productHtml('Vosteed Porcupine TiSlim A4815 S90V'),
+        finalUrl: url,
+      })),
+      match: vi.fn(async ({ candidates }) => ({
+        accepted: true,
+        confidence: 0.8,
+        reason: 'Closest listing.',
+        candidate: candidates[1],
+        variants: [candidates[0]],
+      })) as unknown as DiscoveryDeps['match'],
+      verify: vi.fn(async () => ({
+        accepted: false,
+        confidence: 0.9,
+        reason: 'The page shows A4815, not A4804.',
+        kind: 'knife' as const,
+        sameModel: true,
+      })),
+    })
+
+    expect(await discoverKnife(knifeId, { deps: run })).toMatchObject({
+      status: 'done',
+      result: 'variant',
+    })
+    expect((await getWatch(knifeId)).sources).toEqual([])
+    const variants = getLocalDb()
+      .prepare(
+        `SELECT url, title, price_text FROM price_discovery_variants
+         WHERE knife_id = ? ORDER BY position`,
+      )
+      .all(knifeId)
+    expect(variants).toEqual([
+      {
+        url: 'https://www.bladehq.com/item--Vosteed-Porcupine-TiSlim--4801',
+        title: 'Vosteed Porcupine TiSlim A4801 Black',
+        price_text: '$129.00',
+      },
+      {
+        url: 'https://www.bladehq.com/item--Vosteed-Porcupine-TiSlim--4815',
+        title: 'Vosteed Porcupine TiSlim A4815 S90V',
+        price_text: '$189.00',
+      },
+    ])
+    // A variant-only store is searched again the next day, like a miss.
+    const row = getLocalDb()
+      .prepare('SELECT next_attempt_at FROM price_discovery WHERE knife_id = ?')
+      .get(knifeId) as { next_attempt_at: string }
+    const wait = Date.parse(row.next_attempt_at) - Date.now()
+    expect(wait).toBeGreaterThan(23 * 3_600_000)
+    expect(wait).toBeLessThanOrEqual(24 * 3_600_000)
+  })
+
   it('reports a bot check to the store’s lane without asking AI', async () => {
     enableOtherStores()
     const knifeId = await createKnife({ specs: { price: '$150' } })
@@ -594,6 +749,7 @@ describe('Other stores discovery', () => {
     const match = vi.fn(
       async ({ candidates }: { candidates: Array<{ title: string }> }) => ({
         accepted: true,
+        variants: [],
         confidence: 0.9,
         reason: 'Same model number.',
         candidate: candidates.find((item) => item.title.endsWith('C223GPBK'))!,

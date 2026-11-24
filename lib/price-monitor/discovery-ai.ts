@@ -109,6 +109,23 @@ export type AiDecision = {
   reason: string
 }
 
+/** At most this many other variants are kept per knife and store. */
+export const MAX_RELATED_VARIANTS = 5
+
+/** What a product page sells, as AI reads it. */
+export const PRODUCT_KINDS = ['knife', 'accessory', 'bundle', 'other'] as const
+export type ProductKind = (typeof PRODUCT_KINDS)[number]
+
+export type VerifyDecision = AiDecision & {
+  /** Null when AI did not say (an older answer without the field). */
+  kind: ProductKind | null
+  /**
+   * The same maker and model, possibly in another variant (steel, handle,
+   * colour): a related listing, not the knife itself.
+   */
+  sameModel: boolean
+}
+
 function readConfidence(value: unknown): number {
   const number =
     typeof value === 'number'
@@ -129,39 +146,52 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {}
 }
 
-/** The candidate AI chose, only when it is one of the listed ones and AI is sure. */
+function readCandidateId(value: unknown): number | null {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string' && /^\d+$/.test(value.trim()))
+    return Number(value.trim())
+  return null
+}
+
+/**
+ * The candidate AI chose, only when it is one of the listed ones and AI is
+ * sure, and the listed results AI named as other variants of the same model
+ * (never the chosen one, at most MAX_RELATED_VARIANTS).
+ */
 export function parseMatchAnswer<C extends MatchCandidate>(
   answer: unknown,
   candidates: readonly C[],
-): AiDecision & { candidate: C | null } {
+): AiDecision & { candidate: C | null; variants: C[] } {
   const record = asRecord(answer)
   const confidence = readConfidence(record.confidence)
   const reason = readReason(record.reason)
-  const id =
-    typeof record.match === 'number'
-      ? record.match
-      : typeof record.match === 'string' && /^\d+$/.test(record.match.trim())
-        ? Number(record.match.trim())
-        : null
+  const id = readCandidateId(record.match)
   const candidate =
     id === null ? null : (candidates.find((item) => item.id === id) ?? null)
   const accepted = Boolean(candidate) && confidence >= DISCOVERY_MIN_CONFIDENCE
-  return {
-    accepted,
-    confidence,
-    reason,
-    candidate: accepted ? candidate : null,
+  const chosen = accepted ? candidate : null
+  const variants: C[] = []
+  for (const value of Array.isArray(record.variants) ? record.variants : []) {
+    const variantId = readCandidateId(value)
+    const variant = candidates.find((item) => item.id === variantId)
+    if (!variant || variant === chosen || variants.includes(variant)) continue
+    variants.push(variant)
+    if (variants.length >= MAX_RELATED_VARIANTS) break
   }
+  return { accepted, confidence, reason, candidate: chosen, variants }
 }
 
-export function parseVerifyAnswer(answer: unknown): AiDecision {
+export function parseVerifyAnswer(answer: unknown): VerifyDecision {
   const record = asRecord(answer)
   const confidence = readConfidence(record.confidence)
+  const kind = PRODUCT_KINDS.find((item) => item === record.kind) ?? null
   return {
     accepted:
       record.same_product === true && confidence >= DISCOVERY_MIN_CONFIDENCE,
     confidence,
     reason: readReason(record.reason),
+    kind,
+    sameModel: record.same_model === true,
   }
 }
 
@@ -206,14 +236,61 @@ export function pageShowsModelNumber(
   })
 }
 
+/** The knife has a maker's code, so the code on a page decides the match. */
+export function hasModelNumberCode(identity: KnifeIdentity): boolean {
+  return modelNumberCodes(identity.modelNumber).length > 0
+}
+
+/** Search results whose title shows the knife's exact model number. */
+export function resultsShowingModelNumber<C extends MatchCandidate>(
+  identity: KnifeIdentity,
+  candidates: readonly C[],
+): C[] {
+  if (!hasModelNumberCode(identity)) return []
+  return candidates.filter((candidate) =>
+    pageShowsModelNumber(identity.modelNumber, candidate.title),
+  )
+}
+
+/**
+ * Whether a product page is the collection knife:
+ * - With a model number, the exact code on the page decides: it is the knife
+ *   unless AI says the page sells an accessory, a part or a bundle. AI's
+ *   view of secondary specs (blade shape, handle) no longer vetoes it.
+ * - Without a model number, AI's product check decides, as before.
+ * A knife page of the same maker and model that is not the knife is a
+ * related variant.
+ */
+export function judgeProductPage(
+  identity: KnifeIdentity,
+  pageText: string,
+  verdict: VerifyDecision,
+): 'match' | 'variant' | 'other' {
+  const kind = verdict.kind ?? null
+  if (kind !== null && kind !== 'knife') return 'other'
+  if (hasModelNumberCode(identity)) {
+    if (pageShowsModelNumber(identity.modelNumber, pageText))
+      return kind === 'knife' || verdict.accepted ? 'match' : 'other'
+  } else if (verdict.accepted) {
+    return 'match'
+  }
+  return verdict.sameModel && kind === 'knife' ? 'variant' : 'other'
+}
+
 const MATCH_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['match', 'confidence', 'reason'],
+  required: ['match', 'variants', 'confidence', 'reason'],
   properties: {
     match: {
       type: ['integer', 'null'],
       description: 'The id of the matching search result, or null.',
+    },
+    variants: {
+      type: 'array',
+      items: { type: 'integer' },
+      description:
+        'Ids of results that are the same maker and model in another variant (steel, handle, colour, finish); knives only.',
     },
     confidence: { type: 'number', minimum: 0, maximum: 1 },
     reason: { type: 'string', description: 'One short sentence.' },
@@ -223,9 +300,11 @@ const MATCH_SCHEMA = {
 const VERIFY_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['same_product', 'confidence', 'reason'],
+  required: ['same_product', 'same_model', 'kind', 'confidence', 'reason'],
   properties: {
     same_product: { type: 'boolean' },
+    same_model: { type: 'boolean' },
+    kind: { type: 'string', enum: [...PRODUCT_KINDS] },
     confidence: { type: 'number', minimum: 0, maximum: 1 },
     reason: { type: 'string', description: 'One short sentence.' },
   },
@@ -243,18 +322,22 @@ const MATCHING_RULES = [
 const MATCH_SYSTEM = [
   'You find a knife from a collector’s collection in a store’s search results.',
   MATCHING_RULES,
-  'Answer with JSON only: {"match", "confidence", "reason"}.',
+  'A result whose title shows the collection knife’s exact model number is this knife unless it is a sheath, part, accessory or bundle.',
+  'Answer with JSON only: {"match", "variants", "confidence", "reason"}.',
   'match: the id of the result that sells exactly this knife, or null when none does.',
+  'variants: ids of other results that sell the same maker’s same model in another variant (another steel, handle, colour, finish or model code); knives only, never the match itself. An empty list when there are none.',
   'confidence: 0 to 1, how sure you are. reason: one short sentence.',
 ].join('\n')
 
 const VERIFY_SYSTEM = [
   'You check whether a store’s product page sells a specific knife from a collector’s collection.',
   MATCHING_RULES,
-  'When the collection knife has a modelNumber, the product page must show that exact model number (in the title, the details or the item model number). Makers use a different code for each steel, handle and colour variant: a page showing another code, or no code at all, is not the same product.',
-  'Answer with JSON only: {"same_product", "confidence", "reason"}.',
+  'When the collection knife has a modelNumber, the product page must show that exact model number (in the title, the details or the item model number). Makers use a different code for each steel, handle and colour variant: a page showing another code, or no code at all, is not the same product. A page that shows the exact model number is the same product even when its description words a spec differently.',
+  'Answer with JSON only: {"same_product", "same_model", "kind", "confidence", "reason"}.',
   'same_product: true only when the page sells exactly this knife.',
-  'confidence: 0 to 1, how sure you are. reason: one short sentence.',
+  'same_model: true when the page sells the same maker’s same model, also in another variant (steel, handle, colour, finish, model code).',
+  'kind: what the page sells: "knife" (one knife), "accessory" (sheath, case, part, scales, clip, sharpener), "bundle" (several items or a set) or "other".',
+  'confidence: 0 to 1, how sure you are about same_product. reason: one short sentence.',
 ].join('\n')
 
 type AiCall = {
@@ -287,7 +370,7 @@ export async function matchSearchResults<C extends MatchCandidate>(
       schemaName: 'search_match',
       purpose: 'discovery_search',
       schema: MATCH_SCHEMA,
-      maxTokens: 200,
+      maxTokens: 300,
     },
     {
       timeoutMs: DISCOVERY_AI_TIMEOUT_MS,
@@ -306,7 +389,7 @@ export type ProductPageDetails = {
 /** Asks AI whether the product page sells the knife. Throws AiClientError. */
 export async function verifyProductPage(
   input: AiCall & { knife: KnifeIdentity; page: ProductPageDetails },
-): Promise<AiDecision> {
+): Promise<VerifyDecision> {
   const answer = await requestJsonCompletion(
     input.endpoint,
     {
@@ -322,7 +405,7 @@ export async function verifyProductPage(
       schemaName: 'product_check',
       purpose: 'discovery_verify',
       schema: VERIFY_SCHEMA,
-      maxTokens: 200,
+      maxTokens: 300,
     },
     {
       timeoutMs: DISCOVERY_AI_TIMEOUT_MS,

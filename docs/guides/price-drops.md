@@ -274,17 +274,23 @@ A knife's own store is often sold out. **Settings → Price monitoring → Other
 
 1. Connect AI in **AI assistance**.
 2. Turn on **Look for knives at other stores**.
-3. Turn on the stores to search: **Blade HQ**, **SMKW**, **DLT Trading**, **KnifeJoy**, **Northwest Knives**, or any mix of them.
+3. Turn on the stores to search: **Blade HQ**, **SMKW**, **DLT Trading**, **KnifeJoy**, **Northwest Knives**, **Amazon**, or any mix of them.
 
 For each knife, AI does the work in three steps:
 
-- **Find** — BladeVault opens the store's search for the knife's brand, name, and model number, and AI picks the listing that sells exactly this knife. Sheaths, sharpeners, parts, and other models never count.
-- **Check** — BladeVault opens that product page, and AI confirms it is the same knife. A different steel, blade length, or lock is a different knife.
+- **Find** — BladeVault opens the store's search for the knife's brand, name, and model number, and AI picks the listing that sells exactly this knife. A result whose title shows the knife's exact model number is checked first. Sheaths, sharpeners, parts, and other models never count.
+- **Check** — BladeVault opens that product page, and AI confirms it is the same knife. When the page shows the knife's exact model number, it is the knife even if a spec is worded differently; AI only rules out accessories, parts, and bundles. Without a model number, a different steel, blade length, or lock is a different knife.
 - **Parse** — the product becomes a source marked **Found by AI** and is checked like any other source. The page parsers read the price, and AI reads it or resolves the check when the parser cannot (with **Read prices the page parsers miss** and **Resolve check errors** on).
 
 Searches cover every knife that price monitoring covers, including knives without a product link, and skip knives that already have a source at that store. They run around the clock, also outside **Only check between** and between **Set times** runs, with one search at a time per store and different stores searching in parallel. They share the store's pace: while a price check is due at a store, its searches wait, and a bot check pauses both. AI receives the knife's brand, name, and specs and the store's listing titles, never the regular price, notes, or photos.
 
-The section lists recent results. A knife that is not found is searched again after 30 days, and a failed search after a few hours. **Search again for missing** searches those knives at the next free slot. A found listing is never replaced: remove its source to stop monitoring it, and it is not added again.
+Other variants of the same model at a store (another blade finish, handle color, or edge, up to 5 per store) are kept as **related listings**: the store shows **Other variants only** with a link and the price seen for each. They are not monitored and never count toward the knife's price, chart, or alerts.
+
+The section lists recent results. A knife that is not found, or found only in other variants, is searched again after a day, and a failed search after a few hours. **Search again for missing** searches those knives at the next free slot. A found listing is never replaced: remove its source to stop monitoring it, and it is not added again.
+
+### See where a knife is sold
+
+The store count on a Wishlist row, such as **3 of 6 stores**, opens the knife's stores: each store link with its price, and for each store **Other stores** searches, whether it sells the knife, has only other variants, has not been searched yet, or failed, and when it is searched next. The knife's **Market** tab shows the same list under **Other stores**, below its sources.
 
 ## Keep checking with the desktop app closed
 

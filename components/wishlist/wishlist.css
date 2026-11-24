@@ -183,6 +183,26 @@
 [data-wishlist] [data-wishlist-name]:hover {
   text-decoration: underline;
 }
+/* "3 of 6 stores": opens the store list */
+[data-wishlist] [data-wishlist-stores] {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+[data-wishlist] [data-wishlist-stores]:hover {
+  color: var(--foreground);
+  text-decoration-style: solid;
+}
+[data-wishlist] [data-wishlist-stores]:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid var(--ring, var(--primary));
+  outline-offset: 2px;
+}
 [data-wishlist-pills] {
   display: flex;
   flex-wrap: wrap;
