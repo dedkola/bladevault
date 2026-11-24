@@ -536,16 +536,14 @@ export type PriceMonitoringSettings = {
   otherStores: PriceOtherStoresSettings
 }
 
-/**
- * Stores AI can search for monitored knives, in search order. Amazon is not
- * one: it forbids automated AI access, so Price Drops never loads its pages.
- */
+/** Stores AI can search for monitored knives, in search order. */
 export const OTHER_STORE_IDS = [
   'bladehq',
   'smkw',
   'dlttrading',
   'knifejoy',
   'northwestknives',
+  'amazon',
 ] as const
 export type OtherStoreId = (typeof OTHER_STORE_IDS)[number]
 
@@ -555,6 +553,7 @@ export const OTHER_STORE_LABELS: Record<OtherStoreId, string> = {
   dlttrading: 'DLT Trading',
   knifejoy: 'KnifeJoy',
   northwestknives: 'Northwest Knives',
+  amazon: 'Amazon',
 }
 
 export type PriceOtherStoresSettings = {
@@ -729,6 +728,7 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
       dlttrading: false,
       knifejoy: false,
       northwestknives: false,
+      amazon: false,
     },
   },
 }

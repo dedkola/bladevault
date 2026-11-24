@@ -26,7 +26,7 @@ The same controls are under **Price monitoring** when you edit the knife.
 
 A knife can have up to 10 store sources from any store, including Amazon. Each source keeps its own history and status.
 
-Amazon pages are checked like any other store's, and all Amazon marketplaces share one pace. The AI features of Price Drops leave them alone: AI does not read, verify, or troubleshoot Amazon prices, and **Other stores** does not search Amazon. Amazon sources that an earlier version removed come back with their price history when the knife's product link is still on Amazon.
+Amazon pages are checked like any other store's, and all Amazon marketplaces share one pace. AI does not read, verify, or troubleshoot Amazon prices: the page parsers read them. **Other stores** can search Amazon for monitored knives (see below). Amazon sources that an earlier version removed come back with their price history when the knife's product link is still on Amazon.
 
 Amazon pages are read without a browser first. Outside the US, amazon.com hides the price ("This item cannot be shipped to your selected delivery location"), so BladeVault picks the US delivery postcode 90210 for its Amazon session once and keeps that session for later checks; prices are then read in US dollars from any country. If that page is unusable, BladeVault waits a moment and tries once in the browser. When Amazon still shows no US delivery, the check records **Amazon showed no price for a US delivery address** and stores nothing, rather than reporting the knife as out of stock.
 
@@ -269,7 +269,7 @@ Notes and questions appear only in **Act**, in the Inbox under **System**. Every
 
 ## Find knives at other stores with AI
 
-A knife's own store is often sold out. **Settings → Price monitoring → Other stores** lets AI look for every monitored knife at other stores and add the listings it finds as price sources. The list has Blade HQ (on by default), SMKW (Smoky Mountain Knife Works), DLT Trading, KnifeJoy and Northwest Knives (all off until you turn them on); Amazon is not searched. KnifeJoy and Northwest Knives are Shopify stores: BladeVault reads their search and product data directly, without opening the page in a browser, and searches each of them at most once every 15 minutes. Each store has its own switch, and more stores can be added later. It needs [AI assistance](#optional-ai-assistance) connected: with **Use AI** off, or without a base URL and model, nothing is searched.
+A knife's own store is often sold out. **Settings → Price monitoring → Other stores** lets AI look for every monitored knife at other stores and add the listings it finds as price sources. The list has Blade HQ (on by default), SMKW (Smoky Mountain Knife Works), DLT Trading, KnifeJoy, Northwest Knives and Amazon (all off until you turn them on). KnifeJoy and Northwest Knives are Shopify stores: BladeVault reads their search and product data directly, without opening the page in a browser, and searches each of them at most once every 15 minutes. Amazon is searched on amazon.com the same way, without a browser, with the US delivery session its price checks use (US prices), at most once every 15 minutes; sponsored results are left out, and a listing is added only when its page shows the knife's model number. Each store has its own switch, and more stores can be added later. It needs [AI assistance](#optional-ai-assistance) connected: with **Use AI** off, or without a base URL and model, nothing is searched.
 
 1. Connect AI in **AI assistance**.
 2. Turn on **Look for knives at other stores**.

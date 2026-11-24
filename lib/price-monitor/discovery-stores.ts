@@ -5,6 +5,7 @@ import {
   type ProductPageDetails,
 } from '@/lib/price-monitor/discovery-ai'
 import { laneKeyForUrl, parseHttpUrl } from '@/lib/price-monitor/shared'
+import { extractAmazonProduct } from '@/lib/scrape-amazon'
 import { OTHER_STORE_LABELS, type OtherStoreId } from '@/lib/settings-shared'
 
 /**
@@ -12,8 +13,8 @@ import { OTHER_STORE_LABELS, type OtherStoreId } from '@/lib/settings-shared'
  * result lists and read a product page for AI to confirm. Everything after
  * that (checks, history, drops) is the ordinary price-source pipeline.
  * Shopify stores (KnifeJoy, Northwest Knives) are searched and read through
- * their JSON instead of a rendered page.
- * Amazon is not one: it forbids automated AI access.
+ * their JSON, and Amazon over plain HTTP with a US delivery session, instead
+ * of a rendered page.
  */
 export type DiscoveryCandidate = MatchCandidate & { url: string }
 
@@ -34,7 +35,20 @@ export type DiscoveryStore = {
   shopify?: boolean
   /** The store's own minimum gap between two searches (a slower pace). */
   searchGapMs?: number
+  /**
+   * Whether a search page without products is the store saying it has
+   * none. Stores without it: such a page always counts as empty.
+   */
+  emptySearch?: (html: string) => EmptySearchKind
 }
+
+/**
+ * Why a search page gave AI nothing to read. 'empty': the store's own result
+ * list with no products in it. 'unreadable': not a result list (a sign-in,
+ * error or location page) or product cards BladeVault could not read. Only
+ * an empty page means the knife is not there.
+ */
+export type EmptySearchKind = 'empty' | 'unreadable'
 
 const TITLE_MAX = 250
 const DETAILS_MAX = 2500
@@ -522,6 +536,159 @@ function shopifyStore(
   }
 }
 
+const ASIN = /^[A-Z0-9]{10}$/
+/** Amazon puts the ad label in the title heading: "Sponsored Ad - Corgi V…". */
+const SPONSORED_PREFIX = /^Sponsored Ad\s*[-–—]\s*/i
+const SPONSORED_LABEL = /\bSponsored\b/i
+
+/**
+ * A search result's title. Amazon often shows the brand in its own heading
+ * ("KIZER") above the product title heading, so every heading is read: the
+ * longest one is the title, and the brand goes in front when it is missing.
+ */
+function amazonResultTitle(
+  $: cheerio.CheerioAPI,
+  block: ReturnType<cheerio.CheerioAPI>,
+): string {
+  const headings = block
+    .find('h2')
+    .toArray()
+    .map((el) =>
+      clean($(el).attr('aria-label') || $(el).text()).replace(
+        SPONSORED_PREFIX,
+        '',
+      ),
+    )
+    .filter(Boolean)
+  const title = headings.reduce(
+    (longest, text) => (text.length > longest.length ? text : longest),
+    '',
+  )
+  if (!title)
+    return clean(
+      block.find('[data-cy="title-recipe"]').first().text() ||
+        block.find('img.s-image').first().attr('alt') ||
+        '',
+    )
+  const lower = title.toLowerCase()
+  const brand = headings.find(
+    (text) =>
+      text !== title &&
+      text.length <= 40 &&
+      !lower.includes(text.toLowerCase()),
+  )
+  return brand ? `${brand} ${title}` : title
+}
+
+function amazonSponsored(
+  $: cheerio.CheerioAPI,
+  block: ReturnType<cheerio.CheerioAPI>,
+): boolean {
+  return (
+    SPONSORED_LABEL.test(
+      clean(
+        block
+          .find(
+            '.puis-label-popover, .s-label-popover-default, .puis-sponsored-label-text',
+          )
+          .text(),
+      ),
+    ) ||
+    block
+      .find('h2')
+      .toArray()
+      .some((el) =>
+        SPONSORED_PREFIX.test(clean($(el).attr('aria-label') || $(el).text())),
+      )
+  )
+}
+
+/**
+ * Products on an amazon.com search results page, without sponsored ones:
+ * the product link (`/dp/<ASIN>`), title and shown price. Falls back to
+ * product links when the result blocks are missing (other layouts).
+ */
+export function parseAmazonSearchResults(
+  html: string,
+  pageUrl: string,
+): DiscoveryCandidate[] {
+  const $ = cheerio.load(html)
+  const origin = parseHttpUrl(pageUrl)?.origin ?? 'https://www.amazon.com'
+  const found: Array<Omit<DiscoveryCandidate, 'id'>> = []
+  const seen = new Set<string>()
+  $('[data-component-type="s-search-result"][data-asin]').each((_, el) => {
+    const block = $(el)
+    const asin = (block.attr('data-asin') ?? '').trim().toUpperCase()
+    if (!ASIN.test(asin) || seen.has(asin)) return
+    seen.add(asin)
+    if (amazonSponsored($, block)) return
+    const title = amazonResultTitle($, block)
+    if (!title) return
+    const price = clean(
+      block.find('.a-price:not(.a-text-price) .a-offscreen').first().text(),
+    )
+    found.push({
+      url: `${origin}/dp/${asin}`,
+      title: truncate(title, TITLE_MAX),
+      price: price || null,
+    })
+  })
+  if (!found.length && !seen.size) {
+    $('a[href*="/dp/"]').each((_, el) => {
+      const href = $(el).attr('href') ?? ''
+      const asin = href
+        .match(/\/dp\/([A-Z0-9]{10})(?:[/?]|$)/i)?.[1]
+        ?.toUpperCase()
+      const title = clean($(el).text())
+      if (!asin || seen.has(asin) || title.length < 12) return
+      seen.add(asin)
+      found.push({
+        url: `${origin}/dp/${asin}`,
+        title: truncate(title, TITLE_MAX),
+        price: null,
+      })
+    })
+  }
+  return found
+    .slice(0, MAX_SEARCH_CANDIDATES)
+    .map((candidate, index) => ({ ...candidate, id: index + 1 }))
+}
+
+/**
+ * Amazon's search page keeps its result list when nothing matches ("No
+ * results for your search query") and shows products as cards with an ASIN.
+ * Other boxes in the list, such as Shop Direct offers, are not cards.
+ */
+export function amazonEmptySearchKind(html: string): EmptySearchKind {
+  const $ = cheerio.load(html)
+  const list = $('[data-component-type="s-search-results"]')
+  if (!list.length) return 'unreadable'
+  const cards = list
+    .find('[data-component-type="s-search-result"], .s-main-slot > [data-asin]')
+    .toArray()
+    .some((el) => ASIN.test(($(el).attr('data-asin') ?? '').trim()))
+  return cards ? 'unreadable' : 'empty'
+}
+
+/** An Amazon product page for AI to confirm: title, spec rows, bullets. */
+export function amazonProductDetails(
+  html: string,
+  url: string,
+): ProductPageDetails | null {
+  const product = extractAmazonProduct(cheerio.load(html), url)
+  if (!product?.title) return null
+  const attributes = [...product.attributes]
+    .map(([label, value]) => `${label}: ${value}`)
+    .join('\n')
+  return {
+    title: truncate(product.title, TITLE_MAX),
+    details: truncate(
+      [attributes, product.description].filter(Boolean).join('\n\n'),
+      DETAILS_MAX,
+    ),
+  }
+}
+
 export const DISCOVERY_STORES: Record<OtherStoreId, DiscoveryStore> = {
   bladehq: {
     id: 'bladehq',
@@ -575,4 +742,21 @@ export const DISCOVERY_STORES: Record<OtherStoreId, DiscoveryStore> = {
     'https://northwestknives.com',
     'northwestknives.com',
   ),
+  amazon: {
+    id: 'amazon',
+    label: OTHER_STORE_LABELS.amazon,
+    // One lane for every Amazon marketplace, shared with its price checks.
+    laneKey: 'amazon',
+    marketplace: 'amazon.com',
+    // A slower pace than other stores: Amazon throttles quick searches.
+    searchGapMs: SHOPIFY_SEARCH_GAP_MS,
+    searchUrl: (query) => {
+      const url = new URL('https://www.amazon.com/s')
+      url.searchParams.set('k', query)
+      return url.href
+    },
+    parseResults: (html, pageUrl) => parseAmazonSearchResults(html, pageUrl),
+    emptySearch: amazonEmptySearchKind,
+    productDetails: (html, url) => amazonProductDetails(html, url),
+  },
 }

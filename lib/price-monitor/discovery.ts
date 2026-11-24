@@ -58,14 +58,16 @@ import {
   type PriceAiSettings,
   type PriceMonitoringSettings,
 } from '@/lib/settings-shared'
+import { readAmazonPageViaHttp } from '@/lib/price-monitor/amazon-session'
 import { getStorage } from '@/lib/storage'
 import { getVaultAccessState } from '@/lib/vault-access'
 
 /**
  * Other stores: AI looks for a monitored knife at the stores turned on in
- * settings (Blade HQ, SMKW, DLT Trading, KnifeJoy, Northwest Knives; never
- * Amazon: it forbids automated AI access). It reads the store's search
- * results (Shopify stores: their search JSON, without the browser) and
+ * settings (Blade HQ, SMKW, DLT Trading, KnifeJoy, Northwest Knives,
+ * Amazon). It reads the store's search results (Shopify stores: their search
+ * JSON; Amazon: plain HTTP with a US delivery session; both without the
+ * browser) and
  * picks the knife, then reads the product page and confirms it; only then
  * does the product become a price source, checked and parsed like every
  * other source from then on. A store's searches share its lane with its
@@ -238,12 +240,35 @@ async function fetchShopifyJson(
   }
 }
 
-/** Shopify stores through their JSON, every other store in the browser. */
+/**
+ * Amazon over plain HTTP with the lane's US delivery session (postcode
+ * 90210), the same session its price checks use.
+ */
+async function fetchAmazonPage(
+  url: string,
+  signal: AbortSignal,
+  laneKey: string,
+): Promise<DiscoveryPage> {
+  const operation = createScrapeOperation({ signal, timeoutMs: 60_000 })
+  try {
+    const page = await readAmazonPageViaHttp(url, operation, laneKey)
+    return { html: page.html, finalUrl: page.finalUrl }
+  } finally {
+    operation.dispose()
+  }
+}
+
+/**
+ * Shopify stores through their JSON, Amazon over HTTP, every other store in
+ * the browser.
+ */
 function fetchDiscoveryPage(
   url: string,
   signal: AbortSignal,
   laneKey: string,
 ): Promise<DiscoveryPage> {
+  if (laneKey === DISCOVERY_STORES.amazon.laneKey)
+    return fetchAmazonPage(url, signal, laneKey)
   const shopify = Object.values(DISCOVERY_STORES).some(
     (store) => store.shopify && store.laneKey === laneKey,
   )
@@ -380,9 +405,7 @@ export async function discoverKnife(
   const deps = { ...realDeps, ...options.deps }
   const storeId = options.store ?? DISCOVERY_STORE
   const store = DISCOVERY_STORES[storeId]
-  // Never Amazon (it forbids automated AI access), even from old settings.
-  if (!store || String(store.laneKey) === 'amazon')
-    return { status: 'skipped', reason: 'disabled' }
+  if (!store) return { status: 'skipped', reason: 'disabled' }
   const access = getVaultAccessState()
   if (access.readOnly) return { status: 'skipped', reason: 'read_only' }
   const settings = getSettings().priceMonitoring
@@ -533,6 +556,14 @@ export async function discoverKnife(
       }
       candidates = store.parseResults(searchPage.html, searchPage.finalUrl)
       if (!candidates.length) {
+        // A page that is not the store's result list says nothing about the
+        // knife: try again later rather than record it as not there.
+        if (store.emptySearch?.(searchPage.html) === 'unreadable')
+          return await finish({
+            result: 'failed',
+            laneOutcome: 'neutral',
+            detail: `The ${store.label} search page could not be read.`,
+          })
         emptyQueries.push(query)
         continue
       }

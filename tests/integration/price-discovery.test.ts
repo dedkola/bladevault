@@ -68,6 +68,7 @@ function enableOtherStores(
     dlttrading: false,
     knifejoy: false,
     northwestknives: false,
+    amazon: false,
   },
 ) {
   saveSettings({
@@ -205,6 +206,7 @@ describe('Other stores discovery', () => {
       dlttrading: false,
       knifejoy: false,
       northwestknives: false,
+      amazon: false,
     })
     const knifeId = await createKnife({
       specs: { price: '$150', modelNumber: 'C223GP' },
@@ -259,6 +261,7 @@ describe('Other stores discovery', () => {
       dlttrading: false,
       knifejoy: false,
       northwestknives: true,
+      amazon: false,
     })
     const knifeId = await createKnife({
       specs: { price: '$212', modelNumber: 'C223GPBK' },
@@ -385,6 +388,7 @@ describe('Other stores discovery', () => {
       ['dlttrading', false],
       ['knifejoy', false],
       ['northwestknives', false],
+      ['amazon', false],
     ])
     const discovery = all.stores[0]
     expect(discovery.counts.found).toBe(1)

@@ -73,6 +73,7 @@ describe('settings persistence', () => {
             dlttrading: false,
             knifejoy: false,
             northwestknives: false,
+            amazon: false,
           },
         },
       },
@@ -132,6 +133,7 @@ describe('settings persistence', () => {
           dlttrading: false,
           knifejoy: false,
           northwestknives: false,
+          amazon: false,
         },
       },
     })

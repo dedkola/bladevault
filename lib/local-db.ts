@@ -1244,8 +1244,7 @@ function migratePriceMonitoringSchema(
 }
 
 /**
- * Other stores no longer searches KnifeCenter (#611) or Amazon (#620).
- * Their unfinished searches are forgotten, and so is their store pacing
+ * Other stores no longer searches KnifeCenter (#611). Its unfinished searches are forgotten, and so is their store pacing
  * once no active source uses the store, so a leftover open circuit does not
  * keep calling the AI advisor. Searches that found a listing stay: that
  * listing is a source like any other. Repeat-safe; price history and
@@ -1253,7 +1252,6 @@ function migratePriceMonitoringSchema(
  */
 const DROPPED_SEARCH_STORES = [
   { store: 'knifecenter', laneKeys: ['knifecenter.com'] },
-  { store: 'amazon', laneKeys: ['amazon'] },
 ] as const
 
 function forgetDroppedSearchStores(database: Database.Database) {
