@@ -57,8 +57,12 @@
 }
 
 /* thumbs */
+/* One cell sized to the box: with an auto row the photo's height: 100%
+ * resolves against its own height, so square photos overflow and the
+ * bottom of the knife is clipped. */
 [data-wishlist] [data-wishlist-thumb] {
   display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   place-items: center;
   flex: none;
   overflow: hidden;
