@@ -11,7 +11,7 @@ import {
 } from '@/lib/settings-shared'
 
 /**
- * Light/dark toggle for layouts with their own header. Switches the root
+ * Light/dark toggle in the shared footer. Switches the root
  * right away, saves the mode, and switches back if the save fails.
  */
 export function ThemeModeButton(
