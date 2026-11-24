@@ -15,8 +15,6 @@ import {
   ChevronDown,
   Cloud,
   CloudOff,
-  Download,
-  Loader2,
   Moon,
   Pin,
   Plus,
@@ -32,7 +30,6 @@ import { useSmartCollections } from '@/components/providers/smart-collections-pr
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import { WorkspaceFooter } from '@/components/workspace-footer'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
-import { useDesktopUpdates } from '@/hooks/use-desktop-updates'
 import { readJsonResponse } from '@/lib/api-response'
 import { matchesCollection } from '@/lib/smart-collections'
 import { SETTINGS_UPDATED_EVENT, type AppSettings } from '@/lib/settings-shared'
@@ -60,7 +57,6 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
   const marketFilter = useMarketFilter()
   const { active } = useComparisons()
   const { collections, error: collectionsError } = useSmartCollections()
-  const { update, downloadUpdate } = useDesktopUpdates()
   const [headerActions, setHeaderActions] = useState<HTMLElement | null>(null)
   const [savingAppearance, setSavingAppearance] = useState(false)
   // Studio and Collection render their own search fields.
@@ -97,14 +93,6 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
       showFeedback('Could not save the appearance preference.', 'error')
     } finally {
       setSavingAppearance(false)
-    }
-  }
-
-  async function downloadAvailableUpdate() {
-    try {
-      await downloadUpdate()
-    } catch {
-      showFeedback('Could not download the update. Try again.', 'error')
     }
   }
 
@@ -163,31 +151,6 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
             <div data-alloy-global-search>
               <GlobalKnifeSearch embedded />
             </div>
-          )}
-          {update.status === 'available' && (
-            <button
-              type="button"
-              onClick={() => void downloadAvailableUpdate()}
-              aria-label={`Download BladeVault ${update.version}`}
-              title={`Download BladeVault ${update.version}`}
-              data-alloy-update
-            >
-              <Download />
-            </button>
-          )}
-          {(update.status === 'checking' ||
-            update.status === 'downloading') && (
-            <span
-              data-alloy-update
-              role="status"
-              aria-label={
-                update.status === 'checking'
-                  ? 'Checking for updates'
-                  : 'Downloading update'
-              }
-            >
-              <Loader2 className="animate-spin motion-reduce:animate-none" />
-            </span>
           )}
           <CareInboxBell />
           <Link

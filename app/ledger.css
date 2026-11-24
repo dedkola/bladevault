@@ -707,14 +707,19 @@ html[data-theme-variant='ledger']
 html[data-theme-variant='ledger']
   [data-lumen-shell='ledger']
   [data-workspace-footer]
-  :is(button, [data-theme-cycle], [data-reload-data]):hover {
+  :is(
+    button,
+    [data-theme-cycle],
+    [data-reload-data],
+    [data-update-check]
+  ):hover {
   color: var(--ledger-ink);
 }
 
 html[data-theme-variant='ledger']
   [data-lumen-shell='ledger']
   [data-workspace-footer]
-  :is([data-theme-cycle], [data-reload-data]):hover {
+  :is([data-theme-cycle], [data-reload-data], [data-update-check]):hover {
   background: var(--ledger-hover);
 }
 
