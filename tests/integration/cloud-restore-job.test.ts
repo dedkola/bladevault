@@ -15,6 +15,7 @@ import { APP_LOCK_COOKIE } from '@/lib/app-lock-shared'
 import { getCloudRestoreJobState } from '@/lib/cloud-restore-job'
 import { getLocalDb } from '@/lib/local-db'
 import { getSettings, saveSettings } from '@/lib/settings'
+import { getSystemMessages } from '@/lib/system-message-store'
 import { LocalStorage } from '@/lib/storage/local'
 import type { CreateKnifeInput } from '@/lib/storage/types'
 import {
@@ -459,6 +460,33 @@ describe('server-owned cloud restore job', () => {
       expect(temporaryDirectories).toHaveLength(2)
     },
   )
+
+  it('notes a finished restore in the restored Inbox when turned on before it', async () => {
+    const { archive } = await exportedSnapshot()
+    // The backup was made with the note off; the choice before restoring wins.
+    saveSettings({ backupNotifications: { backup: false, restore: true } })
+    stubDownload(async () => new Response(archive))
+    const accepted = await restoreRoute.POST(request())
+    expect(accepted.status).toBe(202)
+    await waitForFinished('success')
+    expect(getSettings().backupNotifications.restore).toBe(false)
+    expect(await getSystemMessages()).toEqual([
+      expect.objectContaining({
+        kind: 'restore-success',
+        title: 'Restored from Google Drive',
+        readAt: null,
+        resolvedAt: null,
+      }),
+    ])
+  })
+
+  it('adds no restore note by default', async () => {
+    const { archive } = await exportedSnapshot()
+    stubDownload(async () => new Response(archive))
+    expect((await restoreRoute.POST(request())).status).toBe(202)
+    await waitForFinished('success')
+    expect(await getSystemMessages()).toEqual([])
+  })
 
   it('cannot start while another backup or restore operation owns the vault', async () => {
     await new LocalStorage().createKnife(input)

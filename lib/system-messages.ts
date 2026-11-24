@@ -6,6 +6,10 @@
  */
 export type SystemMessageKind =
   | 'backup-failed'
+  /** Opt-in note that a Google Drive backup finished; each replaces the last. */
+  | 'backup-success'
+  /** Opt-in note that the vault was restored from Google Drive. */
+  | 'restore-success'
   | 'price-attention'
   /** The daily AI summary of price monitoring; each day replaces the last. */
   | 'price-digest'
@@ -106,6 +110,8 @@ export type SystemMessageAction =
 
 export const SYSTEM_MESSAGE_KINDS: readonly SystemMessageKind[] = [
   'backup-failed',
+  'backup-success',
+  'restore-success',
   'price-attention',
   'price-digest',
   'achievement',

@@ -18,6 +18,7 @@ import {
   normalizeCareIntervalOverrides,
   normalizePriceMonitoring,
   normalizeAchievementSettings,
+  normalizeBackupNotificationSettings,
   normalizeKnifeDetailPanelWidth,
   type AppSettings,
   type AppTheme,
@@ -57,6 +58,7 @@ const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
   careDeferrals: 'care_deferrals',
   priceMonitoring: 'price_monitoring',
   achievements: 'achievements',
+  backupNotifications: 'backup_notifications',
   knifeDetailPanelWidth: 'knife_detail_panel_width',
 }
 
@@ -65,6 +67,16 @@ function parseMaintenanceReminders(value: string | undefined) {
     return normalizeMaintenanceReminders(value ? JSON.parse(value) : undefined)
   } catch {
     return normalizeMaintenanceReminders(undefined)
+  }
+}
+
+function parseBackupNotificationSettings(value: string | undefined) {
+  try {
+    return normalizeBackupNotificationSettings(
+      value ? JSON.parse(value) : undefined,
+    )
+  } catch {
+    return normalizeBackupNotificationSettings(undefined)
   }
 }
 
@@ -234,6 +246,9 @@ export function getSettings(): AppSettings {
       map.get(SETTINGS_KEYS.priceMonitoring),
     ),
     achievements: parseAchievementSettings(map.get(SETTINGS_KEYS.achievements)),
+    backupNotifications: parseBackupNotificationSettings(
+      map.get(SETTINGS_KEYS.backupNotifications),
+    ),
     knifeDetailPanelWidth: normalizeKnifeDetailPanelWidth(
       map.get(SETTINGS_KEYS.knifeDetailPanelWidth) || undefined,
     ),
@@ -297,6 +312,13 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
               settings.achievements,
               current.achievements,
             ),
+      backupNotifications:
+        settings.backupNotifications === undefined
+          ? current.backupNotifications
+          : normalizeBackupNotificationSettings(
+              settings.backupNotifications,
+              current.backupNotifications,
+            ),
       knifeDetailPanelWidth:
         settings.knifeDetailPanelWidth === undefined
           ? current.knifeDetailPanelWidth
@@ -329,6 +351,7 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
       ['careDeferrals', JSON.stringify(next.careDeferrals)],
       ['priceMonitoring', JSON.stringify(next.priceMonitoring)],
       ['achievements', JSON.stringify(next.achievements)],
+      ['backupNotifications', JSON.stringify(next.backupNotifications)],
       [
         'knifeDetailPanelWidth',
         next.knifeDetailPanelWidth === null

@@ -257,6 +257,31 @@ describe('server-owned cloud backup job', () => {
     expect(resolved.resolvedAt).toEqual(expect.any(String))
   })
 
+  it('notes finished backups in the Inbox only when turned on', async () => {
+    stubDriveUpload(async () => {})
+    startCloudBackupJob()
+    await waitForJob('success')
+    expect(await getSystemMessages()).toEqual([])
+
+    saveSettings({ backupNotifications: { backup: true, restore: false } })
+    startCloudBackupJob()
+    await waitForJob('success')
+    startCloudBackupJob()
+    await waitForJob('success')
+    // A newer backup replaces the open note instead of counting up.
+    const notes = (await getSystemMessages()).filter(
+      (row) => row.kind === 'backup-success',
+    )
+    expect(notes).toHaveLength(2)
+    expect(notes[0].resolvedAt).toEqual(expect.any(String))
+    expect(notes[1]).toMatchObject({
+      title: 'Google Drive backup finished',
+      occurrences: 1,
+      readAt: null,
+      resolvedAt: null,
+    })
+  })
+
   it.each(['delete', 'replace'] as const)(
     'restores all snapshot images after a concurrent %s once staging finishes',
     async (mutation) => {

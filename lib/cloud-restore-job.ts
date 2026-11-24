@@ -11,6 +11,11 @@ import {
 import { downloadDriveBackup } from '@/lib/drive-backup'
 import { replaceLocalDataFromDirectory } from '@/lib/local-data-restore'
 import { getLocalDataDirPath } from '@/lib/local-db'
+import { getSettings } from '@/lib/settings'
+import {
+  reportSystemMessage,
+  resolveSystemMessages,
+} from '@/lib/system-message-store'
 import {
   acquireVaultRestore,
   assertVaultGeneration,
@@ -88,10 +93,29 @@ export function getCloudRestoreJobState(): CloudRestoreJobState {
   }
 }
 
+/**
+ * Notes a finished restore in the restored vault's Inbox. The choice is read
+ * before the restore, since the backup brings its own settings with it.
+ */
+async function recordRestoreSuccess(dataDir: string) {
+  if (getLocalDataDirPath() !== dataDir) return
+  try {
+    await resolveSystemMessages('restore-success')
+    await reportSystemMessage({
+      kind: 'restore-success',
+      title: 'Restored from Google Drive',
+      detail: 'Your collection and photos were replaced with the Drive backup.',
+    })
+  } catch {
+    // The Inbox is a convenience; the job state still reports the result.
+  }
+}
+
 async function runJob(
   job: CloudRestoreJobState,
   dataDir: string,
   lease: VaultRestoreLease,
+  notifyOnSuccess: boolean,
 ) {
   let tempRoot: string | null = null
   try {
@@ -129,6 +153,9 @@ async function runJob(
     Object.assign(job, { status: 'error', phase: null, message })
   } finally {
     lease.release()
+    // Vault writes wait for the restore lease, so the note goes in after it.
+    if (job.status === 'success' && notifyOnSuccess)
+      await recordRestoreSuccess(dataDir)
     if (tempRoot)
       await fsp.rm(tempRoot, { recursive: true, force: true }).catch(() => {})
     try {
@@ -149,6 +176,12 @@ export function startCloudRestoreJob(expectedGeneration?: string): {
   if (current.status === 'running') return { job: current, started: false }
   const releaseOperation = tryBeginVaultOperation()
   if (!releaseOperation) throw new VaultOperationBusyError()
+  let notifyOnSuccess = false
+  try {
+    notifyOnSuccess = getSettings().backupNotifications.restore
+  } catch {
+    // An unreadable vault is being replaced; skip the optional note.
+  }
   let lease: VaultRestoreLease | null = null
   try {
     lease = acquireVaultRestore()
@@ -175,7 +208,7 @@ export function startCloudRestoreJob(expectedGeneration?: string): {
   // The Node process owns the job. The initiating request and Settings component
   // can disappear without stopping an accepted restore.
   setImmediate(() => {
-    void runJob(job, dataDir, lease)
+    void runJob(job, dataDir, lease, notifyOnSuccess)
       .finally(releaseOperation)
       .catch(() => {})
   })

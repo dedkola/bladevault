@@ -58,6 +58,8 @@ To back up after edits, turn on **Automatic backup to Google Drive** in the same
 
 While a Google Drive backup runs, a notice at the bottom of the window shows its progress. When it ends, the notice briefly says **Backed up to Google Drive** or that the backup failed. A failed backup also leaves a message under **Inbox → System** with the error and a **Back up now** button. The message resolves itself after the next backup that works.
 
+To also keep a note of each backup that works, or of a restore from Google Drive, turn on **Google Drive backup finished** or **Restored from Google Drive** in **Settings → Notifications → System notifications** (both off by default). The note lands under **Inbox → System**; a newer backup or restore replaces the previous note instead of adding more.
+
 Saved comparisons are included in full-vault backups, but changing a comparison list alone does not trigger an automatic backup. Use **Backup** when you want to include those changes immediately.
 
 ## Restore from Google Drive
