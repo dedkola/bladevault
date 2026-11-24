@@ -1,28 +1,24 @@
 'use client'
 
 import { Search } from 'lucide-react'
-import { ClassicFooterActions } from '@/components/classic-footer-actions'
+import { FooterActions } from '@/components/footer-actions'
 import { ThemeQuickSwitcher } from '@/components/theme-quick-switcher'
 import { ReloadDataButton } from '@/components/reload-data-button'
 import { UpdateCheckButton } from '@/components/update-check-button'
 import { OPEN_GLOBAL_SEARCH_EVENT } from '@/components/global-knife-search'
 import { useKnives } from '@/components/providers/knives-provider'
-import { isModernThemeFamily } from '@/lib/settings-shared'
 
 /**
  * Compact shell footer shared by the Modern family, Classic, and Alloy layouts.
- * Themes adapt it with their own tokens; Classic adds its workspace shortcuts
- * on the left because they live here instead of the sidebar.
+ * Themes adapt it with their own tokens. The workspace shortcuts (Inbox,
+ * Cloud backup, Settings) sit with the other controls on the right in every
+ * style.
  */
 export function WorkspaceFooter() {
-  const { knives, isLoading, themeStyle } = useKnives()
+  const { knives, isLoading } = useKnives()
 
   return (
     <footer data-workspace-footer>
-      {/* Alloy keeps these shortcuts in its own header. */}
-      {!isModernThemeFamily(themeStyle) && themeStyle !== 'alloy' && (
-        <ClassicFooterActions />
-      )}
       <div>
         <span>
           {isLoading
@@ -42,6 +38,7 @@ export function WorkspaceFooter() {
         <ThemeQuickSwitcher />
         <ReloadDataButton />
         <UpdateCheckButton />
+        <FooterActions />
       </div>
     </footer>
   )

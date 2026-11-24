@@ -3,18 +3,25 @@
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { Cloud, CloudOff, Moon, Settings, Sun } from 'lucide-react'
+import { CareInboxBell } from '@/components/care-inbox'
 import { useKnives } from '@/components/providers/knives-provider'
 import { readJsonResponse } from '@/lib/api-response'
-import { SETTINGS_UPDATED_EVENT, type AppSettings } from '@/lib/settings-shared'
+import {
+  SETTINGS_UPDATED_EVENT,
+  type AppSettings,
+  getThemeFamily,
+} from '@/lib/settings-shared'
 
 /**
- * Classic keeps its workspace shortcuts in the footer instead of the sidebar,
- * so the full-width bar carries the same controls as the rest of the shell.
+ * Workspace shortcuts at the right end of the shared footer in every style: the
+ * Inbox bell, Cloud backup and Settings. Classic has no header, so it also
+ * keeps its light/dark toggle here.
  */
-export function ClassicFooterActions() {
+export function FooterActions() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const { isAutoBackupActive, showFeedback } = useKnives()
+  const { isAutoBackupActive, showFeedback, themeStyle } = useKnives()
+  const isClassic = getThemeFamily(themeStyle) === 'classic'
   const isSettingsActive = pathname === '/settings'
   const isCloudBackupSettingsActive =
     isSettingsActive && searchParams.get('tab') === 'backup'
@@ -53,29 +60,12 @@ export function ClassicFooterActions() {
 
   return (
     <div data-workspace-footer-actions>
-      <button
-        type="button"
-        data-footer-action
-        onClick={toggleTheme}
-        aria-label="Toggle color theme"
-        title="Toggle light and dark mode"
-      >
-        <Sun className="dark:hidden" />
-        <Moon className="hidden dark:block" />
-      </button>
-
-      <Link
-        href="/settings"
-        data-footer-action
-        aria-label="Settings"
-        data-active={isSettingsActive ? '' : undefined}
-      >
-        <Settings />
-      </Link>
+      <CareInboxBell data-footer-action="" popupSide="top" popupAlign="end" />
 
       <Link
         href="/settings?tab=backup"
         data-footer-action
+        data-backup={isAutoBackupActive ? 'on' : 'off'}
         aria-label="Cloud backup"
         data-active={isCloudBackupSettingsActive ? '' : undefined}
         title={
@@ -90,33 +80,64 @@ export function ClassicFooterActions() {
         }
       >
         {isAutoBackupActive ? (
-          <Cloud style={{ stroke: 'url(#classic-footer-cloud-gradient)' }} />
+          <Cloud
+            style={
+              isClassic
+                ? { stroke: 'url(#classic-footer-cloud-gradient)' }
+                : undefined
+            }
+          />
         ) : (
           <CloudOff />
         )}
       </Link>
 
-      <svg
-        width="0"
-        height="0"
-        aria-hidden="true"
-        focusable="false"
-        style={{ position: 'absolute', width: 0, height: 0 }}
+      <Link
+        href="/settings"
+        data-footer-action
+        aria-label="Settings"
+        aria-current={isSettingsActive ? 'page' : undefined}
+        data-active={isSettingsActive ? '' : undefined}
       >
-        <defs>
-          <linearGradient
-            id="classic-footer-cloud-gradient"
-            x1="0%"
-            y1="0%"
-            x2="100%"
-            y2="100%"
-          >
-            <stop offset="0%" stopColor="#e2c86e" />
-            <stop offset="55%" stopColor="#c89c3d" />
-            <stop offset="100%" stopColor="#9e6e1b" />
-          </linearGradient>
-        </defs>
-      </svg>
+        <Settings />
+      </Link>
+
+      {isClassic && (
+        <button
+          type="button"
+          data-footer-action
+          onClick={toggleTheme}
+          aria-label="Toggle color theme"
+          title="Toggle light and dark mode"
+        >
+          <Sun className="dark:hidden" />
+          <Moon className="hidden dark:block" />
+        </button>
+      )}
+
+      {isClassic && (
+        <svg
+          width="0"
+          height="0"
+          aria-hidden="true"
+          focusable="false"
+          style={{ position: 'absolute', width: 0, height: 0 }}
+        >
+          <defs>
+            <linearGradient
+              id="classic-footer-cloud-gradient"
+              x1="0%"
+              y1="0%"
+              x2="100%"
+              y2="100%"
+            >
+              <stop offset="0%" stopColor="#e2c86e" />
+              <stop offset="55%" stopColor="#c89c3d" />
+              <stop offset="100%" stopColor="#9e6e1b" />
+            </linearGradient>
+          </defs>
+        </svg>
+      )}
     </div>
   )
 }

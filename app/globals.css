@@ -2480,8 +2480,19 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
 [data-workspace-footer] button:where(:not([data-footer-action])) svg {
   display: none;
 }
+/* Inbox, Cloud backup and Settings close the footer's right-hand group. */
+[data-workspace-footer] [data-workspace-footer-actions] {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 [data-workspace-footer]
-  :is([data-theme-cycle], [data-reload-data], [data-update-check]) {
+  :is(
+    [data-theme-cycle],
+    [data-reload-data],
+    [data-update-check],
+    [data-footer-action]
+  ) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2494,13 +2505,30 @@ html:is([data-theme-style='modern'], [data-theme-style='alloy'])
     color 150ms;
 }
 [data-workspace-footer]
-  :is([data-theme-cycle], [data-reload-data], [data-update-check]):hover {
+  :is(
+    [data-theme-cycle],
+    [data-reload-data],
+    [data-update-check],
+    [data-footer-action]
+  ):hover {
   background: var(--accent);
   color: var(--foreground);
 }
 [data-workspace-footer]
-  :is([data-theme-cycle], [data-reload-data], [data-update-check])
-  svg {
+  [data-footer-action]:is([data-active], [aria-expanded='true']) {
+  color: var(--foreground);
+}
+[data-workspace-footer] [data-footer-action][data-backup='on'] {
+  color: var(--primary);
+}
+[data-workspace-footer]
+  :is(
+    [data-theme-cycle],
+    [data-reload-data],
+    [data-update-check],
+    [data-footer-action]
+  )
+  > svg {
   display: block;
   width: 15px;
   height: 15px;

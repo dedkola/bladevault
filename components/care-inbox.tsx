@@ -1251,17 +1251,22 @@ function inboxItemKey(item: InboxItem) {
 }
 
 /**
- * Header bell with the unread count; opens the newest open messages, system
- * problems first. Extra props style the trigger like its neighbours in each
- * shell's header.
+ * Footer bell with the unread count; opens the newest open messages, system
+ * problems first. Extra props style the trigger like its footer neighbours.
  */
 export function CareInboxBell({
   className,
+  popupSide = 'bottom',
+  popupAlign = 'end',
   ...triggerProps
 }: Omit<
   React.ButtonHTMLAttributes<HTMLButtonElement>,
   'type' | 'onClick' | 'children'
-> & { [dataAttribute: `data-${string}`]: string | undefined }) {
+> & {
+  /** Where the panel opens: below a header bell, above a footer one. */
+  popupSide?: 'top' | 'bottom'
+  popupAlign?: 'start' | 'end'
+} & { [dataAttribute: `data-${string}`]: string | undefined }) {
   const {
     visible,
     enabled,
@@ -1339,7 +1344,12 @@ export function CareInboxBell({
         )}
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Positioner align="end" sideOffset={8} className="z-50">
+        <Popover.Positioner
+          side={popupSide}
+          align={popupAlign}
+          sideOffset={8}
+          className="z-50"
+        >
           <Popover.Popup
             aria-label="Inbox"
             className="w-[min(24rem,calc(100vw-1.5rem))] origin-(--transform-origin) overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"

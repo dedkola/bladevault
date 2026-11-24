@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Dialog } from '@base-ui/react/dialog'
-import { ArrowRight, Plus, Search, Settings } from 'lucide-react'
+import { ArrowRight, Plus, Search } from 'lucide-react'
 import { OPEN_GLOBAL_SEARCH_EVENT } from '@/components/global-knife-search'
 import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
 import { ThemeModeButton } from '@/components/theme-mode-button'
@@ -21,7 +21,6 @@ import { useComparisons } from '@/components/providers/comparisons-provider'
 import { KnifePhoto } from '@/components/lumen/knife-photo'
 import type { Knife } from '@/lib/data'
 import { matchesLumenSearch } from '@/lib/lumen-collection'
-import { CareInboxBell } from '@/components/care-inbox'
 import { hasServerRuntime } from '@/lib/runtime-capabilities'
 
 const navLinks = [
@@ -183,16 +182,7 @@ export function ShelfShell({ children }: { children: React.ReactNode }) {
                 <span>Search or jump to…</span>
                 <kbd aria-hidden="true">⌘K</kbd>
               </button>
-              <CareInboxBell data-shelf-icon-button="" />
               <ThemeModeButton data-shelf-icon-button="" />
-              <Link
-                href="/settings"
-                data-shelf-icon-button
-                aria-label="Settings"
-                aria-current={pathname === '/settings' ? 'page' : undefined}
-              >
-                <Settings aria-hidden="true" />
-              </Link>
               <Link href="/add" data-shelf-add aria-label="Add knife">
                 <Plus aria-hidden="true" />
                 <span>Add knife</span>

@@ -711,7 +711,8 @@ html[data-theme-variant='ledger']
     button,
     [data-theme-cycle],
     [data-reload-data],
-    [data-update-check]
+    [data-update-check],
+    [data-footer-action]
   ):hover {
   color: var(--ledger-ink);
 }
@@ -719,7 +720,12 @@ html[data-theme-variant='ledger']
 html[data-theme-variant='ledger']
   [data-lumen-shell='ledger']
   [data-workspace-footer]
-  :is([data-theme-cycle], [data-reload-data], [data-update-check]):hover {
+  :is(
+    [data-theme-cycle],
+    [data-reload-data],
+    [data-update-check],
+    [data-footer-action]
+  ):hover {
   background: var(--ledger-hover);
 }
 

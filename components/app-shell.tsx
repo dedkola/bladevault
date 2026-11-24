@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import Image from '@/components/vault-image'
 import { usePathname } from 'next/navigation'
-import { Cloud, CloudOff, Moon, Plus, Settings, Sun } from 'lucide-react'
+import { Moon, Plus, Sun } from 'lucide-react'
 import { SidebarShell } from '@/components/sidebar-shell'
 import { AlloyShell } from '@/components/alloy-shell'
 import { AtriumShell } from '@/components/atrium/atrium-shell'
@@ -23,13 +23,12 @@ import {
   hasFixedColorMode,
   isModernThemeFamily,
 } from '@/lib/settings-shared'
-import { CareInboxBell } from '@/components/care-inbox'
 import { workspaceCrumb } from '@/lib/workspace-crumb'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [headerActions, setHeaderActions] = useState<HTMLElement | null>(null)
-  const { themeStyle, isAutoBackupActive, showFeedback } = useKnives()
+  const { themeStyle, showFeedback } = useKnives()
   if (themeStyle === 'alloy') {
     return <AlloyShell>{children}</AlloyShell>
   }
@@ -112,30 +111,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {pathname === '/studio' && (
             <span id="studio-header-actions" ref={setHeaderActions} />
           )}
-          <CareInboxBell />
-          <Link
-            href="/settings?tab=backup"
-            aria-label="Cloud backup"
-            title={
-              isAutoBackupActive
-                ? 'Cloud auto backup is active. Open Cloud backup settings.'
-                : 'Cloud auto backup is inactive. Open Cloud backup settings.'
-            }
-            onClick={() =>
-              window.dispatchEvent(
-                new Event('bladevault:open-cloud-backup-settings'),
-              )
-            }
-          >
-            {isAutoBackupActive ? (
-              <Cloud className="text-primary" />
-            ) : (
-              <CloudOff />
-            )}
-          </Link>
-          <Link href="/settings" aria-label="Workspace settings">
-            <Settings />
-          </Link>
           {/* Light-only and dark-only styles have no other mode to switch to. */}
           {!hasFixedColorMode(themeStyle) && (
             <button

@@ -276,7 +276,8 @@ html[data-theme-variant='shelf']
     button,
     [data-theme-cycle],
     [data-reload-data],
-    [data-update-check]
+    [data-update-check],
+    [data-footer-action]
   ):hover {
   color: var(--shelf-ink);
 }
@@ -284,7 +285,12 @@ html[data-theme-variant='shelf']
 html[data-theme-variant='shelf']
   [data-lumen-shell='shelf']
   [data-workspace-footer]
-  :is([data-theme-cycle], [data-reload-data], [data-update-check]):hover {
+  :is(
+    [data-theme-cycle],
+    [data-reload-data],
+    [data-update-check],
+    [data-footer-action]
+  ):hover {
   background: var(--shelf-hover);
 }
 

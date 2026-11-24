@@ -9,7 +9,7 @@ import {
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Plus, Settings } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { BrandMark } from '@/components/brand-mark'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
@@ -18,7 +18,6 @@ import { WorkspaceFooter } from '@/components/workspace-footer'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useComparisons } from '@/components/providers/comparisons-provider'
-import { CareInboxBell } from '@/components/care-inbox'
 import { hasServerRuntime } from '@/lib/runtime-capabilities'
 
 const tabs = [
@@ -168,17 +167,7 @@ export function LedgerShell({ children }: { children: React.ReactNode }) {
                   : 'Local vault · saved'}
             </span>
           </Link>
-          <CareInboxBell data-ledger-button="icon" />
           <ThemeModeButton data-ledger-button="icon" />
-          <Link
-            href="/settings"
-            data-ledger-button="ghost"
-            aria-current={pathname === '/settings' ? 'page' : undefined}
-            aria-label="Settings"
-          >
-            <Settings aria-hidden="true" data-ledger-compact-only />
-            <span data-ledger-roomy-only>Settings</span>
-          </Link>
           <button
             type="button"
             data-ledger-button
