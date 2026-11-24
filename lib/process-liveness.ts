@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import { performance } from 'node:perf_hooks'
 
@@ -50,6 +51,54 @@ function readLinuxProcessInfo(pid: number): LinuxProcessInfo | 'gone' | null {
   return { threadGroupId: tgid ? Number(tgid[1]) : null, startedAtMs }
 }
 
+const MONTHS = 'JanFebMarAprMayJunJulAugSepOctNovDec'
+// Restore drains poll leases every 25 ms; a start time only changes when the
+// ID is reused, so a short cache keeps that loop from spawning `ps` constantly.
+const DARWIN_CACHE_TTL_MS = 1_000
+const darwinStartCache = new Map<
+  number,
+  { at: number; value: number | 'gone' | null }
+>()
+
+// macOS has no /proc and recycles IDs too: a lease left by an app that quit
+// with the vault open can name an unrelated system process weeks later.
+function readDarwinStartedAtMs(pid: number): number | 'gone' | null {
+  if (process.platform !== 'darwin') return null
+  const cached = darwinStartCache.get(pid)
+  if (cached && Date.now() - cached.at < DARWIN_CACHE_TTL_MS)
+    return cached.value
+  let value: number | 'gone' | null
+  const result = spawnSync('/bin/ps', ['-o', 'lstart=', '-p', String(pid)], {
+    encoding: 'utf8',
+    env: { ...process.env, LC_ALL: 'C', TZ: 'UTC' },
+    timeout: 2_000,
+  })
+  // `ps -p` exits 1 with no rows when the ID is no longer in use.
+  const output = result.stdout?.trim() ?? ''
+  if (result.status === 1 && !output) value = 'gone'
+  else {
+    // e.g. "Thu Nov 12 08:23:05 2026" in UTC, with whole-second precision.
+    const match =
+      /^\w{3}\s+(\w{3})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})\s+(\d{4})$/.exec(
+        output,
+      )
+    const month = match ? MONTHS.indexOf(match[1]) : -1
+    value =
+      match && month >= 0 && month % 3 === 0
+        ? Date.UTC(
+            Number(match[6]),
+            month / 3,
+            Number(match[2]),
+            Number(match[3]),
+            Number(match[4]),
+            Number(match[5]),
+          )
+        : null
+  }
+  darwinStartCache.set(pid, { at: Date.now(), value })
+  return value
+}
+
 /**
  * Reports whether a lease owner process may still be running. `startedAt`
  * (the owner's `performance.timeOrigin`) detects reuse of our own PID, and
@@ -69,6 +118,13 @@ export function isProcessAlive(
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EPERM') return false
   }
+  const darwinStartedAtMs = readDarwinStartedAtMs(pid)
+  if (darwinStartedAtMs === 'gone') return false
+  if (darwinStartedAtMs !== null)
+    return (
+      writtenAtMs === undefined ||
+      writtenAtMs >= darwinStartedAtMs - START_TIME_TOLERANCE_MS
+    )
   const info = readLinuxProcessInfo(pid)
   if (info === 'gone') return false
   if (!info) return true
