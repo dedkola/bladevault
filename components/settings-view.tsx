@@ -87,6 +87,7 @@ import { hasServerRuntime } from '@/lib/runtime-capabilities'
 import { MaintenanceSettings } from '@/components/maintenance-settings'
 import { AchievementSettings } from '@/components/achievement-settings'
 import { PriceMonitoringSettings as PriceMonitoringSettingsPanel } from '@/components/price-drops/price-monitoring-settings'
+import { PriceAiConnectionSection } from '@/components/price-drops/price-ai-settings'
 import { formatDimension, formatWeight } from '@/lib/measurements'
 import {
   SettingsSection,
@@ -897,7 +898,8 @@ export default function SettingsView() {
         id: 'mcp' as const,
         label: 'AI / MCP',
         icon: Plug,
-        blurb: 'Let an assistant read or write this vault over MCP.',
+        blurb:
+          'MCP access for assistants and the AI endpoint Price Drops uses.',
       },
       {
         id: 'about' as const,
@@ -2494,165 +2496,190 @@ export default function SettingsView() {
                     </div>
                   ) : null}
 
-                  <SettingsSection title="Access">
-                    <SettingsRow
-                      inline
-                      label="Enabled"
-                      description={
-                        mcpStatus?.controls.enabledManagedByEnvironment
-                          ? 'Managed by MCP_ENABLED.'
-                          : undefined
-                      }
-                    >
-                      <SettingsSwitch
-                        checked={mcpStatus?.enabled || false}
-                        onCheckedChange={(checked) =>
-                          void handleMcpEnabledChange(checked)
+                  <div className="settings-group">
+                    <h2 className="settings-group-heading">MCP connections</h2>
+                    <SettingsSection title="Access">
+                      <SettingsRow
+                        inline
+                        label="Enabled"
+                        description={
+                          mcpStatus?.controls.enabledManagedByEnvironment
+                            ? 'Managed by MCP_ENABLED.'
+                            : undefined
                         }
-                        disabled={
-                          !mcpStatus ||
-                          mcpUpdateStatus === 'loading' ||
-                          mcpStatus.controls.enabledManagedByEnvironment
+                      >
+                        <SettingsSwitch
+                          checked={mcpStatus?.enabled || false}
+                          onCheckedChange={(checked) =>
+                            void handleMcpEnabledChange(checked)
+                          }
+                          disabled={
+                            !mcpStatus ||
+                            mcpUpdateStatus === 'loading' ||
+                            mcpStatus.controls.enabledManagedByEnvironment
+                          }
+                          aria-label="Enable MCP access"
+                        />
+                      </SettingsRow>
+                      <SettingsRow
+                        inline
+                        label="Write access"
+                        description={
+                          mcpStatus?.controls.writeEnabledManagedByEnvironment
+                            ? 'Managed by MCP_WRITE_ENABLED.'
+                            : 'Read-only when off. Writes are audited.'
                         }
-                        aria-label="Enable MCP access"
-                      />
-                    </SettingsRow>
-                    <SettingsRow
-                      inline
-                      label="Write access"
-                      description={
-                        mcpStatus?.controls.writeEnabledManagedByEnvironment
-                          ? 'Managed by MCP_WRITE_ENABLED.'
-                          : 'Read-only when off. Writes are audited.'
-                      }
-                    >
-                      <SettingsSwitch
-                        checked={mcpStatus?.writeEnabled || false}
-                        onCheckedChange={(checked) =>
-                          void handleMcpWriteEnabledChange(checked)
+                      >
+                        <SettingsSwitch
+                          checked={mcpStatus?.writeEnabled || false}
+                          onCheckedChange={(checked) =>
+                            void handleMcpWriteEnabledChange(checked)
+                          }
+                          disabled={
+                            !mcpStatus?.enabled ||
+                            mcpUpdateStatus === 'loading' ||
+                            mcpStatus.controls.writeEnabledManagedByEnvironment
+                          }
+                          aria-label="Allow MCP to modify knives"
+                        />
+                      </SettingsRow>
+                      <SettingsRow
+                        label="Token"
+                        description={
+                          mcpStatus?.http.authManagedByEnvironment
+                            ? 'Managed by MCP_AUTH_TOKEN.'
+                            : 'Stored with your vault data.'
                         }
-                        disabled={
-                          !mcpStatus?.enabled ||
-                          mcpUpdateStatus === 'loading' ||
-                          mcpStatus.controls.writeEnabledManagedByEnvironment
-                        }
-                        aria-label="Allow MCP to modify knives"
-                      />
-                    </SettingsRow>
-                    <SettingsRow
-                      label="Token"
-                      description={
-                        mcpStatus?.http.authManagedByEnvironment
-                          ? 'Managed by MCP_AUTH_TOKEN.'
-                          : 'Stored with your vault data.'
-                      }
-                    >
-                      <div className="flex max-w-full items-center gap-2 text-right">
-                        <MonoValue>
-                          {mcpStatus?.http.authToken || 'Unavailable'}
-                        </MonoValue>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className={`${settingsSecondaryButtonClassName} rounded-lg`}
-                          onClick={() => void handleCopyMcpToken()}
-                          disabled={!mcpStatus}
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                          {copiedMcpToken ? 'Copied' : 'Copy token'}
-                        </Button>
-                      </div>
-                    </SettingsRow>
-                    <div className="space-y-2 py-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-medium text-foreground">
-                          Config
+                      >
+                        <div className="flex max-w-full items-center gap-2 text-right">
+                          <MonoValue>
+                            {mcpStatus?.http.authToken || 'Unavailable'}
+                          </MonoValue>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={`${settingsSecondaryButtonClassName} rounded-lg`}
+                            onClick={() => void handleCopyMcpToken()}
+                            disabled={!mcpStatus}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            {copiedMcpToken ? 'Copied' : 'Copy token'}
+                          </Button>
                         </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className={`${settingsSecondaryButtonClassName} rounded-lg`}
-                          onClick={() => void handleCopyMcpConfig()}
-                          disabled={!mcpClientConfig}
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                          {copiedMcpConfig ? 'Copied' : 'Copy config'}
-                        </Button>
+                      </SettingsRow>
+                      <div className="space-y-2 py-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-sm font-medium text-foreground">
+                            Config
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={`${settingsSecondaryButtonClassName} rounded-lg`}
+                            onClick={() => void handleCopyMcpConfig()}
+                            disabled={!mcpClientConfig}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            {copiedMcpConfig ? 'Copied' : 'Copy config'}
+                          </Button>
+                        </div>
+                        <pre className="max-h-64 overflow-auto rounded-lg border border-border bg-[var(--bladevault-surface-soft)] p-3 text-xs text-foreground dark:border-input">
+                          <code>
+                            {mcpClientConfig || 'Loading configuration…'}
+                          </code>
+                        </pre>
+                        <p className="text-xs text-muted-foreground">
+                          For MCP clients that connect to a URL, such as ChatGPT
+                          or OpenCode.
+                          {isDesktop
+                            ? ' Claude Desktop can’t use it: connect Claude Desktop below.'
+                            : null}
+                        </p>
                       </div>
-                      <pre className="max-h-64 overflow-auto rounded-lg border border-border bg-[var(--bladevault-surface-soft)] p-3 text-xs text-foreground dark:border-input">
-                        <code>
-                          {mcpClientConfig || 'Loading configuration…'}
-                        </code>
-                      </pre>
-                      <p className="text-xs text-muted-foreground">
-                        For MCP clients that connect to a URL, such as ChatGPT
-                        or OpenCode.
-                        {isDesktop
-                          ? ' Claude Desktop can’t use it: connect Claude Desktop below.'
-                          : null}
-                      </p>
+                    </SettingsSection>
+
+                    <ClaudeDesktopMcpSettings
+                      buttonClassName={settingsSecondaryButtonClassName}
+                    />
+
+                    <SettingsSection
+                      title={
+                        <div className="flex items-center justify-between gap-3">
+                          <span>Activity</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="rounded-lg px-2 text-xs"
+                            onClick={() => void refreshMcpStatus()}
+                            disabled={mcpUpdateStatus === 'loading'}
+                          >
+                            <RefreshCw
+                              className={cn(
+                                'h-3.5 w-3.5',
+                                mcpUpdateStatus === 'loading' && 'animate-spin',
+                              )}
+                            />
+                            Refresh
+                          </Button>
+                        </div>
+                      }
+                    >
+                      <SettingsRow label="Collection">
+                        <span className="text-xs text-muted-foreground">
+                          {mcpStatus?.stats.knifeCount ?? 0} knives
+                        </span>
+                      </SettingsRow>
+                      <SettingsRow label="Tools">
+                        <span className="text-xs text-muted-foreground">
+                          {mcpStatus?.tools.read ?? 6} read ·{' '}
+                          {mcpStatus?.tools.write ?? 2} write ·{' '}
+                          {mcpStatus?.activity.toolCallsSinceStart ?? 0} calls
+                        </span>
+                      </SettingsRow>
+                      <SettingsRow label="Last activity">
+                        <span className="text-xs text-muted-foreground">
+                          {mcpStatus?.activity.lastTransport
+                            ? `${mcpStatus.activity.lastTransport.toUpperCase()} · ${formatSyncTime(
+                                mcpStatus.activity.lastActivityAt || '',
+                                settings.timeFormat,
+                              )}`
+                            : 'Never'}
+                        </span>
+                      </SettingsRow>
+                      <SettingsRow label="MCP changes">
+                        <span className="text-xs text-muted-foreground">
+                          {mcpStatus?.stats.writeOperationCount ?? 0} operations
+                          · {mcpStatus?.stats.changedKnifeCount ?? 0} knives ·{' '}
+                          {formatSyncTime(
+                            mcpStatus?.stats.lastWriteAt || '',
+                            settings.timeFormat,
+                          )}
+                        </span>
+                      </SettingsRow>
+                    </SettingsSection>
+                  </div>
+
+                  {hasServerRuntime() ? (
+                    <div className="settings-group">
+                      <h2 className="settings-group-heading">
+                        AI connection for price drops
+                      </h2>
+                      <PriceAiConnectionSection
+                        settings={
+                          normalizePriceMonitoring(settings.priceMonitoring).ai
+                        }
+                        disabled={isSavingPriceMonitoring}
+                        onChange={(ai) =>
+                          void handlePriceMonitoringChange({
+                            ...normalizePriceMonitoring(
+                              settings.priceMonitoring,
+                            ),
+                            ai,
+                          })
+                        }
+                      />
                     </div>
-                  </SettingsSection>
-
-                  <ClaudeDesktopMcpSettings
-                    buttonClassName={settingsSecondaryButtonClassName}
-                  />
-
-                  <SettingsSection
-                    title={
-                      <div className="flex items-center justify-between gap-3">
-                        <span>Activity</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="rounded-lg px-2 text-xs"
-                          onClick={() => void refreshMcpStatus()}
-                          disabled={mcpUpdateStatus === 'loading'}
-                        >
-                          <RefreshCw
-                            className={cn(
-                              'h-3.5 w-3.5',
-                              mcpUpdateStatus === 'loading' && 'animate-spin',
-                            )}
-                          />
-                          Refresh
-                        </Button>
-                      </div>
-                    }
-                  >
-                    <SettingsRow label="Collection">
-                      <span className="text-xs text-muted-foreground">
-                        {mcpStatus?.stats.knifeCount ?? 0} knives
-                      </span>
-                    </SettingsRow>
-                    <SettingsRow label="Tools">
-                      <span className="text-xs text-muted-foreground">
-                        {mcpStatus?.tools.read ?? 6} read ·{' '}
-                        {mcpStatus?.tools.write ?? 2} write ·{' '}
-                        {mcpStatus?.activity.toolCallsSinceStart ?? 0} calls
-                      </span>
-                    </SettingsRow>
-                    <SettingsRow label="Last activity">
-                      <span className="text-xs text-muted-foreground">
-                        {mcpStatus?.activity.lastTransport
-                          ? `${mcpStatus.activity.lastTransport.toUpperCase()} · ${formatSyncTime(
-                              mcpStatus.activity.lastActivityAt || '',
-                              settings.timeFormat,
-                            )}`
-                          : 'Never'}
-                      </span>
-                    </SettingsRow>
-                    <SettingsRow label="MCP changes">
-                      <span className="text-xs text-muted-foreground">
-                        {mcpStatus?.stats.writeOperationCount ?? 0} operations ·{' '}
-                        {mcpStatus?.stats.changedKnifeCount ?? 0} knives ·{' '}
-                        {formatSyncTime(
-                          mcpStatus?.stats.lastWriteAt || '',
-                          settings.timeFormat,
-                        )}
-                      </span>
-                    </SettingsRow>
-                  </SettingsSection>
+                  ) : null}
                 </div>
               )}
 

@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -548,14 +549,9 @@ export function PriceAiSettingsSection({
   onChange: (next: PriceAiSettings) => void
   onAdviceApplied?: () => void
 }) {
-  const [models, setModels] = useState<string[]>([])
-  const [busy, setBusy] = useState<
-    'models' | 'test' | 'advisor' | 'agent' | null
-  >(null)
+  const [busy, setBusy] = useState<'advisor' | 'agent' | null>(null)
   const [agentNotice, setAgentNotice] = useState<Notice>(null)
   const [agentVersion, setAgentVersion] = useState(0)
-  const [modelNotice, setModelNotice] = useState<Notice>(null)
-  const [testNotice, setTestNotice] = useState<Notice>(null)
   const [advisorNotice, setAdvisorNotice] = useState<Notice>(null)
   const [activityVersion, setActivityVersion] = useState(0)
 
@@ -565,59 +561,6 @@ export function PriceAiSettingsSection({
     update({ usage: { ...settings.usage, ...patch } })
   const off = disabled || !settings.enabled
   const ready = Boolean(settings.baseUrl && settings.model)
-
-  const discover = async () => {
-    setBusy('models')
-    setModelNotice(null)
-    try {
-      const data = await callJson<{ models: string[] }>(
-        '/api/settings/price-ai-models',
-        { method: 'POST', body: '{}' },
-        'Could not load the model list.',
-      )
-      setModels(data.models)
-      setModelNotice(
-        data.models.length
-          ? { tone: 'ok', text: `${data.models.length} models found.` }
-          : { tone: 'error', text: 'The endpoint listed no models.' },
-      )
-    } catch (error) {
-      setModelNotice({
-        tone: 'error',
-        text: error instanceof Error ? error.message : String(error),
-      })
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const test = async () => {
-    setBusy('test')
-    setTestNotice(null)
-    try {
-      const data = await callJson<{
-        ok: boolean
-        message: string
-        latencyMs: number
-      }>(
-        '/api/settings/price-ai-test',
-        { method: 'POST', body: '{}' },
-        'The test request failed.',
-      )
-      setTestNotice({
-        tone: data.ok ? 'ok' : 'error',
-        text: `${data.message} (${(data.latencyMs / 1000).toFixed(1)} s)`,
-      })
-    } catch (error) {
-      setTestNotice({
-        tone: 'error',
-        text: error instanceof Error ? error.message : String(error),
-      })
-    } finally {
-      setBusy(null)
-      setActivityVersion((value) => value + 1)
-    }
-  }
 
   const runAgent = async () => {
     setBusy('agent')
@@ -673,16 +616,10 @@ export function PriceAiSettingsSection({
     }
   }
 
-  // The list appears after Discover models; the typed ID stays available.
-  const modelOptions =
-    models.length && settings.model && !models.includes(settings.model)
-      ? [settings.model, ...models]
-      : models
-
   return (
     <SettingsSection
       title="AI assistance"
-      description="Optional. Any OpenAI-compatible endpoint works: a cloud provider, a gateway, or a local Ollama or LM Studio server. Price monitoring works fully without it."
+      description="Optional. Choose what AI does for price monitoring; the endpoint, API key and model are set in Settings → AI / MCP. Price monitoring works fully without it."
     >
       <SettingsRow
         inline
@@ -696,101 +633,21 @@ export function PriceAiSettingsSection({
           onCheckedChange={(checked) => update({ enabled: checked })}
         />
       </SettingsRow>
-      <SettingsRow
-        label="Base URL"
-        description="For example https://api.openai.com/v1 or http://localhost:11434/v1 for Ollama."
-      >
-        <TextField
-          aria-label="AI base URL"
-          value={settings.baseUrl}
-          placeholder="https://api.openai.com/v1"
-          disabled={off}
-          validate={(value) =>
-            !value || normalizeAiBaseUrl(value)
-              ? null
-              : 'Enter an http or https URL without a query.'
-          }
-          onCommit={(value) =>
-            update({ baseUrl: value ? (normalizeAiBaseUrl(value) ?? '') : '' })
-          }
-        />
-      </SettingsRow>
-      <SettingsRow
-        label="API key"
-        description="Stored on this server outside the vault, so it is never part of a backup. Local servers usually need none."
-      >
-        <ApiKeyControl disabled={off} />
-      </SettingsRow>
-      <SettingsRow
-        label="Custom headers"
-        description='Optional JSON object of extra HTTP headers sent with every AI request, for gateways that need them, e.g. {"x-opencode-session": "bladevault"} for OpenCode Go. Saved with the settings, so do not put keys here.'
-      >
-        <TextField
-          aria-label="AI custom headers (JSON)"
-          value={formatAiHeaders(settings.headers)}
-          placeholder='{"X-Org": "acme"}'
-          disabled={off}
-          validate={(value) => {
-            const parsed = parseAiHeaders(value)
-            return parsed.ok ? null : parsed.error
-          }}
-          onCommit={(value) => {
-            const parsed = parseAiHeaders(value)
-            if (parsed.ok) update({ headers: parsed.headers })
-          }}
-        />
-      </SettingsRow>
-      <SettingsRow
-        label="Model"
-        description="Discover models asks the endpoint for its list; you can also type a model ID."
-      >
-        {modelOptions.length ? (
-          <Select
-            value={settings.model || undefined}
-            disabled={off}
-            onValueChange={(model) => {
-              if (model) update({ model })
-            }}
-          >
-            <SelectTrigger
-              size="sm"
-              aria-label="Choose a model"
-              className="w-full min-w-0 sm:w-64"
-            >
-              <SelectValue placeholder="Choose a model" />
-            </SelectTrigger>
-            <SelectContent>
-              {modelOptions.map((model) => (
-                <SelectItem key={model} value={model}>
-                  {model}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : null}
-        <TextField
-          aria-label="Model ID"
-          value={settings.model}
-          placeholder="gpt-4o-mini"
-          disabled={off}
-          validate={(value) =>
-            normalizeAiModel(value) === null
-              ? 'This is not a valid model ID.'
-              : null
-          }
-          onCommit={(model) => update({ model })}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          className={secondaryButton}
-          disabled={off || !settings.baseUrl || busy !== null}
-          onClick={() => void discover()}
+      {!ready ? (
+        <SettingsRow
+          label="Connection"
+          description="Price monitoring has no AI endpoint yet. Set the base URL, API key and model under AI / MCP."
         >
-          {busy === 'models' ? 'Discovering…' : 'Discover models'}
-        </Button>
-        <NoticeText notice={modelNotice} />
-      </SettingsRow>
+          <Button
+            variant="outline"
+            className={secondaryButton}
+            render={<Link href="/settings?tab=mcp" />}
+            nativeButton={false}
+          >
+            Open AI / MCP
+          </Button>
+        </SettingsRow>
+      ) : null}
       <SettingsRow
         label="Page size AI reads (KB)"
         description={`How much of a product page AI reads when it reads a price, ${PRICE_AI_LIMITS.maxPageKb[0]}–${PRICE_AI_LIMITS.maxPageKb[1]} KB of cleaned HTML. Price elements come first, then the rest of the page. Models with a large context window (1M tokens) handle 200–500 KB; small local models need about 8–16 KB.`}
@@ -930,21 +787,6 @@ export function PriceAiSettingsSection({
           </SettingsRow>
         </>
       ) : null}
-      <SettingsRow
-        label="Test connection"
-        description="Sends a made-up product page and checks that the model reads its price."
-      >
-        <Button
-          type="button"
-          variant="outline"
-          className={secondaryButton}
-          disabled={off || !ready || busy !== null}
-          onClick={() => void test()}
-        >
-          {busy === 'test' ? 'Testing…' : 'Test connection'}
-        </Button>
-        <NoticeText notice={testNotice} />
-      </SettingsRow>
       <SettingsRow
         label="AI activity"
         description="Requests in the last 24 hours, from a journal that keeps no page content, answers or keys."
@@ -1159,6 +1001,210 @@ export function PriceAiSettingsSection({
           <NoticeText notice={advisorNotice} />
         </SettingsRow>
       ) : null}
+    </SettingsSection>
+  )
+}
+
+/**
+ * The technical connection to the OpenAI-compatible endpoint Price Drops
+ * uses: base URL, API key, custom headers and model. It lives on the AI / MCP
+ * settings tab; what AI does stays in PriceAiSettingsSection.
+ */
+export function PriceAiConnectionSection({
+  settings,
+  disabled,
+  onChange,
+}: {
+  settings: PriceAiSettings
+  disabled?: boolean
+  onChange: (next: PriceAiSettings) => void
+}) {
+  const [models, setModels] = useState<string[]>([])
+  const [busy, setBusy] = useState<'models' | 'test' | null>(null)
+  const [modelNotice, setModelNotice] = useState<Notice>(null)
+  const [testNotice, setTestNotice] = useState<Notice>(null)
+
+  const update = (patch: Partial<PriceAiSettings>) =>
+    onChange({ ...settings, ...patch })
+  const ready = Boolean(settings.baseUrl && settings.model)
+
+  const discover = async () => {
+    setBusy('models')
+    setModelNotice(null)
+    try {
+      const data = await callJson<{ models: string[] }>(
+        '/api/settings/price-ai-models',
+        { method: 'POST', body: '{}' },
+        'Could not load the model list.',
+      )
+      setModels(data.models)
+      setModelNotice(
+        data.models.length
+          ? { tone: 'ok', text: `${data.models.length} models found.` }
+          : { tone: 'error', text: 'The endpoint listed no models.' },
+      )
+    } catch (error) {
+      setModelNotice({
+        tone: 'error',
+        text: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const test = async () => {
+    setBusy('test')
+    setTestNotice(null)
+    try {
+      const data = await callJson<{
+        ok: boolean
+        message: string
+        latencyMs: number
+      }>(
+        '/api/settings/price-ai-test',
+        { method: 'POST', body: '{}' },
+        'The test request failed.',
+      )
+      setTestNotice({
+        tone: data.ok ? 'ok' : 'error',
+        text: `${data.message} (${(data.latencyMs / 1000).toFixed(1)} s)`,
+      })
+    } catch (error) {
+      setTestNotice({
+        tone: 'error',
+        text: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  // The list appears after Discover models; the typed ID stays available.
+  const modelOptions =
+    models.length && settings.model && !models.includes(settings.model)
+      ? [settings.model, ...models]
+      : models
+
+  return (
+    <SettingsSection
+      title="Endpoint"
+      description={
+        settings.enabled
+          ? 'Any OpenAI-compatible endpoint works: a cloud provider, a gateway, or a local Ollama or LM Studio server. Choose what AI does in Settings → Price monitoring.'
+          : 'Any OpenAI-compatible endpoint works: a cloud provider, a gateway, or a local Ollama or LM Studio server. Use AI is off in Settings → Price monitoring, so nothing is sent except Test connection and Discover models.'
+      }
+    >
+      <SettingsRow
+        label="Base URL"
+        description="For example https://api.openai.com/v1 or http://localhost:11434/v1 for Ollama."
+      >
+        <TextField
+          aria-label="AI base URL"
+          value={settings.baseUrl}
+          placeholder="https://api.openai.com/v1"
+          disabled={disabled}
+          validate={(value) =>
+            !value || normalizeAiBaseUrl(value)
+              ? null
+              : 'Enter an http or https URL without a query.'
+          }
+          onCommit={(value) =>
+            update({ baseUrl: value ? (normalizeAiBaseUrl(value) ?? '') : '' })
+          }
+        />
+      </SettingsRow>
+      <SettingsRow
+        label="API key"
+        description="Stored on this server outside the vault, so it is never part of a backup. Local servers usually need none."
+      >
+        <ApiKeyControl disabled={disabled} />
+      </SettingsRow>
+      <SettingsRow
+        label="Custom headers"
+        description='Optional JSON object of extra HTTP headers sent with every AI request, for gateways that need them, e.g. {"x-opencode-session": "bladevault"} for OpenCode Go. Saved with the settings, so do not put keys here.'
+      >
+        <TextField
+          aria-label="AI custom headers (JSON)"
+          value={formatAiHeaders(settings.headers)}
+          placeholder='{"X-Org": "acme"}'
+          disabled={disabled}
+          validate={(value) => {
+            const parsed = parseAiHeaders(value)
+            return parsed.ok ? null : parsed.error
+          }}
+          onCommit={(value) => {
+            const parsed = parseAiHeaders(value)
+            if (parsed.ok) update({ headers: parsed.headers })
+          }}
+        />
+      </SettingsRow>
+      <SettingsRow
+        label="Model"
+        description="Discover models asks the endpoint for its list; you can also type a model ID."
+      >
+        {modelOptions.length ? (
+          <Select
+            value={settings.model || undefined}
+            disabled={disabled}
+            onValueChange={(model) => {
+              if (model) update({ model })
+            }}
+          >
+            <SelectTrigger
+              size="sm"
+              aria-label="Choose a model"
+              className="w-full min-w-0 sm:w-64"
+            >
+              <SelectValue placeholder="Choose a model" />
+            </SelectTrigger>
+            <SelectContent>
+              {modelOptions.map((model) => (
+                <SelectItem key={model} value={model}>
+                  {model}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
+        <TextField
+          aria-label="Model ID"
+          value={settings.model}
+          placeholder="gpt-4o-mini"
+          disabled={disabled}
+          validate={(value) =>
+            normalizeAiModel(value) === null
+              ? 'This is not a valid model ID.'
+              : null
+          }
+          onCommit={(model) => update({ model })}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          className={secondaryButton}
+          disabled={disabled || !settings.baseUrl || busy !== null}
+          onClick={() => void discover()}
+        >
+          {busy === 'models' ? 'Discovering…' : 'Discover models'}
+        </Button>
+        <NoticeText notice={modelNotice} />
+      </SettingsRow>
+      <SettingsRow
+        label="Test connection"
+        description="Sends a made-up product page and checks that the model reads its price."
+      >
+        <Button
+          type="button"
+          variant="outline"
+          className={secondaryButton}
+          disabled={disabled || !ready || busy !== null}
+          onClick={() => void test()}
+        >
+          {busy === 'test' ? 'Testing…' : 'Test connection'}
+        </Button>
+        <NoticeText notice={testNotice} />
+      </SettingsRow>
     </SettingsSection>
   )
 }
