@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -130,31 +131,20 @@ export function AchievementSettings({
           />
         </SettingsRow>
         <SettingsRow
-          inline
-          label="Celebrate on screen"
-          description="Show a message when you unlock one, with confetti for Gold and Platinum."
-        >
-          <SettingsSwitch
-            aria-label="Celebrate achievements on screen"
-            checked={settings.celebrate}
-            disabled={subDisabled}
-            onCheckedChange={(celebrate) => update({ celebrate })}
-          />
-        </SettingsRow>
-        {!browserOnly && (
-          <SettingsRow
-            inline
-            label="Inbox messages"
-            description="Keep a note of each unlock in the Inbox."
-          >
-            <SettingsSwitch
-              aria-label="Achievement Inbox messages"
-              checked={settings.inbox}
-              disabled={subDisabled}
-              onCheckedChange={(inbox) => update({ inbox })}
-            />
-          </SettingsRow>
-        )}
+          label="Unlock notifications"
+          description={
+            <>
+              On-screen celebrations and Inbox messages are set in{' '}
+              <Link
+                href="/settings?tab=notifications"
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                Settings → Notifications
+              </Link>
+              .
+            </>
+          }
+        />
         <SettingsRow
           inline
           label="Show secret achievements"

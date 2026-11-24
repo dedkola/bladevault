@@ -33,6 +33,7 @@ import {
   TrendingDown,
   Trophy,
   Wrench,
+  Bell,
 } from 'lucide-react'
 import { CompareIcon } from '@/components/icons/compare-icon'
 import { FcGoogle } from 'react-icons/fc'
@@ -85,6 +86,7 @@ import { CareBadgePill } from '@/components/care-badge'
 import { MarketBadgePill } from '@/components/market-badge'
 import { hasServerRuntime } from '@/lib/runtime-capabilities'
 import { MaintenanceSettings } from '@/components/maintenance-settings'
+import { NotificationSettings } from '@/components/notification-settings'
 import { AchievementSettings } from '@/components/achievement-settings'
 import { PriceMonitoringSettings as PriceMonitoringSettingsPanel } from '@/components/price-drops/price-monitoring-settings'
 import { formatDimension, formatWeight } from '@/lib/measurements'
@@ -133,6 +135,7 @@ type SettingsTab =
   | 'general'
   | 'backup'
   | 'appearance'
+  | 'notifications'
   | 'fields'
   | 'maintenance'
   | 'prices'
@@ -661,6 +664,7 @@ export default function SettingsView() {
     'app-lock',
     'backup',
     'appearance',
+    'notifications',
     'fields',
     'maintenance',
     'prices',
@@ -870,6 +874,13 @@ export default function SettingsView() {
         blurb: 'How BladeVault looks and which details appear on cards.',
       },
       {
+        id: 'notifications' as const,
+        label: 'Notifications',
+        icon: Bell,
+        blurb:
+          'Price alerts, care reminders and app notifications in one place.',
+      },
+      {
         id: 'fields' as const,
         label: 'Custom fields',
         icon: SlidersHorizontal,
@@ -879,7 +890,7 @@ export default function SettingsView() {
         id: 'maintenance' as const,
         label: 'Maintenance',
         icon: Wrench,
-        blurb: 'Care reminders, intervals and how due dates are counted.',
+        blurb: 'Care intervals and how due dates are counted.',
       },
       {
         id: 'prices' as const,
@@ -891,7 +902,7 @@ export default function SettingsView() {
         id: 'achievements' as const,
         label: 'Achievements',
         icon: Trophy,
-        blurb: 'Badges for milestones, how unlocks are celebrated, and reset.',
+        blurb: 'Badges for milestones, secret badges, and reset.',
       },
       {
         id: 'mcp' as const,
@@ -2303,6 +2314,32 @@ export default function SettingsView() {
                     </div>
                   </SettingsSection>
                 </div>
+              )}
+
+              {activeTab === 'notifications' && (
+                <NotificationSettings
+                  priceMonitoring={normalizePriceMonitoring(
+                    settings.priceMonitoring,
+                  )}
+                  priceDisabled={isSavingPriceMonitoring}
+                  onPriceMonitoringChange={(next) =>
+                    void handlePriceMonitoringChange(next)
+                  }
+                  reminders={normalizeMaintenanceReminders(
+                    settings.maintenanceReminders,
+                  )}
+                  remindersDisabled={isSavingMaintenance}
+                  onRemindersChange={(next) =>
+                    void handleMaintenanceRemindersChange(next)
+                  }
+                  achievements={normalizeAchievementSettings(
+                    settings.achievements,
+                  )}
+                  achievementsDisabled={isSavingAchievements || isVaultReadOnly}
+                  onAchievementsChange={(next) =>
+                    void handleAchievementSettingsChange(next)
+                  }
+                />
               )}
 
               {activeTab === 'maintenance' && (
