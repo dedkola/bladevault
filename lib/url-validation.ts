@@ -164,6 +164,7 @@ export async function validateExternalUrl(
 export async function fetchExternalUrl(
   initialUrl: URL,
   init: RequestInit,
+  options: { allowBody?: boolean } = {},
 ): Promise<Response> {
   const signal = init.signal ?? undefined
   const initialValidation = await resolveExternalUrl(initialUrl.href, signal)
@@ -180,11 +181,16 @@ export async function fetchExternalUrl(
   let destination = initialValidation
 
   for (let redirects = 0; redirects <= MAX_EXTERNAL_REDIRECTS; redirects += 1) {
+    const requestInit: RequestInit = { ...init, redirect: 'manual' }
     const response = await runWithSignal(signal, () =>
-      requestExternalUrl(destination.url, destination.address, {
-        ...init,
-        redirect: 'manual',
-      }),
+      options.allowBody
+        ? requestExternalUrl(
+            destination.url,
+            destination.address,
+            requestInit,
+            options,
+          )
+        : requestExternalUrl(destination.url, destination.address, requestInit),
     )
     const location = response.headers.get('location')
     const isRedirect = [301, 302, 303, 307, 308].includes(response.status)
@@ -196,6 +202,8 @@ export async function fetchExternalUrl(
     // Redirect bodies are not consumed; release their connection immediately.
     void response.body?.cancel().catch(() => {})
     if (!location) throw new ScrapeError('redirect')
+    // A redirected POST would need its method rewritten; never follow one.
+    if (init.body != null) throw new ScrapeError('redirect')
     if (redirects === MAX_EXTERNAL_REDIRECTS) {
       throw new ScrapeError('redirect')
     }

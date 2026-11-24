@@ -1,7 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as knivesRoute from '@/app/api/knives/route'
 import * as priceWatchRoute from '@/app/api/knives/[id]/price-watch/route'
 import { closeLocalDb, getLocalDb } from '@/lib/local-db'
+import { checkPriceSource } from '@/lib/price-monitor/engine'
 import type { PriceWatchView } from '@/lib/price-monitor/shared'
 import { syncAllAutoSources } from '@/lib/price-monitor/store'
 import { getPriceMonitorWorker } from '@/lib/price-monitor/worker'
@@ -10,9 +12,35 @@ import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 // A product link is checked whatever store it is on, Amazon included.
 
+const mocks = vi.hoisted(() => ({ http: vi.fn(), browser: vi.fn() }))
+vi.mock('@/lib/price-monitor/amazon-session', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('@/lib/price-monitor/amazon-session')
+  >()),
+  readAmazonPageViaHttp: mocks.http,
+}))
+vi.mock('@/lib/price-monitor/fetch', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/price-monitor/fetch')>()),
+  checkViaBrowser: mocks.browser,
+}))
+vi.mock('@/lib/url-validation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/url-validation')>()),
+  validateExternalUrl: async (value: string) => ({
+    ok: true,
+    url: new URL(value),
+  }),
+}))
+
+const fixture = (name: string) =>
+  readFileSync(
+    new URL(`../fixtures/scrape/${name}.html`, import.meta.url),
+    'utf8',
+  )
+
 let vault: TempVault | null = null
 
 beforeEach(async () => {
+  vi.resetAllMocks()
   vault = await createTempVault()
   monitorWholeCollection()
 })
@@ -142,5 +170,82 @@ describe('Amazon price sources', () => {
     ).toEqual({ n: 1 })
     // Repeat-safe.
     expect(await syncAllAutoSources()).toBe(0)
+  })
+
+  it('reads Amazon over HTTP first and stores the US price', async () => {
+    const knifeId = await createKnife(BUGOUT)
+    const [{ id }] = (await getWatch(knifeId)).sources
+    mocks.http.mockResolvedValueOnce({
+      html: fixture('amazon-delivery-90210'),
+      finalUrl: 'https://www.amazon.com/dp/B07B4JJZ5W',
+      deliveryBlocked: false,
+    })
+
+    const summary = await checkPriceSource(id, { trigger: 'manual' })
+
+    expect(summary).toMatchObject({ status: 'done', outcome: 'ok' })
+    expect(mocks.http).toHaveBeenCalledWith(BUGOUT, expect.anything(), 'amazon')
+    expect(mocks.browser).not.toHaveBeenCalled()
+    expect(
+      getLocalDb()
+        .prepare(
+          `SELECT last_price_minor, last_currency, last_availability
+           FROM price_sources WHERE id = ?`,
+        )
+        .get(id),
+    ).toEqual({
+      last_price_minor: 20000,
+      last_currency: 'USD',
+      last_availability: 'in_stock',
+    })
+  })
+
+  it('stores nothing when Amazon only shows a non-US delivery location', async () => {
+    const knifeId = await createKnife(BUGOUT)
+    const [{ id }] = (await getWatch(knifeId)).sources
+    const gated = fixture('amazon-delivery-ukraine')
+    mocks.http.mockResolvedValueOnce({
+      html: gated,
+      finalUrl: 'https://www.amazon.com/dp/B07B4JJZ5W',
+      deliveryBlocked: true,
+    })
+    mocks.browser.mockResolvedValueOnce({
+      offer: null,
+      serverOffer: null,
+      finalUrl: 'https://www.amazon.com/dp/B07B4JJZ5W',
+      isShopify: false,
+      html: gated,
+    })
+
+    const summary = await checkPriceSource(id, { trigger: 'manual' })
+
+    // One browser reading after the HTTP one, then the check fails closed.
+    expect(mocks.browser).toHaveBeenCalledTimes(1)
+    expect(summary).toMatchObject({
+      status: 'done',
+      outcome: 'failed',
+      errorCode: 'delivery_location',
+      laneOutcome: 'neutral',
+    })
+    const database = getLocalDb()
+    expect(
+      database
+        .prepare(
+          `SELECT last_price_minor, last_availability, last_error_code
+           FROM price_sources WHERE id = ?`,
+        )
+        .get(id),
+    ).toEqual({
+      last_price_minor: null,
+      last_availability: null,
+      last_error_code: 'delivery_location',
+    })
+    expect(
+      database
+        .prepare(
+          'SELECT COUNT(*) AS n FROM price_snapshots WHERE source_id = ?',
+        )
+        .get(id),
+    ).toEqual({ n: 0 })
   })
 })

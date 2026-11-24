@@ -86,6 +86,7 @@ const PROBLEM_BY_CODE: Record<string, string> = {
   implausible: 'The price changed too much to trust from one reading.',
   moved: 'The product link leads to another page: the product moved.',
   soft_missing: 'The store says this product page is gone.',
+  delivery_location: 'Amazon showed no price for a US delivery address.',
   wrong_variant: 'The page shows another variant than the tracked one.',
   cancelled: 'The check was cancelled.',
 }

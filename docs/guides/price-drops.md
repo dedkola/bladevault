@@ -28,6 +28,8 @@ A knife can have up to 10 store sources from any store, including Amazon. Each s
 
 Amazon pages are checked like any other store's, and all Amazon marketplaces share one pace. The AI features of Price Drops leave them alone: AI does not read, verify, or troubleshoot Amazon prices, and **Other stores** does not search Amazon. Amazon sources that an earlier version removed come back with their price history when the knife's product link is still on Amazon.
 
+Amazon pages are read without a browser first. Outside the US, amazon.com hides the price ("This item cannot be shipped to your selected delivery location"), so BladeVault picks the US delivery postcode 90210 for its Amazon session once and keeps that session for later checks; prices are then read in US dollars from any country. If that page is unusable, BladeVault waits a moment and tries once in the browser. When Amazon still shows no US delivery, the check records **Amazon showed no price for a US delivery address** and stores nothing, rather than reporting the knife as out of stock.
+
 1. Open the knife's **Market** tab and select **Manage sources** (or select **Edit** and scroll to **Price monitoring**).
 2. Enter a product page in **Add store URL** and select **Add**.
 3. Use **Pause** or **Resume** to stop or restart checks for one source, and **Remove** to stop monitoring it.

@@ -10,11 +10,16 @@ import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib'
 import { ScrapeError } from '@/lib/scrape-errors'
 import { createScrapeOperation } from '@/lib/scrape-operation'
 
-/** Send to an already validated numeric address without resolving the hostname again. */
+/**
+ * Send to an already validated numeric address without resolving the hostname
+ * again. Only GET and HEAD, unless `allowBody` opts in to a POST with a string
+ * body (Amazon's delivery-postcode form is the one caller).
+ */
 export async function requestExternalUrl(
   url: URL,
   address: { address: string; family: number },
   init: RequestInit,
+  { allowBody = false }: { allowBody?: boolean } = {},
 ): Promise<Response> {
   const initialSignal = init.signal ?? undefined
   initialSignal?.throwIfAborted()
@@ -28,11 +33,17 @@ export async function requestExternalUrl(
     )
   }
   const method = (init.method ?? 'GET').toUpperCase()
-  if ((method !== 'GET' && method !== 'HEAD') || init.body != null) {
+  const postsBody =
+    allowBody && method === 'POST' && typeof init.body === 'string'
+  if (
+    !postsBody &&
+    ((method !== 'GET' && method !== 'HEAD') || init.body != null)
+  ) {
     throw new TypeError(
       'External downloads support GET and HEAD requests without a body',
     )
   }
+  const requestBody = postsBody ? (init.body as string) : null
   if (!isIP(address.address) || isIP(address.address) !== address.family) {
     throw new TypeError(
       'External downloads require a validated numeric IP address',
@@ -49,6 +60,8 @@ export async function requestExternalUrl(
   headers.set('Host', url.host)
   if (!headers.has('Accept-Encoding'))
     headers.set('Accept-Encoding', 'identity')
+  if (requestBody !== null)
+    headers.set('Content-Length', String(Buffer.byteLength(requestBody)))
   const options = {
     hostname: address.address,
     family: address.family,
@@ -197,6 +210,7 @@ export async function requestExternalUrl(
       request.on('error', fail)
       signal?.addEventListener('abort', onAbort, { once: true })
       if (signal?.aborted) onAbort()
+      else if (requestBody !== null) request.end(requestBody)
       else request.end()
     } catch (error) {
       fail(error)

@@ -36,8 +36,13 @@ import {
   type DetectResult,
 } from '@/lib/price-monitor/detect'
 import {
+  AMAZON_PAGE_PAUSE_MS,
+  readAmazonPageViaHttp,
+} from '@/lib/price-monitor/amazon-session'
+import {
   checkViaBrowser,
   checkViaHttp,
+  extractOfferFromHtml,
   headedRetryAvailable,
   offersMatch,
   upstreamStatus,
@@ -118,6 +123,7 @@ import { createScrapeOperation } from '@/lib/scrape-operation'
 import { getSettings } from '@/lib/settings'
 import type { PriceAiSettings } from '@/lib/settings-shared'
 import { getStorage } from '@/lib/storage'
+import { amazonDeliveryBlocked } from '@/lib/scrape-amazon-location'
 import { validateExternalUrl } from '@/lib/url-validation'
 import { getVaultAccessState } from '@/lib/vault-access'
 
@@ -151,6 +157,8 @@ const MESSAGES: Record<string, string> = {
   moved:
     'The product link now leads to another page (a category, search or home page): the product moved or was renamed.',
   soft_missing: 'The store says this product page is gone or not available.',
+  delivery_location:
+    'Amazon did not show a price for a US delivery address (postcode 90210), so nothing was stored. The next check tries again.',
   wrong_variant:
     'The page shows another variant than the one this source tracks, so its price was not stored.',
   implausible:
@@ -187,6 +195,8 @@ type Strategy = 'http' | 'browser'
 function chooseStrategy(source: SourceRow, host: HostState, now: number) {
   if (source.fetch_override === 'http') return 'http'
   if (source.fetch_override === 'browser') return 'browser'
+  // Amazon renders prices on the server; a browser is only the fallback.
+  if (isAmazonSource(source)) return 'http'
   // A solver recipe acts on the rendered page.
   if (parseRecipe(host.solverRecipe)) return 'browser'
   const pinnedToBrowser =
@@ -287,6 +297,24 @@ class CheckFlow {
   }
 
   async http(): Promise<Reading> {
+    if (isAmazonSource(this.source)) {
+      const page = await readAmazonPageViaHttp(
+        this.source.url,
+        this.operation,
+        this.source.lane_key,
+      )
+      return {
+        check: {
+          offer: page.deliveryBlocked
+            ? null
+            : extractOfferFromHtml(page.html, page.finalUrl),
+          finalUrl: page.finalUrl,
+          isShopify: false,
+          html: page.html,
+        },
+        method: 'http',
+      }
+    }
     const check = await checkViaHttp(this.source.url, this.operation, {
       shopify: this.shopify,
       currencyHint: this.currencyHint,
@@ -443,15 +471,37 @@ class CheckFlow {
   /** HTTP first when learned; any HTTP problem falls back to the browser. */
   async read(strategy: Strategy): Promise<Reading> {
     if (strategy === 'http') {
+      let httpReading: Reading | null = null
       try {
         const reading = await this.http()
         if (reading.check.offer) return reading
+        httpReading = reading
       } catch (error) {
         const code = toScrapeError(error).code
         if (
           ['invalid_url', 'blocked_url', 'cancelled', 'timeout'].includes(code)
         )
           throw error
+        // A rate limit is not retried in a browser right away.
+        if (isAmazonSource(this.source) && upstreamStatus(error) === 429)
+          throw error
+      }
+      if (isAmazonSource(this.source)) {
+        // One browser reading, spaced from the HTTP one. Amazon stays
+        // HTTP-first: the next check starts over HTTP again.
+        await this.operation.run(
+          () =>
+            new Promise<void>((resolve) =>
+              setTimeout(resolve, AMAZON_PAGE_PAUSE_MS),
+            ),
+        )
+        try {
+          const reading = await this.browser()
+          if (reading.check.offer || !httpReading) return reading
+        } catch (error) {
+          if (!httpReading) throw error
+        }
+        return httpReading
       }
       if (this.source.fetch_override === 'auto') {
         this.host = {
@@ -928,6 +978,7 @@ const NEUTRAL_CODES = new Set([
   'moved',
   'soft_missing',
   'wrong_variant',
+  'delivery_location',
 ])
 
 function laneOutcomeFor(
@@ -1186,6 +1237,17 @@ export async function checkPriceSource(
     // product moved or is gone. No AI reads a price from such a page.
     if (reading && evaluated.kind === 'rejected') {
       if (
+        isAmazonSource(source) &&
+        amazonDeliveryBlocked(reading.check.html ?? '')
+      )
+        // Amazon hid the buy box for a delivery location outside the US:
+        // nothing is known about price or stock.
+        evaluated = {
+          kind: 'rejected',
+          outcome: 'failed',
+          errorCode: 'delivery_location',
+        }
+      else if (
         detectMovedPage({
           sourceUrl: source.url,
           finalUrl: reading.check.finalUrl,
