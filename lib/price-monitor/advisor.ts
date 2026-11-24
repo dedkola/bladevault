@@ -14,14 +14,11 @@ import {
 } from '@/lib/price-monitor/advice-store'
 import {
   laneFloorMs,
-  laneGapMs,
   MAX_MIN_GAP_MS,
   type LaneState,
 } from '@/lib/price-monitor/lanes'
 import {
-  activeWindowMs,
   adviceWindowMs,
-  effectiveActiveHours,
   frequencyMs,
   isWithinActiveHours,
 } from '@/lib/price-monitor/schedule'
@@ -110,8 +107,8 @@ export type AdvisorLaneStats = {
 export type AdvisorInput = {
   now: string
   timeZone: string
+  /** Hours between two price check rounds. */
   frequencyHours: number
-  activeHours: ActiveHours | null
   statsDays: number
   stores: AdvisorLaneStats[]
 }
@@ -177,7 +174,6 @@ export function buildAdvisorInput(input: {
     ...rows.daily.map((row) => row.laneKey),
     ...rows.checks.map((row) => row.laneKey),
   ])
-  const windowMs = activeWindowMs(settings.schedule)
   const stores: AdvisorLaneStats[] = []
   for (const laneKey of laneKeys) {
     const daily = rows.daily.find((row) => row.laneKey === laneKey)
@@ -220,12 +216,8 @@ export function buildAdvisorInput(input: {
     const lane = input.lanes.get(laneKey)
     const floorMs = laneFloorMs(settings.pacing)
     const sources = rows.sources.get(laneKey) ?? 0
-    const gapMs = laneGapMs({
-      minGapMs: Math.max(lane?.minGapMs ?? floorMs, floorMs),
-      floorMs,
-      activeWindowMs: windowMs,
-      sourceCount: sources,
-    })
+    // Rounds check one knife at a time: a store's gap is its minimum gap.
+    const gapMs = Math.max(lane?.minGapMs ?? floorMs, floorMs)
     const circuitOpen =
       lane?.circuit === 'open' && (lane.cooldownUntil ?? 0) > now
     stores.push({
@@ -270,7 +262,6 @@ export function buildAdvisorInput(input: {
     timeZone: input.timeZone,
     frequencyHours:
       Math.round((frequencyMs(settings.schedule) / HOUR_MS) * 10) / 10,
-    activeHours: effectiveActiveHours(settings.schedule),
     statsDays: ADVISOR_STATS_DAYS,
     stores: stores.slice(0, MAX_ADVISOR_LANES),
   }

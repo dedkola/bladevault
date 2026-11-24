@@ -8,16 +8,9 @@ import {
   type ReactNode,
 } from 'react'
 import Link from 'next/link'
-import { Cookie, Loader2, Pause, Play, Plus, RefreshCw, X } from 'lucide-react'
+import { Cookie, Loader2, Pause, Play, RefreshCw } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   PriceAiSettingsSection,
   type AdvisorLaneAdvice,
@@ -36,34 +29,22 @@ import { OtherStoresSettings } from '@/components/price-drops/other-stores-setti
 import { DesktopBackgroundSettings } from '@/components/price-drops/desktop-background-settings'
 import { MonitorScopeSettings } from '@/components/price-drops/monitor-scope-settings'
 import {
-  DEFAULT_SLOT_HOURS,
-  MAX_SLOT_HOURS,
   PRICE_MONITORING_LIMITS,
-  normalizeSlotHours,
-  type ActiveHours,
+  PRICE_ROUND_HOURS,
   type PriceMonitoringSettings,
-  type PriceScheduleMode,
+  type PriceRoundHours,
 } from '@/lib/settings-shared'
 
-const SCHEDULE_OPTIONS: ReadonlyArray<{
-  value: PriceScheduleMode
-  label: string
-}> = [
-  { value: 'daily', label: 'Once daily' },
-  { value: 'twice_daily', label: 'Twice daily' },
-  { value: 'every_12h', label: 'Every 12 hours' },
-  { value: 'slots', label: 'Set times' },
-  { value: 'custom', label: 'Custom' },
-]
-
-const SCHEDULE_HELP: Record<PriceScheduleMode, string> = {
-  daily: 'Each product is checked about once a day.',
-  twice_daily: 'Each product is checked about twice a day, in daytime hours.',
-  every_12h: 'Each product is checked every 12 hours, around the clock.',
-  custom: 'Each product is checked at the interval you choose.',
-  slots:
-    'At each time, every product is checked once, store by store at each store’s minimum pause; nothing is checked on schedule between the times. Other stores searches still run in between.',
+const ROUND_LABEL: Record<PriceRoundHours, string> = {
+  6: 'Every 6 hours',
+  12: 'Every 12 hours',
+  24: 'Once a day',
 }
+
+const ROUND_OPTIONS = PRICE_ROUND_HOURS.map((hours) => ({
+  value: String(hours) as `${PriceRoundHours}`,
+  label: ROUND_LABEL[hours],
+}))
 
 type LaneView = {
   laneKey: string
@@ -77,8 +58,9 @@ type LaneView = {
   circuit: 'closed' | 'open'
   cooldownUntil: string | null
   strategy: 'auto' | 'http_first' | 'browser_first'
-  fullPassMs: number
   checking: boolean
+  /** On the retry list at this store. */
+  retries?: number
   advice?: AdvisorLaneAdvice | null
 }
 
@@ -163,42 +145,6 @@ export function NumberField({
   )
 }
 
-function HourSelect({
-  value,
-  hours,
-  disabled,
-  hourCycle,
-  onChange,
-  'aria-label': ariaLabel,
-}: {
-  value: number
-  hours: number[]
-  disabled?: boolean
-  hourCycle: HourCycle
-  onChange: (hour: number) => void
-  'aria-label': string
-}) {
-  const label = (hour: number) => hourLabel(hour, hourCycle)
-  return (
-    <Select
-      value={String(value)}
-      onValueChange={(next) => onChange(Number(next))}
-      disabled={disabled}
-    >
-      <SelectTrigger size="sm" aria-label={ariaLabel} className="w-28">
-        <SelectValue>{label(value)}</SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        {hours.map((hour) => (
-          <SelectItem key={hour} value={String(hour)}>
-            {label(hour)}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}
-
 function StoreButton({
   label,
   busy,
@@ -226,71 +172,6 @@ function StoreButton({
     </Button>
   )
 }
-
-/** Set times: one hour picker per run, with add and remove. */
-function SlotHoursField({
-  value,
-  disabled,
-  hourCycle,
-  onChange,
-}: {
-  value: number[]
-  disabled?: boolean
-  hourCycle: HourCycle
-  onChange: (hours: number[]) => void
-}) {
-  const commit = (next: number[]) =>
-    onChange(normalizeSlotHours(next, DEFAULT_SLOT_HOURS))
-  const free = START_HOURS.find((hour) => !value.includes(hour))
-  return (
-    <span className="flex flex-wrap items-center gap-2">
-      {value.map((hour, index) => (
-        <span key={hour} className="inline-flex items-center gap-0.5">
-          <HourSelect
-            aria-label={`Check time ${index + 1}`}
-            value={hour}
-            hours={START_HOURS.filter(
-              (option) => option === hour || !value.includes(option),
-            )}
-            disabled={disabled}
-            hourCycle={hourCycle}
-            onChange={(next) =>
-              commit(value.map((item) => (item === hour ? next : item)))
-            }
-          />
-          {value.length > 1 ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label={`Remove ${hourLabel(hour, hourCycle)}`}
-              title="Remove this time"
-              disabled={disabled}
-              onClick={() => commit(value.filter((item) => item !== hour))}
-            >
-              <X />
-            </Button>
-          ) : null}
-        </span>
-      ))}
-      {value.length < MAX_SLOT_HOURS && free !== undefined ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={disabled}
-          onClick={() => commit([...value, free])}
-        >
-          <Plus />
-          Add time
-        </Button>
-      ) : null}
-    </span>
-  )
-}
-
-const START_HOURS = Array.from({ length: 24 }, (_, hour) => hour)
-const END_HOURS = Array.from({ length: 24 }, (_, hour) => hour + 1)
 
 type StoreAction = 'resume' | 'reset_cookies' | 'check' | 'pause' | 'unpause'
 
@@ -353,8 +234,8 @@ function adviceSummary(
 }
 
 /**
- * Settings → Price monitoring: schedule, active hours and per-store pacing,
- * plus a live view of each store's pace and pauses.
+ * Settings → Price monitoring: how often a round starts, the pause between
+ * knives, plus a live view of each store's pace, pauses and retry list.
  */
 export function PriceMonitoringSettings({
   settings,
@@ -444,13 +325,6 @@ export function PriceMonitoringSettings({
     update({ pacing: { ...settings.pacing, ...patch } })
 
   const off = disabled || !settings.enabled
-  const hours: ActiveHours | null =
-    settings.schedule.activeHours ??
-    (settings.schedule.mode === 'twice_daily' ? [8, 22] : null)
-  const setHours = (next: ActiveHours) => {
-    if (next[0] === next[1] % 24) return
-    updateSchedule({ activeHours: next })
-  }
 
   return (
     <div className="settings-grid">
@@ -504,101 +378,44 @@ export function PriceMonitoringSettings({
 
       <SettingsSection
         title="Schedule"
-        description={
-          settings.schedule.mode === 'slots'
-            ? 'Checks run at the times you set, each store at its own minimum pause, so stores are not flooded with requests.'
-            : 'Checks are spread evenly over the day instead of all at once, so stores are not flooded with requests.'
-        }
+        description="Prices are checked in rounds, around the clock. A round goes through every monitored knife in order: all of one knife’s stores at the same time, then a pause, then the next knife. What fails is retried at random times before the next round."
       >
         <SettingsRow
-          label="How often"
-          description={SCHEDULE_HELP[settings.schedule.mode]}
+          label="Start a round"
+          description="Each knife is checked once per round. Other stores looks for a knife again at most once a day."
         >
           <SegmentedControl
-            aria-label="How often to check prices"
-            value={settings.schedule.mode}
-            options={SCHEDULE_OPTIONS}
+            aria-label="How often a round starts"
+            value={
+              String(settings.schedule.intervalHours) as `${PriceRoundHours}`
+            }
+            options={ROUND_OPTIONS}
             disabled={off}
-            onValueChange={(mode) => updateSchedule({ mode })}
+            onValueChange={(value) =>
+              updateSchedule({
+                intervalHours: Number(value) as PriceRoundHours,
+              })
+            }
           />
         </SettingsRow>
-        {settings.schedule.mode === 'custom' ? (
-          <SettingsRow label="Interval">
-            <NumberField
-              aria-label="Check interval in hours"
-              value={settings.schedule.intervalHours}
-              min={PRICE_MONITORING_LIMITS.intervalHours[0]}
-              max={PRICE_MONITORING_LIMITS.intervalHours[1]}
-              unit="hours"
-              disabled={off}
-              onCommit={(intervalHours) => updateSchedule({ intervalHours })}
-            />
-          </SettingsRow>
-        ) : null}
-        {settings.schedule.mode === 'slots' ? (
-          <SettingsRow
-            label="Check at"
-            description={
-              queue?.timeZone
-                ? `Server time (${queue.timeZone}). Each run takes as long as a store needs at its pace, often an hour or more for a store with many products.`
-                : 'Server time. Each run takes as long as a store needs at its pace, often an hour or more for a store with many products.'
-            }
-          >
-            <SlotHoursField
-              value={settings.schedule.slotHours}
-              disabled={off}
-              hourCycle={hourCycle}
-              onChange={(slotHours) => updateSchedule({ slotHours })}
-            />
-          </SettingsRow>
-        ) : null}
-        {settings.schedule.mode !== 'every_12h' &&
-        settings.schedule.mode !== 'slots' ? (
-          <SettingsRow
-            label="Only check between"
-            description={
-              queue?.timeZone
-                ? `Server time (${queue.timeZone}).`
-                : 'Server time.'
-            }
-          >
-            {settings.schedule.mode !== 'twice_daily' ? (
-              <SettingsSwitch
-                aria-label="Only check during set hours"
-                checked={hours !== null}
-                disabled={off}
-                onCheckedChange={(checked) =>
-                  updateSchedule({ activeHours: checked ? [8, 22] : null })
-                }
-              />
-            ) : null}
-            {hours ? (
-              <>
-                <HourSelect
-                  aria-label="Start hour"
-                  value={hours[0]}
-                  hours={START_HOURS}
-                  disabled={off}
-                  hourCycle={hourCycle}
-                  onChange={(start) => setHours([start, hours[1]])}
-                />
-                <span className="text-xs text-muted-foreground">to</span>
-                <HourSelect
-                  aria-label="End hour"
-                  value={hours[1]}
-                  hours={END_HOURS}
-                  disabled={off}
-                  hourCycle={hourCycle}
-                  onChange={(end) => setHours([hours[0], end])}
-                />
-              </>
-            ) : null}
-          </SettingsRow>
-        ) : null}
+        <SettingsRow
+          label="Pause between knives"
+          description="After one knife’s stores are checked, the round waits this long before the next knife. It is also the shortest time between two requests at the same store; BladeVault waits longer by itself at a store that answers slowly, rate-limits or shows a bot check."
+        >
+          <NumberField
+            aria-label="Pause between knives in seconds"
+            value={settings.pacing.minGapSeconds}
+            min={PRICE_MONITORING_LIMITS.minGapSeconds[0]}
+            max={PRICE_MONITORING_LIMITS.minGapSeconds[1]}
+            unit="seconds"
+            disabled={off}
+            onCommit={(minGapSeconds) => updatePacing({ minGapSeconds })}
+          />
+        </SettingsRow>
         <SettingsRow
           inline
           label="Check long out-of-stock pages once a day"
-          description="A page that has been out of stock for two weeks is checked at most once a day, so a restock still shows within a day and stores get fewer requests. Check now and Check all still check it right away."
+          description="A page that has been out of stock for two weeks is checked in at most one round a day, so a restock still shows within a day and stores get fewer requests. Check now and Check all still check it right away."
         >
           <SettingsSwitch
             aria-label="Check long out-of-stock pages once a day"
@@ -607,26 +424,6 @@ export function PriceMonitoringSettings({
             onCheckedChange={(slowOutOfStock) =>
               updateSchedule({ slowOutOfStock })
             }
-          />
-        </SettingsRow>
-      </SettingsSection>
-
-      <SettingsSection
-        title="Pacing"
-        description="BladeVault slows a store down by itself when it answers slowly, rate-limits or shows a bot check, and speeds up again after successful checks. These are the limits."
-      >
-        <SettingsRow
-          label="Minimum pause per store"
-          description="The shortest time between two checks at the same store."
-        >
-          <NumberField
-            aria-label="Minimum pause per store in seconds"
-            value={settings.pacing.minGapSeconds}
-            min={PRICE_MONITORING_LIMITS.minGapSeconds[0]}
-            max={PRICE_MONITORING_LIMITS.minGapSeconds[1]}
-            unit="seconds"
-            disabled={off}
-            onCommit={(minGapSeconds) => updatePacing({ minGapSeconds })}
           />
         </SettingsRow>
       </SettingsSection>
@@ -668,7 +465,7 @@ export function PriceMonitoringSettings({
       {queueAvailable && queue && queue.lanes.length ? (
         <SettingsSection
           title="Stores"
-          description="Each store's current pace. A full pass is how long it takes to check every product at that store once. Use the buttons to check a store now, pause it, or reset its saved cookies."
+          description="Each store's current pace and what waits on the retry list. Use the buttons to check a store now, pause it, or reset its saved cookies."
         >
           {storeNotice ? (
             <p role="status" className="pt-2 text-xs text-muted-foreground">
@@ -681,8 +478,8 @@ export function PriceMonitoringSettings({
                 <tr>
                   <th className="py-1.5 pr-3 font-medium">Store</th>
                   <th className="py-1.5 pr-3 font-medium">Products</th>
-                  <th className="py-1.5 pr-3 font-medium">One check every</th>
-                  <th className="py-1.5 pr-3 font-medium">Full pass</th>
+                  <th className="py-1.5 pr-3 font-medium">Minimum gap</th>
+                  <th className="py-1.5 pr-3 font-medium">Retry list</th>
                   <th className="py-1.5 pr-3 font-medium">Status</th>
                   <th className="py-1.5 text-right font-medium">
                     <span className="sr-only">Actions</span>
@@ -716,13 +513,7 @@ export function PriceMonitoringSettings({
                         {lane.paused ? '—' : formatDuration(lane.gapMs)}
                       </td>
                       <td className="py-1.5 pr-3 tabular-nums">
-                        {lane.sources && !lane.paused
-                          ? `${formatDuration(lane.fullPassMs)}${
-                              lane.fullPassMs > queue.frequencyMs
-                                ? ' (longer than the schedule)'
-                                : ''
-                            }`
-                          : '—'}
+                        {lane.retries ? lane.retries : '—'}
                       </td>
                       <td className="py-1.5 pr-3">
                         {laneStatus(lane, hourCycle)}

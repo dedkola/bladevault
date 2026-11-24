@@ -275,7 +275,6 @@ describe('buildAdvisorInput', () => {
     })
     expect(input).toMatchObject({
       frequencyHours: 24,
-      activeHours: null,
       statsDays: 7,
       timeZone: 'Europe/Berlin',
     })
@@ -297,7 +296,7 @@ describe('buildAdvisorInput', () => {
           { hour: 10, checks: 1, successRate: 1 },
           { hour: 21, checks: 1, successRate: 0 },
         ],
-        currentGapSeconds: 5760,
+        currentGapSeconds: 60,
         floorSeconds: 60,
         circuit: 'open',
         recentOpenings: 1,

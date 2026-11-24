@@ -18,20 +18,14 @@ describe('settings persistence', () => {
 
     expect(getSettings().priceMonitoring).toMatchObject({
       enabled: true,
-      schedule: { mode: 'daily' },
+      schedule: { intervalHours: 24 },
     })
     saveSettings({
       priceMonitoring: {
         ...getSettings().priceMonitoring,
         enabled: false,
         scope: { kind: 'wishlist', knifeIds: ['k1'] },
-        schedule: {
-          mode: 'custom',
-          intervalHours: 6,
-          activeHours: [22, 6],
-          slotHours: [8, 13, 19],
-          slowOutOfStock: false,
-        },
+        schedule: { intervalHours: 6, slowOutOfStock: false },
         pacing: { minGapSeconds: 90 },
         notify: {
           drop: true,
@@ -86,13 +80,7 @@ describe('settings persistence', () => {
       skipSoldKnives: true,
       ignoreOfficialOutOfStock: false,
       scope: { kind: 'wishlist', knifeIds: ['k1'] },
-      schedule: {
-        mode: 'custom',
-        intervalHours: 6,
-        activeHours: [22, 6],
-        slotHours: [8, 13, 19],
-        slowOutOfStock: false,
-      },
+      schedule: { intervalHours: 6, slowOutOfStock: false },
       pacing: { minGapSeconds: 90 },
       notify: {
         drop: true,

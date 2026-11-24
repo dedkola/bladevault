@@ -1,22 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
-  activeHoursPerDay,
-  activeWindowMs,
   adviceWindowMs,
   checkLoad,
-  effectiveActiveHours,
   frequencyMs,
   isWithinActiveHours,
   isStaleOutOfStock,
-  msUntilActive,
   nextScheduledCheckAt,
-  nextSlotAt,
   scheduledIntervalMs,
 } from '@/lib/price-monitor/schedule'
 import {
   DEFAULT_PRICE_MONITORING,
   normalizePriceMonitoring,
-  normalizeSlotHours,
   type PriceMonitoringSettings,
 } from '@/lib/settings-shared'
 
@@ -28,32 +22,68 @@ const schedule = (
   ...patch,
 })
 const at = (hour: number, minute = 0) => new Date(2026, 10, 18, hour, minute)
+const roundHours = (saved: Record<string, unknown>) =>
+  normalizePriceMonitoring({ schedule: saved }).schedule.intervalHours
 
-describe('frequency and active hours', () => {
-  it('maps schedule modes to a frequency window', () => {
-    expect(frequencyMs(schedule({ mode: 'daily' }))).toBe(24 * HOUR)
-    expect(frequencyMs(schedule({ mode: 'twice_daily' }))).toBe(12 * HOUR)
-    expect(frequencyMs(schedule({ mode: 'every_12h' }))).toBe(12 * HOUR)
-    expect(frequencyMs(schedule({ mode: 'custom', intervalHours: 6 }))).toBe(
-      6 * HOUR,
-    )
+describe('round interval', () => {
+  it('starts a round every 6, 12 or 24 hours', () => {
+    expect(frequencyMs(schedule({ intervalHours: 6 }))).toBe(6 * HOUR)
+    expect(frequencyMs(schedule({ intervalHours: 12 }))).toBe(12 * HOUR)
+    expect(frequencyMs(schedule({ intervalHours: 24 }))).toBe(24 * HOUR)
+    // AI pacing advice may stretch a store over one round interval.
+    expect(adviceWindowMs(schedule({ intervalHours: 6 }))).toBe(6 * HOUR)
   })
 
-  it('runs twice daily in daytime and every 12 hours around the clock', () => {
-    expect(effectiveActiveHours(schedule({ mode: 'twice_daily' }))).toEqual([
-      8, 22,
-    ])
-    expect(
-      effectiveActiveHours(
-        schedule({ mode: 'every_12h', activeHours: [9, 17] }),
-      ),
-    ).toBeNull()
-    expect(
-      effectiveActiveHours(schedule({ mode: 'daily', activeHours: [9, 17] })),
-    ).toEqual([9, 17])
+  it('maps schedules saved before rounds to the nearest interval', () => {
+    expect(roundHours({ mode: 'daily' })).toBe(24)
+    expect(roundHours({ mode: 'twice_daily', activeHours: [8, 22] })).toBe(12)
+    expect(roundHours({ mode: 'every_12h' })).toBe(12)
+    expect(roundHours({ mode: 'custom', intervalHours: 6 })).toBe(6)
+    expect(roundHours({ mode: 'custom', intervalHours: 4 })).toBe(6)
+    expect(roundHours({ mode: 'custom', intervalHours: 20 })).toBe(24)
+    expect(roundHours({ mode: 'custom', intervalHours: 168 })).toBe(24)
+    // A tie goes to the shorter interval.
+    expect(roundHours({ mode: 'custom', intervalHours: 9 })).toBe(6)
+    expect(roundHours({ mode: 'custom', intervalHours: 18 })).toBe(12)
+    // Set times: by runs per day (3 runs: every 8 hours, nearest 6).
+    expect(roundHours({ mode: 'slots', slotHours: [9, 14, 20] })).toBe(6)
+    expect(roundHours({ mode: 'slots', slotHours: [9, 21] })).toBe(12)
+    expect(roundHours({ mode: 'slots', slotHours: [9] })).toBe(24)
+    expect(roundHours({ mode: 'slots', slotHours: [] })).toBe(24)
   })
 
-  it('checks hours in local time, including windows across midnight', () => {
+  it('keeps a valid interval and falls back for anything else', () => {
+    expect(roundHours({ intervalHours: 12 })).toBe(12)
+    expect(roundHours({ intervalHours: 7 })).toBe(24)
+    expect(roundHours({ mode: 'custom', intervalHours: 'x' })).toBe(24)
+    const current = normalizePriceMonitoring({
+      schedule: { intervalHours: 6 },
+    })
+    expect(
+      normalizePriceMonitoring({ schedule: { intervalHours: 5 } }, current)
+        .schedule.intervalHours,
+    ).toBe(6)
+  })
+
+  it('makes a checked source due about one round later', () => {
+    const now = Date.UTC(2026, 10, 19, 12)
+    expect(
+      nextScheduledCheckAt({
+        schedule: schedule({ intervalHours: 6 }),
+        outOfStockSince: null,
+        now,
+      }),
+    ).toBe(now + 6 * HOUR)
+    expect(
+      nextScheduledCheckAt({
+        schedule: schedule({ intervalHours: 6 }),
+        outOfStockSince: now - 20 * 24 * HOUR,
+        now,
+      }),
+    ).toBe(now + 24 * HOUR)
+  })
+
+  it('checks quiet hours in local time, including windows across midnight', () => {
     expect(isWithinActiveHours([8, 22], at(8))).toBe(true)
     expect(isWithinActiveHours([8, 22], at(21, 59))).toBe(true)
     expect(isWithinActiveHours([8, 22], at(22))).toBe(false)
@@ -62,29 +92,17 @@ describe('frequency and active hours', () => {
     expect(isWithinActiveHours([22, 6], at(12))).toBe(false)
     expect(isWithinActiveHours(null, at(3))).toBe(true)
   })
-
-  it('sizes the active window used to spread checks', () => {
-    expect(activeHoursPerDay([8, 22])).toBe(14)
-    expect(activeHoursPerDay([22, 6])).toBe(8)
-    expect(activeWindowMs(schedule({ mode: 'daily' }))).toBe(24 * HOUR)
-    expect(activeWindowMs(schedule({ mode: 'twice_daily' }))).toBe(7 * HOUR)
-  })
-
-  it('waits until the next active start', () => {
-    expect(msUntilActive([8, 22], at(10))).toBe(0)
-    expect(msUntilActive([8, 22], at(6))).toBe(2 * HOUR)
-    expect(msUntilActive([8, 22], at(23))).toBe(9 * HOUR)
-  })
 })
 
 describe('normalizePriceMonitoring', () => {
-  it('defaults to daily checks for knives with a price', () => {
+  it('defaults to a round a day and a minute between knives', () => {
     expect(normalizePriceMonitoring(undefined)).toEqual(
       DEFAULT_PRICE_MONITORING,
     )
     expect(DEFAULT_PRICE_MONITORING).toMatchObject({
       enabled: true,
       skipSoldKnives: true,
+      schedule: { intervalHours: 24, slowOutOfStock: true },
       pacing: { minGapSeconds: 60 },
       notify: {
         drop: true,
@@ -96,7 +114,7 @@ describe('normalizePriceMonitoring', () => {
     })
   })
 
-  it('clamps numbers and rejects invalid hours', () => {
+  it('clamps numbers and drops settings rounds no longer use', () => {
     expect(
       normalizePriceMonitoring({
         enabled: false,
@@ -110,13 +128,7 @@ describe('normalizePriceMonitoring', () => {
       skipSoldKnives: true,
       ignoreOfficialOutOfStock: false,
       scope: { kind: 'wishlist', knifeIds: [] },
-      schedule: {
-        mode: 'custom',
-        intervalHours: 168,
-        activeHours: null,
-        slotHours: [9, 14, 20],
-        slowOutOfStock: true,
-      },
+      schedule: { intervalHours: 24, slowOutOfStock: true },
       pacing: { minGapSeconds: 30 },
       notify: {
         drop: false,
@@ -137,12 +149,12 @@ describe('normalizePriceMonitoring', () => {
 
   it('keeps unspecified parts of the current settings', () => {
     const current = normalizePriceMonitoring({
-      schedule: { mode: 'twice_daily', activeHours: [7, 23] },
+      schedule: { intervalHours: 12, slowOutOfStock: false },
     })
     expect(
       normalizePriceMonitoring({ pacing: { minGapSeconds: 120 } }, current),
     ).toMatchObject({
-      schedule: { mode: 'twice_daily', activeHours: [7, 23] },
+      schedule: { intervalHours: 12, slowOutOfStock: false },
       pacing: { minGapSeconds: 120 },
     })
     const alerts = normalizePriceMonitoring(
@@ -150,7 +162,7 @@ describe('normalizePriceMonitoring', () => {
       current,
     )
     expect(alerts).toMatchObject({
-      schedule: { mode: 'twice_daily', activeHours: [7, 23] },
+      schedule: { intervalHours: 12, slowOutOfStock: false },
       notify: { drop: true, increase: true, backInStock: true },
       thresholds: { minPercent: 10 },
     })
@@ -228,95 +240,5 @@ describe('long out-of-stock pages', () => {
     expect(isStaleOutOfStock(null, NOW)).toBe(false)
     expect(isStaleOutOfStock(NOW - 59 * DAY, NOW)).toBe(false)
     expect(isStaleOutOfStock(NOW - 60 * DAY, NOW)).toBe(true)
-  })
-})
-
-describe('set times', () => {
-  const slots = schedule({ mode: 'slots', slotHours: [9, 14, 20] })
-  const next = (
-    now: Date,
-    extra: { outOfStockSince?: number; focus?: number } = {},
-  ) =>
-    new Date(
-      nextScheduledCheckAt({
-        schedule: slots,
-        // Ignored with set times.
-        intervalMs: 6 * HOUR,
-        outOfStockSince: extra.outOfStockSince ?? null,
-        now: now.getTime(),
-        focusIntervalMs: extra.focus ?? null,
-      }),
-    )
-  const tomorrow = (hour: number) => new Date(2026, 10, 19, hour)
-
-  it('runs at the set times with no spread and no active hours', () => {
-    expect(frequencyMs(slots)).toBe(8 * HOUR)
-    expect(activeWindowMs(slots)).toBe(0)
-    expect(effectiveActiveHours(slots)).toBeNull()
-    // Advice may slow a store only so far that a run ends before the next.
-    expect(adviceWindowMs(slots)).toBe(5 * HOUR)
-    expect(adviceWindowMs(schedule({ mode: 'slots', slotHours: [9] }))).toBe(
-      24 * HOUR,
-    )
-    expect(adviceWindowMs(schedule({ mode: 'daily' }))).toBe(24 * HOUR)
-  })
-
-  it('finds the next run strictly after a time', () => {
-    expect(new Date(nextSlotAt([9, 14, 20], at(9, 30).getTime()))).toEqual(
-      at(14),
-    )
-    expect(new Date(nextSlotAt([9, 14, 20], at(14).getTime()))).toEqual(at(20))
-    expect(new Date(nextSlotAt([9, 14, 20], at(21).getTime()))).toEqual(
-      tomorrow(9),
-    )
-    expect(new Date(nextSlotAt([9, 14, 20], at(3).getTime()))).toEqual(at(9))
-  })
-
-  it('makes a checked source due at the next run', () => {
-    expect(next(at(9, 40))).toEqual(at(14))
-    // A long run still checking the 9:00 run after 14:00 moves on to 20:00.
-    expect(next(at(14, 10))).toEqual(at(20))
-    expect(next(at(20, 50))).toEqual(tomorrow(9))
-  })
-
-  it('checks a long out-of-stock page at the same run the next day', () => {
-    const since = at(9).getTime() - 20 * 24 * HOUR
-    expect(next(at(9, 40), { outOfStockSince: since })).toEqual(tomorrow(9))
-    expect(next(at(11, 30), { outOfStockSince: since })).toEqual(tomorrow(9))
-    expect(next(at(20, 5), { outOfStockSince: since })).toEqual(tomorrow(20))
-    expect(next(at(2), { outOfStockSince: since })).toEqual(at(20))
-  })
-
-  it('lets a closely watched knife come before the next run', () => {
-    expect(next(at(9, 40), { focus: 2 * HOUR })).toEqual(at(11, 40))
-    expect(next(at(12, 30), { focus: 2 * HOUR })).toEqual(at(14))
-  })
-
-  it('keeps interval schedules as they were', () => {
-    expect(
-      nextScheduledCheckAt({
-        schedule: schedule({ mode: 'custom', intervalHours: 6 }),
-        intervalMs: 6 * HOUR,
-        outOfStockSince: null,
-        now: at(9).getTime(),
-      }),
-    ).toBe(at(15).getTime())
-  })
-
-  it('normalizes the set times', () => {
-    expect(normalizeSlotHours([20, 9, 9, 14, 25, 1.5, '7'], [9])).toEqual([
-      9, 14, 20,
-    ])
-    expect(normalizeSlotHours([], [9, 14, 20])).toEqual([9, 14, 20])
-    expect(normalizeSlotHours([1, 2, 3, 4, 5, 6, 7], [9])).toEqual([9])
-    expect(normalizeSlotHours('9', [9, 14])).toEqual([9, 14])
-    expect(
-      normalizePriceMonitoring({ schedule: { mode: 'slots' } }).schedule,
-    ).toMatchObject({ mode: 'slots', slotHours: [9, 14, 20] })
-    expect(
-      normalizePriceMonitoring({
-        schedule: { mode: 'slots', slotHours: [8, 19] },
-      }).schedule.slotHours,
-    ).toEqual([8, 19])
   })
 })

@@ -502,14 +502,35 @@ describe('Other stores: Shopify stores (KnifeJoy, Northwest Knives)', () => {
     expect(discoveryGapMs(lane, 30_000, storeGap)).toBe(SHOPIFY_SEARCH_GAP_MS)
     expect(discoveryGapMs(lane, 30_000)).toBe(DISCOVERY_MIN_GAP_MS)
     expect(DISCOVERY_STORES.bladehq.searchGapMs).toBeUndefined()
-    // Five minutes after the last request it still waits, even with a check due.
+    // Five minutes after the last search it still waits, though the store
+    // is ready for its price checks.
     const searched = { ...lane, lastRequestAt: 0, readyAt: 60_000 }
     expect(
       discoveryAvailability(searched, 5 * 60_000, {
         floorMs: 30_000,
         storeGapMs: storeGap,
+        lastSearchAt: 0,
+      }),
+    ).toEqual({ state: 'waiting', until: SHOPIFY_SEARCH_GAP_MS })
+    // Blade HQ: five minutes between searches, the store's gap after a check.
+    expect(
+      discoveryAvailability(searched, 4 * 60_000, {
+        floorMs: 30_000,
+        lastSearchAt: 0,
+      }),
+    ).toEqual({ state: 'waiting', until: DISCOVERY_MIN_GAP_MS })
+    expect(
+      discoveryAvailability(searched, 2 * 60_000, {
+        floorMs: 30_000,
+        lastSearchAt: null,
       }).state,
-    ).toBe('waiting')
+    ).toBe('ready')
+    expect(
+      discoveryAvailability(searched, 30_000, {
+        floorMs: 30_000,
+        lastSearchAt: null,
+      }),
+    ).toEqual({ state: 'waiting', until: 60_000 })
   })
 
   it('search through Shopify’s search suggestions JSON', () => {

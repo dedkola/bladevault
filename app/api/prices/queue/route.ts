@@ -5,9 +5,9 @@ import { reportServerError } from '@/lib/sentry/server'
 import { vaultAccessErrorResponse } from '@/lib/vault-access'
 
 /**
- * Live queue: checks in flight, each store's pace, pause and ETA, and with
- * `?since=<ISO time>` how many sources were checked since then (Check all
- * progress).
+ * Live queue: the round in progress (knives done, the knife being checked),
+ * the retry list, the next round, checks in flight, and each store's pace
+ * and pause.
  */
 export async function GET(request: Request) {
   const locked = requireAppUnlock(request)
@@ -15,9 +15,7 @@ export async function GET(request: Request) {
   try {
     return NextResponse.json(
       {
-        queue: buildQueueSnapshot(Date.now(), {
-          since: new URL(request.url).searchParams.get('since'),
-        }),
+        queue: buildQueueSnapshot(Date.now()),
       },
       { headers: { 'Cache-Control': 'no-store' } },
     )

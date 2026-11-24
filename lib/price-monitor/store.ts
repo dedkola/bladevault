@@ -1374,6 +1374,8 @@ export type CandidateRow = {
   outOfStockSince: number | null
   /** Never checked yet: its first reading skips the store's spread. */
   firstReading: boolean
+  /** Last check (epoch ms), or null when never checked. */
+  lastCheckedAt: number | null
   /** The knife is watched closely: at most this long between checks. */
   focusIntervalMs: number | null
 }
@@ -1458,6 +1460,7 @@ export function readQueueCandidates(
         ),
       outOfStockSince: parseTime(outOfStockSince.get(row.id) ?? null),
       firstReading: row.last_checked_at === null,
+      lastCheckedAt: parseTime(row.last_checked_at),
       focusIntervalMs: activeFocus(row, now)?.intervalMs ?? null,
     }
   })
@@ -1773,30 +1776,6 @@ export async function pruneCheckLog(now = Date.now()): Promise<void> {
       .run(new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString())
     pruneAiCalls(db(), now)
   })
-}
-
-/**
- * Check all now: every source scheduled monitoring covers becomes due. The
- * queue then works through them at each store's normal pace.
- */
-export async function markScheduledSourcesDue(
-  settings: EligibilitySettings,
-): Promise<number> {
-  const ids = readQueueCandidates(db(), settings)
-    .filter((candidate) => candidate.scheduled)
-    .map((candidate) => candidate.sourceId)
-  if (!ids.length) return 0
-  await withVaultWrite(async () => {
-    const database = db()
-    const now = new Date().toISOString()
-    const statement = database.prepare(
-      'UPDATE price_sources SET next_check_at = ?, updated_at = ? WHERE id = ?',
-    )
-    database.transaction(() => {
-      for (const id of ids) statement.run(now, now, id)
-    })()
-  })
-  return ids.length
 }
 
 // ------------------------------------------------------- store actions

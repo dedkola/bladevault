@@ -30,38 +30,68 @@ import {
   discoverKnife,
   discoveryActive,
   enabledDiscoveryStores,
-  nextDiscoveryKnife,
   type DiscoverySummary,
 } from '@/lib/price-monitor/discovery'
+import { readDiscoveryQueue } from '@/lib/price-monitor/discovery-store'
 import { DISCOVERY_STORES } from '@/lib/price-monitor/discovery-stores'
 import { startPriceDigestIfDue } from '@/lib/price-monitor/digest'
-import { checkPriceSource } from '@/lib/price-monitor/engine'
+import {
+  checkPriceSource,
+  type CheckSummary,
+  type CheckTrigger,
+} from '@/lib/price-monitor/engine'
 import { countMonitorScopeKnives } from '@/lib/price-monitor/scope'
 import { checkClockJump, monitorHoldMs } from '@/lib/price-monitor/power'
 import {
   applyLaneOutcome,
   defaultLaneState,
   discoveryAvailability,
-  discoveryGapMs,
-  fullPassMs,
+  firstReadingAvailability,
   laneAvailability,
   laneFloorMs,
-  laneGapMs,
+  type LaneAvailability,
   type LaneState,
 } from '@/lib/price-monitor/lanes'
 import {
   nextWakeAt,
   pickNextChecks,
   type QueueInput,
-  type QueuePick,
 } from '@/lib/price-monitor/queue'
 import {
-  activeWindowMs,
+  advanceRound,
+  dropStaleRetries,
+  finishRetry,
+  finishRound,
+  pruneRounds,
+  readCurrentRound,
+  readDueRetries,
+  readLastRound,
+  readRetryTasks,
+  recordTaskResults,
+  startRound,
+  type RetryTask,
+  type Round,
+  type RoundTrigger,
+  type TaskResult,
+} from '@/lib/price-monitor/round-store'
+import {
+  laneDecision,
+  LANE_WAIT_MS,
+  nextRoundAt,
+  planStep,
+  retryableCheck,
+  retryableSearch,
+  retryDueTimes,
+  tasksByLane,
+  type RetryReason,
+  type StepSource,
+  type StepTask,
+} from '@/lib/price-monitor/rounds'
+import {
   adviceWindowMs,
   checkLoad,
-  effectiveActiveHours,
   frequencyMs,
-  isWithinActiveHours,
+  scheduledIntervalMs,
 } from '@/lib/price-monitor/schedule'
 import {
   acquireWorkerLease,
@@ -85,29 +115,39 @@ import type {
   PriceMonitoringSettings,
   PriceMonitorScopeKind,
 } from '@/lib/settings-shared'
-import { getVaultAccessState, withVaultWrite } from '@/lib/vault-access'
+import {
+  getVaultAccessState,
+  withVaultWrite,
+  withVaultWriteSync,
+} from '@/lib/vault-access'
 
 /**
- * The paced monitoring queue. One worker per vault (a lease in SQLite), at
- * most one check per store at a time (different stores run in parallel), each
- * store's checks spread over the frequency window, with adaptive gaps and a
- * circuit breaker per store. It runs in the Next.js server process and does
- * not depend on any page being open.
+ * The price monitor. One worker per vault (a lease in SQLite). Scheduled
+ * checks run in rounds (rounds.ts): every 6, 12 or 24 hours a round goes
+ * through every monitored knife in order, checking all of one knife's stores
+ * at the same time (and searching the Other stores where it has no listing
+ * yet), then pausing before the next knife. What fails goes on the retry
+ * list, which runs at random times before the next round. Check now runs
+ * right away, at most one request per store at a time. Each store keeps its
+ * own pacing: an adaptive minimum gap, Retry-After and a circuit breaker.
+ * It runs in the Next.js server process and does not depend on any page
+ * being open.
  */
 const SECOND_MS = 1000
 const MINUTE_MS = 60 * SECOND_MS
+const DAY_MS = 24 * 60 * MINUTE_MS
 const MAX_SLEEP_MS = MINUTE_MS
 const HEARTBEAT_MS = 30 * SECOND_MS
 const SYNC_EVERY_MS = 10 * MINUTE_MS
-const PRUNE_EVERY_MS = 24 * 60 * MINUTE_MS
+const PRUNE_EVERY_MS = DAY_MS
 /** How often the worker looks whether the AI advisor is due. */
 const ADVISOR_CHECK_EVERY_MS = 10 * MINUTE_MS
 /** How often the worker looks whether the AI supervisor is due. */
 const AGENT_CHECK_EVERY_MS = MINUTE_MS
-/** Nothing to look for on other stores: ask again after this. */
-const DISCOVERY_IDLE_MS = 10 * MINUTE_MS
 /** The AI endpoint failed during a search: wait before the next one. */
 const DISCOVERY_AI_PAUSE_MS = 30 * MINUTE_MS
+/** A knife watched closely waits at least this long between its steps. */
+const FOCUS_MIN_GAP_MS = 15 * MINUTE_MS
 export const DEFAULT_WARMUP_MS = 2 * MINUTE_MS
 
 export type WorkerDeps = {
@@ -126,12 +166,6 @@ export type WorkerDeps = {
     trigger: AgentTrigger,
     options: { canWrite: () => boolean },
   ) => Promise<AgentRunResult>
-  /** Other stores: the next knife AI should look for at a store, or null. */
-  nextDiscovery?: (
-    settings: PriceMonitoringSettings,
-    now: number,
-    store: OtherStoreId,
-  ) => string | null
   /** Other stores: AI looks for one knife at a store. */
   discover?: (
     knifeId: string,
@@ -155,34 +189,49 @@ const realDeps: WorkerDeps = {
   random: () => Math.random(),
   advise: (trigger) => runPriceAdvisor({ trigger }),
   supervise: (trigger, options) => runPriceAgent({ trigger, ...options }),
-  nextDiscovery: (settings, now, store) =>
-    nextDiscoveryKnife(settings, now, store),
   discover: (knifeId, options) => discoverKnife(knifeId, options),
 }
 
 type InFlight = {
   sourceId: number
   laneKey: string
-  trigger: QueuePick['trigger']
+  trigger: CheckTrigger
   startedAt: number
 }
 
 type PassContext = {
   settings: PriceMonitoringSettings
   generation: string
+  now: number
   intervalMs: number
-  windowMs: number
-  /** Scheduled checks per store and window (long out-of-stock count less). */
-  laneCounts: Map<string, number>
-  /**
-   * Scheduled sources per store waiting for an early check: never checked,
-   * or moved forward by the AI supervisor (priority 1).
-   */
-  firstReadings: Map<string, number>
-  /** The never-checked sources themselves. */
-  firstReadingIds: ReadonlySet<number>
-  /** AI advice per store: pauses and quiet hours hold searches too. */
+  floorMs: number
+  candidates: readonly CandidateRow[]
   advice: Map<string, ActiveLaneAdvice>
+  /** A store's pacing with the floor and any AI advice in force. */
+  laneFor: (laneKey: string) => LaneState
+  /** Other stores searches may run now (on, AI connected, not paused). */
+  searches: boolean
+  /** Knives due for a search per store, read once per pass. */
+  dueSearches: Map<OtherStoreId, Set<string>>
+}
+
+/**
+ * One knife's step: its stores in parallel, each store's tasks one after
+ * another. `round` steps go through the round; `priority` steps check links
+ * moved forward (a new link, Check first, Cross-check); `focus` steps check
+ * a knife watched closely.
+ */
+type ActiveStep = {
+  kind: 'round' | 'priority' | 'focus'
+  knifeId: string
+  roundId: number | null
+  /** The round's cursor once this step is done. */
+  nextCursor: number | null
+  pending: Map<string, StepTask[]>
+  /** Since when the step waits for a store that is not ready yet. */
+  waitingSince: Map<string, number>
+  running: number
+  results: TaskResult[]
 }
 
 function isVaultError(error: unknown): boolean {
@@ -201,8 +250,8 @@ function normalizeLane(
 
 /**
  * A store's pacing with the floor and any AI advice in force. The advised
- * gap is capped so the store's `sourceCount` scheduled checks still fit in
- * the active window (maxAdvisedGapMs).
+ * gap is capped so the store's `sourceCount` checks still fit in one round
+ * interval (maxAdvisedGapMs).
  */
 function effectiveLane(
   lane: LaneState,
@@ -219,68 +268,81 @@ function effectiveLane(
   )
 }
 
-function scheduledCounts(
-  candidates: readonly CandidateRow[],
-  include: (candidate: CandidateRow) => boolean = () => true,
-) {
+function scheduledCounts(candidates: readonly CandidateRow[]) {
   const counts = new Map<string, number>()
   for (const candidate of candidates)
-    if (candidate.scheduled && include(candidate))
+    if (candidate.scheduled)
       counts.set(candidate.laneKey, (counts.get(candidate.laneKey) ?? 0) + 1)
   return counts
 }
 
-/**
- * Scheduled checks per store in one frequency window: one per source, less
- * for a page out of stock long enough to be checked only once a day.
- */
-function scheduledLoad(
-  candidates: readonly CandidateRow[],
-  schedule: PriceMonitoringSettings['schedule'],
-  now: number,
-) {
-  const intervalMs = frequencyMs(schedule)
-  const load = new Map<string, number>()
-  for (const candidate of candidates)
-    if (candidate.scheduled)
-      load.set(
-        candidate.laneKey,
-        (load.get(candidate.laneKey) ?? 0) +
-          checkLoad({
-            intervalMs,
-            outOfStockSince: candidate.outOfStockSince,
-            now,
-            slowOutOfStock: schedule.slowOutOfStock,
-            focusIntervalMs: candidate.focusIntervalMs,
-          }),
-      )
-  return load
+/** A page out of stock for two weeks that was checked within its slower pace. */
+function restingOutOfStock(
+  candidate: CandidateRow,
+  context: Pick<PassContext, 'intervalMs' | 'now' | 'settings'>,
+): boolean {
+  if (candidate.lastCheckedAt === null) return false
+  const waitMs = scheduledIntervalMs({
+    intervalMs: context.intervalMs,
+    outOfStockSince: candidate.outOfStockSince,
+    now: context.now,
+    slowOutOfStock: context.settings.schedule.slowOutOfStock,
+    focusIntervalMs: candidate.focusIntervalMs,
+  })
+  return (
+    waitMs > context.intervalMs &&
+    context.now - candidate.lastCheckedAt < waitMs
+  )
 }
 
-/**
- * The gap after a check: the store's even spread, or only its minimum gap
- * while it still has sources that were never checked, so new sources get a
- * first price within minutes instead of over the whole window. Retry-After,
- * the circuit breaker and AI advice still apply on top (lanes, advisor).
- */
-function gapAfterCheck(input: {
-  lane: LaneState
-  laneKey: string
-  floorMs: number
-  context: PassContext
-  /** The check that just ran was itself a first reading. */
-  firstReading: boolean
-}): number {
-  const { lane, laneKey, floorMs, context } = input
-  const waiting =
-    (context.firstReadings.get(laneKey) ?? 0) - (input.firstReading ? 1 : 0)
-  if (waiting > 0) return Math.max(lane.minGapMs, floorMs)
-  return laneGapMs({
-    minGapMs: lane.minGapMs,
-    floorMs,
-    activeWindowMs: context.windowMs,
-    sourceCount: context.laneCounts.get(laneKey) ?? 0,
+function checkRetryReason(
+  summary: CheckSummary | null,
+): { reason: RetryReason; error: string | null } | null {
+  if (!summary) return { reason: 'failed', error: null }
+  if (summary.status === 'skipped') return null
+  if (summary.status === 'deferred')
+    return { reason: 'failed', error: 'The check was interrupted.' }
+  if (!retryableCheck(summary.outcome)) return null
+  return {
+    reason:
+      summary.outcome === 'blocked'
+        ? 'blocked'
+        : summary.outcome === 'no_price'
+          ? 'no_price'
+          : 'failed',
+    error: summary.errorCode,
+  }
+}
+
+function searchRetryReason(
+  summary: DiscoverySummary | null,
+): { reason: RetryReason; error: string | null } | null {
+  if (!summary) return { reason: 'failed', error: null }
+  if (summary.status !== 'done' || !retryableSearch(summary.result)) return null
+  return {
+    reason: summary.result === 'blocked' ? 'blocked' : 'failed',
+    error: null,
+  }
+}
+
+/** The AI may work on the product again right away (Retry with AI). */
+function liftAiWait(sourceId: number) {
+  withVaultWriteSync(() => {
+    getLocalDb()
+      .prepare('UPDATE price_sources SET last_ai_at = NULL WHERE id = ?')
+      .run(sourceId)
   })
+}
+
+/** When a store's last saved Other stores search ended (epoch ms), or null. */
+function savedSearchAt(store: OtherStoreId): number | null {
+  const row = getLocalDb()
+    .prepare(
+      'SELECT MAX(last_attempt_at) AS at FROM price_discovery WHERE store = ?',
+    )
+    .get(store) as { at: string | null } | undefined
+  const at = row?.at ? Date.parse(row.at) : NaN
+  return Number.isFinite(at) ? at : null
 }
 
 export class PriceMonitorWorker {
@@ -298,16 +360,24 @@ export class PriceMonitorWorker {
   private supervising: Promise<unknown> | null = null
   /** Other stores: the searches running, one per store lane at most. */
   readonly searches = new Map<string, Promise<unknown>>()
-  /** AI endpoint trouble pauses every store. */
+  /** When each store's last search here ended, saved or not. */
+  private readonly searchedAt = new Map<OtherStoreId, number>()
+  /** AI endpoint trouble pauses every store's searches. */
   private discoveryNotBefore = 0
-  /** A store with no knife due is asked again after a while. */
-  private discoveryIdleUntil = new Map<OtherStoreId, number>()
   private timer: unknown = null
   private passing: Promise<void> | null = null
   private passAgain = false
+  /** The earliest time something waits for, collected during a pass. */
+  private wakeAt: number | null = null
   readonly inFlight = new Map<string, InFlight>()
-  private readonly checks = new Set<Promise<void>>()
+  private readonly work = new Set<Promise<unknown>>()
   private readonly controllers = new Set<AbortController>()
+  /** The knife being checked right now, if any. */
+  private step: ActiveStep | null = null
+  /** The pause between knives ends here. */
+  private nextStepAt = 0
+  /** Knives watched closely that just had a step, until when. */
+  private readonly focusHeld = new Map<string, number>()
 
   constructor(private readonly deps: WorkerDeps = realDeps) {}
 
@@ -335,7 +405,7 @@ export class PriceMonitorWorker {
     )
   }
 
-  /** One scheduling round; safe to call concurrently (it coalesces). */
+  /** One scheduling pass; safe to call concurrently (it coalesces). */
   pass(): Promise<void> {
     if (this.passing) {
       this.passAgain = true
@@ -373,9 +443,29 @@ export class PriceMonitorWorker {
     return false
   }
 
+  private considerWake(at: number | null) {
+    if (at === null || !Number.isFinite(at)) return
+    this.wakeAt = this.wakeAt === null ? at : Math.min(this.wakeAt, at)
+  }
+
+  private track<T>(promise: Promise<T>): Promise<T> {
+    this.work.add(promise)
+    void promise.finally(() => this.work.delete(promise)).catch(() => {})
+    return promise
+  }
+
+  private laneBusy(laneKey: string): boolean {
+    return this.inFlight.has(laneKey) || this.searches.has(laneKey)
+  }
+
+  private busyLanes(): Set<string> {
+    return new Set([...this.inFlight.keys(), ...this.searches.keys()])
+  }
+
   private async runPass(): Promise<void> {
     if (this.stopped) return
     let delay = MAX_SLEEP_MS
+    this.wakeAt = null
     try {
       const access = getVaultAccessState()
       if (access.readOnly) {
@@ -397,48 +487,36 @@ export class PriceMonitorWorker {
       if (now - this.lastSync >= SYNC_EVERY_MS) {
         this.lastSync = now
         await syncAllAutoSources()
+        await dropStaleRetries(access.generation)
       }
       if (now - this.lastPrune >= PRUNE_EVERY_MS) {
         this.lastPrune = now
         await pruneCheckLog(now)
-        await withVaultWrite(async () => pruneAgentRuns(getLocalDb(), now))
+        await withVaultWrite(async () => {
+          pruneAgentRuns(getLocalDb(), now)
+          pruneRounds(getLocalDb(), now)
+        })
       }
 
-      const hours = effectiveActiveHours(settings.schedule)
-      const scheduledActive =
-        this.scheduled &&
-        settings.enabled &&
-        isWithinActiveHours(hours, new Date(now))
+      const roundsOn = this.scheduled && settings.enabled
       const advice = readActiveAdvice(database, now)
-      // Advised quiet hours hold a store's scheduled checks; Check now still runs.
-      const candidates = readQueueCandidates(database, settings, now).map(
-        (candidate) =>
-          candidate.scheduled &&
-          inQuietHours(advice.get(candidate.laneKey), new Date(now))
-            ? { ...candidate, scheduled: false }
-            : candidate,
-      )
+      const candidates = readQueueCandidates(database, settings, now)
       const stored = readLaneStates(database)
-      const windowMs = activeWindowMs(settings.schedule)
-      const adviceMs = adviceWindowMs(settings.schedule)
-      const laneCounts = scheduledLoad(candidates, settings.schedule, now)
-      const capFor = (laneKey: string) => ({
-        activeWindowMs: adviceMs,
-        sourceCount: laneCounts.get(laneKey) ?? 0,
-      })
-      const lanes = new Map(
-        [...stored].map(([key, lane]) => [
-          key,
-          effectiveLane(
-            lane,
-            settings.pacing,
-            advice.get(key),
-            now,
-            capFor(key),
-          ),
-        ]),
-      )
-      if (scheduledActive) {
+      const intervalMs = frequencyMs(settings.schedule)
+      const counts = scheduledCounts(candidates)
+      const laneFor = (laneKey: string) =>
+        effectiveLane(
+          stored.get(laneKey) ??
+            defaultLaneState(laneKey, settings.pacing, now),
+          settings.pacing,
+          advice.get(laneKey),
+          now,
+          {
+            activeWindowMs: adviceWindowMs(settings.schedule),
+            sourceCount: counts.get(laneKey) ?? 0,
+          },
+        )
+      if (roundsOn) {
         this.maybeAdvise(
           settings,
           stored.values(),
@@ -450,64 +528,65 @@ export class PriceMonitorWorker {
           now,
         )
         this.maybeSupervise(settings, now)
-      }
-      // The daily AI summary for the Inbox; runs in the background.
-      if (this.scheduled && settings.enabled)
+        // The daily AI summary for the Inbox; runs in the background.
         startPriceDigestIfDue(settings, now)
-      const input: QueueInput = {
-        candidates,
-        lanes,
-        busyLanes: this.busyLanes(),
-        now,
-        scheduledActive,
-        defaultLane: (laneKey) =>
-          effectiveLane(
-            defaultLaneState(laneKey, settings.pacing, now),
-            settings.pacing,
-            advice.get(laneKey),
-            now,
-            capFor(laneKey),
-          ),
-        pauses: new Map(
-          [...advice].flatMap(([key, item]) =>
-            item.expiresAt > now && item.pauseUntil !== null
-              ? [[key, item.pauseUntil] as const]
-              : [],
-          ),
-        ),
       }
+
       const context: PassContext = {
         settings,
         generation: access.generation,
-        intervalMs: frequencyMs(settings.schedule),
-        windowMs,
-        laneCounts,
-        firstReadings: scheduledCounts(
-          candidates,
-          (candidate) => candidate.priority === 1,
-        ),
-        firstReadingIds: new Set(
-          candidates
-            .filter((candidate) => candidate.priority === 1)
-            .map((candidate) => candidate.sourceId),
-        ),
+        now,
+        intervalMs,
+        floorMs: laneFloorMs(settings.pacing),
+        candidates,
         advice,
+        laneFor,
+        searches:
+          discoveryActive(settings) &&
+          now >= this.discoveryNotBefore &&
+          Boolean(this.deps.discover),
+        dueSearches: new Map(),
       }
-      for (const pick of pickNextChecks(input)) {
-        const lane = lanes.get(pick.laneKey) ?? input.defaultLane(pick.laneKey)
-        this.launch(pick, lane, context)
-      }
-      // Searches on other stores only use a store's lane when no check
-      // there is due: monitoring known sources comes first. They run around
-      // the clock, outside the active hours and between set times too.
-      if (this.scheduled && settings.enabled)
-        this.maybeDiscover(input, context, now)
-      const wakeAt = nextWakeAt({
-        ...input,
+
+      // Check now: right away, one request per store at a time.
+      const manual: QueueInput = {
+        candidates: candidates.filter((candidate) => candidate.priority >= 2),
+        lanes: new Map(
+          [...stored.keys()].map((laneKey) => [laneKey, laneFor(laneKey)]),
+        ),
         busyLanes: this.busyLanes(),
-      })
-      if (wakeAt !== null)
-        delay = Math.min(MAX_SLEEP_MS, Math.max(SECOND_MS, wakeAt - now))
+        now,
+        scheduledActive: false,
+        defaultLane: laneFor,
+      }
+      for (const pick of pickNextChecks(manual))
+        this.startManualCheck(
+          pick.sourceId,
+          pick.laneKey,
+          pick.trigger,
+          context,
+        )
+      this.considerWake(nextWakeAt({ ...manual, busyLanes: this.busyLanes() }))
+
+      if (roundsOn) {
+        await this.driveSteps(context)
+        this.driveRetries(context)
+      } else if (
+        settings.enabled &&
+        readCurrentRound(database)?.trigger === 'manual'
+      ) {
+        // Check all now where checks are not scheduled (dev server, or
+        // BLADEVAULT_PRICE_MONITOR=off): its round runs here; the retry list
+        // and the next round wait for scheduled monitoring.
+        await this.driveSteps(context, { roundOnly: true })
+      } else if (this.step) {
+        // Monitoring was turned off: the knife being checked finishes.
+        this.advanceStep(context)
+        if (this.stepDone()) await this.finishStep(context)
+      }
+
+      if (this.wakeAt !== null)
+        delay = Math.min(MAX_SLEEP_MS, Math.max(SECOND_MS, this.wakeAt - now))
     } catch (error) {
       if (!isVaultError(error)) reportServerError(error, 'price-monitor/worker')
     } finally {
@@ -515,90 +594,611 @@ export class PriceMonitorWorker {
     }
   }
 
-  private busyLanes(): Set<string> {
-    const busy = new Set(this.inFlight.keys())
-    for (const laneKey of this.searches.keys()) busy.add(laneKey)
-    return busy
-  }
+  // ----------------------------------------------------------- rounds
 
   /**
-   * Other stores: starts an AI search at every enabled store whose lane is
-   * free and ready and that has a knife due, so stores search in parallel,
-   * one search per store at a time. A store with a scheduled check due is
-   * left to its checks. A search counts as a request at that store for
-   * pacing and the circuit breaker.
+   * Starts a round when one is due, then works through steps: links moved
+   * forward first, then knives watched closely, then the round's next knife.
+   * Each step is followed by the pause between knives. When the round's
+   * last knife is done, the round ends and its retry list is spread out.
    */
-  private maybeDiscover(input: QueueInput, context: PassContext, now: number) {
-    const { discover, nextDiscovery } = this.deps
-    if (!discover || !nextDiscovery) return
-    if (!discoveryActive(context.settings) || now < this.discoveryNotBefore)
+  private async driveSteps(
+    context: PassContext,
+    options: { roundOnly?: boolean } = {},
+  ): Promise<void> {
+    const database = getLocalDb()
+    let round = readCurrentRound(database)
+    if (!round && !options.roundOnly) {
+      const last = readLastRound(database)
+      const due = nextRoundAt(last, context.intervalMs, context.now)
+      if (due !== null && due <= context.now)
+        round = await this.beginRound('scheduled', context)
+      else this.considerWake(due)
+    }
+
+    if (this.step) {
+      this.advanceStep(context)
+      if (!this.stepDone()) return
+      await this.finishStep(context)
+    }
+    if (context.now < this.nextStepAt) {
+      this.considerWake(this.nextStepAt)
       return
-    const busy = this.busyLanes()
-    const dueLanes = new Set(
-      input.candidates
-        .filter(
-          (candidate) =>
-            candidate.priority >= 2 ||
-            (input.scheduledActive &&
-              candidate.scheduled &&
-              (candidate.nextCheckAt === null || candidate.nextCheckAt <= now)),
-        )
-        .map((candidate) => candidate.laneKey),
+    }
+    const step =
+      (options.roundOnly
+        ? null
+        : (this.priorityStep(context) ?? this.focusStep(context))) ??
+      (round ? await this.roundStep(round, context) : null)
+    if (!step) return
+    this.step = step
+    this.advanceStep(context)
+    if (this.stepDone()) await this.finishStep(context)
+  }
+
+  private beginRound(
+    trigger: RoundTrigger,
+    context: PassContext,
+  ): Promise<Round | null> {
+    return startRound({
+      settings: context.settings,
+      trigger,
+      intervalMs: context.intervalMs,
+      pauseMs: context.floorMs,
+      searches: context.searches,
+      now: context.now,
+      generation: context.generation,
+    })
+  }
+
+  private dueSearchesAt(
+    store: OtherStoreId,
+    context: PassContext,
+  ): Set<string> {
+    const cached = context.dueSearches.get(store)
+    if (cached) return cached
+    const config = DISCOVERY_STORES[store]
+    const due = new Set(
+      readDiscoveryQueue(getLocalDb(), {
+        settings: context.settings,
+        store,
+        marketplace: config.marketplace,
+        laneKey: config.laneKey,
+        now: context.now,
+        limit: Number.MAX_SAFE_INTEGER,
+      }),
     )
-    for (const store of enabledDiscoveryStores(context.settings)) {
-      if ((this.discoveryIdleUntil.get(store) ?? 0) > now) continue
-      const laneKey = DISCOVERY_STORES[store].laneKey
-      if (busy.has(laneKey) || dueLanes.has(laneKey)) continue
-      const advice = context.advice.get(laneKey)
-      if (inQuietHours(advice, new Date(now))) continue
-      const lane = input.lanes.get(laneKey) ?? input.defaultLane(laneKey)
-      // After a cooldown the search is the store's probe: a store with no
-      // price sources there has no check that could probe it,
-      // and its searches would otherwise stop for good.
-      const availability = discoveryAvailability(lane, now, {
-        floorMs: laneFloorMs(context.settings.pacing),
-        pauseUntil: advice && advice.expiresAt > now ? advice.pauseUntil : null,
-        storeGapMs: DISCOVERY_STORES[store].searchGapMs,
-      }).state
-      if (availability !== 'ready' && availability !== 'probe') continue
-      const knifeId = nextDiscovery(context.settings, now, store)
-      if (!knifeId) {
-        this.discoveryIdleUntil.set(store, now + DISCOVERY_IDLE_MS)
-        continue
-      }
-      busy.add(laneKey)
-      this.startSearch(store, knifeId, lane, context)
+    context.dueSearches.set(store, due)
+    return due
+  }
+
+  private newStep(
+    kind: ActiveStep['kind'],
+    knifeId: string,
+    tasks: readonly StepTask[],
+    round: { id: number; nextCursor: number } | null = null,
+  ): ActiveStep {
+    return {
+      kind,
+      knifeId,
+      roundId: round?.id ?? null,
+      nextCursor: round?.nextCursor ?? null,
+      pending: tasksByLane(tasks),
+      waitingSince: new Map(),
+      running: 0,
+      results: [],
     }
   }
 
-  private startSearch(
+  /** Links moved forward: a new link, the supervisor's Check first or Cross-check. */
+  private priorityStep(context: PassContext): ActiveStep | null {
+    const first = context.candidates
+      .filter((candidate) => candidate.scheduled && candidate.priority === 1)
+      .sort((a, b) => a.sourceId - b.sourceId)[0]
+    if (!first) return null
+    const tasks = context.candidates
+      .filter(
+        (candidate) =>
+          candidate.knifeId === first.knifeId &&
+          candidate.scheduled &&
+          candidate.priority === 1,
+      )
+      .map((candidate): StepTask => ({
+        kind: 'check',
+        sourceId: candidate.sourceId,
+        laneKey: candidate.laneKey,
+      }))
+    return this.newStep('priority', first.knifeId, tasks)
+  }
+
+  /** A knife watched closely gets all its stores checked at its own pace. */
+  private focusStep(context: PassContext): ActiveStep | null {
+    const held = (knifeId: string) =>
+      (this.focusHeld.get(knifeId) ?? 0) > context.now
+    const due = context.candidates
+      .filter(
+        (candidate) =>
+          candidate.scheduled &&
+          candidate.focusIntervalMs !== null &&
+          !held(candidate.knifeId) &&
+          (candidate.nextCheckAt === null ||
+            candidate.nextCheckAt <= context.now),
+      )
+      .sort((a, b) => (a.nextCheckAt ?? 0) - (b.nextCheckAt ?? 0))[0]
+    if (!due) {
+      const next = context.candidates
+        .filter(
+          (candidate) =>
+            candidate.scheduled && candidate.focusIntervalMs !== null,
+        )
+        .map((candidate) =>
+          Math.max(
+            candidate.nextCheckAt ?? context.now,
+            this.focusHeld.get(candidate.knifeId) ?? 0,
+          ),
+        )
+      if (next.length) this.considerWake(Math.min(...next))
+      return null
+    }
+    this.focusHeld.set(due.knifeId, context.now + FOCUS_MIN_GAP_MS)
+    const tasks = context.candidates
+      .filter(
+        (candidate) =>
+          candidate.knifeId === due.knifeId &&
+          candidate.scheduled &&
+          !restingOutOfStock(candidate, context),
+      )
+      .map((candidate): StepTask => ({
+        kind: 'check',
+        sourceId: candidate.sourceId,
+        laneKey: candidate.laneKey,
+      }))
+    return tasks.length ? this.newStep('focus', due.knifeId, tasks) : null
+  }
+
+  /**
+   * The round's next knife with something to do. Knives with nothing due
+   * (every link checked this round, nothing to search) are passed without
+   * a pause. After the last knife the round ends.
+   */
+  private async roundStep(
+    round: Round,
+    context: PassContext,
+  ): Promise<ActiveStep | null> {
+    let cursor = round.cursor
+    while (cursor < round.knifeIds.length) {
+      const knifeId = round.knifeIds[cursor]
+      const tasks = this.knifeTasks(knifeId, round, context)
+      cursor += 1
+      if (tasks.length)
+        return this.newStep('round', knifeId, tasks, {
+          id: round.id,
+          nextCursor: cursor,
+        })
+    }
+    if (cursor !== round.cursor)
+      await advanceRound({
+        roundId: round.id,
+        cursor,
+        generation: context.generation,
+      })
+    const next = Math.max(context.now, round.startedAt + context.intervalMs)
+    await finishRound({
+      roundId: round.id,
+      now: context.now,
+      nextRoundAt: next,
+      random: this.deps.random,
+      generation: context.generation,
+    })
+    this.considerWake(next)
+    return null
+  }
+
+  private knifeTasks(
+    knifeId: string,
+    round: Round,
+    context: PassContext,
+  ): StepTask[] {
+    const sources: StepSource[] = context.candidates
+      .filter((candidate) => candidate.knifeId === knifeId)
+      .map((candidate) => ({
+        sourceId: candidate.sourceId,
+        laneKey: candidate.laneKey,
+        scheduled: candidate.scheduled,
+        checkedThisRound:
+          candidate.lastCheckedAt !== null &&
+          candidate.lastCheckedAt >= round.startedAt,
+        restingOutOfStock: restingOutOfStock(candidate, context),
+      }))
+    const searches = context.searches
+      ? enabledDiscoveryStores(context.settings)
+          .filter((store) => this.dueSearchesAt(store, context).has(knifeId))
+          .map((store) => ({ store, laneKey: DISCOVERY_STORES[store].laneKey }))
+      : []
+    return planStep({ sources, searches })
+  }
+
+  private taskAvailability(
+    task: StepTask,
+    context: PassContext,
+  ): LaneAvailability {
+    const lane = context.laneFor(task.laneKey)
+    const advice = context.advice.get(task.laneKey)
+    // Advised quiet hours hold scheduled work at the store.
+    if (inQuietHours(advice, new Date(context.now)))
+      return { state: 'cooling', until: Number.POSITIVE_INFINITY }
+    const pauseUntil =
+      advice && advice.expiresAt > context.now ? advice.pauseUntil : null
+    if (task.kind === 'search')
+      return discoveryAvailability(lane, context.now, {
+        floorMs: context.floorMs,
+        pauseUntil,
+        storeGapMs: DISCOVERY_STORES[task.store].searchGapMs,
+        lastSearchAt: this.lastSearchAt(task.store),
+      })
+    if (task.followUp)
+      return firstReadingAvailability(lane, context.now, pauseUntil)
+    return laneAvailability(lane, context.now)
+  }
+
+  /**
+   * Starts what the current step can start: at every store with work left
+   * and nothing running, its next task when the store is ready, a short
+   * wait when it soon will be, else the store's tasks go on the retry list.
+   */
+  private advanceStep(context: PassContext) {
+    const step = this.step
+    if (!step) return
+    for (const [laneKey, tasks] of [...step.pending]) {
+      if (!tasks.length) {
+        step.pending.delete(laneKey)
+        continue
+      }
+      if (this.laneBusy(laneKey)) continue
+      const task = tasks[0]
+      const since = step.waitingSince.get(laneKey) ?? context.now
+      const decision = laneDecision(
+        this.taskAvailability(task, context),
+        context.now,
+        LANE_WAIT_MS - (context.now - since),
+      )
+      if (decision.action === 'wait') {
+        step.waitingSince.set(laneKey, since)
+        this.considerWake(decision.until)
+        continue
+      }
+      step.waitingSince.delete(laneKey)
+      if (decision.action === 'skip') {
+        for (const skipped of tasks)
+          step.results.push({
+            task: skipped,
+            knifeId: step.knifeId,
+            retry: { reason: 'store_not_ready', error: null },
+          })
+        step.pending.delete(laneKey)
+        continue
+      }
+      tasks.shift()
+      if (!tasks.length) step.pending.delete(laneKey)
+      step.running += 1
+      this.runStepTask(step, task, context)
+    }
+  }
+
+  private runStepTask(step: ActiveStep, task: StepTask, context: PassContext) {
+    const lane = context.laneFor(task.laneKey)
+    const done = (retry: TaskResult['retry']) => {
+      step.results.push({ task, knifeId: step.knifeId, retry })
+      step.running -= 1
+      this.wake(0)
+    }
+    if (task.kind === 'check') {
+      const trigger: CheckTrigger =
+        lane.circuit === 'open' ? 'probe' : 'scheduled'
+      void this.track(
+        this.runCheck(task.sourceId, task.laneKey, trigger, lane, context).then(
+          (summary) => done(checkRetryReason(summary)),
+        ),
+      )
+      return
+    }
+    void this.track(
+      this.runSearch(task.store, step.knifeId, lane, context).then(
+        (summary) => {
+          // A listing the search just found gets its first price in this
+          // step, at the same store.
+          if (
+            summary?.status === 'done' &&
+            summary.result === 'found' &&
+            summary.sourceId !== null
+          )
+            step.pending.set(task.laneKey, [
+              {
+                kind: 'check',
+                sourceId: summary.sourceId,
+                laneKey: task.laneKey,
+                followUp: true,
+              },
+              ...(step.pending.get(task.laneKey) ?? []),
+            ])
+          done(searchRetryReason(summary))
+        },
+      ),
+    )
+  }
+
+  private stepDone(): boolean {
+    return (
+      this.step !== null && this.step.pending.size === 0 && !this.step.running
+    )
+  }
+
+  /**
+   * Saves what the step did, moves the round on and starts the pause before
+   * the next knife. Outside a round, what failed is retried at a random time
+   * before the next round.
+   */
+  private async finishStep(context: PassContext) {
+    const step = this.step
+    if (!step) return
+    this.step = null
+    const now = this.deps.now()
+    this.nextStepAt = now + context.floorMs
+    this.considerWake(this.nextStepAt)
+    if (!this.ownsLease()) return
+    let dueAt: number | null = null
+    if (step.roundId === null && step.results.some((result) => result.retry)) {
+      const last = readLastRound(getLocalDb())
+      dueAt = retryDueTimes({
+        count: 1,
+        roundEnd: now,
+        nextRoundAt:
+          nextRoundAt(last, context.intervalMs, now) ??
+          now + context.intervalMs,
+        random: this.deps.random,
+      })[0]
+    }
+    await recordTaskResults({
+      results: step.results,
+      roundId: step.roundId,
+      now,
+      dueAt,
+      generation: context.generation,
+    })
+    if (step.roundId !== null && step.nextCursor !== null)
+      await advanceRound({
+        roundId: step.roundId,
+        cursor: step.nextCursor,
+        generation: context.generation,
+      })
+  }
+
+  /** Check all now: a round starts now unless one is running. */
+  async startRoundNow(): Promise<Round | null> {
+    const settings = getSettings().priceMonitoring
+    const now = this.deps.now()
+    const round = await startRound({
+      settings,
+      trigger: 'manual',
+      intervalMs: frequencyMs(settings.schedule),
+      pauseMs: laneFloorMs(settings.pacing),
+      searches: discoveryActive(settings) && now >= this.discoveryNotBefore,
+      now,
+    })
+    // Runs here even where checks are not scheduled (see pass()).
+    this.start({ scheduled: false })
+    return round
+  }
+
+  // ------------------------------------------------------- retry list
+
+  /**
+   * Runs the retry list items whose time has come, one per store at a time,
+   * at stores the current step does not need. Checks may use AI right away;
+   * searches run as usual. What fails again waits for the next round.
+   */
+  private driveRetries(context: PassContext) {
+    const due = readDueRetries(getLocalDb(), context.now)
+    if (!due.length) {
+      const next = readRetryTasks(getLocalDb()).find(
+        (task) => task.dueAt !== null,
+      )
+      this.considerWake(next?.dueAt ?? null)
+      return
+    }
+    const stepLanes = new Set(this.step?.pending.keys() ?? [])
+    const started = new Set<string>()
+    const scheduled = new Set(
+      context.candidates
+        .filter((candidate) => candidate.scheduled)
+        .map((candidate) => candidate.sourceId),
+    )
+    for (const task of due) {
+      if (
+        started.has(task.laneKey) ||
+        stepLanes.has(task.laneKey) ||
+        this.laneBusy(task.laneKey)
+      )
+        continue
+      const obsolete =
+        task.kind === 'check'
+          ? task.sourceId === null || !scheduled.has(task.sourceId)
+          : task.store === null ||
+            !discoveryActive(context.settings, task.store)
+      if (obsolete) {
+        void this.track(
+          finishRetry({
+            key: task.key,
+            ok: true,
+            now: context.now,
+            generation: context.generation,
+          }).catch(() => {}),
+        )
+        continue
+      }
+      if (task.kind === 'search' && !context.searches) continue
+      const availability =
+        task.kind === 'check'
+          ? laneAvailability(context.laneFor(task.laneKey), context.now)
+          : this.taskAvailability(
+              { kind: 'search', store: task.store!, laneKey: task.laneKey },
+              context,
+            )
+      if (
+        availability.state === 'waiting' ||
+        availability.state === 'cooling'
+      ) {
+        this.considerWake(availability.until)
+        continue
+      }
+      started.add(task.laneKey)
+      this.runRetry(task, context)
+    }
+  }
+
+  private runRetry(task: RetryTask, context: PassContext) {
+    const lane = context.laneFor(task.laneKey)
+    const finish = (retry: TaskResult['retry']) =>
+      finishRetry({
+        key: task.key,
+        ok: retry === null,
+        reason: retry?.reason,
+        error: retry?.error ?? null,
+        now: this.deps.now(),
+        generation: context.generation,
+      }).catch((error) => {
+        if (!isVaultError(error))
+          reportServerError(error, 'price-monitor/retry')
+      })
+    if (task.kind === 'check' && task.sourceId !== null) {
+      const sourceId = task.sourceId
+      if (aiConfigured(context.settings.ai)) liftAiWait(sourceId)
+      const trigger: CheckTrigger = lane.circuit === 'open' ? 'probe' : 'retry'
+      void this.track(
+        this.runCheck(sourceId, task.laneKey, trigger, lane, context).then(
+          (summary) => finish(checkRetryReason(summary)),
+        ),
+      )
+      return
+    }
+    if (task.kind === 'search' && task.store)
+      void this.track(
+        this.runSearch(task.store, task.knifeId, lane, context).then(
+          (summary) => finish(searchRetryReason(summary)),
+        ),
+      )
+  }
+
+  // ---------------------------------------------------- checks, searches
+
+  private startManualCheck(
+    sourceId: number,
+    laneKey: string,
+    trigger: CheckTrigger,
+    context: PassContext,
+  ) {
+    void this.track(
+      this.runCheck(
+        sourceId,
+        laneKey,
+        trigger,
+        context.laneFor(laneKey),
+        context,
+      ),
+    )
+  }
+
+  /**
+   * One price check at a store, with the store's pacing updated from how it
+   * answered. Resolves with the check's summary, or null when it threw.
+   */
+  private runCheck(
+    sourceId: number,
+    laneKey: string,
+    trigger: CheckTrigger,
+    lane: LaneState,
+    context: PassContext,
+  ): Promise<CheckSummary | null> {
+    this.inFlight.set(laneKey, {
+      sourceId,
+      laneKey,
+      trigger,
+      startedAt: this.deps.now(),
+    })
+    const controller = new AbortController()
+    this.controllers.add(controller)
+    return (async () => {
+      try {
+        const summary = await this.deps.check(sourceId, {
+          trigger,
+          intervalMs: context.intervalMs,
+          signal: controller.signal,
+        })
+        if (summary.status !== 'done' || controller.signal.aborted)
+          return summary
+        if (!this.ownsLease()) return summary
+        const current = readLaneStates(getLocalDb()).get(laneKey) ?? lane
+        // Rounds space a store's requests by knife: the next one waits only
+        // the store's minimum gap.
+        const update = applyLaneOutcome(
+          normalizeLane(current, context.settings.pacing),
+          {
+            kind: summary.laneOutcome,
+            durationMs: summary.durationMs,
+            retryAfterMs: summary.retryAfterMs,
+          },
+          {
+            now: this.deps.now(),
+            gapMs: Math.max(lane.minGapMs, context.floorMs),
+            floorMs: context.floorMs,
+            random: this.deps.random,
+          },
+        )
+        await writeLaneState(update.lane, context.generation)
+        if (update.clearCookies)
+          await clearBrowserState(laneKey).catch(() => {})
+        return summary
+      } catch (error) {
+        if (!isVaultError(error))
+          reportServerError(error, 'price-monitor/check')
+        return null
+      } finally {
+        this.controllers.delete(controller)
+        this.inFlight.delete(laneKey)
+        this.wake(0)
+      }
+    })()
+  }
+
+  /**
+   * One Other stores search at a store. It counts as a request at that store
+   * for pacing and the circuit breaker. Resolves with the search's summary,
+   * or null when it threw.
+   */
+  private runSearch(
     store: OtherStoreId,
     knifeId: string,
     lane: LaneState,
     context: PassContext,
-  ) {
+  ): Promise<DiscoverySummary | null> {
     const { discover } = this.deps
-    if (!discover) return
     const laneKey = DISCOVERY_STORES[store].laneKey
+    if (!discover) return Promise.resolve(null)
     const controller = new AbortController()
     this.controllers.add(controller)
-    const floorMs = laneFloorMs(context.settings.pacing)
-    // The next search waits the store's minimum gap; scheduled checks keep
-    // their own spread (below).
-    const gapMs = discoveryGapMs(
-      lane,
-      floorMs,
-      DISCOVERY_STORES[store].searchGapMs,
-    )
-    const run = (async () => {
+    // The store's normal gap: the search gap only spaces its searches
+    // (discoveryAvailability), never its price checks.
+    const gapMs = Math.max(lane.minGapMs, context.floorMs)
+    const run = (async (): Promise<DiscoverySummary | null> => {
       try {
         const summary = await discover(knifeId, {
           signal: controller.signal,
           store,
           canWrite: this.ownsLease,
         })
-        if (summary.status !== 'done' || controller.signal.aborted) return
-        if (!this.ownsLease()) return
+        if (summary.status !== 'done' || controller.signal.aborted)
+          return summary
+        if (!this.ownsLease()) return summary
         if (summary.aiProblem)
           this.discoveryNotBefore = this.deps.now() + DISCOVERY_AI_PAUSE_MS
         const current = readLaneStates(getLocalDb()).get(laneKey) ?? lane
@@ -607,44 +1207,55 @@ export class PriceMonitorWorker {
           {
             kind: summary.laneOutcome,
             // A search's duration is mostly AI matching and browsing, not
-            // the store answering slowly. Counting it as a slow check
-            // stretched the store's gap by a quarter after every search,
-            // until one request every few hours held up its price checks
-            // too. Throttled, blocked and failed searches still slow it.
+            // the store answering slowly. Throttled, blocked and failed
+            // searches still slow the store.
             durationMs: 0,
             retryAfterMs: summary.retryAfterMs,
           },
-          { now: this.deps.now(), gapMs, floorMs, random: this.deps.random },
+          {
+            now: this.deps.now(),
+            gapMs,
+            floorMs: context.floorMs,
+            random: this.deps.random,
+          },
         )
-        // A search that went well does not bring the store's next scheduled
-        // check forward: its spread still holds.
-        if (
-          update.lane.circuit === 'closed' &&
-          summary.laneOutcome === 'success'
-        )
-          update.lane.readyAt = Math.max(update.lane.readyAt, current.readyAt)
         await writeLaneState(update.lane, context.generation)
         if (update.clearCookies)
           await clearBrowserState(laneKey).catch(() => {})
+        return summary
       } catch (error) {
         this.discoveryNotBefore = this.deps.now() + DISCOVERY_AI_PAUSE_MS
         if (!isVaultError(error) && !controller.signal.aborted)
           reportServerError(error, 'price-monitor/discovery')
+        return null
       } finally {
+        this.searchedAt.set(store, this.deps.now())
         this.controllers.delete(controller)
         this.searches.delete(laneKey)
         this.wake(0)
       }
     })()
     this.searches.set(laneKey, run)
+    return run
+  }
+
+  /**
+   * When a store was last searched: saved with its result, or ended here
+   * without one (a search that failed before saving still reached it).
+   */
+  private lastSearchAt(store: OtherStoreId): number | null {
+    const saved = savedSearchAt(store)
+    const here = this.searchedAt.get(store) ?? null
+    return saved === null ? here : here === null ? saved : Math.max(saved, here)
   }
 
   /** Other stores: search again now (settings changed or Search again). */
   resetDiscoveryPause() {
     this.discoveryNotBefore = 0
-    this.discoveryIdleUntil.clear()
     this.wake(0)
   }
+
+  // --------------------------------------------------------------- AI
 
   /**
    * Starts the AI advisor in the background when it is due (daily, or after
@@ -685,7 +1296,8 @@ export class PriceMonitorWorker {
    * stock or page changes wait since its last run (at most every 10 minutes
    * with Unlimited AI, every hour with Limited), and otherwise on its
    * heartbeat (hourly with Unlimited, every 6 hours with Limited). Its
-   * actions only reorder the paced queue, so the next pass picks them up.
+   * actions move knives forward or onto the retry list; the next pass picks
+   * them up.
    */
   private maybeSupervise(settings: PriceMonitoringSettings, now: number) {
     if (this.supervising || !this.deps.supervise) return
@@ -719,64 +1331,11 @@ export class PriceMonitorWorker {
       })
   }
 
-  private launch(pick: QueuePick, lane: LaneState, context: PassContext) {
-    const startedAt = this.deps.now()
-    this.inFlight.set(pick.laneKey, {
-      sourceId: pick.sourceId,
-      laneKey: pick.laneKey,
-      trigger: pick.trigger,
-      startedAt,
-    })
-    const floorMs = laneFloorMs(context.settings.pacing)
-    const gapMs = gapAfterCheck({
-      lane,
-      laneKey: pick.laneKey,
-      floorMs,
-      context,
-      firstReading: context.firstReadingIds.has(pick.sourceId),
-    })
-    const controller = new AbortController()
-    this.controllers.add(controller)
-    const run = (async () => {
-      try {
-        const summary = await this.deps.check(pick.sourceId, {
-          trigger: pick.trigger,
-          intervalMs: context.intervalMs,
-          signal: controller.signal,
-        })
-        if (summary.status !== 'done' || controller.signal.aborted) return
-        if (!this.ownsLease()) return
-        const current = readLaneStates(getLocalDb()).get(pick.laneKey) ?? lane
-        const update = applyLaneOutcome(
-          normalizeLane(current, context.settings.pacing),
-          {
-            kind: summary.laneOutcome,
-            durationMs: summary.durationMs,
-            retryAfterMs: summary.retryAfterMs,
-          },
-          { now: this.deps.now(), gapMs, floorMs, random: this.deps.random },
-        )
-        await writeLaneState(update.lane, context.generation)
-        if (update.clearCookies)
-          await clearBrowserState(pick.laneKey).catch(() => {})
-      } catch (error) {
-        if (!isVaultError(error))
-          reportServerError(error, 'price-monitor/check')
-      } finally {
-        this.controllers.delete(controller)
-        this.inFlight.delete(pick.laneKey)
-        this.wake(0)
-      }
-    })()
-    this.checks.add(run)
-    void run.finally(() => this.checks.delete(run))
-  }
-
-  /** Resolves when no check is running and no pass is in progress. */
+  /** Resolves when nothing runs: no pass, check, search or AI run. */
   async idle(): Promise<void> {
     while (
       this.passing ||
-      this.checks.size ||
+      this.work.size ||
       this.advising ||
       this.supervising ||
       this.searches.size
@@ -786,8 +1345,8 @@ export class PriceMonitorWorker {
         this.advising,
         this.supervising,
         ...this.searches.values(),
-        ...this.checks,
-      ])
+        ...this.work,
+      ]).catch(() => {})
     }
   }
 
@@ -796,6 +1355,7 @@ export class PriceMonitorWorker {
    * `timeoutMs` (server shutdown) it waits at most that long for running
    * work (an AI run cannot be cancelled) and releases the lease anyway;
    * that work then finds it no longer owns the lease and writes nothing.
+   * A round in progress resumes at its knife on the next start.
    */
   async stop(options: { timeoutMs?: number } = {}): Promise<void> {
     this.stopped = true
@@ -814,12 +1374,22 @@ export class PriceMonitorWorker {
       ])
       clearTimeout(timeout)
     }
+    this.step = null
+    this.nextStepAt = 0
+    this.focusHeld.clear()
     this.started = false
     this.scheduled = false
     if (this.leaseHeld) {
       this.leaseHeld = false
       await releaseWorkerLease(this.owner).catch(() => {})
     }
+  }
+
+  /** The knife the round checks right now (Price Drops). */
+  get currentStep(): { knifeId: string; kind: ActiveStep['kind'] } | null {
+    return this.step
+      ? { knifeId: this.step.knifeId, kind: this.step.kind }
+      : null
   }
 }
 
@@ -865,15 +1435,16 @@ export type QueueLaneView = {
   paused: boolean
   /** Check now requests waiting. */
   manual: number
-  minGapMs: number
+  /** The store's current minimum gap between two requests. */
   gapMs: number
   readyAt: string | null
   circuit: 'closed' | 'open'
   cooldownUntil: string | null
   strategy: HostStrategy
-  fullPassMs: number
   lastRequestAt: string | null
   checking: boolean
+  /** On the retry list at this store. */
+  retries: number
   /** AI advice in force for this store, if any. */
   advice: {
     minGapMs: number | null
@@ -884,23 +1455,44 @@ export type QueueLaneView = {
   } | null
 }
 
+export type RoundView = {
+  id: number
+  trigger: RoundTrigger
+  startedAt: string
+  /** Knives in the round, and how many are done. */
+  knives: number
+  done: number
+  /** The knife being checked now, if any. */
+  currentKnifeId: string | null
+}
+
 export type QueueSnapshot = {
   /** This server process runs the worker (scheduled or manual-only). */
   running: boolean
   scheduled: boolean
   enabled: boolean
-  scheduledActive: boolean
-  activeHours: ActiveHours | null
   timeZone: string
+  /** Time between two rounds. */
   frequencyMs: number
-  /** Checks waiting to run: Check now requests and due scheduled checks. */
+  /** Check now requests waiting. */
   waiting: number
-  /** Sources checked since `since` (Check all progress), when asked. */
-  checkedSince: number | null
+  /** The round in progress, if any. */
+  round: RoundView | null
+  /** The last round that finished, if any. */
+  lastRound: {
+    id: number
+    startedAt: string
+    finishedAt: string
+    knives: number
+  } | null
+  /** When the next round starts (null while one runs or checks are off). */
+  nextRoundAt: string | null
+  /** The retry list: items waiting for a time, and items with one. */
+  retries: { waiting: number; scheduled: number; nextAt: string | null }
   inFlight: Array<{
     sourceId: number
     laneKey: string
-    trigger: QueuePick['trigger']
+    trigger: CheckTrigger
     startedAt: string
   }>
   lanes: QueueLaneView[]
@@ -914,18 +1506,13 @@ export type QueueSnapshot = {
 const iso = (value: number | null) =>
   value === null ? null : new Date(value).toISOString()
 
-/** Queue state for the UI, read from SQLite plus this process's checks. */
-export function buildQueueSnapshot(
-  now = Date.now(),
-  options: { since?: string | null } = {},
-): QueueSnapshot {
+/** Queue and round state for the UI, read from SQLite plus this process. */
+export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
   const worker = getPriceMonitorWorker()
   const database = getLocalDb()
   const settings = getSettings().priceMonitoring
-  const hours = effectiveActiveHours(settings.schedule)
   const candidates = readQueueCandidates(database, settings, now)
   const counts = scheduledCounts(candidates)
-  const load = scheduledLoad(candidates, settings.schedule, now)
   const covered = new Map<string, number>()
   const slowed = new Map<string, number>()
   const manual = new Map<string, number>()
@@ -946,15 +1533,15 @@ export function buildQueueSnapshot(
       )
         slowed.set(laneKey, (slowed.get(laneKey) ?? 0) + 1)
     }
-    if (candidate.priority >= 2)
+    if (candidate.priority >= 2) {
       manual.set(laneKey, (manual.get(laneKey) ?? 0) + 1)
-    if (
-      candidate.priority >= 2 ||
-      (candidate.scheduled &&
-        (candidate.nextCheckAt === null || candidate.nextCheckAt <= now))
-    )
       waiting += 1
+    }
   }
+  const retryTasks = readRetryTasks(database)
+  const retriesByLane = new Map<string, number>()
+  for (const task of retryTasks)
+    retriesByLane.set(task.laneKey, (retriesByLane.get(task.laneKey) ?? 0) + 1)
   const stored = readLaneStates(database)
   const advice = readActiveAdvice(database, now)
   const pausedLanes = new Set(
@@ -962,8 +1549,12 @@ export function buildQueueSnapshot(
       .filter((candidate) => candidate.storePaused && candidate.covered)
       .map((candidate) => candidate.laneKey),
   )
-  const laneKeys = new Set([...counts.keys(), ...manual.keys(), ...pausedLanes])
-  const windowMs = activeWindowMs(settings.schedule)
+  const laneKeys = new Set([
+    ...counts.keys(),
+    ...manual.keys(),
+    ...pausedLanes,
+    ...retriesByLane.keys(),
+  ])
   const adviceMs = adviceWindowMs(settings.schedule)
   const checkingLanes = new Set(
     (
@@ -975,35 +1566,18 @@ export function buildQueueSnapshot(
         .all() as Array<{ lane_key: string }>
     ).map((row) => row.lane_key),
   )
-  const since = options.since ? Date.parse(options.since) : NaN
-  const checkedSince = Number.isFinite(since)
-    ? (
-        database
-          .prepare(
-            `SELECT COUNT(*) AS n FROM price_sources
-             WHERE removed_at IS NULL AND last_checked_at >= ?`,
-          )
-          .get(new Date(since).toISOString()) as { n: number }
-      ).n
-    : null
 
   const lanes = [...laneKeys].sort().map((laneKey): QueueLaneView => {
     const raw = stored.get(laneKey)
     const laneAdvice = advice.get(laneKey)
-    const laneLoad = load.get(laneKey) ?? 0
+    const sourceCount = counts.get(laneKey) ?? 0
     const lane = effectiveLane(
       raw ?? defaultLaneState(laneKey, settings.pacing, now),
       settings.pacing,
       laneAdvice,
       now,
-      { activeWindowMs: adviceMs, sourceCount: laneLoad },
+      { activeWindowMs: adviceMs, sourceCount },
     )
-    const gapMs = laneGapMs({
-      minGapMs: lane.minGapMs,
-      floorMs: laneFloorMs(settings.pacing),
-      activeWindowMs: windowMs,
-      sourceCount: laneLoad,
-    })
     const availability = laneAvailability(lane, now)
     return {
       laneKey,
@@ -1011,19 +1585,18 @@ export function buildQueueSnapshot(
       slowed: slowed.get(laneKey) ?? 0,
       paused: pausedLanes.has(laneKey),
       manual: manual.get(laneKey) ?? 0,
-      minGapMs: lane.minGapMs,
-      gapMs,
+      gapMs: Math.max(lane.minGapMs, laneFloorMs(settings.pacing)),
       readyAt: iso(lane.readyAt),
       circuit: availability.state === 'cooling' ? 'open' : 'closed',
       cooldownUntil:
         availability.state === 'cooling' ? iso(availability.until) : null,
       strategy: raw?.strategy ?? 'auto',
-      fullPassMs: fullPassMs(gapMs, laneLoad),
       lastRequestAt: iso(lane.lastRequestAt),
       checking:
         worker.inFlight.has(laneKey) ||
         checkingLanes.has(laneKey) ||
         worker.searches.has(laneKey),
+      retries: retriesByLane.get(laneKey) ?? 0,
       advice: laneAdvice
         ? {
             // As applied: capped so the store's sources fit the interval.
@@ -1034,7 +1607,7 @@ export function buildQueueSnapshot(
                     laneAdvice.minGapMs,
                     maxAdvisedGapMs({
                       activeWindowMs: adviceMs,
-                      sourceCount: laneLoad,
+                      sourceCount,
                       floorMs: laneFloorMs(settings.pacing),
                     }),
                   ),
@@ -1047,17 +1620,45 @@ export function buildQueueSnapshot(
     }
   })
 
+  const current = readCurrentRound(database)
+  const last = readLastRound(database)
+  const finished = last && last.finishedAt !== null ? last : null
+  const step = worker.currentStep
+  const nextAt =
+    settings.enabled && !current ? nextRoundAt(last, intervalMs, now) : null
   return {
     running: worker.started,
     scheduled: worker.scheduled,
     enabled: settings.enabled,
-    scheduledActive:
-      settings.enabled && isWithinActiveHours(hours, new Date(now)),
-    activeHours: hours,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     frequencyMs: intervalMs,
     waiting,
-    checkedSince,
+    round: current
+      ? {
+          id: current.id,
+          trigger: current.trigger,
+          startedAt: new Date(current.startedAt).toISOString(),
+          knives: current.knifeIds.length,
+          done: Math.min(current.cursor, current.knifeIds.length),
+          currentKnifeId: step?.kind === 'round' ? step.knifeId : null,
+        }
+      : null,
+    lastRound: finished
+      ? {
+          id: finished.id,
+          startedAt: new Date(finished.startedAt).toISOString(),
+          finishedAt: new Date(finished.finishedAt!).toISOString(),
+          knives: finished.knifeIds.length,
+        }
+      : null,
+    nextRoundAt: iso(nextAt),
+    retries: {
+      waiting: retryTasks.filter((task) => task.dueAt === null).length,
+      scheduled: retryTasks.filter((task) => task.dueAt !== null).length,
+      nextAt: iso(
+        retryTasks.find((task) => task.dueAt !== null)?.dueAt ?? null,
+      ),
+    },
     inFlight: [...worker.inFlight.values()].map((entry) => ({
       sourceId: entry.sourceId,
       laneKey: entry.laneKey,

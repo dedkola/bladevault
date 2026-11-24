@@ -3,12 +3,9 @@ import {
   applyLaneOutcome,
   COOLDOWNS_MS,
   defaultLaneState,
-  fullPassMs,
   laneAvailability,
   laneFloorMs,
-  laneGapMs,
   manualReadyAt,
-  MAX_SPREAD_GAP_MS,
   type LaneOutcome,
   type LaneState,
 } from '@/lib/price-monitor/lanes'
@@ -42,36 +39,6 @@ describe('lane pacing', () => {
   it('uses the minimum pause per store as every store’s floor', () => {
     expect(laneFloorMs(pacing)).toBe(MIN)
     expect(laneFloorMs({ minGapSeconds: 300 })).toBe(5 * MIN)
-  })
-
-  it('spreads a store’s checks over the active window', () => {
-    // 100 products once a day: about one check every 11.5 minutes.
-    const store = laneGapMs({
-      minGapMs: 5 * MIN,
-      floorMs: 5 * MIN,
-      activeWindowMs: 24 * HOUR,
-      sourceCount: 100,
-    })
-    expect(store).toBeCloseTo(11.52 * MIN, -2)
-    expect(fullPassMs(store, 100)).toBeCloseTo(19.2 * HOUR, -3)
-    // Few products: at most two hours apart, never idle all day.
-    expect(
-      laneGapMs({
-        minGapMs: MIN,
-        floorMs: MIN,
-        activeWindowMs: 24 * HOUR,
-        sourceCount: 5,
-      }),
-    ).toBe(MAX_SPREAD_GAP_MS)
-    // 1000 products cannot fit: the minimum gap wins and the pass is longer.
-    const crowded = laneGapMs({
-      minGapMs: 5 * MIN,
-      floorMs: 5 * MIN,
-      activeWindowMs: 24 * HOUR,
-      sourceCount: 1000,
-    })
-    expect(crowded).toBe(5 * MIN)
-    expect(fullPassMs(crowded, 1000) / (24 * HOUR)).toBeCloseTo(3.47, 2)
   })
 
   it('speeds up after five successes, never below the floor', () => {
