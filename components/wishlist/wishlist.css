@@ -278,16 +278,34 @@
   stroke-linejoin: round;
 }
 [data-wishlist] [data-wishlist-spark-fill] {
-  fill: color-mix(in srgb, var(--wl-spark) 16%, transparent);
+  fill: color-mix(in srgb, var(--wl-spark) 12%, transparent);
 }
 [data-wishlist] [data-wishlist-spark-dot] {
   fill: var(--wl-spark);
 }
-[data-wishlist] [data-wishlist-spark-regular] {
-  stroke: var(--muted-foreground);
-  stroke-width: 1;
-  stroke-dasharray: 2 3;
-  opacity: 0.6;
+/* One ring per price change, so the moments the price moved stay visible. */
+[data-wishlist] [data-wishlist-spark-change] {
+  fill: var(--card);
+  stroke: var(--wl-spark);
+  stroke-width: 1.5;
+}
+[data-wishlist] [data-wishlist-spark-flat] {
+  stroke: var(--wl-neutral);
+  stroke-width: 1.2;
+}
+[data-wishlist] [data-wishlist-spark-text] {
+  fill: var(--muted-foreground);
+  font-size: 9px;
+  font-weight: 600;
+}
+[data-wishlist] [data-wishlist-trend-note] {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  max-width: 160px;
+  font-size: 11px;
+  white-space: nowrap;
 }
 [data-wishlist] [data-wishlist-spark-empty] {
   color: var(--muted-foreground);
@@ -342,7 +360,7 @@
   display: grid;
   grid-template-columns:
     60px minmax(0, 1.4fr) 130px minmax(160px, 1fr)
-    120px auto;
+    160px auto;
   gap: 14px;
   align-items: center;
   padding: 10px 14px;
@@ -414,9 +432,13 @@
   }
   [data-wishlist-row-trend] {
     grid-column: 2;
-    grid-auto-flow: column;
-    align-items: center;
-    justify-content: space-between;
+    grid-auto-flow: row;
+    justify-items: start;
+  }
+  [data-wishlist] [data-wishlist-trend-note] {
+    width: auto;
+    justify-content: flex-start;
+    gap: 10px;
   }
   [data-wishlist-hero] {
     grid-template-columns: 110px minmax(0, 1fr);

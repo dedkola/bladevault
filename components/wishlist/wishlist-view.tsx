@@ -29,13 +29,16 @@ import { parseStoredPrice, toMinorUnits } from '@/lib/price-monitor/money'
 import {
   WISHLIST_DEAL_LABELS,
   WISHLIST_DEALS,
-  WISHLIST_REGULAR_TOLERANCE,
   priceChange,
   rangePosition,
   trendChange,
   wishlistDeal,
+  wishlistMoves,
+  wishlistTrackedDays,
+  wishlistTrendDirection,
   type WishlistDeal,
   type WishlistItem,
+  type WishlistMove,
   type WishlistTrend,
 } from '@/lib/wishlist'
 import './wishlist.css'
@@ -150,12 +153,6 @@ function pct(value: number): string {
   return `${rounded < 0 ? '−' : '+'}${Math.abs(rounded)}%`
 }
 
-function changeDirection(value: number | null): 'down' | 'up' | 'flat' {
-  if (value === null || Math.abs(value) < WISHLIST_REGULAR_TOLERANCE)
-    return 'flat'
-  return value < 0 ? 'down' : 'up'
-}
-
 function knifeTitle(knife: Knife) {
   return [knife.brand, knife.name].filter(Boolean).join(' ')
 }
@@ -230,55 +227,73 @@ function DealPills({ row }: { row: Row }) {
   )
 }
 
-function Change({ value }: { value: number | null }) {
-  if (value === null) return <span data-wishlist-sub>—</span>
-  return <span data-wishlist-change={changeDirection(value)}>{pct(value)}</span>
+/** Smallest vertical range of a row chart, as a share of its highest price. */
+const SPARK_MIN_SPREAD = 0.04
+
+/** "21 Nov" for the snapshot that introduced a move. */
+function moveDate(at: number): string {
+  return new Date(at).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+  })
+}
+
+/** "↓ $40.50 · 21 Nov". */
+function moveLabel(move: WishlistMove, currency: string | null): string {
+  return `${move.delta < 0 ? '↓' : '↑'} ${money(Math.abs(move.delta), currency)} · ${moveDate(move.at)}`
 }
 
 /**
- * Stock-style price chart over the last 30 days, or since tracking began when
- * that is shorter (the history fills the width from day one): the best store
- * price as steps at the moments it changed, shaded beneath, and the regular
- * price dashed across like a stock's previous close.
+ * Best store price while the knife has been tracked, scaled to its own
+ * history (the regular price stays in the price note and the range bar) with
+ * a dot on every change and on today's price. The footer names the window and
+ * the last move, so a two-day chart does not read like a month. Flat and
+ * untracked knives read as text instead of an empty graph.
  */
 function Sparkline({
   row,
-  width = 110,
-  height = 30,
+  width = 150,
+  height = 28,
 }: {
   row: Row
   width?: number
   height?: number
 }) {
   const trend = row.trend
-  const steps = trend?.steps ?? []
-  const prices = steps
-    .map((step) => step.price)
-    .filter((price): price is number => price !== null)
-  if (!trend || !prices.length)
-    return (
-      <span data-wishlist-spark-empty style={{ width }}>
-        No history yet
-      </span>
-    )
-  const regular =
-    row.live && trend.currency === row.currency ? row.regularMinor : null
-  const scale = regular === null ? prices : [...prices, regular]
-  const high = Math.max(...scale),
-    top = Math.min(...scale)
-  // Room below the lowest price, so the shading reads even on a flat line.
-  const low = top - (high - top || top * 0.2) * 0.8,
-    range = high - low || 1
+  if (!trend) return <span data-wishlist-spark-empty>Not tracked yet</span>
+  const priced = trend.steps.filter(
+    (step): step is { at: number; price: number } => step.price !== null,
+  )
+  // Tracked, but no store has had it in stock inside the window.
+  if (!priced.length)
+    return <span data-wishlist-spark-empty>No in-stock price yet</span>
+
+  const days = wishlistTrackedDays(trend)
+  const dayText = `${days} ${days === 1 ? 'day' : 'days'}`
+  const trackedLabel = `${days}d tracked`
+  const moves = wishlistMoves(trend)
+  const flat = !moves.length
+  const current = trend.steps[trend.steps.length - 1].price
+  const stockNote = current === null ? ', out of stock now' : ''
+
+  // Scale to the history, but never tighter than a few percent of the price,
+  // so a $1 move on a $200 knife does not look like a crash.
+  const high = Math.max(...priced.map((step) => step.price))
+  const low = Math.min(...priced.map((step) => step.price))
+  const spread = Math.max(high - low, high * SPARK_MIN_SPREAD, 1)
+  const middle = (high + low) / 2
+  const bottom = middle - spread * 0.7
+  const range = spread * 1.4
   const span = Math.max(trend.until - trend.since, 1)
   const x = (at: number) => ((at - trend.since) / span) * (width - 4) + 1
   const y = (price: number) =>
-    height - 2 - ((price - low) / range) * (height - 5)
+    flat ? height / 2 : height - 5 - ((price - bottom) / range) * (height - 11)
 
   // One path per in-stock stretch; out of stock leaves a gap.
   const runs: string[] = []
   let path = ''
-  steps.forEach((step, index) => {
-    const next = steps[index + 1]?.at ?? trend.until
+  trend.steps.forEach((step, index) => {
+    const next = trend.steps[index + 1]?.at ?? trend.until
     if (step.price === null) {
       if (path) runs.push(path)
       path = ''
@@ -290,46 +305,80 @@ function Sparkline({
       : `M${x(step.at).toFixed(1)},${py} H${x(next).toFixed(1)}`
   })
   if (path) runs.push(path)
-  const last = steps[steps.length - 1]
+
+  if (flat)
+    return (
+      <>
+        <svg
+          data-wishlist-spark="flat"
+          width={width}
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
+          role="img"
+          aria-label={`No price change in ${dayText}${stockNote}`}
+        >
+          {runs.map((run) => (
+            <path key={run} data-wishlist-spark-flat d={run} fill="none" />
+          ))}
+          <text data-wishlist-spark-text x="2" y={height / 2 + 9}>
+            flat
+          </text>
+        </svg>
+        <span data-wishlist-sub data-wishlist-trend-note>
+          <span>{trackedLabel}</span>
+        </span>
+      </>
+    )
+
   const startX = (run: string) => run.slice(1, run.indexOf(','))
-  const direction = changeDirection(row.vsRegular)
+  const direction = wishlistTrendDirection(moves)
+  const change = moves[moves.length - 1]
+  const changeDirection = change.delta < 0 ? 'down' : 'up'
   return (
-    <svg
-      data-wishlist-spark={direction}
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      role="img"
-      aria-label="Best store price over the last 30 days, or since tracking began"
-    >
-      {regular !== null && (
-        <line
-          data-wishlist-spark-regular
-          x1="1"
-          x2={width - 3}
-          y1={y(regular).toFixed(1)}
-          y2={y(regular).toFixed(1)}
-        />
-      )}
-      {runs.map((run) => (
-        <path
-          key={`fill-${run}`}
-          data-wishlist-spark-fill
-          d={`${run} V${height} H${startX(run)} Z`}
-        />
-      ))}
-      {runs.map((run) => (
-        <path key={run} data-wishlist-spark-line d={run} fill="none" />
-      ))}
-      {last.price !== null && (
-        <circle
-          data-wishlist-spark-dot
-          cx={x(trend.until).toFixed(1)}
-          cy={y(last.price).toFixed(1)}
-          r="2.2"
-        />
-      )}
-    </svg>
+    <>
+      <svg
+        data-wishlist-spark={direction}
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label={`Best store price over ${dayText}, last change ${changeDirection} ${money(Math.abs(change.delta), trend.currency)} on ${moveDate(change.at)}${stockNote}`}
+      >
+        {runs.map((run) => (
+          <path
+            key={`fill-${run}`}
+            data-wishlist-spark-fill
+            d={`${run} V${height} H${startX(run)} Z`}
+          />
+        ))}
+        {runs.map((run) => (
+          <path key={run} data-wishlist-spark-line d={run} fill="none" />
+        ))}
+        {moves.map((move) => (
+          <circle
+            key={`change-${move.at}`}
+            data-wishlist-spark-change
+            cx={x(move.at).toFixed(1)}
+            cy={y(move.price).toFixed(1)}
+            r="2"
+          />
+        ))}
+        {current !== null && (
+          <circle
+            data-wishlist-spark-dot
+            cx={x(trend.until).toFixed(1)}
+            cy={y(current).toFixed(1)}
+            r="2.2"
+          />
+        )}
+      </svg>
+      <span data-wishlist-sub data-wishlist-trend-note>
+        <span>{trackedLabel}</span>
+        <span data-wishlist-change={changeDirection}>
+          {moveLabel(change, trend.currency)}
+        </span>
+      </span>
+    </>
   )
 }
 
@@ -549,14 +598,6 @@ function DealGroups({ rows }: { rows: Row[] }) {
                   </div>
                   <div data-wishlist-row-trend>
                     <Sparkline row={row} />
-                    {row.vsRegular !== null &&
-                      (changeDirection(row.vsRegular) === 'flat' ? (
-                        <span data-wishlist-sub>at regular</span>
-                      ) : (
-                        <span data-wishlist-sub>
-                          <Change value={row.vsRegular} /> vs regular
-                        </span>
-                      ))}
                   </div>
                   <div data-wishlist-row-actions>
                     <PriceDetailsLink row={row} />
