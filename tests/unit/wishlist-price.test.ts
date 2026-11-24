@@ -4,6 +4,8 @@ import {
   rangePosition,
   trendChange,
   wishlistDeal,
+  wishlistMoves,
+  wishlistTrackedDays,
 } from '@/lib/wishlist'
 
 describe('wishlist price info', () => {
@@ -50,5 +52,69 @@ describe('wishlist price info', () => {
     expect(
       wishlistDeal({ live: false, outOfStock: false, vsRegular: null }),
     ).toBe('unknown')
+  })
+})
+
+describe('wishlist trend moves', () => {
+  const trend = (
+    steps: Array<{ at: number; price: number | null }>,
+    since = 0,
+    until = 0,
+  ) => ({
+    currency: 'USD',
+    daily: [] as Array<number | null>,
+    steps,
+    since,
+    until,
+    lowMinor: null,
+    highMinor: null,
+  })
+
+  it('reports only real changes, oldest first', () => {
+    expect(
+      wishlistMoves(
+        trend([
+          { at: 1, price: 13500 },
+          { at: 2, price: 13500 },
+          { at: 3, price: 9450 },
+          { at: 4, price: 9500 },
+        ]),
+      ),
+    ).toEqual([
+      { at: 3, price: 9450, delta: -4050 },
+      { at: 4, price: 9500, delta: 50 },
+    ])
+  })
+
+  it('skips out-of-stock steps and does not treat a first price as a move', () => {
+    expect(
+      wishlistMoves(
+        trend([
+          { at: 1, price: null },
+          { at: 2, price: 15150 },
+        ]),
+      ),
+    ).toEqual([])
+    expect(
+      wishlistMoves(
+        trend([
+          { at: 1, price: 10000 },
+          { at: 2, price: null },
+          { at: 3, price: 9000 },
+        ]),
+      ),
+    ).toEqual([{ at: 3, price: 9000, delta: -1000 }])
+  })
+
+  it('handles missing, empty and single-snapshot trends', () => {
+    expect(wishlistMoves(undefined)).toEqual([])
+    expect(wishlistMoves(trend([]))).toEqual([])
+    expect(wishlistMoves(trend([{ at: 1, price: 6900 }]))).toEqual([])
+  })
+
+  it('measures the tracked window in whole days, never below one', () => {
+    expect(wishlistTrackedDays({ since: 0, until: 5 * 86_400_000 })).toBe(5)
+    expect(wishlistTrackedDays({ since: 0, until: 3_600_000 })).toBe(1)
+    expect(wishlistTrackedDays({ since: 100, until: 100 })).toBe(1)
   })
 })

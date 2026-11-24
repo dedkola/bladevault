@@ -143,6 +143,47 @@ export function trendChange(trend: WishlistTrend | undefined): number | null {
   return priceChange(priced[priced.length - 1], priced[0])
 }
 
+const DAY_MS = 86_400_000
+
+/** A price change between two consecutive observed prices. */
+export type WishlistMove = {
+  /** Epoch ms of the snapshot that introduced `price`. */
+  at: number
+  price: number
+  /** Change from the previous observed price; negative is a drop. */
+  delta: number
+}
+
+/**
+ * Price changes inside the tracked window, oldest first. Out-of-stock steps
+ * (null price) are skipped, and a different price seen after a gap still
+ * counts as a move. A lone first price is not a change.
+ */
+export function wishlistMoves(
+  trend: WishlistTrend | undefined,
+): WishlistMove[] {
+  const moves: WishlistMove[] = []
+  let previous: number | null = null
+  for (const step of trend?.steps ?? []) {
+    if (step.price === null) continue
+    if (previous !== null && step.price !== previous)
+      moves.push({
+        at: step.at,
+        price: step.price,
+        delta: step.price - previous,
+      })
+    previous = step.price
+  }
+  return moves
+}
+
+/** Days of history the trend covers, at least 1. */
+export function wishlistTrackedDays(
+  trend: Pick<WishlistTrend, 'since' | 'until'>,
+): number {
+  return Math.max(1, Math.round((trend.until - trend.since) / DAY_MS))
+}
+
 /** Where a price sits between the 90-day low (0) and high (1). */
 export function rangePosition(
   priceMinor: number | null,
