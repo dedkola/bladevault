@@ -835,7 +835,7 @@ describe('price monitor worker', () => {
     })
     const finishes: Array<(summary: DiscoverySummary) => void> = []
     const discover = vi.fn(
-      () =>
+      (_knifeId: string, _options: { store: string }) =>
         new Promise<DiscoverySummary>((resolve) => {
           finishes.push(resolve)
         }),
