@@ -12,10 +12,14 @@ import {
 } from '@/lib/price-monitor/browser-state'
 import {
   buildSearchQueries,
+  hasModelNumberCode,
+  judgeProductPage,
   knifeIdentity,
   matchSearchResults,
-  pageShowsModelNumber,
+  resultsShowingModelNumber,
   verifyProductPage,
+  type AiDecision,
+  type VerifyDecision,
 } from '@/lib/price-monitor/discovery-ai'
 import {
   DISCOVERY_STORES,
@@ -26,6 +30,7 @@ import {
   readDiscoveryQueue,
   recordDiscovery,
   type DiscoveryStatus,
+  type DiscoveryVariant,
 } from '@/lib/price-monitor/discovery-store'
 import { retryAfterMs, type LaneOutcomeKind } from '@/lib/price-monitor/engine'
 import {
@@ -437,6 +442,8 @@ export async function discoverKnife(
     confidence?: number | null
     detail?: string | null
     retryAfterMs?: number | null
+    /** Other variants of the model the search saw at the store. */
+    variants?: readonly DiscoveryVariant[]
   }
   const finish = async (input: Outcome): Promise<DiscoverySummary> => {
     if (options.canWrite && !options.canWrite())
@@ -451,6 +458,7 @@ export async function discoverKnife(
       title: input.title,
       confidence: input.confidence,
       detail: input.detail,
+      variants: input.variants,
     })
     return {
       status: 'done',
@@ -505,6 +513,7 @@ export async function discoverKnife(
         title: details?.title ?? outcome.title ?? null,
         confidence: null,
         detail: `AI found it by browsing ${store.label} after the store's search did not lead to it.`,
+        variants: outcome.variants,
       })
     }
     return finish({
@@ -540,10 +549,23 @@ export async function discoverKnife(
           }
         : pageFailure(error, store)
 
-    // 1. Find: the search results page, read by AI. With the model number
-    // first, then brand and name only when that finds nothing.
-    let candidates: DiscoveryCandidate[] = []
-    let match: Awaited<ReturnType<DiscoveryDeps['match']>> | null = null
+    // 1. Find: the search results page. A result whose title shows the
+    // knife's exact model number is tried first; AI picks from the rest and
+    // names the results that are other variants of the same model. With
+    // the model number first, then brand and name only when that finds
+    // nothing.
+    const variants: DiscoveryVariant[] = []
+    const addVariant = (variant: DiscoveryVariant) => {
+      if (!variants.some((item) => item.url === variant.url))
+        variants.push(variant)
+    }
+    let tries: DiscoveryCandidate[] = []
+    let match:
+      | (AiDecision & {
+          candidate: DiscoveryCandidate | null
+          variants: DiscoveryCandidate[]
+        })
+      | null = null
     let aiNotFound = ''
     const emptyQueries: string[] = []
     for (const query of queries) {
@@ -554,7 +576,10 @@ export async function discoverKnife(
         if (signal.aborted && options.signal?.aborted) throw error
         return await finish(loadFailure(error))
       }
-      candidates = store.parseResults(searchPage.html, searchPage.finalUrl)
+      const candidates = store.parseResults(
+        searchPage.html,
+        searchPage.finalUrl,
+      )
       if (!candidates.length) {
         // A page that is not the store's result list says nothing about the
         // knife: try again later rather than record it as not there.
@@ -574,12 +599,23 @@ export async function discoverKnife(
         candidates,
         signal,
       })
-      if (match.candidate) break
+      for (const variant of match.variants)
+        addVariant({
+          url: variant.url,
+          title: variant.title,
+          price: variant.price,
+        })
+      const [titled] = resultsShowingModelNumber(identity, candidates)
+      tries = [titled, match.candidate].filter(
+        (item, index, list): item is DiscoveryCandidate =>
+          Boolean(item) && list.indexOf(item) === index,
+      )
+      if (tries.length) break
       aiNotFound = match.reason || 'AI found no listing of this knife.'
     }
-    if (!match?.candidate)
+    if (!tries.length)
       return await missed({
-        result: 'not_found',
+        result: variants.length ? 'variant' : 'not_found',
         laneOutcome: 'success',
         confidence: match?.confidence ?? null,
         detail:
@@ -587,78 +623,94 @@ export async function discoverKnife(
           `${store.label} had no results for ${emptyQueries
             .map((query) => `“${query}”`)
             .join(' or ')}.`,
+        variants,
       })
 
-    // 2. Check: the product page, confirmed by AI.
-    const chosen = match.candidate
-    const url = candidates.find((item) => item.id === chosen.id)?.url
-    if (!url)
-      return await finish({
-        result: 'failed',
-        laneOutcome: 'success',
-        title: chosen.title,
-        detail: 'AI returned no usable product link.',
-      })
-    let productPage: DiscoveryPage
-    try {
-      productPage = await load(url)
-    } catch (error) {
-      if (signal.aborted && options.signal?.aborted) throw error
-      return await finish({ ...loadFailure(error), url })
+    // 2. Check: the product page. With a model number, the exact code on
+    // the page decides and AI only rules out accessories and bundles;
+    // without one, AI confirms the knife (judgeProductPage).
+    const turnedDownDetail = (verdict: VerifyDecision): string => {
+      const kind = verdict.kind ?? null
+      if (kind !== null && kind !== 'knife')
+        return (
+          verdict.reason ||
+          `AI says the ${store.label} page sells ${kind === 'bundle' ? 'a bundle' : 'an accessory'}, not the knife.`
+        )
+      // AI said yes, but the maker's code is missing: the code decides.
+      if (verdict.accepted || !verdict.reason)
+        return hasModelNumberCode(identity)
+          ? `The ${store.label} page does not show model number ${identity.modelNumber}.`
+          : 'AI decided the product page sells another item.'
+      return verdict.reason
     }
-    const details = store.productDetails(productPage.html, url)
-    if (!details)
-      return await finish({
-        result: 'failed',
-        laneOutcome: 'success',
-        url,
-        title: match.candidate.title,
-        detail: `The ${store.label} product page could not be read.`,
+    let turnedDown: Outcome | null = null
+    for (const chosen of tries) {
+      const url = chosen.url
+      let productPage: DiscoveryPage
+      try {
+        productPage = await load(url)
+      } catch (error) {
+        if (signal.aborted && options.signal?.aborted) throw error
+        return await finish({ ...loadFailure(error), url, variants })
+      }
+      const details = store.productDetails(productPage.html, url)
+      if (!details) {
+        turnedDown ??= {
+          result: 'failed',
+          laneOutcome: 'success',
+          url,
+          title: chosen.title,
+          detail: `The ${store.label} product page could not be read.`,
+        }
+        continue
+      }
+      const pageText = `${details.title}\n${details.details}`
+      const verdict = await deps.verify({
+        endpoint,
+        model: settings.ai.model,
+        knife: identity,
+        page: details,
+        signal,
       })
-    const verdict = await deps.verify({
-      endpoint,
-      model: settings.ai.model,
-      knife: identity,
-      page: details,
-      signal,
-    })
-    if (!verdict.accepted)
-      return await missed({
+      const judged = judgeProductPage(identity, pageText, verdict)
+      if (judged === 'match') {
+        // 3. Parse: from now on the source is checked like any other, with
+        // the page parsers first and AI reading the price when they fail.
+        const byCode = !verdict.accepted
+        return await finish({
+          result: 'found',
+          laneOutcome: 'success',
+          url,
+          title: details.title,
+          confidence: byCode
+            ? null
+            : chosen === match?.candidate
+              ? Math.min(match.confidence, verdict.confidence)
+              : verdict.confidence,
+          detail: byCode
+            ? `The ${store.label} page shows model number ${identity.modelNumber}.`
+            : verdict.reason || match?.reason || null,
+          variants,
+        })
+      }
+      if (judged === 'variant')
+        addVariant({ url, title: details.title, price: chosen.price })
+      turnedDown = {
         result: 'rejected',
         laneOutcome: 'success',
         url,
         title: details.title,
         confidence: verdict.confidence,
-        detail:
-          verdict.reason || 'AI decided the product page sells another item.',
-      })
-
-    // The maker's model number decides the variant (steel, handle, colour):
-    // without it on the page, AI's yes is not enough.
-    if (
-      !pageShowsModelNumber(
-        identity.modelNumber,
-        `${details.title}\n${details.details}`,
-      )
-    )
-      return await missed({
-        result: 'rejected',
-        laneOutcome: 'success',
-        url,
-        title: details.title,
-        confidence: verdict.confidence,
-        detail: `The ${store.label} page does not show model number ${identity.modelNumber}.`,
-      })
-
-    // 3. Parse: from now on the source is checked like any other, with the
-    // page parsers first and AI reading the price when they fail.
-    return await finish({
-      result: 'found',
-      laneOutcome: 'success',
-      url,
-      title: details.title,
-      confidence: Math.min(match.confidence, verdict.confidence),
-      detail: verdict.reason || match.reason || null,
+        detail: turnedDownDetail(verdict),
+      }
+    }
+    // Only unreadable pages: try again later instead of recording a miss.
+    if (turnedDown?.result === 'failed')
+      return await finish({ ...turnedDown, variants })
+    return await missed({
+      ...(turnedDown ?? { result: 'rejected', laneOutcome: 'success' }),
+      result: variants.length ? 'variant' : 'rejected',
+      variants,
     })
   } catch (error) {
     if (error instanceof Error && error.name === 'VaultAccessError') throw error

@@ -52,6 +52,7 @@ const STORE_DESCRIPTION: Record<OtherStoreId, string> = {
 
 const STATUS_LABEL: Record<DiscoveryStatus, string> = {
   found: 'Found',
+  variant: 'Other variants only',
   not_found: 'Not found',
   rejected: 'Not the same knife',
   failed: 'Failed',
@@ -61,6 +62,7 @@ const STATUS_LABEL: Record<DiscoveryStatus, string> = {
 
 const STATUS_CLASS: Record<DiscoveryStatus, string> = {
   found: 'text-[var(--bladevault-gold)]',
+  variant: 'text-muted-foreground',
   not_found: 'text-muted-foreground',
   rejected: 'text-muted-foreground',
   failed: 'text-destructive',
@@ -71,6 +73,7 @@ const STATUS_CLASS: Record<DiscoveryStatus, string> = {
 function summary(overview: StoreOverview): string {
   const { counts, waiting } = overview
   const parts = [`${counts.found} found`]
+  if (counts.variant) parts.push(`${counts.variant} other variants only`)
   const missing = counts.not_found + counts.rejected
   if (missing) parts.push(`${missing} not found`)
   const problems = counts.failed + counts.blocked

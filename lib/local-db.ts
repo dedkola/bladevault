@@ -23,7 +23,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 14
+export const LOCAL_DB_SCHEMA_VERSION = 15
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -804,6 +804,26 @@ function resetOtherStoreLaneGaps(database: Database.Database) {
 }
 
 /**
+ * Schema 15: a product page that shows the knife's exact model number now
+ * counts as the knife even when AI worded a spec differently, and other
+ * variants are kept as related listings. Searches that were turned down
+ * before are due again once, so the new rules look at them right away.
+ */
+function recheckRejectedSearches(database: Database.Database) {
+  const exists = database
+    .prepare(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'price_discovery'",
+    )
+    .get()
+  if (!exists) return
+  database
+    .prepare(
+      "UPDATE price_discovery SET next_attempt_at = ? WHERE status = 'rejected'",
+    )
+    .run(new Date().toISOString())
+}
+
+/**
  * Wishlist (schema 13): knives the collector plans to buy, by priority lane,
  * plus a small key/value table for the monthly budget. Target prices are the
  * knife's price alert target in `price_watch`. Additive and repeat-safe.
@@ -1119,6 +1139,23 @@ function migratePriceMonitoringSchema(
       );
       CREATE INDEX price_discovery_time
         ON price_discovery (last_attempt_at);`,
+    ],
+    [
+      // Other stores: listings of the same model in another variant (steel,
+      // handle, colour) that a search saw at a store. Shown as related, never
+      // monitored; replaced on every completed search of that store.
+      'price_discovery_variants',
+      `CREATE TABLE price_discovery_variants (
+        knife_id TEXT NOT NULL,
+        store TEXT NOT NULL,
+        marketplace TEXT NOT NULL,
+        position INTEGER NOT NULL,
+        url TEXT NOT NULL,
+        title TEXT NOT NULL,
+        price_text TEXT,
+        seen_at TEXT NOT NULL,
+        PRIMARY KEY (knife_id, store, marketplace, position)
+      );`,
     ],
     [
       // Every AI request price monitoring makes: what for, how long, how
@@ -1490,6 +1527,7 @@ function initSchema(database: Database.Database) {
     database.pragma('user_version', { simple: true }),
   )
   if (currentSchemaVersion < 14) resetOtherStoreLaneGaps(database)
+  if (currentSchemaVersion < 15) recheckRejectedSearches(database)
   if (currentSchemaVersion < LOCAL_DB_SCHEMA_VERSION) {
     database.pragma(`user_version = ${LOCAL_DB_SCHEMA_VERSION}`)
   }

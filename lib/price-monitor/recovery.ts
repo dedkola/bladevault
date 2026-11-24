@@ -4,6 +4,7 @@ import { getLocalDb } from '@/lib/local-db'
 import type { AiEndpoint, FetchLike } from '@/lib/price-monitor/ai-client'
 import {
   buildSearchQueries,
+  judgeProductPage,
   knifeIdentity,
   modelNumberCodes,
   pageShowsModelNumber,
@@ -299,9 +300,10 @@ export function productPageUrl(url: string): string {
 }
 
 /**
- * Whether a page AI reached is the knife's product page: the knife's model
- * number on the page when it has one, and AI's product check. Throws
- * AiClientError when AI cannot be asked.
+ * Whether a page AI reached is the knife's product page: with a model
+ * number, the exact code on the page and AI saying it sells a knife (not an
+ * accessory or bundle); without one, AI's product check (judgeProductPage).
+ * Throws AiClientError when AI cannot be asked.
  */
 export function productPageAcceptor(input: {
   knife: Knife
@@ -327,7 +329,7 @@ export function productPageAcceptor(input: {
       knife: identity,
       page: details,
     })
-    return verdict.accepted
+    return judgeProductPage(identity, text, verdict) === 'match'
   }
 }
 

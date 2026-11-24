@@ -123,6 +123,51 @@ describe('local database migrations', () => {
     expect(gaps()['bladehq.com']).toBe(120_000)
   })
 
+  it('makes turned-down Other stores searches due once and adds the variants table', async () => {
+    vault = await createTempVault()
+    const later = new Date(Date.now() + 20 * 3_600_000).toISOString()
+    const insert = getLocalDb().prepare(
+      `INSERT INTO price_discovery
+         (knife_id, store, marketplace, status, attempts, last_attempt_at, next_attempt_at)
+       VALUES (?, 'bladehq', 'bladehq.com', ?, 1, 't', ?)`,
+    )
+    insert.run('k1', 'rejected', later)
+    insert.run('k2', 'not_found', later)
+    insert.run('k3', 'found', null)
+    getLocalDb().exec('DROP TABLE price_discovery_variants')
+    const nextAttempts = () =>
+      Object.fromEntries(
+        (
+          getLocalDb()
+            .prepare('SELECT knife_id, next_attempt_at FROM price_discovery')
+            .all() as Array<{ knife_id: string; next_attempt_at: string }>
+        ).map((row) => [row.knife_id, row.next_attempt_at]),
+      )
+
+    getLocalDb().pragma('user_version = 14')
+    closeLocalDb()
+    const after = nextAttempts()
+    expect(Date.parse(after.k1)).toBeLessThanOrEqual(Date.now())
+    expect(after.k2).toBe(later)
+    expect(after.k3).toBeNull()
+    expect(
+      getLocalDb()
+        .prepare(
+          "SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'price_discovery_variants'",
+        )
+        .get(),
+    ).toEqual({ ok: 1 })
+
+    // Once only: a search turned down later keeps its next attempt.
+    getLocalDb()
+      .prepare(
+        "UPDATE price_discovery SET next_attempt_at = ? WHERE knife_id = 'k1'",
+      )
+      .run(later)
+    closeLocalDb()
+    expect(nextAttempts().k1).toBe(later)
+  })
+
   it('adds the alert rule columns to an older price schema, keeping its rows', async () => {
     vault = await createTempVault()
     const database = getLocalDb()

@@ -104,6 +104,59 @@ export type PriceWatchView = {
   paid: { amount: number; currency: string } | null
   /** The AI supervisor watches this knife closely, while it lasts. */
   focus: PriceWatchFocus | null
+  /** Where the knife is sold, per store (only the knife's GET answers it). */
+  stores?: KnifeStoreEntry[]
+}
+
+/**
+ * One store for one knife:
+ * - listed: the knife has a price source there;
+ * - variant: Other stores saw only other variants of the model there;
+ * - not_sold: Other stores searched and did not find it;
+ * - failed: the last search failed or met a bot check;
+ * - waiting: Other stores has not searched there yet;
+ * - off: not searched (a listing the collector removed is never added
+ *   again; a knife with nothing to search for).
+ */
+export const KNIFE_STORE_STATES = [
+  'listed',
+  'variant',
+  'not_sold',
+  'failed',
+  'waiting',
+  'off',
+] as const
+export type KnifeStoreState = (typeof KNIFE_STORE_STATES)[number]
+
+/** A listing of the same model in another variant: related, not monitored. */
+export type KnifeStoreVariant = {
+  url: string
+  title: string
+  /** As the store's search result showed it. */
+  price: string | null
+  seenAt: string
+}
+
+export type KnifeStoreEntry = {
+  /** The store's lane: one entry per store. */
+  laneKey: string
+  label: string
+  state: KnifeStoreState
+  /** listed: the store's best active source (in stock and cheapest first). */
+  source: {
+    id: number
+    url: string
+    status: PriceSourceStatus
+    priceMinor: number | null
+    currency: string | null
+    availability: Availability | null
+    enabled: boolean
+  } | null
+  variants: KnifeStoreVariant[]
+  /** Why there is no listing: the last search's explanation. */
+  detail: string | null
+  /** Other stores searches this store: when it last and next searches. */
+  search: { lastAt: string | null; nextAt: string | null } | null
 }
 
 /** Checked at least every `intervalMs` until `until` (ISO), and why. */

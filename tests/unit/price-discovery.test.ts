@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   buildSearchQueries,
   buildSearchQuery,
+  judgeProductPage,
   modelNumberCodes,
   pageShowsModelNumber,
   parseMatchAnswer,
   parseVerifyAnswer,
+  resultsShowingModelNumber,
   type MatchCandidate,
+  type VerifyDecision,
 } from '@/lib/price-monitor/discovery-ai'
 import { nextDiscoveryAttempt } from '@/lib/price-monitor/discovery-store'
 import {
@@ -110,6 +113,116 @@ describe('Other stores AI answers', () => {
       parseVerifyAnswer({ same_product: true, confidence: 0.5 }).accepted,
     ).toBe(false)
   })
+
+  it('reads what the page sells and whether it is the same model', () => {
+    expect(
+      parseVerifyAnswer({
+        same_product: false,
+        same_model: true,
+        kind: 'knife',
+        confidence: 0.9,
+      }),
+    ).toMatchObject({ accepted: false, kind: 'knife', sameModel: true })
+    expect(
+      parseVerifyAnswer({ same_product: true, kind: 'sword', confidence: 1 }),
+    ).toMatchObject({ kind: null, sameModel: false })
+  })
+
+  it('keeps only listed, distinct variants other than the match, five at most', () => {
+    const many: MatchCandidate[] = Array.from({ length: 8 }, (_, index) => ({
+      id: index + 1,
+      title: `Vosteed Porcupine A48${index}`,
+      price: null,
+    }))
+    const answer = parseMatchAnswer(
+      { match: 1, variants: [1, 2, '3', 3, 99, 4, 5, 6, 7], confidence: 0.9 },
+      many,
+    )
+    expect(answer.candidate?.id).toBe(1)
+    expect(answer.variants.map((item) => item.id)).toEqual([2, 3, 4, 5, 6])
+    expect(parseMatchAnswer({ match: null }, many).variants).toEqual([])
+  })
+})
+
+describe('Other stores product page decision', () => {
+  const verdict = (patch: Partial<VerifyDecision>): VerifyDecision => ({
+    accepted: false,
+    confidence: 0.9,
+    reason: '',
+    kind: 'knife',
+    sameModel: false,
+    ...patch,
+  })
+  const raccoon = { brand: 'Vosteed', name: 'Raccoon', modelNumber: 'A2918' }
+
+  it('lets the exact model number win over AI’s doubts about specs', () => {
+    expect(
+      judgeProductPage(raccoon, 'Vosteed Raccoon Bowie A2918', verdict({})),
+    ).toBe('match')
+  })
+
+  it('never takes an accessory or bundle, even with the model number', () => {
+    for (const kind of ['accessory', 'bundle', 'other'] as const)
+      expect(
+        judgeProductPage(
+          raccoon,
+          'Sheath for Raccoon A2918',
+          verdict({ kind, accepted: true }),
+        ),
+      ).toBe('other')
+  })
+
+  it('needs AI’s yes when an older answer does not say what the page sells', () => {
+    expect(judgeProductPage(raccoon, 'A2918', verdict({ kind: null }))).toBe(
+      'other',
+    )
+    expect(
+      judgeProductPage(
+        raccoon,
+        'A2918',
+        verdict({ kind: null, accepted: true }),
+      ),
+    ).toBe('match')
+  })
+
+  it('calls another code of the same model a variant', () => {
+    expect(
+      judgeProductPage(
+        raccoon,
+        'Vosteed Raccoon A2922',
+        verdict({ accepted: true, sameModel: true }),
+      ),
+    ).toBe('variant')
+    expect(
+      judgeProductPage(raccoon, 'Vosteed Thunderbird A3101', verdict({})),
+    ).toBe('other')
+  })
+
+  it('leaves knives without a model number to AI', () => {
+    const plain = { brand: 'Spyderco', name: 'Para 3' }
+    expect(judgeProductPage(plain, 'Para 3', verdict({ accepted: true }))).toBe(
+      'match',
+    )
+    expect(judgeProductPage(plain, 'Para 3', verdict({}))).toBe('other')
+    expect(
+      judgeProductPage(
+        plain,
+        'Para 3 Lightweight',
+        verdict({ sameModel: true }),
+      ),
+    ).toBe('variant')
+  })
+
+  it('finds results whose title shows the exact model number', () => {
+    const results: MatchCandidate[] = [
+      { id: 1, title: 'Vosteed Raccoon A2922', price: null },
+      { id: 2, title: 'Vosteed Raccoon Bowie A2918', price: null },
+    ]
+    expect(resultsShowingModelNumber(raccoon, results)).toEqual([results[1]])
+    expect(
+      resultsShowingModelNumber({ brand: 'Spyderco', name: 'Para 3' }, results),
+    ).toEqual([])
+  })
 })
 
 describe('Other stores scheduling and settings', () => {
@@ -121,6 +234,7 @@ describe('Other stores scheduling and settings', () => {
     expect(nextDiscoveryAttempt('found', 1, now)).toBeNull()
     expect(hoursLater(nextDiscoveryAttempt('not_found', 1, now))).toBe(24)
     expect(hoursLater(nextDiscoveryAttempt('rejected', 1, now))).toBe(24)
+    expect(hoursLater(nextDiscoveryAttempt('variant', 1, now))).toBe(24)
     expect(hoursLater(nextDiscoveryAttempt('skipped', 1, now))).toBe(720)
     expect(hoursLater(nextDiscoveryAttempt('blocked', 1, now))).toBe(12)
     expect(hoursLater(nextDiscoveryAttempt('failed', 1, now))).toBe(6)

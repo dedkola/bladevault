@@ -13,6 +13,9 @@ import {
   mutateWishlist,
 } from '@/lib/wishlist-storage'
 import * as route from '@/app/api/wishlist/route'
+import { insertSource } from '@/lib/price-monitor/store'
+import { saveSettings } from '@/lib/settings'
+import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
 
 let vault: TempVault
 let storage: LocalStorage
@@ -39,6 +42,146 @@ function post(body: unknown) {
     }),
   )
 }
+
+describe('wishlist stores per knife', () => {
+  function enableSearches(stores: Partial<Record<string, boolean>>) {
+    saveSettings({
+      priceMonitoring: {
+        ...DEFAULT_PRICE_MONITORING,
+        ai: {
+          ...DEFAULT_PRICE_MONITORING.ai,
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          model: 'test-model',
+        },
+        otherStores: {
+          enabled: true,
+          stores: {
+            ...DEFAULT_PRICE_MONITORING.otherStores.stores,
+            bladehq: false,
+            ...stores,
+          },
+        },
+      },
+    })
+  }
+
+  it('lists store links first, then what each searched store found', () => {
+    enableSearches({
+      amazon: true,
+      smkw: true,
+      dlttrading: true,
+      knifejoy: true,
+    })
+    mutateWishlist({ action: 'add', knifeIds: ['first'], lane: 'next' })
+    const db = getLocalDb()
+    const now = new Date().toISOString()
+    insertSource(
+      db,
+      'first',
+      'https://vosteed.com/p/porcupine',
+      'manual',
+      undefined,
+      now,
+    )
+    insertSource(
+      db,
+      'first',
+      'https://www.amazon.com/dp/B0TEST1234',
+      'manual',
+      undefined,
+      now,
+    )
+    db.prepare(
+      `UPDATE price_sources SET last_price_minor = 6900, last_currency = 'USD',
+         last_availability = 'in_stock', status = 'ok' WHERE lane_key = 'amazon'`,
+    ).run()
+    // Cheaper but sold out: listed after the in-stock store.
+    insertSource(
+      db,
+      'first',
+      'https://www.bladehq.com/item/porcupine',
+      'manual',
+      undefined,
+      now,
+    )
+    db.prepare(
+      `UPDATE price_sources SET last_price_minor = 5000, last_currency = 'USD',
+         last_availability = 'out_of_stock', status = 'ok'
+       WHERE lane_key = 'bladehq.com'`,
+    ).run()
+    const search = db.prepare(
+      `INSERT INTO price_discovery
+         (knife_id, store, marketplace, status, detail, attempts, last_attempt_at, next_attempt_at)
+       VALUES ('first', ?, ?, ?, ?, 1, ?, ?)`,
+    )
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString()
+    search.run(
+      'smkw',
+      'smkw.com',
+      'variant',
+      'Only other variants.',
+      now,
+      tomorrow,
+    )
+    search.run(
+      'dlttrading',
+      'dlttrading.com',
+      'not_found',
+      'No results.',
+      now,
+      tomorrow,
+    )
+    db.prepare(
+      `INSERT INTO price_discovery_variants
+         (knife_id, store, marketplace, position, url, title, price_text, seen_at)
+       VALUES ('first', 'smkw', 'smkw.com', 0, 'https://www.smkw.com/p/a4801', 'Porcupine A4801', '$59.99', ?)`,
+    ).run(now)
+
+    const stores = getWishlist().stores?.first ?? []
+    expect(
+      stores.map((entry) => [
+        entry.label,
+        entry.state,
+        entry.source?.priceMinor ?? null,
+      ]),
+    ).toEqual([
+      ['Amazon', 'listed', 6900],
+      ['Blade HQ', 'listed', 5000],
+      ['vosteed.com', 'listed', null],
+      ['SMKW', 'variant', null],
+      ['KnifeJoy', 'waiting', null],
+      ['DLT Trading', 'not_sold', null],
+    ])
+    expect(stores[3].variants).toEqual([
+      {
+        url: 'https://www.smkw.com/p/a4801',
+        title: 'Porcupine A4801',
+        price: '$59.99',
+        seenAt: now,
+      },
+    ])
+    expect(stores[5]).toMatchObject({
+      detail: 'No results.',
+      search: { lastAt: now, nextAt: tomorrow },
+    })
+  })
+
+  it('lists only store links while Other stores is off', () => {
+    mutateWishlist({ action: 'add', knifeIds: ['first'], lane: 'next' })
+    insertSource(
+      getLocalDb(),
+      'first',
+      'https://vosteed.com/p/porcupine',
+      'manual',
+      undefined,
+      new Date().toISOString(),
+    )
+    expect(getWishlist().stores?.first?.map((entry) => entry.label)).toEqual([
+      'vosteed.com',
+    ])
+  })
+})
 
 describe('wishlist', () => {
   it('creates its tables repeat-safely at the current schema', () => {

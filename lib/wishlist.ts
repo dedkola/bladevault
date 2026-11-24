@@ -6,6 +6,7 @@
  */
 import { z } from 'zod'
 import type { KnifeMarketSummary } from '@/lib/market-status'
+import type { KnifeStoreEntry } from '@/lib/price-monitor/shared'
 
 export const WISHLIST_REFRESH_EVENT = 'bladevault:wishlist-refresh'
 
@@ -52,6 +53,11 @@ export type WishlistResponse = {
   items: WishlistItem[]
   trends: Record<string, WishlistTrend>
   budget: WishlistBudget
+  /**
+   * Where each knife is sold, store by store (price sources and Other
+   * stores searches). Missing where the server does not monitor prices.
+   */
+  stores?: Record<string, KnifeStoreEntry[]>
   undo?: WishlistCommand
 }
 

@@ -4,6 +4,7 @@ import {
   getEligibility,
   type EligibilitySettings,
 } from '@/lib/price-monitor/eligibility'
+import { MAX_RELATED_VARIANTS } from '@/lib/price-monitor/discovery-ai'
 import { withMonitorScope } from '@/lib/price-monitor/scope'
 import {
   MAX_PRICE_SOURCES_PER_KNIFE,
@@ -21,6 +22,7 @@ import { assertVaultGeneration, withVaultWrite } from '@/lib/vault-access'
  */
 export const DISCOVERY_STATUSES = [
   'found',
+  'variant',
   'not_found',
   'rejected',
   'failed',
@@ -29,11 +31,31 @@ export const DISCOVERY_STATUSES = [
 ] as const
 export type DiscoveryStatus = (typeof DISCOVERY_STATUSES)[number]
 
+/**
+ * A listing of the same model in another variant (steel, handle, colour):
+ * shown as related, never monitored, never in prices, charts or alerts.
+ */
+export type DiscoveryVariant = {
+  url: string
+  title: string
+  /** The price the search result showed, as the store wrote it. */
+  price: string | null
+}
+
+/** A search that ran to the end: its variant list replaces the last one. */
+const COMPLETED_STATUSES: ReadonlySet<DiscoveryStatus> = new Set([
+  'found',
+  'variant',
+  'not_found',
+  'rejected',
+])
+
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
 /**
- * No match, or a match the checks turned down: looked for again every day,
- * since the store may list it (or show its model number) any day.
+ * No match, only other variants, or a match the checks turned down: looked
+ * for again every day, since the store may list it (or show its model
+ * number) any day.
  */
 export const DISCOVERY_RETRY_NOT_FOUND_MS = DAY_MS
 /** The knife has nothing to search for; only a later edit changes that. */
@@ -51,6 +73,7 @@ export function nextDiscoveryAttempt(
   switch (status) {
     case 'found':
       return null
+    case 'variant':
     case 'not_found':
     case 'rejected':
       return new Date(now + DISCOVERY_RETRY_NOT_FOUND_MS).toISOString()
@@ -169,6 +192,8 @@ export type DiscoveryRecord = {
   title?: string | null
   confidence?: number | null
   detail?: string | null
+  /** Other variants the search saw; kept only for a completed search. */
+  variants?: readonly DiscoveryVariant[]
   now?: number
 }
 
@@ -264,9 +289,53 @@ export async function recordDiscovery(
           nowIso,
           nextDiscoveryAttempt(status, attempts, now),
         )
+      if (COMPLETED_STATUSES.has(status))
+        replaceDiscoveryVariants(database, record, nowIso)
       return { status, sourceId }
     })()
   })
+}
+
+function replaceDiscoveryVariants(
+  database: Database.Database,
+  record: DiscoveryRecord,
+  nowIso: string,
+) {
+  database
+    .prepare(
+      `DELETE FROM price_discovery_variants
+       WHERE knife_id = ? AND store = ? AND marketplace = ?`,
+    )
+    .run(record.knifeId, record.store, record.marketplace)
+  const insert = database.prepare(
+    `INSERT INTO price_discovery_variants
+       (knife_id, store, marketplace, position, url, title, price_text, seen_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+  const seen = new Set<string>()
+  // The found listing itself is a source, not a related variant.
+  const found =
+    record.status === 'found' && record.url
+      ? normalizeSourceUrl(record.url)
+      : null
+  let position = 0
+  for (const variant of record.variants ?? []) {
+    const normalized = normalizeSourceUrl(variant.url)
+    if (!normalized || normalized === found || seen.has(normalized)) continue
+    seen.add(normalized)
+    insert.run(
+      record.knifeId,
+      record.store,
+      record.marketplace,
+      position,
+      variant.url,
+      variant.title.slice(0, 250),
+      variant.price?.slice(0, 40) ?? null,
+      nowIso,
+    )
+    position += 1
+    if (position >= MAX_RELATED_VARIANTS) break
+  }
 }
 
 export type DiscoveryItemView = {

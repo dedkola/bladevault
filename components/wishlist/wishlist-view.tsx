@@ -2,10 +2,15 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
+import { Popover } from '@base-ui/react/popover'
 import { Bell, BellOff, ChartLine, Heart, Loader2, Plus, X } from 'lucide-react'
 import Image from '@/components/vault-image'
 import { EmptyState } from '@/components/empty-state'
 import { PageHeader } from '@/components/page-header'
+import {
+  KnifeStoresList,
+  knifeStoresLabel,
+} from '@/components/price-drops/knife-stores-list'
 import { money, relativeTime } from '@/components/price-drops/price-format'
 import { useMinuteClock } from '@/components/price-drops/price-ui'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -159,6 +164,54 @@ function knifeTitle(knife: Knife) {
 
 function storesLabel(sources: number) {
   return `${sources} ${sources === 1 ? 'store' : 'stores'}`
+}
+
+/**
+ * "3 of 6 stores": opens where the knife is sold, store by store (its
+ * store links, and what Other stores found at each searched store).
+ */
+function StoresButton({ row }: { row: Row }) {
+  const { stores } = useWishlist()
+  const now = useMinuteClock()
+  const entries = stores[row.knife.id]
+  if (!entries)
+    return (
+      <>
+        {row.summary?.sources
+          ? storesLabel(row.summary.sources)
+          : 'No store links'}
+      </>
+    )
+  const label = knifeStoresLabel(entries)
+  return (
+    <Popover.Root>
+      <Popover.Trigger
+        type="button"
+        data-wishlist-stores
+        aria-label={`${label} for ${knifeTitle(row.knife)}: show each store`}
+      >
+        {label}
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Positioner
+          side="bottom"
+          align="start"
+          sideOffset={6}
+          className="z-50"
+        >
+          <Popover.Popup
+            data-wishlist-stores-popup
+            className="max-h-[min(28rem,calc(100vh-2rem))] w-80 max-w-[calc(100vw-2rem)] overflow-auto rounded-xl border border-[var(--bladevault-line)] bg-popover p-3 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
+          >
+            <Popover.Title className="mb-2 text-sm font-semibold">
+              Stores for {row.knife.name}
+            </Popover.Title>
+            <KnifeStoresList entries={entries} now={now} />
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  )
 }
 
 /* ---------- small pieces ---------- */
@@ -574,14 +627,8 @@ function DealGroups({ rows }: { rows: Row[] }) {
                       {row.knife.name}
                     </Link>
                     <span data-wishlist-sub className="block truncate">
-                      {[
-                        row.knife.brand,
-                        row.summary?.sources
-                          ? storesLabel(row.summary.sources)
-                          : 'No store links',
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
+                      {row.knife.brand ? `${row.knife.brand} · ` : ''}
+                      <StoresButton row={row} />
                     </span>
                     <div data-wishlist-pills>
                       <DealPills row={row} />
@@ -679,7 +726,6 @@ function BestDeal({ rows }: { rows: Row[] }) {
     .sort(compareDeals)[0]
   if (!best) return null
   const saved = best.regularMinor! - best.priceMinor!
-  const sources = best.summary?.sources ?? 0
   return (
     <section data-wishlist-hero>
       <Thumb knife={best.knife} size="lg" />
@@ -696,7 +742,7 @@ function BestDeal({ rows }: { rows: Row[] }) {
           {best.change30 !== null && best.change30 < 0
             ? ` · ${pct(best.change30)} in 30 days`
             : ''}{' '}
-          · {storesLabel(sources)}
+          · <StoresButton row={best} />
         </div>
       </div>
       <div data-wishlist-hero-actions>

@@ -12,6 +12,7 @@ import {
 import { useKnives } from '@/components/providers/knives-provider'
 import { Button } from '@/components/ui/button'
 import { readJsonResponse } from '@/lib/api-response'
+import type { KnifeStoreEntry } from '@/lib/price-monitor/shared'
 import { hasServerRuntime } from '@/lib/runtime-capabilities'
 import { VAULT_EXTERNAL_CHANGE_EVENT } from '@/lib/vault-client-state'
 import {
@@ -29,6 +30,8 @@ type WishlistContextValue = {
   items: WishlistItem[]
   trends: Record<string, WishlistTrend>
   budget: WishlistBudget
+  /** Where each knife is sold, store by store. */
+  stores: Record<string, KnifeStoreEntry[]>
   loading: boolean
   error: string
   busy: boolean
@@ -47,6 +50,7 @@ const UNAVAILABLE: WishlistContextValue = {
   items: [],
   trends: {},
   budget: EMPTY_BUDGET,
+  stores: {},
   loading: false,
   error: '',
   busy: false,
@@ -64,6 +68,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<WishlistItem[]>([])
   const [trends, setTrends] = useState<Record<string, WishlistTrend>>({})
   const [budget, setBudget] = useState<WishlistBudget>(EMPTY_BUDGET)
+  const [stores, setStores] = useState<Record<string, KnifeStoreEntry[]>>({})
   const [loading, setLoading] = useState(available)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -80,6 +85,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     setItems(data.items)
     setTrends(data.trends)
     setBudget(data.budget)
+    setStores(data.stores ?? {})
     setError('')
   }, [])
 
@@ -180,6 +186,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
             items,
             trends,
             budget,
+            stores,
             loading,
             error,
             busy,
@@ -193,6 +200,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       items,
       trends,
       budget,
+      stores,
       loading,
       error,
       busy,
