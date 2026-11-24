@@ -14,6 +14,7 @@ import { hasServerRuntime } from '@/lib/runtime-capabilities'
 import {
   PRICE_MONITORING_LIMITS,
   type AchievementSettings,
+  type BackupNotificationSettings,
   type MaintenanceReminderSettings,
   type PriceMonitoringSettings,
   type PriceNotifyCategories,
@@ -72,6 +73,9 @@ export function NotificationSettings({
   achievements,
   achievementsDisabled,
   onAchievementsChange,
+  backupNotifications,
+  backupNotificationsDisabled,
+  onBackupNotificationsChange,
 }: {
   priceMonitoring: PriceMonitoringSettings
   priceDisabled?: boolean
@@ -82,6 +86,9 @@ export function NotificationSettings({
   achievements: AchievementSettings
   achievementsDisabled?: boolean
   onAchievementsChange: (next: AchievementSettings) => void
+  backupNotifications: BackupNotificationSettings
+  backupNotificationsDisabled?: boolean
+  onBackupNotificationsChange: (next: BackupNotificationSettings) => void
 }) {
   // The static web app has no server: no AI digest or Inbox system messages.
   const [serverRuntime] = useState(hasServerRuntime)
@@ -106,6 +113,10 @@ export function NotificationSettings({
   const updateAchievements = (patch: Partial<AchievementSettings>) =>
     onAchievementsChange({ ...achievements, ...patch })
   const achievementsOff = achievementsDisabled || !achievements.enabled
+
+  const updateBackupNotifications = (
+    patch: Partial<BackupNotificationSettings>,
+  ) => onBackupNotificationsChange({ ...backupNotifications, ...patch })
 
   return (
     <div className="settings-grid">
@@ -275,6 +286,45 @@ export function NotificationSettings({
               onCheckedChange={(inbox) => updateAchievements({ inbox })}
             />
           </SettingsRow>
+        ) : null}
+        {serverRuntime ? (
+          <>
+            <SettingsRow
+              inline
+              label="Google Drive backup finished"
+              description={
+                <>
+                  Add an Inbox message each time a backup to Google Drive
+                  finishes, including automatic ones. A newer backup replaces
+                  the last message. Failed backups always show. Set up Drive in{' '}
+                  <SettingsLink tab="backup">Backup</SettingsLink>.
+                </>
+              }
+            >
+              <SettingsSwitch
+                aria-label="Inbox message when a Google Drive backup finishes"
+                checked={backupNotifications.backup}
+                disabled={backupNotificationsDisabled}
+                onCheckedChange={(backup) =>
+                  updateBackupNotifications({ backup })
+                }
+              />
+            </SettingsRow>
+            <SettingsRow
+              inline
+              label="Restored from Google Drive"
+              description="Add an Inbox message after your vault is restored from a Google Drive backup, so you can see when it happened."
+            >
+              <SettingsSwitch
+                aria-label="Inbox message after a restore from Google Drive"
+                checked={backupNotifications.restore}
+                disabled={backupNotificationsDisabled}
+                onCheckedChange={(restore) =>
+                  updateBackupNotifications({ restore })
+                }
+              />
+            </SettingsRow>
+          </>
         ) : null}
       </SettingsSection>
     </div>

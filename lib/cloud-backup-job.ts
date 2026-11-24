@@ -14,6 +14,7 @@ import {
 import { uploadDriveBackup } from '@/lib/drive-backup'
 import { getLocalDataDirPath, getLocalDb } from '@/lib/local-db'
 import { resolveLocalImagePath } from '@/lib/local-image-path'
+import { getSettings } from '@/lib/settings'
 import {
   reportSystemMessage,
   resolveSystemMessages,
@@ -265,8 +266,10 @@ async function runCloudBackupJob(
 }
 
 /**
- * Keeps a failed backup in the Inbox until a later backup works. Runs before
- * the job reports its result, so the Inbox already has it when the app asks.
+ * Keeps a failed backup in the Inbox until a later backup works, and, when
+ * turned on in Settings → Notifications, notes each finished backup. Runs
+ * before the job reports its result, so the Inbox already has it when the app
+ * asks.
  */
 async function recordBackupResult(
   result: Pick<CloudBackupJobState, 'status' | 'message'>,
@@ -278,6 +281,15 @@ async function recordBackupResult(
   try {
     if (result.status === 'success') {
       await resolveSystemMessages('backup-failed')
+      if (getSettings().backupNotifications.backup) {
+        // Each finished backup replaces the last note instead of counting up.
+        await resolveSystemMessages('backup-success')
+        await reportSystemMessage({
+          kind: 'backup-success',
+          title: 'Google Drive backup finished',
+          detail: 'Your collection and photos are saved in Google Drive.',
+        })
+      }
     } else {
       await reportSystemMessage({
         kind: 'backup-failed',

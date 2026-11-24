@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 import {
   DEFAULT_ACHIEVEMENTS,
+  DEFAULT_BACKUP_NOTIFICATIONS,
   DEFAULT_MAINTENANCE_REMINDERS,
   DEFAULT_PRICE_MONITORING,
   type AchievementSettings,
@@ -38,12 +39,14 @@ function renderSettings({
     onPriceMonitoringChange: vi.fn(),
     onRemindersChange: vi.fn(),
     onAchievementsChange: vi.fn(),
+    onBackupNotificationsChange: vi.fn(),
   }
   render(
     <NotificationSettings
       priceMonitoring={price}
       reminders={reminders}
       achievements={achievements}
+      backupNotifications={DEFAULT_BACKUP_NOTIFICATIONS}
       {...handlers}
     />,
   )
@@ -150,4 +153,30 @@ it('shows the desktop notification switch inside System notifications', async ()
       name: 'Desktop notifications for price drops',
     }),
   ).toBeChecked()
+})
+
+it('turns on Google Drive backup and restore Inbox messages', async () => {
+  const { onBackupNotificationsChange } = renderSettings()
+  const backup = screen.getByRole('switch', {
+    name: 'Inbox message when a Google Drive backup finishes',
+  })
+  expect(backup).not.toBeChecked()
+  await userEvent.click(backup)
+  expect(onBackupNotificationsChange).toHaveBeenLastCalledWith({
+    backup: true,
+    restore: false,
+  })
+  await userEvent.click(
+    screen.getByRole('switch', {
+      name: 'Inbox message after a restore from Google Drive',
+    }),
+  )
+  expect(onBackupNotificationsChange).toHaveBeenLastCalledWith({
+    backup: false,
+    restore: true,
+  })
+  expect(screen.getByRole('link', { name: 'Backup' })).toHaveAttribute(
+    'href',
+    '/settings?tab=backup',
+  )
 })

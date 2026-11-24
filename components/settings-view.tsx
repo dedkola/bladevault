@@ -53,6 +53,8 @@ import {
   normalizeMaintenanceReminders,
   normalizePriceMonitoring,
   normalizeAchievementSettings,
+  normalizeBackupNotificationSettings,
+  type BackupNotificationSettings,
   type AppSettings,
   type AppTheme,
   type CardField,
@@ -749,6 +751,8 @@ export default function SettingsView() {
   const [isSavingMaintenance, setIsSavingMaintenance] = useState(false)
   const [isSavingPriceMonitoring, setIsSavingPriceMonitoring] = useState(false)
   const [isSavingAchievements, setIsSavingAchievements] = useState(false)
+  const [isSavingBackupNotifications, setIsSavingBackupNotifications] =
+    useState(false)
   const [isSavingPinnedCardFields, setIsSavingPinnedCardFields] =
     useState(false)
   const [mcpStatus, setMcpStatus] = useState<McpRuntimeStatus | null>(null)
@@ -1446,6 +1450,23 @@ export default function SettingsView() {
       )
     } finally {
       setIsSavingAchievements(false)
+    }
+  }
+
+  const handleBackupNotificationsChange = async (
+    next: BackupNotificationSettings,
+  ) => {
+    if (!settings) return
+
+    try {
+      setIsSavingBackupNotifications(true)
+      await saveSettings({ backupNotifications: next })
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : 'Failed to save settings',
+      )
+    } finally {
+      setIsSavingBackupNotifications(false)
     }
   }
 
@@ -2338,6 +2359,15 @@ export default function SettingsView() {
                   achievementsDisabled={isSavingAchievements || isVaultReadOnly}
                   onAchievementsChange={(next) =>
                     void handleAchievementSettingsChange(next)
+                  }
+                  backupNotifications={normalizeBackupNotificationSettings(
+                    settings.backupNotifications,
+                  )}
+                  backupNotificationsDisabled={
+                    isSavingBackupNotifications || isVaultReadOnly
+                  }
+                  onBackupNotificationsChange={(next) =>
+                    void handleBackupNotificationsChange(next)
                   }
                 />
               )}

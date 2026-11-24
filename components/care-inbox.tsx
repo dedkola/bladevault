@@ -12,6 +12,7 @@ import {
   ChevronDown,
   CloudAlert,
   CloudCheck,
+  CloudDownload,
   CircleAlert,
   CircleCheck,
   CheckCheck,
@@ -559,6 +560,8 @@ function formatTime(value: string): string {
 
 const SYSTEM_MESSAGE_HREF: Record<SystemMessage['kind'], string> = {
   'backup-failed': '/settings?tab=backup',
+  'backup-success': '/settings?tab=backup',
+  'restore-success': '/settings?tab=backup',
   'price-attention': '/price-drops?section=attention',
   'price-digest': '/price-drops',
   achievement: ACHIEVEMENTS_HREF,
@@ -578,6 +581,12 @@ const AI_MESSAGE_KINDS: ReadonlySet<SystemMessage['kind']> = new Set([
   'price-digest',
   'price-advice',
   'price-question',
+])
+
+/** Good news, e.g. a finished backup: green instead of the problem red. */
+const SUCCESS_MESSAGE_KINDS: ReadonlySet<SystemMessage['kind']> = new Set([
+  'backup-success',
+  'restore-success',
 ])
 
 /** The two buttons of an AI question: Yes first. */
@@ -619,6 +628,14 @@ function systemMessageDetail(message: SystemMessage, now: Date): string {
     return message.dismissedAt
       ? `${label} · ${when} · dismissed`
       : `${label} · ${when}`
+  }
+  if (SUCCESS_MESSAGE_KINDS.has(message.kind)) {
+    const label = message.kind === 'backup-success' ? 'Backed up' : 'Restored'
+    if (message.resolvedAt)
+      return `${label} ${formatShortDate(message.occurredAt, now)}, ${formatTime(message.occurredAt)} · replaced by a newer one`
+    return message.dismissedAt
+      ? `${label} ${when.toLowerCase()} · dismissed`
+      : `${label} ${when.toLowerCase()}`
   }
   if (message.resolvedAt) {
     return message.kind === 'backup-failed'
@@ -662,6 +679,22 @@ function SystemMessageIcon({
         )}
       >
         <Trophy className={size === 'sm' ? 'size-4' : 'size-5'} />
+      </span>
+    )
+  }
+  if (SUCCESS_MESSAGE_KINDS.has(message.kind)) {
+    const Icon = message.kind === 'restore-success' ? CloudDownload : CloudCheck
+    return (
+      <span
+        className={cn(
+          'grid shrink-0 place-items-center rounded-lg border border-[var(--bladevault-line)]/70',
+          size === 'sm' ? 'size-9' : 'size-11',
+          open
+            ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
+            : 'bg-muted/30 text-muted-foreground',
+        )}
+      >
+        <Icon className={size === 'sm' ? 'size-4' : 'size-5'} />
       </span>
     )
   }
@@ -758,6 +791,7 @@ function SystemMessageRow({
             box === 'done'
               ? 'text-muted-foreground'
               : AI_MESSAGE_KINDS.has(message.kind) ||
+                  SUCCESS_MESSAGE_KINDS.has(message.kind) ||
                   message.kind === 'achievement'
                 ? 'text-foreground/80'
                 : 'text-red-600 dark:text-red-400',

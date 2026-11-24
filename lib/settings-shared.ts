@@ -1175,6 +1175,29 @@ export function normalizeAchievementSettings(
   }
 }
 
+export type BackupNotificationSettings = {
+  /** Inbox message when a Google Drive backup finishes. */
+  backup: boolean
+  /** Inbox message when the vault was restored from Google Drive. */
+  restore: boolean
+}
+
+export const DEFAULT_BACKUP_NOTIFICATIONS: BackupNotificationSettings = {
+  backup: false,
+  restore: false,
+}
+
+export function normalizeBackupNotificationSettings(
+  value: unknown,
+  fallback: BackupNotificationSettings = DEFAULT_BACKUP_NOTIFICATIONS,
+): BackupNotificationSettings {
+  const record =
+    value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  const flag = (key: keyof BackupNotificationSettings) =>
+    typeof record[key] === 'boolean' ? (record[key] as boolean) : fallback[key]
+  return { backup: flag('backup'), restore: flag('restore') }
+}
+
 export type AppSettings = {
   collectionDisplay: CollectionDisplay
   theme: AppTheme
@@ -1194,6 +1217,7 @@ export type AppSettings = {
   careDeferrals: CareDeferrals
   priceMonitoring: PriceMonitoringSettings
   achievements: AchievementSettings
+  backupNotifications: BackupNotificationSettings
   /** Width in px of the info panel beside the knife gallery; null = default. */
   knifeDetailPanelWidth: number | null
 }
@@ -1217,6 +1241,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   careDeferrals: {},
   priceMonitoring: DEFAULT_PRICE_MONITORING,
   achievements: DEFAULT_ACHIEVEMENTS,
+  backupNotifications: DEFAULT_BACKUP_NOTIFICATIONS,
   knifeDetailPanelWidth: null,
 }
 
