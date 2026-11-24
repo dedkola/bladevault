@@ -6,6 +6,7 @@ import {
   wishlistDeal,
   wishlistMoves,
   wishlistTrackedDays,
+  wishlistTrendDirection,
 } from '@/lib/wishlist'
 
 describe('wishlist price info', () => {
@@ -110,6 +111,15 @@ describe('wishlist trend moves', () => {
     expect(wishlistMoves(undefined)).toEqual([])
     expect(wishlistMoves(trend([]))).toEqual([])
     expect(wishlistMoves(trend([{ at: 1, price: 6900 }]))).toEqual([])
+  })
+
+  it('takes the net direction from the first to the last observed price', () => {
+    const moves = (prices: Array<number | null>) =>
+      wishlistMoves(trend(prices.map((price, at) => ({ at, price }))))
+    expect(wishlistTrendDirection(moves([13500, 9450, 9500]))).toBe('down')
+    expect(wishlistTrendDirection(moves([9000, null, 9900]))).toBe('up')
+    expect(wishlistTrendDirection(moves([9000, 9500, 9000]))).toBe('flat')
+    expect(wishlistTrendDirection([])).toBe('flat')
   })
 
   it('measures the tracked window in whole days, never below one', () => {

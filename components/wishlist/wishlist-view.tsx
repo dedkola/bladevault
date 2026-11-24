@@ -35,6 +35,7 @@ import {
   wishlistDeal,
   wishlistMoves,
   wishlistTrackedDays,
+  wishlistTrendDirection,
   type WishlistDeal,
   type WishlistItem,
   type WishlistMove,
@@ -226,15 +227,8 @@ function DealPills({ row }: { row: Row }) {
   )
 }
 
-/** Direction of the tracked price history, for the chart's color. */
-function trendDirection(trend: WishlistTrend): 'down' | 'up' | 'flat' {
-  const prices = trend.steps
-    .map((step) => step.price)
-    .filter((price): price is number => price !== null)
-  if (prices.length < 2) return 'flat'
-  const change = prices[prices.length - 1] - prices[0]
-  return change === 0 ? 'flat' : change < 0 ? 'down' : 'up'
-}
+/** Smallest vertical range of a row chart, as a share of its highest price. */
+const SPARK_MIN_SPREAD = 0.04
 
 /** "21 Nov" for the snapshot that introduced a move. */
 function moveDate(at: number): string {
@@ -270,52 +264,30 @@ function Sparkline({
   const priced = trend.steps.filter(
     (step): step is { at: number; price: number } => step.price !== null,
   )
+  // Tracked, but no store has had it in stock inside the window.
   if (!priced.length)
-    return <span data-wishlist-spark-empty>Not tracked yet</span>
+    return <span data-wishlist-spark-empty>No in-stock price yet</span>
 
   const days = wishlistTrackedDays(trend)
-  const window = `${days}d`
+  const dayText = `${days} ${days === 1 ? 'day' : 'days'}`
+  const trackedLabel = `${days}d tracked`
   const moves = wishlistMoves(trend)
-  const flat = priced.every((step) => step.price === priced[0].price)
+  const flat = !moves.length
+  const current = trend.steps[trend.steps.length - 1].price
+  const stockNote = current === null ? ', out of stock now' : ''
 
-  if (flat)
-    return (
-      <>
-        <svg
-          data-wishlist-spark="flat"
-          width={width}
-          height={height}
-          viewBox={`0 0 ${width} ${height}`}
-          role="img"
-          aria-label={`No price change in ${days} ${days === 1 ? 'day' : 'days'}`}
-        >
-          <line
-            data-wishlist-spark-flat
-            x1="1"
-            x2={width - 2}
-            y1={height / 2}
-            y2={height / 2}
-          />
-          <text data-wishlist-spark-text x="2" y={height / 2 + 9}>
-            flat
-          </text>
-        </svg>
-        <span data-wishlist-sub data-wishlist-trend-note>
-          <span>{window} tracked</span>
-        </span>
-      </>
-    )
-
+  // Scale to the history, but never tighter than a few percent of the price,
+  // so a $1 move on a $200 knife does not look like a crash.
   const high = Math.max(...priced.map((step) => step.price))
   const low = Math.min(...priced.map((step) => step.price))
-  const pad = Math.max((high - low) * 0.2, high * 0.004)
-  const top = high + pad
-  const bottom = low - pad
-  const range = top - bottom || 1
+  const spread = Math.max(high - low, high * SPARK_MIN_SPREAD, 1)
+  const middle = (high + low) / 2
+  const bottom = middle - spread * 0.7
+  const range = spread * 1.4
   const span = Math.max(trend.until - trend.since, 1)
   const x = (at: number) => ((at - trend.since) / span) * (width - 4) + 1
   const y = (price: number) =>
-    height - 5 - ((price - bottom) / range) * (height - 11)
+    flat ? height / 2 : height - 5 - ((price - bottom) / range) * (height - 11)
 
   // One path per in-stock stretch; out of stock leaves a gap.
   const runs: string[] = []
@@ -334,10 +306,34 @@ function Sparkline({
   })
   if (path) runs.push(path)
 
+  if (flat)
+    return (
+      <>
+        <svg
+          data-wishlist-spark="flat"
+          width={width}
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
+          role="img"
+          aria-label={`No price change in ${dayText}${stockNote}`}
+        >
+          {runs.map((run) => (
+            <path key={run} data-wishlist-spark-flat d={run} fill="none" />
+          ))}
+          <text data-wishlist-spark-text x="2" y={height / 2 + 9}>
+            flat
+          </text>
+        </svg>
+        <span data-wishlist-sub data-wishlist-trend-note>
+          <span>{trackedLabel}</span>
+        </span>
+      </>
+    )
+
   const startX = (run: string) => run.slice(1, run.indexOf(','))
-  const direction = trendDirection(trend)
-  const last = priced[priced.length - 1]
+  const direction = wishlistTrendDirection(moves)
   const change = moves[moves.length - 1]
+  const changeDirection = change.delta < 0 ? 'down' : 'up'
   return (
     <>
       <svg
@@ -346,11 +342,7 @@ function Sparkline({
         height={height}
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        aria-label={
-          change
-            ? `Best store price over ${days} ${days === 1 ? 'day' : 'days'}, last change ${change.delta < 0 ? 'down' : 'up'} ${money(Math.abs(change.delta), trend.currency)} on ${moveDate(change.at)}`
-            : `Best store price over ${days} ${days === 1 ? 'day' : 'days'}`
-        }
+        aria-label={`Best store price over ${dayText}, last change ${changeDirection} ${money(Math.abs(change.delta), trend.currency)} on ${moveDate(change.at)}${stockNote}`}
       >
         {runs.map((run) => (
           <path
@@ -371,20 +363,20 @@ function Sparkline({
             r="2"
           />
         ))}
-        <circle
-          data-wishlist-spark-dot
-          cx={x(trend.until).toFixed(1)}
-          cy={y(last.price).toFixed(1)}
-          r="2.2"
-        />
+        {current !== null && (
+          <circle
+            data-wishlist-spark-dot
+            cx={x(trend.until).toFixed(1)}
+            cy={y(current).toFixed(1)}
+            r="2.2"
+          />
+        )}
       </svg>
       <span data-wishlist-sub data-wishlist-trend-note>
-        <span>{window} tracked</span>
-        {change && (
-          <span data-wishlist-change={direction}>
-            {moveLabel(change, trend.currency)}
-          </span>
-        )}
+        <span>{trackedLabel}</span>
+        <span data-wishlist-change={changeDirection}>
+          {moveLabel(change, trend.currency)}
+        </span>
       </span>
     </>
   )

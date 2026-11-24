@@ -177,6 +177,14 @@ export function wishlistMoves(
   return moves
 }
 
+/** Net direction of the moves: the last observed price against the first. */
+export function wishlistTrendDirection(
+  moves: WishlistMove[],
+): 'down' | 'up' | 'flat' {
+  const net = moves.reduce((sum, move) => sum + move.delta, 0)
+  return net === 0 ? 'flat' : net < 0 ? 'down' : 'up'
+}
+
 /** Days of history the trend covers, at least 1. */
 export function wishlistTrackedDays(
   trend: Pick<WishlistTrend, 'since' | 'until'>,
