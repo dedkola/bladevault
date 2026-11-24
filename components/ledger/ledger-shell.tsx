@@ -13,7 +13,6 @@ import { Plus } from 'lucide-react'
 import { BrandMark } from '@/components/brand-mark'
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
-import { ThemeModeButton } from '@/components/theme-mode-button'
 import { WorkspaceFooter } from '@/components/workspace-footer'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -167,7 +166,6 @@ export function LedgerShell({ children }: { children: React.ReactNode }) {
                   : 'Local vault · saved'}
             </span>
           </Link>
-          <ThemeModeButton data-ledger-button="icon" />
           <button
             type="button"
             data-ledger-button

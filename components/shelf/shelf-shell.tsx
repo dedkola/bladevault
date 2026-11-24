@@ -13,7 +13,6 @@ import { Dialog } from '@base-ui/react/dialog'
 import { ArrowRight, Plus, Search } from 'lucide-react'
 import { OPEN_GLOBAL_SEARCH_EVENT } from '@/components/global-knife-search'
 import { BatchScrapeDialog } from '@/components/batch-scrape-dialog'
-import { ThemeModeButton } from '@/components/theme-mode-button'
 import { WorkspaceFooter } from '@/components/workspace-footer'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -182,7 +181,6 @@ export function ShelfShell({ children }: { children: React.ReactNode }) {
                 <span>Search or jump to…</span>
                 <kbd aria-hidden="true">⌘K</kbd>
               </button>
-              <ThemeModeButton data-shelf-icon-button="" />
               <Link href="/add" data-shelf-add aria-label="Add knife">
                 <Plus aria-hidden="true" />
                 <span>Add knife</span>

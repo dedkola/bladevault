@@ -2,61 +2,25 @@
 
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { Cloud, CloudOff, Moon, Settings, Sun } from 'lucide-react'
+import { Cloud, CloudOff, Settings } from 'lucide-react'
 import { CareInboxBell } from '@/components/care-inbox'
 import { useKnives } from '@/components/providers/knives-provider'
-import { readJsonResponse } from '@/lib/api-response'
-import {
-  SETTINGS_UPDATED_EVENT,
-  type AppSettings,
-  getThemeFamily,
-} from '@/lib/settings-shared'
+import { ThemeModeButton } from '@/components/theme-mode-button'
+import { getThemeFamily, hasFixedColorMode } from '@/lib/settings-shared'
 
 /**
  * Workspace shortcuts at the right end of the shared footer in every style: the
- * Inbox bell, Cloud backup and Settings. Classic has no header, so it also
- * keeps its light/dark toggle here.
+ * Inbox bell, Cloud backup, Settings and, for styles that offer both modes,
+ * the light/dark toggle.
  */
 export function FooterActions() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const { isAutoBackupActive, showFeedback, themeStyle } = useKnives()
+  const { isAutoBackupActive, themeStyle } = useKnives()
   const isClassic = getThemeFamily(themeStyle) === 'classic'
   const isSettingsActive = pathname === '/settings'
   const isCloudBackupSettingsActive =
     isSettingsActive && searchParams.get('tab') === 'backup'
-
-  const toggleTheme = async () => {
-    const root = document.documentElement
-    const nextIsDark = !root.classList.contains('dark')
-
-    root.classList.toggle('dark', nextIsDark)
-
-    try {
-      const response = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          theme: nextIsDark ? 'dark' : 'light',
-        } satisfies Pick<AppSettings, 'theme'>),
-      })
-
-      const data = await readJsonResponse<{ error?: string }>(response)
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to save theme preference')
-      }
-
-      window.dispatchEvent(
-        new CustomEvent<Partial<AppSettings>>(SETTINGS_UPDATED_EVENT, {
-          detail: { theme: nextIsDark ? 'dark' : 'light' },
-        }),
-      )
-    } catch (error) {
-      root.classList.toggle('dark', !nextIsDark)
-      showFeedback('Could not save the appearance preference.', 'error')
-      console.error('Failed to save theme preference', error)
-    }
-  }
 
   return (
     <div data-workspace-footer-actions>
@@ -102,17 +66,9 @@ export function FooterActions() {
         <Settings />
       </Link>
 
-      {isClassic && (
-        <button
-          type="button"
-          data-footer-action
-          onClick={toggleTheme}
-          aria-label="Toggle color theme"
-          title="Toggle light and dark mode"
-        >
-          <Sun className="dark:hidden" />
-          <Moon className="hidden dark:block" />
-        </button>
+      {/* Light-only and dark-only styles have no other mode to switch to. */}
+      {!hasFixedColorMode(themeStyle) && (
+        <ThemeModeButton data-footer-action="" />
       )}
 
       {isClassic && (

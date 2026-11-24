@@ -10,7 +10,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { Menu } from '@base-ui/react/menu'
-import { Bookmark, ChevronDown, Moon, Pin, Plus, Sun } from 'lucide-react'
+import { Bookmark, ChevronDown, Pin, Plus } from 'lucide-react'
 import Image from '@/components/vault-image'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import { useKnives } from '@/components/providers/knives-provider'
@@ -20,9 +20,7 @@ import { useSmartCollections } from '@/components/providers/smart-collections-pr
 import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import { WorkspaceFooter } from '@/components/workspace-footer'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
-import { readJsonResponse } from '@/lib/api-response'
 import { matchesCollection } from '@/lib/smart-collections'
-import { SETTINGS_UPDATED_EVENT, type AppSettings } from '@/lib/settings-shared'
 import { hasServerRuntime } from '@/lib/runtime-capabilities'
 
 const links = [
@@ -40,14 +38,13 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const wishlist = useWishlistNavCounts()
   const params = useSearchParams()
-  const { knives, showFeedback } = useKnives()
+  const { knives } = useKnives()
   const { reminders: careReminders, statusById: careStatusById } = useCare()
   const careStatusFilter = careReminders.enabled ? careStatusById : undefined
   const marketFilter = useMarketFilter()
   const { active } = useComparisons()
   const { collections, error: collectionsError } = useSmartCollections()
   const [headerActions, setHeaderActions] = useState<HTMLElement | null>(null)
-  const [savingAppearance, setSavingAppearance] = useState(false)
   // Studio and Collection render their own search fields.
   const showHeaderSearch = pathname !== '/studio' && pathname !== '/collection'
   const pinnedCount = knives.filter((knife) => knife.pinned).length
@@ -55,35 +52,6 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
     ...new Set(knives.map((knife) => knife.brand).filter(Boolean)),
   ].sort((a, b) => a.localeCompare(b))
   const menuClass = 'alloy-library-menu'
-
-  async function toggleAppearance() {
-    const root = document.documentElement
-    const wasDark = root.classList.contains('dark')
-    const theme = wasDark ? 'light' : 'dark'
-    root.classList.toggle('dark', !wasDark)
-    setSavingAppearance(true)
-    try {
-      const response = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ theme }),
-      })
-      const data = await readJsonResponse<{ error?: string }>(response)
-      if (!response.ok) {
-        throw new Error(data.error || 'Could not save appearance.')
-      }
-      window.dispatchEvent(
-        new CustomEvent<Partial<AppSettings>>(SETTINGS_UPDATED_EVENT, {
-          detail: { theme },
-        }),
-      )
-    } catch {
-      root.classList.toggle('dark', wasDark)
-      showFeedback('Could not save the appearance preference.', 'error')
-    } finally {
-      setSavingAppearance(false)
-    }
-  }
 
   return (
     <div data-alloy-shell>
@@ -141,15 +109,6 @@ export function AlloyShell({ children }: { children: React.ReactNode }) {
               <GlobalKnifeSearch embedded />
             </div>
           )}
-          <button
-            type="button"
-            onClick={() => void toggleAppearance()}
-            disabled={savingAppearance}
-            aria-label="Toggle workspace appearance"
-          >
-            <Moon className="dark:hidden" />
-            <Sun className="hidden dark:block" />
-          </button>
           <Link href="/add" data-alloy-add aria-label="Add knife">
             <Plus />
             <span>Add knife</span>

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { WorkspaceHeaderActionsContext } from '@/components/workspace-header-actions'
 import Image from '@/components/vault-image'
 import { usePathname } from 'next/navigation'
-import { Moon, Plus, Sun } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { SidebarShell } from '@/components/sidebar-shell'
 import { AlloyShell } from '@/components/alloy-shell'
 import { AtriumShell } from '@/components/atrium/atrium-shell'
@@ -15,20 +15,13 @@ import { GlobalKnifeSearch } from '@/components/global-knife-search'
 import { WorkspaceFooter } from '@/components/workspace-footer'
 import { useKnives } from '@/components/providers/knives-provider'
 import { BrandMark } from '@/components/brand-mark'
-import { readJsonResponse } from '@/lib/api-response'
-import {
-  SETTINGS_UPDATED_EVENT,
-  THEME_STYLE_NAMES,
-  type AppSettings,
-  hasFixedColorMode,
-  isModernThemeFamily,
-} from '@/lib/settings-shared'
+import { THEME_STYLE_NAMES, isModernThemeFamily } from '@/lib/settings-shared'
 import { workspaceCrumb } from '@/lib/workspace-crumb'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [headerActions, setHeaderActions] = useState<HTMLElement | null>(null)
-  const { themeStyle, showFeedback } = useKnives()
+  const { themeStyle } = useKnives()
   if (themeStyle === 'alloy') {
     return <AlloyShell>{children}</AlloyShell>
   }
@@ -58,30 +51,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const showWorkspaceSearch =
     pathname !== '/studio' && pathname !== '/collection'
   const crumb = workspaceCrumb(pathname)
-  async function toggleTheme() {
-    const root = document.documentElement
-    const dark = !root.classList.contains('dark')
-    root.classList.toggle('dark', dark)
-    try {
-      const theme = dark ? 'dark' : 'light'
-      const response = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ theme }),
-      })
-      const data = await readJsonResponse<{ error?: string }>(response)
-      if (!response.ok)
-        throw new Error(data.error || 'Failed to save theme preference')
-      window.dispatchEvent(
-        new CustomEvent<Partial<AppSettings>>(SETTINGS_UPDATED_EVENT, {
-          detail: { theme },
-        }),
-      )
-    } catch {
-      root.classList.toggle('dark', !dark)
-      showFeedback('Could not save the appearance preference.', 'error')
-    }
-  }
   return (
     <div data-modern-shell>
       <header data-workspace-header>
@@ -110,17 +79,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div data-workspace-actions>
           {pathname === '/studio' && (
             <span id="studio-header-actions" ref={setHeaderActions} />
-          )}
-          {/* Light-only and dark-only styles have no other mode to switch to. */}
-          {!hasFixedColorMode(themeStyle) && (
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label="Toggle workspace appearance"
-            >
-              <Moon className="dark:hidden" />
-              <Sun className="hidden dark:block" />
-            </button>
           )}
           <Link href="/add" data-workspace-add>
             <Plus />
