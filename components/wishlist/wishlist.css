@@ -272,30 +272,68 @@
 [data-wishlist] [data-wishlist-spark='up'] {
   --wl-spark: var(--wl-up);
 }
+[data-wishlist] [data-wishlist-spark-row] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+[data-wishlist] [data-wishlist-spark] {
+  display: block;
+  overflow: visible;
+  cursor: crosshair;
+  touch-action: pan-y;
+}
+/* Stock-style mountain: the area fades from the line down to the base. */
+[data-wishlist] [data-wishlist-spark-stop='top'] {
+  stop-color: var(--wl-spark);
+  stop-opacity: 0.38;
+}
+[data-wishlist] [data-wishlist-spark-stop='bottom'] {
+  stop-color: var(--wl-spark);
+  stop-opacity: 0;
+}
 [data-wishlist] [data-wishlist-spark-line] {
   stroke: var(--wl-spark);
-  stroke-width: 1.8;
+  stroke-width: 2;
   stroke-linejoin: round;
-}
-[data-wishlist] [data-wishlist-spark-fill] {
-  fill: color-mix(in srgb, var(--wl-spark) 12%, transparent);
+  stroke-linecap: round;
 }
 [data-wishlist] [data-wishlist-spark-dot] {
   fill: var(--wl-spark);
-}
-/* One ring per price change, so the moments the price moved stay visible. */
-[data-wishlist] [data-wishlist-spark-change] {
-  fill: var(--card);
-  stroke: var(--wl-spark);
+  stroke: var(--card);
   stroke-width: 1.5;
 }
-[data-wishlist] [data-wishlist-spark-flat] {
-  stroke: var(--wl-neutral);
-  stroke-width: 1.2;
+[data-wishlist] [data-wishlist-spark-cross] {
+  stroke: var(--muted-foreground);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
 }
-[data-wishlist] [data-wishlist-spark-text] {
-  fill: var(--muted-foreground);
-  font-size: 9px;
+/* Net change over the window; the arrow keeps it readable without colour. */
+[data-wishlist] [data-wishlist-spark-chip] {
+  --wl-chip: var(--wl-neutral);
+  flex: none;
+  min-width: 42px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--wl-chip) 16%, transparent);
+  color: color-mix(in srgb, var(--wl-chip) 85%, var(--foreground));
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  white-space: nowrap;
+}
+[data-wishlist] [data-wishlist-spark-chip='flat'] {
+  color: var(--muted-foreground);
+}
+[data-wishlist] [data-wishlist-spark-chip='down'] {
+  --wl-chip: var(--wl-sale);
+}
+[data-wishlist] [data-wishlist-spark-chip='up'] {
+  --wl-chip: var(--wl-up);
+}
+[data-wishlist] [data-wishlist-spark-hover] {
+  color: var(--foreground);
   font-weight: 600;
 }
 [data-wishlist] [data-wishlist-trend-note] {
