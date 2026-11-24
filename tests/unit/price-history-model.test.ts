@@ -3,6 +3,7 @@ import {
   historyEnd,
   outOfStockEverywhere,
   readingAt,
+  sourceSpans,
   storeLinesAt,
 } from '@/components/price-drops/price-history-model'
 import type { HistoryPoint, SourceHistory } from '@/lib/price-monitor/insights'
@@ -42,6 +43,28 @@ describe('price history model', () => {
     const removed = { ...steps, removed: true }
     expect(readingAt(removed, ms(9), ms(10))).toBeNull()
     expect(historyEnd(militaw)).toBe(ms(8))
+  })
+
+  it('spans a single snapshot to the chart end so it draws a line', () => {
+    const bladeHq = source(2, 'bladehq.com', [point(6, 6, 6795)])
+    expect(
+      sourceSpans(bladeHq, ms(10)).map((span) => [span.from, span.to]),
+    ).toEqual([[ms(6), ms(10)]])
+    // A removed store stops at the last time it was seen.
+    expect(
+      sourceSpans({ ...bladeHq, removed: true }, ms(10)).map((span) => [
+        span.from,
+        span.to,
+      ]),
+    ).toEqual([[ms(6), ms(6)]])
+    // Multiple readings step at the next reading, not at last seen.
+    const steps = source(1, 'a.example', [point(0, 1, 100), point(4, 5, 90)])
+    expect(
+      sourceSpans(steps, ms(10)).map((span) => [span.from, span.to]),
+    ).toEqual([
+      [ms(0), ms(4)],
+      [ms(4), ms(10)],
+    ])
   })
 
   it('shades only while no store had the knife in stock', () => {
