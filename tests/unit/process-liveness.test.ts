@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { isLeaseOwnerAlive, isProcessAlive } from '@/lib/process-liveness'
 
 const isLinux = process.platform === 'linux'
+const readsStartTime = isLinux || process.platform === 'darwin'
 let child: ChildProcess | null = null
 let directory: string | null = null
 
@@ -75,11 +76,11 @@ describe('isLeaseOwnerAlive', () => {
     expect(isLeaseOwnerAlive('/nonexistent/lease.json', pid)).toBe(true)
   })
 
-  it.skipIf(!isLinux)(
+  it.skipIf(!readsStartTime)(
     'rejects a lease written before the process with that ID started',
     () => {
-      // Mirrors a container restart where the old server's ID now belongs to
-      // another process, such as Xvfb or docker-init.
+      // Mirrors a container restart, or a macOS app that quit with the vault
+      // open, where the old server's ID now belongs to an unrelated process.
       const pid = startChild()
       expect(isLeaseOwnerAlive(writeLease(60_000), pid)).toBe(false)
     },
