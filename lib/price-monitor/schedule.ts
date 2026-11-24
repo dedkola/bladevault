@@ -8,11 +8,16 @@ const HOUR_MS = 60 * 60 * 1000
 /** Twice daily runs in daytime unless the user picks other hours. */
 export const TWICE_DAILY_DEFAULT_HOURS: ActiveHours = [8, 22]
 
-/** How often each source should be checked (the frequency window F). */
+/**
+ * How often each source should be checked (the frequency window F). Set
+ * times: the average time between two runs (24 h / runs per day).
+ */
 export function frequencyMs(
   schedule: PriceMonitoringSettings['schedule'],
 ): number {
   switch (schedule.mode) {
+    case 'slots':
+      return (24 * HOUR_MS) / Math.max(1, schedule.slotHours.length)
     case 'daily':
       return 24 * HOUR_MS
     case 'twice_daily':
@@ -27,8 +32,9 @@ export function frequencyMs(
 export function effectiveActiveHours(
   schedule: PriceMonitoringSettings['schedule'],
 ): ActiveHours | null {
-  // Every 12 hours means around the clock by definition.
-  if (schedule.mode === 'every_12h') return null
+  // Every 12 hours means around the clock by definition; set times decide
+  // with their own due times.
+  if (schedule.mode === 'every_12h' || schedule.mode === 'slots') return null
   if (schedule.activeHours) return schedule.activeHours
   return schedule.mode === 'twice_daily' ? TWICE_DAILY_DEFAULT_HOURS : null
 }
@@ -61,11 +67,52 @@ export function activeHoursPerDay(hours: ActiveHours | null): number {
 export function activeWindowMs(
   schedule: PriceMonitoringSettings['schedule'],
 ): number {
+  // Set times: no spread, each store runs through its sources at its
+  // minimum gap as soon as a run starts.
+  if (schedule.mode === 'slots') return 0
   return (
     (frequencyMs(schedule) *
       activeHoursPerDay(effectiveActiveHours(schedule))) /
     24
   )
+}
+
+/**
+ * The time AI pacing advice may stretch a store's checks over: one active
+ * window, or with set times the shortest time between two runs, so a slowed
+ * store still finishes its run before the next one.
+ */
+export function adviceWindowMs(
+  schedule: PriceMonitoringSettings['schedule'],
+): number {
+  if (schedule.mode !== 'slots') return activeWindowMs(schedule)
+  const hours = schedule.slotHours
+  if (hours.length < 2) return 24 * HOUR_MS
+  let shortest = 24
+  hours.forEach((hour, index) => {
+    const next = hours[(index + 1) % hours.length]
+    shortest = Math.min(shortest, (next - hour + 24) % 24 || 24)
+  })
+  return shortest * HOUR_MS
+}
+
+/** The first run of the set times strictly after `after` (server time). */
+export function nextSlotAt(
+  slotHours: readonly number[],
+  after: number,
+): number {
+  const hours = slotHours.length ? slotHours : [0]
+  const day = new Date(after)
+  day.setHours(0, 0, 0, 0)
+  for (let offset = 0; offset <= 2; offset += 1) {
+    for (const hour of hours) {
+      const slot = new Date(day)
+      slot.setDate(day.getDate() + offset)
+      slot.setHours(hour, 0, 0, 0)
+      if (slot.getTime() > after) return slot.getTime()
+    }
+  }
+  return after + 24 * HOUR_MS
 }
 
 /** 0 inside the active hours, otherwise the wait until they start. */
@@ -113,6 +160,50 @@ export function scheduledIntervalMs(input: {
   )
     return Math.max(intervalMs, SLOW_OUT_OF_STOCK_INTERVAL_MS)
   return intervalMs
+}
+
+/**
+ * When a source is next due after a successful check (epoch ms). Interval
+ * schedules add `scheduledIntervalMs`. Set times wait for the next run; a
+ * page out of stock for two weeks skips to the run about a day later, and a
+ * knife the AI supervisor watches closely may come sooner than the next run.
+ */
+export function nextScheduledCheckAt(input: {
+  schedule: PriceMonitoringSettings['schedule']
+  /** The interval schedules' frequency (defaults to the schedule's). */
+  intervalMs?: number
+  outOfStockSince: number | null
+  now: number
+  focusIntervalMs?: number | null
+}): number {
+  const { schedule, now } = input
+  const intervalMs =
+    schedule.mode === 'slots'
+      ? frequencyMs(schedule)
+      : (input.intervalMs ?? frequencyMs(schedule))
+  const shared = {
+    intervalMs,
+    outOfStockSince: input.outOfStockSince,
+    now,
+    slowOutOfStock: schedule.slowOutOfStock,
+    focusIntervalMs: input.focusIntervalMs,
+  }
+  if (schedule.mode !== 'slots') return now + scheduledIntervalMs(shared)
+  const next = nextSlotAt(schedule.slotHours, now)
+  if (input.focusIntervalMs && input.focusIntervalMs > 0)
+    return Math.min(next, now + input.focusIntervalMs)
+  const wait = scheduledIntervalMs(shared)
+  if (wait <= intervalMs) return next
+  // A long out-of-stock page: the same run the next day, even when this
+  // run started hours ago.
+  const run = new Date(nextSlotAt(schedule.slotHours, now - DAY_MS))
+  let later = nextSlotAt(schedule.slotHours, run.getTime())
+  while (later <= now) {
+    run.setTime(later)
+    later = nextSlotAt(schedule.slotHours, later)
+  }
+  run.setDate(run.getDate() + 1)
+  return run.getTime()
 }
 
 /**

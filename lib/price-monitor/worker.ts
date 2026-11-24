@@ -57,6 +57,7 @@ import {
 } from '@/lib/price-monitor/queue'
 import {
   activeWindowMs,
+  adviceWindowMs,
   checkLoad,
   effectiveActiveHours,
   frequencyMs,
@@ -295,10 +296,8 @@ export class PriceMonitorWorker {
   private advising: Promise<unknown> | null = null
   private lastAgentCheck = 0
   private supervising: Promise<unknown> | null = null
-  /** Other stores: a search running on a store's lane. */
-  discovering: Promise<unknown> | null = null
-  /** The store lane the running search uses. */
-  discoveryLane: string | null = null
+  /** Other stores: the searches running, one per store lane at most. */
+  readonly searches = new Map<string, Promise<unknown>>()
   /** AI endpoint trouble pauses every store. */
   private discoveryNotBefore = 0
   /** A store with no knife due is asked again after a while. */
@@ -421,9 +420,10 @@ export class PriceMonitorWorker {
       )
       const stored = readLaneStates(database)
       const windowMs = activeWindowMs(settings.schedule)
+      const adviceMs = adviceWindowMs(settings.schedule)
       const laneCounts = scheduledLoad(candidates, settings.schedule, now)
       const capFor = (laneKey: string) => ({
-        activeWindowMs: windowMs,
+        activeWindowMs: adviceMs,
         sourceCount: laneCounts.get(laneKey) ?? 0,
       })
       const lanes = new Map(
@@ -498,8 +498,10 @@ export class PriceMonitorWorker {
         this.launch(pick, lane, context)
       }
       // Searches on other stores only use a store's lane when no check
-      // there is due: monitoring known sources comes first.
-      if (scheduledActive) this.maybeDiscover(input, context, now)
+      // there is due: monitoring known sources comes first. They run around
+      // the clock, outside the active hours and between set times too.
+      if (this.scheduled && settings.enabled)
+        this.maybeDiscover(input, context, now)
       const wakeAt = nextWakeAt({
         ...input,
         busyLanes: this.busyLanes(),
@@ -515,26 +517,38 @@ export class PriceMonitorWorker {
 
   private busyLanes(): Set<string> {
     const busy = new Set(this.inFlight.keys())
-    if (this.discovering && this.discoveryLane) busy.add(this.discoveryLane)
+    for (const laneKey of this.searches.keys()) busy.add(laneKey)
     return busy
   }
 
   /**
-   * Other stores: starts one AI search at the first enabled store whose
-   * lane is free and ready and that has a knife due. The search counts as a
-   * request at that store for pacing and the circuit breaker.
+   * Other stores: starts an AI search at every enabled store whose lane is
+   * free and ready and that has a knife due, so stores search in parallel,
+   * one search per store at a time. A store with a scheduled check due is
+   * left to its checks. A search counts as a request at that store for
+   * pacing and the circuit breaker.
    */
   private maybeDiscover(input: QueueInput, context: PassContext, now: number) {
     const { discover, nextDiscovery } = this.deps
-    if (this.discovering || !discover || !nextDiscovery) return
+    if (!discover || !nextDiscovery) return
     if (!discoveryActive(context.settings) || now < this.discoveryNotBefore)
       return
     const busy = this.busyLanes()
-    let picked: { store: OtherStoreId; knifeId: string } | null = null
+    const dueLanes = new Set(
+      input.candidates
+        .filter(
+          (candidate) =>
+            candidate.priority >= 2 ||
+            (input.scheduledActive &&
+              candidate.scheduled &&
+              (candidate.nextCheckAt === null || candidate.nextCheckAt <= now)),
+        )
+        .map((candidate) => candidate.laneKey),
+    )
     for (const store of enabledDiscoveryStores(context.settings)) {
       if ((this.discoveryIdleUntil.get(store) ?? 0) > now) continue
       const laneKey = DISCOVERY_STORES[store].laneKey
-      if (busy.has(laneKey)) continue
+      if (busy.has(laneKey) || dueLanes.has(laneKey)) continue
       const advice = context.advice.get(laneKey)
       if (inQuietHours(advice, new Date(now))) continue
       const lane = input.lanes.get(laneKey) ?? input.defaultLane(laneKey)
@@ -552,13 +566,20 @@ export class PriceMonitorWorker {
         this.discoveryIdleUntil.set(store, now + DISCOVERY_IDLE_MS)
         continue
       }
-      picked = { store, knifeId }
-      break
+      busy.add(laneKey)
+      this.startSearch(store, knifeId, lane, context)
     }
-    if (!picked) return
-    const { store, knifeId } = picked
+  }
+
+  private startSearch(
+    store: OtherStoreId,
+    knifeId: string,
+    lane: LaneState,
+    context: PassContext,
+  ) {
+    const { discover } = this.deps
+    if (!discover) return
     const laneKey = DISCOVERY_STORES[store].laneKey
-    const lane = input.lanes.get(laneKey) ?? input.defaultLane(laneKey)
     const controller = new AbortController()
     this.controllers.add(controller)
     const floorMs = laneFloorMs(context.settings.pacing)
@@ -569,8 +590,7 @@ export class PriceMonitorWorker {
       floorMs,
       DISCOVERY_STORES[store].searchGapMs,
     )
-    this.discoveryLane = laneKey
-    this.discovering = (async () => {
+    const run = (async () => {
       try {
         const summary = await discover(knifeId, {
           signal: controller.signal,
@@ -612,11 +632,11 @@ export class PriceMonitorWorker {
           reportServerError(error, 'price-monitor/discovery')
       } finally {
         this.controllers.delete(controller)
-        this.discovering = null
-        this.discoveryLane = null
+        this.searches.delete(laneKey)
         this.wake(0)
       }
     })()
+    this.searches.set(laneKey, run)
   }
 
   /** Other stores: search again now (settings changed or Search again). */
@@ -759,13 +779,13 @@ export class PriceMonitorWorker {
       this.checks.size ||
       this.advising ||
       this.supervising ||
-      this.discovering
+      this.searches.size
     ) {
       await Promise.all([
         this.passing,
         this.advising,
         this.supervising,
-        this.discovering,
+        ...this.searches.values(),
         ...this.checks,
       ])
     }
@@ -944,6 +964,7 @@ export function buildQueueSnapshot(
   )
   const laneKeys = new Set([...counts.keys(), ...manual.keys(), ...pausedLanes])
   const windowMs = activeWindowMs(settings.schedule)
+  const adviceMs = adviceWindowMs(settings.schedule)
   const checkingLanes = new Set(
     (
       database
@@ -975,7 +996,7 @@ export function buildQueueSnapshot(
       settings.pacing,
       laneAdvice,
       now,
-      { activeWindowMs: windowMs, sourceCount: laneLoad },
+      { activeWindowMs: adviceMs, sourceCount: laneLoad },
     )
     const gapMs = laneGapMs({
       minGapMs: lane.minGapMs,
@@ -1002,7 +1023,7 @@ export function buildQueueSnapshot(
       checking:
         worker.inFlight.has(laneKey) ||
         checkingLanes.has(laneKey) ||
-        (laneKey === worker.discoveryLane && Boolean(worker.discovering)),
+        worker.searches.has(laneKey),
       advice: laneAdvice
         ? {
             // As applied: capped so the store's sources fit the interval.
@@ -1012,7 +1033,7 @@ export function buildQueueSnapshot(
                 : Math.min(
                     laneAdvice.minGapMs,
                     maxAdvisedGapMs({
-                      activeWindowMs: windowMs,
+                      activeWindowMs: adviceMs,
                       sourceCount: laneLoad,
                       floorMs: laneFloorMs(settings.pacing),
                     }),

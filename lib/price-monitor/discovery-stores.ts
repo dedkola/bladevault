@@ -377,6 +377,8 @@ const SHOPIFY_PRODUCT = /^(?:\/collections\/[^/]+)?\/products\/[^/.]+\/?$/i
 
 /** Small Shopify stores: at most one Other stores search in this time. */
 export const SHOPIFY_SEARCH_GAP_MS = 15 * 60_000
+/** Amazon: one search per 5 minutes. */
+export const AMAZON_SEARCH_GAP_MS = 5 * 60_000
 
 /** Shopify's product search suggestions as JSON (no page, no browser). */
 export function shopifySearchUrl(origin: string, query: string): string {
@@ -748,8 +750,9 @@ export const DISCOVERY_STORES: Record<OtherStoreId, DiscoveryStore> = {
     // One lane for every Amazon marketplace, shared with its price checks.
     laneKey: 'amazon',
     marketplace: 'amazon.com',
-    // A slower pace than other stores: Amazon throttles quick searches.
-    searchGapMs: SHOPIFY_SEARCH_GAP_MS,
+    // At least 5 minutes between searches (the shared minimum); a search
+    // reads the results page and one product page, 2.5 s apart.
+    searchGapMs: AMAZON_SEARCH_GAP_MS,
     searchUrl: (query) => {
       const url = new URL('https://www.amazon.com/s')
       url.searchParams.set('k', query)

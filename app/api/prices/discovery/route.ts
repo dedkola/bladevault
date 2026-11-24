@@ -25,14 +25,13 @@ function overview() {
   const database = getLocalDb()
   return {
     active: discoveryActive(settings),
-    running: Boolean(worker.discovering),
+    running: worker.searches.size > 0,
     stores: OTHER_STORE_IDS.map((id) => {
       const store = DISCOVERY_STORES[id]
       return {
         label: store.label,
         active: discoveryActive(settings, id),
-        running:
-          Boolean(worker.discovering) && worker.discoveryLane === store.laneKey,
+        running: worker.searches.has(store.laneKey),
         ...readDiscoveryOverview(database, {
           settings,
           store: id,

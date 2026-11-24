@@ -20,6 +20,7 @@ import {
 } from '@/lib/price-monitor/lanes'
 import {
   activeWindowMs,
+  adviceWindowMs,
   effectiveActiveHours,
   frequencyMs,
   isWithinActiveHours,
@@ -256,7 +257,7 @@ export function buildAdvisorInput(input: {
       recent,
       maxGapSeconds: Math.round(
         maxAdvisedGapMs({
-          activeWindowMs: windowMs,
+          activeWindowMs: adviceWindowMs(settings.schedule),
           sourceCount: sources,
           floorMs,
         }) / 1000,

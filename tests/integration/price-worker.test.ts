@@ -227,6 +227,47 @@ describe('price monitor worker', () => {
     expect(gap()).toBe(2 * 60 * MIN)
   })
 
+  it('runs a store back to back at its minimum gap with set times', async () => {
+    await knife([
+      'https://kizer.example/a',
+      'https://kizer.example/b',
+      'https://kizer.example/c',
+    ])
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        schedule: {
+          ...getSettings().priceMonitoring.schedule,
+          mode: 'slots',
+          slotHours: [9, 14, 20],
+        },
+      },
+    })
+    const { worker, pending, finish, advance } = harness()
+    const gap = () => {
+      const lane = getLocalDb()
+        .prepare(
+          "SELECT ready_at, last_request_at FROM price_host_state WHERE lane_key = 'kizer.example'",
+        )
+        .get() as { ready_at: string; last_request_at: string }
+      return Date.parse(lane.ready_at) - Date.parse(lane.last_request_at)
+    }
+    worker.start({ scheduled: true })
+    for (let round = 0; round < 3; round += 1) {
+      await worker.pass()
+      expect(pending).toHaveLength(1)
+      await finish()
+      // No spread over the day: the next product follows at the minimum gap.
+      expect(gap()).toBe(MIN)
+      advance(MIN)
+    }
+    expect(buildQueueSnapshot(Date.now()).lanes[0]).toMatchObject({
+      laneKey: 'kizer.example',
+      gapMs: MIN,
+      fullPassMs: 3 * MIN,
+    })
+  })
+
   it('spreads a store over the day once every product was checked', async () => {
     await knife(['https://kizer.example/a', 'https://kizer.example/b'])
     // Both products already have a reading; one is due again.
@@ -547,7 +588,7 @@ describe('price monitor worker', () => {
       },
     ])
     // The search holds the Blade HQ lane like a check would.
-    expect(worker.discovering).not.toBeNull()
+    expect(worker.searches.has('bladehq.com')).toBe(true)
     await requestSourceChecks([...sourceIds().values()])
     await worker.pass()
     expect(pending).toHaveLength(0)
@@ -757,6 +798,79 @@ describe('price monitor worker', () => {
       )
       .get() as { circuit: string }
     expect(lane.circuit).toBe('closed')
+  })
+
+  it('searches every store in parallel, outside the active hours too', async () => {
+    const lookFor = await knife([])
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        // Active hours that start three hours after the harness clock:
+        // scheduled checks are off now, searches are not.
+        schedule: {
+          ...getSettings().priceMonitoring.schedule,
+          activeHours: [
+            (new Date(Date.UTC(2026, 10, 18, 12)).getHours() + 3) % 24,
+            (new Date(Date.UTC(2026, 10, 18, 12)).getHours() + 4) % 24,
+          ],
+        },
+        ai: {
+          ...DEFAULT_PRICE_MONITORING.ai,
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          model: 'test-model',
+        },
+        otherStores: {
+          enabled: true,
+          stores: {
+            bladehq: true,
+            smkw: true,
+            dlttrading: false,
+            knifejoy: false,
+            northwestknives: false,
+            amazon: true,
+          },
+        },
+      },
+    })
+    const finishes: Array<(summary: DiscoverySummary) => void> = []
+    const discover = vi.fn(
+      () =>
+        new Promise<DiscoverySummary>((resolve) => {
+          finishes.push(resolve)
+        }),
+    )
+    const { worker } = harness({
+      nextDiscovery: () => lookFor,
+      discover,
+    })
+    worker.start({ scheduled: true })
+    await worker.pass()
+    expect(discover.mock.calls.map(([, options]) => options.store)).toEqual([
+      'bladehq',
+      'smkw',
+      'amazon',
+    ])
+    expect([...worker.searches.keys()].sort()).toEqual([
+      'amazon',
+      'bladehq.com',
+      'smkw.com',
+    ])
+    // One search per store at a time.
+    await worker.pass()
+    expect(discover).toHaveBeenCalledTimes(3)
+    for (const resolve of finishes)
+      resolve({
+        status: 'done',
+        result: 'not_found',
+        laneOutcome: 'success',
+        aiProblem: false,
+        durationMs: 4000,
+        retryAfterMs: null,
+        sourceId: null,
+      })
+    await worker.idle()
+    expect(worker.searches.size).toBe(0)
   })
 
   it('does not slow a store for long AI searches; throttling still does', async () => {

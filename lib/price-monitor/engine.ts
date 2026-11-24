@@ -59,7 +59,7 @@ import {
 } from '@/lib/price-monitor/notifications'
 import { readOutOfStockSince } from '@/lib/price-monitor/insights'
 import { MONITOR_CURRENCY } from '@/lib/price-monitor/region'
-import { scheduledIntervalMs } from '@/lib/price-monitor/schedule'
+import { nextScheduledCheckAt } from '@/lib/price-monitor/schedule'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
 import { aiNotReached } from '@/lib/price-monitor/ai-client'
 import {
@@ -1123,15 +1123,14 @@ export async function checkPriceSource(
         )
       : NaN
     return new Date(
-      now +
-        scheduledIntervalMs({
-          intervalMs,
-          outOfStockSince: Number.isFinite(since) ? since : null,
-          now,
-          slowOutOfStock: schedule.slowOutOfStock,
-          focusIntervalMs:
-            readKnifeFocus(database, source.knife_id, now)?.intervalMs ?? null,
-        }),
+      nextScheduledCheckAt({
+        schedule,
+        intervalMs,
+        outOfStockSince: Number.isFinite(since) ? since : null,
+        now,
+        focusIntervalMs:
+          readKnifeFocus(database, source.knife_id, now)?.intervalMs ?? null,
+      }),
     ).toISOString()
   }
   let implausible = false

@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import Link from 'next/link'
-import { Cookie, Loader2, Pause, Play, RefreshCw } from 'lucide-react'
+import { Cookie, Loader2, Pause, Play, Plus, RefreshCw, X } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -36,7 +36,10 @@ import { OtherStoresSettings } from '@/components/price-drops/other-stores-setti
 import { DesktopBackgroundSettings } from '@/components/price-drops/desktop-background-settings'
 import { MonitorScopeSettings } from '@/components/price-drops/monitor-scope-settings'
 import {
+  DEFAULT_SLOT_HOURS,
+  MAX_SLOT_HOURS,
   PRICE_MONITORING_LIMITS,
+  normalizeSlotHours,
   type ActiveHours,
   type PriceMonitoringSettings,
   type PriceScheduleMode,
@@ -49,6 +52,7 @@ const SCHEDULE_OPTIONS: ReadonlyArray<{
   { value: 'daily', label: 'Once daily' },
   { value: 'twice_daily', label: 'Twice daily' },
   { value: 'every_12h', label: 'Every 12 hours' },
+  { value: 'slots', label: 'Set times' },
   { value: 'custom', label: 'Custom' },
 ]
 
@@ -57,6 +61,8 @@ const SCHEDULE_HELP: Record<PriceScheduleMode, string> = {
   twice_daily: 'Each product is checked about twice a day, in daytime hours.',
   every_12h: 'Each product is checked every 12 hours, around the clock.',
   custom: 'Each product is checked at the interval you choose.',
+  slots:
+    'At each time, every product is checked once, store by store at each store’s minimum pause; nothing is checked on schedule between the times. Other stores searches still run in between.',
 }
 
 type LaneView = {
@@ -218,6 +224,68 @@ function StoreButton({
     >
       {busy ? <Loader2 className="animate-spin" /> : children}
     </Button>
+  )
+}
+
+/** Set times: one hour picker per run, with add and remove. */
+function SlotHoursField({
+  value,
+  disabled,
+  hourCycle,
+  onChange,
+}: {
+  value: number[]
+  disabled?: boolean
+  hourCycle: HourCycle
+  onChange: (hours: number[]) => void
+}) {
+  const commit = (next: number[]) =>
+    onChange(normalizeSlotHours(next, DEFAULT_SLOT_HOURS))
+  const free = START_HOURS.find((hour) => !value.includes(hour))
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      {value.map((hour, index) => (
+        <span key={hour} className="inline-flex items-center gap-0.5">
+          <HourSelect
+            aria-label={`Check time ${index + 1}`}
+            value={hour}
+            hours={START_HOURS.filter(
+              (option) => option === hour || !value.includes(option),
+            )}
+            disabled={disabled}
+            hourCycle={hourCycle}
+            onChange={(next) =>
+              commit(value.map((item) => (item === hour ? next : item)))
+            }
+          />
+          {value.length > 1 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label={`Remove ${hourLabel(hour, hourCycle)}`}
+              title="Remove this time"
+              disabled={disabled}
+              onClick={() => commit(value.filter((item) => item !== hour))}
+            >
+              <X />
+            </Button>
+          ) : null}
+        </span>
+      ))}
+      {value.length < MAX_SLOT_HOURS && free !== undefined ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled}
+          onClick={() => commit([...value, free])}
+        >
+          <Plus />
+          Add time
+        </Button>
+      ) : null}
+    </span>
   )
 }
 
@@ -436,7 +504,11 @@ export function PriceMonitoringSettings({
 
       <SettingsSection
         title="Schedule"
-        description="Checks are spread evenly over the day instead of all at once, so stores are not flooded with requests."
+        description={
+          settings.schedule.mode === 'slots'
+            ? 'Checks run at the times you set, each store at its own minimum pause, so stores are not flooded with requests.'
+            : 'Checks are spread evenly over the day instead of all at once, so stores are not flooded with requests.'
+        }
       >
         <SettingsRow
           label="How often"
@@ -463,7 +535,25 @@ export function PriceMonitoringSettings({
             />
           </SettingsRow>
         ) : null}
-        {settings.schedule.mode !== 'every_12h' ? (
+        {settings.schedule.mode === 'slots' ? (
+          <SettingsRow
+            label="Check at"
+            description={
+              queue?.timeZone
+                ? `Server time (${queue.timeZone}). Each run takes as long as a store needs at its pace, often an hour or more for a store with many products.`
+                : 'Server time. Each run takes as long as a store needs at its pace, often an hour or more for a store with many products.'
+            }
+          >
+            <SlotHoursField
+              value={settings.schedule.slotHours}
+              disabled={off}
+              hourCycle={hourCycle}
+              onChange={(slotHours) => updateSchedule({ slotHours })}
+            />
+          </SettingsRow>
+        ) : null}
+        {settings.schedule.mode !== 'every_12h' &&
+        settings.schedule.mode !== 'slots' ? (
           <SettingsRow
             label="Only check between"
             description={

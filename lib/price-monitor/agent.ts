@@ -26,7 +26,7 @@ import {
 } from '@/lib/price-monitor/money'
 import { byUrgency } from '@/lib/price-monitor/queue'
 import { laneAvailability, laneFloorMs } from '@/lib/price-monitor/lanes'
-import { activeWindowMs, frequencyMs } from '@/lib/price-monitor/schedule'
+import { adviceWindowMs, frequencyMs } from '@/lib/price-monitor/schedule'
 import { redactSecrets } from '@/lib/price-monitor/secret-registry'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
 import {
@@ -620,7 +620,7 @@ export function buildAgentSnapshot(input: {
   const lanes = readLaneStates(database)
   const advice = readActiveAdvice(database, now)
   const floorMs = laneFloorMs(settings.pacing)
-  const windowMs = activeWindowMs(settings.schedule)
+  const windowMs = adviceWindowMs(settings.schedule)
   const storeViews = new Map<string, AgentStore>()
   for (const [laneKey, sources] of counts) {
     const stored = lanes.get(laneKey)

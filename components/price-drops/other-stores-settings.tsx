@@ -47,7 +47,7 @@ const STORE_DESCRIPTION: Record<OtherStoreId, string> = {
   northwestknives:
     'Searches northwestknives.com through its Shopify search data (US prices), at most one search every 15 minutes. A knife that already has a Northwest Knives source is skipped. Searches share Northwest Knives’ pace with its price checks.',
   amazon:
-    'Searches amazon.com as a shopper with a US delivery address (postcode 90210, US prices), without the browser, at most one search every 15 minutes. Sponsored results are left out, and a listing is added only when its page shows the knife’s model number. A knife that already has an Amazon source is skipped. Searches share Amazon’s pace with its price checks.',
+    'Searches amazon.com as a shopper with a US delivery address (postcode 90210, US prices), without the browser, at most one search every 5 minutes. Sponsored results are left out, and a listing is added only when its page shows the knife’s model number. A knife that already has an Amazon source is skipped. Searches share Amazon’s pace with its price checks.',
 }
 
 const STATUS_LABEL: Record<DiscoveryStatus, string> = {
