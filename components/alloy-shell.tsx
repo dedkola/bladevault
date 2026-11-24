@@ -10,14 +10,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { Menu } from '@base-ui/react/menu'
-import {
-  Bookmark,
-  ChevronDown,
-  Moon,
-  Pin,
-  Plus,
-  Sun,
-} from 'lucide-react'
+import { Bookmark, ChevronDown, Moon, Pin, Plus, Sun } from 'lucide-react'
 import Image from '@/components/vault-image'
 import { useComparisons } from '@/components/providers/comparisons-provider'
 import { useKnives } from '@/components/providers/knives-provider'
