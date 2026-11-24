@@ -60,7 +60,7 @@
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.9",
     "lucide-react": "^1.77.0",
-    "next": "^16.4.5",
+    "next": "^16.4.6",
     "playwright": "1.65.1",
     "postcss": "^8.5.33",
     "react": "^19.2.7",
