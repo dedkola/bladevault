@@ -8,6 +8,11 @@ import {
 } from '@/lib/mcp/config'
 import { getSettings, saveSettings } from '@/lib/settings'
 import { setAppLockPassword } from '@/lib/app-lock'
+import {
+  acquireVaultRestore,
+  VAULT_GENERATION_HEADER,
+  type VaultRestoreLease,
+} from '@/lib/vault-access'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
 const previous = {
@@ -19,6 +24,7 @@ const previous = {
 }
 
 let vault: TempVault | null = null
+let lease: VaultRestoreLease | null = null
 
 beforeEach(async () => {
   vault = await createTempVault('bladevault-mcp-http-test-')
@@ -41,6 +47,8 @@ afterEach(async () => {
   if (previous.allowedOrigins === undefined)
     delete process.env.MCP_ALLOWED_ORIGINS
   else process.env.MCP_ALLOWED_ORIGINS = previous.allowedOrigins
+  lease?.release()
+  lease = null
   await vault?.cleanup()
   vault = null
 })
@@ -204,6 +212,29 @@ describe('MCP HTTP transport', () => {
         protocolVersion: '2025-11-25',
         serverInfo: { name: 'bladevault' },
       },
+    })
+  })
+
+  it('serves reads while a restore is preparing', async () => {
+    getMcpRuntimeStatus()
+    lease = acquireVaultRestore()
+
+    expect((await handleMcpHttpRequest(initializeRequest())).status).toBe(200)
+  })
+
+  it('returns a retryable response while the restored vault is being installed', async () => {
+    getMcpRuntimeStatus()
+    lease = acquireVaultRestore()
+    await lease.beginSwitch({ timeoutMs: 1_000 })
+
+    const response = await handleMcpHttpRequest(initializeRequest())
+
+    expect(response.status).toBe(503)
+    expect(response.headers.get('Retry-After')).toBe('1')
+    expect(response.headers.get(VAULT_GENERATION_HEADER)).toBeTruthy()
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'VAULT_RESTORE_BUSY',
+      vault: { phase: 'switching' },
     })
   })
 })
