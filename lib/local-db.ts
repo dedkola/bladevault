@@ -780,7 +780,9 @@ const OTHER_STORE_LANES = [
  * and stretched its store's gap until one request every few hours held up
  * the store's price checks too. Resets those gaps to the 60 s default once;
  * the worker raises it to the user's floor, and real throttling slows the
- * store again. Paused (open) stores keep their cooldown.
+ * store again. The next check slot those gaps pushed hours ahead is brought
+ * back to now too, or the store's price checks would keep waiting for it.
+ * Paused (open) stores keep their cooldown.
  */
 function resetOtherStoreLaneGaps(database: Database.Database) {
   const exists = database
@@ -789,13 +791,16 @@ function resetOtherStoreLaneGaps(database: Database.Database) {
     )
     .get()
   if (!exists) return
+  const now = new Date().toISOString()
   database
     .prepare(
-      `UPDATE price_host_state SET min_gap_ms = 60000
+      `UPDATE price_host_state
+          SET min_gap_ms = 60000,
+              ready_at = CASE WHEN ready_at > ? THEN ? ELSE ready_at END
         WHERE circuit = 'closed' AND min_gap_ms > 60000
           AND lane_key IN (${OTHER_STORE_LANES.map(() => '?').join(', ')})`,
     )
-    .run(...OTHER_STORE_LANES)
+    .run(now, now, ...OTHER_STORE_LANES)
 }
 
 /**
