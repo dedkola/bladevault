@@ -23,7 +23,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 15
+export const LOCAL_DB_SCHEMA_VERSION = 16
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -1156,6 +1156,43 @@ function migratePriceMonitoringSchema(
         seen_at TEXT NOT NULL,
         PRIMARY KEY (knife_id, store, marketplace, position)
       );`,
+    ],
+    [
+      // Price check rounds: every monitored knife in order, one knife's
+      // stores at a time. One row per round; the unfinished one is current.
+      'price_rounds',
+      `CREATE TABLE price_rounds (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trigger TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        interval_ms INTEGER NOT NULL,
+        knife_ids TEXT NOT NULL,
+        cursor INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX price_rounds_started ON price_rounds (started_at);`,
+    ],
+    [
+      // The retry list: checks and searches that failed or found their store
+      // not ready during a round. Retried at random times before the next
+      // round (due_at); one that fails again waits for the next round.
+      'price_retry_tasks',
+      `CREATE TABLE price_retry_tasks (
+        task_key TEXT PRIMARY KEY,
+        kind TEXT NOT NULL CHECK (kind IN ('check', 'search')),
+        knife_id TEXT NOT NULL,
+        source_id INTEGER,
+        store TEXT,
+        lane_key TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 1,
+        round_id INTEGER,
+        due_at TEXT,
+        last_error TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX price_retry_tasks_due ON price_retry_tasks (due_at);`,
     ],
     [
       // Every AI request price monitoring makes: what for, how long, how

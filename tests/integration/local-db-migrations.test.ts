@@ -168,6 +168,45 @@ describe('local database migrations', () => {
     expect(nextAttempts().k1).toBe(later)
   })
 
+  it('adds the price round and retry list tables to a schema 15 vault', async () => {
+    vault = await createTempVault()
+    getLocalDb().exec('DROP TABLE price_rounds; DROP TABLE price_retry_tasks')
+    getLocalDb().pragma('user_version = 15')
+    closeLocalDb()
+    const columns = (table: string) =>
+      (
+        getLocalDb().prepare(`PRAGMA table_info(${table})`).all() as Array<{
+          name: string
+        }>
+      ).map((column) => column.name)
+    expect(columns('price_rounds')).toEqual([
+      'id',
+      'trigger',
+      'started_at',
+      'finished_at',
+      'interval_ms',
+      'knife_ids',
+      'cursor',
+    ])
+    expect(columns('price_retry_tasks')).toEqual(
+      expect.arrayContaining([
+        'task_key',
+        'kind',
+        'knife_id',
+        'source_id',
+        'store',
+        'lane_key',
+        'reason',
+        'attempts',
+        'due_at',
+      ]),
+    )
+    expect(getLocalDb().pragma('user_version', { simple: true })).toBe(16)
+    // Repeat-safe: opening again changes nothing.
+    closeLocalDb()
+    expect(columns('price_rounds')).toHaveLength(7)
+  })
+
   it('adds the alert rule columns to an older price schema, keeping its rows', async () => {
     vault = await createTempVault()
     const database = getLocalDb()

@@ -9,11 +9,13 @@ import {
   browserStatePath,
   saveBrowserState,
 } from '@/lib/price-monitor/browser-state'
-import {
-  nextDiscoveryKnife,
-  type DiscoverySummary,
-} from '@/lib/price-monitor/discovery'
+import type { DiscoverySummary } from '@/lib/price-monitor/discovery'
 import type { CheckSummary } from '@/lib/price-monitor/engine'
+import {
+  readCurrentRound,
+  readRetryTasks,
+} from '@/lib/price-monitor/round-store'
+import { RETRY_END_MARGIN_MS } from '@/lib/price-monitor/rounds'
 import { requestSourceChecks } from '@/lib/price-monitor/store'
 import {
   buildQueueSnapshot,
@@ -119,11 +121,13 @@ function harness(extra: Partial<WorkerDeps> = {}) {
             getLocalDb()
               .prepare(
                 `UPDATE price_sources
-                 SET priority = 0, status = 'ok', next_check_at = ?
+                 SET priority = 0, status = 'ok', next_check_at = ?,
+                     last_checked_at = ?
                  WHERE id = ?`,
               )
               .run(
                 new Date(now + (options.intervalMs ?? 0)).toISOString(),
+                new Date(now).toISOString(),
                 sourceId,
               )
             resolve({
@@ -165,148 +169,260 @@ const lanesOf = (pending: Pending[], ids: Map<string, number>) => {
   return pending.map((check) => byId.get(check.sourceId)).sort()
 }
 
-describe('price monitor worker', () => {
-  it('starts every store at once, but one check per store, no burst', async () => {
-    await knife(['https://kizer.example/a', 'https://kizer.example/b'])
-    await knife(['https://vosteed.com/a', 'https://vosteed.com/b'])
-    await knife(['https://knives.example/a', 'https://knives.example/b'])
-    await knife(['https://bladehq.com/a'])
-    const ids = sourceIds()
-    const { worker, pending, finish } = harness()
-    worker.start({ scheduled: true })
-    await worker.pass()
+const HOUR = 60 * MIN
 
-    expect(lanesOf(pending, ids)).toEqual([
-      'bladehq.com',
-      'kizer.example',
-      'knives.example',
-      'vosteed.com',
-    ])
+/** Every link was read yesterday: rounds check them, not first readings. */
+function checkedYesterday(now = Date.UTC(2026, 10, 18, 12)) {
+  getLocalDb()
+    .prepare(
+      `UPDATE price_sources SET priority = 0, last_checked_at = ?,
+         next_check_at = NULL`,
+    )
+    .run(new Date(now - 24 * HOUR).toISOString())
+}
 
-    // A finished store waits for its gap instead of starting its next product.
-    const firstHost = lanesOf([pending[0]], ids)[0]
-    await finish(0)
-    expect(pending).toHaveLength(3)
-    expect(lanesOf(pending, ids)).not.toContain(firstHost)
+function roundEvery(intervalHours: 6 | 12 | 24) {
+  saveSettings({
+    priceMonitoring: {
+      ...getSettings().priceMonitoring,
+      schedule: { ...getSettings().priceMonitoring.schedule, intervalHours },
+    },
   })
+}
 
-  it('spreads a store over the day and records its pace', async () => {
-    await knife([
-      'https://kizer.example/a',
-      'https://kizer.example/b',
-      'https://kizer.example/c',
-    ])
-    const { worker, pending, finish, advance } = harness()
-    const gap = () => {
-      const lane = getLocalDb()
-        .prepare(
-          "SELECT ready_at, last_request_at FROM price_host_state WHERE lane_key = 'kizer.example'",
-        )
-        .get() as { ready_at: string; last_request_at: string }
-      return Date.parse(lane.ready_at) - Date.parse(lane.last_request_at)
-    }
-    worker.start({ scheduled: true })
-    await worker.pass()
-    expect(pending).toHaveLength(1)
-    await finish()
-    expect(pending).toHaveLength(0)
-
-    // Never-checked products get their first price at the minimum gap.
-    expect(gap()).toBe(MIN)
-    advance(MIN)
-    await worker.pass()
-    expect(pending).toHaveLength(1)
-    await finish()
-    expect(gap()).toBe(MIN)
-    advance(MIN)
-    await worker.pass()
-    expect(pending).toHaveLength(1)
-    await finish()
-
-    // Then the store is spread: 24 h × 0.8 / 3 = 6.4 h, capped at 2 h.
-    expect(gap()).toBe(2 * 60 * MIN)
-  })
-
-  it('runs a store back to back at its minimum gap with set times', async () => {
-    await knife([
-      'https://kizer.example/a',
-      'https://kizer.example/b',
-      'https://kizer.example/c',
-    ])
-    saveSettings({
-      priceMonitoring: {
-        ...getSettings().priceMonitoring,
-        schedule: {
-          ...getSettings().priceMonitoring.schedule,
-          mode: 'slots',
-          slotHours: [9, 14, 20],
+function otherStores(stores: Partial<Record<string, boolean>>) {
+  saveSettings({
+    priceMonitoring: {
+      ...getSettings().priceMonitoring,
+      ai: {
+        ...DEFAULT_PRICE_MONITORING.ai,
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        model: 'test-model',
+      },
+      otherStores: {
+        enabled: true,
+        stores: {
+          bladehq: false,
+          smkw: false,
+          dlttrading: false,
+          knifejoy: false,
+          northwestknives: false,
+          amazon: false,
+          ...stores,
         },
       },
-    })
-    const { worker, pending, finish, advance } = harness()
-    const gap = () => {
-      const lane = getLocalDb()
-        .prepare(
-          "SELECT ready_at, last_request_at FROM price_host_state WHERE lane_key = 'kizer.example'",
-        )
-        .get() as { ready_at: string; last_request_at: string }
-      return Date.parse(lane.ready_at) - Date.parse(lane.last_request_at)
-    }
-    worker.start({ scheduled: true })
-    for (let round = 0; round < 3; round += 1) {
-      await worker.pass()
-      expect(pending).toHaveLength(1)
-      await finish()
-      // No spread over the day: the next product follows at the minimum gap.
-      expect(gap()).toBe(MIN)
-      advance(MIN)
-    }
-    expect(buildQueueSnapshot(Date.now()).lanes[0]).toMatchObject({
-      laneKey: 'kizer.example',
-      gapMs: MIN,
-      fullPassMs: 3 * MIN,
-    })
+    },
   })
+}
 
-  it('spreads a store over the day once every product was checked', async () => {
-    await knife(['https://kizer.example/a', 'https://kizer.example/b'])
-    // Both products already have a reading; one is due again.
-    getLocalDb()
-      .prepare(
-        "UPDATE price_sources SET priority = 0, last_checked_at = '2026-11-17T12:00:00.000Z'",
-      )
-      .run()
-    const { worker, pending, finish, advance } = harness()
+const notFound: DiscoverySummary = {
+  status: 'done',
+  result: 'not_found',
+  laneOutcome: 'success',
+  aiProblem: false,
+  durationMs: 4000,
+  retryAfterMs: null,
+  sourceId: null,
+}
+
+/** Searches that finish when told to. */
+function searches() {
+  const calls: Array<{
+    knifeId: string
+    store: string
+    resolve: (summary: DiscoverySummary) => void
+  }> = []
+  const discover = vi.fn(
+    (knifeId: string, options: { signal: AbortSignal; store: string }) =>
+      new Promise<DiscoverySummary>((resolve) => {
+        calls.push({ knifeId, store: options.store, resolve })
+        options.signal.addEventListener('abort', () =>
+          resolve({ status: 'skipped', reason: 'missing' }),
+        )
+      }),
+  )
+  return { calls, discover }
+}
+
+const retryKeys = () =>
+  readRetryTasks(getLocalDb())
+    .map((task) => `${task.key}:${task.reason}`)
+    .sort()
+
+describe('price check rounds', () => {
+  it('checks one knife’s stores at the same time, then pauses before the next knife', async () => {
+    await knife(['https://a.example/1', 'https://b.example/1'])
+    await knife(['https://a.example/2', 'https://c.example/2'])
+    await knife(['https://b.example/3'])
+    checkedYesterday()
+    roundEvery(6)
+    const ids = sourceIds()
+    const { worker, pending, finish, advance, now } = harness()
+    const start = now()
     worker.start({ scheduled: true })
     await worker.pass()
+    expect(lanesOf(pending, ids)).toEqual(['a.example', 'b.example'])
+    expect(pending.map((check) => check.trigger)).toEqual([
+      'scheduled',
+      'scheduled',
+    ])
+
+    // The next knife waits until all of this knife's stores are done.
+    await finish()
     expect(pending).toHaveLength(1)
     await finish()
-    advance(119 * MIN)
+    expect(pending).toHaveLength(0)
+    expect(buildQueueSnapshot(now()).round).toMatchObject({
+      trigger: 'scheduled',
+      knives: 3,
+      done: 1,
+    })
+
+    // Then the pause between knives (1 minute).
+    advance(MIN - 1000)
     await worker.pass()
     expect(pending).toHaveLength(0)
-    advance(2 * MIN)
+    advance(1000)
     await worker.pass()
-    expect(pending).toHaveLength(1)
+    expect(lanesOf(pending, ids)).toEqual(['a.example', 'c.example'])
+    await finish()
+    await finish()
+    advance(MIN)
+    await worker.pass()
+    expect(lanesOf(pending, ids)).toEqual(['b.example'])
+    await finish()
+
+    // After the last knife the round ends; the next starts 6 h after it began.
+    advance(MIN)
+    await worker.pass()
+    const snapshot = buildQueueSnapshot(now())
+    expect(snapshot.round).toBeNull()
+    expect(snapshot.lastRound).toMatchObject({ knives: 3 })
+    expect(snapshot.nextRoundAt).toBe(new Date(start + 6 * HOUR).toISOString())
+    advance(start + 6 * HOUR - now() - MIN)
+    await worker.pass()
+    expect(pending).toHaveLength(0)
+    advance(MIN)
+    await worker.pass()
+    expect(lanesOf(pending, ids)).toEqual(['a.example', 'b.example'])
   })
 
-  it('pauses a store after a bot check and probes after the cooldown', async () => {
-    await knife(['https://shop.example/a', 'https://shop.example/b'])
-    const { worker, pending, finish, advance } = harness()
+  it('puts failures and stores that are not ready on the retry list, then spreads them out', async () => {
+    await knife(['https://shop.example/1', 'https://other.example/1'])
+    await knife(['https://shop.example/2'])
+    checkedYesterday()
+    roundEvery(6)
+    const ids = sourceIds()
+    const { worker, pending, finish, advance, now } = harness({
+      random: () => 0.5,
+    })
+    const start = now()
     worker.start({ scheduled: true })
     await worker.pass()
-    await finish(0, { outcome: 'blocked', laneOutcome: 'blocked' })
-    expect(pending).toHaveLength(0)
-    const snapshot = buildQueueSnapshot(Date.UTC(2026, 10, 18, 12, 1))
-    expect(snapshot.lanes[0]).toMatchObject({
-      laneKey: 'shop.example',
-      circuit: 'open',
+    const shop = pending.findIndex(
+      (check) => check.sourceId === ids.get('https://shop.example/1'),
+    )
+    await finish(shop, { outcome: 'blocked', laneOutcome: 'blocked' })
+    await finish(0, {
+      outcome: 'failed',
+      laneOutcome: 'neutral',
+      errorCode: 'timeout',
     })
-    advance(29 * MIN)
+
+    // The next knife's store waits out a bot-check pause: skipped.
+    advance(MIN)
     await worker.pass()
     expect(pending).toHaveLength(0)
-    advance(2 * MIN)
+    advance(MIN)
     await worker.pass()
-    expect(pending.map((check) => check.trigger)).toEqual(['probe'])
+    expect(readCurrentRound(getLocalDb())).toBeNull()
+    expect(retryKeys()).toEqual(
+      [
+        `check:${ids.get('https://other.example/1')}:failed`,
+        `check:${ids.get('https://shop.example/1')}:blocked`,
+        `check:${ids.get('https://shop.example/2')}:store_not_ready`,
+      ].sort(),
+    )
+    // Random times between the round's end and 10 minutes before the next.
+    const tasks = readRetryTasks(getLocalDb())
+    for (const task of tasks) {
+      expect(task.dueAt).toBeGreaterThan(now())
+      expect(task.dueAt).toBeLessThanOrEqual(
+        start + 6 * HOUR - RETRY_END_MARGIN_MS,
+      )
+    }
+    expect(buildQueueSnapshot(now()).retries).toMatchObject({
+      waiting: 0,
+      scheduled: 3,
+    })
+
+    // Their time comes: one per store at a time, the paused store probed.
+    advance(Math.max(...tasks.map((task) => task.dueAt!)) - now())
+    await worker.pass()
+    expect(pending.map((check) => check.trigger).sort()).toEqual([
+      'probe',
+      'retry',
+    ])
+    const other = pending.findIndex(
+      (check) => check.sourceId === ids.get('https://other.example/1'),
+    )
+    await finish(other)
+    await finish(0, { outcome: 'blocked', laneOutcome: 'blocked' })
+
+    // What failed again waits for the next round, with its tries counted.
+    const left = readRetryTasks(getLocalDb())
+    expect(left.map((task) => task.sourceId).sort()).toEqual(
+      [
+        ids.get('https://shop.example/1'),
+        ids.get('https://shop.example/2'),
+      ].sort(),
+    )
+    expect(
+      left.find((task) => task.sourceId === ids.get('https://shop.example/1')),
+    ).toMatchObject({ attempts: 2, dueAt: null })
+  })
+
+  it('continues a round at its saved knife after a restart', async () => {
+    await knife(['https://a.example/1'])
+    await knife(['https://b.example/2'])
+    checkedYesterday()
+    const ids = sourceIds()
+    const first = harness()
+    first.worker.start({ scheduled: true })
+    await first.worker.pass()
+    expect(lanesOf(first.pending, ids)).toEqual(['a.example'])
+    await first.finish()
+    await first.worker.stop()
+
+    const second = harness()
+    second.advance(2 * MIN)
+    second.worker.start({ scheduled: true })
+    await second.worker.pass()
+    expect(lanesOf(second.pending, ids)).toEqual(['b.example'])
+    expect(buildQueueSnapshot(second.now()).round).toMatchObject({
+      knives: 2,
+      done: 1,
+    })
+  })
+
+  it('starts a round with Check all now, also where checks are not scheduled', async () => {
+    await knife(['https://a.example/1'])
+    await knife(['https://b.example/2'])
+    checkedYesterday()
+    const ids = sourceIds()
+    const { worker, pending } = harness()
+    worker.start({ scheduled: false })
+    await worker.pass()
+    expect(pending).toHaveLength(0)
+
+    const round = await worker.startRoundNow()
+    expect(round).toMatchObject({ trigger: 'manual' })
+    expect(round?.knifeIds).toHaveLength(2)
+    await worker.pass()
+    expect(lanesOf(pending, ids)).toEqual(['a.example'])
+    // One round at a time.
+    expect(await worker.startRoundNow()).toBeNull()
   })
 
   it('only runs Check now when scheduling is off or not covered', async () => {
@@ -315,10 +431,7 @@ describe('price monitor worker', () => {
     await knife(['https://c.example/p'], { sold: true })
     const ids = sourceIds()
     saveSettings({
-      priceMonitoring: {
-        ...(await import('@/lib/settings')).getSettings().priceMonitoring,
-        enabled: false,
-      },
+      priceMonitoring: { ...getSettings().priceMonitoring, enabled: false },
     })
     const { worker, pending } = harness()
     worker.start({ scheduled: true })
@@ -331,17 +444,15 @@ describe('price monitor worker', () => {
       [ids.get('https://b.example/p'), 'manual'],
     ])
 
-    // Back on: the no-price and sold knives stay out of the schedule.
+    // Back on: the no-price and sold knives stay out of the round.
     saveSettings({
-      priceMonitoring: {
-        ...(await import('@/lib/settings')).getSettings().priceMonitoring,
-        enabled: true,
-      },
+      priceMonitoring: { ...getSettings().priceMonitoring, enabled: true },
     })
     await worker.pass()
     expect(pending.map((check) => check.sourceId).sort()).toEqual(
       [ids.get('https://a.example/p'), ids.get('https://b.example/p')].sort(),
     )
+    expect(readCurrentRound(getLocalDb())?.knifeIds).toHaveLength(1)
   })
 
   it('lets only one worker per vault run checks', async () => {
@@ -356,15 +467,16 @@ describe('price monitor worker', () => {
     expect(second.pending).toHaveLength(0)
   })
 
-  it('holds stores in advised quiet hours or pauses; Check now still runs', async () => {
+  it('skips stores in advised quiet hours or pauses; Check now still runs', async () => {
     await knife(['https://a.example/p'])
     await knife(['https://b.example/p'])
     await knife(['https://c.example/p'])
+    checkedYesterday()
     const ids = sourceIds()
-    const { worker, pending, now } = harness()
+    const { worker, pending, now, advance } = harness()
     const hour = new Date(now()).getHours()
     const createdAt = new Date(now()).toISOString()
-    const expiresAt = new Date(now() + 48 * 60 * MIN).toISOString()
+    const expiresAt = new Date(now() + 48 * HOUR).toISOString()
     const lane = {
       minGapMs: null,
       pauseUntil: null,
@@ -382,7 +494,6 @@ describe('price monitor worker', () => {
         now: createdAt,
         timeZone: 'UTC',
         frequencyHours: 24,
-        activeHours: null,
         statsDays: 7,
         stores: [],
       },
@@ -398,22 +509,31 @@ describe('price monitor worker', () => {
           {
             ...lane,
             laneKey: 'b.example',
-            pauseUntil: new Date(now() + 60 * MIN).toISOString(),
+            pauseUntil: new Date(now() + HOUR).toISOString(),
           },
         ],
       },
     })
     worker.start({ scheduled: true })
     await worker.pass()
-    expect(pending.map((check) => check.sourceId)).toEqual([
-      ids.get('https://c.example/p'),
-    ])
+    expect(pending).toHaveLength(0)
 
     await requestSourceChecks([ids.get('https://a.example/p')!])
     await worker.pass()
     expect(pending.map((check) => [check.sourceId, check.trigger])).toEqual([
-      [ids.get('https://c.example/p'), 'scheduled'],
       [ids.get('https://a.example/p'), 'manual'],
+    ])
+    advance(MIN)
+    await worker.pass()
+    advance(MIN)
+    await worker.pass()
+    expect(pending.map((check) => [check.sourceId, check.trigger])).toEqual([
+      [ids.get('https://a.example/p'), 'manual'],
+      [ids.get('https://c.example/p'), 'scheduled'],
+    ])
+    expect(retryKeys()).toEqual([
+      `check:${ids.get('https://a.example/p')}:store_not_ready`,
+      `check:${ids.get('https://b.example/p')}:store_not_ready`,
     ])
   })
 
@@ -529,247 +649,112 @@ describe('price monitor worker', () => {
     })
   })
 
-  it('searches other stores on a store’s lane only when it is free', async () => {
-    await knife(['https://www.bladehq.com/item--Other-Knife--2'])
-    const lookFor = await knife([])
-    saveSettings({
-      priceMonitoring: {
-        ...getSettings().priceMonitoring,
-        ai: {
-          ...DEFAULT_PRICE_MONITORING.ai,
-          enabled: true,
-          baseUrl: 'http://localhost:11434/v1',
-          model: 'test-model',
-        },
-        otherStores: {
-          enabled: true,
-          stores: {
-            bladehq: true,
-            smkw: false,
-            dlttrading: false,
-            knifejoy: false,
-            northwestknives: false,
-            amazon: false,
-          },
-        },
-      },
-    })
-    let finishSearch: (summary: DiscoverySummary) => void = () => {}
-    const discover = vi.fn(
-      (_knifeId: string, options: { signal: AbortSignal }) =>
-        new Promise<DiscoverySummary>((resolve) => {
-          finishSearch = resolve
-          options.signal.addEventListener('abort', () =>
-            resolve({ status: 'skipped', reason: 'missing' }),
-          )
-        }),
-    )
-    const { worker, pending, finish, advance, now } = harness({
-      nextDiscovery: nextDiscoveryKnife,
-      discover,
-    })
+  it('searches a knife at every store without a listing, together with its checks', async () => {
+    const own = await knife(['https://maker.example/a'])
+    const atBladeHq = await knife([
+      'https://www.bladehq.com/item--Test-Knife--2',
+    ])
+    checkedYesterday()
+    otherStores({ bladehq: true, smkw: true, amazon: true })
+    const ids = sourceIds()
+    const { calls, discover } = searches()
+    const { worker, pending, finish, advance } = harness({ discover })
     worker.start({ scheduled: true })
     await worker.pass()
-    // The due Blade HQ check goes first; the search waits for the lane.
-    expect(pending).toHaveLength(1)
-    expect(discover).not.toHaveBeenCalled()
-    await finish()
-    expect(discover).not.toHaveBeenCalled()
-
-    advance(2 * 60 * MIN + MIN)
-    await worker.pass()
-    expect(discover).toHaveBeenCalledTimes(1)
-    expect(discover.mock.calls[0]).toEqual([
-      lookFor,
-      {
-        signal: expect.any(AbortSignal),
-        store: 'bladehq',
-        canWrite: expect.any(Function),
-      },
+    expect(lanesOf(pending, ids)).toEqual(['maker.example'])
+    expect(calls.map((call) => [call.knifeId, call.store])).toEqual([
+      [own, 'bladehq'],
+      [own, 'smkw'],
+      [own, 'amazon'],
     ])
-    // The search holds the Blade HQ lane like a check would.
-    expect(worker.searches.has('bladehq.com')).toBe(true)
-    await requestSourceChecks([...sourceIds().values()])
-    await worker.pass()
-    expect(pending).toHaveLength(0)
-
-    finishSearch({
-      status: 'done',
-      result: 'not_found',
-      laneOutcome: 'success',
-      aiProblem: false,
-      durationMs: 4000,
-      retryAfterMs: null,
-      sourceId: null,
-    })
+    expect([...worker.searches.keys()].sort()).toEqual([
+      'amazon',
+      'bladehq.com',
+      'smkw.com',
+    ])
+    await finish()
+    for (const call of calls.splice(0)) call.resolve(notFound)
     await worker.idle()
-    const lane = getLocalDb()
-      .prepare(
-        "SELECT last_request_at FROM price_host_state WHERE lane_key = 'bladehq.com'",
-      )
-      .get() as { last_request_at: string }
-    expect(Date.parse(lane.last_request_at)).toBe(now())
+    await worker.pass()
+
+    // A store with a listing is checked, never searched. (Five minutes on,
+    // so the other stores' search gap is over too.)
+    advance(5 * MIN)
+    await worker.pass()
+    expect(lanesOf(pending, ids)).toEqual(['www.bladehq.com'])
+    expect(calls.map((call) => [call.knifeId, call.store])).toEqual([
+      [atBladeHq, 'smkw'],
+      [atBladeHq, 'amazon'],
+    ])
   })
 
-  it('searches a store with one source within minutes, not at its check spread', async () => {
-    await knife(['https://www.bladehq.com/item--Test-Knife--1'])
+  it('checks a listing the search just found in the same step', async () => {
     const lookFor = await knife([])
-    saveSettings({
-      priceMonitoring: {
-        ...getSettings().priceMonitoring,
-        ai: {
-          ...DEFAULT_PRICE_MONITORING.ai,
-          enabled: true,
-          baseUrl: 'http://localhost:11434/v1',
-          model: 'test-model',
-        },
-        otherStores: {
-          enabled: true,
-          stores: {
-            bladehq: true,
-            smkw: false,
-            dlttrading: false,
-            knifejoy: false,
-            northwestknives: false,
-            amazon: false,
-          },
-        },
-      },
-    })
-    const discover = vi.fn(async (): Promise<DiscoverySummary> => ({
-      status: 'done',
-      result: 'not_found',
-      laneOutcome: 'success',
-      aiProblem: false,
-      durationMs: 4000,
-      retryAfterMs: null,
-      sourceId: null,
-    }))
-    const { worker, pending, finish, advance, now } = harness({
-      nextDiscovery: (_settings, _now, store) =>
-        store === 'bladehq' ? lookFor : null,
-      discover,
-    })
-    // The AI advisor paused Blade HQ for half an hour: searches wait too.
-    const createdAt = new Date(now()).toISOString()
-    await recordAdvice({
-      generation: getVaultAccessState().generation,
-      createdAt,
-      trigger: 'manual',
-      model: 'm',
-      input: {
-        now: createdAt,
-        timeZone: 'UTC',
-        frequencyHours: 24,
-        activeHours: null,
-        statsDays: 7,
-        stores: [],
-      },
-      applied: {
-        createdAt,
-        expiresAt: new Date(now() + 48 * 60 * MIN).toISOString(),
-        lanes: [
-          {
-            laneKey: 'bladehq.com',
-            minGapMs: null,
-            pauseUntil: new Date(now() + 30 * MIN).toISOString(),
-            quietHours: null,
-            strategy: null,
-            reason: 'test',
-            adjustments: [],
-          },
-        ],
-      },
-    })
-    // Manual checks still run in a pause; its one source is checked now.
-    await requestSourceChecks([...sourceIds().values()])
+    otherStores({ bladehq: true })
+    const { calls, discover } = searches()
+    const { worker, pending, advance } = harness({ discover })
     worker.start({ scheduled: true })
     await worker.pass()
-    expect(pending).toHaveLength(1)
-    await finish()
-    const spreadReadyAt = Date.parse(
-      (
-        getLocalDb()
-          .prepare(
-            "SELECT ready_at FROM price_host_state WHERE lane_key = 'bladehq.com'",
-          )
-          .get() as { ready_at: string }
-      ).ready_at,
-    )
-    // One source a day: its next check waits the two-hour spread cap.
-    expect(spreadReadyAt - now()).toBeGreaterThanOrEqual(2 * 60 * MIN)
-
-    advance(6 * MIN)
-    await worker.pass()
-    expect(discover).not.toHaveBeenCalled()
-
-    advance(25 * MIN)
-    await worker.pass()
-    expect(discover).toHaveBeenCalledTimes(1)
-    expect(discover.mock.calls[0]).toEqual([
-      lookFor,
-      {
-        signal: expect.any(AbortSignal),
-        store: 'bladehq',
-        canWrite: expect.any(Function),
-      },
+    expect(calls.map((call) => [call.knifeId, call.store])).toEqual([
+      [lookFor, 'bladehq'],
     ])
+    await priceWatchRoute.PUT(
+      json('http://localhost/x', 'PUT', {
+        add: [{ url: 'https://www.bladehq.com/item--Found-Knife--9' }],
+      }),
+      { params: Promise.resolve({ id: lookFor }) },
+    )
+    const found = sourceIds().get(
+      'https://www.bladehq.com/item--Found-Knife--9',
+    )!
+    calls[0].resolve({ ...notFound, result: 'found', sourceId: found })
     await worker.idle()
-    const lane = getLocalDb()
-      .prepare(
-        "SELECT ready_at, last_request_at FROM price_host_state WHERE lane_key = 'bladehq.com'",
-      )
-      .get() as { ready_at: string; last_request_at: string }
-    expect(Date.parse(lane.last_request_at)).toBe(now())
-    // The search does not bring the next scheduled check forward.
-    expect(Date.parse(lane.ready_at)).toBe(spreadReadyAt)
+    await worker.pass()
+    // Its first price follows the search at the store's minimum gap.
+    advance(MIN)
+    await worker.pass()
+    expect(pending.map((check) => [check.sourceId, check.trigger])).toEqual([
+      [found, 'scheduled'],
+    ])
+    expect(readCurrentRound(getLocalDb())?.cursor).toBe(0)
+  })
 
-    // The next search follows the store's minimum gap of five minutes.
-    advance(4 * MIN)
+  it('skips a store whose search gap is not over and retries it later', async () => {
+    const first = await knife([])
+    const second = await knife([])
+    otherStores({ knifejoy: true })
+    const { calls, discover } = searches()
+    const { worker, advance } = harness({ discover })
+    worker.start({ scheduled: true })
     await worker.pass()
-    expect(discover).toHaveBeenCalledTimes(1)
-    advance(2 * MIN)
+    expect(calls.map((call) => call.knifeId)).toEqual([first])
+    calls[0].resolve(notFound)
+    await worker.idle()
     await worker.pass()
-    expect(discover).toHaveBeenCalledTimes(2)
+
+    // KnifeJoy allows one search every 15 minutes: the next knife skips it.
+    advance(MIN)
+    await worker.pass()
+    expect(calls).toHaveLength(1)
+    expect(retryKeys()).toEqual([`search:${second}:knifejoy:store_not_ready`])
+    advance(MIN)
+    await worker.pass()
+    expect(readCurrentRound(getLocalDb())).toBeNull()
+    expect(calls).toHaveLength(1)
+
+    advance(13 * MIN)
+    await worker.pass()
+    expect(calls.map((call) => call.knifeId)).toEqual([first, second])
+    calls[1].resolve(notFound)
+    await worker.idle()
+    expect(retryKeys()).toEqual([])
   })
 
   it('probes a paused store with a search once its cooldown is over', async () => {
     const lookFor = await knife([])
-    saveSettings({
-      priceMonitoring: {
-        ...getSettings().priceMonitoring,
-        ai: {
-          ...DEFAULT_PRICE_MONITORING.ai,
-          enabled: true,
-          baseUrl: 'http://localhost:11434/v1',
-          model: 'test-model',
-        },
-        otherStores: {
-          enabled: true,
-          stores: {
-            bladehq: true,
-            smkw: false,
-            dlttrading: false,
-            knifejoy: false,
-            northwestknives: false,
-            amazon: false,
-          },
-        },
-      },
-    })
-    const discover = vi.fn(async (): Promise<DiscoverySummary> => ({
-      status: 'done',
-      result: 'not_found',
-      laneOutcome: 'success',
-      aiProblem: false,
-      durationMs: 4000,
-      retryAfterMs: null,
-      sourceId: null,
-    }))
-    const { worker, now } = harness({
-      nextDiscovery: nextDiscoveryKnife,
-      discover,
-    })
+    otherStores({ bladehq: true })
+    const discover = vi.fn(async (): Promise<DiscoverySummary> => notFound)
+    const { worker, now } = harness({ discover })
     // Blade HQ has no price sources: only a search can probe it.
     const ended = new Date(now() - MIN).toISOString()
     getLocalDb()
@@ -800,118 +785,16 @@ describe('price monitor worker', () => {
     expect(lane.circuit).toBe('closed')
   })
 
-  it('searches every store in parallel, outside the active hours too', async () => {
-    const lookFor = await knife([])
-    saveSettings({
-      priceMonitoring: {
-        ...getSettings().priceMonitoring,
-        // Active hours that start three hours after the harness clock:
-        // scheduled checks are off now, searches are not.
-        schedule: {
-          ...getSettings().priceMonitoring.schedule,
-          activeHours: [
-            (new Date(Date.UTC(2026, 10, 18, 12)).getHours() + 3) % 24,
-            (new Date(Date.UTC(2026, 10, 18, 12)).getHours() + 4) % 24,
-          ],
-        },
-        ai: {
-          ...DEFAULT_PRICE_MONITORING.ai,
-          enabled: true,
-          baseUrl: 'http://localhost:11434/v1',
-          model: 'test-model',
-        },
-        otherStores: {
-          enabled: true,
-          stores: {
-            bladehq: true,
-            smkw: true,
-            dlttrading: false,
-            knifejoy: false,
-            northwestknives: false,
-            amazon: true,
-          },
-        },
-      },
-    })
-    const finishes: Array<(summary: DiscoverySummary) => void> = []
-    const discover = vi.fn(
-      (_knifeId: string, _options: { store: string }) =>
-        new Promise<DiscoverySummary>((resolve) => {
-          finishes.push(resolve)
-        }),
-    )
-    const { worker } = harness({
-      nextDiscovery: () => lookFor,
-      discover,
-    })
-    worker.start({ scheduled: true })
-    await worker.pass()
-    expect(discover.mock.calls.map(([, options]) => options.store)).toEqual([
-      'bladehq',
-      'smkw',
-      'amazon',
-    ])
-    expect([...worker.searches.keys()].sort()).toEqual([
-      'amazon',
-      'bladehq.com',
-      'smkw.com',
-    ])
-    // One search per store at a time.
-    await worker.pass()
-    expect(discover).toHaveBeenCalledTimes(3)
-    for (const resolve of finishes)
-      resolve({
-        status: 'done',
-        result: 'not_found',
-        laneOutcome: 'success',
-        aiProblem: false,
-        durationMs: 4000,
-        retryAfterMs: null,
-        sourceId: null,
-      })
-    await worker.idle()
-    expect(worker.searches.size).toBe(0)
-  })
-
   it('does not slow a store for long AI searches; throttling still does', async () => {
-    await knife([])
-    saveSettings({
-      priceMonitoring: {
-        ...getSettings().priceMonitoring,
-        ai: {
-          ...DEFAULT_PRICE_MONITORING.ai,
-          enabled: true,
-          baseUrl: 'http://localhost:11434/v1',
-          model: 'test-model',
-        },
-        otherStores: {
-          enabled: true,
-          stores: {
-            bladehq: true,
-            smkw: false,
-            dlttrading: false,
-            knifejoy: false,
-            northwestknives: false,
-            amazon: false,
-          },
-        },
-      },
-    })
-    let laneOutcome: DiscoverySummary & { status: 'done' } = {
-      status: 'done',
-      result: 'not_found',
-      laneOutcome: 'success',
-      aiProblem: false,
+    for (let index = 0; index < 4; index += 1) await knife([])
+    otherStores({ bladehq: true })
+    let outcome: DiscoverySummary & { status: 'done' } = {
+      ...(notFound as DiscoverySummary & { status: 'done' }),
       // Three minutes of AI matching and browsing.
       durationMs: 3 * MIN,
-      retryAfterMs: null,
-      sourceId: null,
     }
-    const discover = vi.fn(async (): Promise<DiscoverySummary> => laneOutcome)
-    const { worker, advance } = harness({
-      nextDiscovery: nextDiscoveryKnife,
-      discover,
-    })
+    const discover = vi.fn(async (): Promise<DiscoverySummary> => outcome)
+    const { worker, advance } = harness({ discover })
     const minGap = () =>
       (
         getLocalDb()
@@ -924,12 +807,14 @@ describe('price monitor worker', () => {
     for (let search = 1; search <= 3; search += 1) {
       await worker.pass()
       await worker.idle()
+      await worker.pass()
       expect(discover).toHaveBeenCalledTimes(search)
       expect(minGap()).toBe(MIN)
-      advance(10 * MIN)
+      // Five minutes between searches at one store.
+      advance(5 * MIN)
     }
 
-    laneOutcome = { ...laneOutcome, laneOutcome: 'throttled' }
+    outcome = { ...outcome, laneOutcome: 'throttled' }
     await worker.pass()
     await worker.idle()
     expect(discover).toHaveBeenCalledTimes(4)
@@ -1017,45 +902,41 @@ describe('store actions', () => {
 })
 
 describe('queue snapshot', () => {
-  it('reports waiting checks and Check all progress', async () => {
+  it('reports Check now requests, the retry list and the next round', async () => {
     await knife(['https://shop.example/a', 'https://shop.example/b'])
-    const start = new Date().toISOString()
-    let snapshot = buildQueueSnapshot(Date.now(), { since: start })
-    expect(snapshot).toMatchObject({ waiting: 2, checkedSince: 0 })
-    getLocalDb()
-      .prepare(
-        `UPDATE price_sources SET last_checked_at = ?, priority = 0,
-           next_check_at = ? WHERE url = 'https://shop.example/a'`,
-      )
-      .run(
-        new Date(Date.parse(start) + 1000).toISOString(),
-        new Date(Date.now() + 60 * MIN).toISOString(),
-      )
-    snapshot = buildQueueSnapshot(Date.now(), { since: start })
-    expect(snapshot).toMatchObject({ waiting: 1, checkedSince: 1 })
-    expect(buildQueueSnapshot().checkedSince).toBeNull()
+    checkedYesterday(Date.now())
+    roundEvery(12)
+    const ids = sourceIds()
+    expect(buildQueueSnapshot()).toMatchObject({
+      waiting: 0,
+      round: null,
+      lastRound: null,
+      frequencyMs: 12 * HOUR,
+      retries: { waiting: 0, scheduled: 0, nextAt: null },
+    })
+    expect(buildQueueSnapshot().nextRoundAt).not.toBeNull()
+    await requestSourceChecks([ids.get('https://shop.example/a')!])
+    const snapshot = buildQueueSnapshot()
+    expect(snapshot.waiting).toBe(1)
+    expect(snapshot.lanes[0]).toMatchObject({
+      laneKey: 'shop.example',
+      sources: 2,
+      manual: 1,
+      gapMs: MIN,
+      retries: 0,
+    })
   })
 
-  it('counts pages out of stock for two weeks as slowed and spreads the rest', async () => {
+  it('counts pages out of stock for two weeks as slowed', async () => {
     await knife([
       'https://shop.example/a',
       'https://shop.example/b',
       'https://shop.example/c',
       'https://shop.example/d',
     ])
-    saveSettings({
-      priceMonitoring: {
-        ...getSettings().priceMonitoring,
-        schedule: {
-          ...DEFAULT_PRICE_MONITORING.schedule,
-          mode: 'custom',
-          intervalHours: 6,
-        },
-      },
-    })
-    const gapBefore = buildQueueSnapshot().lanes[0].gapMs
+    roundEvery(6)
     const ids = sourceIds()
-    const longAgo = new Date(Date.now() - 20 * 24 * 60 * MIN).toISOString()
+    const longAgo = new Date(Date.now() - 20 * 24 * HOUR).toISOString()
     for (const url of ['https://shop.example/a', 'https://shop.example/b']) {
       const id = ids.get(url)!
       const row = getLocalDb()
@@ -1075,10 +956,10 @@ describe('queue snapshot', () => {
         )
         .run(id)
     }
-    const lane = buildQueueSnapshot().lanes[0]
-    expect(lane).toMatchObject({ sources: 4, slowed: 2 })
-    // 6 h × 0.8 over 2.5 checks instead of 4.
-    expect(gapBefore).toBe((6 * 60 * MIN * 0.8) / 4)
-    expect(lane.gapMs).toBe((6 * 60 * MIN * 0.8) / 2.5)
+    expect(buildQueueSnapshot().lanes[0]).toMatchObject({
+      sources: 4,
+      slowed: 2,
+      gapMs: MIN,
+    })
   })
 })

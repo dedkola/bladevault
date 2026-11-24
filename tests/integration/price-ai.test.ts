@@ -1087,7 +1087,7 @@ describe('AI pacing advisor', () => {
     const lane = buildQueueSnapshot(now).lanes.find(
       (entry) => entry.laneKey === 'shop.example',
     )
-    expect(lane?.minGapMs).toBe(1_800_000)
+    expect(lane?.gapMs).toBe(1_800_000)
     expect(lane?.advice).toMatchObject({ quietHours: [20, 23] })
 
     const activity = await activityRoute.GET(

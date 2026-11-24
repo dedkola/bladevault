@@ -568,7 +568,7 @@ function StatusTimeline({
           <p>
             {cluster.pin.sources.length} knives ·{' '}
             {cluster.pin.due
-              ? 'due, checked one at a time per store'
+              ? 'due, checked when their turn comes'
               : cluster.upcoming
                 ? 'next check'
                 : 'last checked'}
@@ -664,8 +664,8 @@ export function MonitoringStatus({
           {collapsed ? null : (
             <p>
               What the next {horizonHours} hours will check, with the last 24
-              hours in brief on the left. Knives already due wait at Now and are
-              checked one at a time per store. Select a pin to open the knife.
+              hours in brief on the left. Knives already due wait at Now until
+              their turn in the round. Select a pin to open the knife.
             </p>
           )}
         </div>

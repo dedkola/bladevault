@@ -3,7 +3,6 @@ import { requireAppUnlock } from '@/lib/app-lock'
 import { getLocalDb } from '@/lib/local-db'
 import { parsePriceCheckRequest } from '@/lib/price-monitor/shared'
 import {
-  markScheduledSourcesDue,
   readActiveSources,
   readSource,
   syncAutoSource,
@@ -19,9 +18,10 @@ import { getVaultAccessState } from '@/lib/vault-access'
 import { withVaultMutationRequest } from '@/lib/vault-mutation-request'
 
 /**
- * Check now for one source or all of a knife's sources. The paced queue
- * runs them at each store's next free slot (never two at one store); poll
- * the knife's price watch or /api/prices/queue for progress.
+ * Check now for one source or all of a knife's sources: they run right away,
+ * never two at one store. `scope: 'all'` (Check all now) starts a round over
+ * every monitored knife. Poll the knife's price watch or /api/prices/queue
+ * for progress.
  */
 export async function POST(request: Request) {
   return withVaultMutationRequest(request, async () => {
@@ -53,12 +53,21 @@ export async function POST(request: Request) {
             },
             { status: 409 },
           )
-        // Progress: /api/prices/queue?since=<startedAt> counts checks since.
-        const startedAt = new Date().toISOString()
-        const due = await markScheduledSourcesDue(settings)
-        getPriceMonitorWorker().wake(0)
+        // Check all now starts a round; progress shows in /api/prices/queue.
+        const round = await getPriceMonitorWorker().startRoundNow()
+        if (!round)
+          return NextResponse.json(
+            { error: 'A round is already checking every knife.' },
+            { status: 409 },
+          )
         return NextResponse.json(
-          { due, startedAt },
+          {
+            round: {
+              id: round.id,
+              startedAt: new Date(round.startedAt).toISOString(),
+              knives: round.knifeIds.length,
+            },
+          },
           { status: 202, headers: { 'Cache-Control': 'no-store' } },
         )
       }

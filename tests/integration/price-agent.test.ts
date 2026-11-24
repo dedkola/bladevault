@@ -19,6 +19,11 @@ import {
   readQueueCandidates,
   syncAutoSource,
 } from '@/lib/price-monitor/store'
+import {
+  queueRetryNow,
+  readRetryTasks,
+  startRound,
+} from '@/lib/price-monitor/round-store'
 import { getPriceMonitorWorker } from '@/lib/price-monitor/worker'
 import { getSettings, saveSettings } from '@/lib/settings'
 import {
@@ -188,14 +193,16 @@ describe('AI supervisor', () => {
       Date.now(),
     )
     expect(row(failing.source.id)).toMatchObject({
-      priority: 1,
       last_ai_at: null,
       fetch_override: 'browser',
       enabled: 1,
     })
-    expect(
-      Date.parse(row(failing.source.id).next_check_at!),
-    ).toBeLessThanOrEqual(Date.now())
+    // Retry with AI puts the source on the retry list, due now.
+    const retry = readRetryTasks(getLocalDb()).find(
+      (task) => task.sourceId === failing.source.id,
+    )
+    expect(retry).toMatchObject({ kind: 'check', reason: 'supervisor' })
+    expect(retry!.dueAt!).toBeLessThanOrEqual(Date.now())
     expect(row(gone.source.id).enabled).toBe(0)
 
     const runs = readAgentRuns(getLocalDb())
@@ -335,7 +342,7 @@ describe('AI supervisor', () => {
     expect(row(paused.source.id).last_ai_at).toBe(old)
   })
 
-  it('shows each knife its market, the line at its store and what came of earlier actions', async () => {
+  it('shows each knife its market, its place in the round and what came of earlier actions', async () => {
     enableAgent('act')
     saveSettings({
       priceMonitoring: {
@@ -363,9 +370,18 @@ describe('AI supervisor', () => {
          last_checked_at = ?, next_check_at = ?, last_price_minor = ?,
          last_currency = 'USD', last_availability = 'in_stock' WHERE id = ?`,
     )
-    // Both due at one store: the more overdue Mini goes first.
     setState.run(ago(1), ago(0.05), 9900, watched.source.id)
     setState.run(ago(1), ago(0.2), 5000, first.source.id)
+    // A round runs: Drop Bear (added first) is next, Mini after it.
+    await startRound({
+      settings: getSettings().priceMonitoring,
+      trigger: 'scheduled',
+      intervalMs: 6 * 3_600_000,
+      pauseMs: 60_000,
+      searches: false,
+      now: Date.now(),
+    })
+    queueRetryNow(database, { sourceId: first.source.id, now: Date.now() })
     const snapshotRow = database.prepare(
       `INSERT INTO price_snapshots
          (knife_id, source_id, price_minor, currency, availability,
@@ -417,9 +433,15 @@ describe('AI supervisor', () => {
     })
     const sourceOf = (sourceId: number) =>
       snapshot.sources.find((entry) => entry.id === sourceId)
-    expect(sourceOf(first.source.id)?.ahead).toBe(0)
-    expect(sourceOf(source.id)).toMatchObject({
+    expect(sourceOf(first.source.id)).toMatchObject({
       ahead: 1,
+      aiRetryPending: true,
+      retry: { reason: 'supervisor', attempts: 0, inMin: 0 },
+    })
+    expect(snapshot.round).toEqual({ done: 0, knives: 2 })
+    expect(snapshot.nextRoundInMin).toBeNull()
+    expect(sourceOf(source.id)).toMatchObject({
+      ahead: 0,
       price: '99.00 USD',
       stock: 'in_stock',
       outOfStockDays: null,
@@ -459,8 +481,8 @@ describe('AI supervisor', () => {
       planResponse({
         summary: 'Drop Bear is below its target.',
         check: [
-          { sourceId: first.source.id, reason: 'overdue' },
           { sourceId: source.id, reason: 'below target' },
+          { sourceId: first.source.id, reason: 'overdue' },
         ],
         retryWithAi: [],
         fetchMode: [],
@@ -473,7 +495,7 @@ describe('AI supervisor', () => {
     expect(
       result.run.actions.map((action) => [action.kind, action.note]),
     ).toEqual([
-      ['check', 'already next at its store'],
+      ['check', 'its knife is next in the round'],
       ['check', null],
       ['searchOtherStore', null],
     ])
@@ -486,7 +508,7 @@ describe('AI supervisor', () => {
             outcome)
          VALUES ('kizer.example', 'scheduled', ?, ?, ?, 100, 'ok')`,
       )
-      .run(source.id, id, later)
+      .run(first.source.id, first.id, later)
     database
       .prepare(
         `UPDATE price_discovery SET status = 'found', last_attempt_at = ?
@@ -502,14 +524,14 @@ describe('AI supervisor', () => {
     expect(next.recentRuns[0].actions).toEqual([
       {
         kind: 'check',
-        target: `source ${first.source.id}`,
+        target: `source ${source.id}`,
         status: 'refused',
-        note: 'already next at its store',
+        note: 'its knife is next in the round',
         outcome: undefined,
       },
       {
         kind: 'check',
-        target: `source ${source.id}`,
+        target: `source ${first.source.id}`,
         status: 'applied',
         note: undefined,
         outcome: expect.stringMatching(/^next check: ok, \d+ min later$/),

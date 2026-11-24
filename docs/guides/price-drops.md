@@ -42,9 +42,9 @@ Each source also offers **How to load this page**. **Auto (learned per store)** 
 
 Open **Price Drops** in the sidebar. From top to bottom the page shows:
 
-- **Header** — whether automatic checks are running, waiting for the next check, or outside checking hours, with the time of the last successful check. **Check all now** queues every monitored source. It is unavailable while **Check prices automatically** is off; **Check now** on a knife or store still works then.
+- **Header** — whether a round is running (such as **Round: 12 of 38 knives**) or when the next round starts, how many items wait on the retry list, and the time of the last successful check (see [How checks are scheduled](#how-checks-are-scheduled)). **Check all now** starts a round right away. It is unavailable while a round runs or while **Check prices automatically** is off; **Check now** on a knife or store still works then.
 - **AI supervisor** — appears when AI is connected (see [Let AI supervise monitoring](#let-ai-supervise-monitoring)): its mode, latest summary, coverage of monitored sources, what it did in its last run, and stores that need you to solve a bot check.
-- **Monitoring status** — counts of sources checked in the last 24 hours, drops, rises, out of stock, sources that need attention, and sources still waiting for their first check. Below the counts, a timeline pins each knife where it was last checked over the past 24 hours and again where its next check is due. Group the lanes **By result** or **By store**. Knives already due wait at **Now** and are checked one at a time per store. Select a pin to open the knife; a pin for several knives lists them. Select **Hide timeline** to keep only the counts; the page remembers the choice.
+- **Monitoring status** — counts of sources checked in the last 24 hours, drops, rises, out of stock, sources that need attention, and sources still waiting for their first check. Below the counts, a timeline pins each knife where it was last checked over the past 24 hours and again where its next check is due. Group the lanes **By result** or **By store**. Knives already due wait at **Now** until their turn in the round. Select a pin to open the knife; a pin for several knives lists them. Select **Hide timeline** to keep only the counts; the page remembers the choice.
 - **The table** — every monitored store listing, with the price now, the latest change in money and percent, and the difference from the regular price. Switch between tabs:
   - **All** — every monitored source.
   - **Changed** — drops, increases, and out-of-stock sources together.
@@ -67,7 +67,7 @@ Tick rows to act on several at once: **Check now**, **Pause** (paused listings s
 
 The **Price Drops** link in the navigation shows how many price notifications are unread. If the page cannot refresh, it says how old the shown data is and offers **Retry**.
 
-**Check all now** queues every monitored source and shows its progress, such as "34 of 221 checked", until the queue is done; **Check now** on a source or knife checks just that one.
+While a round runs, the page shows its progress, such as "12 of 38 knives checked". **Check all now** starts a round at once and says when it is done and how many items it left on the retry list; **Check now** on a source or knife checks just that one.
 
 Percent changes keep one decimal below 10%, so a 0.3% move does not read as 0%. Times follow **Settings → Time format** (12-hour or 24-hour) and add the date when they are not today.
 
@@ -180,14 +180,17 @@ Open **Settings → Price monitoring** to control automatic checks:
 
 - **Check prices automatically** turns scheduled checks on or off. **Check now** works either way.
 - **Skip sold knives** leaves sold knives out in Auto mode.
-- **How often** — **Once daily**, **Twice daily**, **Every 12 hours**, **Set times**, or **Custom** with an interval in hours.
-- **Check at** (Set times only) — up to six times a day, in the server's time zone; by default 9:00, 14:00 and 20:00. At each time every product is checked once, each store at its minimum pause, and nothing is checked on schedule until the next time. A run takes as long as a store needs at its pace, so a store with many products can take an hour or more. A page out of stock for two weeks is checked at about the same time the next day.
-- **Only check between** limits checks to set hours, in the server's time zone (not with **Every 12 hours** or **Set times**).
-- **Check long out-of-stock pages once a day** (on by default) checks a page that has been out of stock for two weeks or more at most once a day, so a restock still shows within a day while stores get fewer requests. **Check now** and **Check all now** still check it right away.
+- **Start a round** — **Every 6 hours**, **Every 12 hours**, or **Once a day** (the default), around the clock. Older choices such as **Twice daily**, **Set times**, or a custom interval become the closest of the three.
+- **Pause between knives** — how long a round waits after one knife before it moves to the next, 1 minute by default. It is also the shortest time between two requests at one store.
+- **Check long out-of-stock pages once a day** (on by default) checks a page that has been out of stock for two weeks or more in at most one round a day, so a restock still shows within a day while stores get fewer requests. **Check now** and **Check all now** still check it right away.
 
-BladeVault never hits one store with several requests at once. Each store is checked one product at a time, and its checks are spread evenly over the chosen interval (with **Set times**, run back to back at the store's minimum pause); different stores are checked in parallel. A product that has never been checked does not wait for its turn in the spread: it gets its first reading as soon as the store's minimum pause allows. **Pacing** sets the minimum pause between two checks at one store.
+Prices are checked in rounds. A round goes through every monitored knife in order: Wishlist knives first (**Next**, **Saving**, **Someday**, each in its own order), then the rest by when they were added. For each knife, all of its stores are checked at the same time, and every turned-on [other store](#find-knives-at-other-stores-with-ai) where it has no listing yet is searched; a listing found that way gets its first price in the same step. Then the round pauses and moves to the next knife. A restart continues the round where it stopped.
 
-The pace adapts by itself: a store that answers slowly, rate-limits, or shows a bot check is slowed down or paused, and speeds up again after successful checks. The **Stores** table shows each store's current pace, how many of its products are checked only once a day because they have been out of stock for a long time, how long a full pass takes, and any pause. Each store has these actions:
+A store that is not ready for a knife is skipped: it is paused, it is waiting out a Retry-After or a bot-check pause, or its own gap since the last request (for example 15 minutes between searches at KnifeJoy) is not over within 2 minutes. Skipped stores, checks that fail, are blocked, or read no price, and searches that fail or are blocked go on the **retry list**. When the round ends, the retry list is tried at random times between the end of the round and 10 minutes before the next one; with [AI](#optional-ai-assistance) connected, those checks may use AI right away instead of waiting for their usual AI pause. What fails again waits for the next round's retry list.
+
+The next round starts one interval after the last one started, or as soon as it ends when a round takes longer; rounds never overlap. **Check now** and **Check all sources** check right away, between the round's knives, and a link you just added gets its first reading before the round's next knife. BladeVault never sends one store several requests at once; different stores are checked in parallel.
+
+The pace adapts by itself: a store that answers slowly, rate-limits, or shows a bot check is slowed down or paused, and speeds up again after successful checks. The **Stores** table shows each store's current pace (its minimum gap between two requests), how many of its products are checked only once a day because they have been out of stock for a long time, how many items wait on the retry list, and any pause. Each store has these actions:
 
 - **Resume now** appears while a store is paused after a bot check or repeated errors and lets its next check start right away. The store may block again; if it does, it pauses for longer.
 - **Check now** (the refresh button) queues every product at that store. They run at the store's minimum pause, not spread over the day.
@@ -246,8 +249,8 @@ The supervisor runs when something changes: a price drop or increase, a product 
 - what changed since its last run, and why it runs now;
 
 - every knife's market: its regular price, your target price, the best in-stock price now and its store, the lowest price ever and the lowest and highest of the last 90 days, the last price and stock change, and its **Other stores** searches;
-- every monitored product under its knife: store, price, stock, how long it has been out of stock, status, when it was last checked and how it failed, and how many checks wait before it at its store;
-- each store's pace and pauses, how many products are fresh, the AI budget, and the local date and time, so it can plan around sales;
+- every monitored product under its knife: store, price, stock, how long it has been out of stock, status, when it was last checked and how it failed, how many knives come before it in the running round, and whether it waits on the retry list;
+- the round's progress and when the next round starts, each store's pace, pauses, and retry list, how many products are fresh, the AI budget, and the local date and time, so it can plan around sales;
 - its last three runs, with why an action was refused or what the next check or search found;
 - which knives it is watching closely, how often, and for how long;
 - its notes and questions of the last weeks: read or not, and how you answered;
@@ -255,8 +258,8 @@ The supervisor runs when something changes: a price drop or increase, a product 
 
 It never sees product links, notes, or keys. It can:
 
-- **Check first**: move up to 25 products to the front of their store's line, for example a knife near its target price ahead of others, or a product it wants read before it is due. A product that is already next at its store, or that was checked in the last 30 minutes, is left alone. A product blocked by a bot check still waits out its backoff.
-- **Retry with AI**: let AI read or work the page of up to 10 failing products on their next check.
+- **Check first**: check up to 25 products right away, before the round's next knife, for example a knife near its target price, or a product it wants read before its turn. A product whose knife is next in the round, or that was checked in the last 30 minutes, is left alone. A product blocked by a bot check still waits out its backoff.
+- **Retry with AI**: put up to 10 failing products on the retry list, where they are retried soon with AI allowed to read or work the page.
 - **Change how a page loads**: switch up to 5 products to the browser, plain HTTP, or back to automatic.
 - **Pause**: stop up to 3 products whose page failed at least 5 checks in a row and seems gone (not found or a redirect; never timeouts, server errors, or bot checks). Pages not found with HTTP 404 or 410 pause on their own after three checks. Resume them in the knife's **Price monitoring** section.
 - **Look on other stores**: bring a waiting search forward for up to 5 knives, when [Other stores](#find-knives-at-other-stores-with-ai) is on. A knife that was never searched at a store is due anyway, and a listing already found stays.
@@ -282,11 +285,11 @@ For each knife, AI does the work in three steps:
 - **Check** — BladeVault opens that product page, and AI confirms it is the same knife. When the page shows the knife's exact model number, it is the knife even if a spec is worded differently; AI only rules out accessories, parts, and bundles. Without a model number, a different steel, blade length, or lock is a different knife.
 - **Parse** — the product becomes a source marked **Found by AI** and is checked like any other source. The page parsers read the price, and AI reads it or resolves the check when the parser cannot (with **Read prices the page parsers miss** and **Resolve check errors** on).
 
-Searches cover every knife that price monitoring covers, including knives without a product link, and skip knives that already have a source at that store. They run around the clock, also outside **Only check between** and between **Set times** runs, with one search at a time per store and different stores searching in parallel. They share the store's pace: while a price check is due at a store, its searches wait, and a bot check pauses both. AI receives the knife's brand, name, and specs and the store's listing titles, never the regular price, notes, or photos.
+Searches cover every knife that price monitoring covers, including knives without a product link, and skip knives that already have a source at that store. They run in [rounds](#how-checks-are-scheduled): when a knife's turn comes, it is searched at every turned-on store at the same time as its price checks. They share the store's pace, so a store never gets two requests at once, and a bot check pauses both. A store that is not ready yet, such as KnifeJoy within 15 minutes of its last search, is skipped for that knife and tried again from the retry list. AI receives the knife's brand, name, and specs and the store's listing titles, never the regular price, notes, or photos.
 
 Other variants of the same model at a store (another blade finish, handle color, or edge, up to 5 per store) are kept as **related listings**: the store shows **Other variants only** with a link and the price seen for each. They are not monitored and never count toward the knife's price, chart, or alerts.
 
-The section lists recent results. A knife that is not found, or found only in other variants, is searched again after a day, and a failed search after a few hours. **Search again for missing** searches those knives at the next free slot. A found listing is never replaced: remove its source to stop monitoring it, and it is not added again.
+The section lists recent results. A knife that is not found, or found only in other variants, is searched again after a day; a failed or blocked search goes on the retry list. **Search again for missing** searches those knives when their turn comes in a round. A found listing is never replaced: remove its source to stop monitoring it, and it is not added again.
 
 ### See where a knife is sold
 

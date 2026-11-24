@@ -24,7 +24,13 @@ import {
   parseStoredPrice,
   toMinorUnits,
 } from '@/lib/price-monitor/money'
-import { byUrgency } from '@/lib/price-monitor/queue'
+import {
+  queueRetryNow,
+  readCurrentRound,
+  readLastRound,
+  readRetryTasks,
+} from '@/lib/price-monitor/round-store'
+import { nextRoundAt, type RetryReason } from '@/lib/price-monitor/rounds'
 import { laneAvailability, laneFloorMs } from '@/lib/price-monitor/lanes'
 import { adviceWindowMs, frequencyMs } from '@/lib/price-monitor/schedule'
 import { redactSecrets } from '@/lib/price-monitor/secret-registry'
@@ -256,20 +262,28 @@ export type AgentSource = {
    */
   queued: boolean
   /**
-   * Queued with AI allowed on its next check (an earlier retryWithAi, or
-   * no AI use yet): asking again changes nothing. Only present when true.
+   * A check with AI allowed already waits (on the retry list, or queued
+   * without AI use yet): asking again changes nothing. Only present when
+   * true.
    */
   aiRetryPending?: true
   /**
-   * Queued or due, but its store holds it this many minutes more (pace,
-   * advised pause or circuit cooldown). Only present when above 0.
+   * Queued or on the retry list, but its store holds it this many minutes
+   * more (pace, advised pause or circuit cooldown). Only present when
+   * above 0.
    */
   storeHoldMin?: number
   /**
-   * Due checks at the same store that run before this one (0: it is next);
-   * null when it is not due.
+   * Knives the running round checks before this source's knife (0: its
+   * knife is next); null when the round does not reach it (no round runs,
+   * or it was checked in this round already).
    */
   ahead: number | null
+  /**
+   * On the retry list: why, its tries so far, and minutes until its retry
+   * (null: after the round ends). Only present when on the list.
+   */
+  retry?: { reason: RetryReason; attempts: number; inMin: number | null }
   /** The store's current price, e.g. "129.00 USD"; null when unknown. */
   price: string | null
   stock: Availability | null
@@ -341,7 +355,8 @@ export type AgentStore = {
   pausedForMin: number
   readyInMin: number
   minGapSec: number
-  fullPassHours: number
+  /** Items on the retry list at this store. */
+  retries: number
 }
 
 export type AgentCoverage = {
@@ -419,6 +434,12 @@ export type AgentSnapshot = {
   localTime: string
   mode: Exclude<PriceAgentMode, 'off'>
   checkIntervalHours: number
+  /**
+   * The round in progress (knives done of all), or null; and minutes until
+   * the next round starts (null while one runs).
+   */
+  round: { done: number; knives: number } | null
+  nextRoundInMin: number | null
   ai: {
     usage: 'limited' | 'unlimited'
     today: { calls: number; tokens: number }
@@ -589,27 +610,37 @@ export function buildAgentSnapshot(input: {
     )
     .all() as SourceQueryRow[]
 
-  // Each store's line of due checks, in the queue's own order.
-  const isDue = (row: SourceQueryRow) =>
-    row.priority >= 2 ||
-    (monitored.has(row.id) &&
-      (row.next_check_at === null || Date.parse(row.next_check_at) <= now))
-  const lines = new Map<string, SourceQueryRow[]>()
-  for (const row of rows.filter(isDue)) {
-    const line = lines.get(row.lane_key) ?? []
-    line.push(row)
-    lines.set(row.lane_key, line)
-  }
+  // The running round: knives still to come, in order. A source whose
+  // knife is among them and that was not checked since the round started
+  // waits that many knives.
+  const round = readCurrentRound(database)
   const ahead = new Map<number, number>()
-  for (const line of lines.values())
-    line
-      .map((row) => ({
-        sourceId: row.id,
-        priority: row.priority,
-        nextCheckAt: row.next_check_at ? Date.parse(row.next_check_at) : null,
-      }))
-      .sort(byUrgency)
-      .forEach((entry, index) => ahead.set(entry.sourceId, index))
+  if (round) {
+    const remaining = round.knifeIds.slice(round.cursor)
+    const position = new Map(remaining.map((id, index) => [id, index]))
+    for (const row of rows) {
+      const index = position.get(row.knife_id)
+      if (
+        index !== undefined &&
+        monitored.has(row.id) &&
+        (row.last_checked_at === null ||
+          Date.parse(row.last_checked_at) < round.startedAt)
+      )
+        ahead.set(row.id, index)
+    }
+  }
+  const retryTasks = readRetryTasks(database)
+  const retries = new Map(
+    retryTasks
+      .filter((task) => task.kind === 'check' && task.sourceId !== null)
+      .map((task) => [task.sourceId!, task]),
+  )
+  const retriesPerStore = new Map<string, number>()
+  for (const task of retryTasks)
+    retriesPerStore.set(
+      task.laneKey,
+      (retriesPerStore.get(task.laneKey) ?? 0) + 1,
+    )
 
   // Each store's pace as the worker applies it: AI advice (capped so its
   // sources fit the interval) and circuit cooldowns included.
@@ -652,7 +683,7 @@ export function buildAgentSnapshot(input: {
           ? Math.max(0, minutesUntil(availability.until, now) ?? 0)
           : 0,
       minGapSec: Math.round(minGapMs / 1000),
-      fullPassHours: Math.round(((minGapMs * sources) / HOUR_MS) * 10) / 10,
+      retries: retriesPerStore.get(laneKey) ?? 0,
     })
   }
 
@@ -664,6 +695,7 @@ export function buildAgentSnapshot(input: {
         : undefined
     const scheduled = monitored.has(row.id)
     const queued = row.priority >= 1
+    const retry = retries.get(row.id)
     const hold = storeViews.get(row.lane_key)?.readyInMin ?? 0
     return {
       id: row.id,
@@ -682,16 +714,27 @@ export function buildAgentSnapshot(input: {
       aiMinAgo: minutesAgo(row.last_ai_at, now),
       // Never-checked sources and earlier agent picks wait at the front.
       queued,
-      ...(queued &&
-      row.last_checked_at !== null &&
-      row.last_ai_at === null &&
-      RETRYABLE.has(row.status)
+      ...(retry ||
+      (queued &&
+        row.last_checked_at !== null &&
+        row.last_ai_at === null &&
+        RETRYABLE.has(row.status))
         ? { aiRetryPending: true as const }
         : {}),
-      ...(hold > 0 && (queued || ahead.has(row.id))
-        ? { storeHoldMin: hold }
-        : {}),
+      ...(hold > 0 && (queued || retry) ? { storeHoldMin: hold } : {}),
       ahead: ahead.get(row.id) ?? null,
+      ...(retry
+        ? {
+            retry: {
+              reason: retry.reason,
+              attempts: retry.attempts,
+              inMin:
+                retry.dueAt === null
+                  ? null
+                  : Math.max(0, minutesUntil(retry.dueAt, now) ?? 0),
+            },
+          }
+        : {}),
       price:
         row.last_price_minor !== null && row.last_currency
           ? moneyText(row.last_price_minor, row.last_currency)
@@ -757,6 +800,17 @@ export function buildAgentSnapshot(input: {
     }).format(now),
     mode: input.mode,
     checkIntervalHours: Math.round((intervalMs / HOUR_MS) * 10) / 10,
+    round: round
+      ? {
+          done: Math.min(round.cursor, round.knifeIds.length),
+          knives: round.knifeIds.length,
+        }
+      : null,
+    nextRoundInMin: (() => {
+      if (round) return null
+      const next = nextRoundAt(readLastRound(database), intervalMs, now)
+      return next === null ? null : Math.max(0, minutesUntil(next, now) ?? 0)
+    })(),
     ai: {
       usage: settings.ai.usage.mode,
       today,
@@ -1662,11 +1716,12 @@ export const AGENT_SCHEMA = {
 export const AGENT_PROMPT = [
   'You supervise price monitoring for a knife collector. Each source is one store product page that BladeVault checks for price and stock. Keep every monitored source fresh and readable, and spend checks where they matter most to the collector right now.',
   "trigger says why you run: event (events woke you: react to them), scheduled (your regular look over everything) or manual (the collector asked). events lists what changed since your last run, newest first: drop and increase (from, to, pct), out_of_stock and back_in_stock, failing (a source's failures in a row reached 3 or 5), bot_check (a store showed a bot check), found_listing (Other stores found the knife at a store). After a move at one store, crossCheck the knife's other stores; after a drop near the target or a restock, consider watchClosely or advise.",
-  "The input lists knives, most urgent first. Each knife has its market: regular (the knife's stored regular price), target (the collector's alert price), best (the cheapest in-stock price now) and bestStore, low (lowest in-stock price ever), low90d and high90d, lastPriceChange, lastStockChange, muted, notMonitored (not covered by scheduled monitoring: no advise, ask or remember for it), and search (Other stores searches). Under it are its sources: status, price, stock, outOfStockDays, timing in minutes, failures, error, queued and ahead. The input also has each store's pace, coverage, the AI budget, localTime and your recent runs, each action with its note (why it was refused) or outcome (what its next check or search found). Missing fields are unknown.",
+  "The input lists knives, most urgent first. Each knife has its market: regular (the knife's stored regular price), target (the collector's alert price), best (the cheapest in-stock price now) and bestStore, low (lowest in-stock price ever), low90d and high90d, lastPriceChange, lastStockChange, muted, notMonitored (not covered by scheduled monitoring: no advise, ask or remember for it), and search (Other stores searches). Under it are its sources: status, price, stock, outOfStockDays, timing in minutes, failures, error, queued, ahead and retry. The input also has the round, each store's pace, coverage, the AI budget, localTime and your recent runs, each action with its note (why it was refused) or outcome (what its next check or search found). Missing fields are unknown.",
   'Answer with JSON only: {"summary", "check", "retryWithAi", "findPage", "fetchMode", "pause", "searchOtherStore", "watchClosely", "crossCheck", "advise", "ask", "remember", "forget"}. Leave a list empty when nothing is needed: often nothing is.',
-  `check (at most ${AGENT_LIMITS.check}): move sources to the front of their store's line. Each store already checks its most overdue source first, so a due source with ahead 0 is next anyway and a check changes nothing. Use check to put a source that matters more ahead of others (ahead above 0), or to read a source that is not due yet now: a knife near or below its target or regular price, a price that just moved at another store, a restock to confirm, a sale period (look at localTime, e.g. Black Friday and holiday sales). Skip sources marked queued, checked in the last 30 minutes, or not monitored.`,
-  'A store checks one product at a time at its own safe pace (minGapSec, fullPassHours), and paused stores (circuit open) wait out their pause. You cannot speed a store up: many checks at one store simply wait in line, so do not ask for more than the stores can do before your next run. A source with storeHoldMin is held by its store that long; asking again for it changes nothing.',
-  `retryWithAi (at most ${AGENT_LIMITS.retryWithAi}): failed or price_unavailable sources where AI reading or working the page may get the price on the next check. Never for blocked sources: a bot check needs the user. Not for sources marked aiRetryPending: their retry already waits in line (storeHoldMin says for how long its store holds it).`,
+  "Prices are checked in rounds (round: knives done of all; nextRoundInMin; checkIntervalHours between rounds). A round goes knife by knife: all of a knife's stores at the same time, then a pause, then the next knife. ahead says how many knives come before a source's knife in the running round. What fails or finds its store not ready goes on the retry list (retry: reason, attempts, inMin), which runs at random times before the next round with AI allowed; what fails again waits for the next round.",
+  `check (at most ${AGENT_LIMITS.check}): check sources right away, before the round's next knife. A source with ahead 0 is next anyway and a check changes nothing. Use check to read a source that matters more now: a knife near or below its target or regular price, a price that just moved at another store, a restock to confirm, a sale period (look at localTime, e.g. Black Friday and holiday sales). Skip sources marked queued, checked in the last 30 minutes, or not monitored.`,
+  'A store takes one request at a time at its own safe pace (minGapSec), and paused stores (circuit open) wait out their pause. You cannot speed a store up, so do not ask for more than the stores can do before your next run. A source with storeHoldMin is held by its store that long; asking again for it changes nothing.',
+  `retryWithAi (at most ${AGENT_LIMITS.retryWithAi}): failed or price_unavailable sources where AI reading or working the page may get the price: they go on the retry list and are retried soon with AI allowed. Never for blocked sources: a bot check needs the user. Not for sources marked aiRetryPending: their retry already waits (retry.inMin, storeHoldMin).`,
   `findPage (at most ${AGENT_LIMITS.findPage}): failed or price_unavailable sources whose page seems moved or gone (moved, soft_missing, redirect, not_found, http_404, http_410): on the next check AI searches the same store for the product and proposes its new link in the Inbox. Only when ai.findsPages is true.`,
   `fetchMode (at most ${AGENT_LIMITS.fetchMode}): "browser" when a source keeps failing in a way a real browser may fix (scripts, empty pages, timeouts), "http" only for a fast simple page, "auto" to undo. Look at a source's fetch first.`,
   `pause (at most ${AGENT_LIMITS.pause}): only sources that failed at least ${PAUSE_MIN_FAILURES} checks in a row and whose page seems gone (not_found or redirect). Pages not found with HTTP 404 or 410 pause on their own. The user can resume them.`,
@@ -1947,7 +2002,7 @@ export function validateAgentPlan(
     push(
       { kind: 'check', sourceId: entry.sourceId, reason: entry.reason },
       checkRefusal(source) ??
-        (source?.ahead === 0 ? 'already next at its store' : null),
+        (source?.ahead === 0 ? 'its knife is next in the round' : null),
     )
   }
   for (const entry of plan.retryWithAi) {
@@ -2453,8 +2508,15 @@ export async function applyAgentActions(
             changes = expedite.run(now, now, action.sourceId).changes
             break
           case 'retryWithAi':
+            // On the retry list, due now: it runs between the round's
+            // knives, with the per-product AI wait lifted.
             clearAi.run(action.sourceId)
-            changes = expedite.run(now, now, action.sourceId).changes
+            changes = queueRetryNow(database, {
+              sourceId: action.sourceId!,
+              now: context.now,
+            })
+              ? 1
+              : 0
             break
           case 'findPage':
             findPage.run(now, action.sourceId)

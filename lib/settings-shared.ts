@@ -437,14 +437,9 @@ export function normalizeCareDeferrals(value: unknown): CareDeferrals {
   return deferrals
 }
 
-export const PRICE_SCHEDULE_MODES = [
-  'daily',
-  'twice_daily',
-  'every_12h',
-  'custom',
-  'slots',
-] as const
-export type PriceScheduleMode = (typeof PRICE_SCHEDULE_MODES)[number]
+/** How often a price check round starts: every 6, 12 or 24 hours. */
+export const PRICE_ROUND_HOURS = [6, 12, 24] as const
+export type PriceRoundHours = (typeof PRICE_ROUND_HOURS)[number]
 
 /** [startHour, endHour) in server local time; start > end wraps midnight. */
 export type ActiveHours = [number, number]
@@ -492,28 +487,25 @@ export type PriceMonitoringSettings = {
   ignoreOfficialOutOfStock: boolean
   /** Which knives scheduled monitoring covers; Check now works for any. */
   scope: PriceMonitorScope
-  /** Target frequency per source; the queue spreads checks across it. */
+  /**
+   * Price checks run in rounds, around the clock: every `intervalHours` a
+   * round goes through every monitored knife, one knife's stores at a time.
+   */
   schedule: {
-    mode: PriceScheduleMode
-    /** Custom mode only, 1–168. */
-    intervalHours: number
-    /** Null: around the clock (Twice daily defaults to 8–22). */
-    activeHours: ActiveHours | null
-    /**
-     * Set times mode: the hours (server local time, 0–23, sorted) at which
-     * every source is checked once, each store at its minimum gap. Nothing
-     * is checked on schedule between the runs.
-     */
-    slotHours: number[]
+    intervalHours: PriceRoundHours
     /**
      * Pages out of stock for two weeks or more are checked at most once a
      * day, so a restock is still caught within a day.
      */
     slowOutOfStock: boolean
   }
-  /** Per-store limits; different stores are checked in parallel. */
+  /** Pacing of a round. */
   pacing: {
-    /** Floor between two checks at one store; raised automatically. */
+    /**
+     * Pause between knives: after one knife's stores are checked, the round
+     * waits this long before the next knife. Also the floor between two
+     * requests at one store; raised automatically when a store slows down.
+     */
     minGapSeconds: number
   }
   /** Which detected changes create an Inbox notification. */
@@ -679,12 +671,7 @@ export type PriceNotifyCategories = {
   backInStock: boolean
 }
 
-/** Set times: morning, lunch and evening. */
-export const DEFAULT_SLOT_HOURS: readonly number[] = [9, 14, 20]
-export const MAX_SLOT_HOURS = 6
-
 export const PRICE_MONITORING_LIMITS = {
-  intervalHours: [1, 168],
   minGapSeconds: [30, 3600],
   minPercent: [0, 100],
   minAmount: [0, 100_000],
@@ -696,10 +683,7 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
   ignoreOfficialOutOfStock: false,
   scope: DEFAULT_PRICE_MONITOR_SCOPE,
   schedule: {
-    mode: 'daily',
     intervalHours: 24,
-    activeHours: null,
-    slotHours: [...DEFAULT_SLOT_HOURS],
     slowOutOfStock: true,
   },
   pacing: { minGapSeconds: 60 },
@@ -1022,41 +1006,46 @@ function plainObject(value: unknown): Record<string, unknown> {
     : {}
 }
 
-function normalizeActiveHours(
-  value: unknown,
-  fallback: ActiveHours | null,
-): ActiveHours | null {
-  if (value === null) return null
-  if (!Array.isArray(value) || value.length !== 2) return fallback
-  const [start, end] = value
-  if (
-    !Number.isInteger(start) ||
-    !Number.isInteger(end) ||
-    start < 0 ||
-    start > 23 ||
-    end < 0 ||
-    end > 24 ||
-    start === end % 24
+/** The nearest of 6, 12 and 24 hours; a tie goes to the shorter. */
+function nearestRoundHours(hours: number): PriceRoundHours {
+  return PRICE_ROUND_HOURS.reduce((best, option) =>
+    Math.abs(option - hours) < Math.abs(best - hours) ? option : best,
   )
-    return fallback
-  return [start, end]
 }
 
-/** Whole hours 0–23, sorted and unique; 1–MAX_SLOT_HOURS of them. */
-export function normalizeSlotHours(
-  value: unknown,
-  fallback: readonly number[],
-): number[] {
-  if (!Array.isArray(value)) return [...fallback]
-  const hours = [
-    ...new Set(
-      value.filter(
-        (hour): hour is number =>
-          Number.isInteger(hour) && hour >= 0 && hour <= 23,
-      ),
-    ),
-  ].sort((a, b) => a - b)
-  return hours.length && hours.length <= MAX_SLOT_HOURS ? hours : [...fallback]
+/**
+ * The round interval. Settings saved before rounds named a mode: Once daily
+ * becomes 24 hours, Twice daily and Every 12 hours 12, Custom the nearest of
+ * 6, 12 and 24, and Set times the nearest by runs per day.
+ */
+function normalizeRoundHours(
+  schedule: Record<string, unknown>,
+  fallback: PriceRoundHours,
+): PriceRoundHours {
+  switch (schedule.mode) {
+    case 'daily':
+      return 24
+    case 'twice_daily':
+    case 'every_12h':
+      return 12
+    case 'custom':
+      return typeof schedule.intervalHours === 'number' &&
+        Number.isFinite(schedule.intervalHours) &&
+        schedule.intervalHours > 0
+        ? nearestRoundHours(schedule.intervalHours)
+        : fallback
+    case 'slots': {
+      const runs = Array.isArray(schedule.slotHours)
+        ? new Set(schedule.slotHours).size
+        : 0
+      return runs > 0 ? nearestRoundHours(24 / runs) : fallback
+    }
+  }
+  return (PRICE_ROUND_HOURS as readonly unknown[]).includes(
+    schedule.intervalHours,
+  )
+    ? (schedule.intervalHours as PriceRoundHours)
+    : fallback
 }
 
 function uniqueIds(value: unknown, fallback: string[]): string[] {
@@ -1095,11 +1084,6 @@ export function normalizePriceMonitoring(
   const pacing = plainObject(record.pacing)
   const notify = plainObject(record.notify)
   const thresholds = plainObject(record.thresholds)
-  const mode = (PRICE_SCHEDULE_MODES as readonly unknown[]).includes(
-    schedule.mode,
-  )
-    ? (schedule.mode as PriceScheduleMode)
-    : fallback.schedule.mode
   return {
     enabled:
       typeof record.enabled === 'boolean' ? record.enabled : fallback.enabled,
@@ -1116,22 +1100,9 @@ export function normalizePriceMonitoring(
         ? normalizePriceMonitorScope(record.scope, fallback.scope)
         : fallback.scope,
     schedule: {
-      mode,
-      intervalHours: boundedInteger(
-        schedule.intervalHours,
-        PRICE_MONITORING_LIMITS.intervalHours,
+      intervalHours: normalizeRoundHours(
+        schedule,
         fallback.schedule.intervalHours,
-      ),
-      activeHours:
-        'activeHours' in schedule
-          ? normalizeActiveHours(
-              schedule.activeHours,
-              fallback.schedule.activeHours,
-            )
-          : fallback.schedule.activeHours,
-      slotHours: normalizeSlotHours(
-        schedule.slotHours,
-        fallback.schedule.slotHours ?? DEFAULT_SLOT_HOURS,
       ),
       slowOutOfStock:
         typeof schedule.slowOutOfStock === 'boolean'

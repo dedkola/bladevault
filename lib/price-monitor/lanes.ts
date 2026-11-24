@@ -8,8 +8,6 @@ import type { PriceMonitoringSettings } from '@/lib/settings-shared'
 const MINUTE_MS = 60 * 1000
 const HOUR_MS = 60 * MINUTE_MS
 
-/** Spread gaps never exceed this, so a small store is not left idle all day. */
-export const MAX_SPREAD_GAP_MS = 2 * HOUR_MS
 /** AIMD never slows a store beyond one check per 6 hours. */
 export const MAX_MIN_GAP_MS = 6 * HOUR_MS
 export const COOLDOWNS_MS = [
@@ -75,33 +73,6 @@ export function defaultLaneState(
   }
 }
 
-/**
- * Gap between two checks at one store: its sources spread evenly over the
- * active window (80 %, leaving room for retries), never below the adaptive
- * minimum gap, never above two hours unless AIMD slowed the store further.
- */
-export function laneGapMs(input: {
-  minGapMs: number
-  floorMs: number
-  activeWindowMs: number
-  sourceCount: number
-}): number {
-  const minimum = Math.max(input.minGapMs, input.floorMs)
-  const spread =
-    input.sourceCount > 0
-      ? (input.activeWindowMs * 0.8) / input.sourceCount
-      : minimum
-  return Math.min(
-    Math.max(spread, minimum),
-    Math.max(MAX_SPREAD_GAP_MS, minimum),
-  )
-}
-
-/** How long one full pass over a store's sources takes at its pace. */
-export function fullPassMs(gapMs: number, sourceCount: number): number {
-  return gapMs * sourceCount
-}
-
 export type LaneAvailability =
   | { state: 'ready' }
   | { state: 'waiting'; until: number }
@@ -125,7 +96,7 @@ export function laneAvailability(
 export const DISCOVERY_MIN_GAP_MS = 5 * MINUTE_MS
 
 /**
- * Gap between a store's last request and its next Other stores search.
+ * Gap between a store's last search and its next Other stores search.
  * `storeGapMs` is a store's own slower pace (small Shopify stores).
  */
 export function discoveryGapMs(
@@ -137,11 +108,12 @@ export function discoveryGapMs(
 }
 
 /**
- * When an Other stores search may start at a store. It follows the store's
- * minimum gap since its last request, not the spread of its scheduled
- * checks: that spread is hours long for a store with one or two sources and
- * would leave its searches waiting all day. A store that failed, slowed us
- * down (Retry-After), is in a cooldown or advised pause waits as before.
+ * When an Other stores search may start at a store: once the store is ready
+ * for its next request (its minimum gap), and the search gap since its last
+ * search is over. Price checks never wait for the search gap, so a search
+ * in one knife's step does not hold the next knife's checks at that store.
+ * A store that failed, slowed us down (Retry-After), is in a cooldown or
+ * advised pause waits as before.
  */
 export function discoveryAvailability(
   lane: LaneState,
@@ -151,19 +123,19 @@ export function discoveryAvailability(
     pauseUntil?: number | null
     /** The store's own minimum gap between searches. */
     storeGapMs?: number
+    /** When the store was last searched (epoch ms), or null. */
+    lastSearchAt: number | null
   },
 ): LaneAvailability {
   if (lane.circuit === 'open' || lane.failureStreak > 0)
     return laneAvailability(lane, now)
-  const searchAt = Math.max(
-    (lane.lastRequestAt ?? 0) +
-      discoveryGapMs(lane, options.floorMs, options.storeGapMs),
-    options.pauseUntil ?? 0,
-  )
-  // A store's own slower pace holds even when a check is due sooner.
   const until = Math.max(
-    Math.min(lane.readyAt, searchAt),
-    (lane.lastRequestAt ?? 0) + (options.storeGapMs ?? 0),
+    lane.readyAt,
+    options.lastSearchAt === null
+      ? 0
+      : options.lastSearchAt +
+          discoveryGapMs(lane, options.floorMs, options.storeGapMs),
+    options.pauseUntil ?? 0,
   )
   return until > now ? { state: 'waiting', until } : { state: 'ready' }
 }

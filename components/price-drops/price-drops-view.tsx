@@ -101,13 +101,27 @@ type QueueLane = {
   checking: boolean
 }
 
+type QueueRound = {
+  id: number
+  trigger: 'scheduled' | 'manual'
+  startedAt: string
+  /** Knives in the round, and how many are done. */
+  knives: number
+  done: number
+}
+
 type QueueSnapshot = {
   enabled: boolean
-  scheduledActive: boolean
-  /** Check now requests and due scheduled checks. */
+  /** Check now requests waiting. */
   waiting: number
-  /** Sources checked since the `since` asked for, else null. */
-  checkedSince: number | null
+  /** The round in progress, if any. */
+  round: QueueRound | null
+  /** The last round that finished, if any. */
+  lastRound: { id: number } | null
+  /** When the next round starts (null while one runs or checks are off). */
+  nextRoundAt: string | null
+  /** The retry list: items waiting for a time, and items with one. */
+  retries: { waiting: number; scheduled: number; nextAt: string | null }
   lanes: QueueLane[]
   /** What to monitor; `knives` is null for the whole collection. */
   scope?: { kind: PriceMonitorScopeKind; knives: number | null }
@@ -115,12 +129,9 @@ type QueueSnapshot = {
 
 const SCOPE_LABEL = { wishlist: 'Wishlist', selected: 'Selected knives' }
 
-/** A running Check all: when it started (server time) and how many. */
-type CheckAllRun = { startedAt: string; total: number }
-
 const OVERVIEW_REFRESH_MS = 60_000
 const QUEUE_REFRESH_MS = 10_000
-/** Faster while Check all runs, so its progress moves visibly. */
+/** Faster while a round runs, so its progress moves visibly. */
 const PROGRESS_REFRESH_MS = 3_000
 /** Bulk changes to this many listings or knives ask first. */
 const BULK_CONFIRM_AT = 5
@@ -197,16 +208,16 @@ function useOverview(version: number) {
   return { ...state, retry: () => setTick((value) => value + 1) }
 }
 
-function useQueue(since: string | null) {
+/** The live queue; polled faster while a round runs (or was just started). */
+function useQueue(fast: boolean, version: number) {
   const [queue, setQueue] = useState<QueueSnapshot | null>(null)
   useEffect(() => {
     let cancelled = false
     async function load() {
       try {
-        const url = since
-          ? `/api/prices/queue?since=${encodeURIComponent(since)}`
-          : '/api/prices/queue'
-        const response = await fetch(url, { cache: 'no-store' })
+        const response = await fetch('/api/prices/queue', {
+          cache: 'no-store',
+        })
         if (!response.ok) return
         const data = (await response.json()) as { queue: QueueSnapshot }
         if (!cancelled) setQueue(data.queue)
@@ -219,30 +230,26 @@ function useQueue(since: string | null) {
       () => {
         if (document.visibilityState === 'visible') void load()
       },
-      since ? PROGRESS_REFRESH_MS : QUEUE_REFRESH_MS,
+      fast ? PROGRESS_REFRESH_MS : QUEUE_REFRESH_MS,
     )
     return () => {
       cancelled = true
       clearInterval(timer)
     }
-  }, [since])
+  }, [fast, version])
   return queue
 }
 
-/** "34 of 221 checked", with why the rest may wait. */
-function progressText(
-  run: CheckAllRun,
-  checked: number,
-  queue: QueueSnapshot,
-  pausedStores: number,
-): string {
-  const parts = [`${Math.min(checked, run.total)} of ${run.total} checked`]
-  if (!queue.scheduledActive) parts.push('waiting for the checking hours')
-  else if (pausedStores)
+/** "12 of 38 knives checked", with why the rest may wait. */
+function roundText(round: QueueRound, pausedStores: number): string {
+  const parts = [
+    `${Math.min(round.done, round.knives)} of ${round.knives} ${round.knives === 1 ? 'knife' : 'knives'} checked`,
+  ]
+  if (pausedStores)
     parts.push(
       `${pausedStores} ${pausedStores === 1 ? 'store is' : 'stores are'} paused after a bot check`,
     )
-  else parts.push('each store at its own pace')
+  else parts.push("all of a knife's stores at once, then a pause")
   return parts.join(' · ')
 }
 
@@ -696,40 +703,37 @@ function laneNote(
   return null
 }
 
-function CheckAllProgress({
-  run,
-  checked,
-  queue,
+function RoundProgress({
+  round,
   pausedStores,
 }: {
-  run: CheckAllRun
-  checked: number | null
-  queue: QueueSnapshot | null
+  round: QueueRound
   pausedStores: number
 }) {
-  const done = Math.min(checked ?? 0, run.total)
+  const done = Math.min(round.done, round.knives)
   return (
-    <div data-price-check-progress className="mb-4 space-y-1.5">
+    <div data-price-round={round.trigger} className="mb-4 space-y-1.5">
       <p
         role="status"
         aria-live="polite"
         className="text-sm text-muted-foreground"
       >
-        {queue && checked !== null
-          ? progressText(run, checked, queue, pausedStores)
-          : `${run.total} ${run.total === 1 ? 'product' : 'products'} queued`}
+        {round.trigger === 'manual' ? 'Check all: ' : 'Round: '}
+        {roundText(round, pausedStores)}
       </p>
       <div
         role="progressbar"
-        aria-label="Check all progress"
+        aria-label="Round progress"
         aria-valuemin={0}
-        aria-valuemax={run.total}
+        aria-valuemax={round.knives}
         aria-valuenow={done}
         className="h-1.5 max-w-md overflow-hidden rounded-full bg-[var(--bladevault-surface-soft)]"
       >
         <div
           className="h-full rounded-full bg-primary transition-[width] duration-500"
-          style={{ width: `${(done / run.total) * 100}%` }}
+          style={{
+            width: `${round.knives ? (done / round.knives) * 100 : 0}%`,
+          }}
         />
       </div>
     </div>
@@ -833,8 +837,11 @@ export function PriceDropsView({
 } = {}) {
   const [version, setVersion] = useState(0)
   const { overview, error, loadedAt, retry } = useOverview(version)
-  const [run, setRun] = useState<CheckAllRun | null>(null)
-  const queue = useQueue(run?.startedAt ?? null)
+  // The round Check all started, so its end can be announced.
+  const [started, setStarted] = useState<number | null>(null)
+  const [queueVersion, setQueueVersion] = useState(0)
+  const [roundSeen, setRoundSeen] = useState<number | null>(null)
+  const queue = useQueue(started !== null || roundSeen !== null, queueVersion)
   const agent = useAgentState(version)
   const now = useMinuteClock()
   const hourCycle = getHourCycle(useKnives().timeFormat)
@@ -886,21 +893,24 @@ export function PriceDropsView({
     queue?.lanes.filter((lane) => lane.checking).length ?? 0
   const pausedStores =
     queue?.lanes.filter((lane) => lane.circuit === 'open').length ?? 0
-  // Check all is done when every queued product was checked, or nothing is
-  // waiting or running any more (e.g. sources removed meanwhile).
-  const runChecked = run ? (queue?.checkedSince ?? null) : null
-  const runDone =
-    run !== null &&
-    runChecked !== null &&
-    (runChecked >= run.total || (queue!.waiting === 0 && checkingStores === 0))
-  // Finishing is derived from the polled queue, so it is applied while
-  // rendering (React's pattern for state that follows other state).
-  if (run && runDone) {
-    setRun(null)
-    setNotice(
-      `Check all finished: ${Math.min(runChecked ?? 0, run.total)} of ${run.total} checked.`,
-    )
-    setVersion((value) => value + 1)
+  const round = queue?.round ?? null
+  const retryCount = queue ? queue.retries.waiting + queue.retries.scheduled : 0
+  // A round seen running that is gone from the queue has finished, and so
+  // has the one Check all started once it is the last round (it may end
+  // between two polls). The table then reloads, and Check all says so.
+  // Derived from the polled queue, so it is applied while rendering (React's
+  // pattern for state that follows other state).
+  const startedDone =
+    started !== null && !round && queue?.lastRound?.id === started
+  if (queue && ((round?.id ?? null) !== roundSeen || startedDone)) {
+    if (startedDone) {
+      setStarted(null)
+      setNotice(
+        `Check all finished.${retryCount ? ` ${retryCount} ${retryCount === 1 ? 'listing or search is' : 'listings or searches are'} on the retry list and will be tried again before the next round.` : ''}`,
+      )
+    }
+    if (roundSeen !== null || startedDone) setVersion((value) => value + 1)
+    setRoundSeen(round?.id ?? null)
   }
 
   const monitored = overview?.monitored ?? []
@@ -981,14 +991,14 @@ export function PriceDropsView({
         body: JSON.stringify({ scope: 'all' }),
       })
       const data = (await response.json().catch(() => ({}))) as {
-        due?: number
-        startedAt?: string
+        round?: { id: number; knives: number }
         error?: string
       }
-      if (!response.ok) throw new Error(data.error ?? 'Could not start checks.')
-      if (data.due && data.startedAt)
-        setRun({ startedAt: data.startedAt, total: data.due })
+      if (!response.ok || !data.round)
+        throw new Error(data.error ?? 'Could not start checks.')
+      if (data.round.knives) setStarted(data.round.id)
       else setNotice('Nothing to check yet.')
+      setQueueVersion((value) => value + 1)
     } catch (err) {
       setNotice(err instanceof Error ? err.message : 'Could not start checks.')
     } finally {
@@ -1092,14 +1102,17 @@ export function PriceDropsView({
               data-price-queue
               className="inline-flex items-center gap-2 rounded-full border border-[var(--bladevault-line)] px-2.5 py-1 text-xs text-muted-foreground"
             >
-              <StatusDot tone={checkingStores ? 'run' : 'idle'} />
+              <StatusDot tone={checkingStores || round ? 'run' : 'idle'} />
               {!queue.enabled
                 ? 'Automatic checks are off'
-                : checkingStores
-                  ? `${checkingStores} ${checkingStores === 1 ? 'store' : 'stores'} checking`
-                  : queue.scheduledActive
-                    ? 'Waiting for the next check'
-                    : 'Outside checking hours'}
+                : round
+                  ? `Round: ${Math.min(round.done, round.knives)} of ${round.knives} ${round.knives === 1 ? 'knife' : 'knives'}`
+                  : checkingStores
+                    ? `${checkingStores} ${checkingStores === 1 ? 'store' : 'stores'} checking`
+                    : queue.nextRoundAt
+                      ? `Next round ${clockTime(queue.nextRoundAt, hourCycle, now)}`
+                      : 'Waiting for the next check'}
+              {queue.enabled && retryCount ? ` · retry list ${retryCount}` : ''}
               {overview?.kpis.lastSuccessAt
                 ? ` · last check ${relativeTime(overview.kpis.lastSuccessAt, now)}`
                 : ''}
@@ -1125,7 +1138,7 @@ export function PriceDropsView({
             onClick={() => void checkAll()}
             disabled={
               checking ||
-              run !== null ||
+              round !== null ||
               !overview?.kpis.monitoredKnives ||
               queue?.enabled === false
             }
@@ -1135,10 +1148,12 @@ export function PriceDropsView({
             title={
               queue?.enabled === false
                 ? 'Turn on automatic checks in Settings to check every knife.'
-                : undefined
+                : round
+                  ? 'A round is checking every knife now.'
+                  : undefined
             }
           >
-            {checking || run ? (
+            {checking || round ? (
               <Loader2 className="size-3.5 animate-spin" />
             ) : (
               <RefreshCw className="size-3.5" />
@@ -1277,13 +1292,8 @@ export function PriceDropsView({
           </Button>
         </div>
       ) : null}
-      {run ? (
-        <CheckAllProgress
-          run={run}
-          checked={runChecked}
-          queue={queue}
-          pausedStores={pausedStores}
-        />
+      {round ? (
+        <RoundProgress round={round} pausedStores={pausedStores} />
       ) : notice ? (
         <p role="status" className="mb-4 text-sm text-muted-foreground">
           {notice}

@@ -70,7 +70,6 @@ const input: AdvisorInput = {
   now: new Date().toISOString(),
   timeZone: 'UTC',
   frequencyHours: 6,
-  activeHours: null,
   statsDays: 7,
   stores: [],
 }

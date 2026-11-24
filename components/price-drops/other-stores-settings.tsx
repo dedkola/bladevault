@@ -157,7 +157,7 @@ export function OtherStoresSettings({
       setNotice({
         tone: 'ok',
         text: data.reset
-          ? `${data.reset} ${data.reset === 1 ? 'search' : 'searches'} will run again at each store’s normal pace.`
+          ? `${data.reset} ${data.reset === 1 ? 'search' : 'searches'} will run again when each knife’s turn comes in a round.`
           : 'Every knife searched so far was found.',
       })
     } catch (error) {
@@ -200,7 +200,7 @@ export function OtherStoresSettings({
       <SettingsRow
         inline
         label="Look for knives at other stores"
-        description="Covers every knife that price monitoring covers, also knives without a product link. Searches run in the background with scheduled checks, one knife at a time at each store’s normal pace. AI gets the knife’s brand, name and specs and the store’s listing titles; never the regular price, notes or photos."
+        description="Covers every knife that price monitoring covers, also knives without a product link. Searches run in rounds: when a knife’s turn comes, it is searched at every turned-on store where it has no listing yet, together with its price checks. A store that does not have it is searched again at most once a day, and a store that is not ready yet is tried again from the retry list. AI gets the knife’s brand, name and specs and the store’s listing titles; never the regular price, notes or photos."
       >
         <SettingsSwitch
           aria-label="Look for knives at other stores"
