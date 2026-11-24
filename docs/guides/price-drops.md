@@ -195,10 +195,10 @@ Prices are compared only within one currency. Implausible jumps are confirmed wi
 
 ## Optional AI assistance
 
-**Settings → Price monitoring → AI assistance** can use any OpenAI-compatible endpoint, such as a cloud provider, a gateway, or a local Ollama or LM Studio server. Price monitoring works fully without it, and nothing is sent to an AI service while **Use AI** is off.
+Price monitoring can use any OpenAI-compatible endpoint, such as a cloud provider, a gateway, or a local Ollama or LM Studio server. Price monitoring works fully without it, and nothing is sent to an AI service while **Use AI** is off. The connection is set in **Settings → AI / MCP → AI connection for price drops**; what AI does is set in **Settings → Price monitoring → AI assistance**.
 
-1. Turn on **Use AI**.
-2. Enter the **Base URL**, for example `https://api.openai.com/v1` or `http://localhost:11434/v1` for Ollama.
+1. Turn on **Use AI** in **Settings → Price monitoring → AI assistance**.
+2. Open **Settings → AI / MCP**. Under **AI connection for price drops**, enter the **Base URL**, for example `https://api.openai.com/v1` or `http://localhost:11434/v1` for Ollama.
 3. Enter an **API key** if the endpoint needs one. Local servers usually do not.
 4. If the gateway needs extra headers, enter them as a JSON object in **Custom headers**. OpenCode Go, for example, rejects requests without a session header: `{"x-opencode-session": "bladevault"}`. Custom headers are saved with the other settings and included in backups, so keep keys and tokens in the API key field.
 5. Select **Discover models** and choose a model, or type a model ID.

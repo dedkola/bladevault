@@ -32,6 +32,30 @@
   min-width: 0;
 }
 
+/* A tab with several groups of sections, e.g. AI / MCP. */
+.settings-group {
+  display: grid;
+  gap: 1.75rem;
+  min-width: 0;
+}
+
+.settings-group > * {
+  min-width: 0;
+}
+
+.settings-group + .settings-group {
+  border-top: 1px solid var(--border);
+  padding-top: 1.75rem;
+}
+
+.settings-group-heading {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--foreground);
+}
+
 /* Each section is its own container, so a row reacts to the width of the
    column it actually sits in rather than the width of the viewport. */
 .settings-section {
