@@ -114,6 +114,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
@@ -167,6 +168,11 @@ type McpRuntimeStatus = {
     authRequiredForRemote: boolean
   }
   tools: { read: number; write: number; total: number }
+  imageHosts?: {
+    enabled: boolean
+    hosts: string[]
+    managedByEnvironment: boolean
+  }
   activity: {
     lastActivityAt: string | null
     httpRequestsSinceStart: number
@@ -772,6 +778,11 @@ export default function SettingsView() {
     useState(false)
   const [mcpUpdateStatus, setMcpUpdateStatus] = useState<StatusTone>('idle')
   const [mcpUpdateMessage, setMcpUpdateMessage] = useState('')
+  const savedMcpImageHosts = mcpStatus?.imageHosts?.hosts.join('\n') ?? ''
+  const [mcpImageHostsDraft, setMcpImageHostsDraft] = useState<string | null>(
+    null,
+  )
+  const mcpImageHostsText = mcpImageHostsDraft ?? savedMcpImageHosts
   const localRestoreInputRef = useRef<HTMLInputElement>(null)
 
   const updateMessage =
@@ -1638,7 +1649,12 @@ export default function SettingsView() {
   }
 
   const updateMcpSettings = async (
-    updates: { enabled?: boolean; writeEnabled?: boolean },
+    updates: {
+      enabled?: boolean
+      writeEnabled?: boolean
+      imageHostAllowlistEnabled?: boolean
+      imageHostAllowlist?: string[]
+    },
     successMessage: string,
   ) => {
     setMcpUpdateStatus('loading')
@@ -1658,6 +1674,7 @@ export default function SettingsView() {
       }
 
       setMcpStatus(data.mcp)
+      if (updates.imageHostAllowlist !== undefined) setMcpImageHostsDraft(null)
       setMcpUpdateStatus('success')
       setMcpUpdateMessage(successMessage)
     } catch (error) {
@@ -1688,6 +1705,25 @@ export default function SettingsView() {
       checked ? 'MCP write access is enabled.' : 'MCP is now read-only.',
     )
   }
+
+  const handleMcpImageAllowlistChange = (checked: boolean) =>
+    updateMcpSettings(
+      { imageHostAllowlistEnabled: checked },
+      checked
+        ? 'MCP image downloads are limited to the listed hosts.'
+        : 'MCP can download images from any public https site.',
+    )
+
+  const saveMcpImageHosts = () =>
+    updateMcpSettings(
+      {
+        imageHostAllowlist: mcpImageHostsText
+          .split(/[\s,]+/)
+          .map((host) => host.trim())
+          .filter(Boolean),
+      },
+      'Image host list saved.',
+    )
 
   const refreshMcpStatus = async () => {
     setMcpUpdateStatus('loading')
@@ -2736,6 +2772,73 @@ export default function SettingsView() {
                             : ' Claude Desktop can’t use it: use its config below.'}
                         </p>
                       </div>
+                    </SettingsSection>
+
+                    <SettingsSection title="Image downloads">
+                      <SettingsRow
+                        inline
+                        label="Allowed hosts only"
+                        description={
+                          mcpStatus?.imageHosts?.managedByEnvironment
+                            ? 'Managed by MCP_IMAGE_HOST_ALLOWLIST.'
+                            : 'Off: MCP image tools can download from any public https site. Local and private network addresses are always blocked.'
+                        }
+                      >
+                        <SettingsSwitch
+                          checked={mcpStatus?.imageHosts?.enabled || false}
+                          onCheckedChange={(checked) =>
+                            void handleMcpImageAllowlistChange(checked)
+                          }
+                          disabled={
+                            !mcpStatus?.imageHosts ||
+                            mcpUpdateStatus === 'loading' ||
+                            mcpStatus.imageHosts.managedByEnvironment
+                          }
+                          aria-label="Limit MCP image downloads to listed hosts"
+                        />
+                      </SettingsRow>
+                      {mcpStatus?.imageHosts?.enabled ? (
+                        <div className="space-y-2 py-3">
+                          <label
+                            htmlFor="mcp-image-hosts"
+                            className="text-sm font-medium text-foreground"
+                          >
+                            Hosts
+                          </label>
+                          <Textarea
+                            id="mcp-image-hosts"
+                            value={mcpImageHostsText}
+                            onChange={(event) =>
+                              setMcpImageHostsDraft(event.target.value)
+                            }
+                            placeholder={'vosteed.com\ncdn.shopify.com'}
+                            rows={4}
+                            disabled={
+                              mcpUpdateStatus === 'loading' ||
+                              mcpStatus.imageHosts.managedByEnvironment
+                            }
+                            className="font-mono text-xs"
+                          />
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs text-muted-foreground">
+                              One host per line. Subdomains are included.
+                            </p>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={`${settingsSecondaryButtonClassName} rounded-lg`}
+                              onClick={() => void saveMcpImageHosts()}
+                              disabled={
+                                mcpImageHostsDraft === null ||
+                                mcpUpdateStatus === 'loading' ||
+                                mcpStatus.imageHosts.managedByEnvironment
+                              }
+                            >
+                              Save hosts
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
                     </SettingsSection>
 
                     <ClaudeDesktopMcpSettings

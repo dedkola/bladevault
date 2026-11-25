@@ -60,6 +60,7 @@ import {
   type CreateKnifeInput,
   type ImageData,
   type ImageStream,
+  type KnifeCreateOptions,
   type KnifeMutationContext,
   type KnifeUpdateOptions,
   type MaintenanceEventOptions,
@@ -772,7 +773,10 @@ export class LocalStorage implements Storage {
     })
   }
 
-  async createKnife(input: CreateKnifeInput): Promise<Knife> {
+  async createKnife(
+    input: CreateKnifeInput,
+    options: KnifeCreateOptions = {},
+  ): Promise<Knife> {
     return withVaultWrite(async () => {
       const normalizedInput = normalizeKnifeTextFields(input)
       const id = await this.ensureUniqueId(generateId(normalizedInput.name))
@@ -859,14 +863,30 @@ export class LocalStorage implements Storage {
            VALUES (?, 'created', ?)`,
           )
           .run(newKnife.id, newKnife.addedAt)
+        const mcp = options.mutation
+        if (mcp) {
+          recordMutation(database, newKnife.id, newKnife.addedAt, {
+            ...mcp,
+            changes: [
+              { field: 'record', previousValue: '', value: 'created' },
+              {
+                field: 'images',
+                previousValue: '0',
+                value: String(imagePaths.length),
+              },
+            ],
+          })
+        }
         recordAuditEvent(database, {
-          operationId: generateOperationId(),
+          operationId: mcp?.operationId ?? generateOperationId(),
           type: 'created',
           knifeId: newKnife.id,
           subject: formatKnifeSubject(newKnife),
-          actor: 'You',
-          source: 'Manual entry',
-          summary: 'Created a new record with images and source URL.',
+          actor: mcp ? 'MCP client' : 'You',
+          source: mcp ? `MCP / ${mcp.tool ?? 'add_knife'}` : 'Manual entry',
+          summary: mcp
+            ? (mcp.summary ?? 'Created a new record via MCP.')
+            : 'Created a new record with images and source URL.',
           changes: [
             { field: 'Record', before: 'Does not exist', after: 'Created' },
             {
@@ -1020,8 +1040,8 @@ export class LocalStorage implements Storage {
             knifeId: id,
             subject: formatKnifeSubject(updated),
             actor: 'MCP client',
-            source: 'MCP / update_knife',
-            summary: 'Applied metadata update via MCP.',
+            source: `MCP / ${mutation.tool ?? 'update_knife'}`,
+            summary: mutation.summary ?? 'Applied metadata update via MCP.',
             changes: mutationChanges.map((change) => ({
               field: change.field,
               before: String(change.previousValue),

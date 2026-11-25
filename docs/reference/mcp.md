@@ -14,6 +14,8 @@ BladeVault exposes its existing local collection to MCP clients such as LM Studi
 | `find_duplicates`       | Score possible duplicate records without merging or deleting         | Read-only  |
 | `propose_changes`       | Validate suggested values without modifying the collection           | Read-only  |
 | `add_knife`             | Preview and add one new knife, with a duplicate check                | Write mode |
+| `add_knife_images`      | Preview and add photos to one knife from image URLs                  | Write mode |
+| `refill_knife_images`   | Preview and replace one knife's photos from its source page          | Write mode |
 | `update_knife`          | Apply a timestamp-checked metadata update to one knife               | Write mode |
 | `bulk_update_knives`    | Preview and atomically apply explicit multi-knife updates            | Write mode |
 | `get_knife_maintenance` | Retrieve maintenance history for one knife                           | Read-only  |
@@ -28,9 +30,23 @@ BladeVault exposes its existing local collection to MCP clients such as LM Studi
 
 Open **Settings → AI / MCP** to review activity, copy the local client configuration, enable or disable HTTP access, and allow or deny write access. Write mode is off by default.
 
-Metadata updates require the expected record timestamp to prevent overwriting newer edits. They are recorded in the change log. Maintenance writes append dated events to a knife's history. Price monitoring writes change only the knife's monitoring mode and store sources. MCP cannot replace knife IDs, record timestamps, images, or entire records.
+Metadata updates require the expected record timestamp to prevent overwriting newer edits. They are recorded in the change log. Maintenance writes append dated events to a knife's history. Price monitoring writes change only the knife's monitoring mode and store sources. MCP cannot replace knife IDs, record timestamps, or entire records, and it cannot delete photos except through a previewed `replace` or refill.
 
-`add_knife` previews by default and saves nothing. The preview returns the cleaned record, possible duplicates (same name and brand, or same model number), and a `preview_hash`. To add the knife, repeat the same request with `apply: true` and that hash. A possible duplicate blocks the add unless `allow_duplicate` is `true`, and a change made after the preview makes the hash stale. Images are not added through MCP; add photos in the app.
+`add_knife` previews by default and saves nothing. The preview returns the cleaned record, possible duplicates (same name and brand, or same model number), and a `preview_hash`. To add the knife, repeat the same request with `apply: true` and that hash. A possible duplicate blocks the add unless `allow_duplicate` is `true`, and a change made after the preview makes the hash stale. Optional `image_urls` attach photos in the same step (see below).
+
+## Photos
+
+`add_knife_images` adds photos from public image URLs (up to 12 per call), and `add_knife` accepts the same list as `image_urls`. `refill_knife_images` reads the knife's `source_url` with the same scraper as the app and replaces its photos with the product gallery, like **Refill all images**. All three preview by default: the server downloads and checks every image, saves nothing, and returns a status for each URL (`ok`, `duplicate`, or `error` with a reason) and a `preview_hash`. To save, repeat the request with `apply: true` and that hash. A change to the knife (or, for a refill, to the source page's image list) after the preview makes the hash stale.
+
+- `mode: "append"` (the default) keeps the current photos. `mode: "replace"` and refills swap them for the new ones and keep a saved webpage screenshot.
+- Images are saved exactly like uploads from the app, so they appear in the app, in `get_knife`, and in backups.
+- URLs that fail are listed and skipped; the others are still saved. Images with the same bytes as a photo the knife already has are skipped.
+- Only `https` URLs are downloaded, and every redirect is checked again. Local, private-network, link-local, and cloud metadata addresses are always refused.
+- Each image must arrive within 20 seconds, be at most 25 MB, and really be a JPEG, PNG, GIF, WebP, or AVIF file (checked from its bytes). SVG and HTML are refused.
+- By default any public host is allowed. To limit downloads to listed hosts (subdomains included), turn on **Allowed hosts only** under **Image downloads** in **Settings → AI / MCP**, or set `MCP_IMAGE_HOST_ALLOWLIST` to a comma-separated host list in Docker and other managed deployments.
+- Every image change is recorded in the change log and History with the MCP tool and the source URLs.
+
+Over stdio, `refill_knife_images` reads the page HTML directly; the in-app HTTP server renders it in the scraping browser first.
 
 ## Achievements
 

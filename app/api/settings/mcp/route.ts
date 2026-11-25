@@ -15,10 +15,12 @@ const updateSchema = z
   .object({
     enabled: z.boolean().optional(),
     writeEnabled: z.boolean().optional(),
+    imageHostAllowlistEnabled: z.boolean().optional(),
+    imageHostAllowlist: z.array(z.string().max(2048)).max(500).optional(),
   })
   .strict()
   .refine(
-    (value) => value.enabled !== undefined || value.writeEnabled !== undefined,
+    (value) => Object.values(value).some((entry) => entry !== undefined),
     { message: 'Provide an MCP setting to update.' },
   )
 

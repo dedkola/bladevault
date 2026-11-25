@@ -21,6 +21,7 @@ import {
   normalizeBackupNotificationSettings,
   normalizePopupNotificationSettings,
   normalizeKnifeDetailPanelWidth,
+  normalizeImageHostList,
   type AppSettings,
   type AppTheme,
   type CardField,
@@ -53,6 +54,8 @@ const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
   driveAutoBackupEnabled: 'drive_auto_backup_enabled',
   mcpEnabled: 'mcp_enabled',
   mcpWriteEnabled: 'mcp_write_enabled',
+  mcpImageHostAllowlistEnabled: 'mcp_image_host_allowlist_enabled',
+  mcpImageHostAllowlist: 'mcp_image_host_allowlist',
   customFields: 'custom_fields',
   maintenanceReminders: 'maintenance_reminders',
   careIntervalOverrides: 'care_interval_overrides',
@@ -210,6 +213,15 @@ function parseCustomFields(value: string | undefined): CustomField[] {
   }
 }
 
+function parseImageHostList(value: string | undefined): string[] {
+  if (!value) return DEFAULT_SETTINGS.mcpImageHostAllowlist
+  try {
+    return normalizeImageHostList(JSON.parse(value))
+  } catch {
+    return DEFAULT_SETTINGS.mcpImageHostAllowlist
+  }
+}
+
 export function getSettings(): AppSettings {
   const rows = getDb()
     .prepare('SELECT key, value FROM settings')
@@ -245,6 +257,13 @@ export function getSettings(): AppSettings {
     mcpWriteEnabled: parseBool(
       map.get(SETTINGS_KEYS.mcpWriteEnabled),
       DEFAULT_SETTINGS.mcpWriteEnabled,
+    ),
+    mcpImageHostAllowlistEnabled: parseBool(
+      map.get(SETTINGS_KEYS.mcpImageHostAllowlistEnabled),
+      DEFAULT_SETTINGS.mcpImageHostAllowlistEnabled,
+    ),
+    mcpImageHostAllowlist: parseImageHostList(
+      map.get(SETTINGS_KEYS.mcpImageHostAllowlist),
     ),
     customFields: parseCustomFields(map.get(SETTINGS_KEYS.customFields)),
     maintenanceReminders: parseMaintenanceReminders(
@@ -298,6 +317,10 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
         current.dimensionUnit,
       ),
       startPage: normalizeStartPage(settings.startPage, current.startPage),
+      mcpImageHostAllowlist:
+        settings.mcpImageHostAllowlist === undefined
+          ? current.mcpImageHostAllowlist
+          : normalizeImageHostList(settings.mcpImageHostAllowlist),
       maintenanceReminders:
         settings.maintenanceReminders === undefined
           ? current.maintenanceReminders
@@ -367,6 +390,11 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
       ['driveAutoBackupEnabled', next.driveAutoBackupEnabled ? '1' : '0'],
       ['mcpEnabled', next.mcpEnabled ? '1' : '0'],
       ['mcpWriteEnabled', next.mcpWriteEnabled ? '1' : '0'],
+      [
+        'mcpImageHostAllowlistEnabled',
+        next.mcpImageHostAllowlistEnabled ? '1' : '0',
+      ],
+      ['mcpImageHostAllowlist', JSON.stringify(next.mcpImageHostAllowlist)],
       ['customFields', JSON.stringify(next.customFields)],
       ['maintenanceReminders', JSON.stringify(next.maintenanceReminders)],
       ['careIntervalOverrides', JSON.stringify(next.careIntervalOverrides)],

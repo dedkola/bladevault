@@ -397,6 +397,9 @@ is required.
 | `find_missing_fields`   | Find knives with missing built-in or custom fields                   | Read-only  |
 | `find_duplicates`       | Score possible duplicate records without merging or deleting         | Read-only  |
 | `propose_changes`       | Validate suggested values without modifying the collection           | Read-only  |
+| `add_knife`             | Preview and add one new knife, with a duplicate check                | Write mode |
+| `add_knife_images`      | Preview and add photos to one knife from image URLs                  | Write mode |
+| `refill_knife_images`   | Preview and replace one knife's photos from its source page          | Write mode |
 | `update_knife`          | Apply a timestamp-checked metadata update to one knife               | Write mode |
 | `bulk_update_knives`    | Preview and atomically apply explicit multi-knife updates            | Write mode |
 | `get_knife_maintenance` | Retrieve maintenance history for one knife                           | Read-only  |
@@ -405,8 +408,10 @@ is required.
 Open **Settings → AI / MCP** to review activity, copy the local client
 configuration, enable or disable HTTP access, and allow or deny write access. Write mode is off by default. Metadata updates require the expected
 record timestamp to prevent overwriting newer edits and are recorded in the
-change log. Maintenance writes append dated events to a knife's history. MCP
-cannot replace knife IDs, record timestamps, images, or entire records.
+change log. Maintenance writes append dated events to a knife's history. Photo
+tools preview first, download only public `https` images, and are recorded in
+the change log. MCP cannot replace knife IDs, record timestamps, or entire
+records.
 
 ### Connect an MCP client
 
