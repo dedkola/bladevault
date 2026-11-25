@@ -478,6 +478,111 @@
   color: var(--price-stock);
 }
 
+/* Price table rows follow the Wishlist row: photo, knife and signals; the
+   price with its latest change and regular-price note; the 30-day chart. */
+[data-price-grid] [data-price-thumb] {
+  background: var(--muted);
+}
+[data-price-grid] [data-price-thumb] img {
+  object-fit: contain;
+}
+/* "4 stores ›" expands the knife's store rows. */
+[data-price-stores] {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+[data-price-stores]:hover {
+  color: var(--foreground);
+  text-decoration-style: solid;
+}
+[data-price-stores]:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid var(--ring, var(--primary));
+  outline-offset: 2px;
+}
+[data-price-stores] svg {
+  width: 12px;
+  height: 12px;
+  margin-left: 1px;
+  transition: transform 0.15s;
+}
+[data-price-stores][aria-expanded='true'] svg {
+  transform: rotate(90deg);
+}
+[data-price-signals] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.pd-badge[data-price-signal='low'] {
+  --pd-color: var(--primary);
+}
+[data-price-cell] {
+  display: grid;
+  justify-items: end;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+[data-price-line] {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+[data-price-line] b {
+  font-size: 15px;
+  font-weight: 700;
+}
+[data-price-cell][data-stale] b {
+  color: var(--muted-foreground);
+  font-weight: 600;
+}
+[data-price-grid] tr[data-child] [data-price-line] b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+/* The latest check moved the price: coloured text, not another pill. */
+[data-price-change-tag] {
+  color: color-mix(in srgb, var(--pd-color) 85%, var(--foreground));
+  font-size: 11.5px;
+  font-weight: 650;
+}
+[data-price-change-tag='drop'] {
+  --pd-color: var(--price-drop);
+}
+[data-price-change-tag='increase'] {
+  --pd-color: var(--price-rise);
+}
+[data-price-note] {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+[data-price-note]:empty {
+  display: none;
+}
+[data-price-save] {
+  color: color-mix(in srgb, var(--price-drop) 85%, var(--foreground));
+  font-weight: 600;
+}
+[data-price-over] {
+  color: color-mix(in srgb, var(--price-rise) 85%, var(--foreground));
+  font-weight: 600;
+}
+[data-price-trend] {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
 /* Price table: the selected knife is marked by more than its background,
    and row actions stay quiet until the row is hovered or focused. */
 [data-price-grid] tr[data-selected] {
@@ -535,8 +640,9 @@
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
-      'check knife price'
-      'check change paid'
+      'check knife knife'
+      'check price price'
+      'check trend trend'
       'check checked actions';
     align-items: center;
     gap: 4px 10px;
@@ -554,14 +660,29 @@
     grid-area: knife;
     min-width: 0;
   }
+  [data-price-grid] td[data-col='knife'] > div {
+    padding-left: 0;
+  }
   [data-price-grid] td[data-col='price'] {
     grid-area: price;
   }
-  [data-price-grid] td[data-col='change'] {
-    grid-area: change;
+  [data-price-grid] td[data-col='price'] [data-price-cell] {
+    justify-items: start;
+    text-align: left;
   }
-  [data-price-grid] td[data-col='paid'] {
-    grid-area: paid;
+  [data-price-grid] td[data-col='price'] [data-price-line] {
+    flex-direction: row-reverse;
+  }
+  [data-price-grid] td[data-col='trend'] {
+    grid-area: trend;
+  }
+  [data-price-grid] td[data-col='trend'] [data-price-trend] {
+    justify-items: start;
+  }
+  [data-price-grid] td[data-col='trend'] [data-trend-note] {
+    width: auto;
+    justify-content: flex-start;
+    gap: 10px;
   }
   [data-price-grid] td[data-col='checked'] {
     grid-area: checked;

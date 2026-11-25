@@ -8,6 +8,7 @@ import {
   type WishlistBudget,
   type WishlistCommand,
   type WishlistItem,
+  type PriceTrends,
   type WishlistLane,
   type WishlistResponse,
   type WishlistTrend,
@@ -84,10 +85,89 @@ type SnapshotRow = {
 
 /**
  * Daily best in-stock price over the last 30 days and the 90-day low and
- * high, from the price snapshots of each knife's active store links. A
+ * high, from price snapshots (oldest first) of one or more store links. A
  * snapshot holds its price until the next snapshot of the same store
- * replaces it.
+ * replaces it. Null when nothing was in stock in the window.
  */
+function trendFromSnapshots(
+  rows: readonly SnapshotRow[],
+  now: number,
+): WishlistTrend | null {
+  const priced = rows.filter(
+    (row) =>
+      row.price_minor !== null &&
+      row.currency &&
+      row.availability !== 'out_of_stock',
+  )
+  if (!priced.length) return null
+  const counts = new Map<string, number>()
+  for (const row of priced)
+    counts.set(row.currency!, (counts.get(row.currency!) ?? 0) + 1)
+  const currency = [...counts].sort((a, b) => b[1] - a[1])[0][0]
+  const inCurrency = (row: SnapshotRow) =>
+    row.price_minor !== null &&
+    row.currency === currency &&
+    row.availability !== 'out_of_stock'
+
+  const bySource = new Map<number, SnapshotRow[]>()
+  for (const row of rows) {
+    const list = bySource.get(row.source_id) ?? []
+    list.push(row)
+    bySource.set(row.source_id, list)
+  }
+  /** Best in-stock price across the stores as of `end` (an ISO time). */
+  const bestAt = (end: string) => {
+    let best: number | null = null
+    for (const list of bySource.values()) {
+      let latest: SnapshotRow | undefined
+      for (const row of list) {
+        if (row.observed_at > end) break
+        latest = row
+      }
+      if (latest && inCurrency(latest))
+        best =
+          best === null
+            ? latest.price_minor!
+            : Math.min(best, latest.price_minor!)
+    }
+    return best
+  }
+  const daily: Array<number | null> = []
+  for (let day = WISHLIST_TREND_DAYS - 1; day >= 0; day--)
+    daily.push(bestAt(new Date(now - day * DAY_MS).toISOString()))
+
+  // The chart starts when tracking began, or 30 days ago if earlier, and
+  // steps at every snapshot after that where the best price changed.
+  const windowStart = now - WISHLIST_TREND_DAYS * DAY_MS
+  const first = Date.parse(rows[0].observed_at)
+  const chartStart = Math.max(first, windowStart)
+  const steps: WishlistTrend['steps'] = []
+  const times = new Set([chartStart])
+  for (const row of rows) {
+    const at = Date.parse(row.observed_at)
+    if (at > chartStart && at <= now) times.add(at)
+  }
+  for (const at of [...times].sort((a, b) => a - b)) {
+    const price = bestAt(new Date(at).toISOString())
+    if (!steps.length || steps[steps.length - 1].price !== price)
+      steps.push({ at, price })
+  }
+  const prices = priced.filter(inCurrency).map((row) => row.price_minor!)
+  return {
+    currency,
+    daily,
+    steps,
+    since: chartStart,
+    until: now,
+    lowMinor: Math.min(...prices),
+    highMinor: Math.max(...prices),
+  }
+}
+
+const SNAPSHOT_COLUMNS =
+  's.knife_id, s.source_id, s.price_minor, s.currency, s.availability, s.observed_at'
+
+/** Best-price trends of each knife across its active store links. */
 export function buildWishlistTrends(
   db: Database.Database,
   knifeIds: readonly string[],
@@ -97,84 +177,59 @@ export function buildWishlistTrends(
   if (!knifeIds.length) return trends
   const since = new Date(now - WISHLIST_LOW_DAYS * DAY_MS).toISOString()
   const statement = db.prepare(
-    `SELECT s.knife_id, s.source_id, s.price_minor, s.currency, s.availability, s.observed_at
+    `SELECT ${SNAPSHOT_COLUMNS}
      FROM price_snapshots s JOIN price_sources p ON p.id = s.source_id
      WHERE s.knife_id = ? AND p.removed_at IS NULL AND s.last_seen_at >= ?
      ORDER BY s.observed_at, s.id`,
   )
   for (const knifeId of knifeIds) {
-    const rows = statement.all(knifeId, since) as SnapshotRow[]
-    const priced = rows.filter(
-      (row) =>
-        row.price_minor !== null &&
-        row.currency &&
-        row.availability !== 'out_of_stock',
+    const trend = trendFromSnapshots(
+      statement.all(knifeId, since) as SnapshotRow[],
+      now,
     )
-    if (!priced.length) continue
-    const counts = new Map<string, number>()
-    for (const row of priced)
-      counts.set(row.currency!, (counts.get(row.currency!) ?? 0) + 1)
-    const currency = [...counts].sort((a, b) => b[1] - a[1])[0][0]
-    const inCurrency = (row: SnapshotRow) =>
-      row.price_minor !== null &&
-      row.currency === currency &&
-      row.availability !== 'out_of_stock'
-
-    const bySource = new Map<number, SnapshotRow[]>()
-    for (const row of rows) {
-      const list = bySource.get(row.source_id) ?? []
-      list.push(row)
-      bySource.set(row.source_id, list)
-    }
-    /** Best in-stock price across the stores as of `end` (an ISO time). */
-    const bestAt = (end: string) => {
-      let best: number | null = null
-      for (const list of bySource.values()) {
-        let latest: SnapshotRow | undefined
-        for (const row of list) {
-          if (row.observed_at > end) break
-          latest = row
-        }
-        if (latest && inCurrency(latest))
-          best =
-            best === null
-              ? latest.price_minor!
-              : Math.min(best, latest.price_minor!)
-      }
-      return best
-    }
-    const daily: Array<number | null> = []
-    for (let day = WISHLIST_TREND_DAYS - 1; day >= 0; day--)
-      daily.push(bestAt(new Date(now - day * DAY_MS).toISOString()))
-
-    // The chart starts when tracking began, or 30 days ago if earlier, and
-    // steps at every snapshot after that where the best price changed.
-    const windowStart = now - WISHLIST_TREND_DAYS * DAY_MS
-    const first = Date.parse(rows[0].observed_at)
-    const chartStart = Math.max(first, windowStart)
-    const steps: WishlistTrend['steps'] = []
-    const times = new Set([chartStart])
-    for (const row of rows) {
-      const at = Date.parse(row.observed_at)
-      if (at > chartStart && at <= now) times.add(at)
-    }
-    for (const at of [...times].sort((a, b) => a - b)) {
-      const price = bestAt(new Date(at).toISOString())
-      if (!steps.length || steps[steps.length - 1].price !== price)
-        steps.push({ at, price })
-    }
-    const prices = priced.filter(inCurrency).map((row) => row.price_minor!)
-    trends[knifeId] = {
-      currency,
-      daily,
-      steps,
-      since: chartStart,
-      until: now,
-      lowMinor: Math.min(...prices),
-      highMinor: Math.max(...prices),
-    }
+    if (trend) trends[knifeId] = trend
   }
   return trends
+}
+
+/**
+ * Trends for the Price Drops table, from one read of the last 90 days of
+ * snapshots: each knife's best price across its enabled store links (paused
+ * ones are not in the table either), and each enabled link on its own.
+ */
+export function buildPriceTrends(
+  db: Database.Database,
+  now = Date.now(),
+): PriceTrends {
+  const since = new Date(now - WISHLIST_LOW_DAYS * DAY_MS).toISOString()
+  const rows = db
+    .prepare(
+      `SELECT ${SNAPSHOT_COLUMNS}
+       FROM price_snapshots s JOIN price_sources p ON p.id = s.source_id
+       WHERE p.removed_at IS NULL AND p.enabled = 1 AND s.last_seen_at >= ?
+       ORDER BY s.observed_at, s.id`,
+    )
+    .all(since) as SnapshotRow[]
+  const byKnife = new Map<string, SnapshotRow[]>()
+  const bySource = new Map<number, SnapshotRow[]>()
+  const add = <K>(groups: Map<K, SnapshotRow[]>, key: K, row: SnapshotRow) => {
+    const list = groups.get(key)
+    if (list) list.push(row)
+    else groups.set(key, [row])
+  }
+  for (const row of rows) {
+    add(byKnife, row.knife_id, row)
+    add(bySource, row.source_id, row)
+  }
+  const build = <K>(groups: Map<K, SnapshotRow[]>) => {
+    const trends: Record<string, WishlistTrend> = {}
+    for (const [key, list] of groups) {
+      const trend = trendFromSnapshots(list, now)
+      if (trend) trends[String(key)] = trend
+    }
+    return trends
+  }
+  return { knives: build(byKnife), sources: build(bySource) }
 }
 
 export function getWishlist(now = Date.now()): WishlistResponse {

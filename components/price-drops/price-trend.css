@@ -1,0 +1,107 @@
+/* Compact row price chart for Price Drops (the Wishlist row chart in a
+   fixed 110×36 size). An ancestor can retint it with --trend-down,
+   --trend-up and --trend-flat. */
+[data-trend-row] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+[data-trend-spark] {
+  --trend-color: var(--trend-flat, var(--price-neutral, #9a958b));
+  display: block;
+  overflow: visible;
+  cursor: crosshair;
+  touch-action: pan-y;
+}
+[data-trend-spark='down'] {
+  --trend-color: var(--trend-down, var(--price-drop, #2f7d46));
+}
+[data-trend-spark='up'] {
+  --trend-color: var(--trend-up, var(--price-rise, #b4232a));
+}
+/* Stock-style mountain: the area fades from the line down to the base. */
+[data-trend-stop='top'] {
+  stop-color: var(--trend-color);
+  stop-opacity: 0.38;
+}
+[data-trend-stop='bottom'] {
+  stop-color: var(--trend-color);
+  stop-opacity: 0;
+}
+[data-trend-line] {
+  stroke: var(--trend-color);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+[data-trend-dot] {
+  fill: var(--trend-color);
+  stroke: var(--card);
+  stroke-width: 1.5;
+}
+[data-trend-cross] {
+  stroke: var(--muted-foreground);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+/* Net change over the window; the arrow keeps it readable without colour. */
+[data-trend-chip] {
+  --trend-chip: var(--trend-flat, var(--price-neutral, #9a958b));
+  flex: none;
+  min-width: 42px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--trend-chip) 16%, transparent);
+  color: color-mix(in srgb, var(--trend-chip) 85%, var(--foreground));
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  white-space: nowrap;
+}
+[data-trend-chip='flat'] {
+  color: var(--muted-foreground);
+}
+[data-trend-chip='down'] {
+  --trend-chip: var(--trend-down, var(--price-drop, #2f7d46));
+}
+[data-trend-chip='up'] {
+  --trend-chip: var(--trend-up, var(--price-rise, #b4232a));
+}
+[data-trend-note] {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  max-width: 160px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+[data-trend-hover] {
+  color: var(--foreground);
+  font-weight: 600;
+}
+[data-trend-change] {
+  font-weight: 650;
+}
+[data-trend-change='down'] {
+  color: color-mix(
+    in srgb,
+    var(--trend-down, var(--price-drop, #2f7d46)) 85%,
+    var(--foreground)
+  );
+}
+[data-trend-change='up'] {
+  color: color-mix(
+    in srgb,
+    var(--trend-up, var(--price-rise, #b4232a)) 85%,
+    var(--foreground)
+  );
+}
+[data-trend-empty] {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  text-align: right;
+}

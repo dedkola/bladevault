@@ -46,6 +46,7 @@ import type { PriceWatchMode } from '@/lib/price-monitor/shared'
 import { cn } from '@/lib/utils'
 import { useKnives } from '@/components/providers/knives-provider'
 import { getHourCycle } from '@/lib/time-format'
+import type { PriceTrends, WishlistTrend } from '@/lib/wishlist'
 import {
   AgentActivity,
   AgentStrip,
@@ -60,12 +61,15 @@ import {
   clockTime,
   money,
   nextCheckLabel,
+  percentLabel,
   relativeTime,
   storeLabel,
 } from './price-format'
+import { PriceTrend, trendNetChange } from './price-trend'
 import {
   EMPTY_TEXT,
   groupByKnife,
+  isBelowPaid,
   matchesQuery,
   nextSort,
   parseSection,
@@ -240,6 +244,32 @@ function useQueue(fast: boolean, version: number) {
   return queue
 }
 
+/**
+ * Row charts. Prices only move when a check finishes, so this reloads when
+ * the last successful check or `version` changes, not on every poll. A
+ * failed load keeps the last charts; rows without one say so.
+ */
+function usePriceTrends(key: string | null) {
+  const [trends, setTrends] = useState<PriceTrends | null>(null)
+  useEffect(() => {
+    if (key === null) return
+    const controller = new AbortController()
+    fetch('/api/prices/trends', {
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { trends?: PriceTrends } | null) => {
+        if (data?.trends) setTrends(data.trends)
+      })
+      .catch(() => {
+        // Charts are optional; the table works without them.
+      })
+    return () => controller.abort()
+  }, [key])
+  return trends
+}
+
 /** "12 of 38 knives checked", with why the rest may wait. */
 function roundText(round: QueueRound, pausedStores: number): string {
   const parts = [
@@ -324,7 +354,46 @@ function shortDate(iso: string) {
   })
 }
 
-function VsPaid({ source }: { source: MonitoredSource }) {
+/** The latest check moved the price: "▼ $73.50 · 2 days ago". */
+function ChangeTag({ source, now }: { source: MonitoredSource; now: number }) {
+  if (
+    (source.result !== 'drop' && source.result !== 'increase') ||
+    source.deltaMinor === null
+  )
+    return null
+  const down = source.deltaMinor < 0
+  return (
+    <span
+      data-price-change-tag={down ? 'drop' : 'increase'}
+      title={[
+        `${down ? 'Down' : 'Up'} ${money(Math.abs(source.deltaMinor), source.currency)}${source.deltaPct !== null ? ` (${percentLabel(source.deltaPct)})` : ''}`,
+        source.changedAt ? `on ${shortDate(source.changedAt)}` : '',
+        source.fluctuating ? '; the price has also gone back and forth' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      {down ? '▼' : '▲'} {money(Math.abs(source.deltaMinor), source.currency)}
+      {source.changedAt
+        ? ` · ${relativeTime(source.changedAt, now, 'short')}`
+        : ''}
+    </span>
+  )
+}
+
+/**
+ * The line under the price: the regular price it beats ("~~$294~~ · save
+ * $73.50"), how far above it it is, or how old a price a failed check kept.
+ */
+function PriceNote({ source }: { source: MonitoredSource }) {
+  if (source.result === 'attention' && source.priceMinor !== null)
+    return (
+      <>
+        {source.priceSeenAt
+          ? `as of ${shortDate(source.priceSeenAt)}`
+          : 'last known'}
+      </>
+    )
   if (
     source.priceMinor !== null &&
     source.paidMinor === null &&
@@ -339,60 +408,125 @@ function VsPaid({ source }: { source: MonitoredSource }) {
       />
     )
   const paid = vsPaid(source)
-  if (!paid) return <span className="text-muted-foreground">—</span>
-  if (paid.deltaMinor === 0)
-    return <span className="text-muted-foreground">same</span>
-  const below = paid.deltaMinor < 0
+  if (!paid) return null
+  if (paid.deltaMinor === 0) return <>regular price</>
+  if (paid.deltaMinor < 0)
+    return (
+      <>
+        <s>{money(source.paidMinor, source.currency)}</s> ·{' '}
+        <span data-price-save>
+          save {money(-paid.deltaMinor, source.currency)}
+        </span>
+      </>
+    )
   return (
-    <span
-      className="tabular-nums"
-      data-result={below ? 'drop' : 'increase'}
-      style={{
-        color: 'color-mix(in srgb, var(--pd-color) 80%, var(--foreground))',
-      }}
-    >
-      {below ? '−' : '+'}
-      {money(Math.abs(paid.deltaMinor), source.currency)}
-      <span className="block text-[11px] opacity-80">
-        {below ? '−' : '+'}
-        {Math.abs(paid.pct).toFixed(0)}%
-      </span>
-    </span>
+    <>
+      <span data-price-over>+{money(paid.deltaMinor, source.currency)}</span> vs
+      regular
+    </>
   )
 }
 
 /**
- * The price now. A check that could not read the page keeps the last known
- * price, shown muted with its date so it never passes for a fresh reading.
+ * The price now, with the latest change beside it and the regular price
+ * under it. A check that could not read the page keeps the last known price,
+ * shown muted with its date so it never passes for a fresh reading.
  */
-function PriceCell({ source }: { source: MonitoredSource }) {
-  if (source.result === 'attention' && source.priceMinor !== null)
-    return (
-      <span
-        className="text-muted-foreground"
-        title="Last price read on this page"
-      >
-        <span className="tabular-nums">
-          {money(source.priceMinor, source.currency)}
-        </span>
-        <span className="block text-[11px]">
-          {source.priceSeenAt
-            ? `as of ${shortDate(source.priceSeenAt)}`
-            : 'last known'}
-        </span>
-      </span>
-    )
+function PriceCell({ source, now }: { source: MonitoredSource; now: number }) {
+  const stale = source.result === 'attention' && source.priceMinor !== null
   return (
-    <>
-      <span className="font-semibold tabular-nums">
-        {money(source.priceMinor, source.currency)}
+    <div data-price-cell data-stale={stale || undefined}>
+      <span data-price-line>
+        <ChangeTag source={source} now={now} />
+        <b title={stale ? 'Last price read on this page' : undefined}>
+          {money(source.priceMinor, source.currency)}
+        </b>
       </span>
-      {source.previousPriceMinor !== null ? (
-        <span className="block text-[11px] text-muted-foreground line-through tabular-nums">
-          {money(source.previousPriceMinor, source.currency)}
+      <span data-price-note>
+        <PriceNote source={source} />
+      </span>
+    </div>
+  )
+}
+
+/** Results that are news on their own; drops and rises show as a tag. */
+const STATUS_RESULTS = new Set<MonitoredSource['result']>([
+  'restocked',
+  'out_of_stock',
+  'attention',
+  'pending',
+])
+
+/** At or under the lowest price in the trend's 90 days, after a higher one. */
+function atNinetyDayLow(
+  source: MonitoredSource,
+  trend: WishlistTrend | undefined,
+): boolean {
+  const price = source.priceMinor
+  return Boolean(
+    trend &&
+    price !== null &&
+    trend.currency === source.currency &&
+    trend.lowMinor !== null &&
+    price <= trend.lowMinor &&
+    !STATUS_RESULTS.has(source.result) &&
+    // A price that never moved is not news: show it only after a higher one.
+    trend.daily.some((value) => value !== null && value > price),
+  )
+}
+
+/**
+ * Wishlist-style signals under the knife: its stock or check status, On
+ * sale against the regular price, and a 90-day low.
+ */
+function RowSignals({
+  source,
+  trend,
+  now,
+  canSolve,
+  onResolve,
+}: {
+  source: MonitoredSource
+  trend: WishlistTrend | undefined
+  now: number
+  canSolve: boolean | null
+  onResolve: () => void
+}) {
+  const status = STATUS_RESULTS.has(source.result)
+  const paid = isBelowPaid(source) ? vsPaid(source) : null
+  const low = atNinetyDayLow(source, trend)
+  if (!status && !paid && !low) return null
+  return (
+    <span data-price-signals>
+      {status ? (
+        <ResultBadge
+          source={source}
+          now={now}
+          onResolve={canSolve ? onResolve : undefined}
+          solveUnavailable={
+            canSolve === false ? SOLVE_UNAVAILABLE_TEXT : undefined
+          }
+        />
+      ) : null}
+      {paid ? (
+        <span
+          className="pd-badge"
+          data-result="drop"
+          title={`${money(-paid.deltaMinor, source.currency)} below the regular price`}
+        >
+          On sale −{Math.round(Math.abs(paid.pct))}%
         </span>
       ) : null}
-    </>
+      {low ? (
+        <span
+          className="pd-badge"
+          data-price-signal="low"
+          title="The lowest price in the last 90 days"
+        >
+          90-day low
+        </span>
+      ) : null}
+    </span>
   )
 }
 
@@ -490,6 +624,9 @@ function SourceTableRow({
   checkingNow,
   hourCycle,
   canSolve,
+  trend,
+  knifeTrend,
+  bestMinor,
   group,
   child,
   onSelect,
@@ -507,6 +644,12 @@ function SourceTableRow({
   checkingNow: boolean
   hourCycle: 'h12' | 'h23'
   canSolve: boolean | null
+  /** The 30-day chart: the knife's best price, or this store's own. */
+  trend: WishlistTrend | undefined
+  /** `trend` is the knife's best price across its stores. */
+  knifeTrend?: boolean
+  /** A store row: the knife's best price, to say how far above it this is. */
+  bestMinor?: number | null
   /** A grouped knife row: its stores count and expand state. */
   group?: { count: number; expanded: boolean; onToggle: () => void }
   /** A store row under an expanded knife. */
@@ -520,6 +663,13 @@ function SourceTableRow({
   const showNext = section === 'attention'
   const name = knifeName(source)
   const store = storeLabel(source.storeName)
+  const aboveBest =
+    child &&
+    bestMinor != null &&
+    source.priceMinor !== null &&
+    source.priceMinor > bestMinor
+      ? source.priceMinor - bestMinor
+      : null
   return (
     <tr
       data-price-row={source.result}
@@ -532,7 +682,7 @@ function SourceTableRow({
         selected && 'bg-[var(--bladevault-surface-soft)]',
       )}
     >
-      <td data-col="check" className="py-2 pr-2 pl-1">
+      <td data-col="check" className="py-2.5 pr-2 pl-1">
         <Checkbox
           aria-label={
             group
@@ -545,82 +695,112 @@ function SourceTableRow({
           onCheckedChange={onToggleChecked}
         />
       </td>
-      <td data-col="knife" className="py-2 pr-3">
-        <div className={cn('flex min-w-0 items-center gap-1', child && 'pl-6')}>
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation()
-              onSelect()
-            }}
-            aria-pressed={selected}
-            className="flex min-w-0 items-center gap-2.5 rounded-md text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-          >
-            {child ? null : (
-              <KnifeThumb knife={source.knife} className="size-8" />
-            )}
-            <span className="min-w-0">
-              {child ? null : (
-                <span className="block max-w-[16rem] truncate font-medium">
-                  {name}
-                </span>
-              )}
-              {source.knife.subtitle && !child ? (
+      <td data-col="knife" className="py-2.5 pr-3">
+        {child ? (
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pl-[72px]">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                onSelect()
+              }}
+              className="truncate rounded-sm text-left text-[13px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              aria-label={`${store}: show ${name}`}
+            >
+              {store}
+            </button>
+            {STATUS_RESULTS.has(source.result) ? (
+              <ResultBadge
+                source={source}
+                now={now}
+                onResolve={canSolve ? onResolve : undefined}
+                solveUnavailable={
+                  canSolve === false ? SOLVE_UNAVAILABLE_TEXT : undefined
+                }
+              />
+            ) : null}
+          </div>
+        ) : (
+          <div className="flex min-w-0 items-center gap-3">
+            <KnifeThumb
+              knife={source.knife}
+              className="h-11 w-[60px] rounded-[10px]"
+            />
+            <div className="min-w-0">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onSelect()
+                }}
+                aria-pressed={selected}
+                className="block max-w-full truncate rounded-sm text-left leading-tight font-semibold focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                {name}
+              </button>
+              {source.knife.subtitle ? (
                 <span
                   data-price-subtitle
-                  className="block max-w-[16rem] truncate text-xs text-muted-foreground"
+                  className="block truncate text-xs text-muted-foreground"
                 >
                   {source.knife.subtitle}
                 </span>
               ) : null}
               <span className="block truncate text-xs text-muted-foreground">
-                {group && group.count > 1
-                  ? `Best at ${store} · ${group.count} stores`
-                  : store}
-              </span>
-            </span>
-          </button>
-          {group && group.count > 1 ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-expanded={group.expanded}
-              aria-label={`${group.expanded ? 'Hide' : 'Show'} ${group.count} stores for ${name}`}
-              onClick={(event) => {
-                event.stopPropagation()
-                group.onToggle()
-              }}
-            >
-              <ChevronRight
-                className={cn(
-                  'size-3.5 transition-transform',
-                  group.expanded && 'rotate-90',
+                {group && group.count > 1 ? (
+                  <>
+                    Best at {store} ·{' '}
+                    <button
+                      type="button"
+                      data-price-stores
+                      aria-expanded={group.expanded}
+                      aria-label={`${group.expanded ? 'Hide' : 'Show'} ${group.count} stores for ${name}`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        group.onToggle()
+                      }}
+                    >
+                      {group.count} stores
+                      <ChevronRight aria-hidden="true" />
+                    </button>
+                  </>
+                ) : (
+                  store
                 )}
+              </span>
+              <RowSignals
+                source={source}
+                trend={trend}
+                now={now}
+                canSolve={canSolve}
+                onResolve={onResolve}
               />
-            </Button>
-          ) : null}
+            </div>
+          </div>
+        )}
+      </td>
+      <td data-col="price" className="py-2.5 pr-4">
+        <PriceCell source={source} now={now} />
+      </td>
+      <td data-col="trend" className="py-2.5 pr-4">
+        <div data-price-trend>
+          {child ? (
+            aboveBest !== null ? (
+              <span className="text-[11.5px] text-muted-foreground">
+                +{money(aboveBest, source.currency)} vs best
+              </span>
+            ) : null
+          ) : (
+            <PriceTrend
+              trend={trend}
+              label={knifeTrend ? 'Best store price' : `Price at ${store}`}
+            />
+          )}
         </div>
-      </td>
-      <td data-col="price" className="py-2 pr-3 text-right whitespace-nowrap">
-        <PriceCell source={source} />
-      </td>
-      <td data-col="change" className="py-2 pr-3">
-        <ResultBadge
-          source={source}
-          now={now}
-          onResolve={canSolve ? onResolve : undefined}
-          solveUnavailable={
-            canSolve === false ? SOLVE_UNAVAILABLE_TEXT : undefined
-          }
-        />
-      </td>
-      <td data-col="paid" className="py-2 pr-3 text-right whitespace-nowrap">
-        <VsPaid source={source} />
       </td>
       <td
         data-col="checked"
-        className="py-2 pr-1 text-xs whitespace-nowrap text-muted-foreground"
+        className="py-2.5 pr-1 text-xs whitespace-nowrap text-muted-foreground"
       >
         {paused ? (
           <span className="flex items-center gap-1.5">
@@ -675,7 +855,7 @@ function RetireRow({
         selected && 'bg-[var(--bladevault-surface-soft)]',
       )}
     >
-      <td colSpan={7} className="px-1 pb-2.5">
+      <td colSpan={6} className="px-1 pb-2.5">
         <RetireHintNotice
           hint={source.retireHint}
           knifeId={source.knife.id}
@@ -766,8 +946,8 @@ function SortHeader({
             : 'none'
       }
       className={cn(
-        'py-2 pr-3 font-medium',
-        align === 'right' ? 'text-right' : 'text-left',
+        'py-2 font-medium',
+        align === 'right' ? 'pr-4 text-right' : 'pr-3 text-left',
       )}
     >
       <button
@@ -803,7 +983,7 @@ const MOBILE_SORTS: Array<{ value: string; label: string; sort: Sort }> = [
   },
   {
     value: 'change-asc',
-    label: 'Biggest drop',
+    label: 'Biggest 30-day drop',
     sort: { key: 'change', dir: 'asc' },
   },
   {
@@ -837,6 +1017,9 @@ export function PriceDropsView({
 } = {}) {
   const [version, setVersion] = useState(0)
   const { overview, error, loadedAt, retry } = useOverview(version)
+  const trends = usePriceTrends(
+    overview ? `${version}|${overview.kpis.lastSuccessAt ?? ''}` : null,
+  )
   // The round Check all started, so its end can be announced.
   const [started, setStarted] = useState<number | null>(null)
   const [queueVersion, setQueueVersion] = useState(0)
@@ -919,7 +1102,22 @@ export function PriceDropsView({
       (store === 'all' || source.laneKey === store) &&
       matchesQuery(source, query),
   )
-  const rows = sortRows(section, filtered.filter(SECTION_FILTER[section]), sort)
+  // A grouped row charts the knife's best price; a listing its own store.
+  // A grouped row charts the knife's best price across its stores (one
+  // knife, many sources); a listing on its own charts its store.
+  const trendOf = (source: MonitoredSource, byKnife: boolean) =>
+    byKnife
+      ? trends?.knives[source.knife.id]
+      : trends?.sources[String(source.sourceId)]
+  const rows = sortRows(
+    section,
+    filtered.filter(SECTION_FILTER[section]),
+    sort,
+    (source) => {
+      const net = trendNetChange(trendOf(source, grouped === '1'))
+      return net === null ? null : net * 100
+    },
+  )
   const visibleKnives = new Set(rows.map((source) => source.knife.id))
   const monitoredKnives = new Set(monitored.map((source) => source.knife.id))
   // Details open only for a chosen knife. A selection the current tab hides
@@ -1202,9 +1400,11 @@ export function PriceDropsView({
       group?: { count: number; expanded: boolean; onToggle: () => void }
       ids?: number[]
       child?: boolean
+      bestMinor?: number | null
     } = {},
   ) => {
     const ids = options.ids ?? [source.sourceId]
+    const byKnife = Boolean(options.group)
     const ticked = ids.filter((id) => checked.has(id)).length
     return (
       <SourceTableRow
@@ -1218,6 +1418,9 @@ export function PriceDropsView({
         checkingNow={checkingIds.has(source.sourceId)}
         hourCycle={hourCycle}
         canSolve={canSolve}
+        trend={options.child ? undefined : trendOf(source, byKnife)}
+        knifeTrend={byKnife}
+        bestMinor={options.bestMinor}
         group={options.group}
         child={options.child}
         onSelect={() => {
@@ -1263,7 +1466,7 @@ export function PriceDropsView({
   const detailRow = (knifeId: string) =>
     !narrow && panel && knifeId === selectedKnife ? (
       <tr key={`detail-${knifeId}`} data-price-detail-row>
-        <td colSpan={7} className="px-4 pt-1 pb-4">
+        <td colSpan={6} className="px-4 pt-1 pb-4">
           <div role="region" aria-label="Knife prices">
             {panel}
           </div>
@@ -1629,21 +1832,14 @@ export function PriceDropsView({
                           </th>
                           <th className="py-2 pr-3 font-medium">Knife</th>
                           <SortHeader
-                            label="Price now"
+                            label="Price"
                             sortKey="price"
                             sort={sort}
                             onSort={(key) => setSort(nextSort(sort, key))}
                           />
                           <SortHeader
-                            label="Change"
+                            label="Trend · 30d"
                             sortKey="change"
-                            sort={sort}
-                            align="left"
-                            onSort={(key) => setSort(nextSort(sort, key))}
-                          />
-                          <SortHeader
-                            label="vs regular"
-                            sortKey="paid"
                             sort={sort}
                             onSort={(key) => setSort(nextSort(sort, key))}
                           />
@@ -1688,7 +1884,10 @@ export function PriceDropsView({
                                   })}
                                   {open && group.sources.length > 1
                                     ? group.sources.map((source) =>
-                                        renderRow(source, { child: true }),
+                                        renderRow(source, {
+                                          child: true,
+                                          bestMinor: group.lead.priceMinor,
+                                        }),
                                       )
                                     : null}
                                   {detailRow(group.knifeId)}

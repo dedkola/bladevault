@@ -154,12 +154,21 @@ export function nextSort(current: Sort, key: SortKey): Sort {
   return null
 }
 
-function sortValue(source: MonitoredSource, key: SortKey): number | null {
+/** A row's 30-day trend in percent (-20 is 20% down), when known. */
+export type TrendPct = (source: MonitoredSource) => number | null
+
+function sortValue(
+  source: MonitoredSource,
+  key: SortKey,
+  trendPct?: TrendPct,
+): number | null {
   switch (key) {
     case 'price':
       return source.priceMinor
     case 'change':
-      return source.deltaPct
+      // The Trend column: the net move over the chart window, else the
+      // latest change while trends are loading or missing.
+      return trendPct?.(source) ?? source.deltaPct
     case 'paid':
       return vsPaid(source)?.pct ?? null
     case 'checked':
@@ -188,20 +197,21 @@ function savingPct(source: MonitoredSource): number {
 
 /**
  * Rows for a section: by result (drops first) unless a column is sorted;
- * Drops puts the biggest saving first.
+ * Drops puts the biggest saving first. `trendPct` feeds the Trend sort.
  * Missing values always sort last. Recently checked keeps the newest 30.
  */
 export function sortRows(
   section: Section,
   list: MonitoredSource[],
   sort: Sort,
+  trendPct?: TrendPct,
 ): MonitoredSource[] {
   const sorted = [...list]
   if (sort) {
     const factor = sort.dir === 'asc' ? 1 : -1
     sorted.sort((a, b) => {
-      const left = sortValue(a, sort.key)
-      const right = sortValue(b, sort.key)
+      const left = sortValue(a, sort.key, trendPct)
+      const right = sortValue(b, sort.key, trendPct)
       if (left === null || right === null)
         return left === right ? byName(a, b) : left === null ? 1 : -1
       return (left - right) * factor || byName(a, b)

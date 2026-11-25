@@ -44,6 +44,14 @@ export type WishlistTrend = {
   highMinor: number | null
 }
 
+/** Price Drops row charts, from /api/prices/trends. */
+export type PriceTrends = {
+  /** Best price across each knife's active store links, by knife id. */
+  knives: Record<string, WishlistTrend>
+  /** Each enabled store link on its own, by source id. */
+  sources: Record<string, WishlistTrend>
+}
+
 export type WishlistBudget = {
   amountMinor: number | null
   currency: string | null
