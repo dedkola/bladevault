@@ -19,6 +19,7 @@ import {
   normalizePriceMonitoring,
   normalizeAchievementSettings,
   normalizeBackupNotificationSettings,
+  normalizePopupNotificationSettings,
   normalizeKnifeDetailPanelWidth,
   type AppSettings,
   type AppTheme,
@@ -59,6 +60,7 @@ const SETTINGS_KEYS: Record<keyof AppSettings, string> = {
   priceMonitoring: 'price_monitoring',
   achievements: 'achievements',
   backupNotifications: 'backup_notifications',
+  popupNotifications: 'popup_notifications',
   knifeDetailPanelWidth: 'knife_detail_panel_width',
 }
 
@@ -77,6 +79,16 @@ function parseBackupNotificationSettings(value: string | undefined) {
     )
   } catch {
     return normalizeBackupNotificationSettings(undefined)
+  }
+}
+
+function parsePopupNotificationSettings(value: string | undefined) {
+  try {
+    return normalizePopupNotificationSettings(
+      value ? JSON.parse(value) : undefined,
+    )
+  } catch {
+    return normalizePopupNotificationSettings(undefined)
   }
 }
 
@@ -249,6 +261,9 @@ export function getSettings(): AppSettings {
     backupNotifications: parseBackupNotificationSettings(
       map.get(SETTINGS_KEYS.backupNotifications),
     ),
+    popupNotifications: parsePopupNotificationSettings(
+      map.get(SETTINGS_KEYS.popupNotifications),
+    ),
     knifeDetailPanelWidth: normalizeKnifeDetailPanelWidth(
       map.get(SETTINGS_KEYS.knifeDetailPanelWidth) || undefined,
     ),
@@ -319,6 +334,13 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
               settings.backupNotifications,
               current.backupNotifications,
             ),
+      popupNotifications:
+        settings.popupNotifications === undefined
+          ? current.popupNotifications
+          : normalizePopupNotificationSettings(
+              settings.popupNotifications,
+              current.popupNotifications,
+            ),
       knifeDetailPanelWidth:
         settings.knifeDetailPanelWidth === undefined
           ? current.knifeDetailPanelWidth
@@ -352,6 +374,7 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
       ['priceMonitoring', JSON.stringify(next.priceMonitoring)],
       ['achievements', JSON.stringify(next.achievements)],
       ['backupNotifications', JSON.stringify(next.backupNotifications)],
+      ['popupNotifications', JSON.stringify(next.popupNotifications)],
       [
         'knifeDetailPanelWidth',
         next.knifeDetailPanelWidth === null

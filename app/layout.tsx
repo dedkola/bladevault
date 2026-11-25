@@ -19,6 +19,7 @@ import { MarketProvider } from '@/components/providers/market-provider'
 import { CareInboxProvider } from '@/components/providers/care-inbox-provider'
 import { AchievementsProvider } from '@/components/providers/achievements-provider'
 import { AchievementCelebration } from '@/components/achievement-celebration'
+import { InboxPopups } from '@/components/care-inbox'
 import { DEFAULT_SETTINGS, getSettings } from '@/lib/settings'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import {
@@ -205,6 +206,7 @@ export default async function RootLayout({
                             <GlobalKnifeSearch />
                             <BackupProgressNotice />
                             <AchievementCelebration />
+                            <InboxPopups />
                             {promptForConsent ? <ErrorReportingPrompt /> : null}
                           </TooltipProvider>
                         </SmartCollectionsProvider>

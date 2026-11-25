@@ -41,11 +41,30 @@ import {
 } from '@/lib/price-monitor/notifications'
 import { announcePriceDataUpdated } from '@/lib/market-status'
 import { hasServerRuntime } from '@/lib/runtime-capabilities'
+import {
+  collectPopupCandidates,
+  nextPopupQueue,
+  selectNewPopups,
+  type InboxPopupRef,
+  type InboxPopupType,
+} from '@/lib/inbox-popups'
+import {
+  normalizePopupNotificationSettings,
+  SETTINGS_UPDATED_EVENT,
+  type AppSettings,
+  type PopupNotificationSettings,
+} from '@/lib/settings-shared'
 import type { MaintenanceEventInput } from '@/lib/data'
 import type { CareTrack } from '@/lib/settings-shared'
 import { useCare } from '@/components/providers/care-provider'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useAchievements } from '@/components/providers/achievements-provider'
+
+/** A new Inbox message shown as a pop-up chip, with its current row. */
+export type InboxPopup =
+  | { key: string; type: 'care'; row: CareNotification }
+  | { key: string; type: 'system'; row: SystemMessage }
+  | { key: string; type: 'price'; row: PriceNotificationView }
 
 type CareInboxContextValue = {
   /** False while care reminders are off; care messages hide themselves. */
@@ -86,6 +105,11 @@ type CareInboxContextValue = {
   muteSource: (knifeId: string, sourceId: number, days: number) => Promise<void>
   /** Logs the care for today, which resolves the message on the next sync. */
   logCare: (knifeId: string, track: CareTrack) => Promise<void>
+  /** New messages to pop up at the top right, newest first. */
+  popups: readonly InboxPopup[]
+  /** Closes one pop-up; the message stays unread in the Inbox. */
+  dismissPopup: (key: string) => void
+  clearPopups: () => void
 }
 
 const CareInboxContext = createContext<CareInboxContextValue | null>(null)
@@ -163,6 +187,20 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
     PriceNotificationView[]
   >([])
   const priceNotificationsRef = useRef(priceNotifications)
+  // Pop-ups: settings, the types loaded at least once, and the queue.
+  const [popupSettings, setPopupSettings] =
+    useState<PopupNotificationSettings | null>(null)
+  const [loadedTypes, setLoadedTypes] = useState<ReadonlySet<InboxPopupType>>(
+    () => new Set(),
+  )
+  const [popupQueue, setPopupQueue] = useState<InboxPopupRef[]>([])
+  const seenPopupsRef = useRef<ReadonlySet<string>>(new Set())
+  const primedTypesRef = useRef<Set<InboxPopupType>>(new Set())
+  const markLoaded = useCallback((type: InboxPopupType) => {
+    setLoadedTypes((current) =>
+      current.has(type) ? current : new Set(current).add(type),
+    )
+  }, [])
 
   useEffect(() => {
     notificationsRef.current = notifications
@@ -184,7 +222,10 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
     const load = async () => {
       try {
         const next = await requestPriceNotifications()
-        if (!cancelled) setPriceNotifications(next)
+        if (!cancelled) {
+          setPriceNotifications(next)
+          markLoaded('price')
+        }
       } catch {
         // Keep the last list; the next focus or poll retries.
       }
@@ -200,7 +241,7 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
       window.clearInterval(timer)
       window.removeEventListener('focus', onFocus)
     }
-  }, [pricesAvailable])
+  }, [pricesAvailable, markLoaded])
 
   // System messages come from the server's background work (backups), so
   // reload them on start, when a backup ends and when the window regains focus.
@@ -211,7 +252,10 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
     const load = async () => {
       try {
         const next = await requestSystemMessages()
-        if (!cancelled) setSystemMessages(next)
+        if (!cancelled) {
+          setSystemMessages(next)
+          markLoaded('system')
+        }
       } catch {
         // Keep the last messages; the next focus or backup retries.
       }
@@ -225,7 +269,7 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener('focus', onFocus)
       window.removeEventListener(SYSTEM_MESSAGES_REFRESH_EVENT, onFocus)
     }
-  }, [backupSettled, cloudBackupJob.id])
+  }, [backupSettled, cloudBackupJob.id, markLoaded])
 
   // Care status changes on load, after maintenance edits, settings changes and
   // at midnight; each change syncs the stored inbox on the server.
@@ -238,6 +282,7 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return
         setNotifications(next)
         setNow(new Date())
+        markLoaded('care')
       } catch {
         // Keep the last inbox; the next status change retries.
       } finally {
@@ -248,7 +293,90 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [careLoading, enabled, statusById])
+  }, [careLoading, enabled, statusById, markLoaded])
+
+  // Pop-up settings come from the server once, then from Settings saves.
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const response = await fetch('/api/settings', { cache: 'no-store' })
+        const data = await readJsonResponse<{
+          settings?: Partial<AppSettings>
+        }>(response)
+        if (!cancelled && response.ok) {
+          setPopupSettings(
+            normalizePopupNotificationSettings(
+              data.settings?.popupNotifications,
+            ),
+          )
+        }
+      } catch {
+        // No pop-ups until a settings change or reload retries.
+      }
+    }
+    const onSettings = (event: Event) => {
+      const detail = (event as CustomEvent<Partial<AppSettings>>).detail
+      if (detail?.popupNotifications) {
+        setPopupSettings(
+          normalizePopupNotificationSettings(detail.popupNotifications),
+        )
+      }
+    }
+    void load()
+    window.addEventListener(SETTINGS_UPDATED_EVENT, onSettings)
+    return () => {
+      cancelled = true
+      window.removeEventListener(SETTINGS_UPDATED_EVENT, onSettings)
+    }
+  }, [])
+
+  // New unread messages pop up. The first load of each type only marks what
+  // is already there as seen, so the backlog never pops up on start; so do
+  // arrivals while the window is hidden (desktop notifications cover those).
+  useEffect(() => {
+    if (!popupSettings) return
+    const candidates = collectPopupCandidates({
+      care: notifications,
+      careEnabled: enabled,
+      system: systemMessages,
+      price: priceNotifications,
+      now,
+    })
+    const hidden = document.visibilityState !== 'visible'
+    const quiet = new Set<InboxPopupType>()
+    for (const type of ['care', 'system', 'price'] as const) {
+      if (hidden || !primedTypesRef.current.has(type)) quiet.add(type)
+    }
+    const { fresh, seen } = selectNewPopups(seenPopupsRef.current, candidates, {
+      settings: popupSettings,
+      quiet,
+    })
+    seenPopupsRef.current = seen
+    for (const type of loadedTypes) primedTypesRef.current.add(type)
+    setPopupQueue((queue) => {
+      const next = nextPopupQueue(queue, fresh, candidates, popupSettings)
+      // Keep the same array when nothing changed, so consumers don't re-render.
+      return next.length === queue.length &&
+        next.every((popup, index) => popup === queue[index])
+        ? queue
+        : next
+    })
+  }, [
+    popupSettings,
+    loadedTypes,
+    enabled,
+    notifications,
+    systemMessages,
+    priceNotifications,
+    now,
+  ])
+
+  const dismissPopup = useCallback((key: string) => {
+    setPopupQueue((queue) => queue.filter((popup) => popup.key !== key))
+  }, [])
+
+  const clearPopups = useCallback(() => setPopupQueue([]), [])
 
   // Snoozed messages come back on their own; a minute tick is precise enough.
   useEffect(() => {
@@ -417,6 +545,21 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
       if (isPriceNotificationUnread(row, now)) priceUnreadCount += 1
     }
     if (!enabled) careUnreadCount = 0
+    const careById = new Map(notifications.map((row) => [row.id, row]))
+    const systemById = new Map(shownSystemMessages.map((row) => [row.id, row]))
+    const priceById = new Map(priceNotifications.map((row) => [row.id, row]))
+    const popups = popupQueue.flatMap<InboxPopup>((popup) => {
+      if (popup.type === 'care') {
+        const row = careById.get(popup.id)
+        return row ? [{ key: popup.key, type: 'care', row }] : []
+      }
+      if (popup.type === 'system') {
+        const row = systemById.get(popup.id)
+        return row ? [{ key: popup.key, type: 'system', row }] : []
+      }
+      const row = priceById.get(popup.id)
+      return row ? [{ key: popup.key, type: 'price', row }] : []
+    })
     return {
       enabled,
       visible:
@@ -448,6 +591,9 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
       actPrice,
       muteSource,
       logCare,
+      popups,
+      dismissPopup,
+      clearPopups,
     }
   }, [
     enabled,
@@ -463,6 +609,9 @@ export function CareInboxProvider({ children }: { children: React.ReactNode }) {
     actPrice,
     muteSource,
     logCare,
+    popupQueue,
+    dismissPopup,
+    clearPopups,
   ])
 
   return (
@@ -506,6 +655,9 @@ const DISABLED_INBOX: CareInboxContextValue = {
   logCare: async () => {
     throw new Error('The care inbox is unavailable here.')
   },
+  popups: [],
+  dismissPopup: () => {},
+  clearPopups: () => {},
 }
 
 export function useCareInbox(): CareInboxContextValue {

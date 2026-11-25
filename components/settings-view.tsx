@@ -54,7 +54,9 @@ import {
   normalizePriceMonitoring,
   normalizeAchievementSettings,
   normalizeBackupNotificationSettings,
+  normalizePopupNotificationSettings,
   type BackupNotificationSettings,
+  type PopupNotificationSettings,
   type AppSettings,
   type AppTheme,
   type CardField,
@@ -753,6 +755,8 @@ export default function SettingsView() {
   const [isSavingPriceMonitoring, setIsSavingPriceMonitoring] = useState(false)
   const [isSavingAchievements, setIsSavingAchievements] = useState(false)
   const [isSavingBackupNotifications, setIsSavingBackupNotifications] =
+    useState(false)
+  const [isSavingPopupNotifications, setIsSavingPopupNotifications] =
     useState(false)
   const [isSavingPinnedCardFields, setIsSavingPinnedCardFields] =
     useState(false)
@@ -1469,6 +1473,23 @@ export default function SettingsView() {
       )
     } finally {
       setIsSavingBackupNotifications(false)
+    }
+  }
+
+  const handlePopupNotificationsChange = async (
+    next: PopupNotificationSettings,
+  ) => {
+    if (!settings) return
+
+    try {
+      setIsSavingPopupNotifications(true)
+      await saveSettings({ popupNotifications: next })
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : 'Failed to save settings',
+      )
+    } finally {
+      setIsSavingPopupNotifications(false)
     }
   }
 
@@ -2370,6 +2391,15 @@ export default function SettingsView() {
                   }
                   onBackupNotificationsChange={(next) =>
                     void handleBackupNotificationsChange(next)
+                  }
+                  popupNotifications={normalizePopupNotificationSettings(
+                    settings.popupNotifications,
+                  )}
+                  popupNotificationsDisabled={
+                    isSavingPopupNotifications || isVaultReadOnly
+                  }
+                  onPopupNotificationsChange={(next) =>
+                    void handlePopupNotificationsChange(next)
                   }
                 />
               )}

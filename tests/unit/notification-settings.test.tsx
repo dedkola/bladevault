@@ -8,9 +8,11 @@ import {
   DEFAULT_ACHIEVEMENTS,
   DEFAULT_BACKUP_NOTIFICATIONS,
   DEFAULT_MAINTENANCE_REMINDERS,
+  DEFAULT_POPUP_NOTIFICATIONS,
   DEFAULT_PRICE_MONITORING,
   type AchievementSettings,
   type MaintenanceReminderSettings,
+  type PopupNotificationSettings,
   type PriceMonitoringSettings,
 } from '@/lib/settings-shared'
 
@@ -30,16 +32,19 @@ function renderSettings({
   price = DEFAULT_PRICE_MONITORING,
   reminders = DEFAULT_MAINTENANCE_REMINDERS,
   achievements = DEFAULT_ACHIEVEMENTS,
+  popups = DEFAULT_POPUP_NOTIFICATIONS,
 }: {
   price?: PriceMonitoringSettings
   reminders?: MaintenanceReminderSettings
   achievements?: AchievementSettings
+  popups?: PopupNotificationSettings
 } = {}) {
   const handlers = {
     onPriceMonitoringChange: vi.fn(),
     onRemindersChange: vi.fn(),
     onAchievementsChange: vi.fn(),
     onBackupNotificationsChange: vi.fn(),
+    onPopupNotificationsChange: vi.fn(),
   }
   render(
     <NotificationSettings
@@ -47,6 +52,7 @@ function renderSettings({
       reminders={reminders}
       achievements={achievements}
       backupNotifications={DEFAULT_BACKUP_NOTIFICATIONS}
+      popupNotifications={popups}
       {...handlers}
     />,
   )
@@ -56,6 +62,7 @@ function renderSettings({
 it('groups price, maintenance and system notifications', () => {
   renderSettings()
   for (const title of [
+    'In-app pop-ups',
     'Price drops & stock',
     'Maintenance reminders',
     'System notifications',
@@ -179,4 +186,35 @@ it('turns on Google Drive backup and restore Inbox messages', async () => {
     'href',
     '/settings?tab=backup',
   )
+})
+
+it('turns every pop-up kind on by default and saves one switch', async () => {
+  const { onPopupNotificationsChange } = renderSettings()
+  for (const name of [
+    'Show pop-up notifications',
+    'Pop-ups for prices and stock',
+    'Pop-ups for care reminders',
+    'Pop-ups for system messages',
+  ]) {
+    expect(screen.getByRole('switch', { name })).toBeChecked()
+  }
+  await userEvent.click(
+    screen.getByRole('switch', { name: 'Pop-ups for care reminders' }),
+  )
+  expect(onPopupNotificationsChange).toHaveBeenLastCalledWith({
+    ...DEFAULT_POPUP_NOTIFICATIONS,
+    care: false,
+  })
+})
+
+it('disables the pop-up kinds while pop-ups are off', () => {
+  renderSettings({
+    popups: { ...DEFAULT_POPUP_NOTIFICATIONS, enabled: false },
+  })
+  expect(
+    screen.getByRole('switch', { name: 'Show pop-up notifications' }),
+  ).not.toBeChecked()
+  expect(
+    screen.getByRole('switch', { name: 'Pop-ups for prices and stock' }),
+  ).toBeDisabled()
 })

@@ -1202,6 +1202,40 @@ export function normalizeBackupNotificationSettings(
   return { backup: flag('backup'), restore: flag('restore') }
 }
 
+export type PopupNotificationSettings = {
+  /** Master switch: new Inbox messages slide in at the top right. */
+  enabled: boolean
+  /** Price drops, increases and stock changes. */
+  price: boolean
+  /** Care reminders that become due. */
+  care: boolean
+  /** System messages such as failed backups and AI supervisor notes. */
+  system: boolean
+}
+
+export const DEFAULT_POPUP_NOTIFICATIONS: PopupNotificationSettings = {
+  enabled: true,
+  price: true,
+  care: true,
+  system: true,
+}
+
+export function normalizePopupNotificationSettings(
+  value: unknown,
+  fallback: PopupNotificationSettings = DEFAULT_POPUP_NOTIFICATIONS,
+): PopupNotificationSettings {
+  const record =
+    value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  const flag = (key: keyof PopupNotificationSettings) =>
+    typeof record[key] === 'boolean' ? (record[key] as boolean) : fallback[key]
+  return {
+    enabled: flag('enabled'),
+    price: flag('price'),
+    care: flag('care'),
+    system: flag('system'),
+  }
+}
+
 export type AppSettings = {
   collectionDisplay: CollectionDisplay
   theme: AppTheme
@@ -1222,6 +1256,7 @@ export type AppSettings = {
   priceMonitoring: PriceMonitoringSettings
   achievements: AchievementSettings
   backupNotifications: BackupNotificationSettings
+  popupNotifications: PopupNotificationSettings
   /** Width in px of the info panel beside the knife gallery; null = default. */
   knifeDetailPanelWidth: number | null
 }
@@ -1246,6 +1281,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   priceMonitoring: DEFAULT_PRICE_MONITORING,
   achievements: DEFAULT_ACHIEVEMENTS,
   backupNotifications: DEFAULT_BACKUP_NOTIFICATIONS,
+  popupNotifications: DEFAULT_POPUP_NOTIFICATIONS,
   knifeDetailPanelWidth: null,
 }
 
