@@ -33,7 +33,10 @@ import {
 import Image from '@/components/vault-image'
 import { Button } from '@/components/ui/button'
 import { useKnives } from '@/components/providers/knives-provider'
-import { useCareInbox } from '@/components/providers/care-inbox-provider'
+import {
+  useCareInbox,
+  type InboxPopup,
+} from '@/components/providers/care-inbox-provider'
 import { careToneDotClass, careToneTextClass } from '@/components/care-badge'
 import { AchievementBadge } from '@/components/achievement-badge'
 import {
@@ -1438,6 +1441,160 @@ export function CareInboxBell({
         </Popover.Positioner>
       </Popover.Portal>
     </Popover.Root>
+  )
+}
+
+/** How many pop-ups stack before the rest collapse into “+N more”. */
+const POPUP_LIMIT = 3
+
+const POPUP_LABEL: Record<InboxPopup['type'], string> = {
+  price: 'Prices',
+  care: 'Care',
+  system: 'System',
+}
+
+function popupTime(popup: InboxPopup): string {
+  return popup.type === 'care' ? popup.row.createdAt : popup.row.occurredAt
+}
+
+/** “now”, “5m ago”, “2h ago”, then the date. */
+function formatPopupAge(value: string, now: Date): string {
+  const minutes = Math.floor((now.getTime() - Date.parse(value)) / 60_000)
+  if (!Number.isFinite(minutes) || minutes < 1) return 'now'
+  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 24 * 60) return `${Math.floor(minutes / 60)}h ago`
+  return formatWhen(value, now)
+}
+
+function InboxPopupCard({
+  popup,
+  now,
+  onClose,
+}: {
+  popup: InboxPopup
+  now: Date
+  onClose: () => void
+}) {
+  const knivesById = useInboxKnives()
+  const { run, runSystem, runPrice, log, busyId } = useInboxAction()
+  // The whole card opens the message, like the title link inside it.
+  const openFromCard = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement
+    if (target.closest('a, button')) return
+    event.currentTarget.querySelector<HTMLAnchorElement>('a[href]')?.click()
+  }
+  return (
+    <div
+      data-inbox-popup={popup.type}
+      onClick={openFromCard}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.stopPropagation()
+          onClose()
+        }
+      }}
+      className={cn(
+        'group pointer-events-auto relative w-full cursor-pointer rounded-xl border border-border bg-popover text-popover-foreground',
+        'shadow-[0_14px_40px_rgba(0,0,0,0.18),0_2px_8px_rgba(0,0,0,0.08)] transition-colors hover:border-[var(--bladevault-line)]',
+        'animate-in fade-in slide-in-from-right-8 duration-300 motion-reduce:animate-none',
+      )}
+    >
+      <div className="flex items-center justify-between px-3 pt-2 text-[11px] text-muted-foreground">
+        <span className="font-semibold uppercase tracking-[0.08em]">
+          {POPUP_LABEL[popup.type]}
+        </span>
+        <span>{formatPopupAge(popupTime(popup), now)}</span>
+      </div>
+      <ul className="[&>li]:pt-1.5">
+        {popup.type === 'system' ? (
+          <SystemMessageRow
+            message={popup.row}
+            now={now}
+            compact
+            onAction={(action) => void runSystem(action)}
+            onNavigate={onClose}
+          />
+        ) : popup.type === 'price' ? (
+          <PriceNotificationRow
+            notification={popup.row}
+            now={now}
+            compact
+            onAction={(action) => void runPrice(action)}
+            onNavigate={onClose}
+          />
+        ) : (
+          <CareMessageRow
+            notification={popup.row}
+            knife={knivesById.get(popup.row.knifeId)}
+            now={now}
+            compact
+            busy={busyId === popup.row.id}
+            onAction={(action) => void run(action)}
+            onLog={() => void log(popup.row)}
+            onNavigate={onClose}
+          />
+        )}
+      </ul>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close notification"
+        title="Close"
+        className={cn(
+          'absolute -top-2 -left-2 grid size-5 place-items-center rounded-full border border-border bg-popover text-muted-foreground shadow-sm',
+          'opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100',
+          'hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        )}
+      >
+        <X className="size-3" />
+      </button>
+    </div>
+  )
+}
+
+/**
+ * New Inbox messages as cards at the top right, newest first, like macOS
+ * notifications. Each stays until closed or opened; opening marks it read.
+ * Pop-ups are turned off in Settings → Notifications.
+ */
+export function InboxPopups() {
+  const { popups, now, dismissPopup, clearPopups } = useCareInbox()
+  if (popups.length === 0) return null
+  const more = popups.length - POPUP_LIMIT
+  return (
+    <section
+      aria-label="New notifications"
+      aria-live="polite"
+      data-inbox-popups
+      className="pointer-events-none fixed top-4 right-4 left-4 z-[58] flex flex-col items-end gap-2.5 sm:left-auto sm:w-[22rem]"
+    >
+      {popups.slice(0, POPUP_LIMIT).map((popup) => (
+        <InboxPopupCard
+          key={popup.key}
+          popup={popup}
+          now={now}
+          onClose={() => dismissPopup(popup.key)}
+        />
+      ))}
+      {more > 0 && (
+        <div className="pointer-events-auto flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-popover px-3 py-1.5 text-xs text-muted-foreground shadow-sm">
+          <Link
+            href="/inbox"
+            onClick={clearPopups}
+            className="font-medium underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            +{more} more in the Inbox
+          </Link>
+          <button
+            type="button"
+            onClick={clearPopups}
+            className="rounded font-medium text-[var(--bladevault-title)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+    </section>
   )
 }
 

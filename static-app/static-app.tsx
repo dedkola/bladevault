@@ -13,6 +13,7 @@ import { CareProvider } from '@/components/providers/care-provider'
 import { CareInboxProvider } from '@/components/providers/care-inbox-provider'
 import { AchievementsProvider } from '@/components/providers/achievements-provider'
 import { AchievementCelebration } from '@/components/achievement-celebration'
+import { InboxPopups } from '@/components/care-inbox'
 import { KnifeFamilyPanelProvider } from '@/components/providers/knife-family-panel-provider'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { VaultRestoreProvider } from '@/components/providers/vault-restore-provider'
@@ -180,6 +181,7 @@ export function StaticApp() {
                         </div>
                         <GlobalKnifeSearch />
                         <AchievementCelebration />
+                        <InboxPopups />
                       </KnifeFamilyPanelProvider>
                     </ComparisonsProvider>
                   </TooltipProvider>

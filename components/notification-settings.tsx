@@ -16,6 +16,7 @@ import {
   type AchievementSettings,
   type BackupNotificationSettings,
   type MaintenanceReminderSettings,
+  type PopupNotificationSettings,
   type PriceMonitoringSettings,
   type PriceNotifyCategories,
 } from '@/lib/settings-shared'
@@ -44,6 +45,28 @@ const NOTIFY_OPTIONS: ReadonlyArray<{
     key: 'backInStock',
     label: 'Back in stock',
     description: 'A store has the knife again after every store was out.',
+  },
+]
+
+const POPUP_KIND_OPTIONS: ReadonlyArray<{
+  key: Exclude<keyof PopupNotificationSettings, 'enabled'>
+  label: string
+  description: string
+}> = [
+  {
+    key: 'price',
+    label: 'Prices and stock',
+    description: 'Price drops, increases and stock changes.',
+  },
+  {
+    key: 'care',
+    label: 'Care reminders',
+    description: 'A knife is due for care soon or overdue.',
+  },
+  {
+    key: 'system',
+    label: 'System messages',
+    description: 'Failed backups and notes from the AI price supervisor.',
   },
 ]
 
@@ -76,6 +99,9 @@ export function NotificationSettings({
   backupNotifications,
   backupNotificationsDisabled,
   onBackupNotificationsChange,
+  popupNotifications,
+  popupNotificationsDisabled,
+  onPopupNotificationsChange,
 }: {
   priceMonitoring: PriceMonitoringSettings
   priceDisabled?: boolean
@@ -89,6 +115,9 @@ export function NotificationSettings({
   backupNotifications: BackupNotificationSettings
   backupNotificationsDisabled?: boolean
   onBackupNotificationsChange: (next: BackupNotificationSettings) => void
+  popupNotifications: PopupNotificationSettings
+  popupNotificationsDisabled?: boolean
+  onPopupNotificationsChange: (next: PopupNotificationSettings) => void
 }) {
   // The static web app has no server: no AI digest or Inbox system messages.
   const [serverRuntime] = useState(hasServerRuntime)
@@ -118,8 +147,47 @@ export function NotificationSettings({
     patch: Partial<BackupNotificationSettings>,
   ) => onBackupNotificationsChange({ ...backupNotifications, ...patch })
 
+  const updatePopups = (patch: Partial<PopupNotificationSettings>) =>
+    onPopupNotificationsChange({ ...popupNotifications, ...patch })
+  const popupsOff = popupNotificationsDisabled || !popupNotifications.enabled
+
   return (
     <div className="settings-grid">
+      <SettingsSection
+        title="In-app pop-ups"
+        description="New Inbox messages slide in at the top right of the window and stay until you close them. Clicking one opens it and marks it read. Achievements keep their own celebration."
+      >
+        <SettingsRow
+          inline
+          label="Show pop-up notifications"
+          description="Turn off to keep new messages in the Inbox only."
+        >
+          <SettingsSwitch
+            aria-label="Show pop-up notifications"
+            checked={popupNotifications.enabled}
+            disabled={popupNotificationsDisabled}
+            onCheckedChange={(enabled) => updatePopups({ enabled })}
+          />
+        </SettingsRow>
+        {POPUP_KIND_OPTIONS.map((option) => (
+          <SettingsRow
+            key={option.key}
+            inline
+            label={option.label}
+            description={option.description}
+          >
+            <SettingsSwitch
+              aria-label={`Pop-ups for ${option.label.toLowerCase()}`}
+              checked={popupNotifications[option.key]}
+              disabled={popupsOff}
+              onCheckedChange={(checked) =>
+                updatePopups({ [option.key]: checked })
+              }
+            />
+          </SettingsRow>
+        ))}
+      </SettingsSection>
+
       <SettingsSection
         title="Price drops & stock"
         description="Changes found by a price check show up in the Inbox under Prices. Repeats for the same store update one notification instead of adding more."
