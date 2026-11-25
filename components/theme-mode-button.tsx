@@ -1,5 +1,6 @@
 'use client'
 
+import { useSyncExternalStore } from 'react'
 import { Moon, Sun } from 'lucide-react'
 import { useKnives } from '@/components/providers/knives-provider'
 import { readJsonResponse } from '@/lib/api-response'
@@ -9,6 +10,19 @@ import {
   type AppSettings,
   type AppTheme,
 } from '@/lib/settings-shared'
+
+function subscribeToRootClass(onChange: () => void) {
+  const observer = new MutationObserver(onChange)
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['class'],
+  })
+  return () => observer.disconnect()
+}
+
+function isRootDark() {
+  return document.documentElement.classList.contains('dark')
+}
 
 /**
  * Light/dark toggle in the shared footer. Switches the root
@@ -21,6 +35,13 @@ export function ThemeModeButton(
   >,
 ) {
   const { showFeedback } = useKnives()
+  // One icon at a time: the footer forces its icons to display:block, so
+  // CSS-based hiding can't be used to swap them.
+  const isDark = useSyncExternalStore(
+    subscribeToRootClass,
+    isRootDark,
+    () => false,
+  )
 
   async function toggleMode() {
     const root = document.documentElement
@@ -58,8 +79,7 @@ export function ThemeModeButton(
       aria-label="Switch between light and dark"
       title="Light / dark"
     >
-      <Moon className="dark:hidden" aria-hidden="true" />
-      <Sun className="hidden dark:block" aria-hidden="true" />
+      {isDark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
     </button>
   )
 }
