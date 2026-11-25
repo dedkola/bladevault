@@ -150,6 +150,27 @@ describe('price table model', () => {
     )
   })
 
+  it('sorts the Trend column by the 30-day move, else the latest change', () => {
+    const steady = source({ deltaPct: null })
+    const slid = source({ deltaPct: -2 })
+    const fresh = source({ deltaPct: -5 })
+    const trend = new Map([
+      [steady.sourceId, -30],
+      [slid.sourceId, -12],
+    ])
+    const ids = (list: MonitoredSource[]) => list.map((s) => s.sourceId)
+    expect(
+      ids(
+        sortRows(
+          'all',
+          [fresh, slid, steady],
+          { key: 'change', dir: 'asc' },
+          (row) => trend.get(row.sourceId) ?? null,
+        ),
+      ),
+    ).toEqual(ids([steady, slid, fresh]))
+  })
+
   it('groups sources by knife with the cheapest in-stock one leading', () => {
     const knife = source().knife
     const a = source({ knife, priceMinor: 9000 })

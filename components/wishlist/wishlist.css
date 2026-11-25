@@ -7,6 +7,10 @@
   --wl-neutral: var(--price-neutral, #9a958b);
   --wl-up: var(--destructive, #b4232a);
   --wl-low: var(--primary);
+  /* Row chart colours (components/price-drops/price-trend.css). */
+  --trend-down: var(--wl-sale);
+  --trend-up: var(--wl-up);
+  --trend-flat: var(--wl-neutral);
   width: 100%;
 }
 
@@ -35,20 +39,6 @@
 }
 [data-wishlist] [data-wishlist-signal='low'] {
   --wl-color: var(--wl-low);
-}
-
-[data-wishlist] [data-wishlist-change] {
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-}
-[data-wishlist] [data-wishlist-change='down'] {
-  color: color-mix(in srgb, var(--wl-sale) 85%, var(--foreground));
-}
-[data-wishlist] [data-wishlist-change='up'] {
-  color: color-mix(in srgb, var(--wl-up) 85%, var(--foreground));
-}
-[data-wishlist] [data-wishlist-change='flat'] {
-  color: var(--muted-foreground);
 }
 
 [data-wishlist] [data-wishlist-sub] {
@@ -287,94 +277,6 @@
   color: var(--destructive);
 }
 
-[data-wishlist] [data-wishlist-spark] {
-  --wl-spark: var(--wl-neutral);
-}
-[data-wishlist] [data-wishlist-spark='down'] {
-  --wl-spark: var(--wl-sale);
-}
-[data-wishlist] [data-wishlist-spark='up'] {
-  --wl-spark: var(--wl-up);
-}
-[data-wishlist] [data-wishlist-spark-row] {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-[data-wishlist] [data-wishlist-spark] {
-  display: block;
-  overflow: visible;
-  cursor: crosshair;
-  touch-action: pan-y;
-}
-/* Stock-style mountain: the area fades from the line down to the base. */
-[data-wishlist] [data-wishlist-spark-stop='top'] {
-  stop-color: var(--wl-spark);
-  stop-opacity: 0.38;
-}
-[data-wishlist] [data-wishlist-spark-stop='bottom'] {
-  stop-color: var(--wl-spark);
-  stop-opacity: 0;
-}
-[data-wishlist] [data-wishlist-spark-line] {
-  stroke: var(--wl-spark);
-  stroke-width: 2;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-[data-wishlist] [data-wishlist-spark-dot] {
-  fill: var(--wl-spark);
-  stroke: var(--card);
-  stroke-width: 1.5;
-}
-[data-wishlist] [data-wishlist-spark-cross] {
-  stroke: var(--muted-foreground);
-  stroke-width: 1;
-  stroke-dasharray: 2 2;
-}
-/* Net change over the window; the arrow keeps it readable without colour. */
-[data-wishlist] [data-wishlist-spark-chip] {
-  --wl-chip: var(--wl-neutral);
-  flex: none;
-  min-width: 42px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--wl-chip) 16%, transparent);
-  color: color-mix(in srgb, var(--wl-chip) 85%, var(--foreground));
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 16px;
-  text-align: center;
-  white-space: nowrap;
-}
-[data-wishlist] [data-wishlist-spark-chip='flat'] {
-  color: var(--muted-foreground);
-}
-[data-wishlist] [data-wishlist-spark-chip='down'] {
-  --wl-chip: var(--wl-sale);
-}
-[data-wishlist] [data-wishlist-spark-chip='up'] {
-  --wl-chip: var(--wl-up);
-}
-[data-wishlist] [data-wishlist-spark-hover] {
-  color: var(--foreground);
-  font-weight: 600;
-}
-[data-wishlist] [data-wishlist-trend-note] {
-  display: flex;
-  justify-content: space-between;
-  gap: 6px;
-  width: 100%;
-  max-width: 160px;
-  font-size: 11px;
-  white-space: nowrap;
-}
-[data-wishlist] [data-wishlist-spark-empty] {
-  color: var(--muted-foreground);
-  font-size: 11px;
-  text-align: right;
-}
-
 /* grouped by deal */
 [data-wishlist-group] {
   margin-bottom: 18px;
@@ -497,7 +399,7 @@
     grid-auto-flow: row;
     justify-items: start;
   }
-  [data-wishlist] [data-wishlist-trend-note] {
+  [data-wishlist] [data-trend-note] {
     width: auto;
     justify-content: flex-start;
     gap: 10px;

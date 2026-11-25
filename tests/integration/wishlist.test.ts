@@ -8,6 +8,7 @@ import {
   LOCAL_DB_SCHEMA_VERSION,
 } from '@/lib/local-db'
 import {
+  buildPriceTrends,
   buildWishlistTrends,
   getWishlist,
   mutateWishlist,
@@ -314,6 +315,56 @@ describe('wishlist', () => {
       { at: now - 5 * day, price: 14000 },
     ])
     expect(buildWishlistTrends(db, ['second'], now)).toEqual({})
+  })
+
+  it('builds Price Drops trends per knife and per enabled store', () => {
+    const db = getLocalDb()
+    const now = Date.parse('2026-06-30T12:00:00Z')
+    const day = 24 * 60 * 60 * 1000
+    const iso = (daysAgo: number) => new Date(now - daysAgo * day).toISOString()
+    for (const [host, enabled] of [
+      ['a', 1],
+      ['b', 1],
+      ['c', 0],
+    ] as const)
+      db.prepare(
+        `INSERT INTO price_sources
+           (knife_id, url, normalized_url, provider, lane_key, store_name,
+            origin, enabled, created_at, updated_at)
+         VALUES ('first', ?, ?, 'generic', ?, ?, 'manual', ?, 't', 't')`,
+      ).run(
+        `https://${host}.example/p`,
+        `https://${host}.example/p`,
+        host,
+        host,
+        enabled,
+      )
+    const snapshot = db.prepare(
+      `INSERT INTO price_snapshots
+         (knife_id, source_id, price_minor, currency, availability,
+          extraction_status, extraction_method, observed_at, last_seen_at)
+       VALUES ('first', ?, ?, 'USD', 'in_stock', 'ok', 'json_ld', ?, ?)`,
+    )
+    snapshot.run(1, 20000, iso(20), iso(0))
+    snapshot.run(2, 18000, iso(20), iso(3))
+    snapshot.run(2, 15000, iso(3), iso(0))
+    snapshot.run(3, 12000, iso(20), iso(0)) // paused store
+
+    const trends = buildPriceTrends(db, now)
+    // The knife's best price leaves out the paused store, as the table does.
+    expect(Object.keys(trends.knives)).toEqual(['first'])
+    expect(trends.knives.first.steps).toEqual([
+      { at: now - 20 * day, price: 18000 },
+      { at: now - 3 * day, price: 15000 },
+    ])
+    expect(trends.sources['1'].steps).toEqual([
+      { at: now - 20 * day, price: 20000 },
+    ])
+    expect(trends.sources['2'].steps).toEqual([
+      { at: now - 20 * day, price: 18000 },
+      { at: now - 3 * day, price: 15000 },
+    ])
+    expect(trends.sources['3']).toBeUndefined()
   })
 
   it('starts the chart when tracking began and keeps a same-day drop', () => {
