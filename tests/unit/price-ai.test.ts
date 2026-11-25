@@ -362,7 +362,7 @@ describe('AI settings normalization', () => {
       chat: {
         model: '',
         toolMode: 'auto',
-        allowThinking: false,
+        reasoning: 'off',
         dailyCalls: 100,
         dailyTokens: 1_000_000,
       },
@@ -375,7 +375,7 @@ describe('AI settings normalization', () => {
             chat: {
               model: ' glm-5 ',
               toolMode: 'json',
-              allowThinking: true,
+              reasoning: 'low',
               dailyCalls: 7,
             },
           },
@@ -385,10 +385,23 @@ describe('AI settings normalization', () => {
     ).toEqual({
       model: 'glm-5',
       toolMode: 'json',
-      allowThinking: true,
+      reasoning: 'low',
       dailyCalls: 7,
       dailyTokens: 1_000_000,
     })
+    // The old "Let the model think" switch: on starts at medium.
+    expect(
+      normalizePriceMonitoring(
+        { ai: { chat: { allowThinking: true } } },
+        current,
+      ).ai.chat.reasoning,
+    ).toBe('medium')
+    expect(
+      normalizePriceMonitoring(
+        { ai: { chat: { allowThinking: false, reasoning: 'nope' } } },
+        current,
+      ).ai.chat.reasoning,
+    ).toBe('off')
     expect(
       normalizePriceMonitoring(
         { ai: { chat: { toolMode: 'magic', dailyCalls: 'lots', model: '' } } },

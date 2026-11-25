@@ -658,8 +658,24 @@ export const PRICE_AI_CHAT_TOOL_MODES = ['auto', 'native', 'json'] as const
 export type PriceAiChatToolMode = (typeof PRICE_AI_CHAT_TOOL_MODES)[number]
 
 /**
- * The Chat page. It uses the AI connection above; `model` overrides the
- * model for chat only ('' = the same model). Tool mode: `native` sends the
+ * How much a chat model may reason before it answers. Off asks endpoints
+ * that support it (OpenCode) to answer right away; Low, Medium and High
+ * send `reasoning_effort`, which an endpoint that refuses it does without.
+ */
+export const PRICE_AI_CHAT_REASONING = ['off', 'low', 'medium', 'high'] as const
+export type PriceAiChatReasoning = (typeof PRICE_AI_CHAT_REASONING)[number]
+
+export function isPriceAiChatReasoning(
+  value: unknown,
+): value is PriceAiChatReasoning {
+  return (PRICE_AI_CHAT_REASONING as readonly unknown[]).includes(value)
+}
+
+/**
+ * The Chat page. It uses the AI connection above. Each chat picks its own
+ * model and reasoning on the Chat page, and new chats start with the last
+ * pick; `model` and `reasoning` here are only where the first chat starts
+ * (model '' = the same model). Tool mode: `native` sends the
  * vault tools as function calls, `json` asks for one JSON action per step
  * (for models without function calling), `auto` starts native and switches
  * to JSON when the endpoint refuses tools. In Limited mode chat has its own
@@ -668,8 +684,11 @@ export type PriceAiChatToolMode = (typeof PRICE_AI_CHAT_TOOL_MODES)[number]
 export type PriceAiChatSettings = {
   model: string
   toolMode: PriceAiChatToolMode
-  /** Let the model reason before answering (slower, more tokens). */
-  allowThinking: boolean
+  /**
+   * Reasoning for the first chat. Not shown in Settings: it keeps the old
+   * "Let the model think" switch (on = medium).
+   */
+  reasoning: PriceAiChatReasoning
   dailyCalls: number
   dailyTokens: number
 }
@@ -765,7 +784,7 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
     chat: {
       model: '',
       toolMode: 'auto',
-      allowThinking: false,
+      reasoning: 'off',
       dailyCalls: 100,
       dailyTokens: 1_000_000,
     },
@@ -999,10 +1018,13 @@ function normalizePriceAiChat(
     )
       ? (record.toolMode as PriceAiChatToolMode)
       : fallback.toolMode,
-    allowThinking:
-      typeof record.allowThinking === 'boolean'
+    reasoning: isPriceAiChatReasoning(record.reasoning)
+      ? record.reasoning
+      : typeof record.allowThinking === 'boolean'
         ? record.allowThinking
-        : fallback.allowThinking,
+          ? 'medium'
+          : 'off'
+        : fallback.reasoning,
     dailyCalls: boundedInteger(
       record.dailyCalls,
       PRICE_AI_LIMITS.dailyCalls,

@@ -2,9 +2,11 @@ import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
 import { getLocalDb } from '@/lib/local-db'
 import { withVaultWriteSync } from '@/lib/vault-access'
+import { isPriceAiChatReasoning } from '@/lib/settings-shared'
 import {
   CHAT_TITLE_MAX_LENGTH,
   chatTitleFrom,
+  type ChatChoice,
   type ChatConversationDetail,
   type ChatConversationSummary,
   type ChatMessageStatus,
@@ -33,6 +35,10 @@ type ConversationRow = {
   archived_at: string | null
   prompt_tokens: number
   completion_tokens: number
+  /** '' until the chat has a model of its own (schema 18). */
+  model: string
+  reasoning: string
+  choice_at: string | null
 }
 
 type MessageRow = {
@@ -56,7 +62,31 @@ function toSummary(row: ConversationRow): ChatConversationSummary {
     archivedAt: row.archived_at,
     promptTokens: row.prompt_tokens,
     completionTokens: row.completion_tokens,
+    choice: choiceOf(row),
   }
+}
+
+function choiceOf(row: {
+  model: string
+  reasoning: string
+}): ChatChoice | null {
+  if (!row.model || !isPriceAiChatReasoning(row.reasoning)) return null
+  return { model: row.model, reasoning: row.reasoning }
+}
+
+/**
+ * The model and reasoning picked last in any chat (also archived ones), or
+ * null before any chat has one.
+ */
+export function lastChatChoice(): ChatChoice | null {
+  const row = getLocalDb()
+    .prepare(
+      `SELECT model, reasoning FROM chat_conversations
+       WHERE model != '' AND choice_at IS NOT NULL
+       ORDER BY choice_at DESC LIMIT 1`,
+    )
+    .get() as { model: string; reasoning: string } | undefined
+  return row ? choiceOf(row) : null
 }
 
 function parseJson<T>(value: string | null): T | null {
@@ -141,6 +171,7 @@ export function getConversation(id: string): ChatConversationDetail {
 
 export function createConversation(
   firstMessage: string,
+  choice: ChatChoice,
   now = new Date(),
 ): ChatConversationSummary {
   const at = now.toISOString()
@@ -152,13 +183,18 @@ export function createConversation(
     archived_at: null,
     prompt_tokens: 0,
     completion_tokens: 0,
+    model: choice.model,
+    reasoning: choice.reasoning,
+    choice_at: at,
   }
   withVaultWriteSync(() =>
     getLocalDb()
       .prepare(
         `INSERT INTO chat_conversations
-          (id, title, created_at, updated_at, archived_at, prompt_tokens, completion_tokens)
-         VALUES (@id, @title, @created_at, @updated_at, NULL, 0, 0)`,
+          (id, title, created_at, updated_at, archived_at, prompt_tokens,
+           completion_tokens, model, reasoning, choice_at)
+         VALUES (@id, @title, @created_at, @updated_at, NULL, 0, 0,
+                 @model, @reasoning, @choice_at)`,
       )
       .run(row),
   )
@@ -234,9 +270,14 @@ export function addConversationUsage(
   )
 }
 
+/**
+ * Renames, archives or restores a chat, or sets its model and reasoning
+ * (which also makes them where the next new chat starts). The list order
+ * (`updated_at`) does not change.
+ */
 export function updateConversation(
   id: string,
-  changes: { title?: string; archived?: boolean },
+  changes: { title?: string; archived?: boolean; choice?: ChatChoice },
   now = new Date(),
 ): ChatConversationSummary {
   return withVaultWriteSync(() => {
@@ -256,12 +297,28 @@ export function updateConversation(
         : changes.archived
           ? (row.archived_at ?? now.toISOString())
           : null
+    const choice = changes.choice
+      ? {
+          model: changes.choice.model,
+          reasoning: changes.choice.reasoning,
+          choice_at: now.toISOString(),
+        }
+      : { model: row.model, reasoning: row.reasoning, choice_at: row.choice_at }
     database
       .prepare(
-        'UPDATE chat_conversations SET title = ?, archived_at = ? WHERE id = ?',
+        `UPDATE chat_conversations
+         SET title = ?, archived_at = ?, model = ?, reasoning = ?, choice_at = ?
+         WHERE id = ?`,
       )
-      .run(title, archivedAt, id)
-    return toSummary({ ...row, title, archived_at: archivedAt })
+      .run(
+        title,
+        archivedAt,
+        choice.model,
+        choice.reasoning,
+        choice.choice_at,
+        id,
+      )
+    return toSummary({ ...row, title, archived_at: archivedAt, ...choice })
   })
 }
 

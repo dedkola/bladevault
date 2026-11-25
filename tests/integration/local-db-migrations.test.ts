@@ -209,6 +209,51 @@ describe('local database migrations', () => {
     expect(columns('price_rounds')).toHaveLength(7)
   })
 
+  it('gives schema 17 chats a model and reasoning, keeping them', async () => {
+    vault = await createTempVault()
+    const database = getLocalDb()
+    // A schema 17 chat table: no choice columns yet.
+    database.exec(`
+      DROP TABLE chat_messages;
+      DROP TABLE chat_conversations;
+      CREATE TABLE chat_conversations (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        archived_at TEXT,
+        prompt_tokens INTEGER NOT NULL DEFAULT 0,
+        completion_tokens INTEGER NOT NULL DEFAULT 0
+      );
+      INSERT INTO chat_conversations (id, title, created_at, updated_at)
+      VALUES ('c1', 'Old chat', '2026-11-01', '2026-11-01');
+    `)
+    database.pragma('user_version = 17')
+    closeLocalDb()
+    const rows = () =>
+      getLocalDb()
+        .prepare(
+          'SELECT id, title, model, reasoning, choice_at FROM chat_conversations',
+        )
+        .all()
+    expect(rows()).toEqual([
+      {
+        id: 'c1',
+        title: 'Old chat',
+        model: '',
+        reasoning: '',
+        choice_at: null,
+      },
+    ])
+    expect(getLocalDb().pragma('user_version', { simple: true })).toBe(
+      LOCAL_DB_SCHEMA_VERSION,
+    )
+    // Repeat-safe on reopen.
+    getLocalDb().pragma('user_version = 17')
+    closeLocalDb()
+    expect(rows()).toHaveLength(1)
+  })
+
   it('adds the alert rule columns to an older price schema, keeping its rows', async () => {
     vault = await createTempVault()
     const database = getLocalDb()

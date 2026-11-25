@@ -8,6 +8,7 @@ import {
   chatToolDefinitions,
   CHAT_TOOLS,
   MAX_TOOL_STEPS,
+  REASONING_IGNORED_NOTICE,
   runChatTurn,
   type ChatLoopEvent,
 } from '@/lib/chat/loop'
@@ -36,6 +37,7 @@ function turn(
   fetchImpl: typeof fetch,
   tools: ReadTool[],
   toolMode: 'auto' | 'native' | 'json' = 'auto',
+  reasoning: 'off' | 'low' | 'medium' | 'high' = 'off',
 ) {
   const events: ChatLoopEvent[] = []
   const usage = { promptTokens: 0, completionTokens: 0 }
@@ -43,7 +45,7 @@ function turn(
     endpoint,
     model: 'm',
     toolMode,
-    allowThinking: false,
+    reasoning,
     history: [],
     userText: 'question',
     fetchImpl,
@@ -190,6 +192,32 @@ describe('runChatTurn (native tools)', () => {
     expect(bodyOf(fetchImpl, 1).messages[0].content).toContain('echo_tool')
     expect(events.filter((event) => event.type === 'text')).toEqual([
       { type: 'text', delta: 'It is yo.' },
+    ])
+  })
+})
+
+describe('runChatTurn (reasoning)', () => {
+  it('sends the level on every step and notes a refusal once', async () => {
+    const { tool } = fakeTool()
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response('{"error":{"message":"unknown field reasoning_effort"}}', {
+          status: 422,
+        }),
+      )
+      .mockResolvedValueOnce(
+        sseResponse([toolCallChunk('c1', 'echo_tool', { word: 'hi' })]),
+      )
+      .mockResolvedValueOnce(sseResponse([textChunk('Done.')]))
+    const { promise, events } = turn(fetchImpl, [tool], 'auto', 'high')
+    await expect(promise).resolves.toMatchObject({ mode: 'native', steps: 1 })
+    expect(bodyOf(fetchImpl, 0).reasoning_effort).toBe('high')
+    expect(bodyOf(fetchImpl, 1).reasoning_effort).toBeUndefined()
+    expect(bodyOf(fetchImpl, 2).reasoning_effort).toBeUndefined()
+    const notices = events.filter((event) => event.type === 'notice')
+    expect(notices).toEqual([
+      { type: 'notice', message: REASONING_IGNORED_NOTICE },
     ])
   })
 })

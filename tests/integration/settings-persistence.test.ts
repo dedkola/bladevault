@@ -63,7 +63,7 @@ describe('settings persistence', () => {
           chat: {
             model: 'qwen3',
             toolMode: 'json',
-            allowThinking: true,
+            reasoning: 'high',
             dailyCalls: 40,
             dailyTokens: 0,
           },
@@ -126,7 +126,7 @@ describe('settings persistence', () => {
         chat: {
           model: 'qwen3',
           toolMode: 'json',
-          allowThinking: true,
+          reasoning: 'high',
           dailyCalls: 40,
           dailyTokens: 0,
         },

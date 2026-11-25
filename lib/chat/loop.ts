@@ -10,7 +10,10 @@ import {
   type ChatToolDefinition,
   type FetchLike,
 } from '@/lib/price-monitor/ai-client'
-import type { PriceAiChatToolMode } from '@/lib/settings-shared'
+import type {
+  PriceAiChatReasoning,
+  PriceAiChatToolMode,
+} from '@/lib/settings-shared'
 import { READ_TOOLS, type ReadTool } from '@/lib/tools/read-tools'
 import {
   buildToolStep,
@@ -52,12 +55,14 @@ export type ChatLoopEvent =
       content: string
       step: ChatToolStep
     }
+  /** Something about the turn the user should know; shown once. */
+  | { type: 'notice'; message: string }
 
 export type ChatTurnInput = {
   endpoint: AiEndpoint
   model: string
   toolMode: PriceAiChatToolMode
-  allowThinking: boolean
+  reasoning: PriceAiChatReasoning
   /** Earlier user and assistant messages, oldest first. */
   history: ChatMessage[]
   userText: string
@@ -154,13 +159,25 @@ function asJsonModeMessages(messages: ChatMessage[]): ChatMessage[] {
   })
 }
 
+export const REASONING_IGNORED_NOTICE =
+  'This endpoint does not take a reasoning level, so the model reasons as it does by default.'
+
+/** Turns that already showed the reasoning notice. */
+const noticed = new WeakSet<ChatTurnInput>()
+
+/** Counts a finished call's tokens and reports an ignored reasoning level. */
 function countUsage(
   input: ChatTurnInput,
   completion: {
     promptTokens?: number | null
     completionTokens?: number | null
+    reasoningIgnored?: boolean
   },
 ) {
+  if (completion.reasoningIgnored && !noticed.has(input)) {
+    noticed.add(input)
+    input.emit({ type: 'notice', message: REASONING_IGNORED_NOTICE })
+  }
   if (!input.usage) return
   input.usage.promptTokens += completion.promptTokens ?? 0
   input.usage.completionTokens += completion.completionTokens ?? 0
@@ -259,7 +276,7 @@ export async function runChatTurn(
   const useJson =
     input.toolMode === 'json' ||
     (input.toolMode === 'auto' &&
-      chatToolsRejected(input.endpoint, input.model, input.allowThinking))
+      chatToolsRejected(input.endpoint, input.model, input.reasoning))
   if (!useJson) {
     try {
       return await nativeTurn(input, tools, system, history, turn)
@@ -306,7 +323,7 @@ async function nativeTurn(
         messages,
         tools: atCap ? undefined : definitions,
         purpose: 'chat',
-        allowThinking: input.allowThinking,
+        reasoning: input.reasoning,
       },
       {
         timeoutMs: FIRST_BYTE_TIMEOUT_MS,
@@ -388,7 +405,7 @@ async function jsonTurn(
         model: input.model,
         messages,
         purpose: 'chat',
-        allowThinking: input.allowThinking,
+        reasoning: input.reasoning,
       },
       {
         timeoutMs: FIRST_BYTE_TIMEOUT_MS,

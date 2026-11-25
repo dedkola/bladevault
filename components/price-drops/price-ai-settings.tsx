@@ -1276,7 +1276,7 @@ export function PriceAiChatSection({
     >
       <SettingsRow
         label="Chat model"
-        description="Leave empty to use the model above. A model with function calling (tool use) answers best."
+        description="The model your first chat starts with; leave empty to use the model above. Each chat then picks its own model and reasoning on the Chat page, and new chats start with your last pick. A model with function calling (tool use) answers best."
       >
         <TextField
           aria-label="Chat model ID"
@@ -1321,18 +1321,6 @@ export function PriceAiChatSection({
             ))}
           </SelectContent>
         </Select>
-      </SettingsRow>
-      <SettingsRow
-        inline
-        label="Let the model think"
-        description="Reasoning models think before every step: better on hard questions, but slower and more tokens. Off asks supported endpoints (OpenCode) to answer right away."
-      >
-        <SettingsSwitch
-          aria-label="Let the chat model think before answering"
-          checked={chat.allowThinking}
-          disabled={disabled}
-          onCheckedChange={(checked) => update({ allowThinking: checked })}
-        />
       </SettingsRow>
       {unlimited ? (
         <SettingsRow

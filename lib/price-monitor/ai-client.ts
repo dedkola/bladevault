@@ -5,7 +5,10 @@ import {
   sleptSince,
 } from '@/lib/price-monitor/power'
 import { redactSecrets } from '@/lib/price-monitor/secret-registry'
-import { normalizeAiBaseUrl } from '@/lib/settings-shared'
+import {
+  normalizeAiBaseUrl,
+  type PriceAiChatReasoning,
+} from '@/lib/settings-shared'
 
 /**
  * A small client for OpenAI-compatible endpoints (OpenAI, Ollama, LM Studio,
@@ -415,6 +418,8 @@ type ModelProfile = {
   streamRejected?: boolean
   /** Chat: the endpoint refused `stream_options` (usage in the stream). */
   streamUsageRejected?: boolean
+  /** Chat: the endpoint refused `reasoning_effort`. */
+  reasoningEffortRejected?: boolean
 }
 
 /**
@@ -907,6 +912,11 @@ export type ChatCompletion = {
   /** Tokens of all attempts, when the endpoint reported them. */
   promptTokens?: number | null
   completionTokens?: number | null
+  /**
+   * A reasoning level was asked for but the endpoint refuses
+   * `reasoning_effort`, so the model reasoned as it does by default.
+   */
+  reasoningIgnored?: boolean
 }
 
 /** A chat answer's default ceiling; a reasoning model gets the endpoint's. */
@@ -918,6 +928,7 @@ const TOOLS_REFUSED =
   /\btools?\b|function|tool_choice|not supported|unsupported|unknown (?:parameter|field|argument)|unrecognized/i
 const STREAM_USAGE_REFUSED = /stream_options|include_usage/i
 const STREAM_REFUSED = /\bstream/i
+const REASONING_EFFORT_REFUSED = /reasoning/i
 
 function chatProfileKey(
   endpoint: AiEndpoint,
@@ -928,8 +939,11 @@ function chatProfileKey(
   return thinkingOff ? `${base}\nthinking-off` : base
 }
 
-function chatThinkingOff(endpoint: AiEndpoint, allowThinking: boolean) {
-  return !allowThinking && sendsThinkingOff(endpoint, 'chat')
+function chatThinkingOff(
+  endpoint: AiEndpoint,
+  reasoning: PriceAiChatReasoning,
+) {
+  return reasoning === 'off' && sendsThinkingOff(endpoint, 'chat')
 }
 
 /**
@@ -939,12 +953,12 @@ function chatThinkingOff(endpoint: AiEndpoint, allowThinking: boolean) {
 export function chatToolsRejected(
   endpoint: AiEndpoint,
   model: string,
-  allowThinking = false,
+  reasoning: PriceAiChatReasoning = 'off',
 ): boolean {
   const key = chatProfileKey(
     endpoint,
     model,
-    chatThinkingOff(endpoint, allowThinking),
+    chatThinkingOff(endpoint, reasoning),
   )
   return modelProfiles().get(key)?.toolsRejected ?? false
 }
@@ -1180,9 +1194,13 @@ function parseCompletion(body: string): {
  * and falls back to a plain request for endpoints that refuse streaming.
  * Counted against the budget of `purpose` and journaled like every call.
  *
+ * Reasoning `off` (the default) sends the thinking-off switch where the
+ * endpoint takes it; `low`, `medium` and `high` send `reasoning_effort`
+ * and the endpoint's whole answer ceiling.
+ *
  * Learned per model (in this process), like requestJsonCompletion: the
- * thinking switch, a lower answer ceiling, streaming support, and whether
- * the endpoint takes tools. A refused `tools` field throws
+ * thinking switch, `reasoning_effort`, a lower answer ceiling, streaming
+ * support, and whether the endpoint takes tools. A refused `tools` field throws
  * `tools_unsupported`, so the caller can switch to its JSON mode.
  */
 export async function requestChatCompletion(
@@ -1193,8 +1211,8 @@ export async function requestChatCompletion(
     tools?: ChatToolDefinition[]
     maxTokens?: number
     purpose: AiPurpose
-    /** Let the model reason first (no thinking-off switch). */
-    allowThinking?: boolean
+    /** How much the model may reason first; default off. */
+    reasoning?: PriceAiChatReasoning
   },
   options: {
     /** Time to the first byte, and the plain request's whole time. */
@@ -1234,7 +1252,7 @@ async function completeChat(
     tools?: ChatToolDefinition[]
     maxTokens?: number
     purpose: AiPurpose
-    allowThinking?: boolean
+    reasoning?: PriceAiChatReasoning
   },
   options: {
     timeoutMs: number
@@ -1246,11 +1264,11 @@ async function completeChat(
   usage: CallUsage,
 ): Promise<ChatCompletion> {
   const url = endpointUrl(endpoint, '/chat/completions')
-  const allowThinking = request.allowThinking ?? false
+  const reasoning = request.reasoning ?? 'off'
   const key = chatProfileKey(
     endpoint,
     request.model,
-    chatThinkingOff(endpoint, allowThinking),
+    chatThinkingOff(endpoint, reasoning),
   )
   const profile = (): ModelProfile =>
     modelProfiles().get(key) ?? { reasoning: false }
@@ -1270,7 +1288,7 @@ async function completeChat(
   const baseTokens = request.maxTokens ?? CHAT_ANSWER_TOKENS
   // A model that thinks first needs the endpoint's whole answer ceiling.
   const maxTokens = () =>
-    profile().reasoning || allowThinking
+    profile().reasoning || reasoning !== 'off'
       ? ceiling()
       : Math.min(baseTokens, ceiling())
   let capped = false
@@ -1280,7 +1298,11 @@ async function completeChat(
     const stream = !profile().streamRejected
     const streamUsage = stream && !profile().streamUsageRejected
     const thinkingOff =
-      chatThinkingOff(endpoint, allowThinking) && !profile().thinkingOffRejected
+      chatThinkingOff(endpoint, reasoning) && !profile().thinkingOffRejected
+    const effort =
+      reasoning !== 'off' && !profile().reasoningEffortRejected
+        ? reasoning
+        : null
     const tokens = maxTokens()
     const payload: Record<string, unknown> = {
       model: request.model,
@@ -1302,6 +1324,7 @@ async function completeChat(
     if (stream) payload.stream = true
     if (streamUsage) payload.stream_options = { include_usage: true }
     if (thinkingOff) payload.thinking = { type: 'disabled' }
+    if (effort) payload.reasoning_effort = effort
 
     // The first byte must come within timeoutMs; a stream then only needs
     // to keep sending chunks.
@@ -1401,11 +1424,13 @@ async function completeChat(
         throw new AiClientError(
           'invalid_response',
           result.finishReason === 'length'
-            ? 'The AI answer was empty: the model used its whole answer budget on reasoning. Turn off "Let the model think" for chat, or choose a model without reasoning.'
+            ? 'The AI answer was empty: the model used its whole answer budget on reasoning. Set Reasoning to Off for this chat, or choose a model without reasoning.'
             : 'The AI answer was empty.',
         )
       }
-      return result
+      return reasoning !== 'off' && !effort
+        ? { ...result, reasoningIgnored: true }
+        : result
     } catch (error) {
       const refused =
         error instanceof AiClientError &&
@@ -1414,6 +1439,12 @@ async function completeChat(
         !streamedText
       if (refused && thinkingOff && /thinking/i.test(error.message)) {
         learn({ thinkingOffRejected: true })
+        continue
+      }
+      // Before the tools check: "unsupported parameter: reasoning_effort"
+      // must not read as refused tools.
+      if (refused && effort && REASONING_EFFORT_REFUSED.test(error.message)) {
+        learn({ reasoningEffortRejected: true })
         continue
       }
       if (

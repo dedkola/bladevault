@@ -2,6 +2,11 @@
  * Chat types shared by the server and the Chat page (no server imports).
  */
 
+import type { PriceAiChatReasoning } from '@/lib/settings-shared'
+
+/** The model and reasoning level a chat answers with. */
+export type ChatChoice = { model: string; reasoning: PriceAiChatReasoning }
+
 export type ChatConversationSummary = {
   id: string
   title: string
@@ -10,6 +15,11 @@ export type ChatConversationSummary = {
   archivedAt: string | null
   promptTokens: number
   completionTokens: number
+  /**
+   * The chat's own model and reasoning, or null for a chat saved before
+   * chats had one (it answers with the start choice, ChatStatus.choice).
+   */
+  choice: ChatChoice | null
 }
 
 /** A knife as the Chat page draws it (a card linking to the knife). */
@@ -89,12 +99,14 @@ export type ChatStreamEvent =
   | { type: 'tool_result'; callId: string; step: ChatToolStep }
   | { type: 'message'; message: ChatStoredMessage }
   | { type: 'usage'; promptTokens: number; completionTokens: number }
+  | { type: 'notice'; message: string }
   | { type: 'done' }
   | { type: 'error'; message: string }
 
 export type ChatStatus = {
   configured: boolean
-  model: string
+  /** What a new chat starts with: the last pick, else Settings. */
+  choice: ChatChoice
   toolMode: 'auto' | 'native' | 'json'
   /** Limited mode: chat's daily caps (0 = none); null in Unlimited mode. */
   limit: { calls: number; tokens: number } | null
