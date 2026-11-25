@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type PointerEvent,
+  type ReactNode,
 } from 'react'
 import Link from 'next/link'
 import { Popover } from '@base-ui/react/popover'
@@ -796,7 +797,11 @@ function RemoveButton({ row }: { row: Row }) {
 
 /* ---------- grouped by deal ---------- */
 
-function DealGroups({ rows }: { rows: Row[] }) {
+function DealGroups({ rows, tabs }: { rows: Row[]; tabs?: ReactNode }) {
+  // The brand tabs ride on the first group that actually renders.
+  const firstDeal = WISHLIST_DEALS.find((deal) =>
+    rows.some((row) => row.deal === deal),
+  )
   return (
     <div data-wishlist-groups>
       {WISHLIST_DEALS.map((deal) => {
@@ -816,6 +821,7 @@ function DealGroups({ rows }: { rows: Row[] }) {
               <span data-wishlist-sub>
                 {hint} · {groupRows.length}
               </span>
+              {deal === firstDeal && tabs}
             </header>
             <ul data-wishlist-list>
               {groupRows.map((row) => (
@@ -860,6 +866,74 @@ function DealGroups({ rows }: { rows: Row[] }) {
           </section>
         )
       })}
+    </div>
+  )
+}
+
+/* ---------- brand tabs ---------- */
+
+/** Tab key for knives saved without a brand. */
+const NO_BRAND = '\u0000none'
+
+type BrandTab = { key: string; label: string; count: number }
+
+function brandKey(knife: Knife): string {
+  return knife.brand?.trim() || NO_BRAND
+}
+
+/** Brands present in the wishlist, most knives first. */
+function wishlistBrands(rows: Row[]): BrandTab[] {
+  const counts = new Map<string, number>()
+  for (const row of rows) {
+    const key = brandKey(row.knife)
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  return [...counts]
+    .map(([key, count]) => ({
+      key,
+      label: key === NO_BRAND ? 'Other' : key,
+      count,
+    }))
+    .sort(
+      (a, b) =>
+        b.count - a.count ||
+        Number(a.key === NO_BRAND) - Number(b.key === NO_BRAND) ||
+        a.label.localeCompare(b.label),
+    )
+}
+
+function BrandTabs({
+  brands,
+  total,
+  active,
+  onChange,
+}: {
+  brands: BrandTab[]
+  total: number
+  active: string | null
+  onChange: (brand: string | null) => void
+}) {
+  if (brands.length < 2) return null
+  const tabs = [{ key: null, label: 'All', count: total }, ...brands]
+  return (
+    <div
+      role="tablist"
+      aria-label="Filter wishlist by brand"
+      data-wishlist-brand-tabs
+    >
+      {tabs.map((tab) => (
+        <button
+          key={tab.key ?? 'all'}
+          type="button"
+          role="tab"
+          aria-selected={tab.key === active}
+          data-wishlist-brand-tab
+          onClick={() => onChange(tab.key)}
+        >
+          {tab.label}
+          <span data-wishlist-sub>{tab.count}</span>
+        </button>
+      ))}
     </div>
   )
 }
@@ -1087,6 +1161,20 @@ export function WishlistView() {
     })
   }, [items, knives, byId, trends])
   const currency = useMemo(() => mostCommonCurrency(rows), [rows])
+  const [brand, setBrand] = useState<string | null>(null)
+  const brands = useMemo(() => wishlistBrands(rows), [rows])
+  // A brand whose last knife left the wishlist falls back to All.
+  const activeBrand =
+    brand !== null && brands.length > 1 && brands.some((b) => b.key === brand)
+      ? brand
+      : null
+  const visibleRows = useMemo(
+    () =>
+      activeBrand === null
+        ? rows
+        : rows.filter((row) => brandKey(row.knife) === activeBrand),
+    [rows, activeBrand],
+  )
 
   const header = (
     <PageHeader
@@ -1145,9 +1233,19 @@ export function WishlistView() {
         />
       ) : (
         <>
-          <Summary rows={rows} currency={currency} />
-          <BestDeals rows={rows} />
-          <DealGroups rows={rows} />
+          <Summary rows={visibleRows} currency={currency} />
+          <BestDeals rows={visibleRows} />
+          <DealGroups
+            rows={visibleRows}
+            tabs={
+              <BrandTabs
+                brands={brands}
+                total={rows.length}
+                active={activeBrand}
+                onChange={setBrand}
+              />
+            }
+          />
         </>
       )}
       <AddKnivesDialog open={adding} onOpenChange={setAdding} />
