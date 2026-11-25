@@ -5,11 +5,14 @@ import { getLocalDataDirPath, getLocalDb } from '@/lib/local-db'
 import { getMcpActivity } from '@/lib/mcp/activity'
 import { publishMcpDiscovery } from '@/lib/mcp/discovery'
 import { getSettings, saveSettings } from '@/lib/settings'
+import { normalizeImageHostList } from '@/lib/settings-shared'
 import { withVaultWriteSync } from '@/lib/vault-access'
 
 type McpRuntimeSettingsUpdate = {
   enabled?: boolean
   writeEnabled?: boolean
+  imageHostAllowlistEnabled?: boolean
+  imageHostAllowlist?: string[]
 }
 
 const MCP_AUTH_TOKEN_SETTING_KEY = 'mcp_auth_token'
@@ -46,6 +49,34 @@ function getMcpControlState() {
 
 export function areMcpWritesEnabled(): boolean {
   return getMcpControlState().writeEnabled
+}
+
+export type McpImageHostPolicy = {
+  enabled: boolean
+  hosts: string[]
+  managedByEnvironment: boolean
+}
+
+/**
+ * Which hosts MCP image tools may download from. Off by default (any public
+ * https host). MCP_IMAGE_HOST_ALLOWLIST (comma separated) turns it on and
+ * replaces the saved list, for Docker and other managed deployments.
+ */
+export function getMcpImageHostPolicy(): McpImageHostPolicy {
+  const environment = process.env.MCP_IMAGE_HOST_ALLOWLIST?.trim()
+  if (environment) {
+    return {
+      enabled: true,
+      hosts: normalizeImageHostList(environment),
+      managedByEnvironment: true,
+    }
+  }
+  const settings = getSettings()
+  return {
+    enabled: settings.mcpImageHostAllowlistEnabled,
+    hosts: settings.mcpImageHostAllowlist,
+    managedByEnvironment: false,
+  }
 }
 
 export function isMcpEnabled(): boolean {
@@ -89,7 +120,10 @@ export function updateMcpRuntimeSettings(updates: McpRuntimeSettingsUpdate) {
   if (
     (updates.enabled !== undefined && control.enabledManagedByEnvironment) ||
     (updates.writeEnabled !== undefined &&
-      control.writeEnabledManagedByEnvironment)
+      control.writeEnabledManagedByEnvironment) ||
+    ((updates.imageHostAllowlistEnabled !== undefined ||
+      updates.imageHostAllowlist !== undefined) &&
+      getMcpImageHostPolicy().managedByEnvironment)
   ) {
     throw new McpSettingManagedError(
       'This MCP setting is controlled by a deployment environment variable.',
@@ -102,6 +136,12 @@ export function updateMcpRuntimeSettings(updates: McpRuntimeSettingsUpdate) {
       ? {}
       : { mcpWriteEnabled: updates.writeEnabled }),
     ...(updates.enabled === false ? { mcpWriteEnabled: false } : {}),
+    ...(updates.imageHostAllowlistEnabled === undefined
+      ? {}
+      : { mcpImageHostAllowlistEnabled: updates.imageHostAllowlistEnabled }),
+    ...(updates.imageHostAllowlist === undefined
+      ? {}
+      : { mcpImageHostAllowlist: updates.imageHostAllowlist }),
   })
 
   return getMcpRuntimeStatus()
@@ -161,6 +201,7 @@ export function getMcpRuntimeStatus() {
       authRequiredForRemote: true,
     },
     tools: { read: 6, write: 2, total: 8 },
+    imageHosts: getMcpImageHostPolicy(),
     activity: getMcpActivity(),
     stats: getMcpDataStats(),
     stdio: {

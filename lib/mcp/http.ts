@@ -6,9 +6,16 @@ import { getMcpAuthToken, isMcpEnabled } from '@/lib/mcp/config'
 import { isAppLockEnabled } from '@/lib/app-lock'
 import { requestPriceChecks } from '@/lib/price-monitor/worker'
 import { vaultAccessErrorResponse } from '@/lib/vault-access'
+import { renderProductPageInBrowser } from '@/lib/services/product-page-browser'
 
 const handler = createMcpHandler(
-  () => createBladeVaultMcpServer('http', { requestPriceChecks }),
+  () =>
+    createBladeVaultMcpServer('http', {
+      requestPriceChecks,
+      // MCP refills never need a webpage screenshot.
+      renderProductPage: (url, operation) =>
+        renderProductPageInBrowser(url, operation, { screenshot: false }),
+    }),
   {
     onerror(error) {
       console.error('[bladevault-mcp]', error)

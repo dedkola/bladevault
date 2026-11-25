@@ -15,7 +15,15 @@ async function build() {
     target: 'node20',
     packages: 'bundle',
     external: ['better-sqlite3'],
-    banner: { js: '#!/usr/bin/env node' },
+    // Bundled CommonJS dependencies (the scraper's iconv-lite) call require()
+    // for Node built-ins, which an ESM bundle only has through createRequire.
+    banner: {
+      js: [
+        '#!/usr/bin/env node',
+        "import { createRequire as __bladevaultCreateRequire } from 'node:module';",
+        'const require = __bladevaultCreateRequire(import.meta.url);',
+      ].join('\n'),
+    },
     sourcemap: true,
     tsconfig: path.join(root, 'tsconfig.json'),
   })

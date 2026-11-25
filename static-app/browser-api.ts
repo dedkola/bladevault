@@ -481,6 +481,7 @@ function handle(request: Request, body: Record<string, unknown>) {
           authRequiredForRemote: true,
         },
         tools: { read: 0, write: 0, total: 0 },
+        imageHosts: { enabled: false, hosts: [], managedByEnvironment: true },
         activity: {
           lastActivityAt: null,
           httpRequestsSinceStart: 0,

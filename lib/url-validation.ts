@@ -164,7 +164,14 @@ export async function validateExternalUrl(
 export async function fetchExternalUrl(
   initialUrl: URL,
   init: RequestInit,
-  options: { allowBody?: boolean } = {},
+  options: {
+    allowBody?: boolean
+    /**
+     * Called with every destination (the first URL and each redirect hop)
+     * before it is requested. Throw to refuse it, e.g. for https-only rules.
+     */
+    checkDestination?: (url: URL) => void
+  } = {},
 ): Promise<Response> {
   const signal = init.signal ?? undefined
   const initialValidation = await resolveExternalUrl(initialUrl.href, signal)
@@ -179,6 +186,7 @@ export async function fetchExternalUrl(
   }
 
   let destination = initialValidation
+  options.checkDestination?.(destination.url)
 
   for (let redirects = 0; redirects <= MAX_EXTERNAL_REDIRECTS; redirects += 1) {
     const requestInit: RequestInit = { ...init, redirect: 'manual' }
@@ -188,7 +196,9 @@ export async function fetchExternalUrl(
             destination.url,
             destination.address,
             requestInit,
-            options,
+            {
+              allowBody: true,
+            },
           )
         : requestExternalUrl(destination.url, destination.address, requestInit),
     )
@@ -223,6 +233,7 @@ export async function fetchExternalUrl(
       )
     }
 
+    options.checkDestination?.(validation.url)
     destination = validation
   }
 

@@ -43,6 +43,15 @@ export type KnifeMutationContext = {
   source: 'mcp'
   transport: 'stdio' | 'http'
   changes: ValidatedKnifeChange[]
+  /** MCP tool that made the change (audit source); default update_knife. */
+  tool?: string
+  /** Audit summary; defaults to the metadata-update wording. */
+  summary?: string
+}
+
+export type KnifeCreateOptions = {
+  /** Set when an MCP client creates the knife, for its audit entry. */
+  mutation?: Omit<KnifeMutationContext, 'changes'>
 }
 
 export type KnifeUpdateOptions = {
@@ -66,7 +75,10 @@ export interface Storage {
   getAllKnives(): Promise<Knife[]>
   getKnifeActivity(): Promise<KnifeActivityEvent[]>
   getKnifeById(id: string): Promise<Knife | undefined>
-  createKnife(input: CreateKnifeInput): Promise<Knife>
+  createKnife(
+    input: CreateKnifeInput,
+    options?: KnifeCreateOptions,
+  ): Promise<Knife>
   updateKnife(
     id: string,
     updates: KnifeUpdates,
