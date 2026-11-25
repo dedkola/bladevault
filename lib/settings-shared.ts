@@ -1351,6 +1351,9 @@ export type AppSettings = {
   driveAutoBackupEnabled: boolean
   mcpEnabled: boolean
   mcpWriteEnabled: boolean
+  /** Restrict MCP image downloads to `mcpImageHostAllowlist` when on. */
+  mcpImageHostAllowlistEnabled: boolean
+  mcpImageHostAllowlist: string[]
   customFields: CustomField[]
   maintenanceReminders: MaintenanceReminderSettings
   careIntervalOverrides: CareIntervalOverrides
@@ -1376,6 +1379,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   driveAutoBackupEnabled: false,
   mcpEnabled: true,
   mcpWriteEnabled: false,
+  mcpImageHostAllowlistEnabled: false,
+  mcpImageHostAllowlist: [],
   customFields: [],
   maintenanceReminders: DEFAULT_MAINTENANCE_REMINDERS,
   careIntervalOverrides: {},
@@ -1385,6 +1390,40 @@ export const DEFAULT_SETTINGS: AppSettings = {
   backupNotifications: DEFAULT_BACKUP_NOTIFICATIONS,
   popupNotifications: DEFAULT_POPUP_NOTIFICATIONS,
   knifeDetailPanelWidth: null,
+}
+
+const MAX_IMAGE_HOSTS = 200
+
+/**
+ * Normalize an image host allowlist: accepts hosts or URLs (one per entry,
+ * or a comma/newline separated string), lowercases them, drops schemes,
+ * paths, ports and a leading "*.", and removes invalid or repeated entries.
+ */
+export function normalizeImageHostList(value: unknown): string[] {
+  const entries =
+    typeof value === 'string'
+      ? value.split(/[\s,]+/)
+      : Array.isArray(value)
+        ? value.filter((entry): entry is string => typeof entry === 'string')
+        : []
+  const hosts: string[] = []
+  for (const entry of entries) {
+    const host = entry
+      .trim()
+      .toLowerCase()
+      .replace(/^[a-z][a-z0-9+.-]*:\/\//, '')
+      .replace(/[/?#].*$/, '')
+      .replace(/:\d+$/, '')
+      .replace(/^\*\./, '')
+      .replace(/\.$/, '')
+    if (
+      /^(?=.{1,253}$)[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) &&
+      !hosts.includes(host)
+    )
+      hosts.push(host)
+    if (hosts.length >= MAX_IMAGE_HOSTS) break
+  }
+  return hosts
 }
 
 export const KNIFE_DETAIL_PANEL_MIN = 320

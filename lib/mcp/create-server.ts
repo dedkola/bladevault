@@ -15,6 +15,12 @@ import {
 } from '@/lib/services/price-service'
 import { addKnifeFromMcp } from '@/lib/services/knife-create-service'
 import { READ_TOOLS } from '@/lib/tools/read-tools'
+import {
+  addKnifeImagesFromMcp,
+  MCP_MAX_IMAGE_URLS,
+  refillKnifeImagesFromMcp,
+} from '@/lib/services/knife-image-service'
+import type { RenderProductPage } from '@/lib/services/product-scrape-service'
 import { PRICE_WATCH_MODES } from '@/lib/price-monitor/shared'
 import { MAINTENANCE_TYPES } from '@/lib/data'
 import { recordMcpToolCall, recordMcpWrite } from '@/lib/mcp/activity'
@@ -75,6 +81,16 @@ const writeAnnotations = {
   openWorldHint: false,
 } as const
 
+/** Image writes download from the web, so they are open-world. */
+const imageWriteAnnotations = {
+  ...writeAnnotations,
+  openWorldHint: true,
+} as const
+
+const imageUrlsSchema = z
+  .array(z.string().min(1).max(2048))
+  .max(MCP_MAX_IMAGE_URLS)
+
 const checkAnnotations = {
   readOnlyHint: false,
   destructiveHint: false,
@@ -88,10 +104,15 @@ export type BladeVaultMcpServerOptions = {
    * request_price_check only marks sources for the running app's queue.
    */
   requestPriceChecks?: (sourceIds: readonly number[]) => Promise<number[]>
+  /**
+   * Renders product pages in a browser for refill_knife_images (the in-app
+   * HTTP server). Without it, the page HTML is fetched directly.
+   */
+  renderProductPage?: RenderProductPage
 }
 
 export const BLADEVAULT_MCP_INSTRUCTIONS =
-  'BladeVault manages one local knife collection. Read records before changing them. To add a knife, search first, preview add_knife, show the preview to the user, then apply it with the returned preview_hash. Use propose_changes for candidate metadata, then preview bulk_update_knives before applying it. Updates require the latest updatedAt value. Never infer that duplicate candidates should be deleted, and never claim propose_changes modifies data. For store price monitoring, read get_price_watch before preview-then-apply changes with update_price_watch; request_price_check only queues checks at each store’s normal pace.'
+  'BladeVault manages one local knife collection. Read records before changing them. To add a knife, search first, preview add_knife, show the preview to the user, then apply it with the returned preview_hash. Photos are added by URL with add_knife (image_urls) or add_knife_images, or pulled from the knife’s source page with refill_knife_images; all preview first and apply with the preview_hash. Use propose_changes for candidate metadata, then preview bulk_update_knives before applying it. Updates require the latest updatedAt value. Never infer that duplicate candidates should be deleted, and never claim propose_changes modifies data. For store price monitoring, read get_price_watch before preview-then-apply changes with update_price_watch; request_price_check only queues checks at each store’s normal pace.'
 
 export function createBladeVaultMcpServer(
   transport: McpTransport,
@@ -191,7 +212,7 @@ export function createBladeVaultMcpServer(
     {
       title: 'Preview or add a new knife',
       description:
-        'Add one new knife to the collection. Preview is the default and saves nothing; it returns the normalized record, possible duplicates, and a preview_hash. Show the preview to the user, then repeat the same request with apply: true and that preview_hash. Images are not added through MCP.',
+        'Add one new knife to the collection. Preview is the default and saves nothing; it returns the normalized record, possible duplicates, and a preview_hash. Show the preview to the user, then repeat the same request with apply: true and that preview_hash. Optional image_urls (public https image links, up to 12) are downloaded and checked in the preview and saved as the knife’s photos on apply; URLs that fail are listed and skipped.',
       inputSchema: z.object({
         name: z.string().min(1).max(200),
         brand: textField,
@@ -199,6 +220,7 @@ export function createBladeVaultMcpServer(
         handle_material: textField,
         description: z.string().max(5000).optional(),
         source_url: z.string().max(2048).optional(),
+        image_urls: imageUrlsSchema.optional(),
         specs: z
           .object({
             weight: textField,
@@ -234,6 +256,7 @@ export function createBladeVaultMcpServer(
             handleMaterial: input.handle_material,
             description: input.description,
             sourceUrl: input.source_url,
+            imageUrls: input.image_urls,
             specs: {
               weight: s.weight,
               overallLength: s.overall_length,
@@ -254,6 +277,65 @@ export function createBladeVaultMcpServer(
           previewHash: input.preview_hash,
           allowDuplicate: input.allow_duplicate,
           transport,
+        })
+        if (result.applied) recordMcpWrite()
+        return result
+      }),
+  )
+
+  server.registerTool(
+    'add_knife_images',
+    {
+      title: 'Preview or add photos to a knife',
+      description:
+        'Add photos to one knife from public https image URLs (up to 12). Preview is the default and saves nothing: it downloads and checks each URL and returns per-URL status (ok, duplicate, or error with a reason) and a preview_hash. Show it to the user, then repeat the same request with apply: true and that preview_hash. mode "append" (default) keeps the current photos; "replace" swaps them for the new ones, keeping a saved webpage screenshot. Failed URLs are skipped; exact duplicates of existing photos are not added again.',
+      inputSchema: z.object({
+        knife_id: z.string().min(1),
+        image_urls: imageUrlsSchema.min(1),
+        mode: z.enum(['append', 'replace']).default('append'),
+        apply: z.boolean().default(false),
+        preview_hash: z.string().optional(),
+      }),
+      annotations: imageWriteAnnotations,
+    },
+    ({ knife_id, image_urls, mode, apply, preview_hash }) =>
+      runTool(transport, async () => {
+        if (apply) requireMcpWrites()
+        const result = await addKnifeImagesFromMcp({
+          knifeId: knife_id,
+          imageUrls: image_urls,
+          mode,
+          apply,
+          previewHash: preview_hash,
+          transport,
+        })
+        if (result.applied) recordMcpWrite()
+        return result
+      }),
+  )
+
+  server.registerTool(
+    'refill_knife_images',
+    {
+      title: 'Preview or refill knife photos from its source page',
+      description:
+        "Replace one knife's photos with the product gallery from its source_url, like the app's Refill all images (a saved webpage screenshot is kept). Preview is the default and saves nothing: it reads the page, lists the images found (up to 12) with per-image status, and returns a preview_hash. Show it to the user, then repeat with apply: true and that preview_hash. Fails with a clear message when the knife has no source_url or the page has no usable images.",
+      inputSchema: z.object({
+        knife_id: z.string().min(1),
+        apply: z.boolean().default(false),
+        preview_hash: z.string().optional(),
+      }),
+      annotations: imageWriteAnnotations,
+    },
+    ({ knife_id, apply, preview_hash }) =>
+      runTool(transport, async () => {
+        if (apply) requireMcpWrites()
+        const result = await refillKnifeImagesFromMcp({
+          knifeId: knife_id,
+          apply,
+          previewHash: preview_hash,
+          transport,
+          renderPage: options.renderProductPage,
         })
         if (result.applied) recordMcpWrite()
         return result
