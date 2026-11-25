@@ -81,6 +81,7 @@ function stored(patch: Partial<PriceNotification> = {}): PriceNotification {
     dismissedAt: null,
     resolvedAt: null,
     snoozedUntil: null,
+    superSale: false,
     ...patch,
   }
 }
@@ -142,6 +143,7 @@ describe('planPriceNotifications', () => {
         dismissedAt: null,
         resolvedAt: null,
         snoozedUntil: null,
+        superSale: false,
       },
     ])
     expect(plan.update).toEqual([])
@@ -643,6 +645,136 @@ describe('alert rules (shouldNotify)', () => {
   })
 })
 
+describe('collection pass: super sales only', () => {
+  const COLLECTION: PriceNotificationSettings = {
+    ...DEFAULTS,
+    collectionPass: { enabled: true, superSalePercent: 50 },
+  }
+  // Regular price $200: the super-sale line is $100.
+  const collection = (patch: Parameters<typeof alertContext>[0] = {}) =>
+    alertContext({ paidMinor: 20_000, tier: 'collection', ...patch })
+
+  it('ignores ordinary drops, increases and stock changes', () => {
+    // 200 → 180 (-10%) and 160 → 120 (-25%): far from the line.
+    expect(
+      shouldNotify(drop(20_000, 18_000), COLLECTION, collection(), NOW),
+    ).toBe(false)
+    expect(
+      shouldNotify(drop(16_000, 12_000), COLLECTION, collection(), NOW),
+    ).toBe(false)
+    expect(
+      shouldNotify(priceEvent(3_000, 30), COLLECTION, collection(), NOW),
+    ).toBe(false)
+    expect(
+      shouldNotify(stockEvent('back_in_stock'), COLLECTION, collection(), NOW),
+    ).toBe(false)
+    expect(
+      shouldNotify(stockEvent('out_of_stock'), COLLECTION, collection(), NOW),
+    ).toBe(false)
+  })
+
+  it('notifies a drop that crosses the super-sale line, marked as a super sale', () => {
+    // 120 → 90: 55% below the regular price.
+    const event = drop(12_000, 9_000)
+    expect(shouldNotify(event, COLLECTION, collection(), NOW)).toBe(true)
+    // Exactly on the line counts.
+    expect(
+      shouldNotify(drop(12_000, 10_000), COLLECTION, collection(), NOW),
+    ).toBe(true)
+    const plan = planPriceNotifications([event], [], COLLECTION, NOW, () =>
+      collection(),
+    )
+    expect(plan.create).toHaveLength(1)
+    expect(plan.create[0]).toMatchObject({ kind: 'drop', superSale: true })
+  })
+
+  it('below the line, a further drop needs the usual minimums', () => {
+    // 90 → 88 (-2%): under the 5% minimum.
+    expect(
+      shouldNotify(drop(9_000, 8_800), COLLECTION, collection(), NOW),
+    ).toBe(false)
+    // 90 → 80 (-11%): a further real drop.
+    expect(
+      shouldNotify(drop(9_000, 8_000), COLLECTION, collection(), NOW),
+    ).toBe(true)
+  })
+
+  it('follows the configured percent', () => {
+    const forty: PriceNotificationSettings = {
+      ...DEFAULTS,
+      collectionPass: { enabled: true, superSalePercent: 40 },
+    }
+    // 140 → 115: 42.5% below $200.
+    expect(shouldNotify(drop(14_000, 11_500), forty, collection(), NOW)).toBe(
+      true,
+    )
+    expect(
+      shouldNotify(drop(14_000, 11_500), COLLECTION, collection(), NOW),
+    ).toBe(false)
+  })
+
+  it('needs a comparable regular price, and respects mute', () => {
+    expect(
+      shouldNotify(
+        drop(12_000, 5_000),
+        COLLECTION,
+        collection({ paidMinor: null }),
+        NOW,
+      ),
+    ).toBe(false)
+    expect(
+      shouldNotify(
+        drop(12_000, 9_000),
+        COLLECTION,
+        collection({ rules: { muted: true } }),
+        NOW,
+      ),
+    ).toBe(false)
+  })
+
+  it('still lets the knife’s own target price notify', () => {
+    const target = collection({
+      rules: { targetPrice: { minor: 15_000, currency: 'USD' } },
+    })
+    expect(shouldNotify(drop(16_000, 14_900), COLLECTION, target, NOW)).toBe(
+      true,
+    )
+    const plan = planPriceNotifications(
+      [drop(16_000, 14_900)],
+      [],
+      COLLECTION,
+      NOW,
+      () => target,
+    )
+    expect(plan.create[0]).toMatchObject({ superSale: false })
+  })
+
+  it('an increase still closes an open super-sale drop', () => {
+    const open = stored({ id: 7, superSale: true })
+    const plan = planPriceNotifications(
+      [priceEvent(3_000, 30)],
+      [open],
+      COLLECTION,
+      NOW,
+      () => collection(),
+    )
+    expect(plan.create).toEqual([])
+    expect(plan.update).toEqual([
+      { ...open, resolvedAt: nowIso, updatedAt: nowIso },
+    ])
+  })
+
+  it('uses the usual rules for What to monitor and while the pass is off', () => {
+    const scope = alertContext({ paidMinor: 20_000, tier: 'scope' })
+    expect(shouldNotify(drop(20_000, 18_000), COLLECTION, scope, NOW)).toBe(
+      true,
+    )
+    expect(
+      shouldNotify(drop(20_000, 18_000), DEFAULTS, collection(), NOW),
+    ).toBe(true)
+  })
+})
+
 describe('snooze and bulk actions', () => {
   it('snoozes, keeps a repeat snoozed, and shows it again', () => {
     const open = stored({ id: 1, readAt: EARLIER })
@@ -781,5 +913,14 @@ describe('selectDesktopPriceAlerts', () => {
     })
     expect(alerts[0].title).toBe('Back in stock: Benchmade Bugout')
     expect(alerts[0].body).toBe('example.com · $129.00')
+  })
+
+  it('titles a super sale as such', () => {
+    const [alert] = selectDesktopPriceAlerts(
+      [view({ id: 1, occurredAt: nowIso, superSale: true })],
+      '2026-11-18T11:00:00.000Z',
+      NOW,
+    )
+    expect(alert.title).toBe('Super sale: Benchmade Bugout')
   })
 })

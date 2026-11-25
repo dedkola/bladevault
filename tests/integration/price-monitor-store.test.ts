@@ -123,7 +123,7 @@ describe('price watch API', () => {
     expect(status).toBe(200)
     expect(watch).toMatchObject({
       mode: 'auto',
-      eligibility: { monitored: true, reason: 'monitored_auto' },
+      eligibility: { monitored: true, reason: 'monitored_auto', tier: 'scope' },
       maxSources: 10,
     })
     expect(watch.sources).toEqual([
@@ -147,6 +147,7 @@ describe('price watch API', () => {
     expect(body.watch?.eligibility).toEqual({
       monitored: true,
       reason: 'monitored_forced',
+      tier: 'scope',
     })
   })
 

@@ -129,6 +129,15 @@ type QueueSnapshot = {
   lanes: QueueLane[]
   /** What to monitor; `knives` is null for the whole collection. */
   scope?: { kind: PriceMonitorScopeKind; knives: number | null }
+  /** The rest of the collection, checked in free time; null while off. */
+  collectionPass?: {
+    running: boolean
+    /** A round runs, so the pass waits at its knife. */
+    waiting: boolean
+    knives: number
+    done: number
+    nextAt: string | null
+  } | null
 }
 
 const SCOPE_LABEL = { wishlist: 'Wishlist', selected: 'Selected knives' }
@@ -1325,11 +1334,32 @@ export function PriceDropsView({
             >
               {queue.scope.knives
                 ? `${SCOPE_LABEL[queue.scope.kind]} · ${queue.scope.knives} ${queue.scope.knives === 1 ? 'knife' : 'knives'}`
-                : queue.scope.kind === 'wishlist'
-                  ? 'Wishlist is empty: nothing is monitored'
-                  : 'Monitoring stopped for every knife'}
+                : queue.collectionPass
+                  ? `${SCOPE_LABEL[queue.scope.kind]} is empty`
+                  : queue.scope.kind === 'wishlist'
+                    ? 'Wishlist is empty: nothing is monitored'
+                    : 'Monitoring stopped for every knife'}
               <span className="underline">Change</span>
             </Link>
+          ) : null}
+          {queue?.enabled && queue.collectionPass ? (
+            <span
+              data-price-collection-pass={
+                queue.collectionPass.waiting
+                  ? 'waiting'
+                  : queue.collectionPass.running
+                    ? 'running'
+                    : 'idle'
+              }
+              title="The rest of the collection is checked between rounds, at most once a day, and notifies only about a super sale."
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--bladevault-line)] px-2.5 py-1 text-xs text-muted-foreground"
+            >
+              {queue.collectionPass.running
+                ? `Collection: ${Math.min(queue.collectionPass.done, queue.collectionPass.knives)} of ${queue.collectionPass.knives}${queue.collectionPass.waiting ? ' · waits for the round' : ''}`
+                : queue.collectionPass.nextAt
+                  ? `Collection next ${clockTime(queue.collectionPass.nextAt, hourCycle, now)}`
+                  : 'Collection'}
+            </span>
           ) : null}
           <Button
             size="sm"

@@ -1,6 +1,7 @@
 import { parseStoredPrice } from '@/lib/price-monitor/money'
 import type { PriceMonitorScope } from '@/lib/settings-shared'
 import {
+  type MonitorTier,
   normalizeSourceUrl,
   type PriceSourceOrigin,
   type PriceWatchEligibility,
@@ -19,6 +20,11 @@ export type EligibilitySettings = {
    * missing covers every knife.
    */
   scopeKnifeIds?: ReadonlySet<string> | null
+  /**
+   * Knives outside the scope are checked in free time (the collection
+   * pass) instead of not at all; see PriceMonitoringSettings.collectionPass.
+   */
+  collectionPass?: { enabled: boolean }
 }
 
 /**
@@ -45,7 +51,9 @@ export const DEFAULT_ELIGIBILITY_SETTINGS: EligibilitySettings = {
  * Whether scheduled monitoring covers a knife.
  * - off: never.
  * - outside the monitoring scope (What to monitor): never, also with
- *   Always monitor.
+ *   Always monitor, unless the collection pass is on: then the rules below
+ *   apply and the knife is covered in the `collection` tier (checked in free
+ *   time, notifying only about a super sale).
  * - on: whenever it has an enabled source.
  * - auto: when its stored regular price is above 0, it is not sold (unless
  *   the setting allows sold knives), and it has an enabled source.
@@ -56,19 +64,30 @@ export function getEligibility(
   enabledSourceCount: number,
   settings: EligibilitySettings = DEFAULT_ELIGIBILITY_SETTINGS,
 ): PriceWatchEligibility {
-  if (mode === 'off') return { monitored: false, reason: 'off' }
-  if (settings.scopeKnifeIds && !settings.scopeKnifeIds.has(knife.id))
-    return { monitored: false, reason: 'out_of_scope' }
+  const tier: MonitorTier =
+    settings.scopeKnifeIds && !settings.scopeKnifeIds.has(knife.id)
+      ? 'collection'
+      : 'scope'
+  if (mode === 'off') return { monitored: false, reason: 'off', tier }
+  if (tier === 'collection' && !settings.collectionPass?.enabled)
+    return { monitored: false, reason: 'out_of_scope', tier }
   if (mode === 'auto') {
     if (!parseStoredPrice(knife.specs.price))
-      return { monitored: false, reason: 'no_price' }
+      return { monitored: false, reason: 'no_price', tier }
     if (settings.skipSoldKnives && knife.sold)
-      return { monitored: false, reason: 'sold' }
+      return { monitored: false, reason: 'sold', tier }
   }
-  if (enabledSourceCount === 0) return { monitored: false, reason: 'no_source' }
+  if (enabledSourceCount === 0)
+    return { monitored: false, reason: 'no_source', tier }
   return {
     monitored: true,
-    reason: mode === 'on' ? 'monitored_forced' : 'monitored_auto',
+    reason:
+      tier === 'collection'
+        ? 'monitored_collection'
+        : mode === 'on'
+          ? 'monitored_forced'
+          : 'monitored_auto',
+    tier,
   }
 }
 

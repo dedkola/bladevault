@@ -29,10 +29,12 @@ import {
   storeNameForUrl,
   type Availability,
   type FetchOverride,
+  type MonitorTier,
   type PriceProvider,
   type PriceSourceOrigin,
   type PriceSourceStatus,
   type PriceSourceView,
+  type PriceWatchEligibility,
   type PriceWatchFocus,
   type PriceWatchMode,
   type PriceWatchUpdate,
@@ -1152,6 +1154,7 @@ export async function recordCheck(
             sourceId: source.id,
             currency: observation.currency,
             excludeSnapshotId: snapshotId,
+            settings: notifications,
           })
           writePriceNotificationChanges(
             database,
@@ -1378,6 +1381,11 @@ export type CandidateRow = {
   lastCheckedAt: number | null
   /** The knife is watched closely: at most this long between checks. */
   focusIntervalMs: number | null
+  /**
+   * scope: in What to monitor (the rounds); collection: the rest of the
+   * collection, checked by the collection pass in free time.
+   */
+  tier: MonitorTier
 }
 
 /**
@@ -1422,25 +1430,25 @@ export function readQueueCandidates(
   }>
   const outOfStockSince = readOutOfStockSince(database)
   const scoped = withMonitorScope(database, settings)
-  const eligible = new Map<string, boolean>()
+  const eligible = new Map<string, PriceWatchEligibility>()
   return rows.map((row) => {
-    let monitored = eligible.get(row.knife_id)
-    if (monitored === undefined) {
+    let eligibility = eligible.get(row.knife_id)
+    if (eligibility === undefined) {
       let price: string | undefined
       try {
         price = (JSON.parse(row.specs) as { price?: string }).price
       } catch {
         price = undefined
       }
-      monitored = getEligibility(
+      eligibility = getEligibility(
         { id: row.knife_id, sold: row.sold === 1, specs: { price } },
         row.mode,
         1,
         scoped,
-      ).monitored
-      eligible.set(row.knife_id, monitored)
+      )
+      eligible.set(row.knife_id, eligibility)
     }
-    const covered = monitored && row.enabled === 1
+    const covered = eligibility.monitored && row.enabled === 1
     const storePaused = row.store_paused === 1
     return {
       sourceId: row.id,
@@ -1462,6 +1470,7 @@ export function readQueueCandidates(
       firstReading: row.last_checked_at === null,
       lastCheckedAt: parseTime(row.last_checked_at),
       focusIntervalMs: activeFocus(row, now)?.intervalMs ?? null,
+      tier: eligibility.tier,
     }
   })
 }

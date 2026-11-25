@@ -79,15 +79,25 @@ export type RetireHint = 'long_out_of_stock' | 'page_gone'
 export type EligibilityReason =
   | 'monitored_auto'
   | 'monitored_forced'
+  /** Outside What to monitor, checked with the rest of the collection. */
+  | 'monitored_collection'
   | 'off'
   | 'no_price'
   | 'sold'
   | 'no_source'
   | 'out_of_scope'
 
+/**
+ * scope: inside What to monitor (rounds on the schedule, every alert).
+ * collection: outside it, checked in free time when the collection pass is
+ * on, and notifying only about a super sale.
+ */
+export type MonitorTier = 'scope' | 'collection'
+
 export type PriceWatchEligibility = {
   monitored: boolean
   reason: EligibilityReason
+  tier: MonitorTier
 }
 
 export type PriceWatchView = {

@@ -21,9 +21,14 @@
  *   event still resolves an open one.
  * - A snoozed notification stays hidden until its time, even when a repeat
  *   updates it; then it comes back unread with the latest change.
+ * - A knife outside What to monitor, checked by the collection pass, only
+ *   notifies about a super sale: a drop to at least `superSalePercent`
+ *   below its regular price (or to its own target price). Smaller drops,
+ *   increases and stock changes stay on the Price Drops page.
  */
 import type { ChangeEvent } from '@/lib/price-monitor/insights'
 import { formatMoney, toMinorUnits } from '@/lib/price-monitor/money'
+import type { MonitorTier } from '@/lib/price-monitor/shared'
 import type { PriceMonitoringSettings } from '@/lib/settings-shared'
 
 export type PriceNotificationKind =
@@ -94,6 +99,11 @@ export type PriceNotification = {
   resolvedAt: string | null
   /** Hidden from the open list until then. */
   snoozedUntil: string | null
+  /**
+   * A drop of a knife outside What to monitor that reached the super-sale
+   * line (collection pass).
+   */
+  superSale: boolean
 }
 
 /** What the Inbox shows next to a price message, read when it loads. */
@@ -146,6 +156,11 @@ export type PriceAlertContext = {
    * sale (priced, not out of stock). Left out: none.
    */
   otherStoresInStock?: number
+  /**
+   * collection: the knife is outside What to monitor and the collection
+   * pass is on, so only a super sale notifies. Left out: scope.
+   */
+  tier?: MonitorTier
 }
 
 /** Applies action results to a loaded list, keeping each row's event. */
@@ -186,7 +201,12 @@ export type PriceNotificationSettings = Pick<
   PriceMonitoringSettings,
   'notify' | 'thresholds'
 > &
-  Partial<Pick<PriceMonitoringSettings, 'ignoreOfficialOutOfStock'>>
+  Partial<
+    Pick<
+      PriceMonitoringSettings,
+      'ignoreOfficialOutOfStock' | 'scope' | 'collectionPass'
+    >
+  >
 
 export type PriceNotificationAction =
   | { action: 'read' | 'dismiss' | 'restore' | 'unsnooze'; ids: number[] }
@@ -302,9 +322,54 @@ export function isPriceAlertMuted(
 }
 
 /**
+ * The super-sale line for a regular price: at least `percent` below it.
+ * Null without a comparable regular price.
+ */
+export function superSaleLineMinor(
+  paidMinor: number | null | undefined,
+  percent: number,
+): number | null {
+  if (paidMinor == null || !(paidMinor > 0)) return null
+  return Math.floor((paidMinor * (100 - percent)) / 100)
+}
+
+/** Why an event notifies; null when it does not. */
+export type NotifyReason = 'alert' | 'super_sale'
+
+/**
+ * A knife of the collection pass: only a drop notifies, when it reaches the
+ * knife's own target price, or when it lands at or below the super-sale
+ * line, either crossing it or falling further by the usual minimums.
+ */
+function collectionNotifyReason(
+  event: PriceNotificationEvent,
+  settings: PriceNotificationSettings,
+  context: PriceAlertContext,
+): NotifyReason | null {
+  if (event.kind !== 'drop') return null
+  const previousMinor = event.priceMinor - event.deltaMinor
+  const target = context.rules.targetPrice
+  if (
+    target &&
+    target.currency === event.currency &&
+    event.priceMinor <= target.minor &&
+    previousMinor > target.minor
+  )
+    return 'alert'
+  const line = superSaleLineMinor(
+    context.paidMinor,
+    settings.collectionPass?.superSalePercent ?? 50,
+  )
+  if (line === null || event.priceMinor > line) return null
+  if (previousMinor > line) return 'super_sale'
+  return meetsPriceThreshold(event, settings.thresholds) ? 'super_sale' : null
+}
+
+/**
  * Whether an event notifies: not muted, its category on, for stock no
  * other store of the knife selling it and, for prices, the knife's rules
- * and the thresholds. For a drop:
+ * and the thresholds. A knife of the collection pass follows its own rule
+ * (collectionNotifyReason). For a drop:
  * - a target price in the same currency must be reached; crossing it
  *   notifies whatever the thresholds;
  * - with "only below regular price", the new price must be under the
@@ -318,7 +383,27 @@ export function shouldNotify(
   context: PriceAlertContext | null = null,
   now: Date = new Date(),
 ): boolean {
-  if (isPriceAlertMuted(context, now)) return false
+  return notifyReason(event, settings, context, now) !== null
+}
+
+/** Like shouldNotify, and why: a usual alert or a super sale. */
+export function notifyReason(
+  event: PriceNotificationEvent,
+  settings: PriceNotificationSettings,
+  context: PriceAlertContext | null = null,
+  now: Date = new Date(),
+): NotifyReason | null {
+  if (isPriceAlertMuted(context, now)) return null
+  if (context?.tier === 'collection' && settings.collectionPass?.enabled)
+    return collectionNotifyReason(event, settings, context)
+  return usualNotify(event, settings, context) ? 'alert' : null
+}
+
+function usualNotify(
+  event: PriceNotificationEvent,
+  settings: PriceNotificationSettings,
+  context: PriceAlertContext | null,
+): boolean {
   if (!settings.notify[CATEGORY[event.kind]]) return false
   // Another store still sells it (out of stock) or already did (back in
   // stock): the knife's stock did not change.
@@ -388,7 +473,9 @@ export function planPriceNotifications(
       }
     }
 
-    if (!shouldNotify(event, settings, contextFor(event), now)) continue
+    const reason = notifyReason(event, settings, contextFor(event), now)
+    if (!reason) continue
+    const superSale = reason === 'super_sale'
     const index = rows.findIndex(
       (row) =>
         row.sourceId === event.sourceId &&
@@ -406,6 +493,7 @@ export function planPriceNotifications(
         updatedAt: nowIso,
         readAt: null,
         dismissedAt: null,
+        superSale,
       }
       touched.add(row.id)
     } else {
@@ -424,6 +512,7 @@ export function planPriceNotifications(
         dismissedAt: null,
         resolvedAt: null,
         snoozedUntil: null,
+        superSale,
       })
       touched.add(id)
     }
@@ -595,7 +684,7 @@ export function selectDesktopPriceAlerts(
         id: row.id,
         knifeId: event.knife.id,
         kind: row.kind as DesktopPriceAlert['kind'],
-        title: `${row.kind === 'drop' ? 'Price dropped' : 'Back in stock'}: ${knife}`,
+        title: `${row.kind === 'drop' ? (row.superSale ? 'Super sale' : 'Price dropped') : 'Back in stock'}: ${knife}`,
         body: [event.storeName, price].filter(Boolean).join(' · '),
         occurredAt: row.occurredAt,
       }

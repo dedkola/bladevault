@@ -15,6 +15,7 @@ import {
 import {
   agentActive,
   agentDue,
+  agentEventKnifeIds,
   agentFailureStreak,
   agentEventGapMs,
   lastAgentRunAt,
@@ -41,6 +42,7 @@ import {
   type CheckTrigger,
 } from '@/lib/price-monitor/engine'
 import { countMonitorScopeKnives } from '@/lib/price-monitor/scope'
+import type { MonitorTier } from '@/lib/price-monitor/shared'
 import { checkClockJump, monitorHoldMs } from '@/lib/price-monitor/power'
 import {
   applyLaneOutcome,
@@ -58,25 +60,33 @@ import {
   type QueueInput,
 } from '@/lib/price-monitor/queue'
 import {
+  advancePass,
   advanceRound,
   dropStaleRetries,
+  finishPass,
   finishRetry,
   finishRound,
   pruneRounds,
+  readCurrentPass,
   readCurrentRound,
   readDueRetries,
+  readLastPass,
   readLastRound,
   readRetryTasks,
   recordTaskResults,
+  startPass,
   startRound,
+  type CollectionPass,
   type RetryTask,
   type Round,
   type RoundTrigger,
   type TaskResult,
 } from '@/lib/price-monitor/round-store'
 import {
+  COLLECTION_PASS_INTERVAL_MS,
   laneDecision,
   LANE_WAIT_MS,
+  nextPassAt,
   nextRoundAt,
   planStep,
   retryableCheck,
@@ -109,11 +119,12 @@ import {
 } from '@/lib/price-monitor/store'
 import { reportServerError } from '@/lib/sentry/server'
 import { getSettings } from '@/lib/settings'
-import type {
-  ActiveHours,
-  OtherStoreId,
-  PriceMonitoringSettings,
-  PriceMonitorScopeKind,
+import {
+  isCollectionPassOn as collectionPassOn,
+  type ActiveHours,
+  type OtherStoreId,
+  type PriceMonitoringSettings,
+  type PriceMonitorScopeKind,
 } from '@/lib/settings-shared'
 import {
   getVaultAccessState,
@@ -219,13 +230,15 @@ type PassContext = {
  * One knife's step: its stores in parallel, each store's tasks one after
  * another. `round` steps go through the round; `priority` steps check links
  * moved forward (a new link, Check first, Cross-check); `focus` steps check
- * a knife watched closely.
+ * a knife watched closely; `pass` steps go through the collection pass in
+ * the free time between rounds.
  */
 type ActiveStep = {
-  kind: 'round' | 'priority' | 'focus'
+  kind: 'round' | 'priority' | 'focus' | 'pass'
   knifeId: string
   roundId: number | null
-  /** The round's cursor once this step is done. */
+  passId: number | null
+  /** The round's (or pass's) cursor once this step is done. */
   nextCursor: number | null
   pending: Map<string, StepTask[]>
   /** Since when the step waits for a store that is not ready yet. */
@@ -625,11 +638,15 @@ export class PriceMonitorWorker {
       this.considerWake(this.nextStepAt)
       return
     }
-    const step =
+    let step =
       (options.roundOnly
         ? null
         : (this.priorityStep(context) ?? this.focusStep(context))) ??
       (round ? await this.roundStep(round, context) : null)
+    // Free time: no round running (or the round just ended). The round
+    // always comes first; the pass waits at its cursor until it is done.
+    if (!step && !options.roundOnly && !readCurrentRound(database))
+      step = await this.passStep(context)
     if (!step) return
     this.step = step
     this.advanceStep(context)
@@ -676,13 +693,14 @@ export class PriceMonitorWorker {
     kind: ActiveStep['kind'],
     knifeId: string,
     tasks: readonly StepTask[],
-    round: { id: number; nextCursor: number } | null = null,
+    position: { id: number; nextCursor: number } | null = null,
   ): ActiveStep {
     return {
       kind,
       knifeId,
-      roundId: round?.id ?? null,
-      nextCursor: round?.nextCursor ?? null,
+      roundId: kind === 'round' ? (position?.id ?? null) : null,
+      passId: kind === 'pass' ? (position?.id ?? null) : null,
+      nextCursor: position?.nextCursor ?? null,
       pending: tasksByLane(tasks),
       waitingSince: new Map(),
       running: 0,
@@ -768,7 +786,7 @@ export class PriceMonitorWorker {
     let cursor = round.cursor
     while (cursor < round.knifeIds.length) {
       const knifeId = round.knifeIds[cursor]
-      const tasks = this.knifeTasks(knifeId, round, context)
+      const tasks = this.knifeTasks(knifeId, round.startedAt, context)
       cursor += 1
       if (tasks.length)
         return this.newStep('round', knifeId, tasks, {
@@ -794,22 +812,97 @@ export class PriceMonitorWorker {
     return null
   }
 
+  /**
+   * The collection pass's next knife with something to do, when the pass is
+   * on and free time has come: a pass starts at most once a day and goes
+   * through the knives outside What to monitor, one step at a time like a
+   * round. A knife that moved into What to monitor meanwhile is passed.
+   * After the last knife the pass ends.
+   */
+  private async passStep(context: PassContext): Promise<ActiveStep | null> {
+    const database = getLocalDb()
+    let pass: CollectionPass | null = readCurrentPass(database)
+    if (!collectionPassOn(context.settings)) {
+      if (pass)
+        await finishPass({
+          passId: pass.id,
+          now: context.now,
+          generation: context.generation,
+        })
+      return null
+    }
+    if (!pass) {
+      const due = nextPassAt(readLastPass(database), context.now)
+      if (due === null || due > context.now) {
+        this.considerWake(due)
+        return null
+      }
+      pass = await startPass({
+        settings: context.settings,
+        pauseMs: context.floorMs,
+        searches: context.searches,
+        now: context.now,
+        generation: context.generation,
+      })
+      if (!pass) return null
+    }
+    let cursor = pass.cursor
+    while (cursor < pass.knifeIds.length) {
+      const knifeId = pass.knifeIds[cursor]
+      const tasks = this.knifeTasks(
+        knifeId,
+        pass.startedAt,
+        context,
+        'collection',
+      )
+      cursor += 1
+      if (tasks.length)
+        return this.newStep('pass', knifeId, tasks, {
+          id: pass.id,
+          nextCursor: cursor,
+        })
+    }
+    if (cursor !== pass.cursor)
+      await advancePass({
+        passId: pass.id,
+        cursor,
+        generation: context.generation,
+      })
+    await finishPass({
+      passId: pass.id,
+      now: context.now,
+      generation: context.generation,
+    })
+    this.considerWake(
+      Math.max(context.now, pass.startedAt + COLLECTION_PASS_INTERVAL_MS),
+    )
+    return null
+  }
+
+  /**
+   * One knife's tasks in a round or pass that started at `startedAt`. In
+   * the collection pass only the knife's collection-tier links count, so a
+   * knife that moved into What to monitor is left to the rounds.
+   */
   private knifeTasks(
     knifeId: string,
-    round: Round,
+    startedAt: number,
     context: PassContext,
+    tier?: MonitorTier,
   ): StepTask[] {
-    const sources: StepSource[] = context.candidates
-      .filter((candidate) => candidate.knifeId === knifeId)
-      .map((candidate) => ({
-        sourceId: candidate.sourceId,
-        laneKey: candidate.laneKey,
-        scheduled: candidate.scheduled,
-        checkedThisRound:
-          candidate.lastCheckedAt !== null &&
-          candidate.lastCheckedAt >= round.startedAt,
-        restingOutOfStock: restingOutOfStock(candidate, context),
-      }))
+    const own = context.candidates.filter(
+      (candidate) => candidate.knifeId === knifeId,
+    )
+    if (tier && own.some((candidate) => candidate.tier !== tier)) return []
+    const sources: StepSource[] = own.map((candidate) => ({
+      sourceId: candidate.sourceId,
+      laneKey: candidate.laneKey,
+      scheduled: candidate.scheduled,
+      checkedThisRound:
+        candidate.lastCheckedAt !== null &&
+        candidate.lastCheckedAt >= startedAt,
+      restingOutOfStock: restingOutOfStock(candidate, context),
+    }))
     const searches = context.searches
       ? enabledDiscoveryStores(context.settings)
           .filter((store) => this.dueSearchesAt(store, context).has(knifeId))
@@ -946,8 +1039,18 @@ export class PriceMonitorWorker {
     this.nextStepAt = now + context.floorMs
     this.considerWake(this.nextStepAt)
     if (!this.ownsLease()) return
+    // The collection pass keeps no retry list: the next pass reads what
+    // failed again, so stores get no extra requests for it.
+    const results =
+      step.kind === 'pass'
+        ? step.results.map((result) => ({ ...result, retry: null }))
+        : step.results
     let dueAt: number | null = null
-    if (step.roundId === null && step.results.some((result) => result.retry)) {
+    if (
+      step.kind !== 'pass' &&
+      step.roundId === null &&
+      results.some((result) => result.retry)
+    ) {
       const last = readLastRound(getLocalDb())
       dueAt = retryDueTimes({
         count: 1,
@@ -959,7 +1062,7 @@ export class PriceMonitorWorker {
       })[0]
     }
     await recordTaskResults({
-      results: step.results,
+      results,
       roundId: step.roundId,
       now,
       dueAt,
@@ -968,6 +1071,12 @@ export class PriceMonitorWorker {
     if (step.roundId !== null && step.nextCursor !== null)
       await advanceRound({
         roundId: step.roundId,
+        cursor: step.nextCursor,
+        generation: context.generation,
+      })
+    if (step.passId !== null && step.nextCursor !== null)
+      await advancePass({
+        passId: step.passId,
         cursor: step.nextCursor,
         generation: context.generation,
       })
@@ -1309,7 +1418,12 @@ export class PriceMonitorWorker {
     // Events matter only once the gap since the last run has passed.
     const events =
       lastRunAt !== null && now - lastRunAt >= agentEventGapMs(settings)
-        ? readAgentEvents(database, lastRunAt, 0)
+        ? readAgentEvents(
+            database,
+            lastRunAt,
+            0,
+            agentEventKnifeIds(database, settings),
+          )
         : undefined
     const trigger = agentDue({
       settings,
@@ -1501,6 +1615,21 @@ export type QueueSnapshot = {
    * (null for the whole collection).
    */
   scope: { kind: PriceMonitorScopeKind; knives: number | null }
+  /**
+   * The collection pass (knives outside What to monitor, in free time):
+   * null while it is off. `knives`/`done` describe the running pass;
+   * `nextAt` is when the next one may start (it still waits for free time).
+   */
+  collectionPass: {
+    running: boolean
+    /** A round runs, so the pass waits at its knife. */
+    waiting: boolean
+    knives: number
+    done: number
+    currentKnifeId: string | null
+    lastFinishedAt: string | null
+    nextAt: string | null
+  } | null
 }
 
 const iso = (value: number | null) =>
@@ -1626,6 +1755,24 @@ export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
   const step = worker.currentStep
   const nextAt =
     settings.enabled && !current ? nextRoundAt(last, intervalMs, now) : null
+  const pass = readCurrentPass(database)
+  const lastPass = pass ? null : readLastPass(database)
+  const collectionPass: QueueSnapshot['collectionPass'] = collectionPassOn(
+    settings,
+  )
+    ? {
+        running: pass !== null,
+        waiting: pass !== null && current !== null,
+        knives: pass?.knifeIds.length ?? 0,
+        done: pass ? Math.min(pass.cursor, pass.knifeIds.length) : 0,
+        currentKnifeId: step?.kind === 'pass' ? step.knifeId : null,
+        lastFinishedAt: iso(lastPass?.finishedAt ?? null),
+        nextAt:
+          pass || !settings.enabled
+            ? null
+            : iso(Math.max(now, nextPassAt(lastPass, now) ?? now)),
+      }
+    : null
   return {
     running: worker.started,
     scheduled: worker.scheduled,
@@ -1670,5 +1817,6 @@ export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
       kind: settings.scope.kind,
       knives: countMonitorScopeKnives(database, settings.scope),
     },
+    collectionPass,
   }
 }

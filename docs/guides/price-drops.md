@@ -22,6 +22,20 @@ Change the mode for one knife without leaving its page:
 
 The same controls are under **Price monitoring** when you edit the knife.
 
+### Wishlist first, the rest of the collection in free time
+
+**Settings → Price monitoring → What to monitor** decides which knives scheduled rounds cover: the **Wishlist** (the default), **Selected knives**, or the **Whole collection**. Knives outside it are not checked on schedule.
+
+While What to monitor is the Wishlist or Selected knives, turn on **Check the rest of the collection in free time** to watch everything else too, without losing the Wishlist's pace:
+
+- Rounds of What to monitor keep their schedule and always come first. Between them, the rest of the collection is checked knife by knife, at most once a day, with the same pause between knives. When a round falls due, the knife in progress finishes, the round runs, and the collection continues where it stopped.
+- **Other stores** looks for these knives too, at each store's usual search pace.
+- Their prices, drops, and charts appear on **Price Drops** and the knife's **Market** tab like any other monitored knife. The Wishlist page still shows only Wishlist knives.
+- They notify only about a super sale: a price at least **Notify only about a super sale** percent below the knife's regular price (50% by default, from 20 to 90), or a drop to the knife's own target price. Smaller drops, increases, and stock changes do not notify. The setting needs a stored regular price in the store's currency to compare with.
+- A failed check of these knives is not put on the retry list; the next day's pass reads it again. The AI supervisor and the daily summary stay with What to monitor.
+
+The Price Drops header shows the pass, such as **Collection: 40 of 312**, with **waits for the round** while a round runs, or when the next pass starts.
+
 ## Add more stores for a knife
 
 A knife can have up to 10 store sources from any store, including Amazon. Each source keeps its own history and status.
@@ -150,6 +164,8 @@ Choose which changes notify you in **Settings → Notifications → Price drops 
 
 **Minimum amount** also ignores price changes smaller than this many units of the price's own currency, for example 3 to skip moves under $3, €3, or ₴3. A change must pass both the percentage and the amount. The default is 0 (off).
 
+Knives that the collection pass checks (see [Wishlist first, the rest of the collection in free time](#wishlist-first-the-rest-of-the-collection-in-free-time)) follow their own rule: they notify only about a super sale, marked **Super sale · 55% below regular** in the Inbox and titled **Super sale** in desktop notifications.
+
 **Always notify about a new lowest price** (off by default) lets a drop to the lowest price a store has shown for the knife notify even when it is below the minimum percentage. It still needs **Price drops** on, and the minimum amount still applies.
 
 ### Alerts for one knife
@@ -184,7 +200,7 @@ Open **Settings → Price monitoring** to control automatic checks:
 - **Pause between knives** — how long a round waits after one knife before it moves to the next, 1 minute by default. It is also the shortest time between two requests at one store.
 - **Check long out-of-stock pages once a day** (on by default) checks a page that has been out of stock for two weeks or more in at most one round a day, so a restock still shows within a day while stores get fewer requests. **Check now** and **Check all now** still check it right away.
 
-Prices are checked in rounds. A round goes through every monitored knife in order: Wishlist knives first (**Next**, **Saving**, **Someday**, each in its own order), then the rest by when they were added. For each knife, all of its stores are checked at the same time, and every turned-on [other store](#find-knives-at-other-stores-with-ai) where it has no listing yet is searched; a listing found that way gets its first price in the same step. Then the round pauses and moves to the next knife. A restart continues the round where it stopped.
+Prices are checked in rounds. A round goes through every knife that What to monitor covers, in order: Wishlist knives first (**Next**, **Saving**, **Someday**, each in its own order), then the rest by when they were added. For each knife, all of its stores are checked at the same time, and every turned-on [other store](#find-knives-at-other-stores-with-ai) where it has no listing yet is searched; a listing found that way gets its first price in the same step. Then the round pauses and moves to the next knife. A restart continues the round where it stopped.
 
 A store that is not ready for a knife is skipped: it is paused, it is waiting out a Retry-After or a bot-check pause, or its own gap since the last request (for example 15 minutes between searches at KnifeJoy) is not over within 2 minutes. Skipped stores, checks that fail, are blocked, or read no price, and searches that fail or are blocked go on the **retry list**. When the round ends, the retry list is tried at random times between the end of the round and 10 minutes before the next one; with [AI](#optional-ai-assistance) connected, those checks may use AI right away instead of waiting for their usual AI pause. What fails again waits for the next round's retry list.
 

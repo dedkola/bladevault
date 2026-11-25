@@ -16,6 +16,12 @@ import {
   type PriceNotificationContext,
   type PriceNotificationView,
 } from '@/lib/price-monitor/notifications'
+import { readMonitorScopeKnifeIds } from '@/lib/price-monitor/scope'
+import type { MonitorTier } from '@/lib/price-monitor/shared'
+import {
+  isCollectionPassOn,
+  type PriceMonitoringSettings,
+} from '@/lib/settings-shared'
 import { withVaultWrite } from '@/lib/vault-access'
 
 type PriceNotificationRow = {
@@ -32,6 +38,7 @@ type PriceNotificationRow = {
   dismissed_at: string | null
   resolved_at: string | null
   snoozed_until: string | null
+  super_sale: number | null
 }
 
 /** Excludes AI-unconfirmed readings, like store.ts does. */
@@ -151,10 +158,33 @@ function countActiveStores(
 }
 
 /**
+ * Whether a knife notifies as part of the collection pass: the pass is on
+ * and the knife is outside What to monitor.
+ */
+function readAlertTier(
+  database: Database.Database,
+  knifeId: string,
+  settings: Partial<Pick<PriceMonitoringSettings, 'scope' | 'collectionPass'>>,
+): MonitorTier {
+  if (
+    !settings.scope ||
+    !settings.collectionPass ||
+    !isCollectionPassOn({
+      scope: settings.scope,
+      collectionPass: settings.collectionPass,
+    })
+  )
+    return 'scope'
+  const ids = readMonitorScopeKnifeIds(database, settings.scope)
+  return ids && !ids.has(knifeId) ? 'collection' : 'scope'
+}
+
+/**
  * The alert rules, regular price, source mute, previous lowest price and
  * the knife's other stores in stock the planner needs for one source's
  * events. `excludeSnapshotId` leaves the reading being recorded out of the
- * lowest price.
+ * lowest price. With `settings`, a knife of the collection pass is marked
+ * so only a super sale notifies.
  */
 export function readPriceAlertContext(
   database: Database.Database,
@@ -163,6 +193,9 @@ export function readPriceAlertContext(
     sourceId: number
     currency: string | null
     excludeSnapshotId?: number | null
+    settings?: Partial<
+      Pick<PriceMonitoringSettings, 'scope' | 'collectionPass'>
+    >
   },
 ): PriceAlertContext {
   const source = database
@@ -188,6 +221,9 @@ export function readPriceAlertContext(
       input.knifeId,
       input.sourceId,
     ),
+    tier: input.settings
+      ? readAlertTier(database, input.knifeId, input.settings)
+      : 'scope',
   }
 }
 
@@ -230,6 +266,7 @@ export function readPriceNotifications(
             dismissedAt: row.dismissed_at,
             resolvedAt: row.resolved_at,
             snoozedUntil: row.snoozed_until,
+            superSale: row.super_sale === 1,
           },
         ]
       : [],
@@ -248,15 +285,15 @@ export function writePriceNotificationChanges(
     `UPDATE price_notifications
      SET knife_id = ?, event_id = ?, occurrences = ?, occurred_at = ?,
          updated_at = ?, read_at = ?, dismissed_at = ?, resolved_at = ?,
-         snoozed_until = ?
+         snoozed_until = ?, super_sale = ?
      WHERE id = ?`,
   )
   const insert = database.prepare(
     `INSERT INTO price_notifications
        (knife_id, source_id, event_id, kind, occurrences, occurred_at,
         created_at, updated_at, read_at, dismissed_at, resolved_at,
-        snoozed_until)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        snoozed_until, super_sale)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
   const remove = database.prepare(
     'DELETE FROM price_notifications WHERE id = ?',
@@ -273,6 +310,7 @@ export function writePriceNotificationChanges(
       row.dismissedAt,
       row.resolvedAt,
       row.snoozedUntil,
+      row.superSale ? 1 : 0,
       row.id,
     )
   }
@@ -290,6 +328,7 @@ export function writePriceNotificationChanges(
       row.dismissedAt,
       row.resolvedAt,
       row.snoozedUntil,
+      row.superSale ? 1 : 0,
     )
   }
 }
