@@ -13,6 +13,7 @@ BladeVault exposes its existing local collection to MCP clients such as LM Studi
 | `find_missing_fields`   | Find knives with missing built-in or custom fields                   | Read-only  |
 | `find_duplicates`       | Score possible duplicate records without merging or deleting         | Read-only  |
 | `propose_changes`       | Validate suggested values without modifying the collection           | Read-only  |
+| `add_knife`             | Preview and add one new knife, with a duplicate check                | Write mode |
 | `update_knife`          | Apply a timestamp-checked metadata update to one knife               | Write mode |
 | `bulk_update_knives`    | Preview and atomically apply explicit multi-knife updates            | Write mode |
 | `get_knife_maintenance` | Retrieve maintenance history for one knife                           | Read-only  |
@@ -28,6 +29,8 @@ BladeVault exposes its existing local collection to MCP clients such as LM Studi
 Open **Settings → AI / MCP** to review activity, copy the local client configuration, enable or disable HTTP access, and allow or deny write access. Write mode is off by default.
 
 Metadata updates require the expected record timestamp to prevent overwriting newer edits. They are recorded in the change log. Maintenance writes append dated events to a knife's history. Price monitoring writes change only the knife's monitoring mode and store sources. MCP cannot replace knife IDs, record timestamps, images, or entire records.
+
+`add_knife` previews by default and saves nothing. The preview returns the cleaned record, possible duplicates (same name and brand, or same model number), and a `preview_hash`. To add the knife, repeat the same request with `apply: true` and that hash. A possible duplicate blocks the add unless `allow_duplicate` is `true`, and a change made after the preview makes the hash stale. Images are not added through MCP; add photos in the app.
 
 ## Achievements
 
