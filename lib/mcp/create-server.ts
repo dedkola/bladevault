@@ -29,6 +29,7 @@ import {
   requestKnifePriceCheck,
   updatePriceWatch,
 } from '@/lib/services/price-service'
+import { addKnifeFromMcp } from '@/lib/services/knife-create-service'
 import { getAchievementReport } from '@/lib/services/achievements-service'
 import { ACHIEVEMENT_CATEGORIES } from '@/lib/achievements/catalog'
 import { HISTORY_RANGES } from '@/lib/price-monitor/insights'
@@ -108,7 +109,7 @@ export type BladeVaultMcpServerOptions = {
 }
 
 export const BLADEVAULT_MCP_INSTRUCTIONS =
-  'BladeVault manages one local knife collection. Read records before changing them. Use propose_changes for candidate metadata, then preview bulk_update_knives before applying it. Updates require the latest updatedAt value. Never infer that duplicate candidates should be deleted, and never claim propose_changes modifies data. For store price monitoring, read get_price_watch before preview-then-apply changes with update_price_watch; request_price_check only queues checks at each store’s normal pace.'
+  'BladeVault manages one local knife collection. Read records before changing them. To add a knife, search first, preview add_knife, show the preview to the user, then apply it with the returned preview_hash. Use propose_changes for candidate metadata, then preview bulk_update_knives before applying it. Updates require the latest updatedAt value. Never infer that duplicate candidates should be deleted, and never claim propose_changes modifies data. For store price monitoring, read get_price_watch before preview-then-apply changes with update_price_watch; request_price_check only queues checks at each store’s normal pace.'
 
 export function createBladeVaultMcpServer(
   transport: McpTransport,
@@ -323,6 +324,81 @@ export function createBladeVaultMcpServer(
           transport,
         })
         if (apply) recordMcpWrite()
+        return result
+      }),
+  )
+
+  const textField = z.string().max(500).optional()
+  server.registerTool(
+    'add_knife',
+    {
+      title: 'Preview or add a new knife',
+      description:
+        'Add one new knife to the collection. Preview is the default and saves nothing; it returns the normalized record, possible duplicates, and a preview_hash. Show the preview to the user, then repeat the same request with apply: true and that preview_hash. Images are not added through MCP.',
+      inputSchema: z.object({
+        name: z.string().min(1).max(200),
+        brand: textField,
+        blade_style: textField,
+        handle_material: textField,
+        description: z.string().max(5000).optional(),
+        source_url: z.string().max(2048).optional(),
+        specs: z
+          .object({
+            weight: textField,
+            overall_length: textField,
+            blade_length: textField,
+            blade_thickness: textField,
+            blade_coating: textField,
+            blade_material: textField,
+            locking_mechanism: textField,
+            designer: textField,
+            model_number: textField,
+            handle_length: textField,
+            hardness: textField,
+            price: textField,
+            country: textField,
+          })
+          .default({}),
+        apply: z.boolean().default(false),
+        preview_hash: z.string().optional(),
+        allow_duplicate: z.boolean().default(false),
+      }),
+      annotations: writeAnnotations,
+    },
+    (input) =>
+      runTool(transport, async () => {
+        if (input.apply) requireMcpWrites()
+        const s = input.specs
+        const result = await addKnifeFromMcp({
+          knife: {
+            name: input.name,
+            brand: input.brand,
+            bladeStyle: input.blade_style,
+            handleMaterial: input.handle_material,
+            description: input.description,
+            sourceUrl: input.source_url,
+            specs: {
+              weight: s.weight,
+              overallLength: s.overall_length,
+              bladeLength: s.blade_length,
+              bladeThickness: s.blade_thickness,
+              bladeCoating: s.blade_coating,
+              bladeMaterial: s.blade_material,
+              lockingMechanism: s.locking_mechanism,
+              designer: s.designer,
+              modelNumber: s.model_number,
+              handleLength: s.handle_length,
+              hardness: s.hardness,
+              price: s.price,
+              country: s.country,
+            },
+          },
+          apply: input.apply,
+          previewHash: input.preview_hash,
+          allowDuplicate: input.allow_duplicate,
+          transport,
+        })
+        if (result.applied) recordMcpWrite()
         return result
       }),
   )
