@@ -1,9 +1,25 @@
 'use client'
 
-import { useId, useMemo, useState, type PointerEvent } from 'react'
+import {
+  useCallback,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent,
+} from 'react'
 import Link from 'next/link'
 import { Popover } from '@base-ui/react/popover'
-import { Bell, BellOff, ChartLine, Heart, Loader2, Plus, X } from 'lucide-react'
+import {
+  ArrowUpRight,
+  Bell,
+  BellOff,
+  ChartLine,
+  Heart,
+  Loader2,
+  Plus,
+  X,
+} from 'lucide-react'
 import Image from '@/components/vault-image'
 import { EmptyState } from '@/components/empty-state'
 import { PageHeader } from '@/components/page-header'
@@ -26,19 +42,24 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { getImageUrl, type Knife } from '@/lib/data'
+import { getSafeExternalUrl } from '@/lib/external-url'
 import {
   announcePriceDataUpdated,
   type KnifeMarketSummary,
 } from '@/lib/market-status'
-import { parseStoredPrice, toMinorUnits } from '@/lib/price-monitor/money'
+import {
+  fromMinorUnits,
+  parseStoredPrice,
+  toMinorUnits,
+} from '@/lib/price-monitor/money'
 import {
   WISHLIST_DEAL_LABELS,
   WISHLIST_DEALS,
   priceChange,
   rangePosition,
-  trendChange,
   wishlistDeal,
   wishlistMoves,
+  wishlistStorePrices,
   wishlistTrackedDays,
   wishlistTrendDirection,
   type WishlistDeal,
@@ -61,9 +82,7 @@ type Row = {
   regularMinor: number | null
   /** Store price vs regular price: -0.2 is 20% below. */
   vsRegular: number | null
-  /** Change over the last 30 days of store prices. */
-  change30: number | null
-  /** Price range for the bar: 90-day store low/high, today's and regular price. */
+  /** Price range: 90-day store low/high, today's and regular price. */
   rangeLow: number | null
   rangeHigh: number | null
   /** Where today's price sits in that range, 0 = low, 1 = high. */
@@ -98,7 +117,7 @@ function buildRow(
   }
   const vsRegular = live ? priceChange(priceMinor, regularMinor) : null
   const sameCurrency = live && trend?.currency === currency
-  // The regular price widens the range, so a discount shows on the bar even
+  // The regular price widens the range, so a discount shows in it even
   // before the store history has moved.
   const bounds = live
     ? [
@@ -120,7 +139,6 @@ function buildRow(
     live,
     regularMinor,
     vsRegular,
-    change30: sameCurrency ? trendChange(trend) : null,
     rangeLow,
     rangeHigh,
     rangePos: rangePosition(priceMinor, rangeLow, rangeHigh),
@@ -166,31 +184,51 @@ function storesLabel(sources: number) {
   return `${sources} ${sources === 1 ? 'store' : 'stores'}`
 }
 
+/** "$215" for compact range and chart labels. */
+function wholeMoney(minor: number, currency: string | null): string {
+  if (!currency) return '—'
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(fromMinorUnits(minor, currency))
+  } catch {
+    return money(minor, currency)
+  }
+}
+
 /**
- * "3 of 6 stores": opens where the knife is sold, store by store (its
- * store links, and what Other stores found at each searched store).
+ * "3 of 6 stores" (or `label`, e.g. "+2 more"): opens where the knife is
+ * sold, store by store (its store links, and what Other stores found at
+ * each searched store).
  */
-function StoresButton({ row }: { row: Row }) {
+function StoresButton({ row, label }: { row: Row; label?: string }) {
   const { stores } = useWishlist()
   const now = useMinuteClock()
   const entries = stores[row.knife.id]
   if (!entries)
-    return (
+    return label ? null : (
       <>
         {row.summary?.sources
           ? storesLabel(row.summary.sources)
           : 'No store links'}
       </>
     )
-  const label = knifeStoresLabel(entries)
+  const storesText = knifeStoresLabel(entries)
   return (
     <Popover.Root>
       <Popover.Trigger
         type="button"
         data-wishlist-stores
-        aria-label={`${label} for ${knifeTitle(row.knife)}: show each store`}
+        aria-label={
+          label
+            ? `${label} stores for ${knifeTitle(row.knife)}: show each store`
+            : `${storesText} for ${knifeTitle(row.knife)}: show each store`
+        }
       >
-        {label}
+        {label ?? storesText}
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner
@@ -282,6 +320,7 @@ function DealPills({ row }: { row: Row }) {
 
 /** Smallest vertical range of a row chart, as a share of its highest price. */
 const SPARK_MIN_SPREAD = 0.04
+const SPARK_HEIGHT = 44
 
 /** "21 Nov" for the snapshot that introduced a move. */
 function moveDate(at: number): string {
@@ -303,25 +342,40 @@ function chipLabel(net: number, base: number): string {
   return `${net < 0 ? '▼' : '▲'} ${share ? `${share}%` : '<1%'}`
 }
 
+/** An element's content width, kept current as it resizes; null until measured. */
+function useElementWidth() {
+  const [width, setWidth] = useState<number | null>(null)
+  const observer = useRef<ResizeObserver | null>(null)
+  const ref = useCallback((element: HTMLElement | null) => {
+    observer.current?.disconnect()
+    observer.current = null
+    if (!element) return
+    observer.current = new ResizeObserver(([entry]) =>
+      setWidth(Math.round(entry.contentRect.width)),
+    )
+    observer.current.observe(element)
+  }, [])
+  return [ref, width] as const
+}
+
 /**
  * Best store price while the knife has been tracked, drawn as a stock-style
- * step "mountain" (a price holds until the next check) scaled to its own
- * history, with a chip for the net change over the window. Hovering moves a
- * crosshair and swaps the footer for the price on that day. The footer
- * otherwise names the window and the last move, so a two-day chart does not
- * read like a month.
+ * step "mountain" (a price holds until the next check) that fills its
+ * column, scaled to its own history and the regular price, which shows as a
+ * dashed line. A chip gives the net change over the window, and the axis
+ * names the window and the last move, so a two-day chart does not read like
+ * a month. Hovering moves a crosshair with the price on that day.
  */
 function Sparkline({
   row,
-  width = 110,
-  height = 36,
+  height = SPARK_HEIGHT,
 }: {
   row: Row
-  width?: number
   height?: number
 }) {
   const gradientId = `wl-spark-${useId().replace(/:/g, '')}`
   const [hoverAt, setHoverAt] = useState<number | null>(null)
+  const [boxRef, width] = useElementWidth()
   const trend = row.trend
   if (!trend) return <span data-wishlist-spark-empty>Not tracked yet</span>
   const steps = trend.steps
@@ -341,30 +395,38 @@ function Sparkline({
   const stockNote = current === null ? ', out of stock now' : ''
   const first = priced[0].price
   const net = priced[priced.length - 1].price - first
+  const regular =
+    row.regularMinor !== null && row.currency === trend.currency
+      ? row.regularMinor
+      : null
 
-  // Scale to the history, but never tighter than a few percent of the price,
-  // so a $1 move on a $200 knife does not look like a crash.
-  const high = Math.max(...priced.map((step) => step.price))
-  const low = Math.min(...priced.map((step) => step.price))
+  // Scale to the history and the regular price, but never tighter than a few
+  // percent of the price, so a $1 move on a $200 knife does not look like a
+  // crash.
+  const values = priced.map((step) => step.price)
+  if (regular !== null) values.push(regular)
+  const high = Math.max(...values)
+  const low = Math.min(...values)
   const spread = Math.max(high - low, high * SPARK_MIN_SPREAD, 1)
   const middle = (high + low) / 2
-  const bottom = middle - spread * 0.7
-  const range = spread * 1.4
+  const top = middle + spread * 0.62
+  const range = spread * 1.24
   const span = Math.max(trend.until - trend.since, 1)
-  const plot = width - 8
+  const plot = Math.max((width ?? 0) - 4, 1)
   const x = (at: number) => ((at - trend.since) / span) * plot + 2
-  const y = (price: number) =>
-    height - 4 - ((price - bottom) / range) * (height - 10)
+  const y = (price: number) => 2 + ((top - price) / range) * (height - 4)
 
-  // One path per in-stock stretch; out of stock leaves a gap.
-  const runs: Array<{ line: string; from: number; to: number }> = []
+  // One path per in-stock stretch; out of stock leaves a shaded gap.
+  const runs: Array<{ line: string; from: number }> = []
+  const gaps: Array<{ from: number; to: number }> = []
   let line = ''
   let from = 0
   steps.forEach((step, index) => {
     const next = steps[index + 1]?.at ?? trend.until
     if (step.price === null) {
-      if (line) runs.push({ line, from, to: x(step.at) })
+      if (line) runs.push({ line, from })
       line = ''
+      gaps.push({ from: x(step.at), to: x(next) })
       return
     }
     const py = y(step.price).toFixed(1)
@@ -373,86 +435,137 @@ function Sparkline({
       ? ` V${py} H${x(next).toFixed(1)}`
       : `M${from.toFixed(1)},${py} H${x(next).toFixed(1)}`
   })
-  if (line) runs.push({ line, from, to: x(trend.until) })
+  if (line) runs.push({ line, from })
 
   // The step showing at the hovered time: the last one that started by then.
   const hovered =
     hoverAt === null
       ? null
       : (steps.findLast((step) => step.at <= hoverAt) ?? steps[0])
-  const moveHover = (event: PointerEvent<SVGSVGElement>) => {
+  const moveHover = (event: PointerEvent<HTMLDivElement>) => {
     const box = event.currentTarget.getBoundingClientRect()
-    const px = ((event.clientX - box.left) / box.width) * width
-    const share = Math.min(Math.max((px - 2) / plot, 0), 1)
+    const share = Math.min(
+      Math.max((event.clientX - box.left - 2) / plot, 0),
+      1,
+    )
     setHoverAt(trend.since + share * span)
   }
 
   const summary = moves.length
     ? `net ${net < 0 ? 'down' : 'up'} ${money(Math.abs(net), trend.currency)}, last change ${change!.delta < 0 ? 'down' : 'up'} ${money(Math.abs(change!.delta), trend.currency)} on ${moveDate(change!.at)}`
     : 'no price change'
+  const regularY = regular === null ? 0 : y(regular)
 
   return (
-    <>
+    <div data-wishlist-spark-cell>
       <div data-wishlist-spark-row>
-        <svg
-          data-wishlist-spark={direction}
-          width={width}
-          height={height}
-          viewBox={`0 0 ${width} ${height}`}
-          role="img"
-          aria-label={`Best store price over ${dayText}: ${summary}${stockNote}`}
+        <div
+          ref={boxRef}
+          data-wishlist-spark-box
           onPointerMove={moveHover}
           onPointerLeave={() => setHoverAt(null)}
         >
-          <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" data-wishlist-spark-stop="top" />
-              <stop offset="1" data-wishlist-spark-stop="bottom" />
-            </linearGradient>
-          </defs>
-          {runs.map((run) => (
-            <path
-              key={`fill-${run.line}`}
-              d={`${run.line} V${height} H${run.from.toFixed(1)} Z`}
-              fill={`url(#${gradientId})`}
-            />
-          ))}
-          {runs.map((run) => (
-            <path
-              key={run.line}
-              data-wishlist-spark-line
-              d={run.line}
-              fill="none"
-            />
-          ))}
-          {hoverAt !== null && (
-            <line
-              data-wishlist-spark-cross
-              x1={x(hoverAt).toFixed(1)}
-              x2={x(hoverAt).toFixed(1)}
-              y1="0"
-              y2={height}
-            />
+          {width !== null && (
+            <svg
+              data-wishlist-spark={direction}
+              width={width}
+              height={height}
+              viewBox={`0 0 ${width} ${height}`}
+              role="img"
+              aria-label={`Best store price over ${dayText}: ${summary}${stockNote}`}
+            >
+              <defs>
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" data-wishlist-spark-stop="top" />
+                  <stop offset="1" data-wishlist-spark-stop="bottom" />
+                </linearGradient>
+              </defs>
+              {gaps.map((gap) => (
+                <rect
+                  key={`gap-${gap.from}`}
+                  data-wishlist-spark-gap
+                  x={gap.from.toFixed(1)}
+                  y="0"
+                  width={Math.max(gap.to - gap.from, 0).toFixed(1)}
+                  height={height}
+                />
+              ))}
+              {runs.map((run) => (
+                <path
+                  key={`fill-${run.line}`}
+                  d={`${run.line} V${height} H${run.from.toFixed(1)} Z`}
+                  fill={`url(#${gradientId})`}
+                />
+              ))}
+              {regular !== null && (
+                <g data-wishlist-spark-regular>
+                  <line
+                    x1="2"
+                    x2={width - 2}
+                    y1={regularY.toFixed(1)}
+                    y2={regularY.toFixed(1)}
+                  />
+                  {/* Below the line when it runs along the top edge. */}
+                  <text
+                    x={width - 4}
+                    y={(regularY < 12 ? regularY + 11 : regularY - 3).toFixed(
+                      1,
+                    )}
+                    textAnchor="end"
+                  >
+                    regular {wholeMoney(regular, trend.currency)}
+                  </text>
+                </g>
+              )}
+              {runs.map((run) => (
+                <path
+                  key={run.line}
+                  data-wishlist-spark-line
+                  d={run.line}
+                  fill="none"
+                />
+              ))}
+              {hoverAt !== null && (
+                <line
+                  data-wishlist-spark-cross
+                  x1={x(hoverAt).toFixed(1)}
+                  x2={x(hoverAt).toFixed(1)}
+                  y1="0"
+                  y2={height}
+                />
+              )}
+              {hovered && hovered.price !== null ? (
+                <circle
+                  data-wishlist-spark-dot
+                  cx={x(hoverAt!).toFixed(1)}
+                  cy={y(hovered.price).toFixed(1)}
+                  r="3.5"
+                />
+              ) : (
+                !hovered &&
+                current !== null && (
+                  <circle
+                    data-wishlist-spark-dot
+                    cx={x(trend.until).toFixed(1)}
+                    cy={y(current).toFixed(1)}
+                    r="3.5"
+                  />
+                )
+              )}
+            </svg>
           )}
-          {hovered && hovered.price !== null ? (
-            <circle
-              data-wishlist-spark-dot
-              cx={x(hoverAt!).toFixed(1)}
-              cy={y(hovered.price).toFixed(1)}
-              r="3"
-            />
-          ) : (
-            !hovered &&
-            current !== null && (
-              <circle
-                data-wishlist-spark-dot
-                cx={x(trend.until).toFixed(1)}
-                cy={y(current).toFixed(1)}
-                r="3"
-              />
-            )
+          {hovered && (
+            <span
+              data-wishlist-spark-tip
+              style={{ left: `${x(hoverAt!).toFixed(1)}px` }}
+            >
+              {moveDate(Math.max(hoverAt!, trend.since))} ·{' '}
+              {hovered.price === null
+                ? 'Out of stock'
+                : money(hovered.price, trend.currency)}
+            </span>
           )}
-        </svg>
+        </div>
         <span
           data-wishlist-spark-chip={direction}
           title={
@@ -464,62 +577,97 @@ function Sparkline({
           {chipLabel(net, first)}
         </span>
       </div>
-      <span data-wishlist-sub data-wishlist-trend-note>
-        {hovered ? (
-          <>
-            <span>{moveDate(Math.max(hoverAt!, trend.since))}</span>
-            <b data-wishlist-spark-hover>
-              {hovered.price === null
-                ? 'Out of stock'
-                : money(hovered.price, trend.currency)}
-            </b>
-          </>
+      <div data-wishlist-spark-axis>
+        <span>
+          {moveDate(trend.since)} · {days}d tracked
+        </span>
+        {change ? (
+          <span data-wishlist-change={change.delta < 0 ? 'down' : 'up'}>
+            {moveLabel(change, trend.currency)}
+          </span>
         ) : (
-          <>
-            <span>{days}d tracked</span>
-            {change && (
-              <span data-wishlist-change={change.delta < 0 ? 'down' : 'up'}>
-                {moveLabel(change, trend.currency)}
-              </span>
-            )}
-          </>
+          <span>no change</span>
         )}
-      </span>
-    </>
+        <span>today</span>
+      </div>
+    </div>
   )
 }
 
-/** The 90-day low–high range, with today's price and the regular price. */
-function RangeBar({ row }: { row: Row }) {
-  const { rangeLow: low, rangeHigh: high, currency } = row
-  if (low === null || high === null)
-    return <div data-wishlist-range aria-hidden />
-  const flat = high <= low
-  const at = (value: number) => (flat ? 0 : (value - low) / (high - low))
-  const regular = row.regularMinor
+/** How many of the cheapest stores a row lists. */
+const BEST_STORES = 3
+
+/**
+ * The cheapest stores selling the knife now, each linking to its store
+ * page, with the gap to the cheapest; "+N more" opens every store.
+ */
+function BestStores({ row }: { row: Row }) {
+  const { stores } = useWishlist()
+  const entries = stores[row.knife.id]
+  const prices = wishlistStorePrices(entries, row.currency)
+  if (!prices.length)
+    return (
+      <span data-wishlist-sub>
+        {entries?.length || row.summary?.sources
+          ? 'No store has it in stock'
+          : 'Add a store link to compare'}
+      </span>
+    )
+  const best = prices[0].priceMinor
+  const shown = prices.slice(0, BEST_STORES)
+  const more = (entries?.length ?? prices.length) - shown.length
   return (
-    <div
-      data-wishlist-range
-      role="img"
-      aria-label={
-        flat
-          ? `${money(low, currency)}, no price change yet`
-          : `Price range ${money(low, currency)} to ${money(high, currency)}, now ${money(row.priceMinor, currency)}`
-      }
-    >
-      <div data-wishlist-range-track data-flat={flat || undefined}>
-        {regular !== null && !flat && (
-          <b style={{ left: `${at(regular) * 100}%` }} title="Regular price" />
-        )}
-        {row.priceMinor !== null && (
-          <i style={{ left: `${at(row.priceMinor) * 100}%` }} />
-        )}
-      </div>
-      <div data-wishlist-range-ends>
-        <span>{money(low, currency)}</span>
-        <span>{flat ? 'no change yet' : money(high, currency)}</span>
-      </div>
+    <div data-wishlist-best-stores>
+      <ul aria-label={`Cheapest stores for ${knifeTitle(row.knife)}`}>
+        {shown.map((price) => {
+          const url = getSafeExternalUrl(price.url)
+          const diff = price.priceMinor - best
+          const content = (
+            <>
+              <span data-wishlist-store-name>
+                {price.label}
+                <ArrowUpRight aria-hidden className="size-3 shrink-0" />
+              </span>
+              <b>{money(price.priceMinor, row.currency)}</b>
+              <span data-wishlist-store-diff>
+                {diff ? `+${money(diff, row.currency)}` : 'best'}
+              </span>
+            </>
+          )
+          return (
+            <li key={price.key} data-best={!diff || undefined}>
+              {url ? (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`Open ${price.label}`}
+                >
+                  {content}
+                </a>
+              ) : (
+                <span>{content}</span>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      {more > 0 && <StoresButton row={row} label={`+${more} more`} />}
     </div>
+  )
+}
+
+/** "90-day $122–$215": the range the price moved in, with the regular price. */
+function RangeNote({ row }: { row: Row }) {
+  const { rangeLow: low, rangeHigh: high, currency } = row
+  if (low === null || high === null || high <= low) return null
+  return (
+    <span
+      data-wishlist-sub
+      title="Lowest and highest store price in the last 90 days, with the regular price"
+    >
+      90-day {wholeMoney(low, currency)}–{wholeMoney(high, currency)}
+    </span>
   )
 }
 
@@ -673,7 +821,7 @@ function DealGroups({ rows }: { rows: Row[] }) {
               {groupRows.map((row) => (
                 <li key={row.knife.id} data-wishlist-row>
                   <Thumb knife={row.knife} size="sm" />
-                  <div className="min-w-0">
+                  <div data-wishlist-row-info className="min-w-0">
                     <Link
                       href={`/collection/${encodeURIComponent(row.knife.id)}?tab=market`}
                       data-wishlist-name
@@ -693,9 +841,10 @@ function DealGroups({ rows }: { rows: Row[] }) {
                     <span data-wishlist-sub>
                       <PriceNote row={row} />
                     </span>
+                    <RangeNote row={row} />
                   </div>
-                  <div data-wishlist-row-range>
-                    <RangeBar row={row} />
+                  <div data-wishlist-row-stores>
+                    <BestStores row={row} />
                   </div>
                   <div data-wishlist-row-trend>
                     <Sparkline row={row} />
@@ -772,62 +921,48 @@ function Summary({ rows, currency }: { rows: Row[]; currency: string }) {
   )
 }
 
-function BestDeal({ rows }: { rows: Row[] }) {
-  const { mutate, busy } = useWishlist()
-  const { showFeedback } = useKnives()
+/** How many deal cards the page leads with. */
+const BEST_DEALS = 3
+const DEAL_EYEBROWS = ['Best deal right now', '2nd best deal', '3rd best deal']
+
+/** The biggest discounts as compact cards; each opens the knife's prices. */
+function BestDeals({ rows }: { rows: Row[] }) {
   const best = rows
     .filter((row) => row.deal === 'sale' && row.regularMinor !== null)
-    .sort(compareDeals)[0]
-  if (!best) return null
-  const saved = best.regularMinor! - best.priceMinor!
+    .sort(compareDeals)
+    .slice(0, BEST_DEALS)
+  if (!best.length) return null
   return (
-    <section data-wishlist-hero>
-      <Thumb knife={best.knife} size="lg" />
-      <div className="min-w-0">
-        <div data-wishlist-eyebrow>Best deal right now</div>
-        <h2>{knifeTitle(best.knife)}</h2>
-        <div data-wishlist-hero-price>
-          <span data-wishlist-big>{money(best.priceMinor, best.currency)}</span>
-          <s data-wishlist-sub>{money(best.regularMinor, best.currency)}</s>
-          <DealPills row={best} />
-        </div>
-        <div data-wishlist-sub>
-          {money(saved, best.currency)} below regular price
-          {best.change30 !== null && best.change30 < 0
-            ? ` · ${pct(best.change30)} in 30 days`
-            : ''}{' '}
-          · <StoresButton row={best} />
-        </div>
-      </div>
-      <div data-wishlist-hero-actions>
-        <Button
-          render={
-            <Link
-              href={`/price-drops?knife=${encodeURIComponent(best.knife.id)}`}
-            />
-          }
-          nativeButton={false}
-        >
-          See store prices
-        </Button>
-        <Button
-          variant="outline"
-          disabled={busy}
-          onClick={() =>
-            void mutate(
-              { action: 'remove', knifeIds: [best.knife.id] },
-              `Bought ${best.knife.name} — removed from the wishlist`,
-            ).catch((error) =>
-              showFeedback(
-                error instanceof Error ? error.message : 'Could not update.',
-                'error',
-              ),
-            )
-          }
-        >
-          Bought it
-        </Button>
-      </div>
+    <section data-wishlist-deals aria-label="Best deals">
+      {best.map((row, index) => {
+        const title = knifeTitle(row.knife)
+        const price = money(row.priceMinor, row.currency)
+        return (
+          <Link
+            key={row.knife.id}
+            href={`/price-drops?knife=${encodeURIComponent(row.knife.id)}`}
+            data-wishlist-deal
+            aria-label={`${DEAL_EYEBROWS[index]}: ${title}, ${price}. See store prices`}
+          >
+            <Thumb knife={row.knife} size="lg" />
+            <div className="min-w-0">
+              <div data-wishlist-eyebrow>{DEAL_EYEBROWS[index]}</div>
+              <h2>{title}</h2>
+              <div data-wishlist-deal-price>
+                <span data-wishlist-big>{price}</span>
+                <s data-wishlist-sub>{money(row.regularMinor, row.currency)}</s>
+              </div>
+              <div data-wishlist-pills>
+                <DealPills row={row} />
+              </div>
+              <div data-wishlist-sub>
+                {money(row.regularMinor! - row.priceMinor!, row.currency)} below
+                regular price
+              </div>
+            </div>
+          </Link>
+        )
+      })}
     </section>
   )
 }
@@ -1011,7 +1146,7 @@ export function WishlistView() {
       ) : (
         <>
           <Summary rows={rows} currency={currency} />
-          <BestDeal rows={rows} />
+          <BestDeals rows={rows} />
           <DealGroups rows={rows} />
         </>
       )}

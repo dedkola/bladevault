@@ -252,3 +252,44 @@ export function wishlistSummaryDeal(
       : null,
   })
 }
+
+/** A store selling the knife now, for a row's "Best stores" list. */
+export type WishlistStorePrice = {
+  key: string
+  label: string
+  url: string
+  priceMinor: number
+}
+
+/**
+ * Stores selling the knife now in `currency`, cheapest first: enabled
+ * listings with a price that are not out of stock (the same sources the
+ * market summary's best price comes from).
+ */
+export function wishlistStorePrices(
+  entries: readonly KnifeStoreEntry[] | undefined,
+  currency: string | null,
+): WishlistStorePrice[] {
+  if (!entries || !currency) return []
+  const prices: WishlistStorePrice[] = []
+  for (const entry of entries) {
+    const source = entry.source
+    if (
+      entry.state !== 'listed' ||
+      !source?.enabled ||
+      source.priceMinor === null ||
+      source.currency !== currency ||
+      source.availability === 'out_of_stock'
+    )
+      continue
+    prices.push({
+      key: entry.laneKey,
+      label: entry.label,
+      url: source.url,
+      priceMinor: source.priceMinor,
+    })
+  }
+  return prices.sort(
+    (a, b) => a.priceMinor - b.priceMinor || a.label.localeCompare(b.label),
+  )
+}
