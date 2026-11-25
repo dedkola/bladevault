@@ -57,6 +57,20 @@ Claude Desktop only starts local MCP servers, so a `url` entry in its config is 
 
 The entry runs a small bridge (`mcp-stdio.cjs`) with the Electron runtime BladeVault already ships, so Node.js isn't needed. The bridge forwards each request to the running app, which still handles every read and write, so write access, timestamp checks, and the change log work as usual. It finds the app's port and token in `mcp-endpoint.json` in BladeVault's app data folder. If BladeVault is closed, Claude Desktop keeps the server listed and tool calls return a message asking you to open the app. On macOS, move BladeVault to Applications before connecting.
 
+### Claude Desktop with Docker, a LAN server, or a source checkout
+
+Outside the desktop app, **Settings → AI / MCP** shows a **Claude Desktop** config with **Copy config**. It runs [`mcp-remote`](https://github.com/geelen/mcp-remote) through `npx` as a local bridge to BladeVault's HTTP endpoint, so Node.js must be installed on the computer running Claude Desktop. Add the `bladevault` entry to `mcpServers` in `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/`, Windows: `%APPDATA%\Claude\`), keep your other servers, then quit Claude Desktop completely and reopen it. The token is passed through `env` because Claude Desktop on Windows doesn't escape spaces in `args`. For plain HTTP to another machine the config adds `--allow-http`, so use it only on a network you trust.
+
+## Connect Claude Code
+
+Outside the desktop app, **Settings → AI / MCP** also shows a **Claude Code** command:
+
+```bash
+claude mcp add --transport http --scope user bladevault http://<SERVER_IP>:5500/mcp --header "Authorization: Bearer <TOKEN_FROM_BLADEVAULT_SETTINGS>"
+```
+
+`--scope user` makes BladeVault available in every project. Check it with `claude mcp list`.
+
 ## Connect an MCP client
 
 Client configuration formats differ. Open **Settings → AI / MCP** through the address you want to use and select **Copy config**, or copy the displayed URL and token into your client's settings. For clients that accept an `mcpServers` JSON configuration:

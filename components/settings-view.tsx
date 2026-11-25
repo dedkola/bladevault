@@ -82,6 +82,10 @@ import { ScreenshotBackfill } from '@/components/screenshot-backfill'
 import { AppLockSettings } from '@/components/app-lock-settings'
 import { DesktopErrorReportingSettings } from '@/components/desktop-error-reporting-settings'
 import { ClaudeDesktopMcpSettings } from '@/components/claude-desktop-mcp-settings'
+import {
+  buildClaudeCodeMcpCommand,
+  buildClaudeDesktopMcpConfig,
+} from '@/lib/mcp-client-setup'
 import { ServerErrorReportingSettings } from '@/components/server-error-reporting-settings'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -764,6 +768,8 @@ export default function SettingsView() {
   const [copiedMcpConfig, setCopiedMcpConfig] = useState(false)
   const [copiedMcpToken, setCopiedMcpToken] = useState(false)
   const [copiedClaudeCodeCommand, setCopiedClaudeCodeCommand] = useState(false)
+  const [copiedClaudeDesktopConfig, setCopiedClaudeDesktopConfig] =
+    useState(false)
   const [mcpUpdateStatus, setMcpUpdateStatus] = useState<StatusTone>('idle')
   const [mcpUpdateMessage, setMcpUpdateMessage] = useState('')
   const localRestoreInputRef = useRef<HTMLInputElement>(null)
@@ -843,7 +849,16 @@ export default function SettingsView() {
       )
     : ''
   const claudeCodeMcpCommand = mcpStatus
-    ? `claude mcp add --transport http bladevault ${mcpEndpointUrl} --header "Authorization: Bearer ${mcpStatus.http.authToken}"`
+    ? buildClaudeCodeMcpCommand({
+        url: mcpEndpointUrl,
+        token: mcpStatus.http.authToken,
+      })
+    : ''
+  const claudeDesktopMcpConfig = mcpStatus
+    ? buildClaudeDesktopMcpConfig({
+        url: mcpEndpointUrl,
+        token: mcpStatus.http.authToken,
+      })
     : ''
 
   useEffect(() => {
@@ -1595,6 +1610,18 @@ export default function SettingsView() {
       window.setTimeout(() => setCopiedClaudeCodeCommand(false), 1800)
     } catch {
       setLoadError('Could not copy the Claude Code command to the clipboard.')
+    }
+  }
+
+  const handleCopyClaudeDesktopConfig = async () => {
+    if (!claudeDesktopMcpConfig) return
+
+    try {
+      await copyTextToClipboard(claudeDesktopMcpConfig)
+      setCopiedClaudeDesktopConfig(true)
+      window.setTimeout(() => setCopiedClaudeDesktopConfig(false), 1800)
+    } catch {
+      setLoadError('Could not copy the Claude Desktop config to the clipboard.')
     }
   }
 
@@ -2706,7 +2733,7 @@ export default function SettingsView() {
                           or OpenCode.
                           {isDesktop
                             ? ' Claude Desktop can’t use it: connect Claude Desktop below.'
-                            : null}
+                            : ' Claude Desktop can’t use it: use its config below.'}
                         </p>
                       </div>
                     </SettingsSection>
@@ -2742,7 +2769,50 @@ export default function SettingsView() {
                           </pre>
                           <p className="text-xs text-muted-foreground">
                             Paste into Terminal on the computer where Claude
-                            Code is installed to add BladeVault to it.
+                            Code is installed. <code>--scope user</code> makes
+                            BladeVault available in every project.
+                          </p>
+                        </div>
+                      </SettingsSection>
+                    ) : null}
+
+                    {!isDesktop ? (
+                      <SettingsSection title="Claude Desktop">
+                        <div className="space-y-2 py-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-sm font-medium text-foreground">
+                              Config
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={`${settingsSecondaryButtonClassName} rounded-lg`}
+                              onClick={() =>
+                                void handleCopyClaudeDesktopConfig()
+                              }
+                              disabled={!claudeDesktopMcpConfig}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                              {copiedClaudeDesktopConfig
+                                ? 'Copied'
+                                : 'Copy config'}
+                            </Button>
+                          </div>
+                          <pre className="max-h-64 overflow-auto rounded-lg border border-border bg-[var(--bladevault-surface-soft)] p-3 text-xs text-foreground dark:border-input">
+                            <code>
+                              {claudeDesktopMcpConfig ||
+                                'Loading configuration…'}
+                            </code>
+                          </pre>
+                          <p className="text-xs text-muted-foreground">
+                            Add the <code>bladevault</code> entry to{' '}
+                            <code>mcpServers</code> in{' '}
+                            <code>claude_desktop_config.json</code>, keeping
+                            your other servers. Mac:{' '}
+                            <code>~/Library/Application Support/Claude/</code>.
+                            Windows: <code>%APPDATA%\Claude\</code>. Then quit
+                            Claude Desktop completely and reopen it. Needs
+                            Node.js on that computer.
                           </p>
                         </div>
                       </SettingsSection>
