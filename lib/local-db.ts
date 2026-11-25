@@ -23,7 +23,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 16
+export const LOCAL_DB_SCHEMA_VERSION = 17
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -762,6 +762,7 @@ function migrateSchema(database: Database.Database) {
   migratePriceMonitoringSchema(database, tables)
   migrateAchievementSchema(database, tables)
   migrateWishlistSchema(database, tables)
+  migrateChatSchema(database, tables)
 
   normalizeKnifeRows(database)
 }
@@ -821,6 +822,53 @@ function recheckRejectedSearches(database: Database.Database) {
       "UPDATE price_discovery SET next_attempt_at = ? WHERE status = 'rejected'",
     )
     .run(new Date().toISOString())
+}
+
+/**
+ * Chat (schema 17): conversations from the Chat page and their messages.
+ * Tool messages keep the result sent to the model (`content`) and what the
+ * page draws for it (`ui_data`). Additive and repeat-safe.
+ */
+function migrateChatSchema(
+  database: Database.Database,
+  tables: Array<{ name: string }>,
+) {
+  const has = (name: string) => tables.some((t) => t.name === name)
+  if (!has('chat_conversations')) {
+    database.exec(`
+      CREATE TABLE chat_conversations (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        archived_at TEXT,
+        prompt_tokens INTEGER NOT NULL DEFAULT 0,
+        completion_tokens INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX chat_conversations_list
+        ON chat_conversations (archived_at, updated_at);
+    `)
+  }
+  if (!has('chat_messages')) {
+    database.exec(`
+      CREATE TABLE chat_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id TEXT NOT NULL
+          REFERENCES chat_conversations(id) ON DELETE CASCADE,
+        role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'tool')),
+        content TEXT NOT NULL DEFAULT '',
+        tool_calls TEXT,
+        tool_call_id TEXT,
+        tool_name TEXT,
+        ui_data TEXT,
+        status TEXT NOT NULL DEFAULT 'done'
+          CHECK (status IN ('done', 'stopped', 'error')),
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX chat_messages_conversation
+        ON chat_messages (conversation_id, id);
+    `)
+  }
 }
 
 /**

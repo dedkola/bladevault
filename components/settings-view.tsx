@@ -97,7 +97,10 @@ import { MaintenanceSettings } from '@/components/maintenance-settings'
 import { NotificationSettings } from '@/components/notification-settings'
 import { AchievementSettings } from '@/components/achievement-settings'
 import { PriceMonitoringSettings as PriceMonitoringSettingsPanel } from '@/components/price-drops/price-monitoring-settings'
-import { PriceAiConnectionSection } from '@/components/price-drops/price-ai-settings'
+import {
+  PriceAiChatSection,
+  PriceAiConnectionSection,
+} from '@/components/price-drops/price-ai-settings'
 import { formatDimension, formatWeight } from '@/lib/measurements'
 import {
   SettingsSection,
@@ -2878,9 +2881,23 @@ export default function SettingsView() {
                   {hasServerRuntime() ? (
                     <div className="settings-group">
                       <h2 className="settings-group-heading">
-                        AI connection for price drops
+                        AI connection for price drops and chat
                       </h2>
                       <PriceAiConnectionSection
+                        settings={
+                          normalizePriceMonitoring(settings.priceMonitoring).ai
+                        }
+                        disabled={isSavingPriceMonitoring}
+                        onChange={(ai) =>
+                          void handlePriceMonitoringChange({
+                            ...normalizePriceMonitoring(
+                              settings.priceMonitoring,
+                            ),
+                            ai,
+                          })
+                        }
+                      />
+                      <PriceAiChatSection
                         settings={
                           normalizePriceMonitoring(settings.priceMonitoring).ai
                         }

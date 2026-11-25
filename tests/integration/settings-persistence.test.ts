@@ -60,6 +60,13 @@ describe('settings persistence', () => {
             sourceCooldownHours: 6,
           },
           agentMode: 'observe',
+          chat: {
+            model: 'qwen3',
+            toolMode: 'json',
+            allowThinking: true,
+            dailyCalls: 40,
+            dailyTokens: 0,
+          },
         },
         otherStores: {
           enabled: true,
@@ -116,6 +123,13 @@ describe('settings persistence', () => {
           sourceCooldownHours: 6,
         },
         agentMode: 'observe',
+        chat: {
+          model: 'qwen3',
+          toolMode: 'json',
+          allowThinking: true,
+          dailyCalls: 40,
+          dailyTokens: 0,
+        },
       },
       otherStores: {
         enabled: true,

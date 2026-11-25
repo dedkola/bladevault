@@ -7,7 +7,7 @@ import {
   type AiPurpose,
 } from '@/lib/price-monitor/ai-client'
 import { getSettings } from '@/lib/settings'
-import type { PriceAiUsage } from '@/lib/settings-shared'
+import type { PriceAiChatSettings, PriceAiUsage } from '@/lib/settings-shared'
 import { withVaultWriteSync } from '@/lib/vault-access'
 
 /**
@@ -59,7 +59,7 @@ export function recordAiCall(event: AiCallEvent): void {
 /** Sends every AI call of this process to the journal. */
 export function installAiCallJournal(): void {
   setAiCallObserver(recordAiCall)
-  setAiBudgetGate(() => checkAiBudget())
+  setAiBudgetGate((purpose) => checkAiBudget(purpose))
 }
 
 /** Midnight of the server's local day, epoch ms. */
@@ -71,17 +71,30 @@ export function startOfLocalDay(now = Date.now()): number {
 
 export type AiUsageToday = { calls: number; tokens: number }
 
-/** Requests and tokens since local midnight; connection tests do not count. */
+/**
+ * Whose budget: price monitoring (every purpose but connection tests and
+ * chat) or the Chat page (chat only). Each has its own daily caps, so a long
+ * chat can never use up monitoring's budget.
+ */
+export type AiUsageScope = 'monitoring' | 'chat'
+
+const SCOPE_FILTER: Record<AiUsageScope, string> = {
+  monitoring: `purpose NOT IN ('test', 'chat')`,
+  chat: `purpose = 'chat'`,
+}
+
+/** Requests and tokens since local midnight for one budget. */
 export function readAiUsageToday(
   database: Database.Database,
   now = Date.now(),
+  scope: AiUsageScope = 'monitoring',
 ): AiUsageToday {
   const row = database
     .prepare(
       `SELECT COUNT(*) AS calls,
               COALESCE(SUM(COALESCE(prompt_tokens, 0)
                 + COALESCE(completion_tokens, 0)), 0) AS tokens
-       FROM price_ai_calls WHERE started_at >= ? AND purpose <> 'test'`,
+       FROM price_ai_calls WHERE started_at >= ? AND ${SCOPE_FILTER[scope]}`,
     )
     .get(new Date(startOfLocalDay(now)).toISOString()) as AiUsageToday
   return { calls: row.calls, tokens: row.tokens }
@@ -100,11 +113,34 @@ export function aiBudgetRefusal(
   return null
 }
 
-/** The budget gate for the AI client, from the saved settings. */
-export function checkAiBudget(now = Date.now()): string | null {
-  const usage = getSettings().priceMonitoring.ai.usage
+/** Why chat may not send more today (its own caps), or null. Pure. */
+export function chatBudgetRefusal(
+  usage: PriceAiUsage,
+  chat: PriceAiChatSettings,
+  today: AiUsageToday,
+): string | null {
   if (usage.mode === 'unlimited') return null
-  return aiBudgetRefusal(usage, readAiUsageToday(getLocalDb(), now))
+  if (chat.dailyCalls > 0 && today.calls >= chat.dailyCalls)
+    return `The daily chat limit is used up (${chat.dailyCalls} AI requests). Chat continues tomorrow, or raise the limit in Settings → AI connection → Chat.`
+  if (chat.dailyTokens > 0 && today.tokens >= chat.dailyTokens)
+    return `The daily chat limit is used up (${chat.dailyTokens.toLocaleString('en-US')} tokens). Chat continues tomorrow, or raise the limit in Settings → AI connection → Chat.`
+  return null
+}
+
+/** The budget gate for the AI client, from the saved settings. */
+export function checkAiBudget(
+  purpose: AiPurpose = 'agent',
+  now = Date.now(),
+): string | null {
+  const ai = getSettings().priceMonitoring.ai
+  if (ai.usage.mode === 'unlimited') return null
+  if (purpose === 'chat')
+    return chatBudgetRefusal(
+      ai.usage,
+      ai.chat,
+      readAiUsageToday(getLocalDb(), now, 'chat'),
+    )
+  return aiBudgetRefusal(ai.usage, readAiUsageToday(getLocalDb(), now))
 }
 
 export function pruneAiCalls(database: Database.Database, now = Date.now()) {
@@ -132,8 +168,10 @@ export type AiCallSummary = {
   lastError: { at: string; purpose: AiPurpose; message: string } | null
   /** The latest call's model was known to reason before answering. */
   reasoning: boolean
-  /** Since local midnight, connection tests excluded (the daily budget). */
+  /** Since local midnight, connection tests and chat excluded (the daily budget). */
   today: AiUsageToday
+  /** Chat's own usage since local midnight (its separate limit). */
+  chatToday: AiUsageToday
 }
 
 /** What AI did in the last 24 hours. */
@@ -204,5 +242,6 @@ export function readAiCallSummary(
       : null,
     reasoning: Boolean(last?.reasoning),
     today: readAiUsageToday(database, now),
+    chatToday: readAiUsageToday(database, now, 'chat'),
   }
 }
