@@ -47,10 +47,12 @@ import {
   startKnifeFocus,
 } from '@/lib/price-monitor/store'
 import { getSettings } from '@/lib/settings'
-import type {
-  PriceAgentMode,
-  PriceMonitoringSettings,
+import {
+  isCollectionPassOn,
+  type PriceAgentMode,
+  type PriceMonitoringSettings,
 } from '@/lib/settings-shared'
+import { readMonitorScopeKnifeIds } from '@/lib/price-monitor/scope'
 import { writeSystemMessageReports } from '@/lib/system-message-store'
 import {
   PRICE_ADVICE_TOPICS,
@@ -578,9 +580,16 @@ export function buildAgentSnapshot(input: {
   const events = readAgentEvents(
     database,
     lastRunAt ?? now - FIRST_RUN_EVENTS_MS,
+    MAX_AGENT_EVENTS,
+    agentEventKnifeIds(database, settings),
   )
   const intervalMs = frequencyMs(settings.schedule)
-  const candidates = readQueueCandidates(database, settings, now)
+  // The collection pass (knives outside What to monitor, checked in free
+  // time) is not the supervisor's: it counts as not monitored here, so the
+  // prompt and the AI budget stay at the size of What to monitor.
+  const candidates = readQueueCandidates(database, settings, now).filter(
+    (candidate) => candidate.tier === 'scope',
+  )
   const monitored = new Set(
     candidates
       .filter((candidate) => candidate.scheduled)
@@ -915,6 +924,11 @@ export function readAgentEvents(
   database: Database.Database,
   since: number,
   limit = MAX_AGENT_EVENTS,
+  /**
+   * Knives the supervisor looks after; events of other knives (the
+   * collection pass) are left out. Null or missing: every knife.
+   */
+  knifeIds: ReadonlySet<string> | null = null,
 ): AgentEvents {
   const after = new Date(since).toISOString()
   const label = (brand: string, name: string) =>
@@ -1049,13 +1063,31 @@ export function readAgentEvents(
       knife: label(row.brand, row.name),
       ...(row.source_id !== null ? { sourceId: row.source_id } : {}),
     })
-  events.sort((a, b) => b.at.localeCompare(a.at))
-  const oldest = events.at(-1)
+  const kept = knifeIds
+    ? events.filter(
+        (event) => event.knifeId === undefined || knifeIds.has(event.knifeId),
+      )
+    : events
+  kept.sort((a, b) => b.at.localeCompare(a.at))
+  const oldest = kept.at(-1)
   return {
-    list: events.slice(0, limit),
-    total: events.length,
+    list: kept.slice(0, limit),
+    total: kept.length,
     oldestAt: oldest ? Date.parse(oldest.at) : null,
   }
+}
+
+/**
+ * The knives whose events concern the supervisor: null for every knife,
+ * or What to monitor while the collection pass covers the rest.
+ */
+export function agentEventKnifeIds(
+  database: Database.Database,
+  settings: PriceMonitoringSettings,
+): ReadonlySet<string> | null {
+  return isCollectionPassOn(settings)
+    ? readMonitorScopeKnifeIds(database, settings.scope)
+    : null
 }
 
 /** The supervisor's own recent Inbox messages, so it does not repeat itself. */

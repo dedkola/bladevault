@@ -25,6 +25,7 @@ describe('settings persistence', () => {
         ...getSettings().priceMonitoring,
         enabled: false,
         scope: { kind: 'wishlist', knifeIds: ['k1'] },
+        collectionPass: { enabled: true, superSalePercent: 40 },
         schedule: { intervalHours: 6, slowOutOfStock: false },
         pacing: { minGapSeconds: 90 },
         notify: {
@@ -80,6 +81,7 @@ describe('settings persistence', () => {
       skipSoldKnives: true,
       ignoreOfficialOutOfStock: false,
       scope: { kind: 'wishlist', knifeIds: ['k1'] },
+      collectionPass: { enabled: true, superSalePercent: 40 },
       schedule: { intervalHours: 6, slowOutOfStock: false },
       pacing: { minGapSeconds: 90 },
       notify: {

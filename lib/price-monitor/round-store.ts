@@ -9,7 +9,7 @@ import {
   type StepTask,
 } from '@/lib/price-monitor/rounds'
 import { withMonitorScope } from '@/lib/price-monitor/scope'
-import type { PriceWatchMode } from '@/lib/price-monitor/shared'
+import type { MonitorTier, PriceWatchMode } from '@/lib/price-monitor/shared'
 import type {
   OtherStoreId,
   PriceMonitoringSettings,
@@ -145,12 +145,33 @@ const WISHLIST_ORDER = `CASE w.lane WHEN 'next' THEN 0 WHEN 'saving' THEN 1
  * Saving, Someday, each in its own order), then the rest by when they were
  * added. A knife counts when monitoring covers it (What to monitor, its
  * watch mode, a regular price) and it has an enabled store link, or Other
- * stores can look for it.
+ * stores can look for it. Knives of the collection pass are left out.
  */
 export function readRoundKnifeIds(
   database: Database.Database,
   settings: PriceMonitoringSettings,
   options: { searches: boolean },
+): string[] {
+  return readTierKnifeIds(database, settings, options, 'scope')
+}
+
+/**
+ * The knives the collection pass goes through, by when they were added:
+ * outside What to monitor, covered because the collection pass is on.
+ */
+export function readCollectionPassKnifeIds(
+  database: Database.Database,
+  settings: PriceMonitoringSettings,
+  options: { searches: boolean },
+): string[] {
+  return readTierKnifeIds(database, settings, options, 'collection')
+}
+
+function readTierKnifeIds(
+  database: Database.Database,
+  settings: PriceMonitoringSettings,
+  options: { searches: boolean },
+  tier: MonitorTier,
 ): string[] {
   const rows = database
     .prepare(
@@ -180,13 +201,14 @@ export function readRoundKnifeIds(
       } catch {
         price = undefined
       }
-      return getEligibility(
+      const eligibility = getEligibility(
         { id: row.id, sold: row.sold === 1, specs: { price } },
         row.mode,
         // A knife without a store link is what Other stores looks for.
         1,
         scoped,
-      ).monitored
+      )
+      return eligibility.monitored && eligibility.tier === tier
     })
     .map((row) => row.id)
 }
@@ -534,12 +556,158 @@ export async function dropStaleRetries(generation: string): Promise<number> {
   })
 }
 
-/** Finished rounds older than a month. */
+/** Finished rounds and collection passes older than a month. */
 export function pruneRounds(database: Database.Database, now: number): void {
-  database
-    .prepare(
-      `DELETE FROM price_rounds
-       WHERE finished_at IS NOT NULL AND finished_at < ?`,
-    )
-    .run(iso(now - ROUND_HISTORY_MS))
+  for (const table of ['price_rounds', 'price_collection_passes'])
+    database
+      .prepare(
+        `DELETE FROM ${table}
+         WHERE finished_at IS NOT NULL AND finished_at < ?`,
+      )
+      .run(iso(now - ROUND_HISTORY_MS))
+}
+
+// ------------------------------------------------------- collection pass
+
+/**
+ * The collection pass: knives outside What to monitor, one at a time in the
+ * free time between rounds (see rounds.ts, nextPassAt). Its failures do not
+ * join the retry list; the next pass reads them again.
+ */
+export type CollectionPass = {
+  id: number
+  startedAt: number
+  finishedAt: number | null
+  knifeIds: string[]
+  /** Index of the next knife to check. */
+  cursor: number
+}
+
+type PassRow = Omit<RoundRow, 'trigger' | 'interval_ms'>
+
+function toPass(row: PassRow | undefined): CollectionPass | null {
+  if (!row) return null
+  let knifeIds: string[] = []
+  try {
+    const parsed = JSON.parse(row.knife_ids) as unknown
+    if (Array.isArray(parsed))
+      knifeIds = parsed.filter((id): id is string => typeof id === 'string')
+  } catch {
+    knifeIds = []
+  }
+  return {
+    id: row.id,
+    startedAt: time(row.started_at) ?? 0,
+    finishedAt: time(row.finished_at),
+    knifeIds,
+    cursor: row.cursor,
+  }
+}
+
+/** The collection pass in progress, if any. */
+export function readCurrentPass(
+  database: Database.Database,
+): CollectionPass | null {
+  return toPass(
+    database
+      .prepare(
+        `SELECT * FROM price_collection_passes WHERE finished_at IS NULL
+         ORDER BY id DESC LIMIT 1`,
+      )
+      .get() as PassRow | undefined,
+  )
+}
+
+/** The latest collection pass, running or finished. */
+export function readLastPass(
+  database: Database.Database,
+): CollectionPass | null {
+  return toPass(
+    database
+      .prepare('SELECT * FROM price_collection_passes ORDER BY id DESC LIMIT 1')
+      .get() as PassRow | undefined,
+  )
+}
+
+/**
+ * Starts a collection pass unless one is running, and gives its knives'
+ * store links planned check times (rounds that come first push them back).
+ * Returns null when one was already running.
+ */
+export async function startPass(input: {
+  settings: PriceMonitoringSettings
+  pauseMs: number
+  searches: boolean
+  now: number
+  generation: string
+}): Promise<CollectionPass | null> {
+  return withVaultWrite(async () => {
+    assertVaultGeneration(input.generation)
+    const database = getLocalDb()
+    return database.transaction(() => {
+      if (readCurrentPass(database)) return null
+      const knifeIds = readCollectionPassKnifeIds(database, input.settings, {
+        searches: input.searches,
+      })
+      const startedAt = iso(input.now)
+      const id = Number(
+        database
+          .prepare(
+            `INSERT INTO price_collection_passes
+               (started_at, knife_ids, cursor) VALUES (?, ?, 0)`,
+          )
+          .run(startedAt, JSON.stringify(knifeIds)).lastInsertRowid,
+      )
+      const plan = database.prepare(
+        `UPDATE price_sources SET next_check_at = ?
+         WHERE knife_id = ? AND removed_at IS NULL AND enabled = 1
+           AND priority = 0`,
+      )
+      plannedStepTimes({
+        count: knifeIds.length,
+        startAt: input.now,
+        pauseMs: input.pauseMs,
+      }).forEach((at, index) => plan.run(iso(at), knifeIds[index]))
+      return {
+        id,
+        startedAt: input.now,
+        finishedAt: null,
+        knifeIds,
+        cursor: 0,
+      }
+    })()
+  })
+}
+
+/** The pass moves on to its next knife. */
+export async function advancePass(input: {
+  passId: number
+  cursor: number
+  generation: string
+}): Promise<void> {
+  await withVaultWrite(async () => {
+    assertVaultGeneration(input.generation)
+    getLocalDb()
+      .prepare(
+        'UPDATE price_collection_passes SET cursor = MAX(cursor, ?) WHERE id = ?',
+      )
+      .run(input.cursor, input.passId)
+  })
+}
+
+/** Ends the collection pass. */
+export async function finishPass(input: {
+  passId: number
+  now: number
+  generation: string
+}): Promise<void> {
+  await withVaultWrite(async () => {
+    assertVaultGeneration(input.generation)
+    getLocalDb()
+      .prepare(
+        `UPDATE price_collection_passes SET finished_at = ?
+         WHERE id = ? AND finished_at IS NULL`,
+      )
+      .run(iso(input.now), input.passId)
+  })
 }

@@ -122,12 +122,14 @@ describe('normalizePriceMonitoring', () => {
         pacing: { minGapSeconds: 1 },
         notify: { drop: false, increase: 'yes', outOfStock: true },
         thresholds: { minPercent: 250, minAbsolute: 12.345 },
+        collectionPass: { enabled: 'yes', superSalePercent: 5 },
       }),
     ).toEqual({
       enabled: false,
       skipSoldKnives: true,
       ignoreOfficialOutOfStock: false,
       scope: { kind: 'wishlist', knifeIds: [] },
+      collectionPass: { enabled: false, superSalePercent: 20 },
       schedule: { intervalHours: 24, slowOutOfStock: true },
       pacing: { minGapSeconds: 30 },
       notify: {

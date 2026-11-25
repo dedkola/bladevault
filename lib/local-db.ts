@@ -1173,6 +1173,21 @@ function migratePriceMonitoringSchema(
       CREATE INDEX price_rounds_started ON price_rounds (started_at);`,
     ],
     [
+      // The collection pass: knives outside What to monitor, checked one at
+      // a time in the free time between rounds, at most once a day. One row
+      // per pass; the unfinished one is current.
+      'price_collection_passes',
+      `CREATE TABLE price_collection_passes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        knife_ids TEXT NOT NULL,
+        cursor INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX price_collection_passes_started
+        ON price_collection_passes (started_at);`,
+    ],
+    [
       // The retry list: checks and searches that failed or found their store
       // not ready during a round. Retried at random times before the next
       // round (due_at); one that fails again waits for the next round.
@@ -1313,6 +1328,9 @@ function migratePriceMonitoringSchema(
   ).some((entry) => entry.name === 'previous_source_id')
   addColumn('price_change_events', 'previous_source_id', 'INTEGER')
   addColumn('stock_events', 'previous_source_id', 'INTEGER')
+  // A drop of a knife outside What to monitor that reached the super-sale
+  // line (collection pass): marked so the Inbox can say so.
+  addColumn('price_notifications', 'super_sale', 'INTEGER NOT NULL DEFAULT 0')
   if (!hadPreviousSource)
     database.transaction(() => backfillNewStoreEvents(database))()
 }

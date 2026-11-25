@@ -488,6 +488,14 @@ export type PriceMonitoringSettings = {
   /** Which knives scheduled monitoring covers; Check now works for any. */
   scope: PriceMonitorScope
   /**
+   * The rest of the collection (knives outside `scope`) in free time:
+   * rounds of the scope always come first; between them the other knives
+   * are checked at most once a day, and they notify only about a super sale
+   * (a drop to at least `superSalePercent` below the regular price). Has no
+   * effect while the scope is the whole collection.
+   */
+  collectionPass: PriceCollectionPassSettings
+  /**
    * Price checks run in rounds, around the clock: every `intervalHours` a
    * round goes through every monitored knife, one knife's stores at a time.
    */
@@ -664,6 +672,22 @@ export type PriceAiUsage = {
   sourceCooldownHours: number
 }
 
+export type PriceCollectionPassSettings = {
+  enabled: boolean
+  /** Percent below the regular price that counts as a super sale. */
+  superSalePercent: number
+}
+
+/**
+ * The collection pass runs: switched on and What to monitor leaves part of
+ * the collection out (with the whole collection, rounds cover everything).
+ */
+export function isCollectionPassOn(
+  settings: Pick<PriceMonitoringSettings, 'collectionPass' | 'scope'>,
+): boolean {
+  return settings.collectionPass.enabled && settings.scope.kind !== 'all'
+}
+
 export type PriceNotifyCategories = {
   drop: boolean
   increase: boolean
@@ -675,6 +699,7 @@ export const PRICE_MONITORING_LIMITS = {
   minGapSeconds: [30, 3600],
   minPercent: [0, 100],
   minAmount: [0, 100_000],
+  superSalePercent: [20, 90],
 } as const
 
 export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
@@ -682,6 +707,7 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
   skipSoldKnives: true,
   ignoreOfficialOutOfStock: false,
   scope: DEFAULT_PRICE_MONITOR_SCOPE,
+  collectionPass: { enabled: false, superSalePercent: 50 },
   schedule: {
     intervalHours: 24,
     slowOutOfStock: true,
@@ -1084,6 +1110,7 @@ export function normalizePriceMonitoring(
   const pacing = plainObject(record.pacing)
   const notify = plainObject(record.notify)
   const thresholds = plainObject(record.thresholds)
+  const collectionPass = plainObject(record.collectionPass)
   return {
     enabled:
       typeof record.enabled === 'boolean' ? record.enabled : fallback.enabled,
@@ -1099,6 +1126,17 @@ export function normalizePriceMonitoring(
       'scope' in record
         ? normalizePriceMonitorScope(record.scope, fallback.scope)
         : fallback.scope,
+    collectionPass: {
+      enabled:
+        typeof collectionPass.enabled === 'boolean'
+          ? collectionPass.enabled
+          : fallback.collectionPass.enabled,
+      superSalePercent: boundedInteger(
+        collectionPass.superSalePercent,
+        PRICE_MONITORING_LIMITS.superSalePercent,
+        fallback.collectionPass.superSalePercent,
+      ),
+    },
     schedule: {
       intervalHours: normalizeRoundHours(
         schedule,

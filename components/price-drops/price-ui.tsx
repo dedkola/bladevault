@@ -67,6 +67,24 @@ export function ChangePill({ event }: { event: ChangeEvent }) {
 }
 
 /**
+ * A drop of a knife outside What to monitor that reached the super-sale
+ * line (collection pass), with how far below the regular price it is.
+ */
+export function SuperSalePill({
+  percentBelow,
+}: {
+  percentBelow: number | null
+}) {
+  return (
+    <span data-price-pill="super" className={PILL}>
+      {percentBelow === null
+        ? 'Super sale'
+        : `Super sale · ${percentBelow}% below regular`}
+    </span>
+  )
+}
+
+/**
  * Stands in for a price comparison when the store shows another currency
  * than the regular price ("UAH price"), so the blank reads as intended.
  */

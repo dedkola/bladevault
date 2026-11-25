@@ -15,6 +15,9 @@
 [data-result='increase'] {
   --pd-color: var(--price-rise);
 }
+[data-price-pill='super'] {
+  --pd-color: var(--bladevault-gold);
+}
 [data-price-pill='oos'],
 [data-result='out_of_stock'],
 [data-price-dot='warn'],

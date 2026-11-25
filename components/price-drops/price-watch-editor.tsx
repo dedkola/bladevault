@@ -52,6 +52,8 @@ const MODE_OPTIONS: Array<{ value: PriceWatchMode; label: string }> = [
 const ELIGIBILITY_TEXT: Record<EligibilityReason, string> = {
   monitored_auto: 'Monitored because a regular price is stored.',
   monitored_forced: 'Monitored even without a stored regular price.',
+  monitored_collection:
+    'Checked with the rest of the collection in free time, at most once a day. Notifies only about a super sale far below the regular price.',
   off: 'Not monitored. Check now still works for a single reading.',
   no_price:
     'Not monitored: no regular price is stored. Add a price or choose Always monitor.',

@@ -4,6 +4,7 @@ import {
   RETRY_END_MARGIN_MS,
   STEP_ESTIMATE_MS,
   laneDecision,
+  nextPassAt,
   nextRoundAt,
   planStep,
   plannedStepTimes,
@@ -25,6 +26,27 @@ const source = (patch: Partial<StepSource> & { sourceId: number }) => ({
   checkedThisRound: false,
   restingOutOfStock: false,
   ...patch,
+})
+
+describe('next collection pass', () => {
+  it('starts the first pass right away, and none while one runs', () => {
+    expect(nextPassAt(null, NOW)).toBe(NOW)
+    expect(
+      nextPassAt({ startedAt: NOW - HOUR, finishedAt: null }, NOW),
+    ).toBeNull()
+  })
+
+  it('waits a day from the last start, or none after a pass that took longer', () => {
+    expect(
+      nextPassAt(
+        { startedAt: NOW - 3 * HOUR, finishedAt: NOW - 2 * HOUR },
+        NOW,
+      ),
+    ).toBe(NOW + 21 * HOUR)
+    expect(
+      nextPassAt({ startedAt: NOW - 30 * HOUR, finishedAt: NOW - HOUR }, NOW),
+    ).toBe(NOW - HOUR)
+  })
 })
 
 describe('next round', () => {

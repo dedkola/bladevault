@@ -73,6 +73,8 @@ const MODE_LABEL = { auto: 'Auto', on: 'Always monitor', off: 'Never monitor' }
 const REASON_TEXT: Record<EligibilityReason, string> = {
   monitored_auto: 'a regular price is stored',
   monitored_forced: 'monitored without a stored price',
+  monitored_collection:
+    'checked with the collection in free time; notifies only about a super sale',
   off: 'not checked automatically',
   no_price: 'no regular price stored, so not monitored',
   sold: 'sold, so not monitored',
@@ -768,7 +770,8 @@ export function KnifePricePanel({
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {REASON_TEXT[watch.eligibility.reason]}
-                    {watch.eligibility.reason === 'out_of_scope' ? (
+                    {watch.eligibility.reason === 'out_of_scope' ||
+                    watch.eligibility.reason === 'monitored_collection' ? (
                       <>
                         {' · '}
                         <Link

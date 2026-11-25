@@ -822,6 +822,135 @@ describe('price check rounds', () => {
   })
 })
 
+/** What to monitor is the Wishlist; the rest goes to the collection pass. */
+function wishlistWithCollectionPass(wishlist: string[]) {
+  const at = new Date(Date.UTC(2026, 10, 1)).toISOString()
+  const insert = getLocalDb().prepare(
+    `INSERT INTO wishlist_items (knife_id, lane, position, added_at, updated_at)
+     VALUES (?, 'next', ?, ?, ?)`,
+  )
+  wishlist.forEach((id, index) => insert.run(id, index, at, at))
+  saveSettings({
+    priceMonitoring: {
+      ...getSettings().priceMonitoring,
+      scope: { kind: 'wishlist', knifeIds: [] },
+      collectionPass: { enabled: true, superSalePercent: 50 },
+    },
+  })
+}
+
+describe('collection pass', () => {
+  it('checks the rest of the collection in free time, after the Wishlist round and at most once a day', async () => {
+    const wished = await knife(['https://a.example/1'])
+    await knife(['https://b.example/2'])
+    await knife(['https://c.example/3'])
+    checkedYesterday()
+    roundEvery(6)
+    wishlistWithCollectionPass([wished])
+    const ids = sourceIds()
+    const { worker, pending, finish, advance, now } = harness()
+    const start = now()
+    worker.start({ scheduled: true })
+
+    // The Wishlist round comes first and holds only the Wishlist knife.
+    await worker.pass()
+    expect(lanesOf(pending, ids)).toEqual(['a.example'])
+    expect(buildQueueSnapshot(now()).round).toMatchObject({ knives: 1 })
+    await finish()
+
+    // Free time: the round ends and the collection pass starts.
+    advance(MIN)
+    await worker.pass()
+    expect(readCurrentRound(getLocalDb())).toBeNull()
+    expect(lanesOf(pending, ids)).toEqual(['b.example'])
+    expect(buildQueueSnapshot(now()).collectionPass).toMatchObject({
+      running: true,
+      waiting: false,
+      knives: 2,
+      done: 0,
+    })
+    // A failure in the pass does not join the retry list.
+    await finish(0, {
+      outcome: 'failed',
+      laneOutcome: 'neutral',
+      errorCode: 'timeout',
+    })
+    expect(readRetryTasks(getLocalDb())).toEqual([])
+
+    // The next Wishlist round is due: it goes first, the pass waits.
+    advance(start + 6 * HOUR - now())
+    await worker.pass()
+    expect(lanesOf(pending, ids)).toEqual(['a.example'])
+    expect(buildQueueSnapshot(now()).collectionPass).toMatchObject({
+      running: true,
+      waiting: true,
+      done: 1,
+    })
+    await finish()
+
+    // The round ends; the pass continues at its next knife.
+    advance(MIN)
+    await worker.pass()
+    expect(lanesOf(pending, ids)).toEqual(['c.example'])
+    await finish()
+    advance(MIN)
+    await worker.pass()
+    expect(pending).toHaveLength(0)
+    const done = buildQueueSnapshot(now()).collectionPass
+    expect(done).toMatchObject({ running: false })
+    expect(done?.nextAt).toBe(new Date(start + MIN + 24 * HOUR).toISOString())
+
+    // Later Wishlist rounds that day leave the collection alone.
+    advance(start + 12 * HOUR - now())
+    await worker.pass()
+    expect(lanesOf(pending, ids)).toEqual(['a.example'])
+    await finish()
+    advance(MIN)
+    await worker.pass()
+    expect(pending).toHaveLength(0)
+  })
+
+  it('passes a knife that moved to the Wishlist, and stops when switched off', async () => {
+    const wished = await knife(['https://a.example/1'])
+    await knife(['https://b.example/2'])
+    const moved = await knife(['https://c.example/3'])
+    checkedYesterday()
+    wishlistWithCollectionPass([wished])
+    const ids = sourceIds()
+    const { worker, pending, finish, advance, now } = harness()
+    worker.start({ scheduled: true })
+    await worker.pass()
+    await finish()
+    advance(MIN)
+    await worker.pass()
+    expect(lanesOf(pending, ids)).toEqual(['b.example'])
+    await finish()
+
+    // The third knife joins the Wishlist: the pass leaves it to the rounds.
+    getLocalDb()
+      .prepare(
+        `INSERT INTO wishlist_items (knife_id, lane, position, added_at, updated_at)
+         VALUES (?, 'saving', 0, ?, ?)`,
+      )
+      .run(moved, new Date(now()).toISOString(), new Date(now()).toISOString())
+    advance(MIN)
+    await worker.pass()
+    expect(pending).toHaveLength(0)
+    expect(buildQueueSnapshot(now()).collectionPass).toMatchObject({
+      running: false,
+    })
+
+    // Switched off: no pass and no collection status.
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        collectionPass: { enabled: false, superSalePercent: 50 },
+      },
+    })
+    expect(buildQueueSnapshot(now()).collectionPass).toBeNull()
+  })
+})
+
 async function storeAction(laneKey: string, action: string) {
   const response = await storesRoute.POST(
     json('http://localhost/api/prices/stores', 'POST', { laneKey, action }),

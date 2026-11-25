@@ -26,7 +26,7 @@ describe('getEligibility', () => {
     }
     expect(getEligibility(knife('50'), 'auto', 1, scoped).monitored).toBe(true)
     expect(getEligibility(knife('50', false, 'k2'), 'auto', 1, scoped)).toEqual(
-      { monitored: false, reason: 'out_of_scope' },
+      { monitored: false, reason: 'out_of_scope', tier: 'collection' },
     )
     expect(getEligibility(knife('', false, 'k2'), 'on', 1, scoped).reason).toBe(
       'out_of_scope',
@@ -48,10 +48,56 @@ describe('getEligibility', () => {
     ).toBe(true)
   })
 
+  it('covers knives outside the scope in the collection tier while the collection pass is on', () => {
+    const pass = {
+      skipSoldKnives: true,
+      scopeKnifeIds: new Set(['k1']),
+      collectionPass: { enabled: true },
+    }
+    expect(getEligibility(knife('50'), 'auto', 1, pass)).toEqual({
+      monitored: true,
+      reason: 'monitored_auto',
+      tier: 'scope',
+    })
+    expect(getEligibility(knife('50', false, 'k2'), 'auto', 1, pass)).toEqual({
+      monitored: true,
+      reason: 'monitored_collection',
+      tier: 'collection',
+    })
+    // The knife's own rules still apply in the collection tier.
+    expect(getEligibility(knife('', false, 'k2'), 'auto', 1, pass).reason).toBe(
+      'no_price',
+    )
+    expect(
+      getEligibility(knife('50', true, 'k2'), 'auto', 1, pass).reason,
+    ).toBe('sold')
+    expect(
+      getEligibility(knife('50', false, 'k2'), 'off', 1, pass).reason,
+    ).toBe('off')
+    expect(getEligibility(knife('', false, 'k2'), 'on', 1, pass).reason).toBe(
+      'monitored_collection',
+    )
+    // Switched off: outside the scope means not monitored, as before.
+    expect(
+      getEligibility(knife('50', false, 'k2'), 'auto', 1, {
+        ...pass,
+        collectionPass: { enabled: false },
+      }).reason,
+    ).toBe('out_of_scope')
+    // The whole collection has no collection tier.
+    expect(
+      getEligibility(knife('50', false, 'k2'), 'auto', 1, {
+        ...pass,
+        scopeKnifeIds: null,
+      }).tier,
+    ).toBe('scope')
+  })
+
   it('monitors Auto knives with a stored price above zero', () => {
     expect(getEligibility(knife('129.00 USD'), 'auto', 1)).toEqual({
       monitored: true,
       reason: 'monitored_auto',
+      tier: 'scope',
     })
   })
 
@@ -61,6 +107,7 @@ describe('getEligibility', () => {
       expect(getEligibility(knife(price), 'auto', 1)).toEqual({
         monitored: false,
         reason: 'no_price',
+        tier: 'scope',
       })
     },
   )
@@ -77,6 +124,7 @@ describe('getEligibility', () => {
     expect(getEligibility(knife('', true), 'on', 2)).toEqual({
       monitored: true,
       reason: 'monitored_forced',
+      tier: 'scope',
     })
   })
 

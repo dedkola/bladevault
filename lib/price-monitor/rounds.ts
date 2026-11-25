@@ -43,6 +43,22 @@ export function nextRoundAt(
   return Math.max(last.startedAt + intervalMs, last.finishedAt)
 }
 
+/** The collection pass covers each knife at most once in this time. */
+export const COLLECTION_PASS_INTERVAL_MS = 24 * 60 * MINUTE_MS
+
+/**
+ * When the next collection pass may start: a day after the last one
+ * started, or right away after a pass that took longer. Null while a pass
+ * is running; now when none ran yet. It still waits for free time: a pass
+ * never starts or moves on while a round runs.
+ */
+export function nextPassAt(
+  last: RoundTiming | null,
+  now: number,
+): number | null {
+  return nextRoundAt(last, COLLECTION_PASS_INTERVAL_MS, now)
+}
+
 /**
  * Random times for the retry list, spread between the end of the round and
  * shortly before the next one, earliest first. A round that ran up to the

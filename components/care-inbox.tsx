@@ -78,6 +78,7 @@ import { CARE_TRACK_NAMES, CARE_TRACK_PAST } from '@/lib/settings-shared'
 import { cn } from '@/lib/utils'
 import {
   ChangePill,
+  SuperSalePill,
   KnifeThumb as PriceKnifeThumb,
 } from '@/components/price-drops/price-ui'
 import { money, storeLabel } from '@/components/price-drops/price-format'
@@ -957,6 +958,15 @@ const PRICE_RESOLVED: Record<PriceNotificationView['kind'], string> = {
   back_in_stock: 'Out of stock again',
 }
 
+/** Whole percent the new price sits below the regular price, if comparable. */
+function percentBelowRegular(row: PriceNotificationView): number | null {
+  const { event, context } = row
+  if (event.priceMinor === null || !context.paidMinor) return null
+  return Math.floor(
+    ((context.paidMinor - event.priceMinor) / context.paidMinor) * 100,
+  )
+}
+
 function priceKnifeLabel(row: PriceNotificationView): string {
   const { knife } = row.event
   return knife.brand ? `${knife.brand} ${knife.name}` : knife.name
@@ -1118,6 +1128,9 @@ function PriceNotificationRow({
             </span>
           )}
           <ChangePill event={event} />
+          {notification.superSale && notification.kind === 'drop' && (
+            <SuperSalePill percentBelow={percentBelowRegular(notification)} />
+          )}
         </p>
         {!compact && (
           <p className="mt-0.5 text-xs text-muted-foreground">

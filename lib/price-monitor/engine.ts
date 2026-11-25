@@ -791,6 +791,7 @@ async function reviewWithAi(input: {
         knifeId: source.knife_id,
         sourceId: source.id,
         currency: change.currency,
+        settings: input.notifications,
       }),
     ),
   )
@@ -1058,9 +1059,20 @@ export async function checkPriceSource(
     notify,
     thresholds,
     ignoreOfficialOutOfStock,
+    scope,
+    collectionPass,
     ai: monitoringAi,
     schedule,
   } = getSettings().priceMonitoring
+  // A knife outside What to monitor notifies only about a super sale while
+  // the collection pass is on (notifications.ts, shouldNotify).
+  const notifications: PriceNotificationSettings = {
+    notify,
+    thresholds,
+    ignoreOfficialOutOfStock,
+    scope,
+    collectionPass,
+  }
   // Amazon pages are checked without AI: no AI reading, verifying, solving
   // or troubleshooting, whatever the AI settings say.
   const aiSettings: PriceAiSettings = isAmazonSource(source)
@@ -1071,7 +1083,7 @@ export async function checkPriceSource(
     sourceId: source.id,
     trigger: options.trigger,
     startedAt: startedAt.toISOString(),
-    notifications: { notify, thresholds, ignoreOfficialOutOfStock },
+    notifications,
   }
   const done = async (
     record: Omit<CheckRecord, keyof typeof base | 'durationMs' | 'host'>,
@@ -1658,7 +1670,7 @@ export async function checkPriceSource(
       source,
       knife,
       settings: aiSettings,
-      notifications: { notify, thresholds, ignoreOfficialOutOfStock },
+      notifications,
       implausible,
       parserReading: method !== 'ai' && method !== 'solver',
       signal: options.signal,
@@ -1704,7 +1716,7 @@ export async function checkPriceSource(
           source,
           knife,
           settings: aiSettings,
-          notifications: { notify, thresholds, ignoreOfficialOutOfStock },
+          notifications,
           implausible,
           parserReading: false,
           signal: options.signal,
