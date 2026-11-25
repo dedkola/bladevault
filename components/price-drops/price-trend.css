@@ -1,5 +1,6 @@
-/* Row price chart shared by Wishlist and Price Drops. A page can retint it
-   with --trend-down, --trend-up and --trend-flat on an ancestor. */
+/* Compact row price chart for Price Drops (the Wishlist row chart in a
+   fixed 110×36 size). An ancestor can retint it with --trend-down,
+   --trend-up and --trend-flat. */
 [data-trend-row] {
   display: flex;
   align-items: center;

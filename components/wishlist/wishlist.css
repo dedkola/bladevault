@@ -2,15 +2,12 @@
    --price-*), so every style and light/dark mode applies. Signals reuse the
    Price Drops meanings: drop green = on sale, stock amber = stock news. */
 [data-wishlist] {
+  container: wishlist / inline-size;
   --wl-sale: var(--price-drop, #2f7d46);
   --wl-stock: var(--price-stock, #a16207);
   --wl-neutral: var(--price-neutral, #9a958b);
   --wl-up: var(--destructive, #b4232a);
   --wl-low: var(--primary);
-  /* Row chart colours (components/price-drops/price-trend.css). */
-  --trend-down: var(--wl-sale);
-  --trend-up: var(--wl-up);
-  --trend-flat: var(--wl-neutral);
   width: 100%;
 }
 
@@ -39,6 +36,20 @@
 }
 [data-wishlist] [data-wishlist-signal='low'] {
   --wl-color: var(--wl-low);
+}
+
+[data-wishlist] [data-wishlist-change] {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+[data-wishlist] [data-wishlist-change='down'] {
+  color: color-mix(in srgb, var(--wl-sale) 85%, var(--foreground));
+}
+[data-wishlist] [data-wishlist-change='up'] {
+  color: color-mix(in srgb, var(--wl-up) 85%, var(--foreground));
+}
+[data-wishlist] [data-wishlist-change='flat'] {
+  color: var(--muted-foreground);
 }
 
 [data-wishlist] [data-wishlist-sub] {
@@ -108,13 +119,19 @@
   color: color-mix(in srgb, var(--wl-sale) 85%, var(--foreground));
 }
 
-/* best deal */
-[data-wishlist-hero] {
+/* best deals: the top 3 discounts as compact cards linking to their prices */
+[data-wishlist-deals] {
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr) auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+[data-wishlist] [data-wishlist-deal] {
+  display: grid;
+  grid-template-columns: minmax(120px, 34%) minmax(0, 1fr);
   gap: 18px;
   align-items: center;
-  margin-bottom: 14px;
+  min-width: 0;
   padding: 14px 18px;
   border: 1px solid color-mix(in srgb, var(--wl-sale) 35%, var(--border));
   border-radius: calc(var(--radius, 0.625rem) + 4px);
@@ -123,12 +140,26 @@
     var(--card) 55%,
     color-mix(in srgb, var(--wl-sale) 10%, var(--card))
   );
+  color: var(--card-foreground);
+  transition: border-color 0.15s;
 }
-[data-wishlist-hero] h2 {
+[data-wishlist] [data-wishlist-deal]:hover {
+  border-color: color-mix(in srgb, var(--wl-sale) 65%, var(--border));
+}
+[data-wishlist] [data-wishlist-deal]:focus-visible {
+  outline: 2px solid var(--ring, var(--primary));
+  outline-offset: 2px;
+}
+[data-wishlist-deal] h2 {
+  display: -webkit-box;
   margin: 2px 0;
+  overflow: hidden;
   font-size: 20px;
   font-weight: 650;
+  line-height: 1.2;
   letter-spacing: -0.02em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 [data-wishlist-eyebrow] {
   color: color-mix(in srgb, var(--wl-sale) 85%, var(--foreground));
@@ -137,21 +168,20 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-[data-wishlist-hero-price] {
+[data-wishlist-deal-price] {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 10px;
+}
+[data-wishlist-deal] [data-wishlist-pills] {
+  margin: 6px 0 4px;
 }
 [data-wishlist-big] {
   font-size: 28px;
   font-weight: 750;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
-}
-[data-wishlist-hero-actions] {
-  display: grid;
-  gap: 8px;
 }
 
 /* focus */
@@ -200,52 +230,66 @@
   margin-top: 4px;
 }
 
-[data-wishlist] [data-wishlist-range] {
+/* best stores: the cheapest stores selling it now */
+[data-wishlist-best-stores] {
+  display: grid;
+  gap: 2px;
   min-width: 0;
-  margin-top: 8px;
+  font-size: 12px;
 }
-[data-wishlist-range-track] {
-  position: relative;
-  height: 6px;
-  border-radius: 99px;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--wl-sale) 55%, transparent),
-    color-mix(in srgb, var(--wl-neutral) 35%, transparent)
-  );
+[data-wishlist-best-stores] ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-[data-wishlist-range-track][data-flat] {
-  background: color-mix(in srgb, var(--wl-neutral) 35%, transparent);
+[data-wishlist-best-stores] li > a,
+[data-wishlist-best-stores] li > span {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(52px, auto);
+  gap: 10px;
+  align-items: baseline;
+  padding: 1px 6px;
+  border-radius: 5px;
+  color: var(--foreground);
 }
-/* today's price */
-[data-wishlist-range-track] i {
-  position: absolute;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--card);
-  border-radius: 50%;
-  background: var(--foreground);
-  box-shadow: 0 0 0 1px var(--foreground);
-  transform: translate(-50%, -50%);
+[data-wishlist-best-stores] li > a:hover {
+  background: var(--muted);
 }
-/* regular price */
-[data-wishlist-range-track] b {
-  position: absolute;
-  top: -3px;
-  width: 2px;
-  height: 12px;
-  border-radius: 2px;
-  background: var(--muted-foreground);
-  transform: translateX(-50%);
+[data-wishlist-best-stores] li > a:focus-visible {
+  outline: 2px solid var(--ring, var(--primary));
+  outline-offset: 1px;
 }
-[data-wishlist-range-ends] {
+[data-wishlist-best-stores] li[data-best] > * {
+  background: color-mix(in srgb, var(--wl-sale) 10%, transparent);
+  font-weight: 600;
+}
+[data-wishlist-best-stores] li[data-best] > a:hover {
+  background: color-mix(in srgb, var(--wl-sale) 16%, transparent);
+}
+[data-wishlist-store-name] {
   display: flex;
-  justify-content: space-between;
-  margin-top: 3px;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+[data-wishlist-store-name] svg {
   color: var(--muted-foreground);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
+}
+[data-wishlist-store-diff] {
+  color: var(--muted-foreground);
+  text-align: right;
+}
+[data-wishlist-best-stores] li[data-best] [data-wishlist-store-diff] {
+  color: color-mix(in srgb, var(--wl-sale) 85%, var(--foreground));
+}
+[data-wishlist-best-stores] > [data-wishlist-stores] {
+  justify-self: start;
+  margin-left: 6px;
+  color: var(--muted-foreground);
 }
 [data-wishlist] [data-wishlist-details],
 [data-wishlist] [data-wishlist-bell],
@@ -275,6 +319,131 @@
 }
 [data-wishlist] [data-wishlist-remove]:hover:not(:disabled) {
   color: var(--destructive);
+}
+
+[data-wishlist] [data-wishlist-spark] {
+  --wl-spark: var(--wl-neutral);
+}
+[data-wishlist] [data-wishlist-spark='down'] {
+  --wl-spark: var(--wl-sale);
+}
+[data-wishlist] [data-wishlist-spark='up'] {
+  --wl-spark: var(--wl-up);
+}
+[data-wishlist] [data-wishlist-spark-row] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+[data-wishlist] [data-wishlist-spark-cell] {
+  min-width: 0;
+}
+/* Fills its column; the chart is drawn at the measured width. */
+[data-wishlist] [data-wishlist-spark-box] {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 44px;
+  cursor: crosshair;
+  touch-action: pan-y;
+}
+[data-wishlist] [data-wishlist-spark] {
+  display: block;
+  overflow: visible;
+}
+/* Stock-style mountain: the area fades from the line down to the base. */
+[data-wishlist] [data-wishlist-spark-stop='top'] {
+  stop-color: var(--wl-spark);
+  stop-opacity: 0.38;
+}
+[data-wishlist] [data-wishlist-spark-stop='bottom'] {
+  stop-color: var(--wl-spark);
+  stop-opacity: 0;
+}
+[data-wishlist] [data-wishlist-spark-line] {
+  stroke: var(--wl-spark);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+[data-wishlist] [data-wishlist-spark-dot] {
+  fill: var(--wl-spark);
+  stroke: var(--card);
+  stroke-width: 1.5;
+}
+[data-wishlist] [data-wishlist-spark-gap] {
+  fill: var(--wl-up);
+  opacity: 0.06;
+}
+/* The regular price, dashed. */
+[data-wishlist] [data-wishlist-spark-regular] line {
+  stroke: var(--muted-foreground);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  opacity: 0.7;
+}
+[data-wishlist] [data-wishlist-spark-regular] text {
+  fill: var(--muted-foreground);
+  font-size: 10px;
+  paint-order: stroke;
+  stroke: var(--card);
+  stroke-width: 3px;
+}
+[data-wishlist] [data-wishlist-spark-tip] {
+  position: absolute;
+  top: -22px;
+  z-index: 2;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--foreground);
+  color: var(--background);
+  font-size: 11px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+[data-wishlist] [data-wishlist-spark-cross] {
+  stroke: var(--muted-foreground);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+/* Net change over the window; the arrow keeps it readable without colour. */
+[data-wishlist] [data-wishlist-spark-chip] {
+  --wl-chip: var(--wl-neutral);
+  flex: none;
+  min-width: 42px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--wl-chip) 16%, transparent);
+  color: color-mix(in srgb, var(--wl-chip) 85%, var(--foreground));
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  white-space: nowrap;
+}
+[data-wishlist] [data-wishlist-spark-chip='flat'] {
+  color: var(--muted-foreground);
+}
+[data-wishlist] [data-wishlist-spark-chip='down'] {
+  --wl-chip: var(--wl-sale);
+}
+[data-wishlist] [data-wishlist-spark-chip='up'] {
+  --wl-chip: var(--wl-up);
+}
+/* Start date, the last move and today, under the chart (not the chip). */
+[data-wishlist] [data-wishlist-spark-axis] {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 3px 50px 0 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  white-space: nowrap;
+}
+[data-wishlist] [data-wishlist-spark-empty] {
+  color: var(--muted-foreground);
+  font-size: 11px;
 }
 
 /* grouped by deal */
@@ -323,11 +492,11 @@
 [data-wishlist-row] {
   display: grid;
   grid-template-columns:
-    60px minmax(0, 1.4fr) 130px minmax(160px, 1fr)
-    160px auto;
-  gap: 14px;
+    60px minmax(220px, 1fr) 150px minmax(230px, 290px)
+    minmax(280px, 1.6fr) auto;
+  gap: 20px;
   align-items: center;
-  padding: 10px 14px;
+  padding: 12px 16px;
   border-top: 1px solid var(--border);
   font-variant-numeric: tabular-nums;
 }
@@ -346,13 +515,9 @@
   font-size: 16px;
   font-weight: 700;
 }
-[data-wishlist-row-range] [data-wishlist-range] {
-  margin-top: 0;
-}
+[data-wishlist-row-stores],
 [data-wishlist-row-trend] {
-  display: grid;
-  justify-items: end;
-  gap: 2px;
+  min-width: 0;
 }
 [data-wishlist-row-actions] {
   display: flex;
@@ -360,55 +525,107 @@
   gap: 6px;
 }
 
-@media (max-width: 1024px) {
-  [data-wishlist-row] {
-    grid-template-columns: 60px minmax(0, 1fr) auto auto;
-    row-gap: 8px;
+/* Widths follow the page column, not the window, so the sidebar counts.
+   Deal cards put the photo on top; rows take two lines: name, price and
+   actions, then stores and chart. */
+@container wishlist (max-width: 1180px) {
+  [data-wishlist] [data-wishlist-deal] {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: 10px;
   }
-  [data-wishlist-row-actions] {
+  [data-wishlist-deal] [data-wishlist-thumb='lg'] {
+    height: 90px;
+  }
+  [data-wishlist-deal] h2 {
+    font-size: 17px;
+  }
+  [data-wishlist-deal] [data-wishlist-big] {
+    font-size: 24px;
+  }
+  [data-wishlist-row] {
+    grid-template-columns: 60px minmax(220px, 270px) minmax(0, 1fr) 150px auto;
+    row-gap: 10px;
+  }
+  [data-wishlist-row-info] {
+    grid-column: 2 / 4;
+  }
+  [data-wishlist-row-price] {
     grid-row: 1;
     grid-column: 4;
   }
-  [data-wishlist-row-range] {
+  [data-wishlist-row-actions] {
+    grid-row: 1;
+    grid-column: 5;
+  }
+  [data-wishlist-row-stores] {
+    grid-row: 2;
     grid-column: 2;
   }
   [data-wishlist-row-trend] {
-    grid-column: 3 / -1;
+    grid-row: 2;
+    grid-column: 3 / 6;
   }
 }
-@media (max-width: 640px) {
+/* One deal card per line; stores and chart each take a full line. */
+@container wishlist (max-width: 900px) {
+  [data-wishlist-deals] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-wishlist] [data-wishlist-deal] {
+    grid-template-columns: 120px minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    padding-block: 10px;
+  }
+  [data-wishlist-deal] [data-wishlist-thumb='lg'] {
+    height: 72px;
+  }
+  [data-wishlist-row] {
+    grid-template-columns: 60px minmax(0, 1fr) auto auto;
+  }
+  [data-wishlist-row-info] {
+    grid-column: 2;
+  }
+  [data-wishlist-row-price] {
+    grid-column: 3;
+  }
+  [data-wishlist-row-actions] {
+    grid-column: 4;
+  }
+  [data-wishlist-row-stores] {
+    grid-column: 2 / -1;
+    max-width: 360px;
+  }
+  [data-wishlist-row-trend] {
+    grid-row: 3;
+    grid-column: 2 / -1;
+  }
+}
+@container wishlist (max-width: 640px) {
   [data-wishlist-summary] {
     grid-template-columns: minmax(0, 1fr);
+  }
+  [data-wishlist] [data-wishlist-deal] {
+    grid-template-columns: 96px minmax(0, 1fr);
   }
   [data-wishlist-row] {
     grid-template-columns: 52px minmax(0, 1fr);
     align-items: start;
   }
-  [data-wishlist-row-price] {
-    grid-column: 2;
-    justify-items: start;
-    text-align: left;
-  }
-  [data-wishlist-row-range],
+  [data-wishlist-row-info],
+  [data-wishlist-row-price],
+  [data-wishlist-row-stores],
+  [data-wishlist-row-trend],
   [data-wishlist-row-actions] {
     grid-row: auto;
     grid-column: 2;
   }
-  [data-wishlist-row-trend] {
-    grid-column: 2;
-    grid-auto-flow: row;
+  [data-wishlist-row-price] {
     justify-items: start;
+    text-align: left;
   }
-  [data-wishlist] [data-trend-note] {
-    width: auto;
-    justify-content: flex-start;
-    gap: 10px;
-  }
-  [data-wishlist-hero] {
-    grid-template-columns: 110px minmax(0, 1fr);
-  }
-  [data-wishlist-hero-actions] {
-    grid-column: 1 / -1;
-    grid-auto-flow: column;
+  [data-wishlist] [data-wishlist-spark-axis] {
+    margin-right: 0;
   }
 }

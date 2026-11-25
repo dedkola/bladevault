@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import type { KnifeStoreEntry } from '@/lib/price-monitor/shared'
 import {
   priceChange,
   rangePosition,
   trendChange,
   wishlistDeal,
   wishlistMoves,
+  wishlistStorePrices,
   wishlistTrackedDays,
   wishlistTrendDirection,
 } from '@/lib/wishlist'
@@ -126,5 +128,67 @@ describe('wishlist trend moves', () => {
     expect(wishlistTrackedDays({ since: 0, until: 5 * 86_400_000 })).toBe(5)
     expect(wishlistTrackedDays({ since: 0, until: 3_600_000 })).toBe(1)
     expect(wishlistTrackedDays({ since: 100, until: 100 })).toBe(1)
+  })
+})
+
+describe('wishlist store prices', () => {
+  const entry = (
+    label: string,
+    source: Partial<NonNullable<KnifeStoreEntry['source']>> | null,
+    state: KnifeStoreEntry['state'] = 'listed',
+  ): KnifeStoreEntry => ({
+    laneKey: label.toLowerCase(),
+    label,
+    state,
+    source: source && {
+      id: 1,
+      url: `https://${label.toLowerCase()}.example.com/knife`,
+      status: 'ok',
+      priceMinor: 10000,
+      currency: 'USD',
+      availability: 'in_stock',
+      enabled: true,
+      ...source,
+    },
+    variants: [],
+    detail: null,
+    search: null,
+  })
+
+  it('lists in-stock stores in the currency, cheapest first', () => {
+    const prices = wishlistStorePrices(
+      [
+        entry('Amazon', { priceMinor: 13999 }),
+        entry('Blade HQ', { priceMinor: 12200 }),
+        entry('KnifeCenter', { priceMinor: 12495 }),
+        entry('Atlas', { priceMinor: 12200 }),
+      ],
+      'USD',
+    )
+    expect(prices.map((price) => [price.label, price.priceMinor])).toEqual([
+      ['Atlas', 12200],
+      ['Blade HQ', 12200],
+      ['KnifeCenter', 12495],
+      ['Amazon', 13999],
+    ])
+    expect(prices[0].url).toBe('https://atlas.example.com/knife')
+  })
+
+  it('leaves out stores that are not selling it now', () => {
+    const prices = wishlistStorePrices(
+      [
+        entry('Out', { availability: 'out_of_stock' }),
+        entry('Paused', { enabled: false }),
+        entry('No price', { priceMinor: null }),
+        entry('Euro', { currency: 'EUR' }),
+        entry('Variant', null, 'variant'),
+        entry('Searched', null, 'not_sold'),
+        entry('Unknown stock', { availability: null }),
+      ],
+      'USD',
+    )
+    expect(prices.map((price) => price.label)).toEqual(['Unknown stock'])
+    expect(wishlistStorePrices(undefined, 'USD')).toEqual([])
+    expect(wishlistStorePrices([entry('Blade HQ', {})], null)).toEqual([])
   })
 })
