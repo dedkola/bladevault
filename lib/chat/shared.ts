@@ -105,7 +105,7 @@ export type ChatStreamEvent =
 
 export type ChatStatus = {
   configured: boolean
-  /** What a new chat starts with: the last pick, else Settings. */
+  /** What a new chat starts with: the Settings chat model. */
   choice: ChatChoice
   toolMode: 'auto' | 'native' | 'json'
   /** Limited mode: chat's daily caps (0 = none); null in Unlimited mode. */

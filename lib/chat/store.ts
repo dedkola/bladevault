@@ -74,21 +74,6 @@ function choiceOf(row: {
   return { model: row.model, reasoning: row.reasoning }
 }
 
-/**
- * The model and reasoning picked last in any chat (also archived ones), or
- * null before any chat has one.
- */
-export function lastChatChoice(): ChatChoice | null {
-  const row = getLocalDb()
-    .prepare(
-      `SELECT model, reasoning FROM chat_conversations
-       WHERE model != '' AND choice_at IS NOT NULL
-       ORDER BY choice_at DESC LIMIT 1`,
-    )
-    .get() as { model: string; reasoning: string } | undefined
-  return row ? choiceOf(row) : null
-}
-
 function parseJson<T>(value: string | null): T | null {
   if (!value) return null
   try {
