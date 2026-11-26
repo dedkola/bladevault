@@ -34,16 +34,38 @@ function chipLabel(net: number, base: number): string {
   return `${net < 0 ? '▼' : '▲'} ${share ? `${share}%` : '<1%'}`
 }
 
+/** Share of the chart width the regular price holds before tracking began. */
+const REGULAR_LEAD = 0.15
+
 /**
- * Net change of a trend over its window, as a share of its first in-stock
- * price (-0.2 is 20% down), or null without a price.
+ * The item's regular price as a step before the first store reading, when
+ * the store was first seen at another price, so a store found already on
+ * sale still charts its drop. Null when there is nothing to add.
+ */
+function regularLead(
+  trend: WishlistTrend,
+  regularMinor: number | null | undefined,
+): { at: number; price: number } | null {
+  if (!regularMinor) return null
+  const first = trend.steps.find((step) => step.price !== null)
+  if (!first || first.price === regularMinor) return null
+  const span = Math.max(trend.until - trend.since, 1)
+  const lead = (span * REGULAR_LEAD) / (1 - REGULAR_LEAD)
+  return { at: trend.since - lead, price: regularMinor }
+}
+
+/**
+ * Net change of a trend over its window, as a share of the regular price
+ * when given (in the trend's currency), else of its first in-stock price
+ * (-0.2 is 20% down); null without a price.
  */
 export function trendNetChange(
   trend: WishlistTrend | undefined,
+  regularMinor?: number | null,
 ): number | null {
   const priced = trend?.steps.filter((step) => step.price !== null) ?? []
   if (!priced.length) return null
-  const first = priced[0].price!
+  const first = regularMinor || priced[0].price!
   return first ? (priced[priced.length - 1].price! - first) / first : null
 }
 
@@ -53,18 +75,23 @@ export function trendNetChange(
  * with a chip for the net change over the window. Hovering moves a crosshair
  * and swaps the caption for the price on that day. The caption otherwise
  * names the window and the last move, so a two-day chart does not read like
- * a month.
+ * a month. With `regularMinor`, the line starts at the item's regular price
+ * and steps to the first store reading, so a sale already running when
+ * tracking began still shows as a drop (and a higher price as a rise).
  *
  * Renders two siblings (chart row, caption); the parent lays them out.
  * Colours come from --trend-down, --trend-up and --trend-flat.
  */
 export function PriceTrend({
   trend,
+  regularMinor,
   width = 110,
   height = 36,
   label = 'Best store price',
 }: {
   trend: WishlistTrend | undefined
+  /** The item's regular price, in minor units of the trend's currency. */
+  regularMinor?: number | null
   width?: number
   height?: number
   /** What the line is, for the chart's accessible name. */
@@ -73,16 +100,19 @@ export function PriceTrend({
   const gradientId = `price-trend-${useId().replace(/:/g, '')}`
   const [hoverAt, setHoverAt] = useState<number | null>(null)
   if (!trend) return <span data-trend-empty>Not tracked yet</span>
-  const steps = trend.steps
+  // Tracked, but no store has had it in stock inside the window.
+  if (!trend.steps.some((step) => step.price !== null))
+    return <span data-trend-empty>No in-stock price yet</span>
+
+  const lead = regularLead(trend, regularMinor)
+  const since = lead?.at ?? trend.since
+  const steps = lead ? [lead, ...trend.steps] : trend.steps
   const priced = steps.filter(
     (step): step is { at: number; price: number } => step.price !== null,
   )
-  // Tracked, but no store has had it in stock inside the window.
-  if (!priced.length) return <span data-trend-empty>No in-stock price yet</span>
-
   const days = wishlistTrackedDays(trend)
   const dayText = `${days} ${days === 1 ? 'day' : 'days'}`
-  const moves = wishlistMoves(trend)
+  const moves = wishlistMoves({ ...trend, steps })
   const direction = wishlistTrendDirection(moves)
   const change = moves.at(-1)
   const current = steps[steps.length - 1].price
@@ -98,9 +128,9 @@ export function PriceTrend({
   const middle = (high + low) / 2
   const bottom = middle - spread * 0.7
   const range = spread * 1.4
-  const span = Math.max(trend.until - trend.since, 1)
+  const span = Math.max(trend.until - since, 1)
   const plot = width - 8
-  const x = (at: number) => ((at - trend.since) / span) * plot + 2
+  const x = (at: number) => ((at - since) / span) * plot + 2
   const y = (price: number) =>
     height - 4 - ((price - bottom) / range) * (height - 10)
 
@@ -132,7 +162,7 @@ export function PriceTrend({
     const box = event.currentTarget.getBoundingClientRect()
     const px = ((event.clientX - box.left) / box.width) * width
     const share = Math.min(Math.max((px - 2) / plot, 0), 1)
-    setHoverAt(trend.since + share * span)
+    setHoverAt(since + share * span)
   }
 
   const summary = moves.length
@@ -210,7 +240,11 @@ export function PriceTrend({
       <span data-trend-note>
         {hovered ? (
           <>
-            <span>{moveDate(Math.max(hoverAt!, trend.since))}</span>
+            <span>
+              {hovered === lead
+                ? 'Regular'
+                : moveDate(Math.max(hoverAt!, trend.since))}
+            </span>
             <b data-trend-hover>
               {hovered.price === null
                 ? 'Out of stock'

@@ -397,6 +397,14 @@ function ChangeTag({ source, now }: { source: MonitoredSource; now: number }) {
   )
 }
 
+/** The item's regular price for a row chart, when in the chart's currency. */
+function regularIn(
+  source: MonitoredSource,
+  trend: WishlistTrend | undefined,
+): number | null {
+  return trend && trend.currency === source.currency ? source.paidMinor : null
+}
+
 /**
  * The line under the price: the regular price it beats ("~~$294~~ · save
  * $73.50"), how far above it it is, or how old a price a failed check kept.
@@ -828,6 +836,7 @@ function SourceTableRow({
           ) : (
             <PriceTrend
               trend={trend}
+              regularMinor={regularIn(source, trend)}
               label={knifeTrend ? 'Best store price' : `Price at ${store}`}
             />
           )}
@@ -1150,7 +1159,8 @@ export function PriceDropsView({
     filtered.filter(SECTION_FILTER[section]),
     sort,
     (source) => {
-      const net = trendNetChange(trendOf(source, grouped === '1'))
+      const trend = trendOf(source, grouped === '1')
+      const net = trendNetChange(trend, regularIn(source, trend))
       return net === null ? null : net * 100
     },
   )
