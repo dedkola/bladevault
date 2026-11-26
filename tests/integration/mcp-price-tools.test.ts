@@ -154,6 +154,24 @@ describe('MCP price monitoring services', () => {
     })
     // A narrow window leaves out older events.
     expect((await listPriceChanges({ days: 1 })).events).toHaveLength(1)
+    // Brand and knife filters: any case, part of the brand; counts follow.
+    const brandDrops = await listPriceChanges({
+      days: 30,
+      kinds: ['drop'],
+      brand: 'bench',
+    })
+    expect(brandDrops.events).toHaveLength(1)
+    expect(brandDrops.counts).toMatchObject({ drop: 1 })
+    const otherBrand = await listPriceChanges({ days: 30, brand: 'Vosteed' })
+    expect(otherBrand.events).toHaveLength(0)
+    expect(otherBrand.counts).toMatchObject({ drop: 0, back_in_stock: 0 })
+    expect(otherBrand.outOfStockNow).toHaveLength(0)
+    expect(
+      (await listPriceChanges({ days: 30, knifeId: knife.id })).events,
+    ).toHaveLength(3)
+    expect(
+      (await listPriceChanges({ days: 30, knifeId: 'missing' })).events,
+    ).toHaveLength(0)
 
     const history = await getPriceHistory({ knifeId: knife.id, range: '1m' })
     expect(history.sources[0]).toMatchObject({

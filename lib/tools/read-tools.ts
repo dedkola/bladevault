@@ -185,13 +185,16 @@ export const READ_TOOLS: readonly ReadTool[] = [
     name: 'list_price_changes',
     title: 'List recent price and stock changes',
     description:
-      'List price drops, increases, restocks (back_in_stock), and out-of-stock events within the last N days, newest first, plus the store listings that are out of stock right now.',
+      'List price drops, increases, restocks (back_in_stock), and out-of-stock events within the last N days, newest first, plus the store listings that are out of stock right now. Pass brand (part of the brand name, any case) or knife_id to get only that brand or knife; counts then cover only those knives.',
     inputSchema: z.object({
       days: z.number().int().min(1).max(365).default(30),
       kinds: z.array(z.enum(PRICE_CHANGE_KINDS)).max(4).default([]),
+      brand: z.string().trim().min(1).max(100).optional(),
+      knife_id: z.string().trim().min(1).optional(),
       limit: z.number().int().min(1).max(500).default(50),
     }),
-    run: ({ days, kinds, limit }) => listPriceChanges({ days, kinds, limit }),
+    run: ({ days, kinds, brand, knife_id, limit }) =>
+      listPriceChanges({ days, kinds, brand, knifeId: knife_id, limit }),
   }),
   defineReadTool({
     name: 'get_price_history',

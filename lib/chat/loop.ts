@@ -31,10 +31,6 @@ import type { ChatToolStep } from '@/lib/chat/shared'
  * that changes data.
  */
 
-/** Tool steps per user message before the model must answer. */
-export const MAX_TOOL_STEPS = 6
-/** Earlier messages (user and assistant text) sent with a new message. */
-export const HISTORY_MESSAGES = 20
 const FIRST_BYTE_TIMEOUT_MS = 90_000
 
 /** The tools the chat offers: every read tool but proposal validation. */
@@ -110,7 +106,7 @@ function systemPrompt(now: Date): string {
     'Rules:',
     '- Every fact about the collection comes from a tool result. Never invent knives, prices, dates or counts; if the tools return nothing, say so.',
     '- To find one knife, call search_knives, then get_knife with its id. Knife ids look like opaque strings; never guess one.',
-    '- Discounts, sales or deals are price drops: list_price_changes with kinds ["drop"] and days for the period (a week = 7).',
+    '- Discounts, sales or deals are price drops: list_price_changes with kinds ["drop"] and days for the period (a week = 7). For one brand pass brand (for example "Vosteed"); for one knife pass knife_id. Do not fetch every change and filter it yourself.',
     '- Missing data: find_missing_fields with field names such as steel, designer, country, blade_length, handle_material.',
     '- The app shows each tool result to the user as knife cards or tables right under your answer. Do not repeat long lists: summarize, give counts and point out what matters.',
     '- Use short Markdown answers. Reply in the language of the user.',
@@ -197,6 +193,78 @@ function toolErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+export const REPEAT_NOTICE =
+  'The model kept repeating the same lookup, so it answered with what it had found.'
+
+/** Same JSON for the same arguments, whatever the key order or spacing. */
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`
+  if (value && typeof value === 'object')
+    return `{${Object.keys(value)
+      .sort()
+      .map(
+        (key) =>
+          `${JSON.stringify(key)}:${stableJson((value as Record<string, unknown>)[key])}`,
+      )
+      .join(',')}}`
+  return JSON.stringify(value) ?? 'null'
+}
+
+/**
+ * Catches a model stuck in a loop without capping how many tools it calls:
+ * a call identical to an earlier one in the same turn (same tool, same
+ * arguments) is not run again; the model is told it already has the
+ * result. A third identical call means it is stuck, and it must answer.
+ */
+class RepeatGuard {
+  private readonly seen = new Map<string, number>()
+
+  check(call: ChatToolCall): 'new' | 'repeat' | 'stuck' {
+    let key: string
+    try {
+      key = `${call.name} ${stableJson(parseArguments(call.arguments))}`
+    } catch {
+      key = `${call.name} ${call.arguments.trim()}`
+    }
+    const count = this.seen.get(key) ?? 0
+    this.seen.set(key, count + 1)
+    return count === 0 ? 'new' : count === 1 ? 'repeat' : 'stuck'
+  }
+}
+
+/** Reports a repeated call without running it; returns what the model reads. */
+function skipRepeatedCall(
+  call: ChatToolCall,
+  emit: ChatTurnInput['emit'],
+  stuck: boolean,
+): string {
+  let args: unknown = {}
+  try {
+    args = parseArguments(call.arguments)
+  } catch {
+    // Label it without arguments.
+  }
+  const label = describeToolCall(call.name, args)
+  emit({ type: 'tool_start', callId: call.id, name: call.name, label })
+  const content = stuck
+    ? `Not run: you called ${call.name} with these arguments again. Stop calling tools and answer with the results you have.`
+    : `Not run: you already called ${call.name} with these exact arguments in this answer, and its result is above. Use that result, or call a different tool or different arguments.`
+  emit({
+    type: 'tool_result',
+    callId: call.id,
+    name: call.name,
+    content,
+    step: {
+      name: call.name,
+      label,
+      summary: 'Same call as before, skipped',
+      ok: true,
+      ui: null,
+    },
+  })
+  return content
+}
+
 /** Runs one tool call and reports it; returns what the model reads. */
 async function runToolCall(
   call: ChatToolCall,
@@ -270,7 +338,6 @@ export async function runChatTurn(
     role: 'system',
     content: systemPrompt(input.now ?? new Date()),
   }
-  const history = input.history.slice(-HISTORY_MESSAGES)
   // This turn's messages: the user's, then tool calls and results.
   const turn: ChatMessage[] = [{ role: 'user', content: input.userText }]
   const useJson =
@@ -279,7 +346,7 @@ export async function runChatTurn(
       chatToolsRejected(input.endpoint, input.model, input.reasoning))
   if (!useJson) {
     try {
-      return await nativeTurn(input, tools, system, history, turn)
+      return await nativeTurn(input, tools, system, input.history, turn)
     } catch (error) {
       if (
         !(error instanceof AiClientError) ||
@@ -290,7 +357,7 @@ export async function runChatTurn(
       // The endpoint refused tools: same turn in JSON mode.
     }
   }
-  return jsonTurn(input, tools, system, history, asJsonModeMessages(turn))
+  return jsonTurn(input, tools, system, input.history, asJsonModeMessages(turn))
 }
 
 async function nativeTurn(
@@ -301,27 +368,23 @@ async function nativeTurn(
   turn: ChatMessage[],
 ): Promise<ChatTurnResult> {
   const definitions = chatToolDefinitions(tools)
+  const guard = new RepeatGuard()
   let steps = 0
+  let stuck = false
   for (;;) {
-    const atCap = steps >= MAX_TOOL_STEPS
-    const messages: ChatMessage[] = atCap
-      ? [
-          system,
-          ...history,
-          ...turn,
-          {
-            role: 'system',
-            content:
-              'Tool limit reached for this message. Answer now with the results you have.',
-          },
-        ]
-      : [system, ...history, ...turn]
+    const messages: ChatMessage[] = [system, ...history, ...turn]
+    if (stuck)
+      messages.push({
+        role: 'system',
+        content:
+          'You keep repeating the same tool call. Answer now with the results you have.',
+      })
     const completion = await requestChatCompletion(
       input.endpoint,
       {
         model: input.model,
         messages,
-        tools: atCap ? undefined : definitions,
+        tools: stuck ? undefined : definitions,
         purpose: 'chat',
         reasoning: input.reasoning,
       },
@@ -333,7 +396,7 @@ async function nativeTurn(
       },
     )
     countUsage(input, completion)
-    if (!completion.toolCalls.length || atCap)
+    if (!completion.toolCalls.length || stuck)
       return { text: completion.text, mode: 'native', steps }
     steps++
     input.emit({
@@ -349,8 +412,16 @@ async function nativeTurn(
     for (const call of completion.toolCalls) {
       if (input.signal?.aborted)
         throw new AiClientError('cancelled', 'The AI request was cancelled.')
-      const content = await runToolCall(call, tools, input.emit)
+      const seen = guard.check(call)
+      const content =
+        seen === 'new'
+          ? await runToolCall(call, tools, input.emit)
+          : skipRepeatedCall(call, input.emit, seen === 'stuck')
       turn.push({ role: 'tool', toolCallId: call.id, content })
+      if (seen === 'stuck' && !stuck) {
+        stuck = true
+        input.emit({ type: 'notice', message: REPEAT_NOTICE })
+      }
     }
   }
 }
@@ -388,16 +459,17 @@ async function jsonTurn(
     role: 'system',
     content: `${system.content}\n\n${jsonModePrompt(tools)}`,
   }
+  const guard = new RepeatGuard()
   let steps = 0
   let repaired = false
+  let stuck = false
   for (;;) {
-    const atCap = steps >= MAX_TOOL_STEPS
     const messages: ChatMessage[] = [instructions, ...history, ...turn]
-    if (atCap)
+    if (stuck)
       messages.push({
         role: 'user',
         content:
-          'Tool limit reached. Reply now with {"answer": "…"} using the results you have.',
+          'You keep repeating the same tool call. Reply now with {"answer": "…"} using the results you have.',
       })
     const completion = await requestChatCompletion(
       input.endpoint,
@@ -417,7 +489,7 @@ async function jsonTurn(
     const action = readJsonAction(completion.text)
     if (!action) {
       // It looks like a broken action: ask once more for valid JSON.
-      if (!repaired && /"tool"\s*:/.test(completion.text) && !atCap) {
+      if (!repaired && !stuck && /"tool"\s*:/.test(completion.text)) {
         repaired = true
         turn.push(
           { role: 'assistant', content: completion.text },
@@ -433,11 +505,11 @@ async function jsonTurn(
       input.emit({ type: 'text', delta: completion.text })
       return { text: completion.text, mode: 'json', steps }
     }
-    if (action.kind === 'answer' || atCap) {
+    if (action.kind === 'answer' || stuck) {
       const text =
         action.kind === 'answer'
           ? action.text
-          : 'I reached the tool limit for this message. Ask a narrower question to continue.'
+          : 'I kept repeating the same lookup instead of answering. Ask again, maybe more narrowly.'
       input.emit({ type: 'text', delta: text })
       return { text, mode: 'json', steps }
     }
@@ -448,7 +520,15 @@ async function jsonTurn(
       arguments: JSON.stringify(action.args ?? {}),
     }
     input.emit({ type: 'tool_calls', text: '', toolCalls: [call] })
-    const content = await runToolCall(call, tools, input.emit)
+    const seen = guard.check(call)
+    const content =
+      seen === 'new'
+        ? await runToolCall(call, tools, input.emit)
+        : skipRepeatedCall(call, input.emit, seen === 'stuck')
+    if (seen === 'stuck') {
+      stuck = true
+      input.emit({ type: 'notice', message: REPEAT_NOTICE })
+    }
     turn.push(
       {
         role: 'assistant',

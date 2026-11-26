@@ -7,10 +7,11 @@ import {
 import {
   chatToolDefinitions,
   CHAT_TOOLS,
-  MAX_TOOL_STEPS,
   REASONING_IGNORED_NOTICE,
+  REPEAT_NOTICE,
   runChatTurn,
   type ChatLoopEvent,
+  type ChatTurnInput,
 } from '@/lib/chat/loop'
 import type { ReadTool } from '@/lib/tools/read-tools'
 import { toModelContent, describeToolCall } from '@/lib/chat/tool-results'
@@ -38,6 +39,7 @@ function turn(
   tools: ReadTool[],
   toolMode: 'auto' | 'native' | 'json' = 'auto',
   reasoning: 'off' | 'low' | 'medium' | 'high' = 'off',
+  extra: Partial<ChatTurnInput> = {},
 ) {
   const events: ChatLoopEvent[] = []
   const usage = { promptTokens: 0, completionTokens: 0 }
@@ -52,6 +54,7 @@ function turn(
     tools,
     usage,
     emit: (event) => events.push(event),
+    ...extra,
   })
   return { promise, events, usage }
 }
@@ -82,24 +85,60 @@ describe('chat tools', () => {
     expect(
       describeToolCall('list_price_changes', { days: 7, kinds: ['drop'] }),
     ).toBe('Listed drop · last 7 days')
+    expect(
+      describeToolCall('list_price_changes', {
+        days: 30,
+        kinds: ['drop'],
+        brand: 'Vosteed',
+      }),
+    ).toBe('Listed Vosteed drop · last 30 days')
     expect(describeToolCall('search_knives', { query: 'Spyderco' })).toBe(
       'Searched knives: “Spyderco”',
     )
   })
 
-  it('cuts long results for the model and says so', () => {
+  it('sends whole results to the model', () => {
     const result = {
-      total: 400,
-      knives: Array.from({ length: 400 }, (_, index) => ({
-        id: `k${index}`,
-        name: `Knife number ${index}`,
-      })),
+      knives: Array.from({ length: 400 }, (_, index) => ({ id: `k${index}` })),
     }
-    const text = toModelContent('search_knives', result, 2000)
-    expect(text.length).toBeLessThanOrEqual(2000)
-    const parsed = JSON.parse(text)
-    expect(parsed.knives.length).toBeLessThan(400)
-    expect(parsed._truncated).toMatch(/knives: showing \d+ of 400/)
+    const parsed = JSON.parse(toModelContent('search_knives', result))
+    expect(parsed.knives).toHaveLength(400)
+    expect(parsed._truncated).toBeUndefined()
+  })
+
+  it('drops URLs, source ids and minor units from price changes', () => {
+    const event = {
+      kind: 'drop',
+      knifeId: 'raccoon',
+      knife: 'Vosteed Raccoon',
+      sourceId: 7,
+      storeName: 'amazon.com',
+      url: 'https://www.amazon.com/dp/X',
+      price: { amount: 48.99, minor: 4899, currency: 'USD' },
+      previousPrice: { amount: 69, minor: 6900, currency: 'USD' },
+      deltaPct: -29,
+      occurredAt: '2026-11-25T10:00:00.000Z',
+    }
+    const parsed = JSON.parse(
+      toModelContent('list_price_changes', {
+        days: 30,
+        counts: { drop: 1 },
+        events: [event],
+        outOfStockNow: [],
+      }),
+    )
+    expect(parsed.events).toEqual([
+      {
+        kind: 'drop',
+        knifeId: 'raccoon',
+        knife: 'Vosteed Raccoon',
+        store: 'amazon.com',
+        price: '48.99 USD',
+        was: '69.00 USD',
+        deltaPct: -29,
+        at: '2026-11-25T10:00:00.000Z',
+      },
+    ])
   })
 })
 
@@ -154,21 +193,81 @@ describe('runChatTurn (native tools)', () => {
     })
   })
 
-  it('makes the model answer without tools after the step cap', async () => {
+  it('lets the model call tools as often as it needs', async () => {
     const { tool } = fakeTool()
+    const fetchImpl = vi.fn<typeof fetch>()
+    for (let index = 0; index < 10; index++)
+      fetchImpl.mockResolvedValueOnce(
+        sseResponse([
+          toolCallChunk(`c${index}`, 'echo_tool', { word: `w${index}` }),
+        ]),
+      )
+    fetchImpl.mockResolvedValueOnce(sseResponse([textChunk('Done.')]))
+    const result = await turn(fetchImpl, [tool]).promise
+    expect(result).toMatchObject({ text: 'Done.', steps: 10 })
+  })
+
+  it('does not run a repeated call again, but runs new arguments', async () => {
+    const { tool, run } = fakeTool()
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        sseResponse([toolCallChunk('c1', 'echo_tool', { word: 'a', n: 1 })]),
+      )
+      // Same arguments in another key order: a repeat.
+      .mockResolvedValueOnce(
+        sseResponse([toolCallChunk('c2', 'echo_tool', { n: 1, word: 'a' })]),
+      )
+      .mockResolvedValueOnce(
+        sseResponse([toolCallChunk('c3', 'echo_tool', { word: 'b' })]),
+      )
+      .mockResolvedValueOnce(sseResponse([textChunk('Done.')]))
+    const { promise, events } = turn(fetchImpl, [tool])
+    const result = await promise
+    expect(result).toMatchObject({ text: 'Done.', steps: 3 })
+    expect(run).toHaveBeenCalledTimes(2)
+    const results = events.filter((event) => event.type === 'tool_result')
+    expect(results[1]).toMatchObject({
+      content: expect.stringMatching(/^Not run: you already called echo_tool/),
+      step: { summary: 'Same call as before, skipped', ok: true },
+    })
+    expect(events.some((event) => event.type === 'notice')).toBe(false)
+    // Every request still offers tools.
+    for (let call = 0; call < 4; call++)
+      expect(bodyOf(fetchImpl, call).tools).toBeDefined()
+  })
+
+  it('makes a model stuck on one call answer without tools', async () => {
+    const { tool, run } = fakeTool()
     const fetchImpl = vi
       .fn<typeof fetch>()
       .mockImplementation(async (_url, init) => {
         const body = JSON.parse(String(init?.body))
         return body.tools
-          ? sseResponse([toolCallChunk('c', 'echo_tool', { word: 'again' })])
+          ? sseResponse([toolCallChunk('c', 'echo_tool', { word: 'same' })])
           : sseResponse([textChunk('Final.')])
       })
-    const { promise } = turn(fetchImpl, [tool])
+    const { promise, events } = turn(fetchImpl, [tool])
     const result = await promise
-    expect(result.steps).toBe(MAX_TOOL_STEPS)
-    expect(result.text).toBe('Final.')
-    expect(fetchImpl).toHaveBeenCalledTimes(MAX_TOOL_STEPS + 1)
+    expect(result).toMatchObject({ text: 'Final.', steps: 3 })
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(fetchImpl).toHaveBeenCalledTimes(4)
+    const last = bodyOf(fetchImpl, 3)
+    expect(last.tools).toBeUndefined()
+    expect(last.messages.at(-1).content).toMatch(/repeating the same tool/)
+    expect(events).toContainEqual({ type: 'notice', message: REPEAT_NOTICE })
+  })
+
+  it('sends the whole history', async () => {
+    const history = Array.from({ length: 40 }, (_, index) => ({
+      role: index % 2 ? ('assistant' as const) : ('user' as const),
+      content: `${index} ${'h'.repeat(1000)}`,
+    }))
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(sseResponse([textChunk('Ok.')]))
+    await turn(fetchImpl, [], 'native', 'off', { history }).promise
+    expect(bodyOf(fetchImpl, 0).messages).toHaveLength(42)
   })
 
   it('switches to JSON mode when the endpoint refuses tools', async () => {
@@ -246,5 +345,36 @@ describe('runChatTurn (JSON mode)', () => {
     const result = await turn(fetchImpl, [tool], 'json').promise
     expect(run).toHaveBeenCalledTimes(1)
     expect(result.text).toBe('Done.')
+  })
+
+  it('makes a model stuck on one call answer', async () => {
+    const { tool, run } = fakeTool()
+    const repeat = '{"tool":"echo_tool","args":{"word":"same"}}'
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(sseResponse([textChunk(repeat)]))
+      .mockResolvedValueOnce(sseResponse([textChunk(repeat)]))
+      .mockResolvedValueOnce(sseResponse([textChunk(repeat)]))
+      .mockResolvedValueOnce(sseResponse([textChunk('{"answer":"Final."}')]))
+    const { promise, events } = turn(fetchImpl, [tool], 'json')
+    const result = await promise
+    expect(result.text).toBe('Final.')
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(bodyOf(fetchImpl, 3).messages.at(-1).content).toMatch(
+      /repeating the same tool/,
+    )
+    expect(events).toContainEqual({ type: 'notice', message: REPEAT_NOTICE })
+  })
+
+  it('stops a model that still repeats after being told to answer', async () => {
+    const { tool } = fakeTool()
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () =>
+        sseResponse([textChunk('{"tool":"echo_tool","args":{"word":"same"}}')]),
+      )
+    const result = await turn(fetchImpl, [tool], 'json').promise
+    expect(result.text).toMatch(/kept repeating the same lookup/)
+    expect(fetchImpl).toHaveBeenCalledTimes(4)
   })
 })

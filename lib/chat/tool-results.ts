@@ -10,16 +10,11 @@ import type {
 } from '@/lib/chat/shared'
 
 /**
- * Turns a tool's result into two things: the text the model reads (trimmed
- * to a few KB) and the step the page draws (label, summary, knife cards and
- * price tables built from the stored records, so the page never depends on
- * the model repeating numbers correctly).
+ * Turns a tool's result into two things: the text the model reads (the
+ * whole result) and the step the page draws (label, summary, knife cards and price tables built from the
+ * stored records, so the page never depends on the model repeating numbers
+ * correctly).
  */
-
-/** The most a tool result may add to the model's context. */
-export const MODEL_RESULT_MAX_CHARS = 8000
-/** The most cards or rows one step draws. */
-const UI_MAX_ROWS = 60
 
 type Json = Record<string, unknown>
 
@@ -74,7 +69,8 @@ export function describeToolCall(name: string, rawArgs: unknown): string {
         String(kind).replace(/_/g, ' '),
       )
       const days = asNumber(args.days) ?? 30
-      return `Listed ${kinds.length ? kinds.join(', ') : 'price changes'} · last ${days} ${days === 1 ? 'day' : 'days'}`
+      const brand = asString(args.brand)
+      return `Listed ${brand ? `${brand} ` : ''}${kinds.length ? kinds.join(', ') : 'price changes'} · last ${days} ${days === 1 ? 'day' : 'days'}`
     }
     case 'get_price_history':
       return 'Read price history'
@@ -89,40 +85,47 @@ export function describeToolCall(name: string, rawArgs: unknown): string {
 
 // ------------------------------------------------------------ model text
 
-function jsonLength(value: unknown): number {
-  return JSON.stringify(value)?.length ?? 0
-}
-
-/** The longest array within the value (by JSON size), with its parent. */
-function largestArray(
-  value: unknown,
-  depth = 0,
-): { parent: Json; key: string; size: number } | null {
-  if (depth > 4 || !value || typeof value !== 'object') return null
-  let best: { parent: Json; key: string; size: number } | null = null
-  const entries = Array.isArray(value)
-    ? value.map((item, index) => [String(index), item] as const)
-    : Object.entries(value as Json)
-  for (const [key, child] of entries) {
-    if (Array.isArray(child) && child.length > 1) {
-      const size = jsonLength(child)
-      if (!best || size > best.size) best = { parent: value as Json, key, size }
-    }
-    const nested = largestArray(child, depth + 1)
-    if (nested && (!best || nested.size > best.size)) best = nested
-  }
-  return best
+/** "48.99 USD" for the model: one short string instead of an object. */
+function moneyText(value: unknown): string | null {
+  const money = asRecord(value)
+  const amount = asNumber(money.amount)
+  const currency = asString(money.currency)
+  return amount === null || !currency
+    ? null
+    : `${amount.toFixed(2)} ${currency}`
 }
 
 /**
- * The result as compact JSON of at most `maxChars`: the largest lists are
- * cut (noting how many were left out) until it fits.
+ * Price changes without what the model has no use for (store URLs, source
+ * ids, minor units), so a month of changes reads as a short list.
  */
-export function toModelContent(
-  name: string,
-  result: Json,
-  maxChars = MODEL_RESULT_MAX_CHARS,
-): string {
+function compactPriceChanges(copy: Json) {
+  copy.events = asArray(copy.events).map((item) => {
+    const event = asRecord(item)
+    return {
+      kind: event.kind,
+      knifeId: event.knifeId,
+      knife: event.knife,
+      store: event.storeName,
+      price: moneyText(event.price),
+      was: moneyText(event.previousPrice),
+      deltaPct: event.deltaPct,
+      at: event.occurredAt,
+    }
+  })
+  copy.outOfStockNow = asArray(copy.outOfStockNow).map((item) => {
+    const source = asRecord(item)
+    return {
+      knifeId: source.knifeId,
+      knife: source.knife,
+      store: source.storeName,
+      since: source.since,
+    }
+  })
+}
+
+/** The whole result as compact JSON, without what the model cannot use. */
+export function toModelContent(name: string, result: Json): string {
   const copy = structuredClone(result) as Json
   // Image paths mean nothing to the model.
   if (name === 'get_knife') {
@@ -130,29 +133,8 @@ export function toModelContent(
     delete knife.images
     delete knife.webpageScreenshot
   }
-  // Per list name: how many items it had and how many are left.
-  const cut = new Map<string, { from: number; kept: number }>()
-  // Leave room for the note on what was cut.
-  const target = jsonLength(copy) > maxChars ? maxChars - 300 : maxChars
-  for (let round = 0; round < 12 && jsonLength(copy) > target; round++) {
-    const largest = largestArray(copy)
-    if (!largest) break
-    const list = largest.parent[largest.key] as unknown[]
-    const keep = Math.max(1, Math.floor(list.length / 2))
-    const seen = cut.get(largest.key)
-    cut.set(largest.key, { from: seen?.from ?? list.length, kept: keep })
-    largest.parent[largest.key] = list.slice(0, keep)
-  }
-  if (cut.size)
-    copy._truncated = `${[...cut]
-      .map(([key, { from, kept }]) => `${key}: showing ${kept} of ${from}`)
-      .join(
-        '; ',
-      )}. Ask with a smaller limit, an offset or a narrower filter for the rest.`
-  const text = JSON.stringify(copy)
-  return text.length > maxChars
-    ? `${text.slice(0, maxChars)}… (cut: the result was too long)`
-    : text
+  if (name === 'list_price_changes') compactPriceChanges(copy)
+  return JSON.stringify(copy)
 }
 
 // --------------------------------------------------------------- page UI
@@ -240,7 +222,6 @@ export async function buildToolStep(
       if (!entry.id || seen.has(entry.id)) continue
       seen.add(entry.id)
       knives.push(card(index, entry.id, entry))
-      if (knives.length >= UI_MAX_ROWS) break
     }
     return { kind: 'knives', knives, total }
   }
@@ -317,7 +298,6 @@ export async function buildToolStep(
         const index = await knifeIndex()
         const rows: ChatPriceChangeRow[] = events
           .filter((event) => CHANGE_KINDS.has(asString(event.kind)))
-          .slice(0, UI_MAX_ROWS)
           .map((event) => ({
             kind: asString(event.kind) as ChatPriceChangeRow['kind'],
             knife: card(index, asString(event.knifeId), {
@@ -339,18 +319,16 @@ export async function buildToolStep(
       summary = plural(total, 'knife', 'knives')
       if (knives.length) {
         const index = await knifeIndex()
-        const rows: ChatPriceWatchRow[] = knives
-          .slice(0, UI_MAX_ROWS)
-          .map((entry) => ({
-            knife: card(index, asString(entry.knifeId), {
-              name: asString(entry.knife),
-            }),
-            state: asString(entry.state),
-            bestPrice: moneyOf(entry.bestPrice),
-            paid: moneyOf(entry.paid),
-            outOfStock: entry.outOfStock === true,
-            lastCheckedAt: asString(entry.lastCheckedAt) || null,
-          }))
+        const rows: ChatPriceWatchRow[] = knives.map((entry) => ({
+          knife: card(index, asString(entry.knifeId), {
+            name: asString(entry.knife),
+          }),
+          state: asString(entry.state),
+          bestPrice: moneyOf(entry.bestPrice),
+          paid: moneyOf(entry.paid),
+          outOfStock: entry.outOfStock === true,
+          lastCheckedAt: asString(entry.lastCheckedAt) || null,
+        }))
         ui = { kind: 'priceWatches', rows, total }
       }
       break
