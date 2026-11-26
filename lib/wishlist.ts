@@ -199,6 +199,36 @@ export function wishlistTrendDirection(
   return net === 0 ? 'flat' : net < 0 ? 'down' : 'up'
 }
 
+/** Share of a row chart's width the regular price holds before tracking. */
+export const REGULAR_LEAD_SHARE = 0.15
+
+/**
+ * The trend's steps for a row chart built from the item's regular price.
+ * When the first in-stock reading differs from it (beyond the tolerance),
+ * a step at the regular price leads the line, `REGULAR_LEAD_SHARE` of the
+ * chart's width, so a store first seen on sale still steps down from it.
+ * `since` is where the chart starts; `lead` is the added step, or null.
+ */
+export function withRegularStart(
+  trend: WishlistTrend,
+  regularMinor: number | null | undefined,
+): {
+  steps: WishlistTrend['steps']
+  since: number
+  lead: { at: number; price: number } | null
+} {
+  const first = trend.steps.find((step) => step.price !== null)?.price
+  const change = first == null ? null : priceChange(first, regularMinor ?? null)
+  if (change === null || Math.abs(change) <= WISHLIST_REGULAR_TOLERANCE)
+    return { steps: trend.steps, since: trend.since, lead: null }
+  const span = Math.max(trend.until - trend.since, 1)
+  const lead = {
+    at: trend.since - (span * REGULAR_LEAD_SHARE) / (1 - REGULAR_LEAD_SHARE),
+    price: regularMinor!,
+  }
+  return { steps: [lead, ...trend.steps], since: lead.at, lead }
+}
+
 /** Days of history the trend covers, at least 1. */
 export function wishlistTrackedDays(
   trend: Pick<WishlistTrend, 'since' | 'until'>,

@@ -375,19 +375,16 @@
   fill: var(--wl-up);
   opacity: 0.06;
 }
-/* The regular price, dashed. */
-[data-wishlist] [data-wishlist-spark-regular] line {
-  stroke: var(--muted-foreground);
-  stroke-width: 1;
-  stroke-dasharray: 4 3;
-  opacity: 0.7;
+/* Baseline fill between the line and the regular price: green where the
+   price is below it, red where above. */
+[data-wishlist] [data-wishlist-spark-base] {
+  fill-opacity: 0.22;
 }
-[data-wishlist] [data-wishlist-spark-regular] text {
-  fill: var(--muted-foreground);
-  font-size: 10px;
-  paint-order: stroke;
-  stroke: var(--card);
-  stroke-width: 3px;
+[data-wishlist] [data-wishlist-spark-base='below'] {
+  fill: var(--wl-sale);
+}
+[data-wishlist] [data-wishlist-spark-base='above'] {
+  fill: var(--wl-up);
 }
 [data-wishlist] [data-wishlist-spark-tip] {
   position: absolute;
