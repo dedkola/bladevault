@@ -94,6 +94,21 @@ describe('price table model', () => {
     expect(vsPaid({ priceMinor: 9000, paidMinor: null })).toBeNull()
   })
 
+  it('sorts by the regular price only with a price one can buy', () => {
+    // An out-of-stock listing far under regular is not a sale: it sorts
+    // last, as the row chip leaves it out.
+    const gone = source({
+      result: 'out_of_stock',
+      priceMinor: 14000,
+      paidMinor: 26900,
+    })
+    const sale = source({ priceMinor: 12200, paidMinor: 21500 })
+    const regular = source({ priceMinor: 26900, paidMinor: 26900 })
+    expect(
+      sortRows('all', [gone, regular, sale], { key: 'paid', dir: 'asc' }),
+    ).toEqual([sale, regular, gone])
+  })
+
   it('searches brand, name, model and store', () => {
     const row = source({
       knife: {

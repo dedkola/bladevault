@@ -2,10 +2,10 @@
 
 import { useId, useState, type PointerEvent } from 'react'
 import {
+  WISHLIST_REGULAR_TOLERANCE,
   wishlistMoves,
   wishlistTrackedDays,
   wishlistTrendDirection,
-  type WishlistMove,
   type WishlistTrend,
 } from '@/lib/wishlist'
 import { money } from './price-format'
@@ -14,7 +14,7 @@ import './price-trend.css'
 /** Smallest vertical range of a row chart, as a share of its highest price. */
 const SPARK_MIN_SPREAD = 0.04
 
-/** "21 Nov" for the snapshot that introduced a move. */
+/** "21 Nov" for a moment on the chart. */
 function moveDate(at: number): string {
   return new Date(at).toLocaleDateString(undefined, {
     day: 'numeric',
@@ -22,74 +22,78 @@ function moveDate(at: number): string {
   })
 }
 
-/** "↓ $40.50 · 21 Nov". */
-function moveLabel(move: WishlistMove, currency: string | null): string {
-  return `${move.delta < 0 ? '↓' : '↑'} ${money(Math.abs(move.delta), currency)} · ${moveDate(move.at)}`
-}
-
-/** "▼ 20%" for the net change over the chart window; "<1%" for tiny moves. */
-function chipLabel(net: number, base: number): string {
-  if (!net) return '0%'
-  const share = Math.round((Math.abs(net) / base) * 100)
-  return `${net < 0 ? '▼' : '▲'} ${share ? `${share}%` : '<1%'}`
-}
-
-/** Share of the chart width the regular price holds before tracking began. */
-const REGULAR_LEAD = 0.15
-
 /**
- * The item's regular price as a step before the first store reading, when
- * the store was first seen at another price, so a store found already on
- * sale still charts its drop. Null when there is nothing to add.
+ * The current price against the item's regular price: what the row chip
+ * shows. `delta` is negative below regular; `share` is its size as a whole
+ * percent of the regular price. Within half a percent counts as regular.
  */
-function regularLead(
-  trend: WishlistTrend,
+export type RegularGap = {
+  delta: number
+  share: number
+  direction: 'down' | 'up' | 'flat'
+}
+
+export function regularGap(
+  currentMinor: number | null | undefined,
   regularMinor: number | null | undefined,
-): { at: number; price: number } | null {
-  if (!regularMinor) return null
-  const first = trend.steps.find((step) => step.price !== null)
-  if (!first || first.price === regularMinor) return null
-  const span = Math.max(trend.until - trend.since, 1)
-  const lead = (span * REGULAR_LEAD) / (1 - REGULAR_LEAD)
-  return { at: trend.since - lead, price: regularMinor }
+): RegularGap | null {
+  if (currentMinor == null || !regularMinor) return null
+  const delta = currentMinor - regularMinor
+  const ratio = delta / regularMinor
+  if (Math.abs(ratio) < WISHLIST_REGULAR_TOLERANCE)
+    return { delta, share: 0, direction: 'flat' }
+  return {
+    delta,
+    share: Math.max(1, Math.round(Math.abs(ratio) * 100)),
+    direction: delta < 0 ? 'down' : 'up',
+  }
+}
+
+/** "▼ $72.10 · 36%" below regular, "▲ $12.00 · 6%" above, "regular". */
+export function regularChipLabel(gap: RegularGap, currency: string | null) {
+  if (gap.direction === 'flat') return 'regular'
+  return `${gap.direction === 'down' ? '▼' : '▲'} ${money(Math.abs(gap.delta), currency)} · ${gap.share}%`
 }
 
 /**
- * Net change of a trend over its window, as a share of the regular price
- * when given (in the trend's currency), else of its first in-stock price
- * (-0.2 is 20% down); null without a price.
+ * Net change of a trend over its window, as a share of its first in-stock
+ * price (-0.2 is 20% down); null without a price.
  */
 export function trendNetChange(
   trend: WishlistTrend | undefined,
-  regularMinor?: number | null,
 ): number | null {
   const priced = trend?.steps.filter((step) => step.price !== null) ?? []
   if (!priced.length) return null
-  const first = regularMinor || priced[0].price!
+  const first = priced[0].price!
   return first ? (priced[priced.length - 1].price! - first) / first : null
 }
 
 /**
- * Best store price over the tracked window, drawn as a stock-style step
- * "mountain" (a price holds until the next check) scaled to its own history,
- * with a chip for the net change over the window. Hovering moves a crosshair
- * and swaps the caption for the price on that day. The caption otherwise
- * names the window and the last move, so a two-day chart does not read like
- * a month. With `regularMinor`, the line starts at the item's regular price
- * and steps to the first store reading, so a sale already running when
- * tracking began still shows as a drop (and a higher price as a rise).
+ * The store price over the tracked window, drawn as a stock-style step
+ * "mountain" (a price holds until the next check) under a dashed line at
+ * the item's regular price, both inside the chart's scale. The chip is the
+ * one headline number: how far the current price is below (or above) the
+ * regular price, in money and percent. The day-to-day moves stay on the
+ * line and the hover readout; the knife's large chart has the detail.
+ * Without a regular price to compare, there is no chip and no dashed line.
  *
  * Renders two siblings (chart row, caption); the parent lays them out.
  * Colours come from --trend-down, --trend-up and --trend-flat.
  */
 export function PriceTrend({
   trend,
+  currentMinor,
   regularMinor,
   width = 110,
   height = 36,
   label = 'Best store price',
 }: {
   trend: WishlistTrend | undefined
+  /**
+   * The row's price now, in minor units of the trend's currency; null when
+   * it is not a buyable price (out of stock, or a failed check).
+   */
+  currentMinor?: number | null
   /** The item's regular price, in minor units of the trend's currency. */
   regularMinor?: number | null
   width?: number
@@ -100,37 +104,39 @@ export function PriceTrend({
   const gradientId = `price-trend-${useId().replace(/:/g, '')}`
   const [hoverAt, setHoverAt] = useState<number | null>(null)
   if (!trend) return <span data-trend-empty>Not tracked yet</span>
-  // Tracked, but no store has had it in stock inside the window.
-  if (!trend.steps.some((step) => step.price !== null))
-    return <span data-trend-empty>No in-stock price yet</span>
-
-  const lead = regularLead(trend, regularMinor)
-  const since = lead?.at ?? trend.since
-  const steps = lead ? [lead, ...trend.steps] : trend.steps
+  const steps = trend.steps
   const priced = steps.filter(
     (step): step is { at: number; price: number } => step.price !== null,
   )
+  // Tracked, but no store has had it in stock inside the window.
+  if (!priced.length) return <span data-trend-empty>No in-stock price yet</span>
+
+  const currency = trend.currency
+  const regular = regularMinor || null
+  const gap = regularGap(currentMinor, regular)
   const days = wishlistTrackedDays(trend)
   const dayText = `${days} ${days === 1 ? 'day' : 'days'}`
-  const moves = wishlistMoves({ ...trend, steps })
-  const direction = wishlistTrendDirection(moves)
+  const moves = wishlistMoves(trend)
   const change = moves.at(-1)
   const current = steps[steps.length - 1].price
-  const stockNote = current === null ? ', out of stock now' : ''
-  const first = priced[0].price
-  const net = priced[priced.length - 1].price - first
+  const net = priced[priced.length - 1].price - priced[0].price
+  // The chart reads as the chip does; without one, as the window moved.
+  const direction = gap?.direction ?? wishlistTrendDirection(moves)
 
-  // Scale to the history, but never tighter than a few percent of the price,
-  // so a $1 move on a $200 knife does not look like a crash.
-  const high = Math.max(...priced.map((step) => step.price))
-  const low = Math.min(...priced.map((step) => step.price))
+  // Scale to the history and the regular price, but never tighter than a
+  // few percent of the price, so a $1 move on a $200 knife does not look
+  // like a crash.
+  const values = priced.map((step) => step.price)
+  if (regular !== null) values.push(regular)
+  const high = Math.max(...values)
+  const low = Math.min(...values)
   const spread = Math.max(high - low, high * SPARK_MIN_SPREAD, 1)
   const middle = (high + low) / 2
   const bottom = middle - spread * 0.7
   const range = spread * 1.4
-  const span = Math.max(trend.until - since, 1)
+  const span = Math.max(trend.until - trend.since, 1)
   const plot = width - 8
-  const x = (at: number) => ((at - since) / span) * plot + 2
+  const x = (at: number) => ((at - trend.since) / span) * plot + 2
   const y = (price: number) =>
     height - 4 - ((price - bottom) / range) * (height - 10)
 
@@ -159,12 +165,26 @@ export function PriceTrend({
     const box = event.currentTarget.getBoundingClientRect()
     const px = ((event.clientX - box.left) / box.width) * width
     const share = Math.min(Math.max((px - 2) / plot, 0), 1)
-    setHoverAt(since + share * span)
+    setHoverAt(trend.since + share * span)
   }
 
-  const summary = moves.length
-    ? `net ${net < 0 ? 'down' : 'up'} ${money(Math.abs(net), trend.currency)}, last change ${change!.delta < 0 ? 'down' : 'up'} ${money(Math.abs(change!.delta), trend.currency)} on ${moveDate(change!.at)}`
+  const gapText = gap
+    ? gap.direction === 'flat'
+      ? `at the regular price ${money(regular, currency)}`
+      : `${money(Math.abs(gap.delta), currency)} (${gap.share}%) ${gap.direction === 'down' ? 'below' : 'above'} the regular price ${money(regular, currency)}`
+    : ''
+  const history = moves.length
+    ? `net ${net < 0 ? 'down' : 'up'} ${money(Math.abs(net), currency)}, last change ${change!.delta < 0 ? 'down' : 'up'} ${money(Math.abs(change!.delta), currency)} on ${moveDate(change!.at)}`
     : 'no price change'
+  const ariaLabel = [
+    `${label} over ${dayText}`,
+    gap ? `now ${money(currentMinor ?? null, currency)}, ${gapText}` : '',
+    history,
+    current === null ? 'out of stock now' : '',
+  ]
+    .filter(Boolean)
+    .join('; ')
+  const regularY = regular === null ? 0 : y(regular)
 
   return (
     <>
@@ -175,7 +195,7 @@ export function PriceTrend({
           height={height}
           viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label={`${label} over ${dayText}: ${summary}${stockNote}`}
+          aria-label={ariaLabel}
           onPointerMove={moveHover}
           onPointerLeave={() => setHoverAt(null)}
         >
@@ -189,6 +209,15 @@ export function PriceTrend({
             d={`${line} V${height} H${from.toFixed(1)} Z`}
             fill={`url(#${gradientId})`}
           />
+          {regular !== null && (
+            <line
+              data-trend-regular
+              x1="2"
+              x2={width - 2}
+              y1={regularY.toFixed(1)}
+              y2={regularY.toFixed(1)}
+            />
+          )}
           <path data-trend-line d={line} fill="none" />
           {hoverAt !== null && (
             <line
@@ -218,37 +247,31 @@ export function PriceTrend({
             )
           )}
         </svg>
-        <span
-          data-trend-chip={direction}
-          title={
-            net
-              ? `${net < 0 ? 'Down' : 'Up'} ${money(Math.abs(net), trend.currency)} over ${dayText}`
-              : `No price change over ${dayText}`
-          }
-        >
-          {chipLabel(net, first)}
-        </span>
+        {gap && (
+          <span
+            data-trend-chip={gap.direction}
+            title={`${gapText[0].toUpperCase()}${gapText.slice(1)}`}
+          >
+            {regularChipLabel(gap, currency)}
+          </span>
+        )}
       </div>
       <span data-trend-note>
         {hovered ? (
           <>
-            <span>
-              {hovered === lead
-                ? 'Regular'
-                : moveDate(Math.max(hoverAt!, trend.since))}
-            </span>
+            <span>{moveDate(Math.max(hoverAt!, trend.since))}</span>
             <b data-trend-hover>
               {hovered.price === null
                 ? 'Out of stock'
-                : money(hovered.price, trend.currency)}
+                : money(hovered.price, currency)}
             </b>
           </>
         ) : (
           <>
             <span>{days}d tracked</span>
-            {change && (
-              <span data-trend-change={change.delta < 0 ? 'down' : 'up'}>
-                {moveLabel(change, trend.currency)}
+            {regular !== null && (
+              <span data-trend-regular-note>
+                regular {money(regular, currency)}
               </span>
             )}
           </>

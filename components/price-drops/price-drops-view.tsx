@@ -68,7 +68,6 @@ import {
   clockTime,
   money,
   nextCheckLabel,
-  percentLabel,
   relativeTime,
   storeLabel,
 } from './price-format'
@@ -76,7 +75,7 @@ import { PriceTrend, trendNetChange } from './price-trend'
 import {
   EMPTY_TEXT,
   groupByKnife,
-  isBelowPaid,
+  hasBuyablePrice,
   matchesQuery,
   nextSort,
   parseSection,
@@ -370,39 +369,25 @@ function shortDate(iso: string) {
   })
 }
 
-/** The latest check moved the price: "▼ $73.50 · 2 days ago". */
-function ChangeTag({ source, now }: { source: MonitoredSource; now: number }) {
-  if (
-    (source.result !== 'drop' && source.result !== 'increase') ||
-    source.deltaMinor === null
-  )
-    return null
-  const down = source.deltaMinor < 0
-  return (
-    <span
-      data-price-change-tag={down ? 'drop' : 'increase'}
-      title={[
-        `${down ? 'Down' : 'Up'} ${money(Math.abs(source.deltaMinor), source.currency)}${source.deltaPct !== null ? ` (${percentLabel(source.deltaPct)})` : ''}`,
-        source.changedAt ? `on ${shortDate(source.changedAt)}` : '',
-        source.fluctuating ? '; the price has also gone back and forth' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
-    >
-      {down ? '▼' : '▲'} {money(Math.abs(source.deltaMinor), source.currency)}
-      {source.changedAt
-        ? ` · ${relativeTime(source.changedAt, now, 'short')}`
-        : ''}
-    </span>
-  )
-}
-
 /** The item's regular price for a row chart, when in the chart's currency. */
 function regularIn(
   source: MonitoredSource,
   trend: WishlistTrend | undefined,
 ): number | null {
   return trend && trend.currency === source.currency ? source.paidMinor : null
+}
+
+/**
+ * The row's price for the chart chip, when it is one the price cell compares
+ * with the regular price: not out of stock, not a price a failed check kept.
+ */
+function chipPriceIn(
+  source: MonitoredSource,
+  trend: WishlistTrend | undefined,
+): number | null {
+  return hasBuyablePrice(source) && trend?.currency === source.currency
+    ? source.priceMinor
+    : null
 }
 
 /**
@@ -454,16 +439,15 @@ function PriceNote({ source }: { source: MonitoredSource }) {
 }
 
 /**
- * The price now, with the latest change beside it and the regular price
- * under it. A check that could not read the page keeps the last known price,
+ * The price now, with the regular price under it. The latest small move is
+ * left to the knife's large chart. A check that could not read the page keeps the last known price,
  * shown muted with its date so it never passes for a fresh reading.
  */
-function PriceCell({ source, now }: { source: MonitoredSource; now: number }) {
+function PriceCell({ source }: { source: MonitoredSource }) {
   const stale = source.result === 'attention' && source.priceMinor !== null
   return (
     <div data-price-cell data-stale={stale || undefined}>
       <span data-price-line>
-        <ChangeTag source={source} now={now} />
         <b title={stale ? 'Last price read on this page' : undefined}>
           {money(source.priceMinor, source.currency)}
         </b>
@@ -502,8 +486,9 @@ function atNinetyDayLow(
 }
 
 /**
- * Wishlist-style signals under the knife: its stock or check status, On
- * sale against the regular price, and a 90-day low.
+ * Wishlist-style signals under the knife: its stock or check status and a
+ * 90-day low. How far below the regular price it is shows once, on the
+ * trend chip.
  */
 function RowSignals({
   source,
@@ -519,9 +504,8 @@ function RowSignals({
   onResolve: () => void
 }) {
   const status = STATUS_RESULTS.has(source.result)
-  const paid = isBelowPaid(source) ? vsPaid(source) : null
   const low = atNinetyDayLow(source, trend)
-  if (!status && !paid && !low) return null
+  if (!status && !low) return null
   return (
     <span data-price-signals>
       {status ? (
@@ -533,15 +517,6 @@ function RowSignals({
             canSolve === false ? SOLVE_UNAVAILABLE_TEXT : undefined
           }
         />
-      ) : null}
-      {paid ? (
-        <span
-          className="pd-badge"
-          data-result="drop"
-          title={`${money(-paid.deltaMinor, source.currency)} below the regular price`}
-        >
-          On sale −{Math.round(Math.abs(paid.pct))}%
-        </span>
       ) : null}
       {low ? (
         <span
@@ -825,7 +800,7 @@ function SourceTableRow({
         )}
       </td>
       <td data-col="price" className="py-2.5 pr-4">
-        <PriceCell source={source} now={now} />
+        <PriceCell source={source} />
       </td>
       <td data-col="trend" className="py-2.5 pr-4">
         <div data-price-trend>
@@ -838,6 +813,7 @@ function SourceTableRow({
           ) : (
             <PriceTrend
               trend={trend}
+              currentMinor={chipPriceIn(source, trend)}
               regularMinor={regularIn(source, trend)}
               label={knifeTrend ? 'Best store price' : `Price at ${store}`}
             />
@@ -1161,8 +1137,7 @@ export function PriceDropsView({
     filtered.filter(SECTION_FILTER[section]),
     sort,
     (source) => {
-      const trend = trendOf(source, grouped === '1')
-      const net = trendNetChange(trend, regularIn(source, trend))
+      const net = trendNetChange(trendOf(source, grouped === '1'))
       return net === null ? null : net * 100
     },
   )
@@ -1984,7 +1959,7 @@ export function PriceDropsView({
                           />
                           <SortHeader
                             label="Trend · 30d"
-                            sortKey="change"
+                            sortKey="paid"
                             sort={sort}
                             onSort={(key) => setSort(nextSort(sort, key))}
                           />

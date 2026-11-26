@@ -100,10 +100,23 @@ function trendFromSnapshots(
       row.availability !== 'out_of_stock',
   )
   if (!priced.length) return null
-  const counts = new Map<string, number>()
-  for (const row of priced)
-    counts.set(row.currency!, (counts.get(row.currency!) ?? 0) + 1)
-  const currency = [...counts].sort((a, b) => b[1] - a[1])[0][0]
+  // The currency the stores price it in now: each store's latest in-stock
+  // reading counts once, and a tie goes to the newest. Counting every old
+  // snapshot let a store that once showed another currency keep the chart
+  // in it after it switched.
+  const latest = new Map<number, SnapshotRow>()
+  for (const row of priced) latest.set(row.source_id, row)
+  const counts = new Map<string, { count: number; at: string }>()
+  for (const row of latest.values()) {
+    const seen = counts.get(row.currency!)
+    counts.set(row.currency!, {
+      count: (seen?.count ?? 0) + 1,
+      at: seen && seen.at > row.observed_at ? seen.at : row.observed_at,
+    })
+  }
+  const currency = [...counts].sort(
+    ([, a], [, b]) => b.count - a.count || b.at.localeCompare(a.at),
+  )[0][0]
   const inCurrency = (row: SnapshotRow) =>
     row.price_minor !== null &&
     row.currency === currency &&
