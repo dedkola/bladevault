@@ -281,7 +281,7 @@ describe('chat model and reasoning', () => {
     return first.conversation.id
   }
 
-  it('starts from Settings, then from the last pick', async () => {
+  it('starts new chats from Settings; a pick changes only its chat', async () => {
     configureAi()
     expect(chatStartChoice()).toEqual(OFF)
     expect(readChatStatus().choice).toEqual(OFF)
@@ -301,17 +301,36 @@ describe('chat model and reasoning', () => {
       model: 'big-model',
       reasoning: 'high',
     })
-    // The next new chat starts with that pick.
-    expect(readChatStatus().choice).toEqual({
-      model: 'big-model',
-      reasoning: 'high',
-    })
+    // The next new chat still starts from Settings.
+    expect(readChatStatus().choice).toEqual(OFF)
 
     // A follow-up without a choice keeps the chat's own.
     await readEvents(await post({ conversationId: id, message: 'again' }))
     const followUp = JSON.parse(String(fetchMock.mock.calls[1][1]?.body))
     expect(followUp.model).toBe('big-model')
     expect(followUp.reasoning_effort).toBe('high')
+
+    // A new chat model in Settings: new chats start with it, the old chat
+    // keeps its own pick.
+    const priceMonitoring = getSettings().priceMonitoring
+    saveSettings({
+      priceMonitoring: {
+        ...priceMonitoring,
+        ai: {
+          ...priceMonitoring.ai,
+          chat: { ...priceMonitoring.ai.chat, model: 'chat-model' },
+        },
+      },
+    })
+    expect(readChatStatus().choice).toEqual({
+      model: 'chat-model',
+      reasoning: 'off',
+    })
+    const second = await readEvents(await post({ message: 'new chat' }))
+    const secondSent = JSON.parse(String(fetchMock.mock.calls[2][1]?.body))
+    expect(secondSent.model).toBe('chat-model')
+    expect(getConversation(chatIdOf(second)).choice?.model).toBe('chat-model')
+    expect(getConversation(id).choice?.model).toBe('big-model')
   })
 
   it('saves a pick on an open chat without changing the list order', async () => {
@@ -335,10 +354,8 @@ describe('chat model and reasoning', () => {
       newer.id,
       older.id,
     ])
-    expect(chatStartChoice()).toEqual({
-      model: 'other-model',
-      reasoning: 'low',
-    })
+    // New chats still start from Settings.
+    expect(chatStartChoice()).toEqual(OFF)
 
     const invalid = await conversationRoute.PATCH(
       new Request(`http://localhost/api/chat/conversations/${older.id}`, {

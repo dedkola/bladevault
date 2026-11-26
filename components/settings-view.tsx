@@ -100,6 +100,7 @@ import { PriceMonitoringSettings as PriceMonitoringSettingsPanel } from '@/compo
 import {
   PriceAiChatSection,
   PriceAiConnectionSection,
+  useAiModelList,
 } from '@/components/price-drops/price-ai-settings'
 import { formatDimension, formatWeight } from '@/lib/measurements'
 import {
@@ -714,6 +715,8 @@ export default function SettingsView() {
     startRestore,
   } = useVaultRestore()
   const [settings, setSettings] = useState<AppSettings | null>(null)
+  // Discover models fills both the Endpoint and Chat model lists.
+  const aiModels = useAiModelList()
   const [localDataPath, setLocalDataPath] = useState('')
   const [configuredLocalDataPath, setConfiguredLocalDataPath] = useState('')
   const [defaultLocalDataPath, setDefaultLocalDataPath] = useState('')
@@ -2987,6 +2990,7 @@ export default function SettingsView() {
                         AI connection for price drops and chat
                       </h2>
                       <PriceAiConnectionSection
+                        models={aiModels}
                         settings={
                           normalizePriceMonitoring(settings.priceMonitoring).ai
                         }
@@ -3001,6 +3005,7 @@ export default function SettingsView() {
                         }
                       />
                       <PriceAiChatSection
+                        models={aiModels}
                         settings={
                           normalizePriceMonitoring(settings.priceMonitoring).ai
                         }

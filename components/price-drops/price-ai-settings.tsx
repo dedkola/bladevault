@@ -1009,32 +1009,28 @@ export function PriceAiSettingsSection({
   )
 }
 
+type AiModelSource = 'endpoint' | 'chat'
+
 /**
- * The technical connection to the OpenAI-compatible endpoint Price Drops
- * uses: base URL, API key, custom headers and model. It lives on the AI / MCP
- * settings tab; what AI does stays in PriceAiSettingsSection.
+ * The endpoint's model list from Discover models, shared by the Endpoint and
+ * Chat model rows so one Discover fills both. The notice shows under the row
+ * whose button asked.
  */
-export function PriceAiConnectionSection({
-  settings,
-  disabled,
-  onChange,
-}: {
-  settings: PriceAiSettings
-  disabled?: boolean
-  onChange: (next: PriceAiSettings) => void
-}) {
+export type AiModelList = {
+  models: string[]
+  discovering: boolean
+  notice: { source: AiModelSource; notice: Notice } | null
+  discover: (source: AiModelSource) => Promise<void>
+}
+
+export function useAiModelList(): AiModelList {
   const [models, setModels] = useState<string[]>([])
-  const [busy, setBusy] = useState<'models' | 'test' | null>(null)
-  const [modelNotice, setModelNotice] = useState<Notice>(null)
-  const [testNotice, setTestNotice] = useState<Notice>(null)
+  const [discovering, setDiscovering] = useState(false)
+  const [notice, setNotice] = useState<AiModelList['notice']>(null)
 
-  const update = (patch: Partial<PriceAiSettings>) =>
-    onChange({ ...settings, ...patch })
-  const ready = Boolean(settings.baseUrl && settings.model)
-
-  const discover = async () => {
-    setBusy('models')
-    setModelNotice(null)
+  const discover = async (source: AiModelSource) => {
+    setDiscovering(true)
+    setNotice(null)
     try {
       const data = await callJson<{ models: string[] }>(
         '/api/settings/price-ai-models',
@@ -1042,23 +1038,155 @@ export function PriceAiConnectionSection({
         'Could not load the model list.',
       )
       setModels(data.models)
-      setModelNotice(
-        data.models.length
+      setNotice({
+        source,
+        notice: data.models.length
           ? { tone: 'ok', text: `${data.models.length} models found.` }
           : { tone: 'error', text: 'The endpoint listed no models.' },
-      )
+      })
     } catch (error) {
-      setModelNotice({
-        tone: 'error',
-        text: error instanceof Error ? error.message : String(error),
+      setNotice({
+        source,
+        notice: {
+          tone: 'error',
+          text: error instanceof Error ? error.message : String(error),
+        },
       })
     } finally {
-      setBusy(null)
+      setDiscovering(false)
     }
   }
 
+  return { models, discovering, notice, discover }
+}
+
+// Select items cannot have an empty value; this one stands for "no chat model".
+const SAME_AS_ENDPOINT = '__same-as-endpoint__'
+
+/**
+ * A model ID setting: a list from Discover models (once loaded) and a typed
+ * ID. With `endpointModel` set, an empty value means "same as the endpoint
+ * model" and the list offers that first.
+ */
+function AiModelPicker({
+  source,
+  value,
+  list,
+  disabled,
+  canDiscover,
+  endpointModel,
+  label,
+  placeholder,
+  onCommit,
+}: {
+  source: AiModelSource
+  value: string
+  list: AiModelList
+  disabled?: boolean
+  canDiscover: boolean
+  /** Only for the chat model: the model used when it is empty. */
+  endpointModel?: string
+  /** What the model is for, e.g. "model" or "chat model". */
+  label: string
+  placeholder: string
+  onCommit: (model: string) => void
+}) {
+  const optional = endpointModel !== undefined
+  const sameLabel = endpointModel
+    ? `Same as Endpoint model (${endpointModel})`
+    : 'Same as Endpoint model'
+  // The list appears after Discover models; the typed ID stays available.
+  const models =
+    value && !list.models.includes(value)
+      ? [value, ...list.models]
+      : list.models
+  const notice = list.notice?.source === source ? list.notice.notice : null
+
+  return (
+    <>
+      {list.models.length ? (
+        <Select
+          value={value || (optional ? SAME_AS_ENDPOINT : undefined)}
+          disabled={disabled}
+          onValueChange={(next) => {
+            if (!next) return
+            onCommit(next === SAME_AS_ENDPOINT ? '' : next)
+          }}
+        >
+          <SelectTrigger
+            size="sm"
+            aria-label={`Choose a ${label}`}
+            className="w-full min-w-0 sm:w-64"
+          >
+            <SelectValue placeholder={`Choose a ${label}`}>
+              {value || (optional ? sameLabel : undefined)}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {optional ? (
+              <SelectItem value={SAME_AS_ENDPOINT}>{sameLabel}</SelectItem>
+            ) : null}
+            {models.map((model) => (
+              <SelectItem key={model} value={model}>
+                {model}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : null}
+      <TextField
+        aria-label={`${label[0].toUpperCase()}${label.slice(1)} ID`}
+        value={value}
+        placeholder={placeholder}
+        disabled={disabled}
+        validate={(next) =>
+          (optional && !next) || normalizeAiModel(next) !== null
+            ? null
+            : 'This is not a valid model ID.'
+        }
+        onCommit={(next) =>
+          onCommit(next ? (normalizeAiModel(next) ?? '') : '')
+        }
+      />
+      <Button
+        type="button"
+        variant="outline"
+        className={secondaryButton}
+        disabled={disabled || !canDiscover || list.discovering}
+        onClick={() => void list.discover(source)}
+      >
+        {list.discovering ? 'Discovering…' : 'Discover models'}
+      </Button>
+      <NoticeText notice={notice} />
+    </>
+  )
+}
+
+/**
+ * The technical connection to the OpenAI-compatible endpoint Price Drops
+ * uses: base URL, API key, custom headers and model. It lives on the AI / MCP
+ * settings tab; what AI does stays in PriceAiSettingsSection.
+ */
+export function PriceAiConnectionSection({
+  settings,
+  models,
+  disabled,
+  onChange,
+}: {
+  settings: PriceAiSettings
+  models: AiModelList
+  disabled?: boolean
+  onChange: (next: PriceAiSettings) => void
+}) {
+  const [testing, setTesting] = useState(false)
+  const [testNotice, setTestNotice] = useState<Notice>(null)
+
+  const update = (patch: Partial<PriceAiSettings>) =>
+    onChange({ ...settings, ...patch })
+  const ready = Boolean(settings.baseUrl && settings.model)
+
   const test = async () => {
-    setBusy('test')
+    setTesting(true)
     setTestNotice(null)
     try {
       const data = await callJson<{
@@ -1080,15 +1208,9 @@ export function PriceAiConnectionSection({
         text: error instanceof Error ? error.message : String(error),
       })
     } finally {
-      setBusy(null)
+      setTesting(false)
     }
   }
-
-  // The list appears after Discover models; the typed ID stays available.
-  const modelOptions =
-    models.length && settings.model && !models.includes(settings.model)
-      ? [settings.model, ...models]
-      : models
 
   return (
     <SettingsSection
@@ -1147,52 +1269,18 @@ export function PriceAiConnectionSection({
         label="Model"
         description="Discover models asks the endpoint for its list; you can also type a model ID."
       >
-        {modelOptions.length ? (
-          <Select
-            value={settings.model || undefined}
-            disabled={disabled}
-            onValueChange={(model) => {
-              if (model) update({ model })
-            }}
-          >
-            <SelectTrigger
-              size="sm"
-              aria-label="Choose a model"
-              className="w-full min-w-0 sm:w-64"
-            >
-              <SelectValue placeholder="Choose a model" />
-            </SelectTrigger>
-            <SelectContent>
-              {modelOptions.map((model) => (
-                <SelectItem key={model} value={model}>
-                  {model}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : null}
-        <TextField
-          aria-label="Model ID"
+        <AiModelPicker
+          source="endpoint"
           value={settings.model}
-          placeholder="gpt-4o-mini"
+          list={models}
           disabled={disabled}
-          validate={(value) =>
-            normalizeAiModel(value) === null
-              ? 'This is not a valid model ID.'
-              : null
-          }
-          onCommit={(model) => update({ model })}
+          canDiscover={Boolean(settings.baseUrl)}
+          label="model"
+          placeholder="gpt-4o-mini"
+          onCommit={(model) => {
+            if (model) update({ model })
+          }}
         />
-        <Button
-          type="button"
-          variant="outline"
-          className={secondaryButton}
-          disabled={disabled || !settings.baseUrl || busy !== null}
-          onClick={() => void discover()}
-        >
-          {busy === 'models' ? 'Discovering…' : 'Discover models'}
-        </Button>
-        <NoticeText notice={modelNotice} />
       </SettingsRow>
       <SettingsRow
         label="Test connection"
@@ -1202,10 +1290,10 @@ export function PriceAiConnectionSection({
           type="button"
           variant="outline"
           className={secondaryButton}
-          disabled={disabled || !ready || busy !== null}
+          disabled={disabled || !ready || testing}
           onClick={() => void test()}
         >
-          {busy === 'test' ? 'Testing…' : 'Test connection'}
+          {testing ? 'Testing…' : 'Test connection'}
         </Button>
         <NoticeText notice={testNotice} />
       </SettingsRow>
@@ -1226,10 +1314,12 @@ const CHAT_TOOL_MODE_LABELS: Record<PriceAiChatToolMode, string> = {
  */
 export function PriceAiChatSection({
   settings,
+  models,
   disabled,
   onChange,
 }: {
   settings: PriceAiSettings
+  models: AiModelList
   disabled?: boolean
   onChange: (next: PriceAiSettings) => void
 }) {
@@ -1276,23 +1366,18 @@ export function PriceAiChatSection({
     >
       <SettingsRow
         label="Chat model"
-        description="The model your first chat starts with; leave empty to use the model above. Each chat then picks its own model and reasoning on the Chat page, and new chats start with your last pick. A model with function calling (tool use) answers best."
+        description="New chats start with this model; leave it empty to use the Endpoint model. On the Chat page you can change the model of a single chat. A model with function calling (tool use) answers best."
       >
-        <TextField
-          aria-label="Chat model ID"
+        <AiModelPicker
+          source="chat"
           value={chat.model}
-          placeholder={settings.model || 'Same as above'}
+          list={models}
           disabled={disabled}
-          validate={(value) =>
-            !value.trim() || normalizeAiModel(value) !== null
-              ? null
-              : 'This is not a valid model ID.'
-          }
-          onCommit={(value) =>
-            update({
-              model: value.trim() ? (normalizeAiModel(value) ?? '') : '',
-            })
-          }
+          canDiscover={Boolean(settings.baseUrl)}
+          endpointModel={settings.model}
+          label="chat model"
+          placeholder={settings.model || 'Same as Endpoint model'}
+          onCommit={(model) => update({ model })}
         />
       </SettingsRow>
       <SettingsRow

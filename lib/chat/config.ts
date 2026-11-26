@@ -11,7 +11,6 @@ import {
 } from '@/lib/settings-shared'
 import { getVaultAccessState } from '@/lib/vault-access'
 import type { ChatChoice, ChatStatus } from '@/lib/chat/shared'
-import { lastChatChoice } from '@/lib/chat/store'
 
 /**
  * The chat's AI connection: the saved base URL, key and headers, and what a
@@ -44,12 +43,10 @@ export class ChatNotConfiguredError extends Error {
 }
 
 /**
- * Where a new chat starts: the model and reasoning picked last in any chat,
- * else Settings (the chat model, or the price-monitoring model).
+ * Where a new chat starts: Settings (the chat model, or the endpoint model
+ * when it is empty). A pick on the Chat page changes only that chat.
  */
 export function chatStartChoice(): ChatChoice {
-  const last = lastChatChoice()
-  if (last) return last
   const ai = getSettings().priceMonitoring.ai
   return { model: ai.chat.model || ai.model, reasoning: ai.chat.reasoning }
 }
