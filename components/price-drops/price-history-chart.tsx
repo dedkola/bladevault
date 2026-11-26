@@ -300,8 +300,7 @@ function axisMoney(minor: number, currency: string | null): string {
  * colour for every store reading, and a thin line at the regular price
  * (your price) at its true place on a scale fitted to the prices. Markers
  * show price drops and increases and the lowest price seen; the tooltip
- * lists every store's price and stock at the hovered moment. Zoom with the
- * slider or the wheel.
+ * lists every store's price and stock at the hovered moment.
  */
 export function PriceHistoryChart({
   history,
@@ -357,34 +356,7 @@ export function PriceHistoryChart({
 
       return {
         animation: false,
-        grid: { left: 8, right: 12, top: 14, bottom: 40, containLabel: true },
-        dataZoom: [
-          { type: 'inside', filterMode: 'none' },
-          {
-            type: 'slider',
-            filterMode: 'none',
-            height: 16,
-            bottom: 6,
-            showDetail: false,
-            borderColor: palette.line,
-            backgroundColor: 'transparent',
-            fillerColor: palette.highlightWash,
-            handleStyle: { color: palette.card, borderColor: palette.muted },
-            moveHandleStyle: { color: palette.line, opacity: 1 },
-            emphasis: {
-              handleStyle: { borderColor: palette.foreground },
-              moveHandleStyle: { color: palette.muted },
-            },
-            dataBackground: {
-              lineStyle: { color: palette.line, opacity: 1 },
-              areaStyle: { color: palette.line, opacity: 0.3 },
-            },
-            selectedDataBackground: {
-              lineStyle: { color: palette.muted, opacity: 1 },
-              areaStyle: { color: palette.muted, opacity: 0.2 },
-            },
-          },
-        ],
+        grid: { left: 8, right: 12, top: 14, bottom: 8, containLabel: true },
         tooltip: {
           trigger: 'axis',
           // Keep the tooltip inside the chart: on a narrow panel it would
