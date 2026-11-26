@@ -19,6 +19,7 @@ import {
 } from '@/lib/price-monitor/money'
 import type { EligibilitySettings } from '@/lib/price-monitor/eligibility'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
+import { readAttentionSources } from '@/lib/price-monitor/attention'
 import { readQueueCandidates } from '@/lib/price-monitor/store'
 import { reportServerError } from '@/lib/sentry/server'
 import { getSettings } from '@/lib/settings'
@@ -165,6 +166,11 @@ export function readDigestData(
       .map((candidate) => candidate.sourceId),
   )
   const isCovered = (row: { source_id: number }) => covered.has(row.source_id)
+  const needsUser = new Set(
+    readAttentionSources(database, settings, now)
+      .filter((row) => row.verdict.class === 'attention')
+      .map((row) => row.sourceId),
+  )
   // Drops and restocks with their own Inbox card (open, or from the last
   // 24 hours) are left out: the card already tells it, with the photo.
   const carded = (kind: 'drop' | 'back_in_stock') =>
@@ -319,7 +325,10 @@ export function readDigestData(
       store_name: string
       status: string
     }>
-  ).filter(isCovered)
+  )
+    .filter(isCovered)
+    // Quiet and put-off problems stay out, as in the Inbox summary.
+    .filter((row) => needsUser.has(row.source_id))
 
   const log = database
     .prepare(

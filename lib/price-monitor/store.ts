@@ -22,6 +22,7 @@ import {
 } from '@/lib/price-monitor/eligibility'
 import { recordNewStoreEvent } from '@/lib/price-monitor/new-store'
 import {
+  ATTENTION_STATUS_LIST,
   laneKeyForUrl,
   MAX_PRICE_SOURCES_PER_KNIFE,
   normalizeSourceUrl,
@@ -99,7 +100,21 @@ export type SourceRow = {
    */
   variant_search: string | null
   variant_title: string | null
+  /** When the source ran into its current problem (attention statuses). */
+  attention_since: string | null
+  /** The user put the problem off until then (Later in Needs attention). */
+  attention_snoozed_until: string | null
+  /** When the daily Needs attention summary last raised it. */
+  attention_reported_at: string | null
+  /** A price the user confirmed over AI's doubt: not doubted again. */
+  accepted_price_minor: number | null
+  accepted_currency: string | null
+  /** Why it is paused: manual, missing_page or auto_attention. */
+  paused_reason: PausedReason | null
+  paused_at: string | null
 }
+
+export type PausedReason = 'manual' | 'missing_page' | 'auto_attention'
 
 type SnapshotRow = {
   id: number
@@ -539,7 +554,37 @@ export function promoteVariantSource(
     .run(storeName || null, now, sourceId)
 }
 
-function softRemove(database: Database.Database, ids: number[], now: string) {
+/**
+ * Pauses or resumes one source and records why. A resumed source starts
+ * Needs attention afresh: its problem counts from its next check.
+ */
+export function setSourcePaused(
+  database: Database.Database,
+  sourceId: number,
+  paused: boolean,
+  reason: PausedReason,
+  now: string,
+) {
+  database
+    .prepare(
+      paused
+        ? `UPDATE price_sources
+           SET enabled = 0, paused_reason = ?, paused_at = ?, updated_at = ?
+           WHERE id = ?`
+        : `UPDATE price_sources
+           SET enabled = 1, paused_reason = NULL, paused_at = NULL,
+               attention_since = NULL, attention_snoozed_until = NULL,
+               attention_reported_at = NULL, updated_at = ?
+           WHERE id = ?`,
+    )
+    .run(...(paused ? [reason, now, now, sourceId] : [now, sourceId]))
+}
+
+export function softRemove(
+  database: Database.Database,
+  ids: number[],
+  now: string,
+) {
   const statement = database.prepare(
     `UPDATE price_sources SET removed_at = ?, updated_at = ?
      WHERE id = ? AND removed_at IS NULL`,
@@ -721,6 +766,10 @@ export async function applyPriceWatchUpdate(
           change.storeName === undefined
             ? source.store_name
             : change.storeName || storeNameForUrl(source.url)
+        const enabled =
+          change.enabled === undefined ? source.enabled : change.enabled ? 1 : 0
+        if (enabled !== source.enabled)
+          setSourcePaused(database, source.id, enabled === 0, 'manual', now)
         database
           .prepare(
             `UPDATE price_sources
@@ -730,11 +779,7 @@ export async function applyPriceWatchUpdate(
           )
           .run(
             storeName,
-            change.enabled === undefined
-              ? source.enabled
-              : change.enabled
-                ? 1
-                : 0,
+            enabled,
             change.fetchOverride ?? source.fetch_override,
             change.muteDays === undefined
               ? source.notify_muted_until
@@ -1233,6 +1278,44 @@ export async function recordCheck(
       const succeeded = record.outcome === 'ok' || record.outcome === 'no_price'
       // The source keeps its last trusted price over a doubtful reading.
       const cached = unconfirmed ? null : observation
+      const status = sourceStatusFor(
+        record.outcome,
+        unconfirmed
+          ? {
+              priceMinor: source.last_price_minor,
+              availability: source.last_availability ?? 'unknown',
+            }
+          : observation,
+        record.needsReview,
+      )
+      // Needs attention: a problem keeps the time it started; a page that
+      // reads fine again forgets it, its put-off and its last report.
+      const inTrouble = (ATTENTION_STATUS_LIST as readonly string[]).includes(
+        status,
+      )
+      database
+        .prepare(
+          `UPDATE price_sources SET
+             attention_since = CASE WHEN ? THEN COALESCE(attention_since, ?)
+               ELSE NULL END,
+             attention_snoozed_until = CASE WHEN ? THEN attention_snoozed_until
+               ELSE NULL END,
+             attention_reported_at = CASE WHEN ? THEN attention_reported_at
+               ELSE NULL END,
+             paused_reason = CASE WHEN ? THEN 'missing_page' ELSE paused_reason END,
+             paused_at = CASE WHEN ? THEN ? ELSE paused_at END
+           WHERE id = ?`,
+        )
+        .run(
+          inTrouble ? 1 : 0,
+          now,
+          inTrouble ? 1 : 0,
+          inTrouble ? 1 : 0,
+          record.disable ? 1 : 0,
+          record.disable ? 1 : 0,
+          now,
+          source.id,
+        )
       database
         .prepare(
           `UPDATE price_sources SET
@@ -1257,16 +1340,7 @@ export async function recordCheck(
            WHERE id = ?`,
         )
         .run(
-          sourceStatusFor(
-            record.outcome,
-            unconfirmed
-              ? {
-                  priceMinor: source.last_price_minor,
-                  availability: source.last_availability ?? 'unknown',
-                }
-              : observation,
-            record.needsReview,
-          ),
+          status,
           record.provider ?? source.provider,
           now,
           succeeded ? 1 : 0,
@@ -1965,6 +2039,10 @@ export function relinkSourceRow(
        SET url = ?, normalized_url = ?, enabled = 1, status = 'pending',
            consecutive_failures = 0, last_error_code = NULL,
            last_error = NULL, expected_variant = NULL, find_page_at = NULL,
+           attention_since = NULL, attention_snoozed_until = NULL,
+           attention_reported_at = NULL, paused_reason = NULL,
+           paused_at = NULL, accepted_price_minor = NULL,
+           accepted_currency = NULL,
            next_check_at = ?, priority = 1, updated_at = ?
        WHERE id = ?`,
     )

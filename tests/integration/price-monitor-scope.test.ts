@@ -101,7 +101,8 @@ describe('knives outside the scope on Price Drops', () => {
       insertSource(db, knifeId, store, 'manual', undefined, now)
     db.prepare(
       `UPDATE price_sources SET enabled = 1, status = 'blocked',
-         last_price_minor = 10000, last_currency = 'USD'`,
+         last_price_minor = 10000, last_currency = 'USD',
+         consecutive_failures = 3`,
     ).run()
     const note = db.prepare(
       `INSERT INTO price_agent_notes (knife_id, note, created_at, expires_at)

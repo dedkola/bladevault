@@ -219,7 +219,7 @@ export const READ_TOOLS: readonly ReadTool[] = [
     name: 'get_price_attention',
     title: 'Summarize price monitoring problems',
     description:
-      'Summarize what needs attention in price monitoring: sources blocked by a bot check, failed checks, pages without a price, readings AI doubts, and stores paused after repeated blocks, with overall monitoring counts.',
+      'Summarize what needs attention in price monitoring: sources blocked by a bot check, failed checks, pages without a price, readings AI doubts, and stores paused after repeated blocks, with overall monitoring counts. Each monitored source says whether it needs the user (needs_user), is quiet (a first failure, a doubted price another store agrees with, or a broken store of a knife other stores still read) or was put off until a date; needsAttention counts only needs_user.',
     inputSchema: z.object({}),
     run: () => getPriceAttention(),
   }),

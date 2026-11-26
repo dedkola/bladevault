@@ -4,6 +4,10 @@ import {
   isIgnoredOfficialOutOfStock,
   type EligibilitySettings,
 } from '@/lib/price-monitor/eligibility'
+import {
+  classifyAttentionRows,
+  type AttentionVerdict,
+} from '@/lib/price-monitor/attention-filter'
 import { parseStoredPrice, toMinorUnits } from '@/lib/price-monitor/money'
 import { withMonitorScope } from '@/lib/price-monitor/scope'
 import {
@@ -222,6 +226,11 @@ export type MonitoredSource = SourceSummary & {
   priceSeenAt: string | null
   /** The listing may be gone for good: suggest Pause or another store. */
   retireHint: RetireHint | null
+  /**
+   * For a page in trouble (result 'attention'): whether it needs the user,
+   * is quiet (grey mark only) or was put off (price-monitor/attention-filter).
+   */
+  attention: AttentionVerdict | null
 }
 
 /**
@@ -440,6 +449,9 @@ type SourceRow = {
   last_success_at: string | null
   last_error: string | null
   next_check_at: string | null
+  consecutive_failures: number
+  attention_since: string | null
+  attention_snoozed_until: string | null
 }
 
 function toSourceSummary(
@@ -521,7 +533,8 @@ function monitoredKnifeIds(
 
 const SOURCE_SQL = `SELECT id, knife_id, store_name, lane_key, url, origin, enabled, status,
          last_price_minor, last_currency, last_availability,
-         last_checked_at, last_success_at, last_error, next_check_at
+         last_checked_at, last_success_at, last_error, next_check_at,
+         consecutive_failures, attention_since, attention_snoozed_until
   FROM price_sources WHERE removed_at IS NULL AND variant_search IS NULL`
 
 /** One knife's market at a glance, for the MCP price tools. */
@@ -675,13 +688,35 @@ export function buildPriceOverview(
     [...moves.values()].flatMap((move) => move.significantIds),
   )
 
+  const enabledSources = sources.filter(
+    (source) => source.enabled === 1 && monitored.has(source.knife_id),
+  )
   const monitoredSources = buildMonitoredSources(
-    sources.filter(
-      (source) => source.enabled === 1 && monitored.has(source.knife_id),
-    ),
+    enabledSources,
     knives,
     moves,
     {
+      attention: classifyAttentionRows(
+        enabledSources.map((source) => ({
+          id: source.id,
+          knifeId: source.knife_id,
+          status: source.status,
+          consecutiveFailures: source.consecutive_failures,
+          attentionSince: source.attention_since,
+          snoozedUntil: source.attention_snoozed_until,
+          priceMinor: source.last_price_minor,
+          currency: source.last_currency,
+        })),
+        (knifeId, currency) => {
+          const knife = knives.get(knifeId)
+          const inCurrency = paidCurrency(knife) || currency
+          const minor = paidIn(knife, inCurrency)
+          return minor !== null && inCurrency
+            ? { minor, currency: inCurrency }
+            : null
+        },
+        now,
+      ),
       outOfStockSince: readOutOfStockSince(database),
       missingPages: readMissingPageSourceIds(database),
       latestStock: readLatestStockEvents(database),
@@ -864,6 +899,7 @@ function buildMonitoredSources(
     priceSeen: ReadonlyMap<number, string>
     now: number
     alertsOff: (row: SourceRow) => boolean
+    attention: ReadonlyMap<number, AttentionVerdict>
   },
 ): MonitoredSource[] {
   return sources.map((source) => {
@@ -901,6 +937,10 @@ function buildMonitoredSources(
         pageGone: context.missingPages.has(source.id),
         now: context.now,
       }),
+      attention:
+        result === 'attention'
+          ? (context.attention.get(source.id) ?? { class: 'attention' })
+          : null,
     }
   })
 }

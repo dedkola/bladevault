@@ -66,7 +66,7 @@ Open **Price Drops** in the sidebar. From top to bottom the page shows:
   - **↑ Up** — sources whose latest price rise in the last 30 days is still the current price.
   - **Restocked** — sources that came back in stock in the last 7 days, marked like **Restocked · 2 d ago**.
   - **Out of stock** — sources that currently show the knife as unavailable, with how long, like **Out of stock · 41 d**.
-  - **Needs attention** — failed, blocked, unavailable, or doubtful readings. They keep their last known price, shown muted with its date (**as of Nov 3**), and show when each is checked next, such as **next in 3 hours**, **due now**, or **overdue 9 h**. Sources that have never been checked are not problems: they show as **Pending** in **All** and in their own timeline lane until their first check.
+  - **Needs attention** — failed, blocked, unavailable, or doubtful readings that need you (see [Fix pages that need attention](#fix-pages-that-need-attention)); quiet and put-off ones show only under **All**. They keep their last known price, shown muted with its date (**as of Nov 3**), and show when each is checked next, such as **next in 3 hours**, **due now**, or **overdue 9 h**. Sources that have never been checked are not problems: they show as **Pending** in **All** and in their own timeline lane until their first check.
   - **Recently checked** — the 30 latest checks.
   - **Supervisor** — with AI connected, the supervisor's recent runs as a timeline, newest first, each with what started it (changes, the schedule, or **Run now**). Select a run to see its summary, coverage, the changes since the run before, and every action in a table with the knife, store, reason, and result; repeated actions at one store collapse into one row you can expand. Select a knife name to open it in the table.
 - **Side panel** — the selected knife's price details, the same as its Market tab (see below), including **Latest changes**, **Check all sources**, **Manage sources**, and each store's **Check now** and check history.
@@ -186,7 +186,22 @@ With AI connected, **Confirm price changes** (see [Optional AI assistance](#opti
 
 ## Fix pages that need attention
 
-Checks that fail, are blocked by a bot check (CAPTCHA), or find no price, and store pages where AI doubts the price the page parser read (**Spot-check page readings**), show as **Needs attention** on **Price Drops**, and the Inbox gets one message that lists them when a product newly runs into a problem. The message closes on its own once every store page reads fine again.
+Checks that fail, are blocked by a bot check (CAPTCHA), or find no price, and store pages where AI doubts the price the page parser read (**Spot-check page readings**), are marked on **Price Drops**. Only the ones that need you count as **Needs attention**. These problems stay quiet, shown as a faded mark on the store's row with the reason in its tooltip:
+
+- **A one-off problem**: a failed, blocked, or no-price check counts only after three failures in a row or a day of trouble. Many clear on the next check.
+- **A doubted price that agrees**: AI doubts a price, but another store or the knife's regular price shows the same price (within 1%).
+- **Other stores still work**: the knife has other stores that read fine, so a broken one changes nothing. A doubted price still needs you when it is the knife's best offer.
+
+The Inbox gets one **Daily summary** at most: from 9:00, and only when a problem is new since the last summary. In between, the message updates quietly: it does not come back to the top, and a dismissed one stays dismissed. It closes on its own once nothing needs attention.
+
+The summary lists each store page with buttons, and the same buttons are in the table's row actions and bulk bar on **Price Drops**:
+
+- **Later** → **Tomorrow** or **In a week** puts a page off. It is checked again then, and if the problem is still there, it is in the next summary. Pages you put off are counted as **put off** under **Monitoring status** and shown faded under **All**, with **Show now** to bring them back.
+- **Price is right** (for a doubted price) confirms the price. AI does not doubt that price again.
+- **Wrong page** (for a doubted price) removes the store from the knife.
+- **Pause** stops checking the store page. **Remove** removes it. The knife's own product link cannot be removed, so it is paused instead.
+
+Tick several pages, or **Select all** in the Inbox, to apply an action to all of them. A page that needs attention for 7 days without a fix is paused automatically, and the next summary says so. Resume it in the knife's edit mode.
 
 Select **Solve** next to a **Blocked** store, or **Fix** next to a **Failed** or **Unavailable** one, in the table (or the window button next to a store in the knife's sources) to open the store page in a visible browser window. Pass the bot check, or settle a cookie banner, age prompt, or region choice yourself, then select **Done**. BladeVault keeps that window's cookies for the store, so later checks get through, and checks the price again right away. The window opens on the computer that runs BladeVault, so this works with the desktop app or BladeVault running on your computer. On a Docker or Helm server, the marks and window buttons say so instead of opening a window you cannot see.
 

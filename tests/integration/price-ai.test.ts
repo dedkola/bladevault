@@ -21,6 +21,11 @@ import {
   setAiCallObserver,
 } from '@/lib/price-monitor/ai-client'
 import { installAiCallJournal } from '@/lib/price-monitor/ai-journal'
+import {
+  applyAttentionAction,
+  readAttentionList,
+} from '@/lib/price-monitor/attention-actions'
+import { runAttentionSummary } from '@/lib/price-monitor/attention'
 import { checkPriceSource } from '@/lib/price-monitor/engine'
 import { extractOfferFromHtml } from '@/lib/price-monitor/fetch'
 import type { SolverPage } from '@/lib/price-monitor/solver'
@@ -940,26 +945,50 @@ describe('Page text never steers AI outside its limits', () => {
 })
 
 describe('Needs attention in the Inbox', () => {
-  it('lists a newly blocked store once and resolves when it reads again', async () => {
+  const morning = () => {
+    const at = new Date()
+    at.setHours(10, 0, 0, 0)
+    return at.getTime()
+  }
+  const attentionMessages = async () =>
+    (await getSystemMessages()).filter((row) => row.kind === 'price-attention')
+
+  it('raises a lasting problem once a day and resolves when it reads again', async () => {
     const { source } = await createKnife('Secret Raccoon')
     mocks.browser.mockRejectedValueOnce(new ScrapeError('challenge'))
     await checkPriceSource(source.id, { trigger: 'manual' })
-    let messages = (await getSystemMessages()).filter(
-      (row) => row.kind === 'price-attention',
-    )
+    // A check never raises the Inbox by itself: the daily summary does.
+    expect(await attentionMessages()).toHaveLength(0)
+    const generation = getVaultAccessState().generation
+
+    // A first bot check is quiet: it often clears on the next check.
+    expect(await runAttentionSummary({ generation, now: morning() })).toEqual({
+      status: 'skipped',
+      reason: 'nothing_new',
+    })
+
+    // Blocked for over a day: it needs the user.
+    getLocalDb()
+      .prepare('UPDATE price_sources SET attention_since = ? WHERE id = ?')
+      .run(new Date(morning() - 30 * 3_600_000).toISOString(), source.id)
+    expect(
+      await runAttentionSummary({ generation, now: morning() }),
+    ).toMatchObject({ status: 'raised', attention: 1, fresh: 1 })
+    let messages = await attentionMessages()
     expect(messages).toHaveLength(1)
-    expect(messages[0].title).toBe('A price check needs attention')
+    expect(messages[0].title).toBe('A store page needs a look')
     expect(messages[0].detail).toContain(
       'Vosteed Secret Raccoon at shop.example',
     )
     expect(messages[0].detail).toContain('solve the bot check')
 
-    // Still blocked: no new notification.
+    // Still blocked: no repeat, and no second summary the same day.
     mocks.browser.mockRejectedValueOnce(new ScrapeError('challenge'))
     await checkPriceSource(source.id, { trigger: 'manual' })
-    messages = (await getSystemMessages()).filter(
-      (row) => row.kind === 'price-attention',
-    )
+    expect(
+      await runAttentionSummary({ generation, now: morning() + 3_600_000 }),
+    ).toMatchObject({ status: 'skipped', reason: 'not_due' })
+    messages = await attentionMessages()
     expect(messages[0].occurrences).toBe(1)
 
     browserPage({
@@ -969,10 +998,78 @@ describe('Needs attention in the Inbox', () => {
       method: 'jsonld',
     })
     await checkPriceSource(source.id, { trigger: 'manual' })
-    messages = (await getSystemMessages()).filter(
-      (row) => row.kind === 'price-attention',
-    )
+    messages = await attentionMessages()
     expect(messages[0].resolvedAt).toEqual(expect.any(String))
+    expect(
+      getLocalDb()
+        .prepare('SELECT attention_since FROM price_sources WHERE id = ?')
+        .get(source.id),
+    ).toEqual({ attention_since: null })
+  })
+
+  it('puts a page off, confirms a price and pauses after a week', async () => {
+    const { source } = await createKnife('Secret Raccoon')
+    mocks.browser.mockRejectedValueOnce(new ScrapeError('challenge'))
+    await checkPriceSource(source.id, { trigger: 'manual' })
+    const database = getLocalDb()
+    const generation = getVaultAccessState().generation
+    database
+      .prepare('UPDATE price_sources SET attention_since = ? WHERE id = ?')
+      .run(new Date(morning() - 30 * 3_600_000).toISOString(), source.id)
+
+    // Later: out of the list until then, and checked again at that time.
+    const later = await applyAttentionAction(
+      { action: 'snooze', sourceIds: [source.id, 999_999], days: 1 },
+      morning(),
+    )
+    expect(later).toEqual({ applied: 1, skipped: 1, pausedInstead: 0 })
+    const row = database
+      .prepare(
+        'SELECT attention_snoozed_until, next_check_at FROM price_sources WHERE id = ?',
+      )
+      .get(source.id) as {
+      attention_snoozed_until: string
+      next_check_at: string
+    }
+    expect(row.next_check_at).toBe(row.attention_snoozed_until)
+    expect(readAttentionList(morning()).counts).toEqual({
+      attention: 0,
+      quiet: 0,
+      snoozed: 1,
+    })
+    expect(
+      await runAttentionSummary({ generation, now: morning() }),
+    ).toMatchObject({ status: 'skipped', reason: 'nothing_new' })
+
+    // Accept applies only to a price AI doubts.
+    expect(
+      await applyAttentionAction({ action: 'accept', sourceIds: [source.id] }),
+    ).toMatchObject({ applied: 0, skipped: 1 })
+
+    // A week unfixed after Later ran out: paused by the morning summary.
+    database
+      .prepare(
+        `UPDATE price_sources SET attention_snoozed_until = NULL,
+           attention_since = ? WHERE id = ?`,
+      )
+      .run(new Date(morning() - 8 * 86_400_000).toISOString(), source.id)
+    expect(
+      await runAttentionSummary({ generation, now: morning() }),
+    ).toMatchObject({ status: 'raised', attention: 0, autoPaused: 1 })
+    expect(
+      database
+        .prepare(
+          'SELECT enabled, paused_reason FROM price_sources WHERE id = ?',
+        )
+        .get(source.id),
+    ).toEqual({ enabled: 0, paused_reason: 'auto_attention' })
+    const [message] = await attentionMessages()
+    expect(message.detail).toContain('Paused after 7 days without a fix')
+
+    // The knife's own product link cannot be removed: it stays paused.
+    expect(
+      await applyAttentionAction({ action: 'remove', sourceIds: [source.id] }),
+    ).toEqual({ applied: 1, skipped: 0, pausedInstead: 1 })
   })
 })
 

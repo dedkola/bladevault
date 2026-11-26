@@ -762,6 +762,12 @@ async function reviewWithAi(input: {
   const { priceMinor, currency } = observation
   if (priceMinor === null || !currency || !input.html || input.signal?.aborted)
     return NO_REVIEW
+  // The user confirmed this price over an earlier doubt (Price is right).
+  if (
+    source.accepted_price_minor === priceMinor &&
+    source.accepted_currency === currency
+  )
+    return NO_REVIEW
   const confirm = confirmChangesActive(settings)
   const spot = input.parserReading && spotCheckActive(settings)
   if (!confirm && !spot) return NO_REVIEW
@@ -1101,10 +1107,7 @@ export async function checkPriceSource(
       host: flow.host,
     })
     // The Inbox lists store pages that need attention; never fails a check.
-    await syncPriceAttention({
-      previousStatus: source.status,
-      status: readSource(getLocalDb(), source.id)?.status ?? null,
-    }).catch((error: unknown) => {
+    await syncPriceAttention().catch((error: unknown) => {
       if (error instanceof Error && error.name === 'VaultAccessError')
         throw error
       reportServerError(error, 'price-monitor/attention')

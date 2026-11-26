@@ -12,6 +12,11 @@ import {
   type HistoryRange,
   type MonitoredSource,
 } from '@/lib/price-monitor/insights'
+import { readAttentionSources } from '@/lib/price-monitor/attention'
+import {
+  QUIET_REASON_TEXT,
+  type AttentionVerdict,
+} from '@/lib/price-monitor/attention-filter'
 import { laneAvailability } from '@/lib/price-monitor/lanes'
 import { fromMinorUnits } from '@/lib/price-monitor/money'
 import { frequencyMs } from '@/lib/price-monitor/schedule'
@@ -428,6 +433,18 @@ const ATTENTION_GROUPS = {
   needs_review: 'needsReview',
 } as const
 
+function attentionFields(verdict: AttentionVerdict | undefined) {
+  if (!verdict) return {}
+  if (verdict.class === 'quiet')
+    return {
+      attention: 'quiet',
+      quietReason: QUIET_REASON_TEXT[verdict.reason],
+    }
+  if (verdict.class === 'snoozed')
+    return { attention: 'snoozed', snoozedUntil: verdict.until }
+  return { attention: 'needs_user' }
+}
+
 export async function getPriceAttention(now = Date.now()) {
   const database = getLocalDb()
   const settings = priceSettings()
@@ -456,6 +473,14 @@ export async function getPriceAttention(now = Date.now()) {
        ORDER BY s.last_checked_at DESC, s.id DESC`,
     )
     .all() as AttentionSourceRow[]
+  // What needs the user, what is quiet (nothing to do yet or nothing it
+  // changes) and what was put off: price-monitor/attention-filter.
+  const verdicts = new Map(
+    readAttentionSources(database, settings, now).map((row) => [
+      row.sourceId,
+      row.verdict,
+    ]),
+  )
 
   const groups: Record<
     (typeof ATTENTION_GROUPS)[keyof typeof ATTENTION_GROUPS],
@@ -472,10 +497,13 @@ export async function getPriceAttention(now = Date.now()) {
       url: row.url,
       monitored: covered.has(row.id),
       problem: problemFor(row.status, row.last_error_code),
+      ...attentionFields(verdicts.get(row.id)),
       consecutiveFailures: row.consecutive_failures,
       lastCheckedAt: row.last_checked_at,
     })
   }
+  const countClass = (kind: AttentionVerdict['class']) =>
+    [...verdicts.values()].filter((verdict) => verdict.class === kind).length
 
   const pausedStores = [...readLaneStates(database).values()]
     .map((lane) => ({ lane, availability: laneAvailability(lane, now) }))
@@ -495,7 +523,9 @@ export async function getPriceAttention(now = Date.now()) {
     lastSuccessAt: overview.kpis.lastSuccessAt,
     failedChecks24h: overview.round.failed24h,
     oldestCheckAt: overview.round.oldestCheckAt,
-    needsAttention: rows.filter((row) => covered.has(row.id)).length,
+    needsAttention: countClass('attention'),
+    quiet: countClass('quiet'),
+    snoozed: countClass('snoozed'),
     notMonitored: rows.filter((row) => !covered.has(row.id)).length,
     ...groups,
     pausedStores,
