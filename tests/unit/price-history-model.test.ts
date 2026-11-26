@@ -91,6 +91,28 @@ describe('price history model', () => {
     ])
   })
 
+  it('holds the last price over readings without one', () => {
+    const steps = source(1, 'a.example', [
+      point(0, 0, null, 'out_of_stock'),
+      point(1, 2, 9000),
+      point(3, 3, null, 'out_of_stock'),
+      point(5, 6, 8500),
+    ])
+    expect(storeLineData(steps, ms(8), 'USD', 0)).toEqual({
+      data: [
+        [ms(0), null],
+        [ms(1), null],
+        [ms(1), 90],
+        [ms(3), 90],
+        [ms(3), 90],
+        [ms(5), 90],
+        [ms(5), 85],
+        [ms(8), 85],
+      ],
+      dotted: new Set(),
+    })
+  })
+
   it('shades only while no store had the knife in stock', () => {
     expect(outOfStockEverywhere(militaw)).toEqual([[ms(0), ms(6)]])
     expect(outOfStockEverywhere({ sources: [kizer] })).toEqual([[ms(0), ms(8)]])

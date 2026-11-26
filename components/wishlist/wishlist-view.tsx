@@ -417,26 +417,23 @@ function Sparkline({
   const x = (at: number) => ((at - trend.since) / span) * plot + 2
   const y = (price: number) => 2 + ((top - price) / range) * (height - 4)
 
-  // One path per in-stock stretch; out of stock leaves a shaded gap.
-  const runs: Array<{ line: string; from: number }> = []
+  // One unbroken line from the first price: out of stock holds the last
+  // price until the next one, over a shaded band.
   const gaps: Array<{ from: number; to: number }> = []
   let line = ''
   let from = 0
+  let held: number | null = null
   steps.forEach((step, index) => {
     const next = steps[index + 1]?.at ?? trend.until
-    if (step.price === null) {
-      if (line) runs.push({ line, from })
-      line = ''
-      gaps.push({ from: x(step.at), to: x(next) })
-      return
-    }
-    const py = y(step.price).toFixed(1)
+    if (step.price === null) gaps.push({ from: x(step.at), to: x(next) })
+    held = step.price ?? held
+    if (held === null) return
+    const py = y(held).toFixed(1)
     if (!line) from = x(step.at)
     line += line
       ? ` V${py} H${x(next).toFixed(1)}`
       : `M${from.toFixed(1)},${py} H${x(next).toFixed(1)}`
   })
-  if (line) runs.push({ line, from })
 
   // The step showing at the hovered time: the last one that started by then.
   const hovered =
@@ -491,13 +488,10 @@ function Sparkline({
                   height={height}
                 />
               ))}
-              {runs.map((run) => (
-                <path
-                  key={`fill-${run.line}`}
-                  d={`${run.line} V${height} H${run.from.toFixed(1)} Z`}
-                  fill={`url(#${gradientId})`}
-                />
-              ))}
+              <path
+                d={`${line} V${height} H${from.toFixed(1)} Z`}
+                fill={`url(#${gradientId})`}
+              />
               {regular !== null && (
                 <g data-wishlist-spark-regular>
                   <line
@@ -518,14 +512,7 @@ function Sparkline({
                   </text>
                 </g>
               )}
-              {runs.map((run) => (
-                <path
-                  key={run.line}
-                  data-wishlist-spark-line
-                  d={run.line}
-                  fill="none"
-                />
-              ))}
+              <path data-wishlist-spark-line d={line} fill="none" />
               {hoverAt !== null && (
                 <line
                   data-wishlist-spark-cross
