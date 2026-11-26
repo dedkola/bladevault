@@ -118,6 +118,24 @@ describe('PriceTrend', () => {
     expect(yFirst).toBeGreaterThan(yRegular)
   })
 
+  it('shows every Amazon move under a pinned regular price', () => {
+    const html = render({
+      trend: amazon,
+      currentMinor: 12990,
+      regularMinor: 20200,
+    })
+    expect(html).toContain('data-trend-break="mark"')
+    const d = html.match(/data-trend-line="true" d="([^"]+)"/)![1]
+    // Vertical moves after the drop from the regular price: each one shows.
+    const levels = [...d.matchAll(/V([\d.]+)/g)].map((m) => Number(m[1]))
+    const moves = levels
+      .slice(1)
+      .map((value, index) => Math.abs(value - levels[index]))
+      .filter((size) => size > 0)
+    expect(moves.length).toBeGreaterThanOrEqual(5)
+    for (const size of moves) expect(size).toBeGreaterThanOrEqual(2.9)
+  })
+
   it('starts at the first reading when it is the regular price', () => {
     const html = render({
       trend: {

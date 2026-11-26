@@ -3,6 +3,8 @@
 import { useId, useState, type PointerEvent } from 'react'
 import {
   WISHLIST_REGULAR_TOLERANCE,
+  rowChartBreak,
+  rowChartScale,
   withRegularStart,
   wishlistMoves,
   wishlistTrackedDays,
@@ -130,22 +132,21 @@ export function PriceTrend({
     (gap ?? regularGap(last, regular))?.direction ??
     wishlistTrendDirection(moves)
 
-  // Scale to the history and the regular price, but never tighter than a
-  // few percent of the price, so a $1 move on a $200 knife does not look
-  // like a crash.
-  const values = priced.map((step) => step.price)
-  if (regular !== null) values.push(regular)
-  const high = Math.max(...values)
-  const low = Math.min(...values)
-  const spread = Math.max(high - low, high * SPARK_MIN_SPREAD, 1)
-  const middle = (high + low) / 2
-  const bottom = middle - spread * 0.7
-  const range = spread * 1.4
+  // Scale so every store move shows (see rowChartScale): a regular price far
+  // above the readings sits at the top edge behind a break mark.
+  const scale = rowChartScale({
+    readings: trend.steps.flatMap((step) =>
+      step.price === null ? [] : [step.price],
+    ),
+    regular,
+    top: 3,
+    bottom: height - 3,
+    minSpread: SPARK_MIN_SPREAD,
+  })
+  const y = scale.y
   const span = Math.max(trend.until - since, 1)
   const plot = width - 8
   const x = (at: number) => ((at - since) / span) * plot + 2
-  const y = (price: number) =>
-    height - 4 - ((price - bottom) / range) * (height - 10)
 
   // One unbroken line from the first price: out of stock holds the last
   // price until the next one.
@@ -191,7 +192,15 @@ export function PriceTrend({
   ]
     .filter(Boolean)
     .join('; ')
-  const regularY = regular === null ? 0 : y(regular).toFixed(1)
+  const regularY = scale.regularY === null ? 0 : scale.regularY.toFixed(1)
+  // Where the line leaves a pinned regular price for the first reading.
+  const firstRead = lead
+    ? steps.find((step) => step !== lead && step.price !== null)
+    : undefined
+  const breakMark =
+    scale.pinned && lead && firstRead
+      ? rowChartBreak(x(firstRead.at), y(lead.price), y(firstRead.price!))
+      : null
   // The area between the line and the regular price, split at it.
   const baseArea = `${line} V${regularY} H${from.toFixed(1)} Z`
 
@@ -244,6 +253,12 @@ export function PriceTrend({
             </>
           )}
           <path data-trend-line d={line} fill="none" />
+          {breakMark && (
+            <>
+              <path data-trend-break="mask" d={breakMark} fill="none" />
+              <path data-trend-break="mark" d={breakMark} fill="none" />
+            </>
+          )}
           {hoverAt !== null && (
             <line
               data-trend-cross

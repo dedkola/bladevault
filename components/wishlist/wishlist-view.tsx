@@ -62,6 +62,8 @@ import {
   WISHLIST_DEALS,
   priceChange,
   rangePosition,
+  rowChartBreak,
+  rowChartScale,
   wishlistDeal,
   wishlistMoves,
   wishlistStorePrices,
@@ -418,21 +420,21 @@ function Sparkline({
     (gap ?? regularGap(last, regular))?.direction ??
     wishlistTrendDirection(wishlistMoves({ ...trend, steps }))
 
-  // Scale to the history and the regular price, but never tighter than a few
-  // percent of the price, so a $1 move on a $200 knife does not look like a
-  // crash.
-  const values = priced.map((step) => step.price)
-  if (regular !== null) values.push(regular)
-  const high = Math.max(...values)
-  const low = Math.min(...values)
-  const spread = Math.max(high - low, high * SPARK_MIN_SPREAD, 1)
-  const middle = (high + low) / 2
-  const top = middle + spread * 0.62
-  const range = spread * 1.24
+  // Scale so every store move shows (see rowChartScale): a regular price far
+  // above the readings sits at the top edge behind a break mark.
+  const scale = rowChartScale({
+    readings: trend.steps.flatMap((step) =>
+      step.price === null ? [] : [step.price],
+    ),
+    regular,
+    top: 3,
+    bottom: height - 3,
+    minSpread: SPARK_MIN_SPREAD,
+  })
+  const y = scale.y
   const span = Math.max(trend.until - since, 1)
   const plot = Math.max((width ?? 0) - 4, 1)
   const x = (at: number) => ((at - since) / span) * plot + 2
-  const y = (price: number) => 2 + ((top - price) / range) * (height - 4)
 
   // One unbroken line from the first price: out of stock holds the last
   // price until the next one, over a shaded band.
@@ -469,7 +471,15 @@ function Sparkline({
   const summary = moves.length
     ? `net ${net < 0 ? 'down' : 'up'} ${money(Math.abs(net), trend.currency)}, last change ${change!.delta < 0 ? 'down' : 'up'} ${money(Math.abs(change!.delta), trend.currency)} on ${moveDate(change!.at)}`
     : 'no price change'
-  const regularY = regular === null ? 0 : y(regular).toFixed(1)
+  const regularY = scale.regularY === null ? 0 : scale.regularY.toFixed(1)
+  // Where the line leaves a pinned regular price for the first reading.
+  const firstRead = lead
+    ? steps.find((step) => step !== lead && step.price !== null)
+    : undefined
+  const breakMark =
+    scale.pinned && lead && firstRead
+      ? rowChartBreak(x(firstRead.at), y(lead.price), y(firstRead.price!))
+      : null
   // The area between the line and the regular price, split at it.
   const baseArea = `${line} V${regularY} H${from.toFixed(1)} Z`
 
@@ -537,6 +547,20 @@ function Sparkline({
                 </>
               )}
               <path data-wishlist-spark-line d={line} fill="none" />
+              {breakMark && (
+                <>
+                  <path
+                    data-wishlist-spark-break="mask"
+                    d={breakMark}
+                    fill="none"
+                  />
+                  <path
+                    data-wishlist-spark-break="mark"
+                    d={breakMark}
+                    fill="none"
+                  />
+                </>
+              )}
               {hoverAt !== null && (
                 <line
                   data-wishlist-spark-cross

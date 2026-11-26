@@ -386,6 +386,16 @@
 [data-wishlist] [data-wishlist-spark-base='above'] {
   fill: var(--wl-up);
 }
+/* Break mark where the line drops from a regular price pinned to the
+   chart's edge: a card-coloured gap under two thin slashes. */
+[data-wishlist] [data-wishlist-spark-break='mask'] {
+  stroke: var(--card);
+  stroke-width: 3;
+}
+[data-wishlist] [data-wishlist-spark-break='mark'] {
+  stroke: var(--muted-foreground);
+  stroke-width: 1.2;
+}
 [data-wishlist] [data-wishlist-spark-tip] {
   position: absolute;
   top: -22px;
