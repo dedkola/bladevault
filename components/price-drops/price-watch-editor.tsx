@@ -50,13 +50,11 @@ const MODE_OPTIONS: Array<{ value: PriceWatchMode; label: string }> = [
 ]
 
 const ELIGIBILITY_TEXT: Record<EligibilityReason, string> = {
-  monitored_auto: 'Monitored because a regular price is stored.',
-  monitored_forced: 'Monitored even without a stored regular price.',
+  monitored_auto: 'Monitored automatically.',
+  monitored_forced: 'Monitored: Always monitor is on, also when sold.',
   monitored_collection:
     'Checked with the rest of the collection in free time, at most once a day. Notifies only about a super sale far below the regular price.',
   off: 'Not monitored. Check now still works for a single reading.',
-  no_price:
-    'Not monitored: no regular price is stored. Add a price or choose Always monitor.',
   sold: 'Not monitored: the knife is marked as sold. Choose Always monitor to keep watching it.',
   no_source: 'Not monitored yet: add a product URL below.',
   out_of_scope:
@@ -147,12 +145,20 @@ function SourceRow({
                 Found by AI
               </span>
             ) : null}
+            {source.variantTitle ? (
+              <span className="rounded-full border border-[var(--bladevault-line)] px-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                Variant
+              </span>
+            ) : null}
             {!source.enabled ? (
               <span className="rounded-full border border-[var(--bladevault-line)] px-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
                 Paused
               </span>
             ) : null}
           </div>
+          {source.variantTitle ? (
+            <p className="text-xs text-foreground">{source.variantTitle}</p>
+          ) : null}
           {safeUrl ? (
             <a
               href={safeUrl}
@@ -394,7 +400,21 @@ export function PriceWatchEditor({
   }
 
   const queued = new Set(watch.queuedSourceIds)
-  const full = watch.sources.length >= watch.maxSources
+  // Listings of other variants are kept apart and outside the limit.
+  const own = watch.sources.filter((source) => !source.variantTitle)
+  const variants = watch.sources.filter((source) => source.variantTitle)
+  const full = own.length >= watch.maxSources
+  const sourceRow = (source: PriceSourceView) => (
+    <SourceRow
+      key={source.id}
+      source={source}
+      queued={queued.has(source.id)}
+      busy={busy}
+      onChange={(change) => void update({ update: [change] })}
+      onRemove={() => void update({ remove: [source.id] })}
+      onCheck={() => void check('source', source.id)}
+    />
+  )
 
   return (
     <div data-price-watch-editor className="space-y-4">
@@ -467,7 +487,7 @@ export function PriceWatchEditor({
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[10px] xl:text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            Sources {watch.sources.length} / {watch.maxSources}
+            Sources {own.length} / {watch.maxSources}
           </span>
           {watch.sources.length > 1 ? (
             <Button
@@ -482,20 +502,8 @@ export function PriceWatchEditor({
             </Button>
           ) : null}
         </div>
-        {watch.sources.length ? (
-          <ul className="space-y-2">
-            {watch.sources.map((source) => (
-              <SourceRow
-                key={source.id}
-                source={source}
-                queued={queued.has(source.id)}
-                busy={busy}
-                onChange={(change) => void update({ update: [change] })}
-                onRemove={() => void update({ remove: [source.id] })}
-                onCheck={() => void check('source', source.id)}
-              />
-            ))}
-          </ul>
+        {own.length ? (
+          <ul className="space-y-2">{own.map(sourceRow)}</ul>
         ) : (
           <p className="text-xs text-muted-foreground">
             No product URLs yet. The knife’s product link is added automatically
@@ -503,6 +511,20 @@ export function PriceWatchEditor({
           </p>
         )}
       </div>
+
+      {variants.length ? (
+        <div data-price-variants className="space-y-2">
+          <span className="text-[10px] xl:text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            Other variants {variants.length}
+          </span>
+          <p className="text-xs text-muted-foreground">
+            The same model with another handle, steel or colour, found by Other
+            stores. Checked with their history, but not part of this knife’s
+            price or alerts. Removing one keeps it out.
+          </p>
+          <ul className="space-y-2">{variants.map(sourceRow)}</ul>
+        </div>
+      ) : null}
 
       <div className="space-y-2">
         <label

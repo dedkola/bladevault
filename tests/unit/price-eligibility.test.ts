@@ -66,7 +66,7 @@ describe('getEligibility', () => {
     })
     // The knife's own rules still apply in the collection tier.
     expect(getEligibility(knife('', false, 'k2'), 'auto', 1, pass).reason).toBe(
-      'no_price',
+      'monitored_collection',
     )
     expect(
       getEligibility(knife('50', true, 'k2'), 'auto', 1, pass).reason,
@@ -102,11 +102,11 @@ describe('getEligibility', () => {
   })
 
   it.each(['', '0', '0.00 USD', 'n/a'])(
-    'ignores Auto knives with price %j',
+    'also monitors Auto knives without a regular price (%j)',
     (price) => {
       expect(getEligibility(knife(price), 'auto', 1)).toEqual({
-        monitored: false,
-        reason: 'no_price',
+        monitored: true,
+        reason: 'monitored_auto',
         tier: 'scope',
       })
     },

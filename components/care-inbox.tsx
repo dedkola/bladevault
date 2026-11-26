@@ -31,6 +31,7 @@ import {
   X,
 } from 'lucide-react'
 import Image from '@/components/vault-image'
+import { readJsonResponse } from '@/lib/api-response'
 import { Button } from '@/components/ui/button'
 import { useKnives } from '@/components/providers/knives-provider'
 import {
@@ -279,6 +280,32 @@ function useInboxAction() {
       report(error)
     }
   }
+  /**
+   * Turns out-of-stock alerts off for every knife (Settings → Price
+   * monitoring → Notify) and clears the open ones. Checks go on as before.
+   */
+  const stopStockAlerts = async (openStockIds: number[]) => {
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          priceMonitoring: { notify: { outOfStock: false } },
+        }),
+      })
+      const data = await readJsonResponse<{ error?: string }>(response)
+      if (!response.ok)
+        throw new Error(data.error || 'Could not turn off out-of-stock alerts')
+      if (openStockIds.length)
+        await actPrice({ action: 'dismiss', ids: openStockIds })
+      showFeedback(
+        'Out-of-stock alerts are off. Stock is still checked; restocks still notify.',
+        'success',
+      )
+    } catch (error) {
+      report(error)
+    }
+  }
   const log = async (notification: CareNotification) => {
     setBusyId(notification.id)
     try {
@@ -296,7 +323,15 @@ function useInboxAction() {
       setBusyId(null)
     }
   }
-  return { run, runSystem, runPrice, mutePriceSource, log, busyId }
+  return {
+    run,
+    runSystem,
+    runPrice,
+    mutePriceSource,
+    stopStockAlerts,
+    log,
+    busyId,
+  }
 }
 
 function SnoozeMenu({
@@ -1052,6 +1087,7 @@ function PriceNotificationRow({
   compact = false,
   onAction,
   onMuteSource,
+  onStopStockAlerts,
   onNavigate,
 }: {
   notification: PriceNotificationView
@@ -1059,6 +1095,8 @@ function PriceNotificationRow({
   compact?: boolean
   onAction: (action: PriceNotificationAction) => void
   onMuteSource?: (days: number) => void
+  /** Out-of-stock cards: turn these alerts off for every knife. */
+  onStopStockAlerts?: () => void
   onNavigate?: () => void
 }) {
   const box = getPriceNotificationBox(notification, now)
@@ -1192,6 +1230,20 @@ function PriceNotificationRow({
                 onMute={onMuteSource}
               />
             )}
+            {box === 'open' &&
+              notification.kind === 'out_of_stock' &&
+              onStopStockAlerts && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={onStopStockAlerts}
+                  title="No more out-of-stock alerts for any knife. Stock is still checked and restocks still notify."
+                >
+                  <BellOff className="size-3" />
+                  Stop out-of-stock alerts
+                </Button>
+              )}
             {box === 'snoozed' && (
               <Button
                 type="button"
@@ -1711,8 +1763,22 @@ export function CareInboxView() {
     priceCounts,
   } = useCareInbox()
   const knivesById = useInboxKnives()
-  const { run, runSystem, runPrice, mutePriceSource, log, busyId } =
-    useInboxAction()
+  const {
+    run,
+    runSystem,
+    runPrice,
+    mutePriceSource,
+    stopStockAlerts,
+    log,
+    busyId,
+  } = useInboxAction()
+  const openStockIds = priceNotifications
+    .filter(
+      (row) =>
+        row.kind === 'out_of_stock' &&
+        getPriceNotificationBox(row, now) === 'open',
+    )
+    .map((row) => row.id)
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -1975,6 +2041,7 @@ export function CareInboxView() {
                     onMuteSource={(days) =>
                       void mutePriceSource(item.row, days)
                     }
+                    onStopStockAlerts={() => void stopStockAlerts(openStockIds)}
                   />
                 ) : (
                   <CareMessageRow

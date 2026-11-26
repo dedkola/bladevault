@@ -15,7 +15,6 @@ import {
 import {
   agentActive,
   agentDue,
-  agentEventKnifeIds,
   agentFailureStreak,
   agentEventGapMs,
   lastAgentRunAt,
@@ -1418,12 +1417,7 @@ export class PriceMonitorWorker {
     // Events matter only once the gap since the last run has passed.
     const events =
       lastRunAt !== null && now - lastRunAt >= agentEventGapMs(settings)
-        ? readAgentEvents(
-            database,
-            lastRunAt,
-            0,
-            agentEventKnifeIds(database, settings),
-          )
+        ? readAgentEvents(database, lastRunAt, 0, null)
         : undefined
     const trigger = agentDue({
       settings,

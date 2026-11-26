@@ -15,6 +15,7 @@ import { getSafeExternalUrl } from '@/lib/external-url'
 import type {
   KnifeStoreEntry,
   KnifeStoreState,
+  KnifeStoreVariant,
 } from '@/lib/price-monitor/shared'
 import { cn } from '@/lib/utils'
 
@@ -69,6 +70,20 @@ function statusText(entry: KnifeStoreEntry, now: number): string {
     case 'off':
       return 'not searched'
   }
+}
+
+/**
+ * A monitored variant shows its latest check; the rest the price from the
+ * store's search results.
+ */
+function variantPrice(variant: KnifeStoreVariant): string | null {
+  const live = variant.monitored
+  if (!live) return variant.price
+  if (!live.enabled) return 'paused'
+  if (live.availability === 'out_of_stock') return 'out of stock'
+  if (live.priceMinor !== null && live.currency)
+    return money(live.priceMinor, live.currency)
+  return variant.price
 }
 
 /** When the store is searched again, for stores without a listing. */
@@ -190,9 +205,16 @@ export function KnifeStoresList({
                       <StoreLink url={variant.url} title={variant.title}>
                         {variant.title}
                       </StoreLink>
-                      {variant.price ? (
-                        <span className="shrink-0 tabular-nums text-muted-foreground">
-                          {variant.price}
+                      {variantPrice(variant) ? (
+                        <span
+                          className="shrink-0 tabular-nums text-muted-foreground"
+                          title={
+                            variant.monitored
+                              ? 'Monitored: latest checked price'
+                              : 'Price from the store’s search results'
+                          }
+                        >
+                          {variantPrice(variant)}
                         </span>
                       ) : null}
                     </li>

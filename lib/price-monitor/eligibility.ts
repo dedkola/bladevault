@@ -1,4 +1,3 @@
-import { parseStoredPrice } from '@/lib/price-monitor/money'
 import type { PriceMonitorScope } from '@/lib/settings-shared'
 import {
   type MonitorTier,
@@ -11,7 +10,7 @@ import {
 export type EligibilitySettings = {
   /** Auto mode skips sold knives; Always monitor still covers them. */
   skipSoldKnives: boolean
-  /** Out of stock on the knife's own product link is ignored. */
+  /** No out-of-stock alerts for the knife's own product link. */
   ignoreOfficialOutOfStock?: boolean
   /** Which knives monitoring covers; missing means the whole collection. */
   scope?: PriceMonitorScope
@@ -29,8 +28,9 @@ export type EligibilitySettings = {
 
 /**
  * The knife's own product link (its official store) reports out of stock
- * and the setting ignores that: it does not count as out of stock, does not
- * notify, and is not checked on schedule until Check now finds it in stock.
+ * and the setting quiets that: no out-of-stock alert. It changes nothing
+ * else: the link is checked on every round, counts and shows as out of
+ * stock, and a restock still notifies.
  */
 export function isIgnoredOfficialOutOfStock(
   source: { origin: PriceSourceOrigin; availability: string | null },
@@ -71,12 +71,11 @@ export function getEligibility(
   if (mode === 'off') return { monitored: false, reason: 'off', tier }
   if (tier === 'collection' && !settings.collectionPass?.enabled)
     return { monitored: false, reason: 'out_of_scope', tier }
-  if (mode === 'auto') {
-    if (!parseStoredPrice(knife.specs.price))
-      return { monitored: false, reason: 'no_price', tier }
-    if (settings.skipSoldKnives && knife.sold)
-      return { monitored: false, reason: 'sold', tier }
-  }
+  // Only your own choices stop monitoring (Off, Skip sold knives, a paused
+  // store); a knife without a regular price is monitored too, it just has
+  // no regular price to compare with.
+  if (mode === 'auto' && settings.skipSoldKnives && knife.sold)
+    return { monitored: false, reason: 'sold', tier }
   if (enabledSourceCount === 0)
     return { monitored: false, reason: 'no_source', tier }
   return {

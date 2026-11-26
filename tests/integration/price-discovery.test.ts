@@ -331,7 +331,16 @@ describe('Other stores discovery', () => {
     enableOtherStores()
     // No product link: Other stores still covers a knife with a price.
     const knifeId = await createKnife({ specs: { price: '$150' } })
-    await createKnife({ name: 'No price' })
+    // A knife set to Never monitor is not searched.
+    const off = await createKnife({ name: 'Off' })
+    await priceWatchRoute.PUT(
+      new Request(`http://localhost/api/knives/${off}/price-watch`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'off' }),
+      }),
+      { params: Promise.resolve({ id: off }) },
+    )
     const run = deps()
     const summary = await discoverKnife(knifeId, { deps: run })
 
@@ -648,7 +657,7 @@ describe('Other stores discovery', () => {
     )
   })
 
-  it('keeps other variants of the model as related listings, not as sources', async () => {
+  it('keeps other variants of the model as related listings, monitoring them as variants', async () => {
     enableOtherStores()
     const knifeId = await createKnife({
       brand: 'Vosteed',
@@ -686,7 +695,22 @@ describe('Other stores discovery', () => {
       status: 'done',
       result: 'variant',
     })
-    expect((await getWatch(knifeId)).sources).toEqual([])
+    // Monitored apart from the knife: variant listings, not its own store.
+    expect(
+      (await getWatch(knifeId)).sources.map((source) => [
+        source.url,
+        source.variantTitle,
+      ]),
+    ).toEqual([
+      [
+        'https://www.bladehq.com/item--Vosteed-Porcupine-TiSlim--4801',
+        'Vosteed Porcupine TiSlim A4801 Black',
+      ],
+      [
+        'https://www.bladehq.com/item--Vosteed-Porcupine-TiSlim--4815',
+        'Vosteed Porcupine TiSlim A4815 S90V',
+      ],
+    ])
     const variants = getLocalDb()
       .prepare(
         `SELECT url, title, price_text FROM price_discovery_variants

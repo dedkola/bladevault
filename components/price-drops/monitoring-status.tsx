@@ -186,12 +186,9 @@ function describe(source: MonitoredSource, now: number) {
   const checked = source.lastCheckedAt
     ? `checked ${relativeTime(source.lastCheckedAt, now)}`
     : 'not checked yet'
-  // A sold-out official link the setting ignores waits for Check now.
-  const next = source.stockIgnored
-    ? ', not monitored'
-    : source.nextCheckAt
-      ? `, ${nextCheckLabel(source.nextCheckAt, now)}`
-      : ''
+  const next = source.nextCheckAt
+    ? `, ${nextCheckLabel(source.nextCheckAt, now)}`
+    : ''
   return `${name} · ${RESULT_LABEL[source.result]} · ${money(
     source.priceMinor,
     source.currency,
@@ -256,8 +253,6 @@ function TimelinePin({
  * Now with the other due checks.
  */
 function nextCheckTime(source: MonitoredSource, now: number): number | null {
-  // Not scheduled (an ignored sold-out official link): never due.
-  if (source.stockIgnored) return null
   if (source.nextCheckAt) return Date.parse(source.nextCheckAt)
   return source.lastCheckedAt ? null : now
 }

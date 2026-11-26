@@ -91,7 +91,8 @@ export function buildMarketSummaries(
     .prepare(
       `SELECT id, knife_id, last_price_minor, last_currency,
               last_availability, last_checked_at
-       FROM price_sources WHERE removed_at IS NULL AND enabled = 1`,
+       FROM price_sources
+       WHERE removed_at IS NULL AND enabled = 1 AND variant_search IS NULL`,
     )
     .all() as SourceRow[]
   if (!sources.length) return {}
@@ -110,7 +111,8 @@ export function buildMarketSummaries(
           `SELECT k.id, k.specs, k.sold, COALESCE(w.mode, 'auto') AS mode
            FROM knives k LEFT JOIN price_watch w ON w.knife_id = k.id
            WHERE k.id IN (SELECT knife_id FROM price_sources
-                          WHERE removed_at IS NULL AND enabled = 1)`,
+                          WHERE removed_at IS NULL AND enabled = 1
+                            AND variant_search IS NULL)`,
         )
         .all() as KnifeRow[]
     ).map((row) => [row.id, row]),

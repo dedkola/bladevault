@@ -140,9 +140,9 @@ describe('price watch API', () => {
     expect((await getWatch(id)).watch.sources).toHaveLength(1)
   })
 
-  it('ignores Auto knives without a price; Always monitor covers them', async () => {
+  it('monitors Auto knives without a price; Always monitor too', async () => {
     const id = await createKnife('')
-    expect((await getWatch(id)).watch.eligibility.reason).toBe('no_price')
+    expect((await getWatch(id)).watch.eligibility.reason).toBe('monitored_auto')
     const { body } = await putWatch(id, { mode: 'on' })
     expect(body.watch?.eligibility).toEqual({
       monitored: true,

@@ -121,7 +121,8 @@ function readLowestPrice(
 }
 
 /** A store counts for the knife's stock while monitored and not paused. */
-const ACTIVE_SOURCE = 'removed_at IS NULL AND enabled = 1'
+const ACTIVE_SOURCE =
+  'removed_at IS NULL AND enabled = 1 AND variant_search IS NULL'
 /** Its latest reading has the knife for sale (as Best price now counts it). */
 const SELLING =
   "last_price_minor IS NOT NULL AND (last_availability IS NULL OR last_availability <> 'out_of_stock')"

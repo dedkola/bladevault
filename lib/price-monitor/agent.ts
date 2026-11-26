@@ -48,11 +48,9 @@ import {
 } from '@/lib/price-monitor/store'
 import { getSettings } from '@/lib/settings'
 import {
-  isCollectionPassOn,
   type PriceAgentMode,
   type PriceMonitoringSettings,
 } from '@/lib/settings-shared'
-import { readMonitorScopeKnifeIds } from '@/lib/price-monitor/scope'
 import { writeSystemMessageReports } from '@/lib/system-message-store'
 import {
   PRICE_ADVICE_TOPICS,
@@ -118,6 +116,12 @@ export const MAX_AGENT_EVENTS = 40
 const FIRST_RUN_EVENTS_MS = 24 * 60 * MINUTE_MS
 /** Failed checks in a row that count as an event (the streak crossing). */
 const FAILING_EVENT_STREAKS = [3, 5] as const
+/**
+ * Readings and changes of the knives' own stores: the listings of other
+ * variants Other stores watches never make a knife's market.
+ */
+const OWN_SOURCE = `source_id NOT IN
+  (SELECT id FROM price_sources WHERE variant_search IS NOT NULL)`
 export const AGENT_RETENTION_MS = 30 * 24 * HOUR_MS
 /** The market window for a knife's recent low and high. */
 export const MARKET_WINDOW_DAYS = 90
@@ -293,6 +297,17 @@ export type AgentSource = {
   outOfStockDays: number | null
   /** A listing Other stores found (only present when true). */
   foundByAi?: true
+  /**
+   * The rest of the collection (outside What to monitor): checked in free
+   * time, at most once a day. Only present when true.
+   */
+  daily?: true
+  /**
+   * A listing of another variant of the model (handle, steel, colour) that
+   * Other stores monitors: its title. Never the knife's price or alerts.
+   * Only present for such a listing.
+   */
+  variant?: string
 }
 
 /** An Other stores search for a knife at one store. */
@@ -315,8 +330,9 @@ export type AgentKnife = {
   /** Notifications for this knife are muted. */
   muted: boolean
   /**
-   * Scheduled monitoring does not cover the knife (outside What to monitor,
-   * watch mode Off, sold or no regular price): no advice, questions or notes.
+   * Scheduled monitoring does not cover the knife (watch mode Off, sold
+   * while sold knives are skipped, or no store): no advice, questions or
+   * notes.
    */
   notMonitored?: true
   /** The cheapest in-stock price now and its store. */
@@ -494,6 +510,8 @@ type SourceQueryRow = {
   last_price_minor: number | null
   last_currency: string | null
   last_availability: Availability | null
+  variant_search: string | null
+  variant_title: string | null
   found_by_ai: number
 }
 
@@ -581,22 +599,24 @@ export function buildAgentSnapshot(input: {
     database,
     lastRunAt ?? now - FIRST_RUN_EVENTS_MS,
     MAX_AGENT_EVENTS,
-    agentEventKnifeIds(database, settings),
+    null,
   )
   const intervalMs = frequencyMs(settings.schedule)
-  // The collection pass (knives outside What to monitor, checked in free
-  // time) is not the supervisor's: it counts as not monitored here, so the
-  // prompt and the AI budget stay at the size of What to monitor.
-  const candidates = readQueueCandidates(database, settings, now).filter(
-    (candidate) => candidate.tier === 'scope',
+  // Every monitored knife is the supervisor's: What to monitor and the rest
+  // of the collection (checked in free time, marked `daily`).
+  const candidates = readQueueCandidates(database, settings, now)
+  const daily = new Set(
+    candidates
+      .filter((candidate) => candidate.tier === 'collection')
+      .map((candidate) => candidate.sourceId),
   )
   const monitored = new Set(
     candidates
       .filter((candidate) => candidate.scheduled)
       .map((candidate) => candidate.sourceId),
   )
-  // Knives outside What to monitor (or Off, sold, without a regular price)
-  // get no advice, questions or notes; their old notes are left out.
+  // Knives not monitored (Off, sold while sold knives are skipped) get no
+  // advice, questions or notes; their old notes are left out.
   const coveredKnives = new Set(
     candidates
       .filter((candidate) => candidate.covered)
@@ -608,7 +628,8 @@ export function buildAgentSnapshot(input: {
               s.enabled, s.status, s.fetch_override, s.last_checked_at,
               s.last_success_at, s.last_error_code, s.consecutive_failures,
               s.next_check_at, s.last_ai_at, s.priority, s.last_price_minor,
-              s.last_currency, s.last_availability,
+              s.last_currency, s.last_availability, s.variant_search,
+              s.variant_title,
               EXISTS (SELECT 1 FROM price_discovery d
                       WHERE d.source_id = s.id) AS found_by_ai,
               (SELECT l.http_status FROM price_check_log l
@@ -751,6 +772,10 @@ export function buildAgentSnapshot(input: {
       stock: row.last_availability,
       outOfStockDays: since ? Math.floor(daysSince(since, now)) : null,
       ...(row.found_by_ai ? { foundByAi: true as const } : {}),
+      ...(daily.has(row.id) ? { daily: true as const } : {}),
+      ...(row.variant_search !== null
+        ? { variant: row.variant_title || row.store_name }
+        : {}),
     }
   })
 
@@ -765,7 +790,8 @@ export function buildAgentSnapshot(input: {
     stale: watched.filter(
       (source) =>
         source.checkedMinAgo !== null &&
-        source.checkedMinAgo * MINUTE_MS > intervalMs * 1.5,
+        source.checkedMinAgo * MINUTE_MS >
+          (source.daily ? Math.max(intervalMs, DAY_MS) : intervalMs) * 1.5,
     ).length,
     failed: watched.filter((source) => source.status === 'failed').length,
     blocked: watched.filter((source) => source.status === 'blocked').length,
@@ -1077,19 +1103,6 @@ export function readAgentEvents(
   }
 }
 
-/**
- * The knives whose events concern the supervisor: null for every knife,
- * or What to monitor while the collection pass covers the rest.
- */
-export function agentEventKnifeIds(
-  database: Database.Database,
-  settings: PriceMonitoringSettings,
-): ReadonlySet<string> | null {
-  return isCollectionPassOn(settings)
-    ? readMonitorScopeKnifeIds(database, settings.scope)
-    : null
-}
-
 /** The supervisor's own recent Inbox messages, so it does not repeat itself. */
 function readAgentInbox(database: Database.Database, now: number): AgentInbox {
   const rows = database
@@ -1210,6 +1223,7 @@ function readAgentKnives(input: {
        WHERE price_minor IS NOT NULL AND currency IS NOT NULL
          AND availability <> 'out_of_stock'
          AND (ai_review IS NULL OR ai_review <> 'unconfirmed')
+         AND ${OWN_SOURCE}
        GROUP BY knife_id, currency`,
     )
     .all(windowStart, windowStart) as Array<{
@@ -1232,7 +1246,7 @@ function readAgentKnives(input: {
                     ROW_NUMBER() OVER (
                       PARTITION BY knife_id ORDER BY occurred_at DESC, id DESC
                     ) AS rank
-             FROM price_change_events
+             FROM price_change_events WHERE ${OWN_SOURCE}
            ) WHERE rank = 1`,
         )
         .all() as Array<{
@@ -1256,7 +1270,7 @@ function readAgentKnives(input: {
                     ROW_NUMBER() OVER (
                       PARTITION BY knife_id ORDER BY occurred_at DESC, id DESC
                     ) AS rank
-             FROM stock_events
+             FROM stock_events WHERE ${OWN_SOURCE}
            ) WHERE rank = 1`,
         )
         .all() as Array<{
@@ -1309,7 +1323,7 @@ function readAgentKnives(input: {
   const priced = database.prepare(
     `SELECT store_name, lane_key, last_price_minor, last_currency
      FROM price_sources
-     WHERE knife_id = ? AND removed_at IS NULL
+     WHERE knife_id = ? AND removed_at IS NULL AND variant_search IS NULL
        AND last_price_minor IS NOT NULL AND last_currency IS NOT NULL
        AND (last_availability IS NULL OR last_availability <> 'out_of_stock')
      ORDER BY last_price_minor, id`,
@@ -1748,7 +1762,7 @@ export const AGENT_SCHEMA = {
 export const AGENT_PROMPT = [
   'You supervise price monitoring for a knife collector. Each source is one store product page that BladeVault checks for price and stock. Keep every monitored source fresh and readable, and spend checks where they matter most to the collector right now.',
   "trigger says why you run: event (events woke you: react to them), scheduled (your regular look over everything) or manual (the collector asked). events lists what changed since your last run, newest first: drop and increase (from, to, pct), out_of_stock and back_in_stock, failing (a source's failures in a row reached 3 or 5), bot_check (a store showed a bot check), found_listing (Other stores found the knife at a store). After a move at one store, crossCheck the knife's other stores; after a drop near the target or a restock, consider watchClosely or advise.",
-  "The input lists knives, most urgent first. Each knife has its market: regular (the knife's stored regular price), target (the collector's alert price), best (the cheapest in-stock price now) and bestStore, low (lowest in-stock price ever), low90d and high90d, lastPriceChange, lastStockChange, muted, notMonitored (not covered by scheduled monitoring: no advise, ask or remember for it), and search (Other stores searches). Under it are its sources: status, price, stock, outOfStockDays, timing in minutes, failures, error, queued, ahead and retry. The input also has the round, each store's pace, coverage, the AI budget, localTime and your recent runs, each action with its note (why it was refused) or outcome (what its next check or search found). Missing fields are unknown.",
+  "The input lists knives, most urgent first. Each knife has its market: regular (the knife's stored regular price), target (the collector's alert price), best (the cheapest in-stock price now) and bestStore, low (lowest in-stock price ever), low90d and high90d, lastPriceChange, lastStockChange, muted, notMonitored (not covered by scheduled monitoring: no advise, ask or remember for it), and search (Other stores searches). Under it are its sources: status, price, stock, outOfStockDays, timing in minutes, failures, error, queued, ahead and retry; daily marks a knife outside What to monitor, checked at most once a day in free time, so a day between its checks is normal. Out of stock never stops checks: a sold-out page is checked like any other. variant marks a listing of the same model in another variant (handle, steel, colour) that Other stores keeps watching, with its title: it never sets the knife's market (best, low, changes) or alerts; when the title shows it is not the same model at all, pause it. The input also has the round, each store's pace, coverage, the AI budget, localTime and your recent runs, each action with its note (why it was refused) or outcome (what its next check or search found). Missing fields are unknown.",
   'Answer with JSON only: {"summary", "check", "retryWithAi", "findPage", "fetchMode", "pause", "searchOtherStore", "watchClosely", "crossCheck", "advise", "ask", "remember", "forget"}. Leave a list empty when nothing is needed: often nothing is.',
   "Prices are checked in rounds (round: knives done of all; nextRoundInMin; checkIntervalHours between rounds). A round goes knife by knife: all of a knife's stores at the same time, then a pause, then the next knife. ahead says how many knives come before a source's knife in the running round. What fails or finds its store not ready goes on the retry list (retry: reason, attempts, inMin), which runs at random times before the next round with AI allowed; what fails again waits for the next round.",
   `check (at most ${AGENT_LIMITS.check}): check sources right away, before the round's next knife. A source with ahead 0 is next anyway and a check changes nothing. Use check to read a source that matters more now: a knife near or below its target or regular price, a price that just moved at another store, a restock to confirm, a sale period (look at localTime, e.g. Black Friday and holiday sales). Skip sources marked queued, checked in the last 30 minutes, or not monitored.`,

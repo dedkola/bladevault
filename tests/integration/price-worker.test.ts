@@ -427,7 +427,13 @@ describe('price check rounds', () => {
 
   it('only runs Check now when scheduling is off or not covered', async () => {
     await knife(['https://a.example/p'])
-    await knife(['https://b.example/p'], { price: '' })
+    const off = await knife(['https://b.example/p'])
+    await priceWatchRoute.PUT(
+      json('http://localhost/x', 'PUT', { mode: 'off' }),
+      {
+        params: Promise.resolve({ id: off }),
+      },
+    )
     await knife(['https://c.example/p'], { sold: true })
     const ids = sourceIds()
     saveSettings({
@@ -444,7 +450,7 @@ describe('price check rounds', () => {
       [ids.get('https://b.example/p'), 'manual'],
     ])
 
-    // Back on: the no-price and sold knives stay out of the round.
+    // Back on: the Never monitor and sold knives stay out of the round.
     saveSettings({
       priceMonitoring: { ...getSettings().priceMonitoring, enabled: true },
     })
@@ -1055,6 +1061,42 @@ describe('queue snapshot', () => {
       gapMs: MIN,
       retries: 0,
     })
+  })
+
+  it('checks a sold-out official link every round, also with its alerts quieted', async () => {
+    await knife(['https://maker.example/1'])
+    await knife(['https://shop.example/2'])
+    checkedYesterday()
+    roundEvery(12)
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        ignoreOfficialOutOfStock: true,
+      },
+    })
+    const ids = sourceIds()
+    getLocalDb()
+      .prepare(
+        "UPDATE price_sources SET last_availability = 'out_of_stock' WHERE id = ?",
+      )
+      .run(ids.get('https://maker.example/1'))
+    const { worker, pending, finish, advance, now } = harness()
+    const start = now()
+
+    for (const roundStart of [start, start + 12 * HOUR]) {
+      advance(roundStart - now())
+      if (roundStart === start) worker.start({ scheduled: true })
+      await worker.pass()
+      expect(lanesOf(pending, ids)).toEqual(['maker.example'])
+      await finish()
+      advance(MIN)
+      await worker.pass()
+      expect(lanesOf(pending, ids)).toEqual(['shop.example'])
+      await finish()
+      advance(MIN)
+      await worker.pass()
+      expect(buildQueueSnapshot(now()).round).toBeNull()
+    }
   })
 
   it('counts pages out of stock for two weeks as slowed', async () => {

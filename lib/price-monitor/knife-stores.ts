@@ -2,12 +2,13 @@ import type Database from 'better-sqlite3'
 import { aiConfigured } from '@/lib/price-monitor/ai'
 import type { DiscoveryStatus } from '@/lib/price-monitor/discovery-store'
 import { DISCOVERY_STORES } from '@/lib/price-monitor/discovery-stores'
-import type {
-  Availability,
-  KnifeStoreEntry,
-  KnifeStoreState,
-  KnifeStoreVariant,
-  PriceSourceStatus,
+import {
+  type Availability,
+  type KnifeStoreEntry,
+  type KnifeStoreState,
+  type KnifeStoreVariant,
+  normalizeSourceUrl,
+  type PriceSourceStatus,
 } from '@/lib/price-monitor/shared'
 import {
   OTHER_STORE_IDS,
@@ -26,6 +27,8 @@ type SourceRow = {
   id: number
   knife_id: string
   url: string
+  normalized_url: string
+  variant_search: string | null
   lane_key: string
   store_name: string | null
   status: PriceSourceStatus
@@ -141,8 +144,8 @@ export function readKnifeStores(
   const ids = JSON.stringify([...new Set(knifeIds)])
   const sources = database
     .prepare(
-      `SELECT id, knife_id, url, lane_key, store_name, status, enabled,
-              last_price_minor,
+      `SELECT id, knife_id, url, normalized_url, variant_search, lane_key,
+              store_name, status, enabled, last_price_minor,
               last_currency, last_availability
        FROM price_sources
        WHERE removed_at IS NULL
@@ -176,20 +179,41 @@ export function readKnifeStores(
   const searchBy = new Map(
     searches.map((row) => [key(row.knife_id, row.store, row.marketplace), row]),
   )
+  // Variant sources are listed with their search, not as the store's own.
+  const variantSources = new Map(
+    sources
+      .filter((row) => row.variant_search !== null)
+      .map((row) => [`${row.knife_id}\n${row.normalized_url}`, row]),
+  )
   const variantsBy = new Map<string, KnifeStoreVariant[]>()
   for (const row of variants) {
     const list =
       variantsBy.get(key(row.knife_id, row.store, row.marketplace)) ?? []
+    const monitored = variantSources.get(
+      `${row.knife_id}\n${normalizeSourceUrl(row.url)}`,
+    )
     list.push({
       url: row.url,
       title: row.title,
       price: row.price_text,
       seenAt: row.seen_at,
+      ...(monitored
+        ? {
+            monitored: {
+              sourceId: monitored.id,
+              priceMinor: monitored.last_price_minor,
+              currency: monitored.last_currency,
+              availability: monitored.last_availability,
+              enabled: monitored.enabled === 1,
+            },
+          }
+        : {}),
     })
     variantsBy.set(key(row.knife_id, row.store, row.marketplace), list)
   }
   const sourcesBy = new Map<string, Map<string, SourceRow[]>>()
   for (const row of sources) {
+    if (row.variant_search !== null) continue
     const lanes = sourcesBy.get(row.knife_id) ?? new Map<string, SourceRow[]>()
     lanes.set(row.lane_key, [...(lanes.get(row.lane_key) ?? []), row])
     sourcesBy.set(row.knife_id, lanes)

@@ -12,6 +12,12 @@ type UnlockRow = {
 }
 
 const INITIALIZED_KEY = 'initialized_at'
+/**
+ * Price and stock events of the knives' own stores, not of the other-variant
+ * listings Other stores monitors.
+ */
+const OWN_SOURCE_EVENT = `source_id NOT IN
+  (SELECT id FROM price_sources WHERE variant_search IS NOT NULL)`
 
 function toUnlock(row: UnlockRow): AchievementUnlock {
   return {
@@ -152,17 +158,20 @@ export function readPriceAchievementInput(): {
        FROM price_sources s
        LEFT JOIN price_watch w ON w.knife_id = s.knife_id
        WHERE s.removed_at IS NULL AND s.enabled = 1
+         AND s.variant_search IS NULL
          AND COALESCE(w.mode, 'auto') <> 'off'`,
     )
     .get() as { count: number }
   const drops = database
     .prepare(
-      `SELECT delta_pct FROM price_change_events WHERE direction = 'drop'`,
+      `SELECT delta_pct FROM price_change_events
+       WHERE direction = 'drop' AND ${OWN_SOURCE_EVENT}`,
     )
     .all() as Array<{ delta_pct: number }>
   const restocks = database
     .prepare(
-      `SELECT COUNT(*) AS count FROM stock_events WHERE kind = 'back_in_stock'`,
+      `SELECT COUNT(*) AS count FROM stock_events
+       WHERE kind = 'back_in_stock' AND ${OWN_SOURCE_EVENT}`,
     )
     .get() as { count: number }
   return {

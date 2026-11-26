@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import { money, moneyMajor, storeLabel } from './price-format'
 import {
   historyEnd,
+  historyLineLabel,
   outOfStockEverywhere,
   storeLineData,
   storeLinesAt,
@@ -394,7 +395,7 @@ export function PriceHistoryChart({
         )
         return {
           type: 'line' as const,
-          name: `${storeLabel(source.storeName)}${source.removed ? ' (removed)' : ''}`,
+          name: historyLineLabel(source),
           step: 'end' as const,
           showSymbol: dotted.size > 0,
           symbol: 'circle',
@@ -405,7 +406,12 @@ export function PriceHistoryChart({
           lineStyle: {
             width: 2,
             color: colors[index % colors.length],
-            type: source.removed ? ('dashed' as const) : ('solid' as const),
+            // Other variants dotted, removed stores dashed.
+            type: source.variantTitle
+              ? ('dotted' as const)
+              : source.removed
+                ? ('dashed' as const)
+                : ('solid' as const),
           },
           itemStyle: { color: colors[index % colors.length] },
           ...(index === 0
@@ -638,7 +644,7 @@ export function ChartLegend({ history }: { history: KnifeHistory }) {
     (source) => source.unconfirmed?.length,
   )
   const storeCount = history.sources.filter(
-    (source) => source.points.length,
+    (source) => source.points.length && !source.variantTitle,
   ).length
   return (
     <div className="space-y-1">
@@ -668,19 +674,24 @@ export function ChartLegend({ history }: { history: KnifeHistory }) {
           <span
             key={source.sourceId}
             className="inline-flex items-center gap-1.5"
+            title={source.variantTitle}
           >
             <span
               aria-hidden="true"
               className="inline-block h-0.5 w-3.5"
               style={{
-                background: source.removed ? 'transparent' : sourceColor(index),
-                borderTop: source.removed
-                  ? `2px dashed ${sourceColor(index)}`
-                  : undefined,
+                background:
+                  source.removed || source.variantTitle
+                    ? 'transparent'
+                    : sourceColor(index),
+                borderTop: source.variantTitle
+                  ? `2px dotted ${sourceColor(index)}`
+                  : source.removed
+                    ? `2px dashed ${sourceColor(index)}`
+                    : undefined,
               }}
             />
-            {storeLabel(source.storeName)}
-            {source.removed ? ' (removed)' : ''}
+            {historyLineLabel(source)}
           </span>
         ))}
         <span className="inline-flex items-center gap-1.5">

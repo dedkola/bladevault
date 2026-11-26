@@ -479,10 +479,9 @@ export type PriceMonitoringSettings = {
   /** Auto mode skips sold knives; Always monitor still covers them. */
   skipSoldKnives: boolean
   /**
-   * Out of stock on the knife's own product link (its official store) is
-   * ignored: it does not count as out of stock, does not notify, and the
-   * link is not checked on schedule while it stays out of stock. Other
-   * stores (Blade HQ, SMKW, DLT Trading) carry the knife instead.
+   * No out-of-stock alerts for the knife's own product link (its official
+   * store). Only the alert is quieted: the link is checked on every round,
+   * counts and shows as out of stock, and a restock still notifies.
    */
   ignoreOfficialOutOfStock: boolean
   /** Which knives scheduled monitoring covers; Check now works for any. */

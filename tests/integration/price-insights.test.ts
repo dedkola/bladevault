@@ -15,12 +15,14 @@ import {
   type SourceCheckHistory,
 } from '@/lib/price-monitor/insights'
 import type { PriceWatchView } from '@/lib/price-monitor/shared'
+import { recordDiscovery } from '@/lib/price-monitor/discovery-store'
 import { readQueueCandidates } from '@/lib/price-monitor/store'
 import type { ExtractedOffer } from '@/lib/scrape-offer'
 import { getSettings, saveSettings } from '@/lib/settings'
 import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
 import { monitorWholeCollection } from '@/tests/helpers/monitor-whole-collection'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
+import { getVaultAccessState } from '@/lib/vault-access'
 
 const mocks = vi.hoisted(() => ({ browser: vi.fn() }))
 vi.mock('@/lib/price-monitor/fetch', async (importOriginal) => ({
@@ -114,6 +116,14 @@ async function checkAt(
   await checkPriceSource(sourceId, { trigger: 'manual' })
 }
 
+async function getWatch(knifeId: string) {
+  const response = await priceWatchRoute.GET(
+    new Request('http://localhost/x'),
+    { params: Promise.resolve({ id: knifeId }) },
+  )
+  return ((await response.json()) as { watch: PriceWatchView }).watch
+}
+
 async function overview(days?: number) {
   const response = await overviewRoute.GET(
     new Request(
@@ -141,8 +151,12 @@ describe('price overview', () => {
       'https://shop.example/raccoon',
       'https://dealer.example/raccoon',
     ])
-    // A knife without a stored price is tracked but not monitored in Auto.
+    // A knife set to Never monitor is tracked but not monitored.
     const corgi = await createKnife('Corgi', '', ['https://shop.example/corgi'])
+    await priceWatchRoute.PUT(
+      json('http://localhost/x', 'PUT', { mode: 'off' }),
+      { params: Promise.resolve({ id: corgi.id }) },
+    )
 
     await checkAt(0, raccoon.sources[0], offer(100))
     await checkAt(1, raccoon.sources[1], offer(95))
@@ -840,55 +854,249 @@ describe('source check history', () => {
   })
 })
 
-describe('ignore out of stock on the official site', () => {
-  it('drops the knife’s own sold-out link from stock counts and the schedule', async () => {
+describe('no out-of-stock alerts for the official site', () => {
+  it('quiets only the alert: the sold-out link still counts, shows and is checked', async () => {
+    saveSettings({
+      priceMonitoring: {
+        ...DEFAULT_PRICE_MONITORING,
+        scope: { kind: 'all', knifeIds: [] },
+        notify: { ...DEFAULT_PRICE_MONITORING.notify, outOfStock: true },
+        ignoreOfficialOutOfStock: true,
+      },
+    })
     const knife = await createKnife('Raccoon', '129.00 USD', [
       'https://shop.example/raccoon',
       'https://dealer.example/raccoon',
     ])
     const [official, other] = knife.sources
-    await checkAt(0, official, offer(129, 'out_of_stock'))
+    // Both stores sell out; stock changes need two readings in a row.
+    await checkAt(0, official, offer(129))
     await checkAt(0, other, offer(119))
+    await checkAt(1, official, offer(129, 'out_of_stock'))
+    await checkAt(1, other, offer(119, 'out_of_stock'))
+    await checkAt(2, official, offer(129, 'out_of_stock'))
+    await checkAt(2, other, offer(119, 'out_of_stock'))
 
-    const before = await overview()
-    expect(before.kpis.outOfStock).toBe(1)
-    expect(
-      before.monitored.find((source) => source.sourceId === official)?.result,
-    ).toBe('out_of_stock')
+    // Only the other store alerts.
+    const alerts = getLocalDb()
+      .prepare(
+        "SELECT source_id FROM price_notifications WHERE kind = 'out_of_stock'",
+      )
+      .all() as Array<{ source_id: number }>
+    expect(alerts.map((row) => row.source_id)).toEqual([other])
 
-    saveSettings({
-      priceMonitoring: {
-        ...DEFAULT_PRICE_MONITORING,
-        scope: { kind: 'all', knifeIds: [] },
-        ignoreOfficialOutOfStock: true,
-      },
-    })
+    // Out of stock still counts and shows everywhere.
     const after = await overview()
-    expect(after.kpis.outOfStock).toBe(0)
+    expect(after.kpis.outOfStock).toBe(2)
     const settings = getSettings().priceMonitoring
-    expect(readOutOfStockSources(getLocalDb(), settings)).toEqual([])
-    const officialRow = after.monitored.find(
-      (source) => source.sourceId === official,
-    )
-    expect(officialRow).toMatchObject({ official: true, stockIgnored: true })
-    expect(officialRow?.result).not.toBe('out_of_stock')
+    expect(
+      readOutOfStockSources(getLocalDb(), settings)
+        .map((source) => source.sourceId)
+        .sort(),
+    ).toEqual([official, other].sort())
+    expect(
+      after.monitored.find((source) => source.sourceId === official),
+    ).toMatchObject({
+      official: true,
+      stockAlertsOff: true,
+      result: 'out_of_stock',
+    })
     expect(
       buildKnifeSummaries(getLocalDb(), settings).find(
         (row) => row.knife.id === knife.id,
       )?.outOfStock,
-    ).toBe(false)
+    ).toBe(true)
 
-    // Not checked on schedule; the other store still is.
+    // Both links stay on the schedule.
     const scheduled = new Map(
-      readQueueCandidates(getLocalDb(), getSettings().priceMonitoring).map(
-        (row) => [row.sourceId, row.scheduled],
-      ),
+      readQueueCandidates(getLocalDb(), settings).map((row) => [
+        row.sourceId,
+        row.scheduled,
+      ]),
     )
-    expect(scheduled.get(official)).toBe(false)
+    expect(scheduled.get(official)).toBe(true)
     expect(scheduled.get(other)).toBe(true)
+  })
+})
 
-    // A manually added store selling out still counts.
-    await checkAt(1, other, offer(119, 'out_of_stock'))
-    expect((await overview()).kpis.outOfStock).toBe(1)
+describe('other variants of the model (Other stores)', () => {
+  const VARIANTS = [
+    { url: 'https://dealer.example/raccoon-black', title: 'Raccoon Black G10' },
+    { url: 'https://dealer.example/raccoon-s90v', title: 'Raccoon S90V' },
+    { url: 'https://dealer.example/raccoon-blue', title: 'Raccoon Blue' },
+  ].map((variant) => ({ ...variant, price: null }))
+
+  async function search(
+    knifeId: string,
+    variants: typeof VARIANTS,
+    extra: { status?: 'variant' | 'found'; url?: string } = {},
+  ) {
+    return recordDiscovery({
+      generation: getVaultAccessState().generation,
+      knifeId,
+      store: 'bladehq',
+      marketplace: 'us',
+      status: extra.status ?? 'variant',
+      url: extra.url ?? null,
+      variants,
+    })
+  }
+
+  function activeVariants(knifeId: string) {
+    return getLocalDb()
+      .prepare(
+        `SELECT id, url, variant_title AS title, enabled FROM price_sources
+         WHERE knife_id = ? AND variant_search IS NOT NULL
+           AND removed_at IS NULL ORDER BY id`,
+      )
+      .all(knifeId) as Array<{
+      id: number
+      url: string
+      title: string
+      enabled: number
+    }>
+  }
+
+  it('monitors the first two per store search, kept apart from the knife’s price and alerts', async () => {
+    saveSettings({
+      priceMonitoring: {
+        ...DEFAULT_PRICE_MONITORING,
+        scope: { kind: 'all', knifeIds: [] },
+        notify: { ...DEFAULT_PRICE_MONITORING.notify, outOfStock: true },
+      },
+    })
+    const knife = await createKnife('Raccoon', '129.00 USD', [
+      'https://shop.example/raccoon',
+    ])
+    const [own] = knife.sources
+    await search(knife.id, VARIANTS)
+    const variants = activeVariants(knife.id)
+    expect(variants.map((row) => [row.url, row.title])).toEqual([
+      [VARIANTS[0].url, 'Raccoon Black G10'],
+      [VARIANTS[1].url, 'Raccoon S90V'],
+    ])
+    const [black] = variants.map((row) => row.id)
+
+    // Checked like any other link, with its own history.
+    const scheduled = new Map(
+      readQueueCandidates(getLocalDb(), {
+        ...getSettings().priceMonitoring,
+        scopeKnifeIds: null,
+      }).map((row) => [row.sourceId, row]),
+    )
+    expect(scheduled.get(black)).toMatchObject({
+      scheduled: true,
+      variant: true,
+    })
+    expect(scheduled.get(own)).toMatchObject({ variant: false })
+
+    await checkAt(0, own, offer(129))
+    await checkAt(0, black, offer(99))
+    await checkAt(1, own, offer(129))
+    await checkAt(1, black, offer(89))
+    await checkAt(2, black, offer(89, 'out_of_stock'))
+    await checkAt(3, black, offer(89, 'out_of_stock'))
+
+    // The cheaper variant never makes the knife's best price, a change or
+    // an alert; its drop and sell-out stay in its own history.
+    const settings = getSettings().priceMonitoring
+    const summary = buildKnifeSummaries(getLocalDb(), settings).find(
+      (row) => row.knife.id === knife.id,
+    )
+    expect(summary).toMatchObject({
+      sources: 1,
+      bestPriceMinor: 12900,
+      outOfStock: false,
+      lastChange: null,
+    })
+    const after = await overview()
+    expect(after.monitored.map((row) => row.sourceId)).toEqual([own])
+    expect(after.kpis).toMatchObject({ drops: 0, outOfStock: 0 })
+    expect(
+      getLocalDb()
+        .prepare('SELECT COUNT(*) AS n FROM price_notifications')
+        .get(),
+    ).toEqual({ n: 0 })
+    const events = getLocalDb()
+      .prepare(
+        `SELECT 'price' AS type FROM price_change_events WHERE source_id = ?
+         UNION ALL SELECT kind FROM stock_events WHERE source_id = ?`,
+      )
+      .all(black, black)
+    expect(events).toEqual([{ type: 'price' }, { type: 'out_of_stock' }])
+
+    const { history: chart } = await history(knife.id, 'all')
+    expect(chart.stats.bestNow?.sourceId).toBe(own)
+    expect(chart.events).toEqual([])
+    expect(
+      chart.sources.map((source) => [source.sourceId, source.variantTitle]),
+    ).toEqual([
+      [own, undefined],
+      [black, 'Raccoon Black G10'],
+      [variants[1].id, 'Raccoon S90V'],
+    ])
+
+    // The watch view lists them, outside the source limit.
+    const watch = await getWatch(knife.id)
+    expect(watch.sources.filter((source) => source.variantTitle).length).toBe(2)
+  })
+
+  it('drops a variant the newest search no longer lists, keeping its history, and respects your removal', async () => {
+    const knife = await createKnife('Raccoon', '129.00 USD', [
+      'https://shop.example/raccoon',
+    ])
+    await search(knife.id, VARIANTS)
+    const [black, s90v] = activeVariants(knife.id).map((row) => row.id)
+    await checkAt(0, black, offer(99))
+
+    // Black is gone from the store: Blue takes its place; Black's history
+    // stays.
+    await search(knife.id, [VARIANTS[1], VARIANTS[2]])
+    expect(activeVariants(knife.id).map((row) => row.url)).toEqual([
+      VARIANTS[1].url,
+      VARIANTS[2].url,
+    ])
+    expect(
+      getLocalDb()
+        .prepare(
+          'SELECT COUNT(*) AS n FROM price_snapshots WHERE source_id = ?',
+        )
+        .get(black),
+    ).toEqual({ n: 1 })
+
+    // Listed again: the same source comes back, with its history.
+    await search(knife.id, VARIANTS)
+    expect(activeVariants(knife.id).map((row) => row.id)).toEqual([black, s90v])
+
+    // You remove S90V: later searches leave it out.
+    await priceWatchRoute.PUT(
+      json('http://localhost/x', 'PUT', { remove: [s90v] }),
+      { params: Promise.resolve({ id: knife.id }) },
+    )
+    await search(knife.id, VARIANTS)
+    expect(activeVariants(knife.id).map((row) => row.url)).toEqual([
+      VARIANTS[0].url,
+      VARIANTS[2].url,
+    ])
+  })
+
+  it('makes a variant the knife’s own store when a search finds it as the knife', async () => {
+    const knife = await createKnife('Raccoon', '129.00 USD', [
+      'https://shop.example/raccoon',
+    ])
+    await search(knife.id, VARIANTS)
+    const [black] = activeVariants(knife.id).map((row) => row.id)
+    const found = await search(knife.id, [VARIANTS[1]], {
+      status: 'found',
+      url: VARIANTS[0].url,
+    })
+    expect(found.sourceId).toBe(black)
+    const watch = await getWatch(knife.id)
+    expect(
+      watch.sources.find((source) => source.id === black)?.variantTitle,
+    ).toBeUndefined()
+    expect(activeVariants(knife.id).map((row) => row.url)).toEqual([
+      VARIANTS[1].url,
+    ])
   })
 })
