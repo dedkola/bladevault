@@ -400,8 +400,10 @@ function ChangeTag({ source, now }: { source: MonitoredSource; now: number }) {
 /**
  * The line under the price: the regular price it beats ("~~$294~~ · save
  * $73.50"), how far above it it is, or how old a price a failed check kept.
+ * Out of stock gets none: a price nobody can buy is not a sale.
  */
 function PriceNote({ source }: { source: MonitoredSource }) {
+  if (source.result === 'out_of_stock') return null
   if (source.result === 'attention' && source.priceMinor !== null)
     return (
       <>

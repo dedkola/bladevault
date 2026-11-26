@@ -104,24 +104,21 @@ export function PriceTrend({
   const y = (price: number) =>
     height - 4 - ((price - bottom) / range) * (height - 10)
 
-  // One path per in-stock stretch; out of stock leaves a gap.
-  const runs: Array<{ line: string; from: number; to: number }> = []
+  // One unbroken line from the first price: out of stock holds the last
+  // price until the next one.
   let line = ''
   let from = 0
+  let held: number | null = null
   steps.forEach((step, index) => {
+    held = step.price ?? held
+    if (held === null) return
     const next = steps[index + 1]?.at ?? trend.until
-    if (step.price === null) {
-      if (line) runs.push({ line, from, to: x(step.at) })
-      line = ''
-      return
-    }
-    const py = y(step.price).toFixed(1)
+    const py = y(held).toFixed(1)
     if (!line) from = x(step.at)
     line += line
       ? ` V${py} H${x(next).toFixed(1)}`
       : `M${from.toFixed(1)},${py} H${x(next).toFixed(1)}`
   })
-  if (line) runs.push({ line, from, to: x(trend.until) })
 
   // The step showing at the hovered time: the last one that started by then.
   const hovered =
@@ -158,16 +155,11 @@ export function PriceTrend({
               <stop offset="1" data-trend-stop="bottom" />
             </linearGradient>
           </defs>
-          {runs.map((run) => (
-            <path
-              key={`fill-${run.line}`}
-              d={`${run.line} V${height} H${run.from.toFixed(1)} Z`}
-              fill={`url(#${gradientId})`}
-            />
-          ))}
-          {runs.map((run) => (
-            <path key={run.line} data-trend-line d={run.line} fill="none" />
-          ))}
+          <path
+            d={`${line} V${height} H${from.toFixed(1)} Z`}
+            fill={`url(#${gradientId})`}
+          />
+          <path data-trend-line d={line} fill="none" />
           {hoverAt !== null && (
             <line
               data-trend-cross

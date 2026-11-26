@@ -46,10 +46,11 @@ export function sourceSpans(source: SourceHistory, end: number): SourceSpan[] {
 
 /**
  * A store's step-line data for the chart: each reading's span as a pair of
- * [time, price] points, with a null price when the reading has no price or
- * shows another currency than the chart (so the line breaks there).
- * `dotted` holds the indexes of priced spans too short to see as a line
- * (at most `minVisible` long), which the chart draws as dots instead.
+ * [time, price] points. A reading with no price or in another currency than
+ * the chart holds the last price, so the line stays unbroken; before the
+ * first price it is null. `dotted` holds the indexes of priced spans too
+ * short to see as a line (at most `minVisible` long), which the chart draws
+ * as dots instead.
  */
 export function storeLineData(
   source: SourceHistory,
@@ -59,13 +60,15 @@ export function storeLineData(
 ): { data: Array<[number, number | null]>; dotted: Set<number> } {
   const data: Array<[number, number | null]> = []
   const dotted = new Set<number>()
+  let held: number | null = null
   for (const { from, to, point } of sourceSpans(source, end)) {
     const value =
       point.priceMinor !== null && point.currency && point.currency === currency
         ? fromMinorUnits(point.priceMinor, point.currency)
         : null
     if (value !== null && to - from <= minVisible) dotted.add(data.length)
-    data.push([from, value], [to, value])
+    held = value ?? held
+    data.push([from, held], [to, held])
   }
   return { data, dotted }
 }
