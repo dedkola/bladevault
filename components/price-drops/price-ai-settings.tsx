@@ -25,7 +25,10 @@ import {
   normalizeAiBaseUrl,
   normalizeAiModel,
   parseAiHeaders,
+  PRICE_AI_CHAT_TOOL_MODES,
   PRICE_AI_LIMITS,
+  type PriceAiChatSettings,
+  type PriceAiChatToolMode,
   type PriceAiSettings,
   type PriceAiUsage,
 } from '@/lib/settings-shared'
@@ -300,6 +303,8 @@ type AiCallSummary = {
   lastError: { at: string; purpose: string; message: string } | null
   reasoning: boolean
   today: { calls: number; tokens: number }
+  /** The Chat page's own usage today (not part of the budget above). */
+  chatToday?: { calls: number; tokens: number }
   /** AI recovery in the last 7 days, per problem kind. */
   recovery?: Array<{
     kind: string
@@ -339,7 +344,15 @@ const PURPOSE_LABELS: Record<string, string> = {
   verify: 'price check',
   digest: 'daily summary',
   agent: 'supervisor',
+  chat: 'chat',
   test: 'connection test',
+}
+
+/** Chat's usage today, counted apart from the monitoring budget. */
+function chatLine(summary: AiCallSummary): string | null {
+  const chat = summary.chatToday
+  if (!chat?.calls) return null
+  return `Chat today: ${chat.calls} ${chat.calls === 1 ? 'request' : 'requests'}, ${formatCount(chat.tokens)} tokens (its own limit, not counted above).`
 }
 
 /** A whole number within the range, from a typed value; null otherwise. */
@@ -432,6 +445,9 @@ function AiActivity({
     <div className="flex w-full flex-col gap-1 text-xs text-muted-foreground">
       <p className="tabular-nums text-foreground">{parts.join(' · ')}</p>
       <p className="tabular-nums">{budgetLine(usage, summary.today)}</p>
+      {chatLine(summary) ? (
+        <p className="tabular-nums">{chatLine(summary)}</p>
+      ) : null}
       {recoveryLine(summary) ? (
         <p className="tabular-nums">{recoveryLine(summary)}</p>
       ) : null}
@@ -1192,6 +1208,198 @@ export function PriceAiConnectionSection({
           {busy === 'test' ? 'Testing…' : 'Test connection'}
         </Button>
         <NoticeText notice={testNotice} />
+      </SettingsRow>
+    </SettingsSection>
+  )
+}
+
+const CHAT_TOOL_MODE_LABELS: Record<PriceAiChatToolMode, string> = {
+  auto: 'Auto (native, JSON if refused)',
+  native: 'Native tools only',
+  json: 'JSON actions',
+}
+
+/**
+ * The Chat page's model choice, tool mode and daily limit. It shares the
+ * endpoint and key above; in Limited mode chat has its own caps and never
+ * counts against the price-monitoring budget.
+ */
+export function PriceAiChatSection({
+  settings,
+  disabled,
+  onChange,
+}: {
+  settings: PriceAiSettings
+  disabled?: boolean
+  onChange: (next: PriceAiSettings) => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState<Notice>(null)
+  const chat = settings.chat
+  const update = (patch: Partial<PriceAiChatSettings>) =>
+    onChange({ ...settings, chat: { ...chat, ...patch } })
+  const model = chat.model || settings.model
+  const ready = Boolean(settings.baseUrl && model)
+  const unlimited = settings.usage.mode === 'unlimited'
+
+  const testTools = async () => {
+    setBusy(true)
+    setNotice(null)
+    try {
+      const data = await callJson<{
+        ok: boolean
+        message: string
+        latencyMs: number
+      }>(
+        '/api/settings/price-ai-tool-test',
+        { method: 'POST', body: '{}' },
+        'The tool calling test failed.',
+      )
+      setNotice({
+        tone: data.ok ? 'ok' : 'error',
+        text: `${data.message} (${(data.latencyMs / 1000).toFixed(1)} s)`,
+      })
+    } catch (error) {
+      setNotice({
+        tone: 'error',
+        text: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <SettingsSection
+      title="Chat"
+      description="The Chat page answers questions about your collection and prices with this connection. It only reads data. Knife records it looks up (descriptions, prices, custom fields, links) are sent to the AI provider."
+    >
+      <SettingsRow
+        label="Chat model"
+        description="Leave empty to use the model above. A model with function calling (tool use) answers best."
+      >
+        <TextField
+          aria-label="Chat model ID"
+          value={chat.model}
+          placeholder={settings.model || 'Same as above'}
+          disabled={disabled}
+          validate={(value) =>
+            !value.trim() || normalizeAiModel(value) !== null
+              ? null
+              : 'This is not a valid model ID.'
+          }
+          onCommit={(value) =>
+            update({
+              model: value.trim() ? (normalizeAiModel(value) ?? '') : '',
+            })
+          }
+        />
+      </SettingsRow>
+      <SettingsRow
+        label="Tool mode"
+        description="How the model asks for data. Auto uses function calling and switches to JSON actions when the endpoint refuses tools."
+      >
+        <Select
+          value={chat.toolMode}
+          disabled={disabled}
+          onValueChange={(value) => {
+            if (value) update({ toolMode: value as PriceAiChatToolMode })
+          }}
+        >
+          <SelectTrigger
+            size="sm"
+            aria-label="Chat tool mode"
+            className="w-full min-w-0 sm:w-64"
+          >
+            <SelectValue>{CHAT_TOOL_MODE_LABELS[chat.toolMode]}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {PRICE_AI_CHAT_TOOL_MODES.map((mode) => (
+              <SelectItem key={mode} value={mode}>
+                {CHAT_TOOL_MODE_LABELS[mode]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </SettingsRow>
+      <SettingsRow
+        inline
+        label="Let the model think"
+        description="Reasoning models think before every step: better on hard questions, but slower and more tokens. Off asks supported endpoints (OpenCode) to answer right away."
+      >
+        <SettingsSwitch
+          aria-label="Let the chat model think before answering"
+          checked={chat.allowThinking}
+          disabled={disabled}
+          onCheckedChange={(checked) => update({ allowThinking: checked })}
+        />
+      </SettingsRow>
+      {unlimited ? (
+        <SettingsRow
+          label="Daily limit"
+          description="AI usage is Unlimited (Settings → Price monitoring), so chat has no daily limit either."
+        >
+          <span className="text-xs text-muted-foreground">No limit</span>
+        </SettingsRow>
+      ) : (
+        <>
+          <SettingsRow
+            label="Chat requests per day"
+            description="Chat's own limit, apart from price monitoring's budget. One message can take several requests (one per tool step). 0 means no limit."
+          >
+            <TextField
+              aria-label="Chat requests per day"
+              value={String(chat.dailyCalls)}
+              disabled={disabled}
+              validate={(value) =>
+                integerInRange(value, PRICE_AI_LIMITS.dailyCalls) === null
+                  ? `Enter a whole number from 0 to ${PRICE_AI_LIMITS.dailyCalls[1].toLocaleString('en-US')}.`
+                  : null
+              }
+              onCommit={(value) => {
+                const parsed = integerInRange(value, PRICE_AI_LIMITS.dailyCalls)
+                if (parsed !== null) update({ dailyCalls: parsed })
+              }}
+            />
+          </SettingsRow>
+          <SettingsRow
+            label="Chat tokens per day"
+            description="At most this many tokens a day for chat, as the endpoint reports them. 0 means no token limit."
+          >
+            <TextField
+              aria-label="Chat tokens per day"
+              value={String(chat.dailyTokens)}
+              disabled={disabled}
+              validate={(value) =>
+                integerInRange(value, PRICE_AI_LIMITS.dailyTokens) === null
+                  ? `Enter a whole number from 0 to ${PRICE_AI_LIMITS.dailyTokens[1].toLocaleString('en-US')}.`
+                  : null
+              }
+              onCommit={(value) => {
+                const parsed = integerInRange(
+                  value,
+                  PRICE_AI_LIMITS.dailyTokens,
+                )
+                if (parsed !== null) update({ dailyTokens: parsed })
+              }}
+            />
+          </SettingsRow>
+        </>
+      )}
+      <SettingsRow
+        label="Test tool calling"
+        description="Sends a made-up question with a sample tool and checks that the chat model calls it. Nothing from the vault is sent."
+      >
+        <Button
+          type="button"
+          variant="outline"
+          className={secondaryButton}
+          disabled={disabled || !ready || busy}
+          onClick={() => void testTools()}
+        >
+          {busy ? 'Testing…' : 'Test tool calling'}
+        </Button>
+        <NoticeText notice={notice} />
       </SettingsRow>
     </SettingsSection>
   )

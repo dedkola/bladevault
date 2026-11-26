@@ -40,6 +40,8 @@ export type AiErrorCode =
    * it). Not the endpoint's fault: neutral, and the source was not tried.
    */
   | 'suspended'
+  /** The endpoint refused a request with tools: use the JSON mode instead. */
+  | 'tools_unsupported'
 
 export class AiClientError extends Error {
   constructor(
@@ -125,13 +127,29 @@ function providerMessage(body: string): string {
   return cleaned.length > 200 ? `${cleaned.slice(0, 200)}…` : cleaned
 }
 
-async function send(
+type SendOptions = {
+  timeoutMs: number
+  signal?: AbortSignal
+  fetchImpl?: FetchLike
+}
+
+/**
+ * Sends one request and returns the response once its status is OK; an
+ * error status throws with the provider's (redacted) message. `signal`
+ * already combines the caller's signal with the timeouts; `callerSignal` is
+ * the caller's own, to tell a cancel from a timeout.
+ */
+async function open(
   url: string,
   init: RequestInit,
-  options: { timeoutMs: number; signal?: AbortSignal; fetchImpl?: FetchLike },
-): Promise<string> {
-  const signal = combinedSignal(options.timeoutMs, options.signal)
-  const mark = clockMark()
+  options: {
+    signal: AbortSignal
+    callerSignal?: AbortSignal
+    fetchImpl?: FetchLike
+    mark: ReturnType<typeof clockMark>
+  },
+): Promise<Response> {
+  const { signal, mark } = options
   let response: Response
   try {
     response = await (options.fetchImpl ?? fetch)(url, {
@@ -142,7 +160,7 @@ async function send(
       redirect: 'error',
     })
   } catch (error) {
-    if (options.signal?.aborted)
+    if (options.callerSignal?.aborted)
       throw new AiClientError('cancelled', 'The AI request was cancelled.')
     // Sleep ends requests with timeouts and dead sockets alike.
     if (sleptSince(mark)) throw suspendedError()
@@ -163,24 +181,12 @@ async function send(
       `Could not reach the AI endpoint${reason ? ` (${reason})` : ''}.`,
     )
   }
-  let body: string
-  try {
-    body = await response.text()
-  } catch {
-    if (options.signal?.aborted)
-      throw new AiClientError('cancelled', 'The AI request was cancelled.')
-    if (sleptSince(mark)) throw suspendedError()
-    throw new AiClientError(
-      signal.aborted ? 'timeout' : 'network',
-      'The AI endpoint stopped answering.',
-    )
-  }
-  if (body.length > MAX_RESPONSE_BYTES)
-    throw new AiClientError(
-      'invalid_response',
-      'The AI endpoint sent a response that is too large.',
-    )
   if (!response.ok) {
+    const body = await readBody(response, options).catch((error) => {
+      if (error instanceof AiClientError && error.code !== 'invalid_response')
+        throw error
+      return ''
+    })
     const detail = providerMessage(body)
     const hint =
       response.status === 401 || response.status === 403
@@ -194,7 +200,52 @@ async function send(
       response.status,
     )
   }
+  return response
+}
+
+/** The whole response body, at most MAX_RESPONSE_BYTES. */
+async function readBody(
+  response: Response,
+  options: {
+    signal: AbortSignal
+    callerSignal?: AbortSignal
+    mark: ReturnType<typeof clockMark>
+  },
+): Promise<string> {
+  let body: string
+  try {
+    body = await response.text()
+  } catch {
+    if (options.callerSignal?.aborted)
+      throw new AiClientError('cancelled', 'The AI request was cancelled.')
+    if (sleptSince(options.mark)) throw suspendedError()
+    throw new AiClientError(
+      options.signal.aborted ? 'timeout' : 'network',
+      'The AI endpoint stopped answering.',
+    )
+  }
+  if (body.length > MAX_RESPONSE_BYTES)
+    throw new AiClientError(
+      'invalid_response',
+      'The AI endpoint sent a response that is too large.',
+    )
   return body
+}
+
+async function send(
+  url: string,
+  init: RequestInit,
+  options: SendOptions,
+): Promise<string> {
+  const signal = combinedSignal(options.timeoutMs, options.signal)
+  const context = {
+    signal,
+    callerSignal: options.signal,
+    fetchImpl: options.fetchImpl,
+    mark: clockMark(),
+  }
+  const response = await open(url, init, context)
+  return readBody(response, context)
 }
 
 /** Model ids from `{baseUrl}/models`; never returns the key. */
@@ -297,6 +348,8 @@ export type AiPurpose =
   /** The daily Inbox summary. */
   | 'digest'
   | 'agent'
+  /** The in-app Chat page; has its own daily limit. */
+  | 'chat'
   | 'test'
 
 /**
@@ -356,6 +409,12 @@ type ModelProfile = {
   answerCap?: number
   /** The endpoint refused the request field that turns thinking off. */
   thinkingOffRejected?: boolean
+  /** Chat: the endpoint refused `tools` (function calling). */
+  toolsRejected?: boolean
+  /** Chat: the endpoint refused `stream: true`. */
+  streamRejected?: boolean
+  /** Chat: the endpoint refused `stream_options` (usage in the stream). */
+  streamUsageRejected?: boolean
 }
 
 /**
@@ -523,42 +582,29 @@ const tokenCount = (value: unknown) =>
     ? Math.round(value)
     : null
 
+type CallUsage = {
+  prompt: number | null
+  completion: number | null
+  attempts: number
+}
+
+const newUsage = (): CallUsage => ({
+  prompt: null,
+  completion: null,
+  attempts: 0,
+})
+
 /**
- * One chat completion that must answer with JSON. Asks for a strict JSON
- * schema first and falls back to `json_object`, then to plain prompting,
- * for endpoints that reject the response format.
- *
- * Reasoning models are learned per base URL and model (in this process):
- * an empty answer, an answer cut off at the token limit, a timeout, or
- * reasoning text in the answer marks the model, and the request is retried
- * once with REASONING_MAX_TOKENS and at least REASONING_MIN_TIMEOUT_MS. Later
- * requests to that model start with that budget, so they need one request.
+ * Reports one finished call (all its attempts) to the journal observer,
+ * without content. Calls without a purpose are not journaled.
  */
-export async function requestJsonCompletion(
+function callReporter(
   endpoint: AiEndpoint,
-  request: {
-    model: string
-    system: string
-    user: UserContent
-    schemaName: string
-    schema: JsonSchema
-    maxTokens?: number
-    purpose?: AiPurpose
-  },
-  options: { timeoutMs: number; signal?: AbortSignal; fetchImpl?: FetchLike },
-): Promise<unknown> {
-  if (!request.model.trim())
-    throw new AiClientError('config', 'Choose an AI model first.')
-  // Limited mode: no request once the day's budget is used up.
-  const refusal = request.purpose ? aiBudgetRefusal(request.purpose) : null
-  if (refusal) throw new AiClientError('budget', refusal)
+  request: { model: string; purpose?: AiPurpose },
+  usage: CallUsage,
+) {
   const startedAt = Date.now()
-  const usage = {
-    prompt: null as number | null,
-    completion: null as number | null,
-    attempts: 0,
-  }
-  const report = (error: unknown) => {
+  return (error: unknown) => {
     const observer = (globalThis as Scope)[OBSERVER]
     if (!observer || !request.purpose) return
     try {
@@ -589,6 +635,39 @@ export async function requestJsonCompletion(
       // The journal never breaks a request.
     }
   }
+}
+
+/**
+ * One chat completion that must answer with JSON. Asks for a strict JSON
+ * schema first and falls back to `json_object`, then to plain prompting,
+ * for endpoints that reject the response format.
+ *
+ * Reasoning models are learned per base URL and model (in this process):
+ * an empty answer, an answer cut off at the token limit, a timeout, or
+ * reasoning text in the answer marks the model, and the request is retried
+ * once with REASONING_MAX_TOKENS and at least REASONING_MIN_TIMEOUT_MS. Later
+ * requests to that model start with that budget, so they need one request.
+ */
+export async function requestJsonCompletion(
+  endpoint: AiEndpoint,
+  request: {
+    model: string
+    system: string
+    user: UserContent
+    schemaName: string
+    schema: JsonSchema
+    maxTokens?: number
+    purpose?: AiPurpose
+  },
+  options: { timeoutMs: number; signal?: AbortSignal; fetchImpl?: FetchLike },
+): Promise<unknown> {
+  if (!request.model.trim())
+    throw new AiClientError('config', 'Choose an AI model first.')
+  // Limited mode: no request once the day's budget is used up.
+  const refusal = request.purpose ? aiBudgetRefusal(request.purpose) : null
+  if (refusal) throw new AiClientError('budget', refusal)
+  const usage = newUsage()
+  const report = callReporter(endpoint, request, usage)
   try {
     const result = await completeJson(endpoint, request, options, usage)
     report(null)
@@ -611,7 +690,7 @@ async function completeJson(
     purpose?: AiPurpose
   },
   options: { timeoutMs: number; signal?: AbortSignal; fetchImpl?: FetchLike },
-  usage: { prompt: number | null; completion: number | null; attempts: number },
+  usage: CallUsage,
 ): Promise<unknown> {
   const url = endpointUrl(endpoint, '/chat/completions')
   const formats: ResponseFormat[] = ['json_schema', 'json_object', 'none']
@@ -795,4 +874,578 @@ async function completeJson(
   throw lastError instanceof Error
     ? lastError
     : new AiClientError('invalid_response', 'The AI request failed.')
+}
+
+// ---------------------------------------------------------------------------
+// Chat: multi-turn messages, function calling and streaming (the Chat page).
+// ---------------------------------------------------------------------------
+
+export type ChatToolCall = {
+  id: string
+  name: string
+  /** The model's raw JSON arguments text. */
+  arguments: string
+}
+
+export type ChatMessage =
+  | { role: 'system'; content: string }
+  | { role: 'user'; content: string }
+  | { role: 'assistant'; content: string; toolCalls?: ChatToolCall[] }
+  | { role: 'tool'; toolCallId: string; content: string }
+
+export type ChatToolDefinition = {
+  name: string
+  description: string
+  parameters: JsonSchema
+}
+
+export type ChatCompletion = {
+  /** The answer text without inline thinking. */
+  text: string
+  toolCalls: ChatToolCall[]
+  finishReason: string | null
+  /** Tokens of all attempts, when the endpoint reported them. */
+  promptTokens?: number | null
+  completionTokens?: number | null
+}
+
+/** A chat answer's default ceiling; a reasoning model gets the endpoint's. */
+export const CHAT_ANSWER_TOKENS = 4096
+/** A streamed answer fails when no chunk arrives for this long. */
+export const CHAT_IDLE_TIMEOUT_MS = 90_000
+
+const TOOLS_REFUSED =
+  /\btools?\b|function|tool_choice|not supported|unsupported|unknown (?:parameter|field|argument)|unrecognized/i
+const STREAM_USAGE_REFUSED = /stream_options|include_usage/i
+const STREAM_REFUSED = /\bstream/i
+
+function chatProfileKey(
+  endpoint: AiEndpoint,
+  model: string,
+  thinkingOff: boolean,
+) {
+  const base = `${normalizeAiBaseUrl(endpoint.baseUrl) ?? endpoint.baseUrl}\n${model}`
+  return thinkingOff ? `${base}\nthinking-off` : base
+}
+
+function chatThinkingOff(endpoint: AiEndpoint, allowThinking: boolean) {
+  return !allowThinking && sendsThinkingOff(endpoint, 'chat')
+}
+
+/**
+ * Whether this endpoint refused function calling for the model (learned in
+ * this process); the chat then uses its JSON mode.
+ */
+export function chatToolsRejected(
+  endpoint: AiEndpoint,
+  model: string,
+  allowThinking = false,
+): boolean {
+  const key = chatProfileKey(
+    endpoint,
+    model,
+    chatThinkingOff(endpoint, allowThinking),
+  )
+  return modelProfiles().get(key)?.toolsRejected ?? false
+}
+
+function wireMessage(message: ChatMessage): Record<string, unknown> {
+  switch (message.role) {
+    case 'assistant':
+      return message.toolCalls?.length
+        ? {
+            role: 'assistant',
+            content: message.content || null,
+            tool_calls: message.toolCalls.map((call) => ({
+              id: call.id,
+              type: 'function',
+              function: { name: call.name, arguments: call.arguments },
+            })),
+          }
+        : { role: 'assistant', content: message.content }
+    case 'tool':
+      return {
+        role: 'tool',
+        tool_call_id: message.toolCallId,
+        content: message.content,
+      }
+    default:
+      return { role: message.role, content: message.content }
+  }
+}
+
+const PARTIAL_THINK_TAG = /<(?:t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?)?)?)?$/i
+
+/**
+ * The part of a growing answer that may be shown: inline `<think>` blocks
+ * (closed or still open) are hidden, and a tag cut in half is held back.
+ */
+export function visibleAnswer(raw: string): string {
+  const text = raw.replace(THINK_BLOCK, '').replace(OPEN_THINK, '').trimStart()
+  return text.replace(PARTIAL_THINK_TAG, '')
+}
+
+type ToolCallDraft = { id: string; name: string; arguments: string }
+
+type StreamChunk = {
+  choices?: Array<{
+    delta?: {
+      content?: unknown
+      tool_calls?: Array<{
+        index?: unknown
+        id?: unknown
+        function?: { name?: unknown; arguments?: unknown }
+      }>
+    }
+    finish_reason?: unknown
+  }>
+  usage?: { prompt_tokens?: unknown; completion_tokens?: unknown }
+  error?: { message?: unknown } | string
+}
+
+type CompletionMessage = {
+  content?: unknown
+  tool_calls?: Array<{
+    id?: unknown
+    function?: { name?: unknown; arguments?: unknown }
+  }>
+}
+
+function finishToolCalls(drafts: Map<number, ToolCallDraft>): ChatToolCall[] {
+  return [...drafts.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([index, draft]) => ({
+      id: draft.id || `call_${index}`,
+      name: draft.name,
+      arguments: draft.arguments || '{}',
+    }))
+    .filter((call) => call.name)
+}
+
+/**
+ * Reads an OpenAI-style server-sent event stream: text deltas (passed on
+ * as they arrive, without inline thinking), tool call deltas joined by
+ * index, the finish reason and usage. Each chunk restarts the idle timer.
+ */
+export async function readChatStream(
+  body: ReadableStream<Uint8Array>,
+  handlers: {
+    onTextDelta?: (delta: string) => void
+    onActivity?: () => void
+    onUsage?: (prompt: number | null, completion: number | null) => void
+  },
+): Promise<ChatCompletion> {
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  const drafts = new Map<number, ToolCallDraft>()
+  let buffer = ''
+  let raw = ''
+  let shown = ''
+  let finishReason: string | null = null
+  let bytes = 0
+  let done = false
+
+  const handleData = (data: string) => {
+    if (data === '[DONE]') {
+      done = true
+      return
+    }
+    let chunk: StreamChunk
+    try {
+      chunk = JSON.parse(data) as StreamChunk
+    } catch {
+      return
+    }
+    if (chunk.error) {
+      const message =
+        typeof chunk.error === 'string'
+          ? chunk.error
+          : typeof chunk.error.message === 'string'
+            ? chunk.error.message
+            : 'unknown error'
+      throw new AiClientError(
+        'http',
+        `The AI endpoint reported an error: ${providerMessage(JSON.stringify({ error: message }))}`,
+      )
+    }
+    if (chunk.usage)
+      handlers.onUsage?.(
+        tokenCount(chunk.usage.prompt_tokens),
+        tokenCount(chunk.usage.completion_tokens),
+      )
+    const choice = chunk.choices?.[0]
+    if (!choice) return
+    if (typeof choice.finish_reason === 'string')
+      finishReason = choice.finish_reason
+    const delta = choice.delta
+    if (!delta) return
+    const content = messageText(delta.content)
+    if (content) {
+      raw += content
+      const visible = visibleAnswer(raw)
+      if (visible.length > shown.length && visible.startsWith(shown)) {
+        handlers.onTextDelta?.(visible.slice(shown.length))
+        shown = visible
+      }
+    }
+    for (const part of delta.tool_calls ?? []) {
+      const index = typeof part.index === 'number' ? part.index : drafts.size
+      const draft = drafts.get(index) ?? { id: '', name: '', arguments: '' }
+      if (typeof part.id === 'string' && part.id) draft.id = part.id
+      if (typeof part.function?.name === 'string')
+        draft.name += part.function.name
+      if (typeof part.function?.arguments === 'string')
+        draft.arguments += part.function.arguments
+      drafts.set(index, draft)
+    }
+  }
+
+  while (!done) {
+    const { value, done: ended } = await reader.read()
+    if (ended) break
+    handlers.onActivity?.()
+    bytes += value.byteLength
+    if (bytes > MAX_RESPONSE_BYTES) {
+      await reader.cancel().catch(() => {})
+      throw new AiClientError(
+        'invalid_response',
+        'The AI endpoint sent a response that is too large.',
+      )
+    }
+    buffer += decoder.decode(value, { stream: true })
+    let newline = buffer.indexOf('\n')
+    while (newline !== -1) {
+      const line = buffer.slice(0, newline).replace(/\r$/, '')
+      buffer = buffer.slice(newline + 1)
+      if (line.startsWith('data:')) handleData(line.slice(5).trim())
+      if (done) break
+      newline = buffer.indexOf('\n')
+    }
+  }
+  if (!done && buffer.startsWith('data:')) handleData(buffer.slice(5).trim())
+  if (done) await reader.cancel().catch(() => {})
+  const text = stripThinking(raw)
+  // The rest of the answer the stream held back (a lone "<" at the end).
+  if (text.length > shown.length && text.startsWith(shown))
+    handlers.onTextDelta?.(text.slice(shown.length))
+  return { text, toolCalls: finishToolCalls(drafts), finishReason }
+}
+
+function parseCompletion(body: string): {
+  completion: ChatCompletion
+  prompt: number | null
+  completionTokens: number | null
+} {
+  let parsed: {
+    choices?: Array<{ finish_reason?: unknown; message?: CompletionMessage }>
+    usage?: { prompt_tokens?: unknown; completion_tokens?: unknown }
+  }
+  try {
+    parsed = JSON.parse(body)
+  } catch {
+    throw new AiClientError(
+      'invalid_response',
+      'The AI endpoint sent a response BladeVault could not read.',
+    )
+  }
+  const choice = parsed?.choices?.[0]
+  const drafts = new Map<number, ToolCallDraft>()
+  ;(choice?.message?.tool_calls ?? []).forEach((call, index) => {
+    drafts.set(index, {
+      id: typeof call.id === 'string' ? call.id : '',
+      name: typeof call.function?.name === 'string' ? call.function.name : '',
+      arguments:
+        typeof call.function?.arguments === 'string'
+          ? call.function.arguments
+          : call.function?.arguments
+            ? JSON.stringify(call.function.arguments)
+            : '',
+    })
+  })
+  return {
+    completion: {
+      text: stripThinking(messageText(choice?.message?.content)),
+      toolCalls: finishToolCalls(drafts),
+      finishReason:
+        typeof choice?.finish_reason === 'string' ? choice.finish_reason : null,
+    },
+    prompt: tokenCount(parsed?.usage?.prompt_tokens),
+    completionTokens: tokenCount(parsed?.usage?.completion_tokens),
+  }
+}
+
+/**
+ * One chat completion with the conversation so far and, optionally, tools
+ * the model may call. Streams by default (text deltas go to `onTextDelta`)
+ * and falls back to a plain request for endpoints that refuse streaming.
+ * Counted against the budget of `purpose` and journaled like every call.
+ *
+ * Learned per model (in this process), like requestJsonCompletion: the
+ * thinking switch, a lower answer ceiling, streaming support, and whether
+ * the endpoint takes tools. A refused `tools` field throws
+ * `tools_unsupported`, so the caller can switch to its JSON mode.
+ */
+export async function requestChatCompletion(
+  endpoint: AiEndpoint,
+  request: {
+    model: string
+    messages: ChatMessage[]
+    tools?: ChatToolDefinition[]
+    maxTokens?: number
+    purpose: AiPurpose
+    /** Let the model reason first (no thinking-off switch). */
+    allowThinking?: boolean
+  },
+  options: {
+    /** Time to the first byte, and the plain request's whole time. */
+    timeoutMs: number
+    /** Longest pause between streamed chunks. */
+    idleTimeoutMs?: number
+    signal?: AbortSignal
+    fetchImpl?: FetchLike
+    onTextDelta?: (delta: string) => void
+  },
+): Promise<ChatCompletion> {
+  if (!request.model.trim())
+    throw new AiClientError('config', 'Choose an AI model first.')
+  const refusal = aiBudgetRefusal(request.purpose)
+  if (refusal) throw new AiClientError('budget', refusal)
+  const usage = newUsage()
+  const report = callReporter(endpoint, request, usage)
+  try {
+    const result = await completeChat(endpoint, request, options, usage)
+    report(null)
+    return {
+      ...result,
+      promptTokens: usage.prompt,
+      completionTokens: usage.completion,
+    }
+  } catch (error) {
+    report(error)
+    throw error
+  }
+}
+
+async function completeChat(
+  endpoint: AiEndpoint,
+  request: {
+    model: string
+    messages: ChatMessage[]
+    tools?: ChatToolDefinition[]
+    maxTokens?: number
+    purpose: AiPurpose
+    allowThinking?: boolean
+  },
+  options: {
+    timeoutMs: number
+    idleTimeoutMs?: number
+    signal?: AbortSignal
+    fetchImpl?: FetchLike
+    onTextDelta?: (delta: string) => void
+  },
+  usage: CallUsage,
+): Promise<ChatCompletion> {
+  const url = endpointUrl(endpoint, '/chat/completions')
+  const allowThinking = request.allowThinking ?? false
+  const key = chatProfileKey(
+    endpoint,
+    request.model,
+    chatThinkingOff(endpoint, allowThinking),
+  )
+  const profile = (): ModelProfile =>
+    modelProfiles().get(key) ?? { reasoning: false }
+  const learn = (patch: Partial<ModelProfile>) =>
+    modelProfiles().set(key, { ...profile(), ...patch })
+  const tools = request.tools?.length ? request.tools : null
+  if (tools && profile().toolsRejected)
+    throw new AiClientError(
+      'tools_unsupported',
+      'This AI endpoint does not take tools (function calling).',
+    )
+  const ceiling = () =>
+    Math.min(
+      endpoint.maxAnswerTokens ?? REASONING_MAX_TOKENS,
+      profile().answerCap ?? Infinity,
+    )
+  const baseTokens = request.maxTokens ?? CHAT_ANSWER_TOKENS
+  // A model that thinks first needs the endpoint's whole answer ceiling.
+  const maxTokens = () =>
+    profile().reasoning || allowThinking
+      ? ceiling()
+      : Math.min(baseTokens, ceiling())
+  let capped = false
+  let retriedEmpty = false
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const stream = !profile().streamRejected
+    const streamUsage = stream && !profile().streamUsageRejected
+    const thinkingOff =
+      chatThinkingOff(endpoint, allowThinking) && !profile().thinkingOffRejected
+    const tokens = maxTokens()
+    const payload: Record<string, unknown> = {
+      model: request.model,
+      temperature: 0,
+      max_tokens: tokens,
+      messages: request.messages.map(wireMessage),
+    }
+    if (tools) {
+      payload.tools = tools.map((tool) => ({
+        type: 'function',
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters,
+        },
+      }))
+      payload.tool_choice = 'auto'
+    }
+    if (stream) payload.stream = true
+    if (streamUsage) payload.stream_options = { include_usage: true }
+    if (thinkingOff) payload.thinking = { type: 'disabled' }
+
+    // The first byte must come within timeoutMs; a stream then only needs
+    // to keep sending chunks.
+    const idle = new AbortController()
+    const idleMs = options.idleTimeoutMs ?? CHAT_IDLE_TIMEOUT_MS
+    let timer: ReturnType<typeof setTimeout> | null = setTimeout(
+      () => idle.abort(),
+      Math.max(
+        options.timeoutMs,
+        profile().reasoning ? REASONING_MIN_TIMEOUT_MS : 0,
+      ),
+    )
+    const restartTimer = () => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => idle.abort(), idleMs)
+    }
+    const signal = AbortSignal.any(
+      options.signal
+        ? [options.signal, idle.signal, powerSignal()]
+        : [idle.signal, powerSignal()],
+    )
+    const context = {
+      signal,
+      callerSignal: options.signal,
+      fetchImpl: options.fetchImpl,
+      mark: clockMark(),
+    }
+    usage.attempts++
+    let streamedText = false
+    try {
+      const response = await open(
+        url,
+        {
+          method: 'POST',
+          headers: headers(endpoint, true),
+          body: JSON.stringify(payload),
+        },
+        context,
+      )
+      let result: ChatCompletion
+      const eventStream =
+        stream &&
+        response.body &&
+        (response.headers.get('content-type') ?? '').includes(
+          'text/event-stream',
+        )
+      if (eventStream && response.body) {
+        restartTimer()
+        try {
+          result = await readChatStream(response.body, {
+            onActivity: restartTimer,
+            onTextDelta: (delta) => {
+              streamedText = true
+              options.onTextDelta?.(delta)
+            },
+            onUsage: (prompt, completion) => {
+              if (prompt !== null) usage.prompt = (usage.prompt ?? 0) + prompt
+              if (completion !== null)
+                usage.completion = (usage.completion ?? 0) + completion
+            },
+          })
+        } catch (error) {
+          if (error instanceof AiClientError) throw error
+          if (options.signal?.aborted)
+            throw new AiClientError(
+              'cancelled',
+              'The AI request was cancelled.',
+            )
+          if (sleptSince(context.mark)) throw suspendedError()
+          throw new AiClientError(
+            idle.signal.aborted ? 'timeout' : 'network',
+            idle.signal.aborted
+              ? 'The AI endpoint stopped sending its answer.'
+              : 'The AI endpoint stopped answering.',
+          )
+        }
+      } else {
+        const parsed = parseCompletion(await readBody(response, context))
+        if (parsed.prompt !== null)
+          usage.prompt = (usage.prompt ?? 0) + parsed.prompt
+        if (parsed.completionTokens !== null)
+          usage.completion = (usage.completion ?? 0) + parsed.completionTokens
+        result = parsed.completion
+        if (result.text) {
+          streamedText = true
+          options.onTextDelta?.(result.text)
+        }
+      }
+      if (!result.text && !result.toolCalls.length) {
+        // A reasoning model used the whole budget on thinking: once more
+        // with the endpoint's ceiling, and remember the model.
+        if (!retriedEmpty && !options.signal?.aborted && tokens < ceiling()) {
+          retriedEmpty = true
+          learn({ reasoning: true })
+          continue
+        }
+        throw new AiClientError(
+          'invalid_response',
+          result.finishReason === 'length'
+            ? 'The AI answer was empty: the model used its whole answer budget on reasoning. Turn off "Let the model think" for chat, or choose a model without reasoning.'
+            : 'The AI answer was empty.',
+        )
+      }
+      return result
+    } catch (error) {
+      const refused =
+        error instanceof AiClientError &&
+        error.code === 'http' &&
+        (error.status === 400 || error.status === 422) &&
+        !streamedText
+      if (refused && thinkingOff && /thinking/i.test(error.message)) {
+        learn({ thinkingOffRejected: true })
+        continue
+      }
+      if (
+        refused &&
+        !capped &&
+        tokens > SAFE_ANSWER_TOKENS &&
+        TOKEN_LIMIT_ERROR.test(error.message)
+      ) {
+        capped = true
+        learn({ answerCap: SAFE_ANSWER_TOKENS })
+        continue
+      }
+      if (refused && streamUsage && STREAM_USAGE_REFUSED.test(error.message)) {
+        learn({ streamUsageRejected: true })
+        continue
+      }
+      if (refused && stream && STREAM_REFUSED.test(error.message)) {
+        learn({ streamRejected: true })
+        continue
+      }
+      if (refused && tools && TOOLS_REFUSED.test(error.message)) {
+        learn({ toolsRejected: true })
+        throw new AiClientError(
+          'tools_unsupported',
+          'This AI endpoint does not take tools (function calling).',
+        )
+      }
+      throw error
+    } finally {
+      if (timer) clearTimeout(timer)
+      timer = null
+    }
+  }
+  throw new AiClientError('invalid_response', 'The AI request failed.')
 }

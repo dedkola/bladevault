@@ -4,6 +4,7 @@ import type { AiCallEvent } from '@/lib/price-monitor/ai-client'
 import {
   AI_JOURNAL_RETENTION_MS,
   aiBudgetRefusal,
+  chatBudgetRefusal,
   pruneAiCalls,
   readAiCallSummary,
   readAiUsageToday,
@@ -129,6 +130,56 @@ describe('AI budget', () => {
         { ...usage, mode: 'unlimited' },
         { calls: 10 ** 6, tokens: 10 ** 10 },
       ),
+    ).toBeNull()
+  })
+})
+
+describe('chat budget', () => {
+  let vault: TempVault
+  beforeEach(async () => {
+    vault = await createTempVault()
+  })
+  afterEach(async () => {
+    await vault.cleanup()
+  })
+
+  it('counts chat apart from price monitoring', () => {
+    const today = startOfLocalDay(NOW) + HOUR
+    recordAiCall(event({ startedAt: today, purpose: 'extraction' }))
+    recordAiCall(event({ startedAt: today, purpose: 'chat' }))
+    recordAiCall(event({ startedAt: today, purpose: 'chat' }))
+    recordAiCall(event({ startedAt: today, purpose: 'test' }))
+    const database = getLocalDb()
+    expect(readAiUsageToday(database, NOW)).toEqual({
+      calls: 1,
+      tokens: 1050,
+    })
+    expect(readAiUsageToday(database, NOW, 'chat')).toEqual({
+      calls: 2,
+      tokens: 2100,
+    })
+    expect(readAiCallSummary(database, NOW).chatToday.calls).toBe(2)
+  })
+
+  it('refuses chat at its own caps, never in Unlimited mode', () => {
+    const usage = DEFAULT_PRICE_MONITORING.ai.usage
+    const chat = { ...DEFAULT_PRICE_MONITORING.ai.chat, dailyCalls: 3 }
+    expect(chatBudgetRefusal(usage, chat, { calls: 2, tokens: 0 })).toBeNull()
+    expect(chatBudgetRefusal(usage, chat, { calls: 3, tokens: 0 })).toContain(
+      'daily chat limit',
+    )
+    expect(
+      chatBudgetRefusal(
+        usage,
+        { ...chat, dailyTokens: 100 },
+        { calls: 0, tokens: 100 },
+      ),
+    ).toContain('100 tokens')
+    expect(
+      chatBudgetRefusal({ ...usage, mode: 'unlimited' }, chat, {
+        calls: 10 ** 6,
+        tokens: 10 ** 9,
+      }),
     ).toBeNull()
   })
 })

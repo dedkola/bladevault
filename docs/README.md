@@ -16,6 +16,7 @@
 | Learn the collection, comparison, and insights workflows | [Organize your collection](guides/collection.md)                           |
 | Log cleaning, sharpening, or other care                  | [Maintenance](guides/log-maintenance.md)                                   |
 | Watch store prices and get price-drop alerts             | [Price Drops](guides/price-drops.md)                                       |
+| Ask questions about my collection and prices             | [Chat](guides/chat.md)                                                     |
 | Find gaps or inconsistent values in my records           | [Improve collection data quality](guides/improve-data-quality.md)          |
 | Back up the vault or restore a saved copy                | [Back up and restore your vault](guides/back-up-and-restore-your-vault.md) |
 | Connect an AI client to my collection                    | [MCP](reference/mcp.md)                                                    |
@@ -54,6 +55,7 @@
 | Build and export a shortlist                  | [Compare knives](guides/compare.md)                                         |
 | Record cleaning, sharpening, and other care   | [Log maintenance and sharpening](guides/log-maintenance.md)                 |
 | Track store prices, drops, and restocks       | [Watch market prices with Price Drops](guides/price-drops.md)               |
+| Ask about the collection in plain language    | [Ask about your vault in Chat](guides/chat.md)                              |
 | Understand collection patterns                | [Collection insights](guides/insights.md)                                   |
 | Review missing data, measurements, and labels | [Improve collection data quality](guides/improve-data-quality.md)           |
 | See what changed and when                     | [Review collection activity in History](guides/review-collection-activity.md) |

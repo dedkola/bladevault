@@ -201,7 +201,9 @@ describe('local database migrations', () => {
         'due_at',
       ]),
     )
-    expect(getLocalDb().pragma('user_version', { simple: true })).toBe(16)
+    expect(getLocalDb().pragma('user_version', { simple: true })).toBe(
+      LOCAL_DB_SCHEMA_VERSION,
+    )
     // Repeat-safe: opening again changes nothing.
     closeLocalDb()
     expect(columns('price_rounds')).toHaveLength(7)

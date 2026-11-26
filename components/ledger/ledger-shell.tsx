@@ -26,6 +26,7 @@ const tabs = [
   { href: '/compare', label: 'Compare' },
   { href: '/wishlist', label: 'Wishlist' },
   { href: '/price-drops', label: 'Price Drops' },
+  { href: '/chat', label: 'Chat' },
   { href: '/maintenance', label: 'Maintenance' },
   { href: '/logs', label: 'History' },
 ] as const
@@ -98,7 +99,9 @@ export function LedgerShell({ children }: { children: React.ReactNode }) {
           {tabs
             .filter(
               ({ href }) =>
-                (href !== '/price-drops' && href !== '/wishlist') ||
+                (href !== '/price-drops' &&
+                  href !== '/wishlist' &&
+                  href !== '/chat') ||
                 hasServerRuntime(),
             )
             .map(({ href, label }) => {

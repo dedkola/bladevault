@@ -650,6 +650,28 @@ export type PriceAiSettings = {
    * applying them) or act (applies them within fixed limits).
    */
   agentMode: PriceAgentMode
+  /** The Chat page: same connection, its own model choice and budget. */
+  chat: PriceAiChatSettings
+}
+
+export const PRICE_AI_CHAT_TOOL_MODES = ['auto', 'native', 'json'] as const
+export type PriceAiChatToolMode = (typeof PRICE_AI_CHAT_TOOL_MODES)[number]
+
+/**
+ * The Chat page. It uses the AI connection above; `model` overrides the
+ * model for chat only ('' = the same model). Tool mode: `native` sends the
+ * vault tools as function calls, `json` asks for one JSON action per step
+ * (for models without function calling), `auto` starts native and switches
+ * to JSON when the endpoint refuses tools. In Limited mode chat has its own
+ * daily caps (0 = no cap) and never counts against monitoring's budget.
+ */
+export type PriceAiChatSettings = {
+  model: string
+  toolMode: PriceAiChatToolMode
+  /** Let the model reason before answering (slower, more tokens). */
+  allowThinking: boolean
+  dailyCalls: number
+  dailyTokens: number
 }
 
 export const PRICE_AGENT_MODES = ['off', 'observe', 'act'] as const
@@ -740,6 +762,13 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
       sourceCooldownHours: 24,
     },
     agentMode: 'off',
+    chat: {
+      model: '',
+      toolMode: 'auto',
+      allowThinking: false,
+      dailyCalls: 100,
+      dailyTokens: 1_000_000,
+    },
   },
   otherStores: {
     enabled: false,
@@ -949,6 +978,41 @@ function normalizePriceAi(
     )
       ? (record.agentMode as PriceAgentMode)
       : fallback.agentMode,
+    chat: normalizePriceAiChat(record.chat, fallback.chat),
+  }
+}
+
+function normalizePriceAiChat(
+  value: unknown,
+  fallback: PriceAiChatSettings,
+): PriceAiChatSettings {
+  const record = plainObject(value)
+  let model = fallback.model
+  if (typeof record.model === 'string')
+    model = record.model.trim()
+      ? (normalizeAiModel(record.model) ?? fallback.model)
+      : ''
+  return {
+    model,
+    toolMode: (PRICE_AI_CHAT_TOOL_MODES as readonly unknown[]).includes(
+      record.toolMode,
+    )
+      ? (record.toolMode as PriceAiChatToolMode)
+      : fallback.toolMode,
+    allowThinking:
+      typeof record.allowThinking === 'boolean'
+        ? record.allowThinking
+        : fallback.allowThinking,
+    dailyCalls: boundedInteger(
+      record.dailyCalls,
+      PRICE_AI_LIMITS.dailyCalls,
+      fallback.dailyCalls,
+    ),
+    dailyTokens: boundedInteger(
+      record.dailyTokens,
+      PRICE_AI_LIMITS.dailyTokens,
+      fallback.dailyTokens,
+    ),
   }
 }
 

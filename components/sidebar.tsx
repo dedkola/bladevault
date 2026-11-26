@@ -26,6 +26,7 @@ import {
   Heart,
   Wrench,
   Inbox,
+  MessageSquare,
   X,
 } from 'lucide-react'
 import { CompareIcon } from '@/components/icons/compare-icon'
@@ -65,6 +66,7 @@ const links = [
   { href: '/compare', label: 'Compare', icon: CompareIcon },
   { href: '/wishlist', label: 'Wishlist', icon: Heart },
   { href: '/price-drops', label: 'Price Drops', icon: TrendingDown },
+  { href: '/chat', label: 'Chat', icon: MessageSquare },
   { href: '/maintenance', label: 'Maintenance', icon: Wrench },
   { href: '/logs', label: 'History', icon: History },
 ]
@@ -273,7 +275,9 @@ export function Sidebar() {
           {links.map((link) => {
             if (link.href === '/inbox' && !inboxEnabled) return null
             if (
-              (link.href === '/price-drops' || link.href === '/wishlist') &&
+              (link.href === '/price-drops' ||
+                link.href === '/wishlist' ||
+                link.href === '/chat') &&
               !hasServerRuntime()
             )
               return null

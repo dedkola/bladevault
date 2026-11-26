@@ -276,6 +276,7 @@ describe('AI settings routes', () => {
       maxAnswerTokens: 16_384,
       usage: DEFAULT_PRICE_MONITORING.ai.usage,
       agentMode: 'off',
+      chat: DEFAULT_PRICE_MONITORING.ai.chat,
       headers: {},
     })
     await settingsRoute.POST(

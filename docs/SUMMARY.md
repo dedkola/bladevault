@@ -29,6 +29,7 @@
 - [Compare knives](guides/compare.md)
 - [Log maintenance and sharpening](guides/log-maintenance.md)
 - [Watch market prices with Price Drops](guides/price-drops.md)
+- [Ask about your vault in Chat](guides/chat.md)
 - [Collection insights](guides/insights.md)
 - [Earn achievements](guides/achievements.md)
 - [Improve collection data quality](guides/improve-data-quality.md)

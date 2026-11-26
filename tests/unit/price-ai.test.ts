@@ -359,7 +359,42 @@ describe('AI settings normalization', () => {
         sourceCooldownHours: 24,
       },
       agentMode: 'off',
+      chat: {
+        model: '',
+        toolMode: 'auto',
+        allowThinking: false,
+        dailyCalls: 100,
+        dailyTokens: 1_000_000,
+      },
     })
+    // Chat settings: valid values kept, invalid ones fall back.
+    expect(
+      normalizePriceMonitoring(
+        {
+          ai: {
+            chat: {
+              model: ' glm-5 ',
+              toolMode: 'json',
+              allowThinking: true,
+              dailyCalls: 7,
+            },
+          },
+        },
+        current,
+      ).ai.chat,
+    ).toEqual({
+      model: 'glm-5',
+      toolMode: 'json',
+      allowThinking: true,
+      dailyCalls: 7,
+      dailyTokens: 1_000_000,
+    })
+    expect(
+      normalizePriceMonitoring(
+        { ai: { chat: { toolMode: 'magic', dailyCalls: 'lots', model: '' } } },
+        current,
+      ).ai.chat,
+    ).toMatchObject({ toolMode: 'auto', dailyCalls: 100, model: '' })
     expect(
       normalizePriceMonitoring({ ai: { agentMode: 'act' } }, current).ai
         .agentMode,

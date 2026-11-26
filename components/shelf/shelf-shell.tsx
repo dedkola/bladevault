@@ -30,6 +30,7 @@ const navLinks = [
   { href: '/compare', label: 'Compare' },
   { href: '/wishlist', label: 'Wishlist' },
   { href: '/price-drops', label: 'Price Drops' },
+  { href: '/chat', label: 'Chat' },
   { href: '/maintenance', label: 'Maintenance' },
   { href: '/logs', label: 'History' },
 ] as const
@@ -95,6 +96,9 @@ export function ShelfShell({ children }: { children: React.ReactNode }) {
       run: () => router.push('/compare'),
     },
     { label: 'Open History', run: () => router.push('/logs') },
+    ...(hasServerRuntime()
+      ? [{ label: 'Open Chat', run: () => router.push('/chat') }]
+      : []),
     {
       label: 'Cloud backup settings',
       hint: isAutoBackupActive ? 'Auto backup on' : 'Auto backup off',
@@ -125,7 +129,9 @@ export function ShelfShell({ children }: { children: React.ReactNode }) {
               {navLinks
                 .filter(
                   ({ href }) =>
-                    (href !== '/price-drops' && href !== '/wishlist') ||
+                    (href !== '/price-drops' &&
+                      href !== '/wishlist' &&
+                      href !== '/chat') ||
                     hasServerRuntime(),
                 )
                 .map(({ href, label }) => {

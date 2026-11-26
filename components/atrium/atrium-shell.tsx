@@ -19,6 +19,7 @@ import {
   Library,
   Plus,
   Search,
+  MessageSquare,
 } from 'lucide-react'
 import { BrandMark } from '@/components/brand-mark'
 import { CompareIcon } from '@/components/icons/compare-icon'
@@ -37,6 +38,7 @@ const dockLinks = [
   { href: '/compare', label: 'Compare', icon: CompareIcon },
   { href: '/wishlist', label: 'Wishlist', icon: Heart },
   { href: '/price-drops', label: 'Price Drops', icon: TrendingDown },
+  { href: '/chat', label: 'Chat', icon: MessageSquare },
   { href: '/maintenance', label: 'Maintenance', icon: Wrench },
   { href: '/logs', label: 'History', icon: History },
 ] as const
@@ -155,7 +157,9 @@ export function AtriumShell({ children }: { children: React.ReactNode }) {
         {dockLinks
           .filter(
             ({ href }) =>
-              (href !== '/price-drops' && href !== '/wishlist') ||
+              (href !== '/price-drops' &&
+                href !== '/wishlist' &&
+                href !== '/chat') ||
               hasServerRuntime(),
           )
           .map(({ href, label, icon: Icon }) => {

@@ -1,44 +1,26 @@
 import { McpServer, type CallToolResult } from '@modelcontextprotocol/server'
 import { z } from 'zod/v4'
 import {
-  findDuplicates,
-  findMissingFields,
-  getCollectionStats,
-  getKnifeDetails,
-  searchKnives,
-} from '@/lib/services/collection-service'
-import {
   bulkUpdateKnifeMetadata,
-  proposeKnifeChanges,
   type McpTransport,
   updateKnifeMetadata,
 } from '@/lib/services/knife-service'
 import {
   addMaintenanceEvent,
-  getKnifeMaintenance,
   type AddMaintenanceInput,
 } from '@/lib/services/maintenance-service'
 import {
-  getPriceAttention,
-  getPriceHistory,
-  getPriceWatch,
-  listPriceChanges,
-  listPriceWatches,
-  PRICE_CHANGE_KINDS,
-  PRICE_WATCH_STATES,
   requestKnifePriceCheck,
   updatePriceWatch,
 } from '@/lib/services/price-service'
 import { addKnifeFromMcp } from '@/lib/services/knife-create-service'
+import { READ_TOOLS } from '@/lib/tools/read-tools'
 import {
   addKnifeImagesFromMcp,
   MCP_MAX_IMAGE_URLS,
   refillKnifeImagesFromMcp,
 } from '@/lib/services/knife-image-service'
 import type { RenderProductPage } from '@/lib/services/product-scrape-service'
-import { getAchievementReport } from '@/lib/services/achievements-service'
-import { ACHIEVEMENT_CATEGORIES } from '@/lib/achievements/catalog'
-import { HISTORY_RANGES } from '@/lib/price-monitor/insights'
 import { PRICE_WATCH_MODES } from '@/lib/price-monitor/shared'
 import { MAINTENANCE_TYPES } from '@/lib/data'
 import { recordMcpToolCall, recordMcpWrite } from '@/lib/mcp/activity'
@@ -143,144 +125,19 @@ export function createBladeVaultMcpServer(
     },
   )
 
-  server.registerTool(
-    'search_knives',
-    {
-      title: 'Search BladeVault knives',
-      description:
-        'Search the local collection by text and exact field filters. Common aliases include model, steel, designer, country, blade_length, and weight.',
-      inputSchema: z.object({
-        query: z.string().default(''),
-        filters: z
-          .array(
-            z.object({
-              field: z.string().min(1),
-              value: z.union([z.string(), z.boolean()]),
-            }),
-          )
-          .default([]),
-        limit: z.number().int().min(1).max(200).default(50),
-        offset: z.number().int().min(0).default(0),
-      }),
-      annotations: readOnlyAnnotations,
-    },
-    (input) => runTool(transport, () => searchKnives(input)),
-  )
-
-  server.registerTool(
-    'get_knife',
-    {
-      title: 'Get a BladeVault knife',
-      description:
-        'Retrieve the complete collection record, metadata, custom-field definitions, and safe image references for one exact knife ID.',
-      inputSchema: z.object({ knife_id: z.string().min(1) }),
-      annotations: readOnlyAnnotations,
-    },
-    ({ knife_id }) => runTool(transport, () => getKnifeDetails(knife_id)),
-  )
-
-  server.registerTool(
-    'get_collection_stats',
-    {
-      title: 'Get BladeVault collection statistics',
-      description:
-        'Summarize collection size, completeness, distributions, measurements, recent records, and duplicate-candidate count. Optionally include the supported field schema.',
-      inputSchema: z.object({ include_schema: z.boolean().default(false) }),
-      annotations: readOnlyAnnotations,
-    },
-    ({ include_schema }) =>
-      runTool(transport, () =>
-        getCollectionStats({ includeSchema: include_schema }),
-      ),
-  )
-
-  server.registerTool(
-    'get_achievements',
-    {
-      title: 'Get BladeVault achievements',
-      description:
-        'Return the collector rank, score, and badges with unlock dates or progress toward each target. Filter by status (all, unlocked, locked) or category. Locked secret badges are only counted, never described. Read-only: unlocks are recorded by the app.',
-      inputSchema: z.object({
-        status: z.enum(['all', 'unlocked', 'locked']).default('all'),
-        category: z
-          .enum(
-            ACHIEVEMENT_CATEGORIES.map((entry) => entry.id) as [
-              (typeof ACHIEVEMENT_CATEGORIES)[number]['id'],
-              ...(typeof ACHIEVEMENT_CATEGORIES)[number]['id'][],
-            ],
-          )
-          .optional(),
-      }),
-      annotations: readOnlyAnnotations,
-    },
-    ({ status, category }) =>
-      runTool(transport, () => getAchievementReport({ status, category })),
-  )
-
-  server.registerTool(
-    'find_missing_fields',
-    {
-      title: 'Find missing BladeVault fields',
-      description:
-        'Find knives with empty built-in or configured custom fields. Returns canonical field paths and concise knife records.',
-      inputSchema: z.object({
-        fields: z.array(z.string().min(1)).min(1),
-        limit: z.number().int().min(1).max(500).default(100),
-      }),
-      annotations: readOnlyAnnotations,
-    },
-    (input) => runTool(transport, () => findMissingFields(input)),
-  )
-
-  server.registerTool(
-    'find_duplicates',
-    {
-      title: 'Find possible duplicate knives',
-      description:
-        'Return possible duplicate pairs with deterministic scores and matching signals. This tool never merges or deletes records.',
-      inputSchema: z.object({
-        limit: z.number().int().min(1).max(500).default(100),
-      }),
-      annotations: readOnlyAnnotations,
-    },
-    (input) => runTool(transport, () => findDuplicates(input)),
-  )
-
-  server.registerTool(
-    'propose_changes',
-    {
-      title: 'Validate proposed BladeVault changes',
-      description:
-        'Validate AI-created metadata proposals and enrich them with current values and timestamps without modifying the collection.',
-      inputSchema: z.object({
-        proposals: z
-          .array(
-            z.object({
-              knife_id: z.string().min(1),
-              field: z.string().min(1),
-              proposed_value: fieldValueSchema,
-              reason: z.string().min(1),
-              confidence: z.number().min(0).max(1).optional(),
-            }),
-          )
-          .min(1)
-          .max(500),
-      }),
-      annotations: readOnlyAnnotations,
-    },
-    ({ proposals }) =>
-      runTool(transport, () =>
-        proposeKnifeChanges(
-          proposals.map((proposal) => ({
-            knifeId: proposal.knife_id,
-            field: proposal.field,
-            proposedValue: proposal.proposed_value,
-            reason: proposal.reason,
-            confidence: proposal.confidence,
-          })),
-        ),
-      ),
-  )
+  // Read-only tools: one definition shared with the in-app chat.
+  for (const tool of READ_TOOLS) {
+    server.registerTool(
+      tool.name,
+      {
+        title: tool.title,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        annotations: readOnlyAnnotations,
+      },
+      (input) => runTool(transport, () => tool.run(input)),
+    )
+  }
 
   server.registerTool(
     'update_knife',
@@ -485,20 +342,6 @@ export function createBladeVaultMcpServer(
       }),
   )
 
-  server.registerTool(
-    'get_knife_maintenance',
-    {
-      title: 'Get knife maintenance history',
-      description:
-        'Return maintenance events and last-done summary for a specific knife.',
-      inputSchema: z.object({
-        knife_id: z.string().min(1),
-      }),
-      annotations: readOnlyAnnotations,
-    },
-    ({ knife_id }) => runTool(transport, () => getKnifeMaintenance(knife_id)),
-  )
-
   const sharpeningDetailsSchema = z
     .object({
       grit: z.string().optional(),
@@ -548,88 +391,6 @@ export function createBladeVaultMcpServer(
     .array(z.number().int().positive())
     .max(10)
     .default([])
-
-  server.registerTool(
-    'list_price_watches',
-    {
-      title: 'List price-monitored knives',
-      description:
-        'List knives with store price monitoring: best current in-stock price, regular price, state (attention, drop, increase, out_of_stock, same, pending, not_monitored), last change, and last check. Prices include decimal amount, minor units, and currency.',
-      inputSchema: z.object({
-        monitored_only: z.boolean().default(true),
-        state: z.enum(PRICE_WATCH_STATES).optional(),
-        limit: z.number().int().min(1).max(500).default(100),
-        offset: z.number().int().min(0).default(0),
-      }),
-      annotations: readOnlyAnnotations,
-    },
-    ({ monitored_only, state, limit, offset }) =>
-      runTool(transport, () =>
-        listPriceWatches({
-          monitoredOnly: monitored_only,
-          state,
-          limit,
-          offset,
-        }),
-      ),
-  )
-
-  server.registerTool(
-    'list_price_changes',
-    {
-      title: 'List recent price and stock changes',
-      description:
-        'List price drops, increases, restocks (back_in_stock), and out-of-stock events within the last N days, newest first, plus the store listings that are out of stock right now.',
-      inputSchema: z.object({
-        days: z.number().int().min(1).max(365).default(30),
-        kinds: z.array(z.enum(PRICE_CHANGE_KINDS)).max(4).default([]),
-        limit: z.number().int().min(1).max(500).default(50),
-      }),
-      annotations: readOnlyAnnotations,
-    },
-    ({ days, kinds, limit }) =>
-      runTool(transport, () => listPriceChanges({ days, kinds, limit })),
-  )
-
-  server.registerTool(
-    'get_price_history',
-    {
-      title: 'Get a knife’s price history',
-      description:
-        'Return one knife’s price history per store source for a range (7d, 1m, 3m, 6m, 1y, all): step points, latest/low/high price, and its price and stock change events.',
-      inputSchema: z.object({
-        knife_id: z.string().min(1),
-        range: z.enum(HISTORY_RANGES).default('3m'),
-      }),
-      annotations: readOnlyAnnotations,
-    },
-    ({ knife_id, range }) =>
-      runTool(transport, () => getPriceHistory({ knifeId: knife_id, range })),
-  )
-
-  server.registerTool(
-    'get_price_watch',
-    {
-      title: 'Get a knife’s price monitoring setup',
-      description:
-        'Return one knife’s monitoring mode (auto, on, off), whether it is monitored and why, and its store sources with status, last price, stock, problems, and queued checks. Use the source IDs with update_price_watch.',
-      inputSchema: z.object({ knife_id: z.string().min(1) }),
-      annotations: readOnlyAnnotations,
-    },
-    ({ knife_id }) => runTool(transport, () => getPriceWatch(knife_id)),
-  )
-
-  server.registerTool(
-    'get_price_attention',
-    {
-      title: 'Summarize price monitoring problems',
-      description:
-        'Summarize what needs attention in price monitoring: sources blocked by a bot check, failed checks, pages without a price, readings AI doubts, and stores paused after repeated blocks, with overall monitoring counts.',
-      inputSchema: z.object({}),
-      annotations: readOnlyAnnotations,
-    },
-    () => runTool(transport, () => getPriceAttention()),
-  )
 
   server.registerTool(
     'update_price_watch',
