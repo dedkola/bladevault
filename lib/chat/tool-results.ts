@@ -10,9 +10,8 @@ import type {
 } from '@/lib/chat/shared'
 
 /**
- * Turns a tool's result into two things: the text the model reads (whole,
- * trimmed only when it would not fit the chat's context) and the step the
- * page draws (label, summary, knife cards and price tables built from the
+ * Turns a tool's result into two things: the text the model reads (the
+ * whole result) and the step the page draws (label, summary, knife cards and price tables built from the
  * stored records, so the page never depends on the model repeating numbers
  * correctly).
  */
@@ -86,31 +85,6 @@ export function describeToolCall(name: string, rawArgs: unknown): string {
 
 // ------------------------------------------------------------ model text
 
-function jsonLength(value: unknown): number {
-  return JSON.stringify(value)?.length ?? 0
-}
-
-/** The longest array within the value (by JSON size), with its parent. */
-function largestArray(
-  value: unknown,
-  depth = 0,
-): { parent: Json; key: string; size: number } | null {
-  if (depth > 4 || !value || typeof value !== 'object') return null
-  let best: { parent: Json; key: string; size: number } | null = null
-  const entries = Array.isArray(value)
-    ? value.map((item, index) => [String(index), item] as const)
-    : Object.entries(value as Json)
-  for (const [key, child] of entries) {
-    if (Array.isArray(child) && child.length > 1) {
-      const size = jsonLength(child)
-      if (!best || size > best.size) best = { parent: value as Json, key, size }
-    }
-    const nested = largestArray(child, depth + 1)
-    if (nested && (!best || nested.size > best.size)) best = nested
-  }
-  return best
-}
-
 /** "48.99 USD" for the model: one short string instead of an object. */
 function moneyText(value: unknown): string | null {
   const money = asRecord(value)
@@ -150,16 +124,8 @@ function compactPriceChanges(copy: Json) {
   })
 }
 
-/**
- * The result as compact JSON. With `maxChars` (only when the whole result
- * would not fit the chat's context), the largest lists are cut, noting how
- * many were left out, until it fits.
- */
-export function toModelContent(
-  name: string,
-  result: Json,
-  maxChars = Number.POSITIVE_INFINITY,
-): string {
+/** The whole result as compact JSON, without what the model cannot use. */
+export function toModelContent(name: string, result: Json): string {
   const copy = structuredClone(result) as Json
   // Image paths mean nothing to the model.
   if (name === 'get_knife') {
@@ -168,29 +134,7 @@ export function toModelContent(
     delete knife.webpageScreenshot
   }
   if (name === 'list_price_changes') compactPriceChanges(copy)
-  // Per list name: how many items it had and how many are left.
-  const cut = new Map<string, { from: number; kept: number }>()
-  // Leave room for the note on what was cut.
-  const target = jsonLength(copy) > maxChars ? maxChars - 300 : maxChars
-  for (let round = 0; round < 24 && jsonLength(copy) > target; round++) {
-    const largest = largestArray(copy)
-    if (!largest) break
-    const list = largest.parent[largest.key] as unknown[]
-    const keep = Math.max(1, Math.floor(list.length / 2))
-    const seen = cut.get(largest.key)
-    cut.set(largest.key, { from: seen?.from ?? list.length, kept: keep })
-    largest.parent[largest.key] = list.slice(0, keep)
-  }
-  if (cut.size)
-    copy._truncated = `${[...cut]
-      .map(([key, { from, kept }]) => `${key}: showing ${kept} of ${from}`)
-      .join(
-        '; ',
-      )} (the chat's context is full). Ask with a narrower filter for the rest.`
-  const text = JSON.stringify(copy)
-  return text.length > maxChars
-    ? `${text.slice(0, maxChars)}… (cut: the result was too long)`
-    : text
+  return JSON.stringify(copy)
 }
 
 // --------------------------------------------------------------- page UI

@@ -96,7 +96,7 @@ describe('chat tools', () => {
     )
   })
 
-  it('sends whole results when no context limit is given', () => {
+  it('sends whole results to the model', () => {
     const result = {
       knives: Array.from({ length: 400 }, (_, index) => ({ id: `k${index}` })),
     }
@@ -138,21 +138,6 @@ describe('chat tools', () => {
         at: '2026-11-25T10:00:00.000Z',
       },
     ])
-  })
-
-  it('cuts long results for the model and says so', () => {
-    const result = {
-      total: 400,
-      knives: Array.from({ length: 400 }, (_, index) => ({
-        id: `k${index}`,
-        name: `Knife number ${index}`,
-      })),
-    }
-    const text = toModelContent('search_knives', result, 2000)
-    expect(text.length).toBeLessThanOrEqual(2000)
-    const parsed = JSON.parse(text)
-    expect(parsed.knives.length).toBeLessThan(400)
-    expect(parsed._truncated).toMatch(/knives: showing \d+ of 400/)
   })
 })
 
@@ -219,32 +204,7 @@ describe('runChatTurn (native tools)', () => {
     expect(result).toMatchObject({ text: 'Done.', steps: 10 })
   })
 
-  it('makes the model answer without tools once the context is full', async () => {
-    const { tool } = fakeTool(
-      vi.fn(async () => ({ echo: 'y'.repeat(6000) as unknown })),
-    )
-    const fetchImpl = vi
-      .fn<typeof fetch>()
-      .mockImplementation(async (_url, init) => {
-        const body = JSON.parse(String(init?.body))
-        return body.tools
-          ? sseResponse([toolCallChunk('c', 'echo_tool', { word: 'again' })])
-          : sseResponse([textChunk('Final.')])
-      })
-    // About 40,000 characters for the turn.
-    const { promise } = turn(fetchImpl, [tool], 'native', 'off', {
-      endpoint: { ...endpoint, maxAnswerTokens: 2000 },
-      contextTokens: 16_000,
-    })
-    const result = await promise
-    expect(result.text).toBe('Final.')
-    expect(result.steps).toBeGreaterThan(1)
-    const last = bodyOf(fetchImpl, fetchImpl.mock.calls.length - 1)
-    expect(last.tools).toBeUndefined()
-    expect(last.messages.at(-1).content).toMatch(/context is full/)
-  })
-
-  it('leaves out the oldest earlier messages only when they do not fit', async () => {
+  it('sends the whole history', async () => {
     const history = Array.from({ length: 40 }, (_, index) => ({
       role: index % 2 ? ('assistant' as const) : ('user' as const),
       content: `${index} ${'h'.repeat(1000)}`,
@@ -253,21 +213,7 @@ describe('runChatTurn (native tools)', () => {
       .fn<typeof fetch>()
       .mockResolvedValue(sseResponse([textChunk('Ok.')]))
     await turn(fetchImpl, [], 'native', 'off', { history }).promise
-    // All 40 fit in the default context.
     expect(bodyOf(fetchImpl, 0).messages).toHaveLength(42)
-
-    fetchImpl.mockClear()
-    fetchImpl.mockResolvedValue(sseResponse([textChunk('Ok.')]))
-    await turn(fetchImpl, [], 'native', 'off', {
-      history,
-      endpoint: { ...endpoint, maxAnswerTokens: 2000 },
-      contextTokens: 10_000,
-    }).promise
-    const messages = bodyOf(fetchImpl, 0).messages
-    expect(messages.length).toBeLessThan(42)
-    // The newest earlier message is kept, and history starts on a question.
-    expect(messages.at(-2).content).toMatch(/^39 /)
-    expect(messages[1].role).toBe('user')
   })
 
   it('switches to JSON mode when the endpoint refuses tools', async () => {
