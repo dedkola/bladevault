@@ -23,7 +23,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 17
+export const LOCAL_DB_SCHEMA_VERSION = 18
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -827,7 +827,9 @@ function recheckRejectedSearches(database: Database.Database) {
 /**
  * Chat (schema 17): conversations from the Chat page and their messages.
  * Tool messages keep the result sent to the model (`content`) and what the
- * page draws for it (`ui_data`). Additive and repeat-safe.
+ * page draws for it (`ui_data`). Schema 18 gives each chat its own model
+ * and reasoning level ('' = not chosen) and when they were last picked
+ * (`choice_at`, for where a new chat starts). Additive and repeat-safe.
  */
 function migrateChatSchema(
   database: Database.Database,
@@ -869,6 +871,23 @@ function migrateChatSchema(
         ON chat_messages (conversation_id, id);
     `)
   }
+  const columns = new Set(
+    (
+      database
+        .prepare("SELECT name FROM pragma_table_info('chat_conversations')")
+        .all() as Array<{ name: string }>
+    ).map((column) => column.name),
+  )
+  if (!columns.has('model'))
+    database.exec(
+      "ALTER TABLE chat_conversations ADD COLUMN model TEXT NOT NULL DEFAULT ''",
+    )
+  if (!columns.has('reasoning'))
+    database.exec(
+      "ALTER TABLE chat_conversations ADD COLUMN reasoning TEXT NOT NULL DEFAULT ''",
+    )
+  if (!columns.has('choice_at'))
+    database.exec('ALTER TABLE chat_conversations ADD COLUMN choice_at TEXT')
 }
 
 /**

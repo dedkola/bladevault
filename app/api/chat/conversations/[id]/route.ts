@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod/v4'
 import { requireAppUnlock } from '@/lib/app-lock'
 import { CHAT_TITLE_MAX_LENGTH } from '@/lib/chat/shared'
+import { chatModelSchema, chatReasoningSchema } from '@/lib/chat/config'
 import {
   ChatNotFoundError,
   deleteConversation,
@@ -23,9 +24,19 @@ const patchSchema = z
   .object({
     title: z.string().trim().min(1).max(CHAT_TITLE_MAX_LENGTH).optional(),
     archived: z.boolean().optional(),
+    /** The chat's model and reasoning, set together. */
+    choice: z
+      .object({
+        model: chatModelSchema,
+        reasoning: chatReasoningSchema,
+      })
+      .optional(),
   })
   .refine(
-    (value) => value.title !== undefined || value.archived !== undefined,
+    (value) =>
+      value.title !== undefined ||
+      value.archived !== undefined ||
+      value.choice !== undefined,
     {
       message: 'Nothing to change.',
     },
@@ -52,7 +63,7 @@ export async function GET(request: Request, { params }: Context) {
   }
 }
 
-/** Renames, archives or restores a chat. */
+/** Renames, archives or restores a chat, or sets its model and reasoning. */
 export async function PATCH(request: Request, { params }: Context) {
   return withVaultMutationRequest(request, async () => {
     const locked = requireAppUnlock(request)

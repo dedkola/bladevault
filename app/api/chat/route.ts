@@ -3,12 +3,15 @@ import { z } from 'zod/v4'
 import { requireAppUnlock } from '@/lib/app-lock'
 import {
   ChatNotConfiguredError,
+  chatModelSchema,
+  chatReasoningSchema,
   readChatConnection,
   type ChatConnection,
 } from '@/lib/chat/config'
 import { runChatTurn, type ChatTurnUsage } from '@/lib/chat/loop'
 import {
   CHAT_MESSAGE_MAX_LENGTH,
+  type ChatChoice,
   type ChatConversationSummary,
   type ChatStoredMessage,
   type ChatStreamEvent,
@@ -19,6 +22,7 @@ import {
   ChatNotFoundError,
   createConversation,
   getConversation,
+  updateConversation,
 } from '@/lib/chat/store'
 import { AiClientError, type ChatMessage } from '@/lib/price-monitor/ai-client'
 import { PriceAiKeyError } from '@/lib/price-monitor/secrets'
@@ -32,6 +36,9 @@ export const dynamic = 'force-dynamic'
 const bodySchema = z.object({
   conversationId: z.string().min(1).max(100).optional(),
   message: z.string().trim().min(1).max(CHAT_MESSAGE_MAX_LENGTH),
+  /** The chat's model and reasoning; left out = the chat's saved choice. */
+  model: chatModelSchema.optional(),
+  reasoning: chatReasoningSchema.optional(),
 })
 
 /** Earlier user and assistant text of a chat, for the model. */
@@ -67,6 +74,7 @@ function chatErrorMessage(error: unknown): string {
  */
 export async function POST(request: Request) {
   let connection: ChatConnection
+  let choice: ChatChoice
   let conversation: ChatConversationSummary
   let history: ChatMessage[]
   let userMessage: ChatStoredMessage
@@ -86,13 +94,25 @@ export async function POST(request: Request) {
     userText = parsed.data.message
     try {
       connection = await readChatConnection()
-      if (parsed.data.conversationId) {
-        const existing = getConversation(parsed.data.conversationId)
+      const existing = parsed.data.conversationId
+        ? getConversation(parsed.data.conversationId)
+        : null
+      const saved = existing?.choice ?? connection.start
+      choice = {
+        model: parsed.data.model ?? saved.model,
+        reasoning: parsed.data.reasoning ?? saved.reasoning,
+      }
+      if (!choice.model) throw new ChatNotConfiguredError()
+      if (existing) {
         history = historyOf(existing.messages)
-        conversation = existing
+        conversation =
+          existing.choice?.model === choice.model &&
+          existing.choice.reasoning === choice.reasoning
+            ? existing
+            : updateConversation(existing.id, { choice })
       } else {
         history = []
-        conversation = createConversation(userText)
+        conversation = createConversation(userText, choice)
       }
       userMessage = appendMessage(conversation.id, {
         role: 'user',
@@ -152,9 +172,9 @@ export async function POST(request: Request) {
       try {
         const result = await runChatTurn({
           endpoint: connection.endpoint,
-          model: connection.model,
+          model: choice.model,
           toolMode: connection.chat.toolMode,
-          allowThinking: connection.chat.allowThinking,
+          reasoning: choice.reasoning,
           history,
           userText,
           signal: abort.signal,
@@ -181,6 +201,9 @@ export async function POST(request: Request) {
                   name: event.name,
                   label: event.label,
                 })
+                break
+              case 'notice':
+                send({ type: 'notice', message: event.message })
                 break
               case 'tool_result':
                 save({

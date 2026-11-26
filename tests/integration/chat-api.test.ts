@@ -14,7 +14,8 @@ import {
   updateConversation,
 } from '@/lib/chat/store'
 import { resetAiModelProfiles } from '@/lib/price-monitor/ai-client'
-import type { ChatStreamEvent } from '@/lib/chat/shared'
+import type { ChatChoice, ChatStreamEvent } from '@/lib/chat/shared'
+import { chatStartChoice, readChatStatus } from '@/lib/chat/config'
 import * as chatRoute from '@/app/api/chat/route'
 import * as conversationRoute from '@/app/api/chat/conversations/[id]/route'
 import * as listRoute from '@/app/api/chat/conversations/route'
@@ -43,6 +44,8 @@ function configureAi() {
   })
 }
 
+const OFF: ChatChoice = { model: 'local-model', reasoning: 'off' }
+
 async function readEvents(response: Response): Promise<ChatStreamEvent[]> {
   const text = await response.text()
   return text
@@ -53,13 +56,13 @@ async function readEvents(response: Response): Promise<ChatStreamEvent[]> {
 
 describe('chat storage', () => {
   it('creates, lists, searches, archives and deletes chats', () => {
-    const first = createConversation('Which knives are missing a steel?')
+    const first = createConversation('Which knives are missing a steel?', OFF)
     appendMessage(first.id, { role: 'user', content: 'Steel please' })
     appendMessage(first.id, {
       role: 'assistant',
       content: 'Two knives have no 100% steel.',
     })
-    const second = createConversation('Drops this week')
+    const second = createConversation('Drops this week', OFF)
     expect(listConversations().map((chat) => chat.id)).toEqual([
       second.id,
       first.id,
@@ -93,7 +96,7 @@ describe('chat storage', () => {
   })
 
   it('keeps chats when the database opens again', () => {
-    const chat = createConversation('hello')
+    const chat = createConversation('hello', OFF)
     closeLocalDb()
     expect(getConversation(chat.id).title).toBe('hello')
   })
@@ -231,7 +234,7 @@ describe('chat routes', () => {
   })
 
   it('lists, renames and deletes chats over HTTP', async () => {
-    const chat = createConversation('Old title')
+    const chat = createConversation('Old title', OFF)
     const context = { params: Promise.resolve({ id: chat.id }) }
     const renamed = await conversationRoute.PATCH(
       new Request(`http://localhost/api/chat/conversations/${chat.id}`, {
@@ -259,5 +262,140 @@ describe('chat routes', () => {
       { params: Promise.resolve({ id: chat.id }) },
     )
     expect(missing.status).toBe(404)
+  })
+})
+
+describe('chat model and reasoning', () => {
+  function post(body: Record<string, unknown>) {
+    return chatRoute.POST(
+      new Request('http://localhost/api/chat', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    )
+  }
+
+  function chatIdOf(events: ChatStreamEvent[]): string {
+    const first = events[0]
+    if (first.type !== 'conversation') throw new Error('no chat')
+    return first.conversation.id
+  }
+
+  it('starts from Settings, then from the last pick', async () => {
+    configureAi()
+    expect(chatStartChoice()).toEqual(OFF)
+    expect(readChatStatus().choice).toEqual(OFF)
+
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () => sseResponse([textChunk('Hi.')]))
+    vi.stubGlobal('fetch', fetchMock)
+    const first = await readEvents(
+      await post({ message: 'hi', model: 'big-model', reasoning: 'high' }),
+    )
+    const sent = JSON.parse(String(fetchMock.mock.calls[0][1]?.body))
+    expect(sent.model).toBe('big-model')
+    expect(sent.reasoning_effort).toBe('high')
+    const id = chatIdOf(first)
+    expect(getConversation(id).choice).toEqual({
+      model: 'big-model',
+      reasoning: 'high',
+    })
+    // The next new chat starts with that pick.
+    expect(readChatStatus().choice).toEqual({
+      model: 'big-model',
+      reasoning: 'high',
+    })
+
+    // A follow-up without a choice keeps the chat's own.
+    await readEvents(await post({ conversationId: id, message: 'again' }))
+    const followUp = JSON.parse(String(fetchMock.mock.calls[1][1]?.body))
+    expect(followUp.model).toBe('big-model')
+    expect(followUp.reasoning_effort).toBe('high')
+  })
+
+  it('saves a pick on an open chat without changing the list order', async () => {
+    configureAi()
+    const older = createConversation('Older', OFF, new Date('2026-01-01'))
+    const newer = createConversation('Newer', OFF, new Date('2026-01-02'))
+    const response = await conversationRoute.PATCH(
+      new Request(`http://localhost/api/chat/conversations/${older.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          choice: { model: 'other-model', reasoning: 'low' },
+        }),
+      }),
+      { params: Promise.resolve({ id: older.id }) },
+    )
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      conversation: { choice: { model: 'other-model', reasoning: 'low' } },
+    })
+    expect(listConversations().map((chat) => chat.id)).toEqual([
+      newer.id,
+      older.id,
+    ])
+    expect(chatStartChoice()).toEqual({
+      model: 'other-model',
+      reasoning: 'low',
+    })
+
+    const invalid = await conversationRoute.PATCH(
+      new Request(`http://localhost/api/chat/conversations/${older.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          choice: { model: 'm', reasoning: 'extreme' },
+        }),
+      }),
+      { params: Promise.resolve({ id: older.id }) },
+    )
+    expect(invalid.status).toBe(400)
+  })
+
+  it('refuses an invalid model or reasoning level', async () => {
+    configureAi()
+    expect((await post({ message: 'hi', model: '   ' })).status).toBe(400)
+    expect((await post({ message: 'hi', model: 'a\u0001b' })).status).toBe(400)
+    expect((await post({ message: 'hi', reasoning: 'max' })).status).toBe(400)
+    expect(listConversations()).toEqual([])
+  })
+
+  it('answers without reasoning_effort when the endpoint refuses it', async () => {
+    configureAi()
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          '{"error":{"message":"Unrecognized request argument: reasoning_effort"}}',
+          { status: 400 },
+        ),
+      )
+      .mockResolvedValueOnce(sseResponse([textChunk('Fine.')]))
+    vi.stubGlobal('fetch', fetchMock)
+    const events = await readEvents(
+      await post({ message: 'hi', reasoning: 'medium' }),
+    )
+    expect(events.map((event) => event.type)).toContain('notice')
+    expect(events.find((event) => event.type === 'error')).toBeUndefined()
+    const retry = JSON.parse(String(fetchMock.mock.calls[1][1]?.body))
+    expect(retry.reasoning_effort).toBeUndefined()
+    // Tools were not given up for it.
+    expect(retry.tools).toBeDefined()
+    expect(getConversation(chatIdOf(events)).messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      content: 'Fine.',
+    })
+  })
+
+  it('keeps a chat saved before schema 18 on the start choice', () => {
+    configureAi()
+    const chat = createConversation('Legacy', OFF)
+    getLocalDb()
+      .prepare(
+        "UPDATE chat_conversations SET model = '', reasoning = '', choice_at = NULL WHERE id = ?",
+      )
+      .run(chat.id)
+    expect(getConversation(chat.id).choice).toBeNull()
+    expect(chatStartChoice()).toEqual(OFF)
   })
 })

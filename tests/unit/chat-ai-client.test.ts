@@ -253,6 +253,84 @@ describe('requestChatCompletion', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 
+  it('sends the reasoning level, and thinking off only for Off', async () => {
+    const opencode: AiEndpoint = {
+      baseUrl: 'https://opencode.ai/zen/go/v1',
+      apiKey: 'sk-test',
+      maxAnswerTokens: 32_000,
+    }
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () => sseResponse([delta('ok')]))
+    const ask = (reasoning?: 'off' | 'low' | 'medium' | 'high') =>
+      requestChatCompletion(
+        opencode,
+        {
+          model: 'glm-5',
+          messages: [{ role: 'user', content: 'q' }],
+          purpose: 'chat',
+          reasoning,
+        },
+        { timeoutMs: 1000, fetchImpl },
+      )
+    const body = (call: number) =>
+      JSON.parse(String(fetchImpl.mock.calls[call][1]?.body))
+
+    await ask()
+    expect(body(0).thinking).toEqual({ type: 'disabled' })
+    expect(body(0).reasoning_effort).toBeUndefined()
+    expect(body(0).max_tokens).toBe(4096)
+
+    const high = await ask('high')
+    expect(body(1).thinking).toBeUndefined()
+    expect(body(1).reasoning_effort).toBe('high')
+    // A model that reasons gets the endpoint's whole answer ceiling.
+    expect(body(1).max_tokens).toBe(32_000)
+    expect(high.reasoningIgnored).toBeUndefined()
+
+    await ask('low')
+    expect(body(2).reasoning_effort).toBe('low')
+  })
+
+  it('drops reasoning_effort once when the endpoint refuses it', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          '{"error":{"message":"Unsupported parameter: \'reasoning_effort\' is not supported with this model."}}',
+          { status: 400 },
+        ),
+      )
+      .mockImplementation(async () => sseResponse([delta('ok')]))
+    const request = {
+      model: 'plain',
+      messages: [{ role: 'user' as const, content: 'q' }],
+      tools: [{ name: 't', description: 'd', parameters: { type: 'object' } }],
+      purpose: 'chat' as const,
+      reasoning: 'medium' as const,
+    }
+    const first = await requestChatCompletion(endpoint, request, {
+      timeoutMs: 1000,
+      fetchImpl,
+    })
+    expect(first).toMatchObject({ text: 'ok', reasoningIgnored: true })
+    const retry = JSON.parse(String(fetchImpl.mock.calls[1][1]?.body))
+    expect(retry.reasoning_effort).toBeUndefined()
+    // Not mistaken for refused tools.
+    expect(retry.tools).toHaveLength(1)
+    expect(chatToolsRejected(endpoint, 'plain', 'medium')).toBe(false)
+
+    // Learned: the next request leaves it out at once.
+    const second = await requestChatCompletion(endpoint, request, {
+      timeoutMs: 1000,
+      fetchImpl,
+    })
+    expect(second.reasoningIgnored).toBe(true)
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
+    const third = JSON.parse(String(fetchImpl.mock.calls[2][1]?.body))
+    expect(third.reasoning_effort).toBeUndefined()
+  })
+
   it('stops with cancelled when the caller aborts', async () => {
     const controller = new AbortController()
     const fetchImpl = vi.fn<typeof fetch>().mockImplementation(

@@ -8,7 +8,7 @@ Chat needs the BladeVault server: it works in the desktop app, Docker, Helm, and
 
 1. Open **Settings → AI / MCP**.
 2. Under **AI connection for price drops and chat**, set the **Base URL**, the **API key** and a **Model**. Any OpenAI-compatible endpoint works: OpenCode Go, OpenAI, a gateway, or a local Ollama or LM Studio server.
-3. Optional: in the **Chat** block, choose a separate **Chat model**, then select **Test tool calling**.
+3. Optional: in the **Chat** block, choose a separate **Chat model** for your first chat, then select **Test tool calling**.
 
 Chat does not need **Use AI** for price monitoring to be on; it only needs the connection.
 
@@ -48,7 +48,7 @@ Chat works best with a model that supports function calling (tool use), such as 
 
 **Test tool calling** sends a made-up question with a sample tool and tells you whether the model calls it. Nothing from the vault is sent.
 
-**Let the model think** is off by default, so reasoning models answer quickly; turn it on for harder questions.
+Each chat has its own **model** and **reasoning** level, chosen at the top of the Chat page and saved with the chat. Pick a model from your endpoint's list or type its ID. Reasoning is **Off**, **Low**, **Medium** or **High**: Off asks OpenCode models to answer right away (other endpoints may still reason by default), and the higher levels think longer on hard questions but are slower and use more tokens. A new chat starts with the model and reasoning you picked last. If the endpoint does not take a reasoning level, the answer still comes and the page says the model reasoned as it does by default.
 
 ## Limits
 

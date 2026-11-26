@@ -27,7 +27,7 @@ const SAMPLE_TOOL = {
 /**
  * Test tool calling: one request with a sample tool, to see whether the
  * chat model calls tools natively (or the chat must use its JSON mode).
- * Uses the chat model, or `{ model }` to try another.
+ * Uses the Settings chat model, or `{ model }` to try another.
  */
 export async function POST(request: Request) {
   const locked = requireAppUnlock(request)
@@ -75,8 +75,8 @@ export async function POST(request: Request) {
           ],
           tools: [SAMPLE_TOOL],
           maxTokens: 512,
+          // Reasoning off: tool support does not depend on it, and it is quick.
           purpose: 'test',
-          allowThinking: ai.chat.allowThinking,
         },
         { timeoutMs: 60_000, signal: request.signal },
       )

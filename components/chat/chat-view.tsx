@@ -27,6 +27,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react'
+import { ChatChoicePicker } from '@/components/chat/chat-choice-picker'
 import { NoteMarkdown } from '@/components/note-markdown'
 import { money, relativeTime } from '@/components/price-drops/price-format'
 import { ChangePill, KnifeThumb } from '@/components/price-drops/price-ui'
@@ -44,6 +45,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { getApiErrorMessage, readJsonResponse } from '@/lib/api-response'
 import {
   CHAT_MESSAGE_MAX_LENGTH,
+  type ChatChoice,
   type ChatConversationDetail,
   type ChatConversationSummary,
   type ChatKnifeCard,
@@ -173,6 +175,11 @@ export function ChatView({
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [panelOpen, setPanelOpen] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  // A new chat's pick before its first message; null = the start choice.
+  const [newChoice, setNewChoice] = useState<ChatChoice | null>(null)
+  const [models, setModels] = useState<string[]>([])
+  const modelsRequested = useRef(false)
   const [pendingDelete, setPendingDelete] =
     useState<ChatConversationSummary | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -254,6 +261,52 @@ export function ChatView({
     if (initialConversation) void loadConversation(initialConversation)
   }, [initialConversation, loadConversation])
 
+  // The open chat's model and reasoning, else what a new chat starts with.
+  const choice: ChatChoice | null =
+    (active ? active.choice : newChoice) ?? status?.choice ?? null
+
+  // The endpoint's model list, asked for once when the model field is used.
+  const loadModels = () => {
+    if (modelsRequested.current) return
+    modelsRequested.current = true
+    callJson<{ models: string[] }>(
+      '/api/settings/price-ai-models',
+      { method: 'POST', body: '{}' },
+      'Could not load the model list.',
+    )
+      .then((data) => setModels(data.models))
+      .catch(() => {
+        // Typing a model ID still works; try the list again next time.
+        modelsRequested.current = false
+      })
+  }
+
+  const changeChoice = async (next: ChatChoice) => {
+    if (sending) return
+    setNotice(null)
+    if (!active) {
+      setNewChoice(next)
+      return
+    }
+    const previous = active
+    setActive({ ...active, choice: next })
+    try {
+      await callJson(
+        `/api/chat/conversations/${encodeURIComponent(active.id)}`,
+        { method: 'PATCH', body: JSON.stringify({ choice: next }) },
+        'Could not save the model for this chat.',
+      )
+      loadStatus()
+    } catch (reason) {
+      setActive((current) =>
+        current?.id === previous.id
+          ? { ...current, choice: previous.choice }
+          : current,
+      )
+      setError(errorText(reason))
+    }
+  }
+
   const turns = active ? toTurns(active.messages) : []
   const shownTurns = live ? [...turns, live] : turns
 
@@ -268,6 +321,7 @@ export function ChatView({
     setPanelOpen(false)
     setActiveId(id)
     setLive(null)
+    setNotice(null)
     setLoadingChat(true)
     stickRef.current = true
     void loadConversation(id)
@@ -280,6 +334,8 @@ export function ChatView({
     setActive(null)
     setLive(null)
     setError(null)
+    setNotice(null)
+    setNewChoice(null)
     inputRef.current?.focus()
   }
 
@@ -288,6 +344,7 @@ export function ChatView({
     if (!message || sending) return
     setSending(true)
     setError(null)
+    setNotice(null)
     setDraft('')
     stickRef.current = true
     const controller = new AbortController()
@@ -307,6 +364,7 @@ export function ChatView({
         body: JSON.stringify({
           message,
           ...(conversationId ? { conversationId } : {}),
+          ...(choice ?? {}),
         }),
         signal: controller.signal,
       })
@@ -370,6 +428,9 @@ export function ChatView({
               ),
             })
             break
+          case 'notice':
+            setNotice(event.message)
+            break
           case 'error':
             failed = true
             setError(event.message)
@@ -409,6 +470,8 @@ export function ChatView({
         if (controller.signal.aborted)
           await new Promise((resolve) => setTimeout(resolve, 300))
         await loadConversation(conversationId)
+        // The chat now has its own choice.
+        setNewChoice(null)
       } else if (!failed) setActive(null)
       setLive(null)
       setSending(false)
@@ -597,12 +660,21 @@ export function ChatView({
               {active?.title ?? 'Chat'}
             </h1>
             <p className="truncate text-xs text-muted-foreground">
-              {status?.model ? `${status.model} · ` : ''}
-              reads your vault; changes nothing
+              Reads your vault; changes nothing
               {active?.archivedAt ? ' · archived' : ''}
             </p>
           </div>
           {status ? <UsageBadge status={status} /> : null}
+          {configured && choice ? (
+            <ChatChoicePicker
+              key={active?.id ?? 'new'}
+              choice={choice}
+              models={models}
+              disabled={sending || Boolean(status?.readOnly)}
+              onOpenModels={loadModels}
+              onChange={(next) => void changeChoice(next)}
+            />
+          ) : null}
         </header>
 
         <div
@@ -658,6 +730,11 @@ export function ChatView({
           {statusError ? (
             <p role="alert" className="chat-error">
               {statusError}
+            </p>
+          ) : null}
+          {notice ? (
+            <p role="status" className="chat-notice">
+              {notice}
             </p>
           ) : null}
           {status?.readOnly ? (
