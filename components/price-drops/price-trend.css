@@ -1,48 +1,28 @@
-/* Compact row price chart for Price Drops (the Wishlist row chart in a
-   fixed 110×36 size). An ancestor can retint it with --trend-down,
-   --trend-up and --trend-flat. */
+/* Row price chart for Price Drops and Wishlist (an ECharts chart, see
+   row-price-chart-model.ts). The line takes --trend-down, --trend-up and
+   --trend-flat when an ancestor sets them. */
 [data-trend-row] {
   display: flex;
   align-items: center;
   gap: 6px;
 }
+/* The mockup's row size when the table has room; it gives up width (down
+   to 160px) before the table would scroll sideways. */
 [data-trend-spark] {
-  --trend-color: var(--trend-flat, var(--price-neutral, #9a958b));
-  display: block;
-  overflow: visible;
+  flex: 0 1 auto;
+  min-width: 160px;
   cursor: crosshair;
   touch-action: pan-y;
 }
-[data-trend-spark='down'] {
-  --trend-color: var(--trend-down, var(--price-drop, #2f7d46));
-}
-[data-trend-spark='up'] {
-  --trend-color: var(--trend-up, var(--price-rise, #b4232a));
-}
-/* Stock-style mountain: the area fades from the line down to the base. */
-[data-trend-stop='top'] {
-  stop-color: var(--trend-color);
-  stop-opacity: 0.38;
-}
-[data-trend-stop='bottom'] {
-  stop-color: var(--trend-color);
-  stop-opacity: 0;
-}
-[data-trend-line] {
-  stroke: var(--trend-color);
-  stroke-width: 2;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-[data-trend-dot] {
-  fill: var(--trend-color);
-  stroke: var(--card);
-  stroke-width: 1.5;
-}
-[data-trend-cross] {
-  stroke: var(--muted-foreground);
-  stroke-width: 1;
-  stroke-dasharray: 2 2;
+@media (max-width: 639px) {
+  [data-trend-row] {
+    min-width: 0;
+    max-width: 100%;
+  }
+  [data-trend-spark] {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
 }
 /* The current price against the regular price; the arrow keeps it
    readable without colour. */
@@ -74,42 +54,43 @@
   justify-content: space-between;
   gap: 6px;
   width: 100%;
-  max-width: 160px;
+  max-width: 260px;
   color: var(--muted-foreground);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-[data-trend-hover] {
-  color: var(--foreground);
-  font-weight: 600;
 }
 [data-trend-empty] {
   color: var(--muted-foreground);
   font-size: 11px;
   text-align: right;
 }
-/* Baseline fill between the line and the item's regular price: green
-   where the price is below it, red where above. */
-[data-trend-base] {
-  fill-opacity: 0.22;
-}
-[data-trend-base='below'] {
-  fill: var(--trend-down, var(--price-drop, #2f7d46));
-}
-[data-trend-base='above'] {
-  fill: var(--trend-up, var(--price-rise, #b4232a));
-}
 [data-trend-regular-note] {
   color: var(--muted-foreground);
 }
-/* Break mark where the line drops from a regular price pinned to the
-   chart's edge: a card-coloured gap under two thin slashes. */
-[data-trend-break='mask'] {
-  stroke: var(--card);
-  stroke-width: 3;
+
+/* Row chart tooltip: the moment, the best price, each store, your price. */
+[data-row-chart-tip] {
+  display: grid;
+  gap: 2px;
+  min-width: 160px;
+  font-size: 11px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
 }
-[data-trend-break='mark'] {
-  stroke: var(--muted-foreground);
-  stroke-width: 1.2;
+[data-row-chart-tip-time],
+[data-row-chart-tip-regular] {
+  color: var(--muted-foreground);
+}
+[data-row-chart-tip-store] {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+[data-row-chart-tip-store] i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 5px;
+  border-radius: 50%;
 }

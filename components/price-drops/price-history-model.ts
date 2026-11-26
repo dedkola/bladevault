@@ -4,7 +4,10 @@ import type {
   SourceHistory,
 } from '@/lib/price-monitor/insights'
 import { fromMinorUnits } from '@/lib/price-monitor/money'
+import { laneKeyForUrl } from '@/lib/price-monitor/shared'
+import type { WishlistTrend } from '@/lib/wishlist'
 import { money, storeLabel } from './price-format'
+import type { RowChartStore } from './row-price-chart-model'
 
 /**
  * A knife's stores are one item on its chart: these read every store at a
@@ -202,4 +205,66 @@ export function storeLinesAt(
         : 'cheapest'
   }
   return lines
+}
+
+/**
+ * The open knife's chart as the row charts draw it: the best in-stock
+ * price across its stores over the range (`best`), and each store's own
+ * readings (`stores`, for the dots), all in the chart's currency. Listings
+ * of other variants are left out; removed stores keep their readings.
+ * Out-of-stock readings and other currencies are gaps (null).
+ */
+export function historyChartTrends(
+  history: Pick<KnifeHistory, 'sources' | 'chartStart'>,
+  currency: string | null,
+): { best: WishlistTrend; stores: RowChartStore[] } | null {
+  const end = historyEnd(history)
+  const sources = history.sources.filter((source) => !source.variantTitle)
+  const priced = (point: HistoryPoint) =>
+    point.priceMinor !== null &&
+    point.currency === currency &&
+    point.availability !== 'out_of_stock'
+      ? point.priceMinor
+      : null
+  const spans = sources.flatMap((source) => sourceSpans(source, end))
+  if (!spans.length || !Number.isFinite(end)) return null
+  const cuts = [...new Set(spans.flatMap((span) => [span.from, span.to]))]
+    .filter((at) => at < end)
+    .sort((a, b) => a - b)
+  const steps: WishlistTrend['steps'] = []
+  for (const at of cuts) {
+    let best: number | null = null
+    for (const span of spans)
+      if (span.from <= at && at < span.to) {
+        const price = priced(span.point)
+        if (price !== null && (best === null || price < best)) best = price
+      }
+    if (steps.at(-1)?.price !== best || !steps.length)
+      steps.push({ at, price: best })
+  }
+  const since = history.chartStart
+    ? Math.min(Date.parse(history.chartStart), cuts[0] ?? end)
+    : (cuts[0] ?? end)
+  const trend = (list: WishlistTrend['steps']): WishlistTrend => ({
+    currency,
+    daily: [],
+    steps: list,
+    since,
+    until: end,
+    lowMinor: null,
+    highMinor: null,
+  })
+  return {
+    best: trend(steps),
+    stores: sources.map((source) => ({
+      key: laneKeyForUrl(source.url),
+      label: historyLineLabel(source),
+      trend: trend(
+        source.points.map((point) => ({
+          at: Date.parse(point.from),
+          price: priced(point),
+        })),
+      ),
+    })),
+  }
 }

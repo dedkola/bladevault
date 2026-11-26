@@ -91,78 +91,30 @@ describe('PriceTrend', () => {
     })
     expect(html).toContain('data-trend-chip="down"')
     expect(html).toContain('▼ $72.10 · 36%')
-    expect(html).toContain('data-trend-spark="down"')
-    expect(html).toContain('data-trend-base="below"')
-    expect(html).not.toContain('stroke-dasharray')
     expect(html).toContain('regular $202.00')
-    // The last small move belongs to the price cell, not the chart.
+    // The last small move belongs to the price cell, not the chip.
     expect(html).not.toContain('$0.56 ·')
     expect(html).toContain(
       'now $129.90, $72.10 (36%) below the regular price $202.00',
     )
   })
 
-  it('starts the line at the regular price and steps to the first reading', () => {
+  it('colours the chart by the latest move, at the mockup row size', () => {
     const html = render({
       trend: amazon,
       currentMinor: 12990,
       regularMinor: 20200,
     })
-    const line = html.match(
-      /data-trend-line="true" d="M([\d.]+),([\d.]+) H([\d.]+) V([\d.]+)/,
-    )
-    const [, x0, yRegular, xLead, yFirst] = line!.map(Number)
-    expect(x0).toBe(2)
-    // The regular price holds the first 15% of the plot, then steps down.
-    expect(xLead).toBeCloseTo(2 + 0.15 * 102, 0)
-    expect(yFirst).toBeGreaterThan(yRegular)
+    // $130.46 → $129.90 was the last move: down.
+    expect(html).toContain('data-trend-spark="down"')
+    expect(html).toContain('width:260px;height:54px')
   })
 
-  it('shows every Amazon move under a pinned regular price', () => {
-    const html = render({
-      trend: amazon,
-      currentMinor: 12990,
-      regularMinor: 20200,
-    })
-    expect(html).toContain('data-trend-break="mark"')
-    const d = html.match(/data-trend-line="true" d="([^"]+)"/)![1]
-    // Vertical moves after the drop from the regular price: each one shows.
-    const levels = [...d.matchAll(/V([\d.]+)/g)].map((m) => Number(m[1]))
-    const moves = levels
-      .slice(1)
-      .map((value, index) => Math.abs(value - levels[index]))
-      .filter((size) => size > 0)
-    expect(moves.length).toBeGreaterThanOrEqual(5)
-    for (const size of moves) expect(size).toBeGreaterThanOrEqual(2.9)
-  })
-
-  it('starts at the first reading when it is the regular price', () => {
-    const html = render({
-      trend: {
-        ...amazon,
-        steps: [{ at: amazon.since, price: 20200 }, ...amazon.steps.slice(1)],
-      },
-      currentMinor: 12990,
-      regularMinor: 20200,
-    })
-    const line = html.match(
-      /data-trend-line="true" d="M([\d.]+),[\d.]+ H([\d.]+)/,
-    )
-    expect(Number(line?.[1])).toBe(2)
-    // No lead: the first step ends at the next real reading.
-    const span = amazon.until - amazon.since
-    expect(Number(line?.[2])).toBeCloseTo(
-      ((amazon.steps[1].at - amazon.since) / span) * 102 + 2,
-      0,
-    )
-  })
-
-  it('drops the chip and the baseline fill without a regular price', () => {
+  it('drops the chip without a regular price', () => {
     const html = render({ trend: amazon, currentMinor: 12990 })
     expect(html).not.toContain('data-trend-chip')
-    expect(html).not.toContain('data-trend-base')
-    // The colour then follows the window: up from $127.76.
-    expect(html).toContain('data-trend-spark="up"')
+    expect(html).not.toContain('data-trend-regular-note')
+    expect(html).toContain('data-trend-spark="down"')
   })
 
   it('drops the chip when the price is not buyable now', () => {
@@ -172,8 +124,15 @@ describe('PriceTrend', () => {
       regularMinor: 20200,
     })
     expect(html).not.toContain('data-trend-chip')
-    expect(html).toContain('data-trend-base="below"')
-    // Still green: the last price read is below the regular price.
-    expect(html).toContain('data-trend-spark="down"')
+    expect(html).toContain('regular $202.00')
+  })
+
+  it('says when there is nothing to chart', () => {
+    expect(render({ trend: undefined })).toContain('Not tracked yet')
+    expect(
+      render({
+        trend: { ...amazon, steps: [{ at: amazon.since, price: null }] },
+      }),
+    ).toContain('No in-stock price yet')
   })
 })

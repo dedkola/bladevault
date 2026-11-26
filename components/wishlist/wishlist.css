@@ -321,15 +321,6 @@
   color: var(--destructive);
 }
 
-[data-wishlist] [data-wishlist-spark] {
-  --wl-spark: var(--wl-neutral);
-}
-[data-wishlist] [data-wishlist-spark='down'] {
-  --wl-spark: var(--wl-sale);
-}
-[data-wishlist] [data-wishlist-spark='up'] {
-  --wl-spark: var(--wl-up);
-}
 [data-wishlist] [data-wishlist-spark-row] {
   display: flex;
   align-items: center;
@@ -338,81 +329,18 @@
 [data-wishlist] [data-wishlist-spark-cell] {
   min-width: 0;
 }
-/* Fills its column; the chart is drawn at the measured width. */
+/* The row chart (row-price-chart-model.ts) at the mockup's row size, in
+   the wishlist's own colours. */
 [data-wishlist] [data-wishlist-spark-box] {
-  position: relative;
+  --trend-down: var(--wl-sale);
+  --trend-up: var(--wl-up);
+  --trend-flat: var(--wl-neutral);
   flex: 1 1 0;
   min-width: 0;
-  height: 44px;
+  max-width: 260px;
+  height: 54px;
   cursor: crosshair;
   touch-action: pan-y;
-}
-[data-wishlist] [data-wishlist-spark] {
-  display: block;
-  overflow: visible;
-}
-/* Stock-style mountain: the area fades from the line down to the base. */
-[data-wishlist] [data-wishlist-spark-stop='top'] {
-  stop-color: var(--wl-spark);
-  stop-opacity: 0.38;
-}
-[data-wishlist] [data-wishlist-spark-stop='bottom'] {
-  stop-color: var(--wl-spark);
-  stop-opacity: 0;
-}
-[data-wishlist] [data-wishlist-spark-line] {
-  stroke: var(--wl-spark);
-  stroke-width: 2;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-[data-wishlist] [data-wishlist-spark-dot] {
-  fill: var(--wl-spark);
-  stroke: var(--card);
-  stroke-width: 1.5;
-}
-[data-wishlist] [data-wishlist-spark-gap] {
-  fill: var(--wl-up);
-  opacity: 0.06;
-}
-/* Baseline fill between the line and the regular price: green where the
-   price is below it, red where above. */
-[data-wishlist] [data-wishlist-spark-base] {
-  fill-opacity: 0.22;
-}
-[data-wishlist] [data-wishlist-spark-base='below'] {
-  fill: var(--wl-sale);
-}
-[data-wishlist] [data-wishlist-spark-base='above'] {
-  fill: var(--wl-up);
-}
-/* Break mark where the line drops from a regular price pinned to the
-   chart's edge: a card-coloured gap under two thin slashes. */
-[data-wishlist] [data-wishlist-spark-break='mask'] {
-  stroke: var(--card);
-  stroke-width: 3;
-}
-[data-wishlist] [data-wishlist-spark-break='mark'] {
-  stroke: var(--muted-foreground);
-  stroke-width: 1.2;
-}
-[data-wishlist] [data-wishlist-spark-tip] {
-  position: absolute;
-  top: -22px;
-  z-index: 2;
-  padding: 1px 6px;
-  border-radius: 5px;
-  background: var(--foreground);
-  color: var(--background);
-  font-size: 11px;
-  white-space: nowrap;
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-[data-wishlist] [data-wishlist-spark-cross] {
-  stroke: var(--muted-foreground);
-  stroke-width: 1;
-  stroke-dasharray: 2 2;
 }
 /* Net change over the window; the arrow keeps it readable without colour. */
 [data-wishlist] [data-wishlist-spark-chip] {

@@ -1,21 +1,20 @@
 'use client'
 
-import { useId, useState, type PointerEvent } from 'react'
 import {
   WISHLIST_REGULAR_TOLERANCE,
-  rowChartBreak,
-  rowChartScale,
-  withRegularStart,
   wishlistMoves,
   wishlistTrackedDays,
-  wishlistTrendDirection,
   type WishlistTrend,
 } from '@/lib/wishlist'
 import { money } from './price-format'
+import { RowPriceChart } from './row-price-chart'
+import { rowChartDirection, type RowChartStore } from './row-price-chart-model'
 import './price-trend.css'
 
-/** Smallest vertical range of a row chart, as a share of its highest price. */
-const SPARK_MIN_SPREAD = 0.04
+/** Row chart size, as in the approved mockup. */
+export const ROW_CHART_WIDTH = 260
+export const ROW_CHART_HEIGHT = 54
+const NO_STORES: readonly RowChartStore[] = []
 
 /** "21 Nov" for a moment on the chart. */
 function moveDate(at: number): string {
@@ -72,27 +71,27 @@ export function trendNetChange(
 }
 
 /**
- * The store price over the tracked window as a step line (a price holds
- * until the next check), built from the item's regular price: when the
- * store was first seen at another price, the line starts at the regular
- * price and steps to the first reading. Like a baseline chart, the area
- * between the regular price and the line is green below it and red above
- * it. The chip is the one headline number: how far the current price is
- * below (or above) the regular price, in money and percent. Without a
- * regular price, the line is a plain "mountain" with no chip.
+ * The row chart (mockup variant A, see `rowChartOption`): the best store
+ * price as a filled area, coloured by its latest move, a dot in the store's
+ * colour for every store reading, and a thin line at the item's regular
+ * price. Hovering lists every store's price at that moment. The chip is the
+ * one headline number: how far the current price is below (or above) the
+ * regular price, in money and percent.
  *
  * Renders two siblings (chart row, caption); the parent lays them out.
- * Colours come from --trend-down, --trend-up and --trend-flat.
  */
 export function PriceTrend({
   trend,
+  stores = NO_STORES,
   currentMinor,
   regularMinor,
-  width = 110,
-  height = 36,
+  width = ROW_CHART_WIDTH,
+  height = ROW_CHART_HEIGHT,
   label = 'Best store price',
 }: {
   trend: WishlistTrend | undefined
+  /** Each store's own history, for the dots (memoize it). */
+  stores?: readonly RowChartStore[]
   /**
    * The row's price now, in minor units of the trend's currency; null when
    * it is not a buyable price (out of stock, or a failed check).
@@ -105,76 +104,22 @@ export function PriceTrend({
   /** What the line is, for the chart's accessible name. */
   label?: string
 }) {
-  const gradientId = `price-trend-${useId().replace(/:/g, '')}`
-  const [hoverAt, setHoverAt] = useState<number | null>(null)
   if (!trend) return <span data-trend-empty>Not tracked yet</span>
-  const regular = regularMinor || null
-  const { steps, since, lead } = withRegularStart(trend, regular)
-  const priced = steps.filter(
+  const priced = trend.steps.filter(
     (step): step is { at: number; price: number } => step.price !== null,
   )
   // Tracked, but no store has had it in stock inside the window.
   if (!priced.length) return <span data-trend-empty>No in-stock price yet</span>
 
+  const regular = regularMinor || null
   const currency = trend.currency
   const gap = regularGap(currentMinor, regular)
   const days = wishlistTrackedDays(trend)
   const dayText = `${days} ${days === 1 ? 'day' : 'days'}`
   const moves = wishlistMoves(trend)
   const change = moves.at(-1)
-  const current = steps[steps.length - 1].price
-  const last = priced[priced.length - 1].price
-  const firstReading = priced[lead ? 1 : 0].price
-  const net = last - firstReading
-  // The line reads against the regular price, as the chip does (by the last
-  // price read when out of stock); without one, as the window moved.
-  const direction =
-    (gap ?? regularGap(last, regular))?.direction ??
-    wishlistTrendDirection(moves)
-
-  // Scale so every store move shows (see rowChartScale): a regular price far
-  // above the readings sits at the top edge behind a break mark.
-  const scale = rowChartScale({
-    readings: trend.steps.flatMap((step) =>
-      step.price === null ? [] : [step.price],
-    ),
-    regular,
-    top: 3,
-    bottom: height - 3,
-    minSpread: SPARK_MIN_SPREAD,
-  })
-  const y = scale.y
-  const span = Math.max(trend.until - since, 1)
-  const plot = width - 8
-  const x = (at: number) => ((at - since) / span) * plot + 2
-
-  // One unbroken line from the first price: out of stock holds the last
-  // price until the next one.
-  let line = ''
-  let from = 0
-  let held: number | null = null
-  steps.forEach((step, index) => {
-    held = step.price ?? held
-    if (held === null) return
-    const next = steps[index + 1]?.at ?? trend.until
-    const py = y(held).toFixed(1)
-    if (!line) from = x(step.at)
-    line += line
-      ? ` V${py} H${x(next).toFixed(1)}`
-      : `M${from.toFixed(1)},${py} H${x(next).toFixed(1)}`
-  })
-
-  // The step showing at the hovered time: the last one that started by then.
-  const hovered =
-    hoverAt === null
-      ? null
-      : (steps.findLast((step) => step.at <= hoverAt) ?? steps[0])
-  const moveHover = (event: PointerEvent<SVGSVGElement>) => {
-    const box = event.currentTarget.getBoundingClientRect()
-    const px = ((event.clientX - box.left) / box.width) * width
-    const share = Math.min(Math.max((px - 2) / plot, 0), 1)
-    setHoverAt(since + share * span)
-  }
+  const current = trend.steps[trend.steps.length - 1].price
+  const net = priced[priced.length - 1].price - priced[0].price
 
   const gapText = gap
     ? gap.direction === 'flat'
@@ -192,101 +137,21 @@ export function PriceTrend({
   ]
     .filter(Boolean)
     .join('; ')
-  const regularY = scale.regularY === null ? 0 : scale.regularY.toFixed(1)
-  // Where the line leaves a pinned regular price for the first reading.
-  const firstRead = lead
-    ? steps.find((step) => step !== lead && step.price !== null)
-    : undefined
-  const breakMark =
-    scale.pinned && lead && firstRead
-      ? rowChartBreak(x(firstRead.at), y(lead.price), y(firstRead.price!))
-      : null
-  // The area between the line and the regular price, split at it.
-  const baseArea = `${line} V${regularY} H${from.toFixed(1)} Z`
 
   return (
     <>
       <div data-trend-row>
-        <svg
-          data-trend-spark={direction}
-          width={width}
-          height={height}
-          viewBox={`0 0 ${width} ${height}`}
-          role="img"
-          aria-label={ariaLabel}
-          onPointerMove={moveHover}
-          onPointerLeave={() => setHoverAt(null)}
+        <div
+          data-trend-spark={rowChartDirection(trend)}
+          style={{ flexBasis: width, maxWidth: width, height }}
         >
-          {regular === null ? (
-            <>
-              <defs>
-                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0" data-trend-stop="top" />
-                  <stop offset="1" data-trend-stop="bottom" />
-                </linearGradient>
-              </defs>
-              <path
-                d={`${line} V${height} H${from.toFixed(1)} Z`}
-                fill={`url(#${gradientId})`}
-              />
-            </>
-          ) : (
-            <>
-              <defs>
-                <clipPath id={`${gradientId}-below`}>
-                  <rect x="0" y={regularY} width={width} height={height} />
-                </clipPath>
-                <clipPath id={`${gradientId}-above`}>
-                  <rect x="0" y="0" width={width} height={regularY} />
-                </clipPath>
-              </defs>
-              <path
-                data-trend-base="below"
-                d={baseArea}
-                clipPath={`url(#${gradientId}-below)`}
-              />
-              <path
-                data-trend-base="above"
-                d={baseArea}
-                clipPath={`url(#${gradientId}-above)`}
-              />
-            </>
-          )}
-          <path data-trend-line d={line} fill="none" />
-          {breakMark && (
-            <>
-              <path data-trend-break="mask" d={breakMark} fill="none" />
-              <path data-trend-break="mark" d={breakMark} fill="none" />
-            </>
-          )}
-          {hoverAt !== null && (
-            <line
-              data-trend-cross
-              x1={x(hoverAt).toFixed(1)}
-              x2={x(hoverAt).toFixed(1)}
-              y1="0"
-              y2={height}
-            />
-          )}
-          {hovered && hovered.price !== null ? (
-            <circle
-              data-trend-dot
-              cx={x(hoverAt!).toFixed(1)}
-              cy={y(hovered.price).toFixed(1)}
-              r="3"
-            />
-          ) : (
-            !hovered &&
-            current !== null && (
-              <circle
-                data-trend-dot
-                cx={x(trend.until).toFixed(1)}
-                cy={y(current).toFixed(1)}
-                r="3"
-              />
-            )
-          )}
-        </svg>
+          <RowPriceChart
+            trend={trend}
+            stores={stores}
+            regularMinor={regular}
+            ariaLabel={ariaLabel}
+          />
+        </div>
         {gap && (
           <span
             data-trend-chip={gap.direction}
@@ -297,28 +162,11 @@ export function PriceTrend({
         )}
       </div>
       <span data-trend-note>
-        {hovered ? (
-          <>
-            <span>
-              {hovered === lead
-                ? 'Regular'
-                : moveDate(Math.max(hoverAt!, trend.since))}
-            </span>
-            <b data-trend-hover>
-              {hovered.price === null
-                ? 'Out of stock'
-                : money(hovered.price, currency)}
-            </b>
-          </>
-        ) : (
-          <>
-            <span>{days}d tracked</span>
-            {regular !== null && (
-              <span data-trend-regular-note>
-                regular {money(regular, currency)}
-              </span>
-            )}
-          </>
+        <span>{days}d tracked</span>
+        {regular !== null && (
+          <span data-trend-regular-note>
+            regular {money(regular, currency)}
+          </span>
         )}
       </span>
     </>

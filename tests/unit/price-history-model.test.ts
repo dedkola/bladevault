@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  historyChartTrends,
   historyEnd,
   outOfStockEverywhere,
   readingAt,
@@ -166,5 +167,59 @@ describe('price history model', () => {
       ['Blade HQ', ''],
       ['Blade HQ (variant: Militaw Blue G10)', ''],
     ])
+  })
+})
+
+describe('historyChartTrends', () => {
+  it('builds the best in-stock price across stores, and each store’s own steps', () => {
+    const a = source(1, 'a.example', [point(0, 1, 100), point(4, 5, 90)])
+    const b = {
+      ...source(2, 'b.example', [point(2, 9, 95)]),
+      url: 'https://www.bladehq.com/item',
+    }
+    const result = historyChartTrends(
+      { sources: [a, b], chartStart: null },
+      'USD',
+    )
+    expect(result?.best.steps).toEqual([
+      { at: ms(0), price: 100 },
+      { at: ms(2), price: 95 },
+      { at: ms(4), price: 90 },
+    ])
+    expect(result?.best.since).toBe(ms(0))
+    expect(result?.best.until).toBe(ms(9))
+    expect(result?.stores.map((store) => store.key)).toEqual([
+      'invalid',
+      'bladehq.com',
+    ])
+    expect(result?.stores[1].trend.steps).toEqual([{ at: ms(2), price: 95 }])
+  })
+
+  it('skips out-of-stock readings, other currencies and variant listings', () => {
+    const a = source(1, 'a.example', [
+      point(0, 1, 100),
+      point(2, 3, 80, 'out_of_stock'),
+      { ...point(4, 5, 70), currency: 'EUR' },
+    ])
+    const variant = {
+      ...source(2, 'b.example', [point(0, 5, 50)]),
+      variantTitle: 'Blue',
+    }
+    const result = historyChartTrends(
+      { sources: [a, variant], chartStart: t(-2) },
+      'USD',
+    )
+    expect(result?.best.steps).toEqual([
+      { at: ms(0), price: 100 },
+      { at: ms(2), price: null },
+    ])
+    expect(result?.best.since).toBe(ms(-2))
+    expect(result?.stores).toHaveLength(1)
+  })
+
+  it('is null without any reading', () => {
+    expect(
+      historyChartTrends({ sources: [], chartStart: null }, 'USD'),
+    ).toBeNull()
   })
 })
