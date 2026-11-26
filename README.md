@@ -6,7 +6,7 @@
 
 **A sharp, local-first knife collection manager.**
 
-Catalog your knives, showcase them in Studio, compare them side by side, and keep your collection data under your control.
+Catalog your knives, watch their prices across stores, ask AI about your collection, showcase them in Studio, and keep your collection data under your control.
 
   <p>
     <a href="https://github.com/dedkola/bladevault/releases/latest"><img src="https://img.shields.io/github/v/release/dedkola/bladevault?style=flat-square&label=release&color=C89B3C" alt="Latest release" /></a>
@@ -24,7 +24,7 @@ Catalog your knives, showcase them in Studio, compare them side by side, and kee
     <img src="https://img.shields.io/badge/Electron-47848F?logo=electron&logoColor=white&style=flat-square" alt="Electron" />
     <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white&style=flat-square" alt="Docker" />
     <img src="https://img.shields.io/badge/Helm-0F1689?logo=helm&logoColor=white&style=flat-square" alt="Helm" />
-    <img src="https://img.shields.io/badge/MCP-10_tools-C89B3C?style=flat-square" alt="Model Context Protocol: 10 tools" />
+    <img src="https://img.shields.io/badge/MCP-21_tools-C89B3C?style=flat-square" alt="Model Context Protocol: 21 tools" />
     <img src="https://img.shields.io/badge/themes-12_styles-8A6D3B?style=flat-square" alt="12 theme styles" />
   </p>
 
@@ -40,7 +40,7 @@ Catalog your knives, showcase them in Studio, compare them side by side, and kee
 
 ---
 
-[Install](#choose-a-setup) · [Styles](#styles) · [Studio](#studio) · [Screenshots](#screenshots) · [MCP](#model-context-protocol-mcp) · [Backups](#local-backup-and-restore) · [Development](#run-from-source)
+[Install](#choose-a-setup) · [Styles](#styles) · [Price Drops](#price-drops-and-wishlist) · [Chat](#chat) · [Studio](#studio) · [Screenshots](#screenshots) · [MCP](#model-context-protocol-mcp) · [Backups](#local-backup-and-restore) · [Development](#run-from-source)
 
 ## What it does
 
@@ -50,17 +50,22 @@ Catalog your knives, showcase them in Studio, compare them side by side, and kee
 - **Take notes:** Add dated personal notes to any knife with Markdown formatting, including lists, links, and tables, and attach up to 12 photos that also join the knife's gallery. Notes appear under the photos, grouped by date, and in the knife's History.
 - **Organize:** Search, filter, pin, and bulk-edit records. Add custom text, number, and date fields, and choose which details appear on collection cards and pinned items. Switch between card and table views; in Modern-layout styles, choose, reorder, and resize table columns.
 - **Browse:** Save filters as Smart Collections that update with your records, or browse variants together in Model families. Global search supports model names and `/model A4301` for model numbers.
-- **Showcase:** Open **Studio** for a photo-first wall of your collection, filtered by folding, fixed, pinned, or any Smart Collection, with search, focus mode, and a self-playing split-flap showcase. Select any knife for a quick look with its full photo gallery.
+- **Watch prices:** **Price Drops** checks each knife's product link and other stores, such as brand sites, Blade HQ, SMKW, DLT Trading, KnifeJoy, Northwest Knives, and Amazon, and records every price and stock change with one chart line per store. See [Price Drops and Wishlist](#price-drops-and-wishlist).
+- **Plan purchases:** The **Wishlist** is a deal board for knives you want next, with the three best deals on top, price against regular price, cheapest stores, and a price chart in every row.
+- **Get alerts:** The **Inbox** collects price drops, restocks, care reminders, achievements, and system messages such as finished Google Drive backups. New messages pop up at the top right, and each kind can be turned off in **Settings → Notifications**.
+- **Ask AI:** Open **Chat** to ask about your vault in plain language and get answers with knife cards and price tables, using your own OpenAI-compatible model. See [Chat](#chat).
+- **Showcase:** Open **Studio** for a photo-first wall of your collection, filtered by folding, fixed, pinned, or any Smart Collection, with search, focus mode, a Knife of the day, and a self-playing split-flap showcase. Select any knife for a quick look with its full photo gallery.
 - **Compare:** Create named shortlists, add a knife to several lists, show only differences, and print or export comparisons as PDF.
-- **Maintain:** Log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes and sharpening details. Each knife's History tab links maintenance, notes, and record changes to their log entries.
-- **Understand:** Explore makers, materials, dimensions, completeness, and activity through collection insights, including a calendar activity map. Modern-layout styles add monthly additions for the last 12 months and blade, overall-length, weight, and thickness distributions. Open chart details to inspect matching knives or print the Overview as a report.
-- **Personalize:** Pick one of [twelve styles](#styles), light or dark color mode, metric, imperial, or both measurement units, time format, pinned ordering, and the page BladeVault opens on: **Insights**, **Studio**, or **Collection**.
-- **Connect:** Use MCP to search and analyze your collection from an AI client, with optional metadata updates and maintenance logging.
+- **Maintain:** Log cleaning, lubrication, sharpening, stropping, and disassembly with dated notes and sharpening details. Care reminders tell you when a knife is due, with a **Coming up** list of the next deadlines and per-knife intervals. Each knife's History tab links maintenance, notes, and record changes to their log entries.
+- **Understand:** Explore makers, materials, dimensions, completeness, and activity through collection insights, including a calendar activity map and a History timeline with a year in review. Modern-layout styles add monthly additions for the last 12 months and blade, overall-length, weight, and thickness distributions. Open chart details to inspect matching knives or print the Overview as a report.
+- **Earn achievements:** Unlock 100 badges in four tiers as the collection grows, see them in the **Trophy case** on Insights, and climb collector ranks from **Rookie** to **Jedi Collector**.
+- **Personalize:** Pick one of [twelve styles](#styles), light or dark color mode, metric, imperial, or both measurement units, time format, pinned ordering, and the page BladeVault opens on: **Insights**, **Studio**, **Collection**, **Wishlist**, or **Price Drops**.
+- **Connect:** Use [MCP](#model-context-protocol-mcp) from Claude Code, Claude Desktop, Codex, Cursor, or LM Studio to search your collection and read price history, and, with write access on, add knives and photos, update records, and log maintenance.
 - **Keep control:** Store your vault locally in SQLite, create portable ZIP backups, and optionally back up to your own Google Drive. Crash and error reporting is opt-in.
 
 ## Styles
 
-BladeVault ships twelve styles. Switch them in **Settings → Appearance**, or cycle through all of them with the quick theme switcher in the footer.
+BladeVault ships twelve styles. Switch them in **Settings → Appearance**, or pick one from the theme button in the footer, which shows every style. The light/dark button next to it switches color mode in styles that have both.
 
 | Style        | Layout  | Color mode    | Character                                                                                    |
 | ------------ | ------- | ------------- | -------------------------------------------------------------------------------------------- |
@@ -92,6 +97,26 @@ Open **Add knife**, paste the retailer's URL, and choose **Scrape**. BladeVault 
 The interactive browser opens on the computer running BladeVault. In Docker, Podman, or Kubernetes, it runs inside the container and is not streamed to your screen.
 
 See the [URL import guide](docs/guides/add-knife-to-collection.md) for more details.
+
+## Price Drops and Wishlist
+
+Price monitoring runs on the BladeVault server, so it works in the desktop app, Docker, Helm, and a source checkout, but not in the static web app.
+
+- **What is checked:** A knife with a product link can be monitored with or without a regular price. Its link becomes its first store, and you can add up to 10 stores per knife. **Settings → Price monitoring → What to monitor** chooses which knives scheduled rounds cover: the Wishlist (the default), selected knives, or the whole collection. **Check the rest of the collection in free time** watches everything else too and alerts only on super sales, such as 50% below regular price.
+- **Rounds:** Prices are checked in rounds every 6, 12, or 24 hours, knife by knife with all of its stores at once, and failed checks are retried before the next round. Out-of-stock pages are still checked, so restocks show up.
+- **Other stores:** With AI connected, BladeVault searches other stores for each knife, trusts listings that show the exact model number, and keeps other variants of the model as related listings. The first two variants per store are monitored too, shown as dotted chart lines, without affecting the knife's best price or alerts.
+- **AI supervisor:** An optional supervisor, in observe or act mode, schedules checks, retries pages, and writes a daily summary.
+- **Price Drops page:** A monitoring timeline, sale and 90-day-low badges, and a 30-day chart for each row. Each knife's **Market** tab shows best price, lowest and highest seen, and history per store, with CSV export.
+- **Wishlist:** Group knives as **Next**, **Saving**, or **Someday**, filter by brand, and see the top 3 deals, each knife's cheapest stores, and a stock-style price chart with the regular price as a reference.
+- **Alerts:** Drops and restocks arrive in the Inbox and as desktop notifications. Set a minimum change, a target price per knife, or **Only below regular price**, mute a knife, or select **Stop out-of-stock alerts** on any out-of-stock message.
+
+Connect AI in **Settings → AI / MCP** with any OpenAI-compatible endpoint, such as OpenAI, a gateway, or a local Ollama or LM Studio server. See the [Price Drops guide](docs/guides/price-drops.md) for the full details.
+
+## Chat
+
+Open **Chat** to ask questions such as "show me all price drops from the last week" or "which knives are missing a steel?". Answers stream in with the knife cards and price tables they are based on. Chats are saved, searchable, and can be renamed, archived, or deleted, and each chat has its own model and reasoning level (**Off**, **Low**, **Medium**, or **High**).
+
+Chat uses the AI connection from **Settings → AI / MCP** and the same read-only tools as MCP, so it cannot change your vault. The knife records it looks up are sent to your AI provider, but knife notes never are; use a local model to keep everything on your computer. Like price monitoring, Chat needs the BladeVault server. See the [Chat guide](docs/guides/chat.md).
 
 ## Studio
 
@@ -284,6 +309,8 @@ hostname, immutable image tags, existing PVCs, and other configuration.
 
 ## Desktop app
 
+The footer has an update button that checks for desktop updates and shows a dot when one is ready. The steps below use **Settings → About**, which offers the same update flow.
+
 ### macOS
 
 BladeVault requires macOS 13 Ventura or newer.
@@ -366,27 +393,31 @@ Open [http://localhost:3000](http://localhost:3000). This project uses Next.js s
 
 ### Useful commands
 
-| Command                 | Purpose                                             |
-| ----------------------- | --------------------------------------------------- |
-| `npm run dev`           | Start the Next.js development server.               |
-| `npm run build`         | Create a production build.                          |
-| `npm run lint`          | Run ESLint.                                         |
-| `npm run format:check`  | Check formatting with Prettier.                     |
-| `npm run test`          | Run the unit and integration suite once.            |
-| `npm run test:watch`    | Run unit and integration tests in watch mode.       |
-| `npm run test:e2e`      | Build the web app and run Chromium smoke tests.     |
-| `npm run test:e2e:ui`   | Open Playwright's interactive test runner.          |
-| `npm run mcp:build`     | Build the MCP stdio entry point.                    |
-| `npm run mcp`           | Build and start the MCP stdio server.               |
-| `npm run desktop:dev`   | Run the Electron desktop shell in development.      |
-| `npm run desktop:smoke` | Build and smoke-test the desktop runtime.           |
-| `npm run dist:desktop`  | Package desktop installers without publishing them. |
+| Command                 | Purpose                                                |
+| ----------------------- | ------------------------------------------------------ |
+| `npm run dev`           | Start the Next.js development server.                  |
+| `npm run build`         | Create a production build.                             |
+| `npm run lint`          | Run ESLint.                                            |
+| `npm run format:check`  | Check formatting with Prettier.                        |
+| `npm run test`          | Run the unit and integration suite once.               |
+| `npm run test:watch`    | Run unit and integration tests in watch mode.          |
+| `npm run test:e2e`      | Build the web app and run Chromium smoke tests.        |
+| `npm run test:e2e:ui`   | Open Playwright's interactive test runner.             |
+| `npm run mcp:build`     | Build the MCP stdio entry point.                       |
+| `npm run mcp`           | Build and start the MCP stdio server.                  |
+| `npm run desktop:dev`   | Run the Electron desktop shell in development.         |
+| `npm run desktop:smoke` | Build and smoke-test the desktop runtime.              |
+| `npm run dist:desktop`  | Package desktop installers without publishing them.    |
+| `npm run dev:static`    | Run the static browser preview locally.                |
+| `npm run build:static`  | Export the static browser preview to `static-app/out`. |
+
+The static browser preview starts with an empty collection and keeps changes only in the browser tab's session. SQLite, URL import, price monitoring, Chat, backups, App lock, and MCP need the desktop or self-hosted runtime. See [`static-app/README.md`](static-app/README.md).
 
 ## Model Context Protocol (MCP)
 
-BladeVault exposes its existing local collection to MCP clients such as LM
-Studio, Codex, Claude Desktop, and Cursor. No separate database or cloud account
-is required.
+BladeVault exposes its existing local collection to MCP clients such as Claude
+Code, Claude Desktop, Codex, Cursor, and LM Studio. No separate database or
+cloud account is required.
 
 | Tool                    | Ability                                                              | Access     |
 | ----------------------- | -------------------------------------------------------------------- | ---------- |
@@ -404,14 +435,52 @@ is required.
 | `bulk_update_knives`    | Preview and atomically apply explicit multi-knife updates            | Write mode |
 | `get_knife_maintenance` | Retrieve maintenance history for one knife                           | Read-only  |
 | `add_maintenance_event` | Log a maintenance event for one knife                                | Write mode |
+| `list_price_watches`    | List monitored knives with best price, state, and last change        | Read-only  |
+| `list_price_changes`    | List price drops, increases, restocks, and out-of-stock items        | Read-only  |
+| `get_price_history`     | Retrieve one knife's price history per store and its change events   | Read-only  |
+| `get_price_watch`       | Retrieve one knife's monitoring mode, eligibility, and store sources | Read-only  |
+| `get_price_attention`   | Summarize blocked, failed, and unavailable price checks              | Read-only  |
+| `update_price_watch`    | Preview and apply mode and store URL changes for one knife           | Write mode |
+| `request_price_check`   | Queue **Check now** for one knife at each store's normal pace        | Write mode |
 
 Open **Settings → AI / MCP** to review activity, copy the local client
 configuration, enable or disable HTTP access, and allow or deny write access. Write mode is off by default. Metadata updates require the expected
 record timestamp to prevent overwriting newer edits and are recorded in the
-change log. Maintenance writes append dated events to a knife's history. Photo
-tools preview first, download only public `https` images, and are recorded in
-the change log. MCP cannot replace knife IDs, record timestamps, or entire
-records.
+change log. Maintenance writes append dated events to a knife's history.
+`add_knife` and the photo tools preview first and save only when the same
+request is repeated with `apply: true` and the returned `preview_hash`;
+`add_knife` also checks for possible duplicates. Photo tools download only
+public `https` images and are recorded in the change log. Price monitoring
+writes change only a knife's monitoring mode and store sources. MCP cannot
+replace knife IDs, record timestamps, or entire records, and it never returns
+the AI provider key or saved store cookies. See the
+[MCP reference](docs/reference/mcp.md) for every tool's options.
+
+### Connect Claude Code
+
+**Settings → AI / MCP** shows a ready **Claude Code** command with your server
+address and token. Copy it and run it in a terminal:
+
+```bash
+claude mcp add --transport http --scope user bladevault http://<SERVER_IP>:5500/mcp --header "Authorization: Bearer <TOKEN_FROM_BLADEVAULT_SETTINGS>"
+```
+
+`--scope user` makes BladeVault available in every project. Check it with
+`claude mcp list`.
+
+### Connect Claude Desktop
+
+Claude Desktop only starts local MCP servers. In the desktop app, open
+**Settings → AI / MCP** and select **Connect** under **Claude Desktop**:
+BladeVault backs up `claude_desktop_config.json`, adds a `bladevault` entry
+that runs a small bridge with the Electron runtime it already ships, and leaves
+your other servers unchanged. Quit Claude Desktop completely and reopen it.
+Keep BladeVault running while you use the connection.
+
+With Docker, a LAN server, or a source checkout, the same tab shows a copy-ready
+Claude Desktop config that runs `mcp-remote` through `npx`, so Node.js must be
+installed on the computer running Claude Desktop. See the
+[MCP reference](docs/reference/mcp.md#connect-claude-desktop) for details.
 
 ### Connect an MCP client
 
@@ -557,7 +626,7 @@ For a manual filesystem backup, stop BladeVault and copy the whole data folder s
 
 Cloud backup is opt-in and leaves local storage as the source of truth. Connect your own Google Drive from **Settings → Backup & Restore** to upload or restore a complete archive, including images. BladeVault keeps one `bladevault-data.tar.gz` file in a `BladeVault` folder and can only see the files it creates. The backup travels directly between your BladeVault server and Google Drive; `https://auth.bladevault.pro` only completes the Google sign-in.
 
-Manual and automatic backups run quietly on the local server. You can switch pages or reload the browser while an upload continues; check its status in **Settings → Backup & Restore**. Keep the desktop app or self-hosted server running until it finishes. Automatic backups wait at least 30 seconds after edits settle and use a browser idle slot to start. During an open app session, changes made during a backup are grouped into a later backup. Completion does not show a popup.
+Manual and automatic backups run quietly on the local server. You can switch pages or reload the browser while an upload continues; check its status in **Settings → Backup & Restore**. Keep the desktop app or self-hosted server running until it finishes. Automatic backups wait at least 30 seconds after edits settle and use a browser idle slot to start. During an open app session, changes made during a backup are grouped into a later backup. Completion does not show a popup; turn on the optional Inbox message in **Settings → Notifications** to get a note when a backup or restore finishes.
 
 Restore also runs on the local server and continues when you switch pages or reload. You can browse the existing collection while the backup downloads and is validated; editing and automatic backups pause until it finishes. BladeVault waits for active saves, keeps a safety copy, briefly pauses access to install the restored vault, and refreshes open views and images afterward. Local MCP processes participate in the same access protection. Restoring a password-protected vault requires unlocking again with the backed-up password. Safety copies and interrupted-restore recovery files are kept in private `._bladevault-*` folders inside the data directory and are excluded from app backup archives.
 
