@@ -8,6 +8,7 @@ import {
   chatToolDefinitions,
   CHAT_TOOLS,
   REASONING_IGNORED_NOTICE,
+  REPEAT_NOTICE,
   runChatTurn,
   type ChatLoopEvent,
   type ChatTurnInput,
@@ -197,11 +198,64 @@ describe('runChatTurn (native tools)', () => {
     const fetchImpl = vi.fn<typeof fetch>()
     for (let index = 0; index < 10; index++)
       fetchImpl.mockResolvedValueOnce(
-        sseResponse([toolCallChunk(`c${index}`, 'echo_tool', { word: 'x' })]),
+        sseResponse([
+          toolCallChunk(`c${index}`, 'echo_tool', { word: `w${index}` }),
+        ]),
       )
     fetchImpl.mockResolvedValueOnce(sseResponse([textChunk('Done.')]))
     const result = await turn(fetchImpl, [tool]).promise
     expect(result).toMatchObject({ text: 'Done.', steps: 10 })
+  })
+
+  it('does not run a repeated call again, but runs new arguments', async () => {
+    const { tool, run } = fakeTool()
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        sseResponse([toolCallChunk('c1', 'echo_tool', { word: 'a', n: 1 })]),
+      )
+      // Same arguments in another key order: a repeat.
+      .mockResolvedValueOnce(
+        sseResponse([toolCallChunk('c2', 'echo_tool', { n: 1, word: 'a' })]),
+      )
+      .mockResolvedValueOnce(
+        sseResponse([toolCallChunk('c3', 'echo_tool', { word: 'b' })]),
+      )
+      .mockResolvedValueOnce(sseResponse([textChunk('Done.')]))
+    const { promise, events } = turn(fetchImpl, [tool])
+    const result = await promise
+    expect(result).toMatchObject({ text: 'Done.', steps: 3 })
+    expect(run).toHaveBeenCalledTimes(2)
+    const results = events.filter((event) => event.type === 'tool_result')
+    expect(results[1]).toMatchObject({
+      content: expect.stringMatching(/^Not run: you already called echo_tool/),
+      step: { summary: 'Same call as before, skipped', ok: true },
+    })
+    expect(events.some((event) => event.type === 'notice')).toBe(false)
+    // Every request still offers tools.
+    for (let call = 0; call < 4; call++)
+      expect(bodyOf(fetchImpl, call).tools).toBeDefined()
+  })
+
+  it('makes a model stuck on one call answer without tools', async () => {
+    const { tool, run } = fakeTool()
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async (_url, init) => {
+        const body = JSON.parse(String(init?.body))
+        return body.tools
+          ? sseResponse([toolCallChunk('c', 'echo_tool', { word: 'same' })])
+          : sseResponse([textChunk('Final.')])
+      })
+    const { promise, events } = turn(fetchImpl, [tool])
+    const result = await promise
+    expect(result).toMatchObject({ text: 'Final.', steps: 3 })
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(fetchImpl).toHaveBeenCalledTimes(4)
+    const last = bodyOf(fetchImpl, 3)
+    expect(last.tools).toBeUndefined()
+    expect(last.messages.at(-1).content).toMatch(/repeating the same tool/)
+    expect(events).toContainEqual({ type: 'notice', message: REPEAT_NOTICE })
   })
 
   it('sends the whole history', async () => {
@@ -291,5 +345,36 @@ describe('runChatTurn (JSON mode)', () => {
     const result = await turn(fetchImpl, [tool], 'json').promise
     expect(run).toHaveBeenCalledTimes(1)
     expect(result.text).toBe('Done.')
+  })
+
+  it('makes a model stuck on one call answer', async () => {
+    const { tool, run } = fakeTool()
+    const repeat = '{"tool":"echo_tool","args":{"word":"same"}}'
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(sseResponse([textChunk(repeat)]))
+      .mockResolvedValueOnce(sseResponse([textChunk(repeat)]))
+      .mockResolvedValueOnce(sseResponse([textChunk(repeat)]))
+      .mockResolvedValueOnce(sseResponse([textChunk('{"answer":"Final."}')]))
+    const { promise, events } = turn(fetchImpl, [tool], 'json')
+    const result = await promise
+    expect(result.text).toBe('Final.')
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(bodyOf(fetchImpl, 3).messages.at(-1).content).toMatch(
+      /repeating the same tool/,
+    )
+    expect(events).toContainEqual({ type: 'notice', message: REPEAT_NOTICE })
+  })
+
+  it('stops a model that still repeats after being told to answer', async () => {
+    const { tool } = fakeTool()
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () =>
+        sseResponse([textChunk('{"tool":"echo_tool","args":{"word":"same"}}')]),
+      )
+    const result = await turn(fetchImpl, [tool], 'json').promise
+    expect(result.text).toMatch(/kept repeating the same lookup/)
+    expect(fetchImpl).toHaveBeenCalledTimes(4)
   })
 })
