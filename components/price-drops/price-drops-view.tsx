@@ -73,6 +73,10 @@ import {
 } from './price-format'
 import { PriceTrend, trendNetChange } from './price-trend'
 import {
+  cachedRowChartStores,
+  type RowChartStore,
+} from './row-price-chart-model'
+import {
   EMPTY_TEXT,
   groupByKnife,
   hasBuyablePrice,
@@ -641,6 +645,7 @@ function SourceTableRow({
   hourCycle,
   canSolve,
   trend,
+  chartStores,
   knifeTrend,
   bestMinor,
   group,
@@ -664,6 +669,8 @@ function SourceTableRow({
   canSolve: boolean | null
   /** The 30-day chart: the knife's best price, or this store's own. */
   trend: WishlistTrend | undefined
+  /** Each store's own history behind `trend`, for the chart's dots. */
+  chartStores?: readonly RowChartStore[]
   /** `trend` is the knife's best price across its stores. */
   knifeTrend?: boolean
   /** A store row: the knife's best price, to say how far above it this is. */
@@ -813,6 +820,7 @@ function SourceTableRow({
           ) : (
             <PriceTrend
               trend={trend}
+              stores={chartStores}
               currentMinor={chipPriceIn(source, trend)}
               regularMinor={regularIn(source, trend)}
               label={knifeTrend ? 'Best store price' : `Price at ${store}`}
@@ -1132,6 +1140,27 @@ export function PriceDropsView({
     byKnife
       ? trends?.knives[source.knife.id]
       : trends?.sources[String(source.sourceId)]
+  // The chart's dots: each store's own history (one store for a listing).
+  const chartStoresOf = (sources: MonitoredSource[]) =>
+    trends
+      ? cachedRowChartStores(
+          trends,
+          sources.map((source) => source.sourceId).join(','),
+          () =>
+            sources.flatMap((source) => {
+              const trend = trends.sources[String(source.sourceId)]
+              return trend
+                ? [
+                    {
+                      key: source.laneKey,
+                      label: storeLabel(source.storeName),
+                      trend,
+                    },
+                  ]
+                : []
+            }),
+        )
+      : undefined
   const rows = sortRows(
     section,
     filtered.filter(SECTION_FILTER[section]),
@@ -1468,6 +1497,8 @@ export function PriceDropsView({
       ids?: number[]
       child?: boolean
       bestMinor?: number | null
+      /** A grouped knife row: all its stores. */
+      stores?: MonitoredSource[]
     } = {},
   ) => {
     const ids = options.ids ?? [source.sourceId]
@@ -1486,6 +1517,11 @@ export function PriceDropsView({
         hourCycle={hourCycle}
         canSolve={canSolve}
         trend={options.child ? undefined : trendOf(source, byKnife)}
+        chartStores={
+          options.child
+            ? undefined
+            : chartStoresOf(byKnife ? (options.stores ?? [source]) : [source])
+        }
         knifeTrend={byKnife}
         bestMinor={options.bestMinor}
         group={options.group}
@@ -1989,6 +2025,7 @@ export function PriceDropsView({
                                 <Fragment key={group.knifeId}>
                                   {renderRow(group.lead, {
                                     ids: group.sources.map((s) => s.sourceId),
+                                    stores: group.sources,
                                     group: {
                                       count: group.sources.length,
                                       expanded: open,
