@@ -655,7 +655,9 @@
   }
   [data-price-grid] td[data-col='knife'] {
     grid-area: knife;
+    width: auto;
     min-width: 0;
+    max-width: none;
   }
   [data-price-grid] td[data-col='knife'] > div {
     padding-left: 0;

@@ -159,6 +159,49 @@ const PROGRESS_REFRESH_MS = 3_000
 /** Bulk changes to this many listings or knives ask first. */
 const BULK_CONFIRM_AT = 5
 const NARROW_QUERY = '(max-width: 639px)'
+/** How long a knife opened from outside stays centred while details load. */
+const FOLLOW_MS = 10_000
+/** Space above a knife whose details are taller than the screen. */
+const REVEAL_GAP = 16
+
+/** The element that scrolls `el`: an overflowing ancestor or the page. */
+function scrollParent(el: HTMLElement): HTMLElement {
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node)
+    if (
+      (overflowY === 'auto' || overflowY === 'scroll') &&
+      node.scrollHeight > node.clientHeight
+    )
+      return node
+  }
+  return (document.scrollingElement as HTMLElement) ?? document.documentElement
+}
+
+/**
+ * Scroll a knife's row and its open details to the middle of the screen. When
+ * they are taller than the screen, the row goes to the top instead.
+ */
+function centerKnife(
+  list: HTMLElement,
+  knifeId: string,
+  behavior: ScrollBehavior,
+): boolean {
+  const row = list.querySelector<HTMLElement>(
+    `[data-knife-row="${CSS.escape(knifeId)}"]`,
+  )
+  if (!row) return false
+  const detail = list.querySelector<HTMLElement>('[data-price-detail-row]')
+  const container = scrollParent(row)
+  const page = container === document.scrollingElement
+  const viewTop = page ? 0 : container.getBoundingClientRect().top
+  const viewHeight = page ? window.innerHeight : container.clientHeight
+  const top = row.getBoundingClientRect().top
+  const height = (detail ?? row).getBoundingClientRect().bottom - top
+  const offset = height <= viewHeight ? (viewHeight - height) / 2 : REVEAL_GAP
+  const delta = top - viewTop - offset
+  if (Math.abs(delta) >= 2) container.scrollBy({ top: delta, behavior })
+  return true
+}
 
 const STORAGE = {
   section: 'bladevault.priceDrops.section',
@@ -722,7 +765,9 @@ function SourceTableRow({
           onCheckedChange={onToggleChecked}
         />
       </td>
-      <td data-col="knife" className="py-2.5 pr-3">
+      {/* The knife column takes the free width; `max-w-0` lets long names
+          and specs truncate instead of widening the table off screen. */}
+      <td data-col="knife" className="w-full max-w-0 min-w-[220px] py-2.5 pr-3">
         {child ? (
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pl-[72px]">
             <button
@@ -1097,7 +1142,10 @@ export function PriceDropsView({
   const [bulkBusy, setBulkBusy] = useState(false)
   const [attentionBusy, setAttentionBusy] = useState(false)
   const [confirm, setConfirm] = useState<BulkAction | null>(null)
-  const scrollTarget = useRef<string | null>(initialKnife ?? null)
+  // A deep link lands on the knife; a pick on this page scrolls smoothly.
+  const scrollTarget = useRef<{ knifeId: string; smooth: boolean } | null>(
+    initialKnife ? { knifeId: initialKnife, smooth: false } : null,
+  )
   const listRef = useRef<HTMLDivElement>(null)
 
   const lanes = new Map(
@@ -1193,14 +1241,49 @@ export function PriceDropsView({
       window.history.replaceState(null, '', url)
   }, [section, selected, supervisorChoice])
 
-  // Bring a knife chosen outside the table (pin, deep link) into view.
+  // Bring a knife chosen outside the table (Inbox link, pin, AI note) to the
+  // middle of the screen. Its details, chart and row photos load after the
+  // table, so keep it centred while the layout settles, until the user scrolls.
+  // The target is cleared only when following ends, so a re-run of this effect
+  // (Strict Mode, a refreshed overview) picks it up again.
   useEffect(() => {
     const target = scrollTarget.current
-    if (!target || target !== selectedKnife || !overview) return
-    scrollTarget.current = null
-    listRef.current
-      ?.querySelector<HTMLElement>(`[data-knife-row="${CSS.escape(target)}"]`)
-      ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    const list = listRef.current
+    if (!target || target.knifeId !== selectedKnife || !overview || !list)
+      return
+    const knifeId = target.knifeId
+    if (!centerKnife(list, knifeId, target.smooth ? 'smooth' : 'instant')) {
+      scrollTarget.current = null
+      return
+    }
+    const root = list.closest<HTMLElement>('[data-price-drops]') ?? list
+    const timer = setTimeout(finish, FOLLOW_MS)
+    // The observer reports once on start; skip it so a smooth scroll runs.
+    let started = false
+    const observer = new ResizeObserver(() => {
+      if (!started) {
+        started = true
+        return
+      }
+      centerKnife(list, knifeId, 'instant')
+    })
+    observer.observe(root)
+    const table = list.querySelector('table')
+    if (table) observer.observe(table)
+    const userEvents = ['wheel', 'touchstart', 'keydown', 'pointerdown']
+    for (const type of userEvents)
+      window.addEventListener(type, finish, { passive: true, capture: true })
+    function detach() {
+      clearTimeout(timer)
+      observer.disconnect()
+      for (const type of userEvents)
+        window.removeEventListener(type, finish, { capture: true })
+    }
+    function finish() {
+      if (scrollTarget.current === target) scrollTarget.current = null
+      detach()
+    }
+    return detach
   }, [selectedKnife, overview])
 
   const changeSection = (value: Section) => {
@@ -1226,7 +1309,7 @@ export function PriceDropsView({
       setQuery('')
       setStore('all')
     }
-    scrollTarget.current = knifeId
+    scrollTarget.current = { knifeId, smooth: true }
     setSelected(knifeId)
     if (narrow) setSheetOpen(true)
   }
@@ -1572,7 +1655,13 @@ export function PriceDropsView({
     !narrow && panel && knifeId === selectedKnife ? (
       <tr key={`detail-${knifeId}`} data-price-detail-row>
         <td colSpan={6} className="px-4 pt-1 pb-4">
-          <div role="region" aria-label="Knife prices">
+          {/* Zero intrinsic width: the chart, sized in pixels once drawn,
+              must not widen the table past the screen. */}
+          <div
+            role="region"
+            aria-label="Knife prices"
+            className="w-0 min-w-full"
+          >
             {panel}
           </div>
         </td>
