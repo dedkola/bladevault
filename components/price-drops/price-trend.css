@@ -89,12 +89,16 @@
   font-size: 11px;
   text-align: right;
 }
-/* The item's regular price, a dashed reference inside the chart's scale. */
-[data-trend-regular] {
-  stroke: var(--muted-foreground);
-  stroke-width: 1;
-  stroke-dasharray: 4 3;
-  opacity: 0.7;
+/* Baseline fill between the line and the item's regular price: green
+   where the price is below it, red where above. */
+[data-trend-base] {
+  fill-opacity: 0.22;
+}
+[data-trend-base='below'] {
+  fill: var(--trend-down, var(--price-drop, #2f7d46));
+}
+[data-trend-base='above'] {
+  fill: var(--trend-up, var(--price-rise, #b4232a));
 }
 [data-trend-regular-note] {
   color: var(--muted-foreground);

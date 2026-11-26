@@ -92,7 +92,8 @@ describe('PriceTrend', () => {
     expect(html).toContain('data-trend-chip="down"')
     expect(html).toContain('▼ $72.10 · 36%')
     expect(html).toContain('data-trend-spark="down"')
-    expect(html).toContain('data-trend-regular="true"')
+    expect(html).toContain('data-trend-base="below"')
+    expect(html).not.toContain('stroke-dasharray')
     expect(html).toContain('regular $202.00')
     // The last small move belongs to the price cell, not the chart.
     expect(html).not.toContain('$0.56 ·')
@@ -101,20 +102,47 @@ describe('PriceTrend', () => {
     )
   })
 
-  it('starts the line at the first store reading', () => {
+  it('starts the line at the regular price and steps to the first reading', () => {
     const html = render({
       trend: amazon,
       currentMinor: 12990,
       regularMinor: 20200,
     })
-    const line = html.match(/data-trend-line="true" d="M([\d.]+),/)
-    expect(Number(line?.[1])).toBe(2)
+    const line = html.match(
+      /data-trend-line="true" d="M([\d.]+),([\d.]+) H([\d.]+) V([\d.]+)/,
+    )
+    const [, x0, yRegular, xLead, yFirst] = line!.map(Number)
+    expect(x0).toBe(2)
+    // The regular price holds the first 15% of the plot, then steps down.
+    expect(xLead).toBeCloseTo(2 + 0.15 * 102, 0)
+    expect(yFirst).toBeGreaterThan(yRegular)
   })
 
-  it('drops the chip and the dashed line without a regular price', () => {
+  it('starts at the first reading when it is the regular price', () => {
+    const html = render({
+      trend: {
+        ...amazon,
+        steps: [{ at: amazon.since, price: 20200 }, ...amazon.steps.slice(1)],
+      },
+      currentMinor: 12990,
+      regularMinor: 20200,
+    })
+    const line = html.match(
+      /data-trend-line="true" d="M([\d.]+),[\d.]+ H([\d.]+)/,
+    )
+    expect(Number(line?.[1])).toBe(2)
+    // No lead: the first step ends at the next real reading.
+    const span = amazon.until - amazon.since
+    expect(Number(line?.[2])).toBeCloseTo(
+      ((amazon.steps[1].at - amazon.since) / span) * 102 + 2,
+      0,
+    )
+  })
+
+  it('drops the chip and the baseline fill without a regular price', () => {
     const html = render({ trend: amazon, currentMinor: 12990 })
     expect(html).not.toContain('data-trend-chip')
-    expect(html).not.toContain('data-trend-regular')
+    expect(html).not.toContain('data-trend-base')
     // The colour then follows the window: up from $127.76.
     expect(html).toContain('data-trend-spark="up"')
   })
@@ -126,6 +154,8 @@ describe('PriceTrend', () => {
       regularMinor: 20200,
     })
     expect(html).not.toContain('data-trend-chip')
-    expect(html).toContain('data-trend-regular="true"')
+    expect(html).toContain('data-trend-base="below"')
+    // Still green: the last price read is below the regular price.
+    expect(html).toContain('data-trend-spark="down"')
   })
 })

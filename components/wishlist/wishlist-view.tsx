@@ -29,6 +29,10 @@ import {
   knifeStoresLabel,
 } from '@/components/price-drops/knife-stores-list'
 import { money, relativeTime } from '@/components/price-drops/price-format'
+import {
+  regularChipLabel,
+  regularGap,
+} from '@/components/price-drops/price-trend'
 import { useMinuteClock } from '@/components/price-drops/price-ui'
 import { useKnives } from '@/components/providers/knives-provider'
 import { useMarket } from '@/components/providers/market-provider'
@@ -63,6 +67,7 @@ import {
   wishlistStorePrices,
   wishlistTrackedDays,
   wishlistTrendDirection,
+  withRegularStart,
   type WishlistDeal,
   type WishlistItem,
   type WishlistMove,
@@ -360,12 +365,15 @@ function useElementWidth() {
 }
 
 /**
- * Best store price while the knife has been tracked, drawn as a stock-style
- * step "mountain" (a price holds until the next check) that fills its
- * column, scaled to its own history and the regular price, which shows as a
- * dashed line. A chip gives the net change over the window, and the axis
- * names the window and the last move, so a two-day chart does not read like
- * a month. Hovering moves a crosshair with the price on that day.
+ * Best store price while the knife has been tracked, drawn as a step line
+ * (a price holds until the next check) that fills its column, built from the
+ * knife's regular price: when the stores were first seen at another price,
+ * the line starts at the regular price and steps to the first reading. Like
+ * a baseline chart, the area between the regular price and the line is green
+ * below it and red above it. The chip gives how far the price is from the
+ * regular price, and the axis names the window and the last move, so a
+ * two-day chart does not read like a month. Hovering moves a crosshair with
+ * the price on that day. Without a regular price, it is a plain "mountain".
  */
 function Sparkline({
   row,
@@ -379,7 +387,11 @@ function Sparkline({
   const [boxRef, width] = useElementWidth()
   const trend = row.trend
   if (!trend) return <span data-wishlist-spark-empty>Not tracked yet</span>
-  const steps = trend.steps
+  const regular =
+    row.regularMinor !== null && row.currency === trend.currency
+      ? row.regularMinor
+      : null
+  const { steps, since, lead } = withRegularStart(trend, regular)
   const priced = steps.filter(
     (step): step is { at: number; price: number } => step.price !== null,
   )
@@ -389,17 +401,22 @@ function Sparkline({
 
   const days = wishlistTrackedDays(trend)
   const dayText = `${days} ${days === 1 ? 'day' : 'days'}`
+  // Store moves only: the step from the regular price is not a store move.
   const moves = wishlistMoves(trend)
-  const direction = wishlistTrendDirection(moves)
   const change = moves.at(-1)
   const current = steps[steps.length - 1].price
   const stockNote = current === null ? ', out of stock now' : ''
-  const first = priced[0].price
-  const net = priced[priced.length - 1].price - first
-  const regular =
-    row.regularMinor !== null && row.currency === trend.currency
-      ? row.regularMinor
-      : null
+  const first = priced[lead ? 1 : 0].price
+  const last = priced[priced.length - 1].price
+  const net = last - first
+  // The chip and the line read against the regular price, when there is one.
+  const gap = regularGap(
+    row.live && !row.summary?.outOfStock ? row.priceMinor : null,
+    regular,
+  )
+  const direction =
+    (gap ?? regularGap(last, regular))?.direction ??
+    wishlistTrendDirection(wishlistMoves({ ...trend, steps }))
 
   // Scale to the history and the regular price, but never tighter than a few
   // percent of the price, so a $1 move on a $200 knife does not look like a
@@ -412,9 +429,9 @@ function Sparkline({
   const middle = (high + low) / 2
   const top = middle + spread * 0.62
   const range = spread * 1.24
-  const span = Math.max(trend.until - trend.since, 1)
+  const span = Math.max(trend.until - since, 1)
   const plot = Math.max((width ?? 0) - 4, 1)
-  const x = (at: number) => ((at - trend.since) / span) * plot + 2
+  const x = (at: number) => ((at - since) / span) * plot + 2
   const y = (price: number) => 2 + ((top - price) / range) * (height - 4)
 
   // One unbroken line from the first price: out of stock holds the last
@@ -446,13 +463,15 @@ function Sparkline({
       Math.max((event.clientX - box.left - 2) / plot, 0),
       1,
     )
-    setHoverAt(trend.since + share * span)
+    setHoverAt(since + share * span)
   }
 
   const summary = moves.length
     ? `net ${net < 0 ? 'down' : 'up'} ${money(Math.abs(net), trend.currency)}, last change ${change!.delta < 0 ? 'down' : 'up'} ${money(Math.abs(change!.delta), trend.currency)} on ${moveDate(change!.at)}`
     : 'no price change'
-  const regularY = regular === null ? 0 : y(regular)
+  const regularY = regular === null ? 0 : y(regular).toFixed(1)
+  // The area between the line and the regular price, split at it.
+  const baseArea = `${line} V${regularY} H${from.toFixed(1)} Z`
 
   return (
     <div data-wishlist-spark-cell>
@@ -477,6 +496,16 @@ function Sparkline({
                   <stop offset="0" data-wishlist-spark-stop="top" />
                   <stop offset="1" data-wishlist-spark-stop="bottom" />
                 </linearGradient>
+                {regular !== null && (
+                  <>
+                    <clipPath id={`${gradientId}-below`}>
+                      <rect x="0" y={regularY} width={width} height={height} />
+                    </clipPath>
+                    <clipPath id={`${gradientId}-above`}>
+                      <rect x="0" y="0" width={width} height={regularY} />
+                    </clipPath>
+                  </>
+                )}
               </defs>
               {gaps.map((gap) => (
                 <rect
@@ -488,29 +517,24 @@ function Sparkline({
                   height={height}
                 />
               ))}
-              <path
-                d={`${line} V${height} H${from.toFixed(1)} Z`}
-                fill={`url(#${gradientId})`}
-              />
-              {regular !== null && (
-                <g data-wishlist-spark-regular>
-                  <line
-                    x1="2"
-                    x2={width - 2}
-                    y1={regularY.toFixed(1)}
-                    y2={regularY.toFixed(1)}
+              {regular === null ? (
+                <path
+                  d={`${line} V${height} H${from.toFixed(1)} Z`}
+                  fill={`url(#${gradientId})`}
+                />
+              ) : (
+                <>
+                  <path
+                    data-wishlist-spark-base="below"
+                    d={baseArea}
+                    clipPath={`url(#${gradientId}-below)`}
                   />
-                  {/* Below the line when it runs along the top edge. */}
-                  <text
-                    x={width - 4}
-                    y={(regularY < 12 ? regularY + 11 : regularY - 3).toFixed(
-                      1,
-                    )}
-                    textAnchor="end"
-                  >
-                    regular {wholeMoney(regular, trend.currency)}
-                  </text>
-                </g>
+                  <path
+                    data-wishlist-spark-base="above"
+                    d={baseArea}
+                    clipPath={`url(#${gradientId}-above)`}
+                  />
+                </>
               )}
               <path data-wishlist-spark-line d={line} fill="none" />
               {hoverAt !== null && (
@@ -547,23 +571,39 @@ function Sparkline({
               data-wishlist-spark-tip
               style={{ left: `${x(hoverAt!).toFixed(1)}px` }}
             >
-              {moveDate(Math.max(hoverAt!, trend.since))} ·{' '}
+              {hovered === lead
+                ? 'Regular'
+                : moveDate(Math.max(hoverAt!, trend.since))}{' '}
+              ·{' '}
               {hovered.price === null
                 ? 'Out of stock'
                 : money(hovered.price, trend.currency)}
             </span>
           )}
         </div>
-        <span
-          data-wishlist-spark-chip={direction}
-          title={
-            net
-              ? `${net < 0 ? 'Down' : 'Up'} ${money(Math.abs(net), trend.currency)} over ${dayText}`
-              : `No price change over ${dayText}`
-          }
-        >
-          {chipLabel(net, first)}
-        </span>
+        {gap ? (
+          <span
+            data-wishlist-spark-chip={gap.direction}
+            title={
+              gap.direction === 'flat'
+                ? `At the regular price ${money(regular, trend.currency)}`
+                : `${money(Math.abs(gap.delta), trend.currency)} (${gap.share}%) ${gap.direction === 'down' ? 'below' : 'above'} the regular price ${money(regular, trend.currency)}`
+            }
+          >
+            {regularChipLabel(gap, trend.currency)}
+          </span>
+        ) : (
+          <span
+            data-wishlist-spark-chip={wishlistTrendDirection(moves)}
+            title={
+              net
+                ? `${net < 0 ? 'Down' : 'Up'} ${money(Math.abs(net), trend.currency)} over ${dayText}`
+                : `No price change over ${dayText}`
+            }
+          >
+            {chipLabel(net, first)}
+          </span>
+        )}
       </div>
       <div data-wishlist-spark-axis>
         <span>

@@ -3,6 +3,7 @@
 import { useId, useState, type PointerEvent } from 'react'
 import {
   WISHLIST_REGULAR_TOLERANCE,
+  withRegularStart,
   wishlistMoves,
   wishlistTrackedDays,
   wishlistTrendDirection,
@@ -69,13 +70,14 @@ export function trendNetChange(
 }
 
 /**
- * The store price over the tracked window, drawn as a stock-style step
- * "mountain" (a price holds until the next check) under a dashed line at
- * the item's regular price, both inside the chart's scale. The chip is the
- * one headline number: how far the current price is below (or above) the
- * regular price, in money and percent. The day-to-day moves stay on the
- * line and the hover readout; the knife's large chart has the detail.
- * Without a regular price to compare, there is no chip and no dashed line.
+ * The store price over the tracked window as a step line (a price holds
+ * until the next check), built from the item's regular price: when the
+ * store was first seen at another price, the line starts at the regular
+ * price and steps to the first reading. Like a baseline chart, the area
+ * between the regular price and the line is green below it and red above
+ * it. The chip is the one headline number: how far the current price is
+ * below (or above) the regular price, in money and percent. Without a
+ * regular price, the line is a plain "mountain" with no chip.
  *
  * Renders two siblings (chart row, caption); the parent lays them out.
  * Colours come from --trend-down, --trend-up and --trend-flat.
@@ -104,7 +106,8 @@ export function PriceTrend({
   const gradientId = `price-trend-${useId().replace(/:/g, '')}`
   const [hoverAt, setHoverAt] = useState<number | null>(null)
   if (!trend) return <span data-trend-empty>Not tracked yet</span>
-  const steps = trend.steps
+  const regular = regularMinor || null
+  const { steps, since, lead } = withRegularStart(trend, regular)
   const priced = steps.filter(
     (step): step is { at: number; price: number } => step.price !== null,
   )
@@ -112,16 +115,20 @@ export function PriceTrend({
   if (!priced.length) return <span data-trend-empty>No in-stock price yet</span>
 
   const currency = trend.currency
-  const regular = regularMinor || null
   const gap = regularGap(currentMinor, regular)
   const days = wishlistTrackedDays(trend)
   const dayText = `${days} ${days === 1 ? 'day' : 'days'}`
   const moves = wishlistMoves(trend)
   const change = moves.at(-1)
   const current = steps[steps.length - 1].price
-  const net = priced[priced.length - 1].price - priced[0].price
-  // The chart reads as the chip does; without one, as the window moved.
-  const direction = gap?.direction ?? wishlistTrendDirection(moves)
+  const last = priced[priced.length - 1].price
+  const firstReading = priced[lead ? 1 : 0].price
+  const net = last - firstReading
+  // The line reads against the regular price, as the chip does (by the last
+  // price read when out of stock); without one, as the window moved.
+  const direction =
+    (gap ?? regularGap(last, regular))?.direction ??
+    wishlistTrendDirection(moves)
 
   // Scale to the history and the regular price, but never tighter than a
   // few percent of the price, so a $1 move on a $200 knife does not look
@@ -134,9 +141,9 @@ export function PriceTrend({
   const middle = (high + low) / 2
   const bottom = middle - spread * 0.7
   const range = spread * 1.4
-  const span = Math.max(trend.until - trend.since, 1)
+  const span = Math.max(trend.until - since, 1)
   const plot = width - 8
-  const x = (at: number) => ((at - trend.since) / span) * plot + 2
+  const x = (at: number) => ((at - since) / span) * plot + 2
   const y = (price: number) =>
     height - 4 - ((price - bottom) / range) * (height - 10)
 
@@ -165,7 +172,7 @@ export function PriceTrend({
     const box = event.currentTarget.getBoundingClientRect()
     const px = ((event.clientX - box.left) / box.width) * width
     const share = Math.min(Math.max((px - 2) / plot, 0), 1)
-    setHoverAt(trend.since + share * span)
+    setHoverAt(since + share * span)
   }
 
   const gapText = gap
@@ -184,7 +191,9 @@ export function PriceTrend({
   ]
     .filter(Boolean)
     .join('; ')
-  const regularY = regular === null ? 0 : y(regular)
+  const regularY = regular === null ? 0 : y(regular).toFixed(1)
+  // The area between the line and the regular price, split at it.
+  const baseArea = `${line} V${regularY} H${from.toFixed(1)} Z`
 
   return (
     <>
@@ -199,24 +208,40 @@ export function PriceTrend({
           onPointerMove={moveHover}
           onPointerLeave={() => setHoverAt(null)}
         >
-          <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" data-trend-stop="top" />
-              <stop offset="1" data-trend-stop="bottom" />
-            </linearGradient>
-          </defs>
-          <path
-            d={`${line} V${height} H${from.toFixed(1)} Z`}
-            fill={`url(#${gradientId})`}
-          />
-          {regular !== null && (
-            <line
-              data-trend-regular
-              x1="2"
-              x2={width - 2}
-              y1={regularY.toFixed(1)}
-              y2={regularY.toFixed(1)}
-            />
+          {regular === null ? (
+            <>
+              <defs>
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" data-trend-stop="top" />
+                  <stop offset="1" data-trend-stop="bottom" />
+                </linearGradient>
+              </defs>
+              <path
+                d={`${line} V${height} H${from.toFixed(1)} Z`}
+                fill={`url(#${gradientId})`}
+              />
+            </>
+          ) : (
+            <>
+              <defs>
+                <clipPath id={`${gradientId}-below`}>
+                  <rect x="0" y={regularY} width={width} height={height} />
+                </clipPath>
+                <clipPath id={`${gradientId}-above`}>
+                  <rect x="0" y="0" width={width} height={regularY} />
+                </clipPath>
+              </defs>
+              <path
+                data-trend-base="below"
+                d={baseArea}
+                clipPath={`url(#${gradientId}-below)`}
+              />
+              <path
+                data-trend-base="above"
+                d={baseArea}
+                clipPath={`url(#${gradientId}-above)`}
+              />
+            </>
           )}
           <path data-trend-line d={line} fill="none" />
           {hoverAt !== null && (
@@ -259,7 +284,11 @@ export function PriceTrend({
       <span data-trend-note>
         {hovered ? (
           <>
-            <span>{moveDate(Math.max(hoverAt!, trend.since))}</span>
+            <span>
+              {hovered === lead
+                ? 'Regular'
+                : moveDate(Math.max(hoverAt!, trend.since))}
+            </span>
             <b data-trend-hover>
               {hovered.price === null
                 ? 'Out of stock'
