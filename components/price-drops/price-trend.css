@@ -103,3 +103,13 @@
 [data-trend-regular-note] {
   color: var(--muted-foreground);
 }
+/* Break mark where the line drops from a regular price pinned to the
+   chart's edge: a card-coloured gap under two thin slashes. */
+[data-trend-break='mask'] {
+  stroke: var(--card);
+  stroke-width: 3;
+}
+[data-trend-break='mark'] {
+  stroke: var(--muted-foreground);
+  stroke-width: 1.2;
+}

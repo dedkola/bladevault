@@ -403,6 +403,47 @@ describe('wishlist', () => {
     expect(trend.lowMinor).toBe(16500)
   })
 
+  it("charts the regular price's currency when a store still shows it", () => {
+    const db = getLocalDb()
+    const now = Date.parse('2026-06-30T12:00:00Z')
+    const day = 24 * 60 * 60 * 1000
+    const iso = (daysAgo: number) => new Date(now - daysAgo * day).toISOString()
+    db.prepare(
+      `UPDATE knives SET specs = json_set(specs, '$.price', '€79.90')
+       WHERE id = 'first'`,
+    ).run()
+    for (const host of ['official', 'bladehq'])
+      db.prepare(
+        `INSERT INTO price_sources
+           (knife_id, url, normalized_url, provider, lane_key, store_name,
+            origin, created_at, updated_at)
+         VALUES ('first', ?, ?, 'generic', ?, ?, 'manual', 't', 't')`,
+      ).run(
+        `https://${host}.example/p`,
+        `https://${host}.example/p`,
+        host,
+        host,
+      )
+    const snapshot = db.prepare(
+      `INSERT INTO price_snapshots
+         (knife_id, source_id, price_minor, currency, availability,
+          extraction_status, extraction_method, observed_at, last_seen_at)
+       VALUES ('first', ?, ?, ?, 'in_stock', 'ok', 'json_ld', ?, ?)`,
+    )
+    // The official store sells it in EUR all along; a newer USD store ties
+    // one to one and used to win as the newest.
+    snapshot.run(1, 7990, 'EUR', iso(8), iso(0))
+    snapshot.run(2, 8995, 'USD', iso(1), iso(0))
+
+    const expected = { currency: 'EUR', lowMinor: 7990, highMinor: 7990 }
+    expect(buildPriceTrends(db, now).knives.first).toMatchObject(expected)
+    expect(buildWishlistTrends(db, ['first'], now).first).toMatchObject(
+      expected,
+    )
+    // A store's own chart stays in the currency it sells in.
+    expect(buildPriceTrends(db, now).sources['2'].currency).toBe('USD')
+  })
+
   it('starts the chart when tracking began and keeps a same-day drop', () => {
     const db = getLocalDb()
     const now = Date.parse('2026-06-30T12:00:00Z')

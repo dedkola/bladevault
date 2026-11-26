@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3'
 import { getLocalDb } from '@/lib/local-db'
 import { readKnifeStores } from '@/lib/price-monitor/knife-stores'
+import { parseStoredPrice } from '@/lib/price-monitor/money'
 import { getSettings } from '@/lib/settings'
 import { withVaultWriteSync } from '@/lib/vault-access'
 import {
@@ -88,10 +89,14 @@ type SnapshotRow = {
  * high, from price snapshots (oldest first) of one or more store links. A
  * snapshot holds its price until the next snapshot of the same store
  * replaces it. Null when nothing was in stock in the window.
+ *
+ * Charts are built from the item's regular price, so they use its currency
+ * (`regularCurrency`) whenever a store's latest in-stock reading is in it.
  */
 function trendFromSnapshots(
   rows: readonly SnapshotRow[],
   now: number,
+  regularCurrency: string | null = null,
 ): WishlistTrend | null {
   const priced = rows.filter(
     (row) =>
@@ -101,7 +106,9 @@ function trendFromSnapshots(
   )
   if (!priced.length) return null
   // The currency the stores price it in now: each store's latest in-stock
-  // reading counts once, and a tie goes to the newest. Counting every old
+  // reading counts once. The regular price's currency wins when a store
+  // shows it, so the chart stays comparable to the regular price; otherwise
+  // the most common one, and a tie goes to the newest. Counting every old
   // snapshot let a store that once showed another currency keep the chart
   // in it after it switched.
   const latest = new Map<number, SnapshotRow>()
@@ -114,9 +121,12 @@ function trendFromSnapshots(
       at: seen && seen.at > row.observed_at ? seen.at : row.observed_at,
     })
   }
-  const currency = [...counts].sort(
-    ([, a], [, b]) => b.count - a.count || b.at.localeCompare(a.at),
-  )[0][0]
+  const currency =
+    regularCurrency && counts.has(regularCurrency)
+      ? regularCurrency
+      : [...counts].sort(
+          ([, a], [, b]) => b.count - a.count || b.at.localeCompare(a.at),
+        )[0][0]
   const inCurrency = (row: SnapshotRow) =>
     row.price_minor !== null &&
     row.currency === currency &&
@@ -180,6 +190,28 @@ function trendFromSnapshots(
 const SNAPSHOT_COLUMNS =
   's.knife_id, s.source_id, s.price_minor, s.currency, s.availability, s.observed_at'
 
+/** Currency of each knife's stored regular price, when it has one. */
+function readRegularCurrencies(
+  db: Database.Database,
+  knifeIds: Iterable<string>,
+): Map<string, string> {
+  const statement = db.prepare('SELECT specs FROM knives WHERE id = ?')
+  const currencies = new Map<string, string>()
+  for (const knifeId of knifeIds) {
+    const row = statement.get(knifeId) as { specs: string } | undefined
+    if (!row) continue
+    let price: string | undefined
+    try {
+      price = (JSON.parse(row.specs) as { price?: string }).price
+    } catch {
+      continue
+    }
+    const currency = parseStoredPrice(price)?.currency
+    if (currency) currencies.set(knifeId, currency)
+  }
+  return currencies
+}
+
 /** Best-price trends of each knife across its active store links. */
 export function buildWishlistTrends(
   db: Database.Database,
@@ -196,10 +228,12 @@ export function buildWishlistTrends(
        AND p.variant_search IS NULL
      ORDER BY s.observed_at, s.id`,
   )
+  const regular = readRegularCurrencies(db, knifeIds)
   for (const knifeId of knifeIds) {
     const trend = trendFromSnapshots(
       statement.all(knifeId, since) as SnapshotRow[],
       now,
+      regular.get(knifeId),
     )
     if (trend) trends[knifeId] = trend
   }
@@ -236,10 +270,11 @@ export function buildPriceTrends(
     add(byKnife, row.knife_id, row)
     add(bySource, row.source_id, row)
   }
+  const regular = readRegularCurrencies(db, byKnife.keys())
   const build = <K>(groups: Map<K, SnapshotRow[]>) => {
     const trends: Record<string, WishlistTrend> = {}
     for (const [key, list] of groups) {
-      const trend = trendFromSnapshots(list, now)
+      const trend = trendFromSnapshots(list, now, regular.get(list[0].knife_id))
       if (trend) trends[String(key)] = trend
     }
     return trends
