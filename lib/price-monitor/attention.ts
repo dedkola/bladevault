@@ -49,6 +49,7 @@ export function readAttentionRows(
                 s.store_name AS storeName, s.status AS status
          FROM price_sources s JOIN knives k ON k.id = s.knife_id
          WHERE s.removed_at IS NULL AND s.enabled = 1
+           AND s.variant_search IS NULL
            AND s.status IN ('failed', 'blocked', 'price_unavailable',
                             'needs_review')
          ORDER BY s.last_checked_at DESC, s.id DESC`,

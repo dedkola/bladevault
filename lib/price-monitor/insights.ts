@@ -167,8 +167,11 @@ export type SourceSummary = {
   since: string | null
   /** The knife's own product link (its official store). */
   official: boolean
-  /** Out of stock on the official link, ignored by the setting. */
-  stockIgnored: boolean
+  /**
+   * The official link is out of stock and the setting quiets its
+   * out-of-stock alerts. It still counts and is checked as usual.
+   */
+  stockAlertsOff: boolean
 }
 
 /**
@@ -311,7 +314,8 @@ function readKnives(
       `SELECT k.id, k.name, k.brand, k.images, k.specs, k.handle_material,
               k.sold, COALESCE(w.mode, 'auto') AS mode
        FROM knives k LEFT JOIN price_watch w ON w.knife_id = k.id
-       WHERE k.id IN (SELECT knife_id FROM price_sources WHERE removed_at IS NULL)
+       WHERE k.id IN (SELECT knife_id FROM price_sources
+                      WHERE removed_at IS NULL AND variant_search IS NULL)
           ${history}`,
     )
     .all() as KnifeRow[]
@@ -343,19 +347,23 @@ type EventRow = {
   previous_store_name: string | null
 }
 
+/** Changes of the knives' own stores, not of other-variant listings. */
+const OWN_SOURCE = `source_id NOT IN
+  (SELECT id FROM price_sources WHERE variant_search IS NOT NULL)`
+
 const EVENTS_SQL = `
   SELECT id, 'price' AS type, direction AS kind, knife_id, source_id,
          store_name, source_url, previous_price_minor, price_minor, currency,
          delta_minor, delta_pct, occurred_at,
          (SELECT store_name FROM price_sources
           WHERE id = previous_source_id) AS previous_store_name
-  FROM price_change_events
+  FROM price_change_events WHERE ${OWN_SOURCE}
   UNION ALL
   SELECT id, 'stock' AS type, kind, knife_id, source_id, store_name,
          source_url, NULL, price_minor, currency, NULL, NULL, occurred_at,
          (SELECT store_name FROM price_sources
           WHERE id = previous_source_id) AS previous_store_name
-  FROM stock_events`
+  FROM stock_events WHERE ${OWN_SOURCE}`
 
 function toEvent(row: EventRow, knives: Map<string, KnifeRow>): ChangeEvent {
   return {
@@ -438,7 +446,7 @@ function toSourceSummary(
   row: SourceRow,
   knives: Map<string, KnifeRow>,
   since: string | null = null,
-  stockIgnored = false,
+  stockAlertsOff = false,
 ): SourceSummary {
   return {
     sourceId: row.id,
@@ -454,25 +462,25 @@ function toSourceSummary(
     lastError: row.last_error,
     since,
     official: row.origin === 'auto',
-    stockIgnored,
+    stockAlertsOff,
   }
 }
 
 /**
- * Out of stock that counts. With Ignore out of stock on the official site,
- * the knife's own sold-out link is neither out of stock nor in stock.
+ * Out of stock always counts. The official-site setting only quiets the
+ * out-of-stock alerts of the knife's own link (`alertsOff`).
  */
 function stockRules(
   settings: Pick<EligibilitySettings, 'ignoreOfficialOutOfStock'>,
 ) {
-  const ignored = (source: SourceRow) =>
+  const alertsOff = (source: SourceRow) =>
     isIgnoredOfficialOutOfStock(
       { origin: source.origin, availability: source.last_availability },
       settings,
     )
   const soldOut = (source: SourceRow) =>
-    source.last_availability === 'out_of_stock' && !ignored(source)
-  return { ignored, soldOut }
+    source.last_availability === 'out_of_stock'
+  return { alertsOff, soldOut }
 }
 
 /** Knives scheduled monitoring covers: eligible, with an enabled source. */
@@ -514,7 +522,7 @@ function monitoredKnifeIds(
 const SOURCE_SQL = `SELECT id, knife_id, store_name, lane_key, url, origin, enabled, status,
          last_price_minor, last_currency, last_availability,
          last_checked_at, last_success_at, last_error, next_check_at
-  FROM price_sources WHERE removed_at IS NULL`
+  FROM price_sources WHERE removed_at IS NULL AND variant_search IS NULL`
 
 /** One knife's market at a glance, for the MCP price tools. */
 export type KnifeSummary = {
@@ -551,7 +559,7 @@ export function buildKnifeSummaries(
   const knives = readKnives(database)
   const sources = database.prepare(SOURCE_SQL).all() as SourceRow[]
   const monitored = monitoredKnifeIds(database, sources, knives, settings)
-  const { ignored, soldOut } = stockRules(settings)
+  const { soldOut } = stockRules(settings)
   const lastChangeByKnife = new Map(
     (
       database
@@ -596,9 +604,7 @@ export function buildKnifeSummaries(
           : null,
         currency,
         paidMinor: paidIn(knife, currency),
-        outOfStock:
-          list.some(soldOut) &&
-          list.every((source) => soldOut(source) || ignored(source)),
+        outOfStock: list.length > 0 && list.every(soldOut),
         lastChange: lastChangeByKnife.get(knifeId) ?? null,
         lastCheckedAt: checked.at(-1) ?? null,
       }
@@ -650,7 +656,7 @@ export function buildPriceOverview(
   const knives = readKnives(database, { activeOnly: true })
 
   const sources = database.prepare(SOURCE_SQL).all() as SourceRow[]
-  const { ignored, soldOut } = stockRules(settings)
+  const { alertsOff, soldOut } = stockRules(settings)
 
   const monitored = monitoredKnifeIds(database, sources, knives, settings)
 
@@ -681,7 +687,7 @@ export function buildPriceOverview(
       latestStock: readLatestStockEvents(database),
       priceSeen: readPriceSeen(database),
       now,
-      ignored,
+      alertsOff,
     },
   )
   const dayAgo = new Date(now - DAY_MS).toISOString()
@@ -827,7 +833,6 @@ function sourceResult(
   move: PriceMoveClass | undefined,
   restockedAt: string | null,
   now: number,
-  ignored: boolean,
 ): SourceResult {
   if (!source.last_checked_at) return 'pending'
   // A problem comes before stock, so every source the Inbox reports as
@@ -840,9 +845,7 @@ function sourceResult(
     source.status === 'needs_review'
   )
     return 'attention'
-  // An ignored official link shows its last price without the stock alarm.
-  if (source.last_availability === 'out_of_stock' && !ignored)
-    return 'out_of_stock'
+  if (source.last_availability === 'out_of_stock') return 'out_of_stock'
   // Only a counted change that still stands; noise and bounces are no change.
   if (move && move.result !== 'same') return move.result
   if (restockedAt && Date.parse(restockedAt) >= now - RESTOCK_DAYS * DAY_MS)
@@ -860,25 +863,19 @@ function buildMonitoredSources(
     latestStock: ReturnType<typeof readLatestStockEvents>
     priceSeen: ReadonlyMap<number, string>
     now: number
-    ignored: (row: SourceRow) => boolean
+    alertsOff: (row: SourceRow) => boolean
   },
 ): MonitoredSource[] {
   return sources.map((source) => {
     const move = moves.get(source.id)
-    const isIgnored = context.ignored(source)
+    const alertsOff = context.alertsOff(source)
     const latestStock = context.latestStock.get(source.id)
     const restockedAt =
       source.last_availability !== 'out_of_stock' &&
       latestStock?.kind === 'back_in_stock'
         ? latestStock.at
         : null
-    const result = sourceResult(
-      source,
-      move,
-      restockedAt,
-      context.now,
-      isIgnored,
-    )
+    const result = sourceResult(source, move, restockedAt, context.now)
     const changed = result === 'drop' || result === 'increase'
     const outOfStockSince =
       source.last_availability === 'out_of_stock'
@@ -886,7 +883,7 @@ function buildMonitoredSources(
         : null
     const knife = knives.get(source.knife_id)
     return {
-      ...toSourceSummary(source, knives, outOfStockSince, isIgnored),
+      ...toSourceSummary(source, knives, outOfStockSince, alertsOff),
       result,
       previousPriceMinor: changed ? (move?.previousPriceMinor ?? null) : null,
       deltaMinor: changed ? (move?.deltaMinor ?? null) : null,
@@ -924,6 +921,11 @@ export type SourceHistory = {
   url: string
   /** Removed sources keep their history and are labelled in the chart. */
   removed: boolean
+  /**
+   * A listing of another variant of the model (Other stores), drawn apart:
+   * its title as the store lists it.
+   */
+  variantTitle?: string
   /** Readings the line is drawn from: AI-unconfirmed ones are left out. */
   points: HistoryPoint[]
   /**
@@ -1007,6 +1009,7 @@ function readExtreme(
               p.store_name
        FROM price_snapshots s JOIN price_sources p ON p.id = s.source_id
        WHERE s.knife_id = ? AND s.currency = ? AND s.price_minor IS NOT NULL
+         AND p.variant_search IS NULL
          AND s.availability <> 'out_of_stock'
          AND (s.ai_review IS NULL OR s.ai_review <> 'unconfirmed')
        ORDER BY s.price_minor ${order}, s.id DESC LIMIT 1`,
@@ -1040,7 +1043,7 @@ function buildHistoryStats(
       `SELECT id, store_name, url, last_price_minor, last_currency,
               last_availability
        FROM price_sources
-       WHERE knife_id = ? AND removed_at IS NULL
+       WHERE knife_id = ? AND removed_at IS NULL AND variant_search IS NULL
          AND last_price_minor IS NOT NULL AND last_currency IS NOT NULL
          AND (last_availability IS NULL OR last_availability <> 'out_of_stock')
        ORDER BY last_price_minor, id`,
@@ -1131,7 +1134,8 @@ export function buildKnifeHistory(
   const startIso = start === null ? null : new Date(start).toISOString()
   const sources = database
     .prepare(
-      `SELECT id, store_name, url, removed_at FROM price_sources
+      `SELECT id, store_name, url, removed_at, variant_search, variant_title
+       FROM price_sources
        WHERE knife_id = ? AND (removed_at IS NULL OR id IN
          (SELECT source_id FROM price_snapshots WHERE knife_id = ?))
        ORDER BY removed_at IS NOT NULL, id`,
@@ -1141,6 +1145,8 @@ export function buildKnifeHistory(
     store_name: string
     url: string
     removed_at: string | null
+    variant_search: string | null
+    variant_title: string | null
   }>
 
   const pointsFor = database.prepare(
@@ -1173,6 +1179,9 @@ export function buildKnifeHistory(
       storeName: source.store_name,
       url: source.url,
       removed: source.removed_at !== null,
+      ...(source.variant_search !== null
+        ? { variantTitle: source.variant_title || source.store_name }
+        : {}),
       points: (
         pointsFor.all(
           source.id,

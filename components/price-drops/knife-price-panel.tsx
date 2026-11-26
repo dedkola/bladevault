@@ -71,12 +71,11 @@ import { PriceAlertRules } from './price-alert-rules'
 const MODE_LABEL = { auto: 'Auto', on: 'Always monitor', off: 'Never monitor' }
 
 const REASON_TEXT: Record<EligibilityReason, string> = {
-  monitored_auto: 'a regular price is stored',
-  monitored_forced: 'monitored without a stored price',
+  monitored_auto: 'monitored automatically',
+  monitored_forced: 'Always monitor is on',
   monitored_collection:
     'checked with the collection in free time; notifies only about a super sale',
   off: 'not checked automatically',
-  no_price: 'no regular price stored, so not monitored',
   sold: 'sold, so not monitored',
   no_source: 'no product URL yet',
   out_of_scope: 'not in What to monitor, so not checked on schedule',
@@ -254,15 +253,24 @@ function SourceLine({
           {!source.enabled ? (
             <span className="text-xs text-muted-foreground">· paused</span>
           ) : null}
-          {source.stockIgnored ? (
+          {source.stockAlertsOff ? (
             <span
               className="shrink-0 text-xs text-muted-foreground"
-              title="Out of stock on the official site is ignored (Settings → Price monitoring). Not checked on schedule until Check now finds it in stock."
+              title="No out-of-stock alerts for the official site (Settings → Price monitoring). Still checked on every round; a restock still notifies."
             >
-              · ignored
+              · no out-of-stock alerts
             </span>
           ) : null}
         </div>
+        {source.variantTitle ? (
+          <div
+            data-price-variant-title
+            className="truncate text-xs text-foreground/80"
+            title={source.variantTitle}
+          >
+            {source.variantTitle}
+          </div>
+        ) : null}
         <div
           className={cn(
             'truncate text-xs text-muted-foreground',
@@ -596,19 +604,26 @@ export function KnifePricePanel({
     }
   }
 
+  // The knife's own stores; listings of other variants of the model are
+  // listed apart and never make its price.
+  const ownSources =
+    watch?.sources.filter((source) => !source.variantTitle) ?? []
+  const variantSources =
+    watch?.sources.filter((source) => source.variantTitle) ?? []
   const currency =
     stats?.currency ??
     (history && chartCurrency(history)) ??
-    watch?.sources.find((source) => source.lastCurrency)?.lastCurrency ??
+    ownSources.find((source) => source.lastCurrency)?.lastCurrency ??
     null
   const best =
-    stats?.bestNow ?? (watch ? bestOffer(watch.sources, currency) : null)
+    stats?.bestNow ?? (watch ? bestOffer(ownSources, currency) : null)
+  const variantBest = bestOffer(variantSources, currency)
   // The latest drop while its price still holds at that store.
   const latestDrop = history?.events.find(
     (event) =>
       event.type === 'price' &&
       event.kind === 'drop' &&
-      watch?.sources.some(
+      ownSources.some(
         (source) =>
           source.id === event.sourceId &&
           source.lastPriceMinor === event.priceMinor &&
@@ -619,7 +634,7 @@ export function KnifePricePanel({
   const paid = history?.paid ?? null
   // Stores priced only in other currencies than the regular price.
   const storeCurrencies = new Set(
-    (watch?.sources ?? [])
+    ownSources
       .filter((source) => source.lastPriceMinor !== null)
       .map((source) => source.lastCurrency)
       .filter((value): value is string => Boolean(value)),
@@ -632,6 +647,35 @@ export function KnifePricePanel({
       : null
   const queued = new Set(watch?.queuedSourceIds ?? [])
   const enabledSources = watch?.sources.filter((source) => source.enabled) ?? []
+  const sourceLine = (source: PriceSourceView) => (
+    <SourceLine
+      key={source.id}
+      source={source}
+      knifeId={knifeId}
+      queued={queued.has(source.id)}
+      now={now}
+      canSolve={canSolve}
+      onCheck={() => void startCheck({ scope: 'source', id: source.id })}
+      onSolve={() =>
+        setSolveTarget({
+          sourceId: source.id,
+          url: source.url,
+          storeName: source.storeName,
+          status: source.status,
+        })
+      }
+      onHistory={() =>
+        setHistoryTarget({
+          sourceId: source.id,
+          storeName: source.storeName,
+        })
+      }
+      onPaused={() => {
+        setVersion((value) => value + 1)
+        onChanged?.()
+      }}
+    />
+  )
   // Stores Other stores searched without finding this knife; the store
   // links themselves are listed under Sources.
   const searchedElsewhere =
@@ -685,8 +729,8 @@ export function KnifePricePanel({
               </div>
             ) : null}
             <div className="text-xs text-muted-foreground">
-              {watch?.sources.length ?? 0}{' '}
-              {watch?.sources.length === 1 ? 'source' : 'sources'}
+              {ownSources.length}{' '}
+              {ownSources.length === 1 ? 'source' : 'sources'}
               {history.paid
                 ? ` · Regular price ${moneyMajor(history.paid.amount, history.paid.currency)}`
                 : ''}
@@ -757,8 +801,8 @@ export function KnifePricePanel({
                 </div>
                 {inline ? (
                   <div className="text-xs text-muted-foreground">
-                    {watch?.sources.length ?? 0}{' '}
-                    {watch?.sources.length === 1 ? 'source' : 'sources'}
+                    {ownSources.length}{' '}
+                    {ownSources.length === 1 ? 'source' : 'sources'}
                   </div>
                 ) : null}
               </div>
@@ -886,45 +930,31 @@ export function KnifePricePanel({
                 onChanged={() => setVersion((value) => value + 1)}
               />
             </div>
-          ) : watch && watch.sources.length ? (
-            <ul>
-              {watch.sources.map((source) => (
-                <SourceLine
-                  key={source.id}
-                  source={source}
-                  knifeId={knifeId}
-                  queued={queued.has(source.id)}
-                  now={now}
-                  canSolve={canSolve}
-                  onCheck={() =>
-                    void startCheck({ scope: 'source', id: source.id })
-                  }
-                  onSolve={() =>
-                    setSolveTarget({
-                      sourceId: source.id,
-                      url: source.url,
-                      storeName: source.storeName,
-                      status: source.status,
-                    })
-                  }
-                  onHistory={() =>
-                    setHistoryTarget({
-                      sourceId: source.id,
-                      storeName: source.storeName,
-                    })
-                  }
-                  onPaused={() => {
-                    setVersion((value) => value + 1)
-                    onChanged?.()
-                  }}
-                />
-              ))}
-            </ul>
+          ) : ownSources.length ? (
+            <ul>{ownSources.map(sourceLine)}</ul>
           ) : (
             <p className="text-xs text-muted-foreground">
               No product URLs yet. Add one under Manage sources.
             </p>
           )}
+          {variantSources.length && !managing ? (
+            <div data-price-variants className="mt-3">
+              <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+                <span
+                  className={LABEL}
+                  title="The same model with another handle, steel or colour, found by Other stores. Checked with their own history; not part of this knife’s price or alerts."
+                >
+                  Other variants
+                </span>
+                {variantBest ? (
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    from {money(variantBest.priceMinor, currency)}
+                  </span>
+                ) : null}
+              </div>
+              <ul>{variantSources.map(sourceLine)}</ul>
+            </div>
+          ) : null}
           {canSolve === false &&
           watch?.sources.some((source) =>
             ['blocked', 'failed', 'price_unavailable'].includes(source.status),

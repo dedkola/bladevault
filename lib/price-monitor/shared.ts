@@ -13,8 +13,13 @@ export const MAX_SOURCE_MUTE_DAYS = 365
 /** Largest target price, in major units. */
 export const MAX_TARGET_PRICE = 10_000_000
 
-/** At most this many active sources per knife. */
+/** At most this many active sources per knife (variant listings aside). */
 export const MAX_PRICE_SOURCES_PER_KNIFE = 10
+/**
+ * Other stores: at most this many listings of the same model in another
+ * variant (handle, steel, colour) are monitored per knife and store search.
+ */
+export const MAX_MONITORED_VARIANTS_PER_STORE = 2
 
 export const PRICE_WATCH_MODES = ['auto', 'on', 'off'] as const
 /** auto: monitored when a regular price is stored; on/off: forced. */
@@ -62,8 +67,17 @@ export type PriceSourceView = {
   notifyMutedUntil: string | null
   /** Added by Other stores: AI found and confirmed this product. */
   foundByAi?: boolean
-  /** Out of stock on the knife's own link, ignored by the setting. */
-  stockIgnored?: boolean
+  /**
+   * Another variant of the same model (handle, steel, colour) that Other
+   * stores found: monitored with its own history, kept apart from the
+   * knife's price, alerts and counts. Its title as the store lists it.
+   */
+  variantTitle?: string
+  /**
+   * Out of stock on the knife's own link with its out-of-stock alerts
+   * quieted by the setting; still counted and checked as usual.
+   */
+  stockAlertsOff?: boolean
   /** Start of the current out-of-stock run, when out of stock. */
   outOfStockSince?: string | null
   /** The listing may be gone for good: suggest Pause or another store. */
@@ -82,7 +96,6 @@ export type EligibilityReason =
   /** Outside What to monitor, checked with the rest of the collection. */
   | 'monitored_collection'
   | 'off'
-  | 'no_price'
   | 'sold'
   | 'no_source'
   | 'out_of_scope'
@@ -145,6 +158,17 @@ export type KnifeStoreVariant = {
   /** As the store's search result showed it. */
   price: string | null
   seenAt: string
+  /**
+   * Monitored as a variant source (the first ones of each search): its
+   * latest checked price and stock.
+   */
+  monitored?: {
+    sourceId: number
+    priceMinor: number | null
+    currency: string | null
+    availability: Availability | null
+    enabled: boolean
+  }
 }
 
 export type KnifeStoreEntry = {

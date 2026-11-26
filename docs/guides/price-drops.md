@@ -6,13 +6,13 @@ Price monitoring needs the BladeVault server: it works in the desktop app, Docke
 
 ## Which knives are monitored
 
-Every knife starts in **Auto** mode. In Auto, a knife is monitored when it has a stored regular price above 0 and a product link (**Source URL**). Its product link becomes its first store source automatically.
+Every knife starts in **Auto** mode. In Auto, a knife is monitored as soon as it has a product link (**Source URL**), with or without a stored regular price; without one, there is simply no regular price to compare with. Its product link becomes its first store source automatically. Only your own choices stop monitoring: **Never monitor**, a sold knife while sold knives are skipped, or a store you paused. Out of stock never does: a sold-out page is checked like any other, so a restock or a new price shows up.
 
-| Mode               | What it does                                                                                       |
-| ------------------ | -------------------------------------------------------------------------------------------------- |
-| **Auto**           | Monitors the knife when a regular price is stored. Sold knives are skipped unless you change that. |
-| **Always monitor** | Monitors the knife even without a stored price, and even when it is marked as sold.                |
-| **Never monitor**  | Leaves the knife out of scheduled checks. **Check now** still takes a single reading.              |
+| Mode               | What it does                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| **Auto**           | Monitors the knife. Sold knives are skipped unless you change that.                   |
+| **Always monitor** | Monitors the knife even when it is marked as sold.                                    |
+| **Never monitor**  | Leaves the knife out of scheduled checks. **Check now** still takes a single reading. |
 
 Change the mode for one knife without leaving its page:
 
@@ -160,6 +160,8 @@ Choose which changes notify you in **Settings → Notifications → Price drops 
 | **Out of stock**    | Off     |
 | **Back in stock**   | On      |
 
+To stop out-of-stock alerts from any notification, select **Stop out-of-stock alerts** on an out-of-stock message: it turns **Out of stock** off for every knife and clears the open out-of-stock messages. Stock is still checked and shown, and **Back in stock** still notifies. **Don't notify when the official site is out of stock** (under **Price monitoring**) quiets only the knife's own product link the same way.
+
 **Minimum change** filters small price moves: a price change notifies only when it moves by at least this percentage of the previous price. The default is 5%. The same threshold decides which moves count as a change on the Price Drops page (see [Small moves and fluctuating prices](#small-moves-and-fluctuating-prices)). Set it to 0 to be notified about every price change. Stock changes always notify when their switch is on.
 
 **Minimum amount** also ignores price changes smaller than this many units of the price's own currency, for example 3 to skip moves under $3, €3, or ₴3. A change must pass both the percentage and the amount. The default is 0 (off).
@@ -303,7 +305,7 @@ For each knife, AI does the work in three steps:
 
 Searches cover every knife that price monitoring covers, including knives without a product link, and skip knives that already have a source at that store. They run in [rounds](#how-checks-are-scheduled): when a knife's turn comes, it is searched at every turned-on store at the same time as its price checks. They share the store's pace, so a store never gets two requests at once, and a bot check pauses both. A store that is not ready yet, such as KnifeJoy within 15 minutes of its last search, is skipped for that knife and tried again from the retry list. AI receives the knife's brand, name, and specs and the store's listing titles, never the regular price, notes, or photos.
 
-Other variants of the same model at a store (another blade finish, handle color, or edge, up to 5 per store) are kept as **related listings**: the store shows **Other variants only** with a link and the price seen for each. They are not monitored and never count toward the knife's price, chart, or alerts.
+Other variants of the same model at a store (another blade finish, handle color, or edge, up to 5 per store) are kept as **related listings**: the store shows **Other variants only** with a link and the price for each. The first 2 per store are also monitored: they are checked like the knife's stores, keep their own price history, and appear under **Other variants** in the knife's price panel ("from" the lowest in-stock one) and as dotted lines on its chart. They never set the knife's best price, out-of-stock state, changes, or counts, and never send an alert. A variant the store no longer lists stops being checked and keeps its history; one you remove under **Manage sources** is not added again. When a later search finds one as the knife itself, it becomes one of the knife's stores, with its history. Other variants do not count toward the 10 sources per knife.
 
 The section lists recent results. A knife that is not found, or found only in other variants, is searched again after a day; a failed or blocked search goes on the retry list. **Search again for missing** searches those knives when their turn comes in a round. A found listing is never replaced: remove its source to stop monitoring it, and it is not added again.
 

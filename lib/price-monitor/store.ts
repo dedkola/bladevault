@@ -93,6 +93,12 @@ export type SourceRow = {
   expected_variant: string | null
   /** The supervisor asked AI to look for this product's new link. */
   find_page_at: string | null
+  /**
+   * Other stores: the search (store:marketplace) that keeps this listing of
+   * another variant of the model; null for the knife's own product.
+   */
+  variant_search: string | null
+  variant_title: string | null
 }
 
 type SnapshotRow = {
@@ -243,6 +249,16 @@ export function readActiveSources(
     .all(knifeId) as SourceRow[]
 }
 
+/**
+ * Sources that count toward MAX_PRICE_SOURCES_PER_KNIFE: the knife's own
+ * product, not the listings of other variants Other stores keeps.
+ */
+export function countOwnSources(
+  sources: readonly Pick<SourceRow, 'variant_search'>[],
+): number {
+  return sources.filter((source) => source.variant_search === null).length
+}
+
 export function readSource(
   database: Database.Database,
   sourceId: number,
@@ -389,6 +405,9 @@ export function toSourceView(row: SourceRow): PriceSourceView {
       row.notify_muted_until && Date.parse(row.notify_muted_until) > Date.now()
         ? row.notify_muted_until
         : null,
+    ...(row.variant_search !== null
+      ? { variantTitle: row.variant_title || row.store_name }
+      : {}),
   }
 }
 
@@ -422,7 +441,7 @@ export function buildPriceWatchView(
         { origin: source.origin, availability: source.last_availability },
         settings,
       )
-        ? { stockIgnored: true }
+        ? { stockAlertsOff: true }
         : {}),
     }
   }
@@ -499,6 +518,27 @@ export function insertSource(
     )
 }
 
+/**
+ * A variant listing becomes one of the knife's own stores: you added its
+ * link, or Other stores found it as the knife's own product. Its history
+ * stays; from now on it counts toward the knife's price and alerts.
+ */
+export function promoteVariantSource(
+  database: Database.Database,
+  sourceId: number,
+  storeName: string | undefined,
+  now: string,
+) {
+  database
+    .prepare(
+      `UPDATE price_sources
+       SET variant_search = NULL, variant_title = NULL, enabled = 1,
+           store_name = COALESCE(?, store_name), updated_at = ?
+       WHERE id = ?`,
+    )
+    .run(storeName || null, now, sourceId)
+}
+
 function softRemove(database: Database.Database, ids: number[], now: string) {
   const statement = database.prepare(
     `UPDATE price_sources SET removed_at = ?, updated_at = ?
@@ -531,7 +571,7 @@ function applyAutoSourcePlan(
   if (plan.add) {
     const active = readActiveSources(database, knife.id)
     // A full manual list leaves no room for the auto source.
-    if (active.length >= MAX_PRICE_SOURCES_PER_KNIFE) return
+    if (countOwnSources(active) >= MAX_PRICE_SOURCES_PER_KNIFE) return
     if (!restoreAutoSource(database, knife.id, plan.add, now))
       insertSource(database, knife.id, plan.add, 'auto', undefined, now)
   }
@@ -664,6 +704,12 @@ export async function applyPriceWatchUpdate(
           throw new PriceWatchError(
             'The source from the knife’s product link can only be paused.',
           )
+        // A variant listing you remove stays paused, so a later search of
+        // its store does not bring it back.
+        if (source.variant_search !== null)
+          database
+            .prepare('UPDATE price_sources SET enabled = 0 WHERE id = ?')
+            .run(id)
         softRemove(database, [id], now)
         byId.delete(id)
       }
@@ -705,12 +751,21 @@ export async function applyPriceWatchUpdate(
       for (const item of update.add ?? []) {
         const normalized = normalizeSourceUrl(item.url)
         const active = readActiveSources(database, knife.id)
-        if (active.some((source) => source.normalized_url === normalized))
+        const same = active.find(
+          (source) => source.normalized_url === normalized,
+        )
+        if (same && same.variant_search === null)
           throw new PriceWatchError('This URL is already monitored.', 409)
-        if (active.length >= MAX_PRICE_SOURCES_PER_KNIFE)
+        if (countOwnSources(active) >= MAX_PRICE_SOURCES_PER_KNIFE)
           throw new PriceWatchError(
             `A knife can have at most ${MAX_PRICE_SOURCES_PER_KNIFE} price sources.`,
           )
+        // A variant listing you add yourself becomes one of the knife's own
+        // stores, with the history it has.
+        if (same) {
+          promoteVariantSource(database, same.id, item.storeName, now)
+          continue
+        }
         insertSource(
           database,
           knife.id,
@@ -1125,7 +1180,9 @@ export async function recordCheck(
         }
         // A store's first reading is news for the knife when it sells it
         // cheaper than its other stores, or while they are out of stock.
-        if (!stockHistory.length && snapshotId !== null) {
+        // A listing of another variant is not the knife's own store.
+        const variant = source.variant_search !== null
+        if (!variant && !stockHistory.length && snapshotId !== null) {
           const knifeEvent = recordNewStoreEvent(database, {
             knifeId: source.knife_id,
             sourceId: source.id,
@@ -1139,15 +1196,18 @@ export async function recordCheck(
           if (knifeEvent) events.push(knifeEvent)
         }
         const notifications = record.notifications ?? DEFAULT_PRICE_MONITORING
-        // Out of stock on an ignored official link stays in history only.
-        const notifiable = events.filter(
-          (event) =>
-            event.kind !== 'out_of_stock' ||
-            !isIgnoredOfficialOutOfStock(
-              { origin: source.origin, availability: 'out_of_stock' },
-              notifications,
-            ),
-        )
+        // Out of stock on an ignored official link stays in history only,
+        // and so does every change of another variant's listing.
+        const notifiable = variant
+          ? []
+          : events.filter(
+              (event) =>
+                event.kind !== 'out_of_stock' ||
+                !isIgnoredOfficialOutOfStock(
+                  { origin: source.origin, availability: 'out_of_stock' },
+                  notifications,
+                ),
+            )
         if (notifiable.length) {
           const alertContext = readPriceAlertContext(database, {
             knifeId: source.knife_id,
@@ -1371,7 +1431,10 @@ export type CandidateRow = {
   covered: boolean
   /** The user paused the whole store in Settings → Stores. */
   storePaused: boolean
-  /** Covered and its store not paused: scheduled checks run. */
+  /**
+   * Covered and its store not paused: scheduled checks run. Out of stock
+   * never stops them; the official-site setting only quiets alerts.
+   */
   scheduled: boolean
   /** Start of the current out-of-stock run (epoch ms), or null. */
   outOfStockSince: number | null
@@ -1386,6 +1449,11 @@ export type CandidateRow = {
    * collection, checked by the collection pass in free time.
    */
   tier: MonitorTier
+  /**
+   * A listing of another variant of the model (Other stores): checked like
+   * the rest, kept out of the knife's price, alerts and summaries.
+   */
+  variant: boolean
 }
 
 /**
@@ -1403,7 +1471,8 @@ export function readQueueCandidates(
               s.enabled, s.origin, s.last_availability, s.last_checked_at,
               k.specs, k.sold, COALESCE(w.mode, 'auto') AS mode,
               w.focus_until, w.focus_interval_ms, w.focus_reason,
-              h.paused_at IS NOT NULL AS store_paused
+              h.paused_at IS NOT NULL AS store_paused,
+              s.variant_search IS NOT NULL AS variant
        FROM price_sources s
        JOIN knives k ON k.id = s.knife_id
        LEFT JOIN price_watch w ON w.knife_id = s.knife_id
@@ -1427,6 +1496,7 @@ export function readQueueCandidates(
     focus_interval_ms: number | null
     focus_reason: string | null
     store_paused: number
+    variant: number
   }>
   const outOfStockSince = readOutOfStockSince(database)
   const scoped = withMonitorScope(database, settings)
@@ -1458,19 +1528,13 @@ export function readQueueCandidates(
       nextCheckAt: parseTime(row.next_check_at),
       covered,
       storePaused,
-      // An ignored sold-out official link waits for Check now.
-      scheduled:
-        covered &&
-        !storePaused &&
-        !isIgnoredOfficialOutOfStock(
-          { origin: row.origin, availability: row.last_availability },
-          settings,
-        ),
+      scheduled: covered && !storePaused,
       outOfStockSince: parseTime(outOfStockSince.get(row.id) ?? null),
       firstReading: row.last_checked_at === null,
       lastCheckedAt: parseTime(row.last_checked_at),
       focusIntervalMs: activeFocus(row, now)?.intervalMs ?? null,
       tier: eligibility.tier,
+      variant: row.variant === 1,
     }
   })
 }

@@ -103,6 +103,43 @@ const row = (id: number) =>
   }
 
 describe('AI supervisor', () => {
+  it('sees the whole collection, marking knives outside What to monitor as daily', async () => {
+    enableAgent('observe')
+    const wished = await createKnife('Drop Bear', 'https://kizer.example/drop')
+    const rest = await createKnife('Mini', 'https://kizer.example/mini')
+    const at = new Date().toISOString()
+    getLocalDb()
+      .prepare(
+        `INSERT INTO wishlist_items (knife_id, lane, position, added_at, updated_at)
+         VALUES (?, 'next', 0, ?, ?)`,
+      )
+      .run(wished.id, at, at)
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        scope: { kind: 'wishlist', knifeIds: [] },
+        collectionPass: { enabled: true, superSalePercent: 40 },
+      },
+    })
+    const snapshot = buildAgentSnapshot({
+      database: getLocalDb(),
+      settings: getSettings().priceMonitoring,
+      mode: 'observe',
+      now: Date.now(),
+    })
+    const byId = new Map(snapshot.sources.map((entry) => [entry.id, entry]))
+    expect(byId.get(wished.source.id)).toMatchObject({ monitored: true })
+    expect(byId.get(wished.source.id)?.daily).toBeUndefined()
+    expect(byId.get(rest.source.id)).toMatchObject({
+      monitored: true,
+      daily: true,
+    })
+    expect(snapshot.coverage.monitored).toBe(2)
+    expect(
+      snapshot.knives.find((knife) => knife.knifeId === rest.id)?.notMonitored,
+    ).toBeUndefined()
+  })
+
   it('shows the model the state without URLs and applies valid actions in Act mode', async () => {
     enableAgent('act')
     const fresh = await createKnife('Drop Bear', 'https://kizer.example/drop')

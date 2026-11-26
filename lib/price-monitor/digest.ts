@@ -152,12 +152,16 @@ export function readDigestData(
   settings: EligibilitySettings = getSettings().priceMonitoring,
 ): DigestData {
   const since = new Date(now - DAY_MS).toISOString()
-  const active = `s.removed_at IS NULL AND s.enabled = 1`
+  // Listings of other variants stay out of the summary, like their alerts.
+  const active = `s.removed_at IS NULL AND s.enabled = 1 AND s.variant_search IS NULL`
   // The collection pass (knives outside What to monitor) is left out: it
   // speaks only through its super-sale cards.
   const covered = new Set(
     readQueueCandidates(database, settings, now)
-      .filter((candidate) => candidate.covered && candidate.tier === 'scope')
+      .filter(
+        (candidate) =>
+          candidate.covered && candidate.tier === 'scope' && !candidate.variant,
+      )
       .map((candidate) => candidate.sourceId),
   )
   const isCovered = (row: { source_id: number }) => covered.has(row.source_id)

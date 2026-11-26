@@ -332,7 +332,7 @@ export function PriceMonitoringSettings({
         <SettingsRow
           inline
           label="Check prices automatically"
-          description="Knives with a stored regular price are checked in the background, store by store and never two at once at the same store. Check now works either way."
+          description="Monitored knives are checked in the background, store by store and never two at once at the same store. Check now works either way."
         >
           <SettingsSwitch
             aria-label="Check prices automatically"
@@ -403,11 +403,11 @@ export function PriceMonitoringSettings({
         </SettingsRow>
         <SettingsRow
           inline
-          label="Ignore out of stock on the official site"
-          description="When a knife’s own product link is sold out, it no longer counts as out of stock, does not notify, and is not checked on schedule until Check now finds it in stock again. Use Other stores below to follow the knife at other stores instead."
+          label="Don’t notify when the official site is out of stock"
+          description="No out-of-stock alerts for a knife’s own product link. It is still checked on every round, shows as out of stock, and a restock still notifies."
         >
           <SettingsSwitch
-            aria-label="Ignore out of stock on the official site"
+            aria-label="Don’t notify when the official site is out of stock"
             checked={settings.ignoreOfficialOutOfStock}
             disabled={disabled}
             onCheckedChange={(checked) =>

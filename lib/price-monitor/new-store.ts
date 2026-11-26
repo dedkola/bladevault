@@ -102,6 +102,7 @@ export function readOtherStoresAt(
            WHERE source_id = s.id AND observed_at <= ? AND ${TRUSTED}
            ORDER BY observed_at DESC, id DESC LIMIT 1)
          WHERE s.knife_id = ? AND s.id <> ? AND s.enabled = 1
+           AND s.variant_search IS NULL
            AND (s.removed_at IS NULL OR s.removed_at > ?)
          ORDER BY s.id`,
       )
@@ -239,7 +240,7 @@ export function backfillNewStoreEvents(database: Database.Database): number {
          SELECT id FROM price_snapshots
          WHERE source_id = s.id AND ${TRUSTED}
          ORDER BY observed_at, id LIMIT 1)
-       WHERE s.removed_at IS NULL
+       WHERE s.removed_at IS NULL AND s.variant_search IS NULL
        ORDER BY p.observed_at, p.id`,
     )
     .all() as Array<

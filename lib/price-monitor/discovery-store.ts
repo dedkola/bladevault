@@ -7,11 +7,17 @@ import {
 import { MAX_RELATED_VARIANTS } from '@/lib/price-monitor/discovery-ai'
 import { withMonitorScope } from '@/lib/price-monitor/scope'
 import {
+  MAX_MONITORED_VARIANTS_PER_STORE,
   MAX_PRICE_SOURCES_PER_KNIFE,
   normalizeSourceUrl,
   type PriceWatchMode,
 } from '@/lib/price-monitor/shared'
-import { insertSource, readActiveSources } from '@/lib/price-monitor/store'
+import {
+  countOwnSources,
+  insertSource,
+  promoteVariantSource,
+  readActiveSources,
+} from '@/lib/price-monitor/store'
 import type { OtherStoreId } from '@/lib/settings-shared'
 import { assertVaultGeneration, withVaultWrite } from '@/lib/vault-access'
 
@@ -32,8 +38,10 @@ export const DISCOVERY_STATUSES = [
 export type DiscoveryStatus = (typeof DISCOVERY_STATUSES)[number]
 
 /**
- * A listing of the same model in another variant (steel, handle, colour):
- * shown as related, never monitored, never in prices, charts or alerts.
+ * A listing of the same model in another variant (steel, handle, colour).
+ * The first MAX_MONITORED_VARIANTS_PER_STORE of a search are monitored as
+ * variant sources (own history, no alerts, not the knife's price); all are
+ * listed as related.
  */
 export type DiscoveryVariant = {
   url: string
@@ -139,9 +147,11 @@ export function readDiscoveryQueue(
               d.status, d.next_attempt_at,
               EXISTS (SELECT 1 FROM price_sources s
                       WHERE s.knife_id = k.id AND s.removed_at IS NULL
+                        AND s.variant_search IS NULL
                         AND s.lane_key = ?) AS has_store_source,
               (SELECT COUNT(*) FROM price_sources s
-               WHERE s.knife_id = k.id AND s.removed_at IS NULL) AS source_count
+               WHERE s.knife_id = k.id AND s.removed_at IS NULL
+                 AND s.variant_search IS NULL) AS source_count
        FROM knives k
        LEFT JOIN price_watch w ON w.knife_id = k.id
        LEFT JOIN price_discovery d
@@ -237,7 +247,10 @@ export async function recordDiscovery(
           detail = 'AI returned no usable product link.'
         } else if (existing) {
           sourceId = existing.id
-        } else if (active.length >= MAX_PRICE_SOURCES_PER_KNIFE) {
+          // A variant listing turned out to be the knife itself.
+          if (existing.variant_search !== null)
+            promoteVariantSource(database, existing.id, undefined, nowIso)
+        } else if (countOwnSources(active) >= MAX_PRICE_SOURCES_PER_KNIFE) {
           status = 'skipped'
           detail = `The knife already has ${MAX_PRICE_SOURCES_PER_KNIFE} price sources.`
         } else {
@@ -289,8 +302,10 @@ export async function recordDiscovery(
           nowIso,
           nextDiscoveryAttempt(status, attempts, now),
         )
-      if (COMPLETED_STATUSES.has(status))
+      if (COMPLETED_STATUSES.has(status)) {
         replaceDiscoveryVariants(database, record, nowIso)
+        syncVariantSources(database, record, nowIso)
+      }
       return { status, sourceId }
     })()
   })
@@ -336,6 +351,109 @@ function replaceDiscoveryVariants(
     position += 1
     if (position >= MAX_RELATED_VARIANTS) break
   }
+}
+
+/** The search a variant source belongs to: one per knife, store and market. */
+export function variantSearchKey(store: string, marketplace: string): string {
+  return `${store}:${marketplace}`
+}
+
+/**
+ * Monitors the first MAX_MONITORED_VARIANTS_PER_STORE variants of a
+ * completed search, in AI's order, as variant sources of the knife. A
+ * variant the search no longer lists is soft-removed (its history stays) and
+ * comes back with it when a later search lists it again. Listings already
+ * monitored as the knife's own stores are skipped, and so are variants you
+ * removed or paused: they stay as you left them.
+ */
+function syncVariantSources(
+  database: Database.Database,
+  record: DiscoveryRecord,
+  nowIso: string,
+) {
+  const search = variantSearchKey(record.store, record.marketplace)
+  const active = readActiveSources(database, record.knifeId)
+  const found =
+    record.status === 'found' && record.url
+      ? normalizeSourceUrl(record.url)
+      : null
+  const keep = new Set<number>()
+  const seen = new Set<string>()
+  let monitored = 0
+  for (const variant of record.variants ?? []) {
+    if (monitored >= MAX_MONITORED_VARIANTS_PER_STORE) break
+    const normalized = normalizeSourceUrl(variant.url)
+    if (!normalized || normalized === found || seen.has(normalized)) continue
+    seen.add(normalized)
+    const title = variant.title.slice(0, 250)
+    const current = active.find(
+      (source) => source.normalized_url === normalized,
+    )
+    if (current) {
+      // Already one of the knife's own stores, or another search's variant.
+      if (current.variant_search !== search) continue
+      keep.add(current.id)
+      if (current.enabled !== 1) continue
+      database
+        .prepare(
+          'UPDATE price_sources SET variant_title = ?, updated_at = ? WHERE id = ?',
+        )
+        .run(title, nowIso, current.id)
+      monitored += 1
+      continue
+    }
+    const removed = database
+      .prepare(
+        `SELECT id, enabled FROM price_sources
+         WHERE knife_id = ? AND normalized_url = ? AND variant_search = ?
+           AND removed_at IS NOT NULL
+         ORDER BY removed_at DESC, id DESC LIMIT 1`,
+      )
+      .get(record.knifeId, normalized, search) as
+      { id: number; enabled: number } | undefined
+    // Removed by you (it was paused first): it stays out.
+    if (removed?.enabled === 0) continue
+    if (removed) {
+      database
+        .prepare(
+          `UPDATE price_sources
+           SET removed_at = NULL, url = ?, variant_title = ?, status = 'pending',
+               next_check_at = NULL, updated_at = ?
+           WHERE id = ?`,
+        )
+        .run(variant.url, title, nowIso, removed.id)
+      keep.add(removed.id)
+    } else {
+      insertSource(
+        database,
+        record.knifeId,
+        variant.url,
+        'manual',
+        undefined,
+        nowIso,
+      )
+      const id = (
+        database.prepare('SELECT last_insert_rowid() AS id').get() as {
+          id: number
+        }
+      ).id
+      database
+        .prepare(
+          `UPDATE price_sources SET variant_search = ?, variant_title = ?
+           WHERE id = ?`,
+        )
+        .run(search, title, id)
+      keep.add(id)
+    }
+    monitored += 1
+  }
+  const drop = database.prepare(
+    `UPDATE price_sources SET removed_at = ?, updated_at = ?
+     WHERE id = ? AND removed_at IS NULL`,
+  )
+  for (const source of active)
+    if (source.variant_search === search && !keep.has(source.id))
+      drop.run(nowIso, nowIso, source.id)
 }
 
 export type DiscoveryItemView = {

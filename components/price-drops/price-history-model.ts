@@ -96,7 +96,10 @@ export function outOfStockEverywhere(
   history: Pick<KnifeHistory, 'sources'>,
 ): Array<[number, number]> {
   const end = historyEnd(history)
-  const spans = history.sources.map((source) => sourceSpans(source, end))
+  // The knife's stock: listings of other variants do not count.
+  const spans = history.sources
+    .filter((source) => !source.variantTitle)
+    .map((source) => sourceSpans(source, end))
   const cuts = [
     ...new Set(spans.flat().flatMap((span) => [span.from, span.to])),
   ].sort((a, b) => a - b)
@@ -142,6 +145,22 @@ const STOCK_NOTE: Partial<Record<HistoryPoint['availability'], string>> = {
  * no reading then are left out. With two or more stores selling in the
  * chart's currency, a strictly cheapest one is noted.
  */
+/**
+ * A store's line name: other-variant and removed listings say so. The
+ * tooltip (`withTitle`) also names the variant, since a store can have two.
+ */
+export function historyLineLabel(
+  source: Pick<SourceHistory, 'storeName' | 'removed' | 'variantTitle'>,
+  withTitle = false,
+): string {
+  const variant = source.variantTitle
+    ? withTitle
+      ? ` (variant: ${source.variantTitle})`
+      : ' (variant)'
+    : ''
+  return `${storeLabel(source.storeName)}${variant}${source.removed ? ' (removed)' : ''}`
+}
+
 export function storeLinesAt(
   history: Pick<KnifeHistory, 'sources'>,
   at: number,
@@ -157,13 +176,18 @@ export function storeLinesAt(
     const out = reading.availability === 'out_of_stock'
     const line: StoreLine = {
       index,
-      label: `${storeLabel(source.storeName)}${source.removed ? ' (removed)' : ''}`,
+      label: historyLineLabel(source, true),
       price: money(reading.priceMinor, reading.currency),
       note: STOCK_NOTE[reading.availability] ?? '',
       out,
     }
     lines.push(line)
-    if (!out && reading.priceMinor !== null && reading.currency === currency)
+    if (
+      !out &&
+      !source.variantTitle &&
+      reading.priceMinor !== null &&
+      reading.currency === currency
+    )
       selling.push({ line, minor: reading.priceMinor })
   })
   if (selling.length >= 2) {

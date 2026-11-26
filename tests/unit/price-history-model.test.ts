@@ -123,4 +123,26 @@ describe('price history model', () => {
     )
     expect(lines.map((line) => line.note)).toEqual(['', 'cheapest'])
   })
+
+  it('keeps other-variant listings out of the knife’s stock and cheapest store', () => {
+    const variant = {
+      ...source(4, 'bladehq.com', [point(0, 8, 4999)]),
+      variantTitle: 'Militaw Blue G10',
+    }
+    // Kizer is out of stock and only a variant sells: the knife is still
+    // out of stock everywhere.
+    expect(outOfStockEverywhere({ sources: [kizer, variant] })).toEqual([
+      [ms(0), ms(8)],
+    ])
+    const lines = storeLinesAt(
+      { sources: [bladeHq, variant] },
+      ms(7),
+      ms(8),
+      'USD',
+    )
+    expect(lines.map((line) => [line.label, line.note])).toEqual([
+      ['Blade HQ', ''],
+      ['Blade HQ (variant: Militaw Blue G10)', ''],
+    ])
+  })
 })

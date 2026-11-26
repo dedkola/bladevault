@@ -164,9 +164,10 @@ describe('collection market summaries', () => {
       restockedAt: null,
     } satisfies Partial<KnifeMarketSummary>)
     expect(summaries.get(raccoon.knife.id)?.dropPct).toBeCloseTo(-20)
-    // No stored price: Auto mode does not monitor it, but it has a price.
+    // No stored price: still monitored in Auto mode, with nothing to
+    // compare its price with.
     expect(summaries.get(corgi.knife.id)).toMatchObject({
-      monitored: false,
+      monitored: true,
       bestPriceMinor: 4000,
       paidMinor: null,
     })
@@ -202,8 +203,13 @@ describe('collection market summaries', () => {
     expect(names('market=restocked')).toEqual(['Kiwi'])
     expect(names('market=out_of_stock')).toEqual(['Mutt'])
     expect(names('market=below_paid')).toEqual(['Raccoon'])
-    expect(names('market=monitored')).toEqual(['Raccoon', 'Kiwi', 'Mutt'])
-    expect(names('market=not_monitored')).toEqual(['Corgi', 'Bare'])
+    expect(names('market=monitored')).toEqual([
+      'Raccoon',
+      'Corgi',
+      'Kiwi',
+      'Mutt',
+    ])
+    expect(names('market=not_monitored')).toEqual(['Bare'])
     expect(names('market=dropped&market=restocked')).toEqual([
       'Raccoon',
       'Kiwi',

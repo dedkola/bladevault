@@ -180,6 +180,7 @@ export function buildWishlistTrends(
     `SELECT ${SNAPSHOT_COLUMNS}
      FROM price_snapshots s JOIN price_sources p ON p.id = s.source_id
      WHERE s.knife_id = ? AND p.removed_at IS NULL AND s.last_seen_at >= ?
+       AND p.variant_search IS NULL
      ORDER BY s.observed_at, s.id`,
   )
   for (const knifeId of knifeIds) {
@@ -207,6 +208,7 @@ export function buildPriceTrends(
       `SELECT ${SNAPSHOT_COLUMNS}
        FROM price_snapshots s JOIN price_sources p ON p.id = s.source_id
        WHERE p.removed_at IS NULL AND p.enabled = 1 AND s.last_seen_at >= ?
+         AND p.variant_search IS NULL
        ORDER BY s.observed_at, s.id`,
     )
     .all(since) as SnapshotRow[]

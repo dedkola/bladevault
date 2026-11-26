@@ -682,7 +682,7 @@ describe('Other stores: Shopify stores (KnifeJoy, Northwest Knives)', () => {
   })
 })
 
-describe('Ignore out of stock on the official site', () => {
+describe('No out-of-stock alerts for the official site', () => {
   it('is off by default and normalizes', () => {
     expect(DEFAULT_PRICE_MONITORING.ignoreOfficialOutOfStock).toBe(false)
     expect(

@@ -111,12 +111,11 @@ function problemFor(
 }
 
 const ELIGIBILITY_TEXT: Record<EligibilityReason, string> = {
-  monitored_auto: 'Monitored: Auto mode, regular price and a store URL.',
+  monitored_auto: 'Monitored: Auto mode and a store URL.',
   monitored_forced: 'Monitored: Always monitor is on.',
   monitored_collection:
     'Monitored with the rest of the collection: outside What to monitor, checked in free time at most once a day, and notifies only about a super sale.',
   off: 'Not monitored: monitoring is off for this knife.',
-  no_price: 'Not monitored: Auto mode needs a regular price above 0.',
   sold: 'Not monitored: the knife is sold and Auto mode skips sold knives.',
   no_source: 'Not monitored: no active store URL.',
   out_of_scope:
@@ -307,6 +306,8 @@ export async function getPriceHistory(input: {
         storeName: source.storeName,
         url: source.url,
         removed: source.removed,
+        match: source.variantTitle ? 'variant' : 'exact',
+        ...(source.variantTitle ? { variantTitle: source.variantTitle } : {}),
         latest: latest
           ? {
               price: money(latest.priceMinor, latest.currency),
@@ -355,13 +356,22 @@ export async function getPriceWatch(knifeId: string) {
     eligibility: view.eligibility.reason,
     eligibilityText: ELIGIBILITY_TEXT[view.eligibility.reason],
     maxSources: view.maxSources,
-    remainingSlots: Math.max(0, view.maxSources - view.sources.length),
+    // Listings of other variants are outside the limit.
+    remainingSlots: Math.max(
+      0,
+      view.maxSources -
+        view.sources.filter((source) => !source.variantTitle).length,
+    ),
     sources: view.sources.map((source) => ({
       sourceId: source.id,
       url: source.url,
       storeName: source.storeName,
       origin: source.origin,
       foundByAi: source.foundByAi ?? false,
+      // exact: the knife itself; variant: the same model in another
+      // variant (Other stores), never its price or alerts.
+      match: source.variantTitle ? 'variant' : 'exact',
+      ...(source.variantTitle ? { variantTitle: source.variantTitle } : {}),
       paused: !source.enabled,
       status: source.status,
       problem: problemFor(source.status, errorCodes.get(source.id) ?? null),
@@ -420,6 +430,7 @@ export async function getPriceAttention(now = Date.now()) {
               s.consecutive_failures
        FROM price_sources s JOIN knives k ON k.id = s.knife_id
        WHERE s.removed_at IS NULL AND s.enabled = 1
+         AND s.variant_search IS NULL
          AND s.status IN ('failed', 'blocked', 'price_unavailable',
                           'needs_review')
        ORDER BY s.last_checked_at DESC, s.id DESC`,
@@ -564,9 +575,13 @@ async function validatePriceWatchChange(input: PriceWatchChangeInput) {
   }
 
   const adds: NonNullable<PriceWatchUpdate['add']> = []
+  // A variant listing's link may be added: it becomes the knife's own.
   const known = new Set(
     active
-      .filter((source) => !removeIds.includes(source.id))
+      .filter(
+        (source) =>
+          !removeIds.includes(source.id) && source.variant_search === null,
+      )
       .map((source) => source.normalized_url),
   )
   for (const item of input.add ?? []) {
@@ -594,7 +609,14 @@ async function validatePriceWatchChange(input: PriceWatchChangeInput) {
     changes.push({ action: 'add', url, normalizedUrl: normalized, storeName })
   }
 
-  const finalCount = active.length - removeIds.length + adds.length
+  const ownIds = new Set(
+    active
+      .filter((source) => source.variant_search === null)
+      .map((source) => source.id),
+  )
+  // An added variant link turns into one of the knife's own sources.
+  const finalCount =
+    ownIds.size - removeIds.filter((id) => ownIds.has(id)).length + adds.length
   if (finalCount > MAX_PRICE_SOURCES_PER_KNIFE)
     errors.push(
       `A knife can have at most ${MAX_PRICE_SOURCES_PER_KNIFE} price sources (this change would leave ${finalCount})`,

@@ -1398,6 +1398,12 @@ function migratePriceMonitoringSchema(
   // A drop of a knife outside What to monitor that reached the super-sale
   // line (collection pass): marked so the Inbox can say so.
   addColumn('price_notifications', 'super_sale', 'INTEGER NOT NULL DEFAULT 0')
+  // Other stores: a listing of the same model in another variant (handle,
+  // steel, colour), monitored with its own history but kept apart from the
+  // knife's price. `variant_search` names the search that keeps it
+  // (store:marketplace); NULL is the knife's own product.
+  addColumn('price_sources', 'variant_search', 'TEXT')
+  addColumn('price_sources', 'variant_title', 'TEXT')
   if (!hadPreviousSource)
     database.transaction(() => backfillNewStoreEvents(database))()
 }
