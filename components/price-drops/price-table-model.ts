@@ -116,6 +116,21 @@ export function vsPaid(
   return { deltaMinor, pct: (deltaMinor / source.paidMinor) * 100 }
 }
 
+/**
+ * Whether a row's price is one to compare with the regular price: not out
+ * of stock and not a price a failed check kept. The row chart's chip and the
+ * regular-price sort both use it, so they agree.
+ */
+export function hasBuyablePrice(
+  source: Pick<MonitoredSource, 'priceMinor' | 'result'>,
+): boolean {
+  return (
+    source.priceMinor !== null &&
+    source.result !== 'out_of_stock' &&
+    source.result !== 'attention'
+  )
+}
+
 /** Case-insensitive match on brand, name, model/steel subtitle and store. */
 export function matchesQuery(source: MonitoredSource, query: string): boolean {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean)
@@ -186,7 +201,7 @@ function sortValue(
       // latest change while trends are loading or missing.
       return trendPct?.(source) ?? source.deltaPct
     case 'paid':
-      return vsPaid(source)?.pct ?? null
+      return hasBuyablePrice(source) ? (vsPaid(source)?.pct ?? null) : null
     case 'checked':
       return source.lastCheckedAt ? Date.parse(source.lastCheckedAt) : null
   }

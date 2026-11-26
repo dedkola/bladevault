@@ -44,7 +44,8 @@
   stroke-width: 1;
   stroke-dasharray: 2 2;
 }
-/* Net change over the window; the arrow keeps it readable without colour. */
+/* The current price against the regular price; the arrow keeps it
+   readable without colour. */
 [data-trend-chip] {
   --trend-chip: var(--trend-flat, var(--price-neutral, #9a958b));
   flex: none;
@@ -83,25 +84,18 @@
   color: var(--foreground);
   font-weight: 600;
 }
-[data-trend-change] {
-  font-weight: 650;
-}
-[data-trend-change='down'] {
-  color: color-mix(
-    in srgb,
-    var(--trend-down, var(--price-drop, #2f7d46)) 85%,
-    var(--foreground)
-  );
-}
-[data-trend-change='up'] {
-  color: color-mix(
-    in srgb,
-    var(--trend-up, var(--price-rise, #b4232a)) 85%,
-    var(--foreground)
-  );
-}
 [data-trend-empty] {
   color: var(--muted-foreground);
   font-size: 11px;
   text-align: right;
+}
+/* The item's regular price, a dashed reference inside the chart's scale. */
+[data-trend-regular] {
+  stroke: var(--muted-foreground);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  opacity: 0.7;
+}
+[data-trend-regular-note] {
+  color: var(--muted-foreground);
 }

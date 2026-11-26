@@ -559,18 +559,6 @@
   font-size: 13.5px;
   font-weight: 600;
 }
-/* The latest check moved the price: coloured text, not another pill. */
-[data-price-change-tag] {
-  color: color-mix(in srgb, var(--pd-color) 85%, var(--foreground));
-  font-size: 11.5px;
-  font-weight: 650;
-}
-[data-price-change-tag='drop'] {
-  --pd-color: var(--price-drop);
-}
-[data-price-change-tag='increase'] {
-  --pd-color: var(--price-rise);
-}
 [data-price-note] {
   color: var(--muted-foreground);
   font-size: 12px;
@@ -678,9 +666,6 @@
   [data-price-grid] td[data-col='price'] [data-price-cell] {
     justify-items: start;
     text-align: left;
-  }
-  [data-price-grid] td[data-col='price'] [data-price-line] {
-    flex-direction: row-reverse;
   }
   [data-price-grid] td[data-col='trend'] {
     grid-area: trend;

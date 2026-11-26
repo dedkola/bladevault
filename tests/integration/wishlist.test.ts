@@ -367,6 +367,42 @@ describe('wishlist', () => {
     expect(trends.sources['3']).toBeUndefined()
   })
 
+  it('charts the currency the stores show now, not the oldest one', () => {
+    const db = getLocalDb()
+    const now = Date.parse('2026-06-30T12:00:00Z')
+    const day = 24 * 60 * 60 * 1000
+    const iso = (daysAgo: number) => new Date(now - daysAgo * day).toISOString()
+    for (const host of ['a', 'b'])
+      db.prepare(
+        `INSERT INTO price_sources
+           (knife_id, url, normalized_url, provider, lane_key, store_name,
+            origin, created_at, updated_at)
+         VALUES ('first', ?, ?, 'generic', ?, ?, 'manual', 't', 't')`,
+      ).run(
+        `https://${host}.example/p`,
+        `https://${host}.example/p`,
+        host,
+        host,
+      )
+    const snapshot = db.prepare(
+      `INSERT INTO price_snapshots
+         (knife_id, source_id, price_minor, currency, availability,
+          extraction_status, extraction_method, observed_at, last_seen_at)
+       VALUES ('first', ?, ?, ?, 'in_stock', 'ok', 'json_ld', ?, ?)`,
+    )
+    // Store A read in UAH for days, then switched to USD; store B is USD.
+    snapshot.run(1, 755900, 'UAH', iso(8), iso(7))
+    snapshot.run(1, 756300, 'UAH', iso(7), iso(6))
+    snapshot.run(1, 753900, 'UAH', iso(6), iso(5))
+    snapshot.run(1, 16500, 'USD', iso(4), iso(0))
+    snapshot.run(2, 16500, 'USD', iso(3), iso(0))
+
+    const trend = buildPriceTrends(db, now).knives.first
+    expect(trend.currency).toBe('USD')
+    expect(trend.steps.at(-1)).toEqual({ at: now - 4 * day, price: 16500 })
+    expect(trend.lowMinor).toBe(16500)
+  })
+
   it('starts the chart when tracking began and keeps a same-day drop', () => {
     const db = getLocalDb()
     const now = Date.parse('2026-06-30T12:00:00Z')
