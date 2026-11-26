@@ -212,7 +212,8 @@ describe('sources scheduled monitoring does not cover', () => {
     database
       .prepare(
         `UPDATE price_sources
-         SET status = 'failed', last_checked_at = ?, next_check_at = ?`,
+         SET status = 'failed', last_checked_at = ?, next_check_at = ?,
+             consecutive_failures = 3`,
       )
       .run(earlier, earlier)
 

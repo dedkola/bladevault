@@ -1404,6 +1404,33 @@ function migratePriceMonitoringSchema(
   // (store:marketplace); NULL is the knife's own product.
   addColumn('price_sources', 'variant_search', 'TEXT')
   addColumn('price_sources', 'variant_title', 'TEXT')
+  // Needs attention (price-monitor/attention): when the source ran into its
+  // current problem, until when the user put it off, when the daily summary
+  // last raised it, the price the user confirmed over AI's doubt, and why
+  // and when it was paused (manual, missing_page, auto_attention).
+  const hadAttentionSince = (
+    database
+      .prepare("SELECT name FROM pragma_table_info('price_sources')")
+      .all() as Array<{ name: string }>
+  ).some((entry) => entry.name === 'attention_since')
+  addColumn('price_sources', 'attention_since', 'TEXT')
+  addColumn('price_sources', 'attention_snoozed_until', 'TEXT')
+  addColumn('price_sources', 'attention_reported_at', 'TEXT')
+  addColumn('price_sources', 'accepted_price_minor', 'INTEGER')
+  addColumn('price_sources', 'accepted_currency', 'TEXT')
+  addColumn('price_sources', 'paused_reason', 'TEXT')
+  addColumn('price_sources', 'paused_at', 'TEXT')
+  // Sources already in trouble count from their last check: the exact
+  // start is not stored, and this never makes one look older than it is.
+  if (!hadAttentionSince)
+    database
+      .prepare(
+        `UPDATE price_sources SET attention_since = last_checked_at
+         WHERE attention_since IS NULL
+           AND status IN ('failed', 'blocked', 'price_unavailable',
+                          'needs_review')`,
+      )
+      .run()
   if (!hadPreviousSource)
     database.transaction(() => backfillNewStoreEvents(database))()
 }

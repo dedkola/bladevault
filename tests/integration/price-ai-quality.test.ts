@@ -18,6 +18,8 @@ import { getSettings, saveSettings } from '@/lib/settings'
 import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
 import type { ExtractedOffer } from '@/lib/scrape-offer'
 import { getSystemMessages } from '@/lib/system-message-store'
+import { runAttentionSummary } from '@/lib/price-monitor/attention'
+import { getVaultAccessState } from '@/lib/vault-access'
 import { monitorWholeCollection } from '@/tests/helpers/monitor-whole-collection'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
 
@@ -389,6 +391,14 @@ describe('Spot-check page readings (Unlimited)', () => {
     expect(rows('SELECT ai_review FROM price_snapshots')).toEqual([
       { ai_review: null },
     ])
+    // A doubted price that is the knife's best offer needs the user; the
+    // morning summary raises it.
+    const morning = new Date()
+    morning.setHours(10, 0, 0, 0)
+    await runAttentionSummary({
+      generation: getVaultAccessState().generation,
+      now: morning.getTime(),
+    })
     const attention = (await getSystemMessages()).find(
       (message) => message.kind === 'price-attention',
     )

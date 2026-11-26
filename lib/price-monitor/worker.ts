@@ -34,6 +34,7 @@ import {
 } from '@/lib/price-monitor/discovery'
 import { readDiscoveryQueue } from '@/lib/price-monitor/discovery-store'
 import { DISCOVERY_STORES } from '@/lib/price-monitor/discovery-stores'
+import { startAttentionSummaryIfDue } from '@/lib/price-monitor/attention'
 import { startPriceDigestIfDue } from '@/lib/price-monitor/digest'
 import {
   checkPriceSource,
@@ -542,6 +543,8 @@ export class PriceMonitorWorker {
         this.maybeSupervise(settings, now)
         // The daily AI summary for the Inbox; runs in the background.
         startPriceDigestIfDue(settings, now)
+        // The daily Needs attention summary; no AI, runs in the background.
+        startAttentionSummaryIfDue(access.generation, now)
       }
 
       const context: PassContext = {

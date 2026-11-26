@@ -38,6 +38,14 @@ export const PRICE_SOURCE_STATUSES = [
 ] as const
 export type PriceSourceStatus = (typeof PRICE_SOURCE_STATUSES)[number]
 
+/** Statuses of a store page that may need the user (Needs attention). */
+export const ATTENTION_STATUS_LIST = [
+  'failed',
+  'blocked',
+  'price_unavailable',
+  'needs_review',
+] as const satisfies readonly PriceSourceStatus[]
+
 export const FETCH_OVERRIDES = ['auto', 'browser', 'http'] as const
 /** Per-source override of the store's learned fetch strategy. */
 export type FetchOverride = (typeof FETCH_OVERRIDES)[number]

@@ -40,6 +40,7 @@ import {
 } from '@/components/providers/care-inbox-provider'
 import { careToneDotClass, careToneTextClass } from '@/components/care-badge'
 import { AchievementBadge } from '@/components/achievement-badge'
+import { PriceAttentionPanel } from '@/components/price-attention-panel'
 import {
   ACHIEVEMENTS_HREF,
   achievementIdFromMessageKey,
@@ -693,6 +694,11 @@ function systemMessageDetail(message: SystemMessage, now: Date): string {
     return message.dismissedAt
       ? `AI summary · ${when} · dismissed`
       : `AI summary · ${when}`
+  // Raised once a day at most; the list below stays current in between.
+  if (message.kind === 'price-attention')
+    return message.dismissedAt
+      ? `Daily summary · ${when} · dismissed`
+      : `Daily summary · ${when}`
   if (message.dismissedAt) return `${repeats} · dismissed`
   return repeats
 }
@@ -843,6 +849,9 @@ function SystemMessageRow({
           <p className="mt-0.5 text-xs text-muted-foreground">
             {systemMessageDetail(message, now)}
           </p>
+        )}
+        {!compact && box === 'open' && message.kind === 'price-attention' && (
+          <PriceAttentionPanel />
         )}
         {!compact && (
           <div className="mt-2 flex flex-wrap items-center gap-1.5">

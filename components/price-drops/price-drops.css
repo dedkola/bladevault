@@ -404,6 +404,12 @@
   color: var(--muted-foreground);
   font-weight: 500;
 }
+/* Needs attention: a quiet or put-off problem is a faded mark only. */
+.pd-badge[data-attention='quiet'],
+.pd-badge[data-attention='snoozed'] {
+  opacity: 0.6;
+  font-style: italic;
+}
 .pd-drift {
   font-weight: 400;
   opacity: 0.85;

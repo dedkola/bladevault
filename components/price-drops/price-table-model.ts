@@ -48,6 +48,23 @@ export function isBelowPaid(source: MonitoredSource): boolean {
   )
 }
 
+/**
+ * A page in trouble that needs the user. Quiet problems (a first failure, a
+ * doubted price another store agrees with, a broken store of a knife other
+ * stores read) and ones put off with Later only get a grey mark.
+ */
+export function needsAttention(source: MonitoredSource): boolean {
+  return (
+    source.result === 'attention' &&
+    (source.attention?.class ?? 'attention') === 'attention'
+  )
+}
+
+/** A page in trouble the user put off with Later. */
+export function isSnoozed(source: MonitoredSource): boolean {
+  return source.result === 'attention' && source.attention?.class === 'snoozed'
+}
+
 export const SECTION_FILTER: Record<
   Section,
   (source: MonitoredSource) => boolean
@@ -64,8 +81,7 @@ export const SECTION_FILTER: Record<
   increases: (source) => source.result === 'increase',
   restocked: (source) => source.result === 'restocked',
   oos: (source) => source.result === 'out_of_stock',
-  attention: (source) =>
-    source.result === 'attention' || source.retireHint !== null,
+  attention: (source) => needsAttention(source) || source.retireHint !== null,
   recent: (source) => Boolean(source.lastCheckedAt),
 }
 

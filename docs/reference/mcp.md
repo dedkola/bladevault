@@ -24,7 +24,7 @@ BladeVault exposes its existing local collection to MCP clients such as LM Studi
 | `list_price_changes`    | List price drops, increases, restocks, and out-of-stock items        | Read-only  |
 | `get_price_history`     | Retrieve one knife's price history per store and its change events   | Read-only  |
 | `get_price_watch`       | Retrieve one knife's monitoring mode, eligibility, and store sources | Read-only  |
-| `get_price_attention`   | Summarize blocked, failed, and unavailable price checks              | Read-only  |
+| `get_price_attention`   | Blocked, failed, unavailable checks; which need you, quiet, put off  | Read-only  |
 | `update_price_watch`    | Preview and apply mode and store URL changes for one knife           | Write mode |
 | `request_price_check`   | Queue **Check now** for one knife at each store's normal pace        | Write mode |
 

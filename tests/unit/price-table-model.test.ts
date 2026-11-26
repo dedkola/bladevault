@@ -49,6 +49,7 @@ function source(overrides: Partial<MonitoredSource> = {}): MonitoredSource {
     fluctuating: false,
     paidCurrency: null,
     retireHint: null,
+    attention: null,
     ...overrides,
   }
 }

@@ -208,6 +208,31 @@ export async function resolveSystemMessage(
   }))
 }
 
+/**
+ * Updates the open message of a kind in place, without counting a repeat:
+ * it keeps its read, dismissed and occurred times. Nothing happens when no
+ * message of the kind is open.
+ */
+export async function refreshSystemMessage(
+  kind: SystemMessageKind,
+  patch: { title: string; detail: string },
+  now: Date = new Date(),
+): Promise<SystemMessage[]> {
+  const nowIso = now.toISOString()
+  return writePlanned((existing) => ({
+    create: [],
+    update: existing
+      .filter(
+        (row) =>
+          row.kind === kind &&
+          !row.resolvedAt &&
+          (row.title !== patch.title || row.detail !== patch.detail),
+      )
+      .map((row) => ({ ...row, ...patch, updatedAt: nowIso })),
+    deleteIds: [],
+  }))
+}
+
 export async function updateSystemMessages(
   action: SystemMessageAction,
   now: Date = new Date(),

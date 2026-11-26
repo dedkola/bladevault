@@ -53,8 +53,15 @@ import {
   hasAgentActivity,
   useAgentState,
 } from './agent-panel'
+import {
+  AttentionButtons,
+  attentionResultText,
+  LaterMenu,
+  postAttentionAction,
+} from './attention-actions'
 import { KnifePricePanel } from './knife-price-panel'
 import { MonitoringStatus, ResultBadge } from './monitoring-status'
+import type { AttentionActionRequest } from '@/lib/price-monitor/attention-filter'
 import { PriceExportButton } from './price-export-button'
 import { RetireHintNotice } from './retire-hint'
 import {
@@ -549,14 +556,18 @@ function RowActions({
   source,
   checking,
   canSolve,
+  attentionBusy,
   onCheckNow,
   onResolve,
+  onAttention,
 }: {
   source: MonitoredSource
   checking: boolean
   canSolve: boolean | null
+  attentionBusy: boolean
   onCheckNow: () => void
   onResolve: () => void
+  onAttention: (request: AttentionActionRequest) => void
 }) {
   const name = knifeName(source)
   const store = storeLabel(source.storeName)
@@ -564,6 +575,17 @@ function RowActions({
   const stop = (event: React.SyntheticEvent) => event.stopPropagation()
   return (
     <div data-price-row-actions className="flex items-center justify-end">
+      {source.result === 'attention' ? (
+        <AttentionButtons
+          compact
+          sourceId={source.sourceId}
+          status={source.status}
+          verdict={source.attention}
+          label={`${name} at ${store}`}
+          busy={attentionBusy}
+          onAction={onAttention}
+        />
+      ) : null}
       {source.result === 'attention' && canSolve ? (
         <Button
           type="button"
@@ -642,6 +664,8 @@ function SourceTableRow({
   onToggleChecked,
   onResolve,
   onCheckNow,
+  attentionBusy,
+  onAttention,
 }: {
   source: MonitoredSource
   selected: boolean
@@ -667,6 +691,8 @@ function SourceTableRow({
   onToggleChecked: () => void
   onResolve: () => void
   onCheckNow: () => void
+  attentionBusy: boolean
+  onAttention: (request: AttentionActionRequest) => void
 }) {
   const paused = laneNote(lanes, source, hourCycle, now)
   const showNext = section === 'attention'
@@ -833,8 +859,10 @@ function SourceTableRow({
           source={source}
           checking={checkingNow}
           canSolve={canSolve}
+          attentionBusy={attentionBusy}
           onCheckNow={onCheckNow}
           onResolve={onResolve}
+          onAttention={onAttention}
         />
       </td>
     </tr>
@@ -1072,6 +1100,7 @@ export function PriceDropsView({
   const [checking, setChecking] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [attentionBusy, setAttentionBusy] = useState(false)
   const [confirm, setConfirm] = useState<BulkAction | null>(null)
   const scrollTarget = useRef<string | null>(initialKnife ?? null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -1231,8 +1260,31 @@ export function PriceDropsView({
     }
   }
 
+  const runAttention = async (request: AttentionActionRequest) => {
+    setAttentionBusy(true)
+    setNotice(null)
+    try {
+      const { result } = await postAttentionAction(request)
+      setNotice(attentionResultText(request, result))
+      if (request.sourceIds.length > 1) setChecked(new Set())
+      setVersion((value) => value + 1)
+    } catch (err) {
+      setNotice(
+        err instanceof Error ? err.message : 'The action did not go through.',
+      )
+    } finally {
+      setAttentionBusy(false)
+    }
+  }
+
   const checkedSources = monitored.filter((source) =>
     checked.has(source.sourceId),
+  )
+  const checkedTrouble = checkedSources.filter(
+    (source) => source.result === 'attention',
+  )
+  const checkedReview = checkedTrouble.filter(
+    (source) => source.status === 'needs_review',
   )
   const checkedKnives = [
     ...new Set(checkedSources.map((source) => source.knife.id)),
@@ -1467,6 +1519,8 @@ export function PriceDropsView({
         }}
         onToggleChecked={() => toggleChecked(ids)}
         onCheckNow={() => void checkOne(source)}
+        attentionBusy={attentionBusy}
+        onAttention={(request) => void runAttention(request)}
         onResolve={() => {
           setSelected(source.knife.id)
           setSolveTarget({
@@ -1766,6 +1820,57 @@ export function PriceDropsView({
                   >
                     Pause
                   </Button>
+                  {checkedTrouble.length ? (
+                    <>
+                      <LaterMenu
+                        disabled={bulkBusy || attentionBusy}
+                        label="Check the selected pages again later"
+                        onLater={(days) =>
+                          void runAttention({
+                            action: 'snooze',
+                            days,
+                            sourceIds: checkedTrouble.map(
+                              (source) => source.sourceId,
+                            ),
+                          })
+                        }
+                      />
+                      {checkedReview.length ? (
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          disabled={bulkBusy || attentionBusy}
+                          title="Confirm the prices AI doubts on the selected pages"
+                          onClick={() =>
+                            void runAttention({
+                              action: 'accept',
+                              sourceIds: checkedReview.map(
+                                (source) => source.sourceId,
+                              ),
+                            })
+                          }
+                        >
+                          Price is right ({checkedReview.length})
+                        </Button>
+                      ) : null}
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        disabled={bulkBusy || attentionBusy}
+                        title="Remove the selected store pages; the knife's own product link is paused instead"
+                        onClick={() =>
+                          void runAttention({
+                            action: 'remove',
+                            sourceIds: checkedTrouble.map(
+                              (source) => source.sourceId,
+                            ),
+                          })
+                        }
+                      >
+                        Remove
+                      </Button>
+                    </>
+                  ) : null}
                   <Select
                     value={null}
                     onValueChange={(value) => {

@@ -9,6 +9,8 @@ import type {
   SourceResult,
 } from '@/lib/price-monitor/insights'
 import { cn } from '@/lib/utils'
+import { verdictTitle } from './attention-actions'
+import { isSnoozed, needsAttention } from './price-table-model'
 import {
   durationLabel,
   money,
@@ -636,7 +638,8 @@ export function MonitoringStatus({
   const rises = count('increase')
   const restocked = count('restocked')
   const outOfStock = count('out_of_stock')
-  const attention = count('attention')
+  const attention = sources.filter(needsAttention).length
+  const putOff = sources.filter(isSnoozed).length
   const waiting = count('pending')
   const nextChecks = sources
     .map((source) => nextCheckTime(source, now))
@@ -706,6 +709,11 @@ export function MonitoringStatus({
           <span>
             <b>{attention}</b> {attention === 1 ? 'needs' : 'need'} attention
           </span>
+          {putOff ? (
+            <span title="Store pages you put off with Later; they show under All">
+              <b>{putOff}</b> put off
+            </span>
+          ) : null}
           {waiting ? (
             <span>
               <b>{waiting}</b> waiting for first check
@@ -801,6 +809,27 @@ export function ResultBadge({
               : source.result === 'out_of_stock' && source.since && now
                 ? `Out of stock · ${daysAgo(source.since, now)}`
                 : RESULT_LABEL[source.result]
+  // A quiet or put-off problem: a grey mark that says why, no Solve.
+  const muted =
+    source.result === 'attention' &&
+    source.attention !== null &&
+    source.attention.class !== 'attention'
+      ? source.attention
+      : null
+  if (muted)
+    return (
+      <span
+        className="pd-badge"
+        data-result={source.result}
+        data-attention={muted.class}
+        title={verdictTitle(muted) ?? undefined}
+      >
+        {muted.class === 'snoozed' ? '◷' : icon[source.result]} {text}
+        {muted.class === 'snoozed'
+          ? ` · later ${new Date(muted.until).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+          : null}
+      </span>
+    )
   if (source.result === 'attention' && solveUnavailable)
     return (
       <span
