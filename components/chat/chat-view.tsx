@@ -1022,6 +1022,11 @@ function TurnView({ turn, streaming }: { turn: Turn; streaming: boolean }) {
   const last = turn.items.at(-1)
   const waiting =
     streaming && (!last || (last.kind === 'tool' && last.step !== null))
+  // Only the turn's latest cards or table start open; earlier steps (the
+  // lookups that led to it) start as one-line chips.
+  const lastUiKey = turn.items.findLast(
+    (item) => item.kind === 'tool' && item.step?.ui,
+  )?.key
   return (
     <li className="chat-turn">
       {turn.user !== null ? (
@@ -1032,7 +1037,12 @@ function TurnView({ turn, streaming }: { turn: Turn; streaming: boolean }) {
       <div className="chat-answer">
         {turn.items.map((item) =>
           item.kind === 'tool' ? (
-            <ToolStepView key={item.key} label={item.label} step={item.step} />
+            <ToolStepView
+              key={item.key}
+              label={item.label}
+              step={item.step}
+              defaultOpen={item.key === lastUiKey}
+            />
           ) : (
             <AnswerText key={item.key} item={item} />
           ),
@@ -1074,11 +1084,15 @@ function AnswerText({ item }: { item: Extract<AnswerItem, { kind: 'text' }> }) {
 function ToolStepView({
   label,
   step,
+  defaultOpen,
 }: {
   label: string
   step: ChatToolStep | null
+  defaultOpen: boolean
 }) {
-  const [open, setOpen] = useState(true)
+  // Follows defaultOpen until the user toggles it.
+  const [toggled, setToggled] = useState<boolean | null>(null)
+  const open = toggled ?? defaultOpen
   const running = step === null
   const hasUi = Boolean(step?.ui)
   return (
@@ -1088,7 +1102,7 @@ function ToolStepView({
         className="chat-tool-chip"
         aria-expanded={hasUi ? open : undefined}
         disabled={!hasUi}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => setToggled(!open)}
       >
         {running ? (
           <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />

@@ -57,7 +57,7 @@ Over stdio, `refill_knife_images` reads the page HTML directly; the in-app HTTP 
 The price tools use the same history as the [Price Drops](../guides/price-drops.md) page. Prices include a decimal `amount`, the `minor` units BladeVault stores, and the `currency`.
 
 - `list_price_watches` returns monitored knives by default. Set `monitored_only` to `false` to include knives with a store URL that are not monitored, or filter by `state`: `attention`, `drop`, `increase`, `out_of_stock`, `same`, `pending`, or `not_monitored`.
-- `list_price_changes` covers the last `days` (1–365, default 30) and can be limited to `drop`, `increase`, `back_in_stock`, or `out_of_stock` events. It also lists the store listings that are out of stock now.
+- `list_price_changes` covers the last `days` (1–365, default 30) and can be limited to `drop`, `increase`, `back_in_stock`, or `out_of_stock` events, and to one `brand` (case-insensitive, part of the name) or `knife_id`. It also lists the store listings that are out of stock now.
 - `get_price_history` accepts the same ranges as the Market tab: `7d`, `1m`, `3m`, `6m`, `1y`, or `all`.
 - `get_price_watch` and `get_price_attention` describe problems with fixed text such as "bot check" or "no price found" rather than text read from store pages.
 

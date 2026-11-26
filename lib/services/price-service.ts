@@ -230,9 +230,21 @@ export const PRICE_CHANGE_KINDS = [
   'out_of_stock',
 ] as const
 
+/** Brand match for list filters: case-insensitive, part of the brand. */
+function brandMatcher(brand: string | undefined) {
+  const wanted = brand?.trim().toLowerCase()
+  if (!wanted) return () => true
+  return (knife: { brand: string }) =>
+    knife.brand.toLowerCase().includes(wanted)
+}
+
 export async function listPriceChanges(input: {
   days?: number
   kinds?: Array<(typeof PRICE_CHANGE_KINDS)[number]>
+  /** Only knives of this brand (case-insensitive, part of the name). */
+  brand?: string
+  /** Only this knife. */
+  knifeId?: string
   limit?: number
   now?: number
 }) {
@@ -240,8 +252,16 @@ export async function listPriceChanges(input: {
   const now = input.now ?? Date.now()
   const since = new Date(now - days * DAY_MS).toISOString()
   const database = getLocalDb()
-  // Counts cover the whole window; the event list honours kinds and limit.
-  const windowEvents = listChangeEvents(database, { since, limit: 10_000 })
+  const ofBrand = brandMatcher(input.brand)
+  const knifeId = input.knifeId?.trim()
+  const wanted = (knife: { id: string; brand: string }) =>
+    ofBrand(knife) && (!knifeId || knife.id === knifeId)
+  // Counts cover the whole window (for the brand or knife asked about); the
+  // event list also honours kinds and limit.
+  const windowEvents = listChangeEvents(database, {
+    since,
+    limit: 10_000,
+  }).filter((event) => wanted(event.knife))
   const counts = Object.fromEntries(
     PRICE_CHANGE_KINDS.map((kind) => [
       kind,
@@ -257,8 +277,9 @@ export async function listPriceChanges(input: {
     since,
     counts,
     events: events.map(toEventOutput),
-    outOfStockNow: readOutOfStockSources(database, priceSettings()).map(
-      (source) => ({
+    outOfStockNow: readOutOfStockSources(database, priceSettings())
+      .filter((source) => wanted(source.knife))
+      .map((source) => ({
         knifeId: source.knife.id,
         knife: knifeLabel(source.knife),
         sourceId: source.sourceId,
@@ -266,8 +287,7 @@ export async function listPriceChanges(input: {
         url: source.url,
         since: source.since,
         lastCheckedAt: source.lastCheckedAt,
-      }),
-    ),
+      })),
   }
 }
 

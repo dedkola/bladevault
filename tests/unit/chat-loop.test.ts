@@ -7,10 +7,10 @@ import {
 import {
   chatToolDefinitions,
   CHAT_TOOLS,
-  MAX_TOOL_STEPS,
   REASONING_IGNORED_NOTICE,
   runChatTurn,
   type ChatLoopEvent,
+  type ChatTurnInput,
 } from '@/lib/chat/loop'
 import type { ReadTool } from '@/lib/tools/read-tools'
 import { toModelContent, describeToolCall } from '@/lib/chat/tool-results'
@@ -38,6 +38,7 @@ function turn(
   tools: ReadTool[],
   toolMode: 'auto' | 'native' | 'json' = 'auto',
   reasoning: 'off' | 'low' | 'medium' | 'high' = 'off',
+  extra: Partial<ChatTurnInput> = {},
 ) {
   const events: ChatLoopEvent[] = []
   const usage = { promptTokens: 0, completionTokens: 0 }
@@ -52,6 +53,7 @@ function turn(
     tools,
     usage,
     emit: (event) => events.push(event),
+    ...extra,
   })
   return { promise, events, usage }
 }
@@ -82,9 +84,60 @@ describe('chat tools', () => {
     expect(
       describeToolCall('list_price_changes', { days: 7, kinds: ['drop'] }),
     ).toBe('Listed drop · last 7 days')
+    expect(
+      describeToolCall('list_price_changes', {
+        days: 30,
+        kinds: ['drop'],
+        brand: 'Vosteed',
+      }),
+    ).toBe('Listed Vosteed drop · last 30 days')
     expect(describeToolCall('search_knives', { query: 'Spyderco' })).toBe(
       'Searched knives: “Spyderco”',
     )
+  })
+
+  it('sends whole results when no context limit is given', () => {
+    const result = {
+      knives: Array.from({ length: 400 }, (_, index) => ({ id: `k${index}` })),
+    }
+    const parsed = JSON.parse(toModelContent('search_knives', result))
+    expect(parsed.knives).toHaveLength(400)
+    expect(parsed._truncated).toBeUndefined()
+  })
+
+  it('drops URLs, source ids and minor units from price changes', () => {
+    const event = {
+      kind: 'drop',
+      knifeId: 'raccoon',
+      knife: 'Vosteed Raccoon',
+      sourceId: 7,
+      storeName: 'amazon.com',
+      url: 'https://www.amazon.com/dp/X',
+      price: { amount: 48.99, minor: 4899, currency: 'USD' },
+      previousPrice: { amount: 69, minor: 6900, currency: 'USD' },
+      deltaPct: -29,
+      occurredAt: '2026-11-25T10:00:00.000Z',
+    }
+    const parsed = JSON.parse(
+      toModelContent('list_price_changes', {
+        days: 30,
+        counts: { drop: 1 },
+        events: [event],
+        outOfStockNow: [],
+      }),
+    )
+    expect(parsed.events).toEqual([
+      {
+        kind: 'drop',
+        knifeId: 'raccoon',
+        knife: 'Vosteed Raccoon',
+        store: 'amazon.com',
+        price: '48.99 USD',
+        was: '69.00 USD',
+        deltaPct: -29,
+        at: '2026-11-25T10:00:00.000Z',
+      },
+    ])
   })
 
   it('cuts long results for the model and says so', () => {
@@ -154,8 +207,22 @@ describe('runChatTurn (native tools)', () => {
     })
   })
 
-  it('makes the model answer without tools after the step cap', async () => {
+  it('lets the model call tools as often as it needs', async () => {
     const { tool } = fakeTool()
+    const fetchImpl = vi.fn<typeof fetch>()
+    for (let index = 0; index < 10; index++)
+      fetchImpl.mockResolvedValueOnce(
+        sseResponse([toolCallChunk(`c${index}`, 'echo_tool', { word: 'x' })]),
+      )
+    fetchImpl.mockResolvedValueOnce(sseResponse([textChunk('Done.')]))
+    const result = await turn(fetchImpl, [tool]).promise
+    expect(result).toMatchObject({ text: 'Done.', steps: 10 })
+  })
+
+  it('makes the model answer without tools once the context is full', async () => {
+    const { tool } = fakeTool(
+      vi.fn(async () => ({ echo: 'y'.repeat(6000) as unknown })),
+    )
     const fetchImpl = vi
       .fn<typeof fetch>()
       .mockImplementation(async (_url, init) => {
@@ -164,11 +231,43 @@ describe('runChatTurn (native tools)', () => {
           ? sseResponse([toolCallChunk('c', 'echo_tool', { word: 'again' })])
           : sseResponse([textChunk('Final.')])
       })
-    const { promise } = turn(fetchImpl, [tool])
+    // About 40,000 characters for the turn.
+    const { promise } = turn(fetchImpl, [tool], 'native', 'off', {
+      endpoint: { ...endpoint, maxAnswerTokens: 2000 },
+      contextTokens: 16_000,
+    })
     const result = await promise
-    expect(result.steps).toBe(MAX_TOOL_STEPS)
     expect(result.text).toBe('Final.')
-    expect(fetchImpl).toHaveBeenCalledTimes(MAX_TOOL_STEPS + 1)
+    expect(result.steps).toBeGreaterThan(1)
+    const last = bodyOf(fetchImpl, fetchImpl.mock.calls.length - 1)
+    expect(last.tools).toBeUndefined()
+    expect(last.messages.at(-1).content).toMatch(/context is full/)
+  })
+
+  it('leaves out the oldest earlier messages only when they do not fit', async () => {
+    const history = Array.from({ length: 40 }, (_, index) => ({
+      role: index % 2 ? ('assistant' as const) : ('user' as const),
+      content: `${index} ${'h'.repeat(1000)}`,
+    }))
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(sseResponse([textChunk('Ok.')]))
+    await turn(fetchImpl, [], 'native', 'off', { history }).promise
+    // All 40 fit in the default context.
+    expect(bodyOf(fetchImpl, 0).messages).toHaveLength(42)
+
+    fetchImpl.mockClear()
+    fetchImpl.mockResolvedValue(sseResponse([textChunk('Ok.')]))
+    await turn(fetchImpl, [], 'native', 'off', {
+      history,
+      endpoint: { ...endpoint, maxAnswerTokens: 2000 },
+      contextTokens: 10_000,
+    }).promise
+    const messages = bodyOf(fetchImpl, 0).messages
+    expect(messages.length).toBeLessThan(42)
+    // The newest earlier message is kept, and history starts on a question.
+    expect(messages.at(-2).content).toMatch(/^39 /)
+    expect(messages[1].role).toBe('user')
   })
 
   it('switches to JSON mode when the endpoint refuses tools', async () => {

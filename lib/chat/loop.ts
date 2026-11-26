@@ -9,6 +9,7 @@ import {
   type ChatToolCall,
   type ChatToolDefinition,
   type FetchLike,
+  REASONING_MAX_TOKENS,
 } from '@/lib/price-monitor/ai-client'
 import type {
   PriceAiChatReasoning,
@@ -31,10 +32,19 @@ import type { ChatToolStep } from '@/lib/chat/shared'
  * that changes data.
  */
 
-/** Tool steps per user message before the model must answer. */
-export const MAX_TOOL_STEPS = 6
-/** Earlier messages (user and assistant text) sent with a new message. */
-export const HISTORY_MESSAGES = 20
+/**
+ * The chat's only limit: what one request may send the model, in tokens
+ * (system prompt, tools, earlier messages, this turn and the answer). The
+ * model calls tools as long as it likes; tool results go in whole. Only when
+ * the context would overflow are the oldest earlier messages left out, then a
+ * result that still does not fit is cut, and once it is full the model must
+ * answer.
+ */
+export const CHAT_CONTEXT_TOKENS = 256_000
+/** Rough characters per token, low so JSON-heavy context stays under. */
+const CHARS_PER_TOKEN = 3
+/** Room (in characters) another tool step needs; less means answer now. */
+const MIN_STEP_CHARS = 12_000
 const FIRST_BYTE_TIMEOUT_MS = 90_000
 
 /** The tools the chat offers: every read tool but proposal validation. */
@@ -73,6 +83,8 @@ export type ChatTurnInput = {
   emit: (event: ChatLoopEvent) => void
   /** Filled in as calls finish. */
   usage?: ChatTurnUsage
+  /** The context limit in tokens (CHAT_CONTEXT_TOKENS unless a test sets it). */
+  contextTokens?: number
 }
 
 export type ChatTurnResult = {
@@ -110,7 +122,8 @@ function systemPrompt(now: Date): string {
     'Rules:',
     '- Every fact about the collection comes from a tool result. Never invent knives, prices, dates or counts; if the tools return nothing, say so.',
     '- To find one knife, call search_knives, then get_knife with its id. Knife ids look like opaque strings; never guess one.',
-    '- Discounts, sales or deals are price drops: list_price_changes with kinds ["drop"] and days for the period (a week = 7).',
+    '- Discounts, sales or deals are price drops: list_price_changes with kinds ["drop"] and days for the period (a week = 7). For one brand pass brand (for example "Vosteed"); for one knife pass knife_id. Do not fetch every change and filter it yourself.',
+    '- If a result has _truncated, it is incomplete: say so, or ask again with a narrower filter, before calling anything the best or the only one.',
     '- Missing data: find_missing_fields with field names such as steel, designer, country, blade_length, handle_material.',
     '- The app shows each tool result to the user as knife cards or tables right under your answer. Do not repeat long lists: summarize, give counts and point out what matters.',
     '- Use short Markdown answers. Reply in the language of the user.',
@@ -197,11 +210,57 @@ function toolErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+function messageChars(message: ChatMessage): number {
+  return (
+    message.content.length +
+    ('toolCalls' in message && message.toolCalls
+      ? JSON.stringify(message.toolCalls).length
+      : 0) +
+    // Role and framing.
+    16
+  )
+}
+
+function messagesChars(messages: readonly ChatMessage[]): number {
+  return messages.reduce((sum, message) => sum + messageChars(message), 0)
+}
+
+/**
+ * How much of the context (in characters) a turn may fill: the limit less
+ * the room the answer needs and what every request carries (system prompt,
+ * tool definitions).
+ */
+function contextBudget(input: ChatTurnInput, fixedChars: number): number {
+  const answerTokens = input.endpoint.maxAnswerTokens ?? REASONING_MAX_TOKENS
+  const tokens = (input.contextTokens ?? CHAT_CONTEXT_TOKENS) - answerTokens
+  return tokens * CHARS_PER_TOKEN - fixedChars
+}
+
+/**
+ * The most recent earlier messages that fit beside this turn, oldest left
+ * out first; it starts on a user message so no answer loses its question.
+ */
+function fitHistory(
+  history: readonly ChatMessage[],
+  room: number,
+): ChatMessage[] {
+  let start = 0
+  let total = messagesChars(history)
+  while (start < history.length && total > room) {
+    total -= messageChars(history[start])
+    start++
+  }
+  while (start < history.length && history[start].role !== 'user') start++
+  return history.slice(start)
+}
+
 /** Runs one tool call and reports it; returns what the model reads. */
 async function runToolCall(
   call: ChatToolCall,
   tools: readonly ReadTool[],
   emit: ChatTurnInput['emit'],
+  /** Room left in the context; a longer result is cut to fit. */
+  maxChars: number,
 ): Promise<string> {
   let args: unknown = {}
   let argsError: string | null = null
@@ -235,7 +294,8 @@ async function runToolCall(
   if (argsError) return fail(argsError)
   try {
     const result = await tool.run(args)
-    const content = toModelContent(call.name, result)
+    // Several calls in one step can leave little room; keep a short list.
+    const content = toModelContent(call.name, result, Math.max(maxChars, 2000))
     let step: ChatToolStep
     try {
       step = await buildToolStep(call.name, args, result)
@@ -270,7 +330,6 @@ export async function runChatTurn(
     role: 'system',
     content: systemPrompt(input.now ?? new Date()),
   }
-  const history = input.history.slice(-HISTORY_MESSAGES)
   // This turn's messages: the user's, then tool calls and results.
   const turn: ChatMessage[] = [{ role: 'user', content: input.userText }]
   const useJson =
@@ -279,7 +338,7 @@ export async function runChatTurn(
       chatToolsRejected(input.endpoint, input.model, input.reasoning))
   if (!useJson) {
     try {
-      return await nativeTurn(input, tools, system, history, turn)
+      return await nativeTurn(input, tools, system, input.history, turn)
     } catch (error) {
       if (
         !(error instanceof AiClientError) ||
@@ -290,7 +349,7 @@ export async function runChatTurn(
       // The endpoint refused tools: same turn in JSON mode.
     }
   }
-  return jsonTurn(input, tools, system, history, asJsonModeMessages(turn))
+  return jsonTurn(input, tools, system, input.history, asJsonModeMessages(turn))
 }
 
 async function nativeTurn(
@@ -301,21 +360,27 @@ async function nativeTurn(
   turn: ChatMessage[],
 ): Promise<ChatTurnResult> {
   const definitions = chatToolDefinitions(tools)
+  const budget = contextBudget(
+    input,
+    messageChars(system) + JSON.stringify(definitions).length,
+  )
   let steps = 0
   for (;;) {
-    const atCap = steps >= MAX_TOOL_STEPS
+    const room = budget - messagesChars(turn)
+    const atCap = room < MIN_STEP_CHARS
+    const earlier = fitHistory(history, room)
     const messages: ChatMessage[] = atCap
       ? [
           system,
-          ...history,
+          ...earlier,
           ...turn,
           {
             role: 'system',
             content:
-              'Tool limit reached for this message. Answer now with the results you have.',
+              'The context is full for this message. Answer now with the results you have.',
           },
         ]
-      : [system, ...history, ...turn]
+      : [system, ...earlier, ...turn]
     const completion = await requestChatCompletion(
       input.endpoint,
       {
@@ -349,7 +414,12 @@ async function nativeTurn(
     for (const call of completion.toolCalls) {
       if (input.signal?.aborted)
         throw new AiClientError('cancelled', 'The AI request was cancelled.')
-      const content = await runToolCall(call, tools, input.emit)
+      const content = await runToolCall(
+        call,
+        tools,
+        input.emit,
+        budget - messagesChars(turn),
+      )
       turn.push({ role: 'tool', toolCallId: call.id, content })
     }
   }
@@ -388,16 +458,22 @@ async function jsonTurn(
     role: 'system',
     content: `${system.content}\n\n${jsonModePrompt(tools)}`,
   }
+  const budget = contextBudget(input, messageChars(instructions))
   let steps = 0
   let repaired = false
   for (;;) {
-    const atCap = steps >= MAX_TOOL_STEPS
-    const messages: ChatMessage[] = [instructions, ...history, ...turn]
+    const room = budget - messagesChars(turn)
+    const atCap = room < MIN_STEP_CHARS
+    const messages: ChatMessage[] = [
+      instructions,
+      ...fitHistory(history, room),
+      ...turn,
+    ]
     if (atCap)
       messages.push({
         role: 'user',
         content:
-          'Tool limit reached. Reply now with {"answer": "…"} using the results you have.',
+          'The context is full. Reply now with {"answer": "…"} using the results you have.',
       })
     const completion = await requestChatCompletion(
       input.endpoint,
@@ -437,7 +513,7 @@ async function jsonTurn(
       const text =
         action.kind === 'answer'
           ? action.text
-          : 'I reached the tool limit for this message. Ask a narrower question to continue.'
+          : 'The context filled up before I could answer. Ask a narrower question to continue.'
       input.emit({ type: 'text', delta: text })
       return { text, mode: 'json', steps }
     }
@@ -448,14 +524,20 @@ async function jsonTurn(
       arguments: JSON.stringify(action.args ?? {}),
     }
     input.emit({ type: 'tool_calls', text: '', toolCalls: [call] })
-    const content = await runToolCall(call, tools, input.emit)
-    turn.push(
-      {
-        role: 'assistant',
-        content: JSON.stringify({ tool: action.name, args: action.args }),
-      },
-      { role: 'user', content: `Tool result:\n${content}` },
+    const actionMessage: ChatMessage = {
+      role: 'assistant',
+      content: JSON.stringify({ tool: action.name, args: action.args }),
+    }
+    const content = await runToolCall(
+      call,
+      tools,
+      input.emit,
+      budget - messagesChars([...turn, actionMessage]) - 16,
     )
+    turn.push(actionMessage, {
+      role: 'user',
+      content: `Tool result:\n${content}`,
+    })
     if (input.signal?.aborted)
       throw new AiClientError('cancelled', 'The AI request was cancelled.')
   }
