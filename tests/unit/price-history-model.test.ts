@@ -132,8 +132,16 @@ describe('price history model', () => {
         price: '$67.95',
         note: 'out of stock',
         out: true,
+        cheapest: false,
       },
-      { index: 1, label: 'Blade HQ', price: '$67.95', note: '', out: false },
+      {
+        index: 1,
+        label: 'Blade HQ',
+        price: '$67.95',
+        note: '',
+        out: false,
+        cheapest: false,
+      },
     ])
     // Before Blade HQ was found only Kizer is listed.
     expect(storeLinesAt(militaw, ms(3), ms(8), 'USD')).toHaveLength(1)
@@ -144,7 +152,11 @@ describe('price history model', () => {
       ms(8),
       'USD',
     )
-    expect(lines.map((line) => line.note)).toEqual(['', 'cheapest'])
+    // The cheapest store is marked and listed first.
+    expect(lines.map((line) => [line.index, line.cheapest])).toEqual([
+      [1, true],
+      [0, false],
+    ])
   })
 
   it('keeps other-variant listings out of the knife’s stock and cheapest store', () => {
@@ -163,9 +175,9 @@ describe('price history model', () => {
       ms(8),
       'USD',
     )
-    expect(lines.map((line) => [line.label, line.note])).toEqual([
-      ['Blade HQ', ''],
-      ['Blade HQ (variant: Militaw Blue G10)', ''],
+    expect(lines.map((line) => [line.label, line.cheapest])).toEqual([
+      ['Blade HQ', false],
+      ['Blade HQ (variant: Militaw Blue G10)', false],
     ])
   })
 })

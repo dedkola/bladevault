@@ -22,7 +22,6 @@ import {
   storeLinesAt,
 } from './price-history-model'
 import {
-  priceAt,
   priceLineSeries,
   priceLineVisualMap,
   rowChartRange,
@@ -392,16 +391,14 @@ export function PriceHistoryChart({
                 }),
               )}</div>`,
             ]
-            const bestNow = best ? priceAt(best, at) : null
-            if (bestNow !== null)
-              lines.push(
-                `<div>Best <b>${escapeHtml(money(bestNow, currency))}</b></div>`,
-              )
+            // The cheapest store comes first, its price and "cheapest" in
+            // the style's accent; it stands in for a separate best line.
+            const accent = `color:${palette.gold}`
             for (const line of storeLinesAt(history, at, end, currency))
               lines.push(
                 `<div${line.out ? ' style="opacity:.7"' : ''}><span style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:${historySourceColor(history.sources[line.index], dark)}"></span>${escapeHtml(
                   line.label,
-                )}: <b>${escapeHtml(line.price)}</b>${line.note ? ` · ${escapeHtml(line.note)}` : ''}</div>`,
+                )}: <b${line.cheapest ? ` style="${accent}"` : ''}>${escapeHtml(line.price)}</b>${line.note ? ` · ${escapeHtml(line.note)}` : ''}${line.cheapest ? ` · <span style="${accent};font-weight:600">cheapest</span>` : ''}</div>`,
               )
             if (regular)
               lines.push(

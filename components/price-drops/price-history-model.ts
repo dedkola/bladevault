@@ -135,9 +135,11 @@ export type StoreLine = {
   index: number
   label: string
   price: string
-  /** "out of stock", "preorder", "limited stock", "cheapest", or empty. */
+  /** "out of stock", "preorder", "limited stock", or empty. */
   note: string
   out: boolean
+  /** The strictly cheapest store selling it then; listed first. */
+  cheapest: boolean
 }
 
 const STOCK_NOTE: Partial<Record<HistoryPoint['availability'], string>> = {
@@ -146,11 +148,6 @@ const STOCK_NOTE: Partial<Record<HistoryPoint['availability'], string>> = {
   limited: 'limited stock',
 }
 
-/**
- * Each store's price and stock at a moment, in legend order; stores with
- * no reading then are left out. With two or more stores selling in the
- * chart's currency, a strictly cheapest one is noted.
- */
 /**
  * A store's line name: other-variant and removed listings say so. The
  * tooltip (`withTitle`) also names the variant, since a store can have two.
@@ -167,6 +164,11 @@ export function historyLineLabel(
   return `${storeLabel(source.storeName)}${variant}${source.removed ? ' (removed)' : ''}`
 }
 
+/**
+ * Each store's price and stock at a moment, in legend order; stores with
+ * no reading then are left out. With two or more stores selling in the
+ * chart's currency, a strictly cheapest one is marked and moved first.
+ */
 export function storeLinesAt(
   history: Pick<KnifeHistory, 'sources'>,
   at: number,
@@ -186,6 +188,7 @@ export function storeLinesAt(
       price: money(reading.priceMinor, reading.currency),
       note: STOCK_NOTE[reading.availability] ?? '',
       out,
+      cheapest: false,
     }
     lines.push(line)
     if (
@@ -199,10 +202,11 @@ export function storeLinesAt(
   if (selling.length >= 2) {
     selling.sort((a, b) => a.minor - b.minor)
     const [first, second] = selling
-    if (first.minor < second.minor)
-      first.line.note = first.line.note
-        ? `${first.line.note}, cheapest`
-        : 'cheapest'
+    if (first.minor < second.minor) {
+      first.line.cheapest = true
+      lines.splice(lines.indexOf(first.line), 1)
+      lines.unshift(first.line)
+    }
   }
   return lines
 }
