@@ -6,8 +6,8 @@ import { money } from './price-format'
  * The price chart on Price Drops, Wishlist and the open item: a plain line
  * through every store reading in time order (a higher price takes it up, a
  * lower one down), coloured by price from green (cheapest) to red (dearest),
- * with a dot in the store's colour for every reading. The scale fits the
- * readings.
+ * with a dot in the store's colour for every reading. The scale starts at
+ * zero, so a line's height is in proportion to its price.
  */
 
 /** One store's own history, drawn as dots. */
@@ -18,10 +18,8 @@ export type RowChartStore = {
   trend: WishlistTrend
 }
 
-/** Room above and below the prices, as a share of their range. */
-const RANGE_PAD = 0.12
-/** Least room, as a share of the highest price, so a flat line has some. */
-const MIN_PAD = 0.02
+/** Room above the highest price, as a share of it. */
+const TOP_PAD = 0.08
 
 /**
  * Store colours: each store keeps its colour on every chart, whatever its
@@ -169,15 +167,17 @@ export function rowChartDirection(
   return !last ? 'flat' : last.delta < 0 ? 'down' : 'up'
 }
 
-/** The vertical range: every price shown, the item's price included. */
+/**
+ * The vertical range: from zero, so a line's height is in proportion to its
+ * price (half the price sits at half the height), up to the highest price
+ * shown, the item's price included, with a little room above.
+ */
 export function rowChartRange(prices: readonly number[]): {
   min: number
   max: number
 } {
-  const low = Math.min(...prices)
-  const high = Math.max(...prices)
-  const pad = Math.max((high - low) * RANGE_PAD, high * MIN_PAD, 1)
-  return { min: Math.max(0, low - pad), max: high + pad }
+  const high = Math.max(0, ...prices)
+  return { min: 0, max: high + Math.max(high * TOP_PAD, 1) }
 }
 
 /** A trend's price at a moment: the last step that started by then. */
