@@ -1279,6 +1279,19 @@ html[data-theme-style='classic']
   font-weight: 500;
 }
 
+/* Classic has no green: the Wishlist sale badge takes its gold, in the deep
+ * title brown when its row is not the active (dark) one. */
+html[data-theme-style='classic'] [data-wishlist-sale-count] {
+  background: color-mix(in srgb, var(--bladevault-gold) 22%, transparent);
+  color: var(--bladevault-gold);
+}
+
+html[data-theme-style='classic']
+  a:not([aria-current='page'])
+  [data-wishlist-sale-count] {
+  color: var(--bladevault-title);
+}
+
 /* Reference Collection workspace: one command bar above the list and inspector. */
 html:is([data-theme-style='modern'], [data-theme-style='alloy'])
   [data-modern-collection] {
