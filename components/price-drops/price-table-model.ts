@@ -7,10 +7,8 @@ import type { MonitoredSource } from '@/lib/price-monitor/insights'
 
 export const SECTIONS = [
   'all',
-  'changes',
   'drops',
   'increases',
-  'restocked',
   'oos',
   'attention',
   'recent',
@@ -20,6 +18,9 @@ export type Section = (typeof SECTIONS)[number]
 export function parseSection(value: string | null | undefined): Section | null {
   // The old Below regular price tab is part of Drops now.
   if (value === 'below_paid') return 'drops'
+  // The old Changed and Restocked tabs: their rows are in Down, Up, Out of
+  // stock or All now.
+  if (value === 'changes' || value === 'restocked') return 'all'
   return (SECTIONS as readonly string[]).includes(value ?? '')
     ? (value as Section)
     : null
@@ -27,10 +28,8 @@ export function parseSection(value: string | null | undefined): Section | null {
 
 export const SECTION_LABEL: Record<Section, string> = {
   all: 'All',
-  changes: 'Changed',
   drops: '↓ Down',
   increases: '↑ Up',
-  restocked: 'Restocked',
   oos: 'Out of stock',
   attention: 'Needs attention',
   recent: 'Recently checked',
@@ -102,18 +101,12 @@ export const SECTION_FILTER: Record<
   (source: MonitoredSource) => boolean
 > = {
   all: () => true,
-  changes: (source) =>
-    source.result === 'drop' ||
-    source.result === 'increase' ||
-    source.result === 'restocked' ||
-    source.result === 'out_of_stock',
   // What a buyer counts as a drop: a store cut its price, or the knife can
   // be bought below its regular price now, even at a store just added.
   drops: (source) => source.result === 'drop' || isBelowPaid(source),
   // The mirror of Down: a store raised its price, or the knife sells above
   // its regular price now, even at a store just added or restocked.
   increases: (source) => source.result === 'increase' || isAbovePaid(source),
-  restocked: (source) => source.result === 'restocked',
   attention: (source) => needsAttention(source) || source.retireHint !== null,
   recent: (source) => Boolean(source.lastCheckedAt),
 }
@@ -135,12 +128,10 @@ export function sectionRows(
 
 export const EMPTY_TEXT: Record<Section, string> = {
   all: 'Nothing is monitored yet.',
-  changes: 'No price or stock changes in the last 30 days.',
   drops:
     'Nothing is cheaper than its regular price or dropped in the last 30 days.',
   increases:
     'Nothing is dearer than its regular price or went up in the last 30 days.',
-  restocked: 'Nothing came back in stock in the last 7 days.',
   oos: 'Nothing is out of stock.',
   attention: 'Every store page was read on its last check.',
   recent: 'Nothing has been checked yet.',

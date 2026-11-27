@@ -58,16 +58,16 @@ function source(overrides: Partial<MonitoredSource> = {}): MonitoredSource {
 }
 
 describe('price table model', () => {
-  it('parses sections and filters below-paid and restocked rows', () => {
+  it('parses sections and filters below-paid rows', () => {
     expect(parseSection('below_paid')).toBe('drops')
+    // The removed Changed and Restocked tabs open All.
+    expect(parseSection('changes')).toBe('all')
+    expect(parseSection('restocked')).toBe('all')
     expect(parseSection('nope')).toBeNull()
     const cheaper = source({ paidMinor: 12000 })
     const gone = source({ paidMinor: 12000, result: 'out_of_stock' })
     const pricier = source({ paidMinor: 9000 })
     expect([cheaper, gone, pricier].filter(isBelowPaid)).toEqual([cheaper])
-    const back = source({ result: 'restocked' })
-    expect(SECTION_FILTER.restocked(back)).toBe(true)
-    expect(SECTION_FILTER.changes(back)).toBe(true)
   })
 
   it('lists anything cheaper than its regular price as a drop', () => {
@@ -124,9 +124,6 @@ describe('price table model', () => {
     expect(sectionRows('oos', all, all)).toEqual([smkw, official, unread])
     // A store filter shows fewer rows but judges the knife on every store.
     expect(sectionRows('oos', [bladeHq, smkw], all)).toEqual([smkw])
-    expect(sectionRows('restocked', all, all)).toEqual(
-      all.filter(SECTION_FILTER.restocked),
-    )
   })
 
   it('lists anything dearer than its regular price as up', () => {
@@ -273,9 +270,9 @@ describe('price table model', () => {
     const official = source({ knife, priceMinor: 6900 })
     const other = source()
     const pool = [official, other, amazon, soldOut]
-    // Changed lists the sold-out listing alone; Out of stock skips the
+    // A tab lists the sold-out listing alone; Out of stock skips the
     // knife, since other stores sell it.
-    const tab = pool.filter(SECTION_FILTER.changes)
+    const tab = [soldOut]
     expect(sectionRows('oos', pool, pool)).toEqual([])
     const groups = groupByKnife(tab, pool)
     expect(groups.map((g) => g.knifeId)).toEqual([knife.id])
