@@ -83,7 +83,7 @@ import {
   matchesQuery,
   nextSort,
   parseSection,
-  SECTION_FILTER,
+  sectionRows,
   SECTION_LABEL,
   SECTIONS,
   sortRows,
@@ -1226,7 +1226,7 @@ export function PriceDropsView({
       : undefined
   const rows = sortRows(
     section,
-    filtered.filter(SECTION_FILTER[section]),
+    sectionRows(section, filtered, monitored),
     sort,
     (source) => {
       const net = trendNetChange(knifeTrendOf(source))
@@ -1763,7 +1763,7 @@ export function PriceDropsView({
                     const count =
                       value === 'recent'
                         ? null
-                        : filtered.filter(SECTION_FILTER[value]).length
+                        : sectionRows(value, filtered, monitored).length
                     return (
                       <button
                         key={value}
