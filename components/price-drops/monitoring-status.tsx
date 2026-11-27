@@ -14,7 +14,6 @@ import { isSnoozed, needsAttention } from './price-table-model'
 import {
   durationLabel,
   money,
-  nextCheckLabel,
   percentLabel,
   relativeTime,
   storeLabel,
@@ -41,212 +40,17 @@ export function driftLabel(pct: number) {
 
 const PAST_MS = 24 * 60 * 60 * 1000
 const HOUR_MS = 60 * 60 * 1000
-const MAX_STORE_LANES = 6
 
-type Group = 'result' | 'store'
-
-/** Pins closer than this many pixels merge into one "N knives" pin. */
-const MERGE_PX = 56
-
-type Pin = {
-  /** 0–100 across the zone. */
-  position: number
-  sources: MonitoredSource[]
-  label: string
-  result: SourceResult
-  /** Already due and waiting in its store's queue. */
-  due: boolean
-}
-
-type PlacedPin = Pin & { row: number; align: 'start' | 'mid' | 'end' }
+/**
+ * Results that color the top of a past bar, top first. Everything else
+ * (unchanged, out of stock) stays in the neutral "checked" part.
+ */
+const NOTABLE: SourceResult[] = ['drop', 'increase', 'restocked', 'attention']
 
 /** "41 d", "today": how long ago an ISO time was, in whole days. */
 export function daysAgo(iso: string, now: number) {
   const days = Math.floor((now - Date.parse(iso)) / (24 * HOUR_MS))
   return days < 1 ? 'today' : `${days} d`
-}
-
-function shortName(source: MonitoredSource) {
-  const name = source.knife.name || source.knife.brand
-  return name.length > 14 ? name.split(' ')[0] : name
-}
-
-/** Knife names that more than one monitored knife shares. */
-function sharedNames(sources: MonitoredSource[]) {
-  const ids = new Map<string, Set<string>>()
-  for (const source of sources) {
-    const key = shortName(source)
-    const set = ids.get(key) ?? new Set<string>()
-    set.add(source.knife.id)
-    ids.set(key, set)
-  }
-  return new Set([...ids].filter(([, set]) => set.size > 1).map(([k]) => k))
-}
-
-function pinLabel(
-  source: MonitoredSource,
-  upcoming: boolean,
-  shared: Set<string>,
-) {
-  const short = shortName(source)
-  // Three "Drop Bear" pins only differ by their model number or steel.
-  const variant = shared.has(short)
-    ? source.knife.subtitle?.split(' · ')[0]
-    : ''
-  const name = variant ? `${short} ${variant}` : short
-  if (upcoming || source.deltaMinor === null) return name
-  const arrow = source.deltaMinor < 0 ? '▼' : '▲'
-  return `${name} ${arrow}${money(Math.abs(source.deltaMinor), source.currency)}`
-}
-
-/**
- * Merges pins that sit close together into one "N knives" pin, then gives
- * each pin a row so no two labels overlap (as in Maintenance > Coming up).
- */
-function placePins(
-  items: { position: number; source: MonitoredSource; due?: boolean }[],
-  upcoming: boolean,
-  width: number,
-  shared: Set<string>,
-): { pins: PlacedPin[]; rows: number } {
-  const sorted = [...items].sort(
-    (a, b) =>
-      Number(b.due ?? 0) - Number(a.due ?? 0) || a.position - b.position,
-  )
-  const gap = (MERGE_PX / Math.max(width, 1)) * 100
-  const merged: Pin[] = []
-  for (const item of sorted) {
-    const last = merged.at(-1)
-    const due = Boolean(item.due)
-    // Due knives all wait at Now as one queue pin; the rest merge by distance.
-    if (
-      last &&
-      last.due === due &&
-      (due || item.position - last.position < gap)
-    ) {
-      last.sources.push(item.source)
-      if (!due)
-        last.position =
-          last.position + (item.position - last.position) / last.sources.length
-      last.label = due
-        ? `${last.sources.length} in queue`
-        : `${last.sources.length} knives`
-      continue
-    }
-    merged.push({
-      position: due ? 0 : item.position,
-      sources: [item.source],
-      label: pinLabel(item.source, upcoming, shared),
-      result: item.source.result,
-      due,
-    })
-  }
-  const ends: number[] = []
-  const pins = merged.map((pin) => {
-    const size = ((pin.label.length * 6.2 + 18) / Math.max(width, 1)) * 100
-    const align: PlacedPin['align'] =
-      pin.due || pin.position < size / 2
-        ? 'start'
-        : pin.position > 100 - size / 2
-          ? 'end'
-          : 'mid'
-    const start =
-      align === 'start'
-        ? pin.position
-        : align === 'end'
-          ? pin.position - size
-          : pin.position - size / 2
-    let row = ends.findIndex((end) => end + 0.5 <= start)
-    if (row === -1) row = ends.length
-    ends[row] = start + size
-    return { ...pin, row, align }
-  })
-  return { pins, rows: Math.max(1, ends.length) }
-}
-
-function useElementWidth<T extends HTMLElement>(fallback: number) {
-  const [element, setElement] = useState<T | null>(null)
-  const [width, setWidth] = useState(fallback)
-  useEffect(() => {
-    if (!element) return
-    const update = () => setWidth(element.clientWidth || fallback)
-    update()
-    const observer = new ResizeObserver(update)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [element, fallback])
-  return [setElement, width] as const
-}
-
-function describe(source: MonitoredSource, now: number) {
-  const name = [
-    `${source.knife.brand} ${source.knife.name}`.trim(),
-    source.knife.subtitle,
-  ]
-    .filter(Boolean)
-    .join(', ')
-  const checked = source.lastCheckedAt
-    ? `checked ${relativeTime(source.lastCheckedAt, now)}`
-    : 'not checked yet'
-  const next = source.nextCheckAt
-    ? `, ${nextCheckLabel(source.nextCheckAt, now)}`
-    : ''
-  return `${name} · ${RESULT_LABEL[source.result]} · ${money(
-    source.priceMinor,
-    source.currency,
-  )} · ${storeLabel(source.storeName)}, ${checked}${next}`
-}
-
-function TimelinePin({
-  pin,
-  upcoming,
-  selectedKnife,
-  now,
-  onSelect,
-  onOpenCluster,
-}: {
-  pin: PlacedPin
-  upcoming: boolean
-  selectedKnife: string | null
-  now: number
-  onSelect: (knifeId: string) => void
-  onOpenCluster: (pin: PlacedPin, upcoming: boolean, anchor: DOMRect) => void
-}) {
-  const single = pin.sources.length === 1 ? pin.sources[0] : null
-  const label = single
-    ? `${describe(single, now)}${pin.due ? ' · waiting in the store queue' : ''}`
-    : `${pin.sources.length} knives ${
-        pin.due
-          ? 'due and waiting in the store queue'
-          : upcoming
-            ? 'with their next check around then'
-            : 'checked around then'
-      }`
-  return (
-    <button
-      type="button"
-      className="pd-pin"
-      data-result={pin.result}
-      data-upcoming={upcoming || undefined}
-      data-due={pin.due || undefined}
-      data-align={pin.align}
-      aria-pressed={single ? selectedKnife === single.knife.id : undefined}
-      aria-label={label}
-      title={label}
-      style={{ left: `${pin.position}%`, top: 3 + pin.row * 24 }}
-      onClick={(event) =>
-        single
-          ? onSelect(single.knife.id)
-          : onOpenCluster(
-              pin,
-              upcoming,
-              event.currentTarget.getBoundingClientRect(),
-            )
-      }
-    >
-      {pin.label}
-    </button>
-  )
 }
 
 /**
@@ -259,57 +63,75 @@ function nextCheckTime(source: MonitoredSource, now: number): number | null {
   return source.lastCheckedAt ? null : now
 }
 
-type Lane = {
-  key: string
-  label: string
-  result?: SourceResult
+type Bucket = {
+  /** Checked in that hour, scheduled for that hour, or due and waiting. */
+  kind: 'past' | 'upcoming' | 'due'
+  /** "5–4 h ago", "in 2–3 h". */
+  when: string
   sources: MonitoredSource[]
 }
 
-function lanesFor(group: Group, sources: MonitoredSource[]): Lane[] {
-  if (group === 'result') {
-    // Never-checked sources get their own lane: waiting is not a problem.
-    const order: SourceResult[] = [
-      'drop',
-      'increase',
-      'restocked',
-      'out_of_stock',
-      'same',
-      'attention',
-      'pending',
-    ]
-    return order
-      .map((result) => ({
-        key: result,
-        label: RESULT_LABEL[result],
-        result,
-        sources: sources.filter((source) => source.result === result),
-      }))
-      .filter((lane) => lane.sources.length > 0)
-  }
-  const byStore = new Map<string, MonitoredSource[]>()
+function knivesLabel(count: number) {
+  return `${count} ${count === 1 ? 'knife' : 'knives'}`
+}
+
+/** "down", "needs attention": a result as plain lowercase words. */
+function resultWords(result: SourceResult) {
+  return RESULT_LABEL[result].replace(/^[↓↑] /, '').toLowerCase()
+}
+
+/** "20 unchanged, 2 down, 1 restocked". */
+function resultSummary(sources: MonitoredSource[]) {
+  const counts = new Map<SourceResult, number>()
+  for (const source of sources)
+    counts.set(source.result, (counts.get(source.result) ?? 0) + 1)
+  return [...counts]
+    .sort((a, b) => b[1] - a[1])
+    .map(([result, count]) => `${count} ${resultWords(result)}`)
+    .join(', ')
+}
+
+/**
+ * Hourly buckets: the last 24 hours of checks, the next `horizonHours` of
+ * scheduled checks, and the checks already due that wait at Now.
+ */
+function bucketsFor(
+  sources: MonitoredSource[],
+  now: number,
+  horizonHours: number,
+) {
+  const past: Bucket[] = Array.from({ length: 24 }, (_, index) => {
+    const from = 24 - index
+    return {
+      kind: 'past',
+      when: from === 1 ? 'in the last hour' : `${from}–${from - 1} h ago`,
+      sources: [],
+    }
+  })
+  const upcoming: Bucket[] = Array.from(
+    { length: horizonHours },
+    (_, index) => ({
+      kind: 'upcoming',
+      when: index === 0 ? 'within the hour' : `in ${index}–${index + 1} h`,
+      sources: [],
+    }),
+  )
+  const due: Bucket = { kind: 'due', when: 'now', sources: [] }
   for (const source of sources) {
-    const list = byStore.get(source.laneKey) ?? []
-    list.push(source)
-    byStore.set(source.laneKey, list)
+    if (source.lastCheckedAt) {
+      const ago = Math.max(0, now - Date.parse(source.lastCheckedAt))
+      if (ago <= PAST_MS)
+        past[Math.min(23, Math.floor((PAST_MS - ago) / HOUR_MS))].sources.push(
+          source,
+        )
+    }
+    const next = nextCheckTime(source, now)
+    if (next === null) continue
+    if (next <= now) due.sources.push(source)
+    else if (next - now < horizonHours * HOUR_MS)
+      upcoming[Math.floor((next - now) / HOUR_MS)].sources.push(source)
   }
-  const stores = [...byStore.values()].sort((a, b) => b.length - a.length)
-  const lanes: Lane[] = stores.slice(0, MAX_STORE_LANES).map((list) => ({
-    key: list[0].laneKey,
-    // Every Amazon marketplace shares one lane.
-    label: storeLabel(
-      list[0].laneKey === 'amazon' ? 'amazon' : list[0].storeName,
-    ),
-    sources: list,
-  }))
-  const rest = stores.slice(MAX_STORE_LANES)
-  if (rest.length)
-    lanes.push({
-      key: 'other',
-      label: `${rest.length} other ${rest.length === 1 ? 'store' : 'stores'}`,
-      sources: rest.flat(),
-    })
-  return lanes
+  return { past, upcoming, due }
 }
 
 /** Hours before now marked on the past zone, oldest first. */
@@ -322,7 +144,7 @@ function futureTicks(horizonHours: number) {
   ]
 }
 
-/** Faint hour lines behind the pins, matching the axis marks. */
+/** Faint hour lines behind the bars, matching the axis marks. */
 function GridLines({ positions }: { positions: number[] }) {
   return (
     <>
@@ -339,36 +161,130 @@ function GridLines({ positions }: { positions: number[] }) {
 }
 
 /**
- * Monitoring status in the style of Maintenance > Coming up: each knife is
- * pinned where it was last checked over the past 24 hours, colored by what
- * that check found, and again where its next check is due.
+ * One hour's checks. A past bar is neutral, with drops, rises, restocks and
+ * problems stacked on top in their colors; an upcoming bar is an outline.
  */
-function StatusTimeline({
+function ActivityBar({
+  bucket,
+  index,
+  count,
+  peak,
+  open,
+  onOpen,
+}: {
+  bucket: Bucket
+  index: number
+  count: number
+  peak: number
+  open: boolean
+  onOpen: (bucket: Bucket, anchor: DOMRect) => void
+}) {
+  const total = bucket.sources.length
+  const place = {
+    left: `${(index / count) * 100}%`,
+    width: `${100 / count}%`,
+  }
+  // An hour with no checks still gets a stub, so a gap reads as "none".
+  if (!total) {
+    const label = `${bucket.when}: no ${bucket.kind === 'past' ? 'checks' : 'checks scheduled'}`
+    return (
+      <span
+        className="pd-bar"
+        data-kind={bucket.kind}
+        data-empty
+        title={label}
+        aria-hidden="true"
+        style={place}
+      >
+        <span className="pd-bar-fill" />
+      </span>
+    )
+  }
+  const segments =
+    bucket.kind === 'past'
+      ? NOTABLE.map(
+          (result) =>
+            [
+              result,
+              bucket.sources.filter((source) => source.result === result)
+                .length,
+            ] as const,
+        ).filter(([, n]) => n > 0)
+      : []
+  const rest = total - segments.reduce((sum, [, n]) => sum + n, 0)
+  const label =
+    bucket.kind === 'past'
+      ? `${bucket.when}: ${knivesLabel(total)} checked, ${resultSummary(bucket.sources)}`
+      : `${bucket.when}: ${knivesLabel(total)} scheduled`
+  return (
+    <button
+      type="button"
+      className="pd-bar"
+      data-kind={bucket.kind}
+      data-open={open || undefined}
+      aria-label={label}
+      title={label}
+      style={place}
+      onClick={(event) =>
+        onOpen(bucket, event.currentTarget.getBoundingClientRect())
+      }
+    >
+      <span
+        className="pd-bar-fill"
+        style={{ height: `max(2px, ${(total / peak) * 100}%)` }}
+      >
+        {segments.map(([result, n]) => (
+          <i key={result} data-result={result} style={{ flex: `${n} 0 3px` }} />
+        ))}
+        {rest ? <i data-rest style={{ flex: `${rest} 0 0px` }} /> : null}
+      </span>
+    </button>
+  )
+}
+
+/** The knives behind a bar or the queue, sorted for that bucket. */
+function bucketList(bucket: Bucket) {
+  if (bucket.kind !== 'past')
+    return [...bucket.sources].sort((a, b) =>
+      (a.nextCheckAt ?? '').localeCompare(b.nextCheckAt ?? ''),
+    )
+  // What the checks found first, then the most recent.
+  const rank = (source: MonitoredSource) => {
+    const index = NOTABLE.indexOf(source.result)
+    return index === -1 ? NOTABLE.length : index
+  }
+  return [...bucket.sources].sort(
+    (a, b) =>
+      rank(a) - rank(b) ||
+      (b.lastCheckedAt ?? '').localeCompare(a.lastCheckedAt ?? ''),
+  )
+}
+
+/**
+ * Monitoring status as one activity strip: how many knives were checked in
+ * each of the last 24 hours, how many are scheduled for each coming hour, and
+ * how many already due wait in the queue at Now.
+ */
+function ActivityTimeline({
   sources,
   horizonHours,
-  selectedKnife,
   now,
   onSelect,
 }: {
   sources: MonitoredSource[]
   horizonHours: number
-  selectedKnife: string | null
   now: number
   onSelect: (knifeId: string) => void
 }) {
-  const [group, setGroup] = useState<Group>('result')
-  const [pastRef, pastWidth] = useElementWidth<HTMLDivElement>(700)
-  const [futureRef, futureWidth] = useElementWidth<HTMLDivElement>(260)
-  const [cluster, setCluster] = useState<{
-    pin: PlacedPin
-    upcoming: boolean
+  const [open, setOpen] = useState<{
+    bucket: Bucket
     left: number
     top: number
   } | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!cluster) return
+    if (!open) return
     const close = (event: MouseEvent | KeyboardEvent) => {
       if (event instanceof KeyboardEvent && event.key !== 'Escape') return
       if (
@@ -376,7 +292,7 @@ function StatusTimeline({
         listRef.current?.contains(event.target as Node)
       )
         return
-      setCluster(null)
+      setOpen(null)
     }
     document.addEventListener('mousedown', close)
     document.addEventListener('keydown', close)
@@ -384,89 +300,38 @@ function StatusTimeline({
       document.removeEventListener('mousedown', close)
       document.removeEventListener('keydown', close)
     }
-  }, [cluster])
+  }, [open])
 
-  const horizonMs = horizonHours * HOUR_MS
-  const shared = sharedNames(sources)
-  const lanes = lanesFor(group, sources).map((lane) => {
-    const past = placePins(
-      lane.sources
-        .filter((source) => source.lastCheckedAt)
-        .map((source) => ({
-          source,
-          position: Math.max(
-            0.5,
-            100 -
-              (Math.min(now - Date.parse(source.lastCheckedAt!), PAST_MS) /
-                PAST_MS) *
-                100,
-          ),
-        })),
-      false,
-      pastWidth,
-      shared,
-    )
-    const upcoming = placePins(
-      lane.sources
-        .filter((source) => nextCheckTime(source, now) !== null)
-        .map((source) => {
-          const at = nextCheckTime(source, now)!
-          return {
-            source,
-            due: at <= now,
-            position: Math.min(
-              99.5,
-              Math.max(0.5, ((at - now) / horizonMs) * 100),
-            ),
-          }
-        }),
-      true,
-      futureWidth,
-      shared,
-    )
-    return { ...lane, past, upcoming }
-  })
+  const { past, upcoming, due } = bucketsFor(sources, now, horizonHours)
+  // One scale for both sides, so a scheduled hour compares with a past one.
+  const peak = Math.max(
+    1,
+    ...past.map((bucket) => bucket.sources.length),
+    ...upcoming.map((bucket) => bucket.sources.length),
+  )
   const ticks = futureTicks(horizonHours)
   const pastGrid = PAST_TICKS.slice(1).map((hours) => 100 - (hours / 24) * 100)
   const futureGrid = ticks
     .filter((tick) => tick < horizonHours)
     .map((tick) => (tick / horizonHours) * 100)
-  const openCluster = (pin: PlacedPin, upcoming: boolean, rect: DOMRect) =>
-    setCluster({ pin, upcoming, left: rect.left, top: rect.bottom + 4 })
+  const show = (bucket: Bucket, rect: DOMRect) =>
+    setOpen((current) =>
+      current?.bucket === bucket
+        ? null
+        : { bucket, left: rect.left, top: rect.bottom + 4 },
+    )
 
   return (
     <div className="pd-timeline">
       <div className="pd-tl-toolbar">
-        <div role="radiogroup" aria-label="Group lanes" className="pd-seg">
-          {(['result', 'store'] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={group === value}
-              onClick={() => setGroup(value)}
-            >
-              {value === 'result' ? 'By result' : 'By store'}
-            </button>
-          ))}
-        </div>
-        <ul className="pd-legend" aria-label="Pin colours">
-          {(
-            [
-              'drop',
-              'increase',
-              'restocked',
-              'out_of_stock',
-              'same',
-              'attention',
-              'pending',
-            ] as const
-          ).map((result) => (
+        <ul className="pd-legend" aria-label="Bar colours">
+          {NOTABLE.map((result) => (
             <li key={result} data-result={result}>
               {RESULT_LABEL[result]}
             </li>
           ))}
-          <li data-upcoming>Next check</li>
+          <li data-checked>Checked</li>
+          <li data-upcoming>Scheduled</li>
         </ul>
       </div>
       <div className="pd-tl-axis" aria-hidden="true">
@@ -486,10 +351,14 @@ function StatusTimeline({
           <b data-align="start" style={{ left: 0 }}>
             Now
           </b>
-          {ticks.map((tick) => (
+          {ticks.map((tick, index) => (
             <span
               key={tick}
               data-align={tick === horizonHours ? 'end' : undefined}
+              // Narrow screens keep Now, the middle and the end.
+              data-minor={
+                ticks.length === 4 && index % 2 === 0 ? true : undefined
+              }
               style={{ left: `${(tick / horizonHours) * 100}%` }}
             >
               +{tick} h
@@ -497,113 +366,113 @@ function StatusTimeline({
           ))}
         </span>
       </div>
-      {lanes.map((lane, index) => {
-        const rows = Math.max(lane.past.rows, lane.upcoming.rows)
-        return (
-          <section
-            key={lane.key}
-            className="pd-tl-lane"
-            aria-label={lane.label}
-            style={{ '--pd-rows': rows } as React.CSSProperties}
-          >
-            <h3>
-              {lane.result ? (
-                <span
-                  className="pd-swatch"
-                  data-result={lane.result}
-                  aria-hidden="true"
-                />
-              ) : null}
-              {lane.label}
-              <span className="pd-tl-count">· {lane.sources.length}</span>
-            </h3>
-            <div className="pd-tl-past" ref={index === 0 ? pastRef : undefined}>
-              <GridLines positions={pastGrid} />
-              {lane.past.pins.map((pin) => (
-                <TimelinePin
-                  key={`p-${pin.sources[0].sourceId}`}
-                  pin={pin}
-                  upcoming={false}
-                  selectedKnife={selectedKnife}
-                  now={now}
-                  onSelect={onSelect}
-                  onOpenCluster={openCluster}
-                />
-              ))}
-            </div>
-            <div
-              className="pd-tl-future"
-              ref={index === 0 ? futureRef : undefined}
+      <div className="pd-tl-bars">
+        <div className="pd-tl-past" aria-label="Checked in the last 24 hours">
+          <GridLines positions={pastGrid} />
+          {past.map((bucket, index) => (
+            <ActivityBar
+              key={index}
+              bucket={bucket}
+              index={index}
+              count={past.length}
+              peak={peak}
+              open={open?.bucket === bucket}
+              onOpen={show}
+            />
+          ))}
+        </div>
+        <div
+          className="pd-tl-future"
+          aria-label={`Scheduled for the next ${horizonHours} hours`}
+        >
+          <GridLines positions={futureGrid} />
+          {upcoming.map((bucket, index) => (
+            <ActivityBar
+              key={index}
+              bucket={bucket}
+              index={index}
+              count={upcoming.length}
+              peak={peak}
+              open={open?.bucket === bucket}
+              onOpen={show}
+            />
+          ))}
+          {due.sources.length ? (
+            <button
+              type="button"
+              className="pd-queue"
+              aria-label={`${knivesLabel(due.sources.length)} due and waiting in the store queue`}
+              title="Due now; each is checked when its store's turn comes in the round"
+              onClick={(event) =>
+                show(due, event.currentTarget.getBoundingClientRect())
+              }
             >
-              <GridLines positions={futureGrid} />
-              {lane.upcoming.pins.map((pin) => (
-                <TimelinePin
-                  key={`u-${pin.due ? 'due-' : ''}${pin.sources[0].sourceId}`}
-                  pin={pin}
-                  upcoming
-                  selectedKnife={selectedKnife}
-                  now={now}
-                  onSelect={onSelect}
-                  onOpenCluster={openCluster}
-                />
-              ))}
-            </div>
-          </section>
-        )
-      })}
-      {cluster ? (
+              {due.sources.length} in queue
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {open ? (
         <div
           ref={listRef}
           role="dialog"
-          aria-label={`${cluster.pin.sources.length} knives`}
+          aria-label={knivesLabel(open.bucket.sources.length)}
           className="pd-pin-list"
           style={{
-            left: Math.max(8, Math.min(cluster.left, window.innerWidth - 260)),
-            top: cluster.top,
+            left: Math.max(8, Math.min(open.left, window.innerWidth - 300)),
+            top: open.top,
           }}
         >
           <p>
-            {cluster.pin.sources.length} knives ·{' '}
-            {cluster.pin.due
+            {knivesLabel(open.bucket.sources.length)} ·{' '}
+            {open.bucket.kind === 'due'
               ? 'due, checked when their turn comes'
-              : cluster.upcoming
-                ? 'next check'
-                : 'last checked'}
+              : open.bucket.kind === 'upcoming'
+                ? `next check ${open.bucket.when}`
+                : `checked ${open.bucket.when}`}
           </p>
           <ul>
-            {[...cluster.pin.sources]
-              .sort((a, b) =>
-                cluster.upcoming
-                  ? (a.nextCheckAt ?? '').localeCompare(b.nextCheckAt ?? '')
-                  : (b.lastCheckedAt ?? '').localeCompare(
-                      a.lastCheckedAt ?? '',
-                    ),
-              )
-              .map((source) => (
-                <li key={source.sourceId}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCluster(null)
-                      onSelect(source.knife.id)
-                    }}
-                  >
-                    <span>
-                      {source.knife.brand} {source.knife.name}
-                      {source.knife.subtitle ? (
-                        <small>{source.knife.subtitle}</small>
-                      ) : null}
-                    </span>
-                    <span>
-                      {cluster.pin.due
-                        ? `waiting ${durationLabel(now - Date.parse(source.nextCheckAt!))}`
-                        : cluster.upcoming
-                          ? relativeTime(source.nextCheckAt, now)
-                          : relativeTime(source.lastCheckedAt, now)}
-                    </span>
-                  </button>
-                </li>
-              ))}
+            {bucketList(open.bucket).map((source) => (
+              <li key={source.sourceId}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(null)
+                    onSelect(source.knife.id)
+                  }}
+                >
+                  <span>
+                    {source.knife.brand} {source.knife.name}
+                    <small>
+                      {[source.knife.subtitle, storeLabel(source.storeName)]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </small>
+                  </span>
+                  <span>
+                    {open.bucket.kind === 'past' ? (
+                      <>
+                        {NOTABLE.includes(source.result) ? (
+                          <span
+                            className="pd-swatch"
+                            data-result={source.result}
+                            aria-hidden="true"
+                          />
+                        ) : null}
+                        {RESULT_LABEL[source.result]} ·{' '}
+                        {relativeTime(source.lastCheckedAt, now)}
+                      </>
+                    ) : open.bucket.kind === 'upcoming' ? (
+                      relativeTime(source.nextCheckAt, now)
+                    ) : source.nextCheckAt ? (
+                      `waiting ${durationLabel(now - Date.parse(source.nextCheckAt))}`
+                    ) : (
+                      'first check'
+                    )}
+                  </span>
+                </button>
+              </li>
+            ))}
           </ul>
         </div>
       ) : null}
@@ -613,14 +482,12 @@ function StatusTimeline({
 
 export function MonitoringStatus({
   overview,
-  selectedKnife,
   now,
   collapsed = false,
   onCollapsedChange,
   onSelect,
 }: {
   overview: PriceOverview
-  selectedKnife: string | null
   now: number
   /** Only the counts show; the timeline is hidden. */
   collapsed?: boolean
@@ -661,9 +528,10 @@ export function MonitoringStatus({
           <h2 id="price-status-title">Monitoring status</h2>
           {collapsed ? null : (
             <p>
-              What the next {horizonHours} hours will check, with the last 24
-              hours in brief on the left. Knives already due wait at Now until
-              their turn in the round. Select a pin to open the knife.
+              Checks per hour over the last 24 hours and the next {horizonHours}
+              . Colored tops mark drops, rises, restocks and pages that need
+              attention; knives already due wait in the queue at Now. Select a
+              bar to see its knives.
             </p>
           )}
         </div>
@@ -730,10 +598,9 @@ export function MonitoringStatus({
           ) : null}
         </p>
         {collapsed ? null : sources.length ? (
-          <StatusTimeline
+          <ActivityTimeline
             sources={sources}
             horizonHours={horizonHours}
-            selectedKnife={selectedKnife}
             now={now}
             onSelect={onSelect}
           />
