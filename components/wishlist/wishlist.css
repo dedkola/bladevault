@@ -7,7 +7,8 @@
   --wl-stock: var(--price-stock, #a16207);
   --wl-neutral: var(--price-neutral, #9a958b);
   --wl-up: var(--destructive, #b4232a);
-  --wl-low: var(--primary);
+  --wl-low: var(--wl-sale);
+  --wl-save: var(--bladevault-gold, var(--primary));
   width: 100%;
 }
 
@@ -103,10 +104,15 @@
   color: var(--muted-foreground);
   font-size: 12px;
 }
+/* "Open Price Drops": a quiet dotted link, like "3 of 6 stores" in rows. */
 [data-wishlist-stat-label] a {
-  color: var(--primary);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+[data-wishlist-stat-label] a:hover {
+  color: var(--foreground);
+  text-decoration-style: solid;
 }
 [data-wishlist-stat-value] {
   display: block;
@@ -292,7 +298,6 @@
   color: var(--muted-foreground);
 }
 [data-wishlist] [data-wishlist-details],
-[data-wishlist] [data-wishlist-bell],
 [data-wishlist] [data-wishlist-remove] {
   display: grid;
   place-items: center;
@@ -304,12 +309,6 @@
   color: var(--muted-foreground);
   cursor: pointer;
 }
-[data-wishlist] [data-wishlist-bell][aria-pressed='true'] {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
-  color: var(--primary);
-}
-[data-wishlist] [data-wishlist-bell]:disabled,
 [data-wishlist] [data-wishlist-remove]:disabled {
   cursor: not-allowed;
   opacity: 0.5;
@@ -605,4 +604,20 @@
   [data-wishlist] [data-wishlist-spark-axis] {
     margin-right: 0;
   }
+}
+
+/* The amount a deal saves (on the top deal cards, under the row price and in
+   the chart chip) takes the style's accent so it stands out from the sale
+   colours around it. */
+[data-wishlist] [data-wishlist-savings] {
+  --wl-chip: var(--wl-save);
+  color: color-mix(in srgb, var(--wl-save) 85%, var(--foreground));
+  font-weight: 650;
+}
+
+/* Classic has no green: sale pills, chips, charts and cards take its gold,
+   and the savings amount its deep title brown. */
+html[data-theme-style='classic'] [data-wishlist] {
+  --wl-sale: var(--primary);
+  --wl-save: var(--bladevault-title);
 }

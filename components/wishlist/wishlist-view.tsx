@@ -10,16 +10,7 @@ import {
 } from 'react'
 import Link from 'next/link'
 import { Popover } from '@base-ui/react/popover'
-import {
-  ArrowUpRight,
-  Bell,
-  BellOff,
-  ChartLine,
-  Heart,
-  Loader2,
-  Plus,
-  X,
-} from 'lucide-react'
+import { ArrowUpRight, ChartLine, Heart, Plus, X } from 'lucide-react'
 import Image from '@/components/vault-image'
 import { EmptyState } from '@/components/empty-state'
 import { PageHeader } from '@/components/page-header'
@@ -53,10 +44,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { getImageUrl, type Knife } from '@/lib/data'
 import { getSafeExternalUrl } from '@/lib/external-url'
-import {
-  announcePriceDataUpdated,
-  type KnifeMarketSummary,
-} from '@/lib/market-status'
+import { type KnifeMarketSummary } from '@/lib/market-status'
 import {
   fromMinorUnits,
   parseStoredPrice,
@@ -453,6 +441,7 @@ function Sparkline({ row }: { row: Row }) {
         {gap ? (
           <span
             data-wishlist-spark-chip={gap.direction}
+            data-wishlist-savings={gap.direction === 'down' || undefined}
             title={
               gap.direction === 'flat'
                 ? `At the regular price ${money(regular, trend.currency)}`
@@ -577,77 +566,14 @@ function PriceNote({ row }: { row: Row }) {
     return (
       <>
         <s>{money(row.regularMinor, row.currency)}</s> · save{' '}
-        {money(row.regularMinor - row.priceMinor!, row.currency)}
+        <span data-wishlist-savings>
+          {money(row.regularMinor - row.priceMinor!, row.currency)}
+        </span>
       </>
     )
   if (row.deal === 'above')
     return <>regular {money(row.regularMinor, row.currency)}</>
   return <>regular price</>
-}
-
-function WatchBell({ row }: { row: Row }) {
-  const { showFeedback } = useKnives()
-  const [busy, setBusy] = useState(false)
-  const sources = row.summary?.sources ?? 0
-  const watched = Boolean(row.summary?.monitored)
-  const label = !sources
-    ? 'Add a store link to watch this price'
-    : watched
-      ? 'Watching price. Click to stop.'
-      : 'Watch price'
-  async function toggle() {
-    setBusy(true)
-    try {
-      const response = await fetch(
-        `/api/knives/${encodeURIComponent(row.knife.id)}/price-watch`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: watched ? 'off' : 'on' }),
-        },
-      )
-      if (!response.ok) {
-        const data = (await response.json().catch(() => ({}))) as {
-          error?: string
-        }
-        throw new Error(data.error || 'Could not change price watching.')
-      }
-      announcePriceDataUpdated()
-      showFeedback(
-        watched
-          ? `Stopped watching ${row.knife.name}`
-          : `Watching ${row.knife.name} in Price Drops`,
-      )
-    } catch (error) {
-      showFeedback(
-        error instanceof Error
-          ? error.message
-          : 'Could not change price watching.',
-        'error',
-      )
-    } finally {
-      setBusy(false)
-    }
-  }
-  return (
-    <button
-      type="button"
-      data-wishlist-bell
-      aria-pressed={watched}
-      aria-label={label}
-      title={label}
-      disabled={busy || !sources}
-      onClick={() => void toggle()}
-    >
-      {busy ? (
-        <Loader2 className="size-3.5 animate-spin" />
-      ) : sources ? (
-        <Bell className="size-3.5" />
-      ) : (
-        <BellOff className="size-3.5" />
-      )}
-    </button>
-  )
 }
 
 function PriceDetailsLink({ row }: { row: Row }) {
@@ -753,7 +679,6 @@ function DealGroups({ rows, tabs }: { rows: Row[]; tabs?: ReactNode }) {
                   </div>
                   <div data-wishlist-row-actions>
                     <PriceDetailsLink row={row} />
-                    <WatchBell row={row} />
                     <RemoveButton row={row} />
                   </div>
                 </li>
@@ -926,8 +851,10 @@ function BestDeals({ rows }: { rows: Row[] }) {
                 <DealPills row={row} />
               </div>
               <div data-wishlist-sub>
-                {money(row.regularMinor! - row.priceMinor!, row.currency)} below
-                regular price
+                <span data-wishlist-savings>
+                  {money(row.regularMinor! - row.priceMinor!, row.currency)}
+                </span>{' '}
+                below regular price
               </div>
             </div>
           </Link>
