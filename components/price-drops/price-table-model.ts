@@ -93,8 +93,29 @@ export function soldOutKnives(sources: MonitoredSource[]): Set<string> {
 }
 
 /**
- * Listing-level tabs. Out of stock is about the knife, so it is not here:
- * see `sectionRows`.
+ * Knives some store sells now at or below their regular price. Up leaves
+ * them out: a store charging more does not matter while the knife can be
+ * bought for its regular price elsewhere.
+ */
+export function atRegularKnives(sources: MonitoredSource[]): Set<string> {
+  return new Set(
+    sources
+      .filter(
+        (source) =>
+          source.priceMinor !== null &&
+          source.paidMinor !== null &&
+          source.priceMinor <= source.paidMinor &&
+          source.result !== 'out_of_stock' &&
+          source.result !== 'attention' &&
+          source.result !== 'pending',
+      )
+      .map((source) => source.knife.id),
+  )
+}
+
+/**
+ * Listing-level tabs. Out of stock and Up are about the knife, so their
+ * listing rule is only a first pass: see `sectionRows`.
  */
 export const SECTION_FILTER: Record<
   Exclude<Section, 'oos'>,
@@ -104,8 +125,9 @@ export const SECTION_FILTER: Record<
   // What a buyer counts as a drop: a store cut its price, or the knife can
   // be bought below its regular price now, even at a store just added.
   drops: (source) => source.result === 'drop' || isBelowPaid(source),
-  // The mirror of Down: a store raised its price, or the knife sells above
-  // its regular price now, even at a store just added or restocked.
+  // The mirror of Down: a store raised its price, or sells above the
+  // regular price now, even one just added or restocked. `sectionRows` then
+  // drops knives another store sells at or below the regular price.
   increases: (source) => source.result === 'increase' || isAbovePaid(source),
   attention: (source) => needsAttention(source) || source.retireHint !== null,
   recent: (source) => Boolean(source.lastCheckedAt),
@@ -113,17 +135,23 @@ export const SECTION_FILTER: Record<
 
 /**
  * Rows a tab shows. Out of stock lists every listing of a knife that no
- * store sells, judged on all of its stores (`all`), not only the ones a
- * search or store filter leaves in `rows`.
+ * store sells; Up skips knives some store sells at or below the regular
+ * price. Both judge the knife on all of its stores (`all`), not only the
+ * ones a search or store filter leaves in `rows`.
  */
 export function sectionRows(
   section: Section,
   rows: MonitoredSource[],
   all: MonitoredSource[],
 ): MonitoredSource[] {
-  if (section !== 'oos') return rows.filter(SECTION_FILTER[section])
-  const soldOut = soldOutKnives(all)
-  return rows.filter((source) => soldOut.has(source.knife.id))
+  if (section === 'oos') {
+    const soldOut = soldOutKnives(all)
+    return rows.filter((source) => soldOut.has(source.knife.id))
+  }
+  const listed = rows.filter(SECTION_FILTER[section])
+  if (section !== 'increases') return listed
+  const atRegular = atRegularKnives(all)
+  return listed.filter((source) => !atRegular.has(source.knife.id))
 }
 
 export const EMPTY_TEXT: Record<Section, string> = {
