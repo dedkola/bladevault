@@ -223,7 +223,11 @@ export type RowChartColors = {
   dark: boolean
 }
 
-/** What the tooltip lists at a moment: best price, each store, your price. */
+/**
+ * What the tooltip lists at a moment: best price, each store, your price.
+ * Stores priced in another currency are not on the line but are listed
+ * last, in their own currency, so every store of the knife shows.
+ */
 export function rowChartTooltip(
   input: RowChartInput,
   at: number,
@@ -231,16 +235,20 @@ export function rowChartTooltip(
 ): string {
   const { trend, regularMinor } = input
   const currency = trend.currency
-  const stores = input.stores.filter(
-    (store) => store.trend.currency === currency,
-  )
   const best = priceAt(trend, at)
-  const rows = stores
+  const tracked = input.stores
     .map((store) => ({ store, price: priceAt(store.trend, at) }))
     .filter(
       (row) => row.store.trend.steps[0] && row.store.trend.steps[0].at <= at,
     )
-    .sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
+  const byPrice = (a: { price: number | null }, b: { price: number | null }) =>
+    (a.price ?? Infinity) - (b.price ?? Infinity)
+  const rows = tracked
+    .filter((row) => row.store.trend.currency === currency)
+    .sort(byPrice)
+  const elsewhere = tracked
+    .filter((row) => row.store.trend.currency !== currency)
+    .sort(byPrice)
   const bestStore =
     best === null ? undefined : rows.find((row) => row.price === best)?.store
   const lines = [`<div data-row-chart-tip-time>${escapeHtml(when(at))}</div>`]
@@ -249,10 +257,10 @@ export function rowChartTooltip(
       ? '<div>Out of stock</div>'
       : `<div>Best <b>${escapeHtml(money(best, currency))}</b>${bestStore ? ` · ${escapeHtml(bestStore.label)}` : ''}</div>`,
   )
-  if (rows.length > 1)
-    for (const { store, price } of rows)
+  if (rows.length + elsewhere.length > 1)
+    for (const { store, price } of [...rows, ...elsewhere])
       lines.push(
-        `<div data-row-chart-tip-store><span><i style="background:${storeColor(store.key, dark)}"></i>${escapeHtml(store.label)}</span><b>${price === null ? 'out of stock' : escapeHtml(money(price, currency))}</b></div>`,
+        `<div data-row-chart-tip-store><span><i style="background:${storeColor(store.key, dark)}"></i>${escapeHtml(store.label)}</span><b>${price === null ? 'out of stock' : escapeHtml(money(price, store.trend.currency ?? currency))}</b></div>`,
       )
   if (regularMinor)
     lines.push(

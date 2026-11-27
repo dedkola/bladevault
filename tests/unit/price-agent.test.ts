@@ -269,7 +269,7 @@ describe('validateAgentPlan', () => {
     expect(
       actions.map((action) => [action.sourceId ?? action.knifeId, action.note]),
     ).toEqual([
-      [1, 'its knife is next in the round'],
+      [1, 'its knife is next in the cycle'],
       [2, null],
       [3, null],
       ['k1', null],

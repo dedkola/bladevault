@@ -5,9 +5,9 @@ import { reportServerError } from '@/lib/sentry/server'
 import { vaultAccessErrorResponse } from '@/lib/vault-access'
 
 /**
- * Live queue: the round in progress (knives done, the knife being checked),
- * the retry list, the next round, checks in flight, and each store's pace
- * and pause.
+ * Live queue: the cycle in progress (What to monitor and the rest checked,
+ * deferred checks, problems for AI, when the next cycle starts), checks in
+ * flight, and each store's pace and pause.
  */
 export async function GET(request: Request) {
   const locked = requireAppUnlock(request)

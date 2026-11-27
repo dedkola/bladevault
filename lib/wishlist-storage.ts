@@ -127,8 +127,9 @@ function chartReadings(
  * replaces it. `readings` lists every price shown, in stock or not, for
  * the price line. Null when no store showed a price at all.
  *
- * Charts are built from the item's regular price, so they use its currency
- * (`regularCurrency`) whenever a store's latest in-stock reading is in it.
+ * The chart shows the currency most of the stores price it in now, so every
+ * store it can draw is on it; the regular price's currency (`regularCurrency`)
+ * only breaks a tie. It starts when the first of those stores was read.
  */
 function trendFromSnapshots(
   rows: readonly SnapshotRow[],
@@ -139,11 +140,11 @@ function trendFromSnapshots(
   if (!listed.length) return null
   const priced = listed.filter((row) => row.availability !== 'out_of_stock')
   // The currency the stores price it in now: each store's latest in-stock
-  // reading counts once. The regular price's currency wins when a store
-  // shows it, so the chart stays comparable to the regular price; otherwise
-  // the most common one, and a tie goes to the newest. Counting every old
-  // snapshot let a store that once showed another currency keep the chart
-  // in it after it switched.
+  // reading counts once, and the most common one wins, so a single store in
+  // another currency cannot hide the rest. A tie goes to the regular price's
+  // currency (the chart stays comparable to it), then to the newest.
+  // Counting every old snapshot let a store that once showed another
+  // currency keep the chart in it after it switched.
   // Only out-of-stock prices so far: the currency they are shown in.
   const latest = new Map<number, SnapshotRow>()
   for (const row of priced.length ? priced : listed)
@@ -156,12 +157,13 @@ function trendFromSnapshots(
       at: seen && seen.at > row.observed_at ? seen.at : row.observed_at,
     })
   }
-  const currency =
-    regularCurrency && counts.has(regularCurrency)
-      ? regularCurrency
-      : [...counts].sort(
-          ([, a], [, b]) => b.count - a.count || b.at.localeCompare(a.at),
-        )[0][0]
+  const regularFirst = (code: string) => (code === regularCurrency ? 1 : 0)
+  const currency = [...counts].sort(
+    ([codeA, a], [codeB, b]) =>
+      b.count - a.count ||
+      regularFirst(codeB) - regularFirst(codeA) ||
+      b.at.localeCompare(a.at),
+  )[0][0]
   const inCurrency = (row: SnapshotRow) =>
     row.price_minor !== null &&
     row.currency === currency &&
@@ -194,10 +196,19 @@ function trendFromSnapshots(
   for (let day = WISHLIST_TREND_DAYS - 1; day >= 0; day--)
     daily.push(bestAt(new Date(now - day * DAY_MS).toISOString()))
 
-  // The chart starts when tracking began, or 30 days ago if earlier, and
-  // steps at every snapshot after that where the best price changed.
+  // The chart starts when the first store priced in its currency was read
+  // (a store in another currency would leave the start empty), or 30 days
+  // ago if earlier, and steps at every snapshot after that where the best
+  // price changed.
   const windowStart = now - WISHLIST_TREND_DAYS * DAY_MS
-  const first = Date.parse(rows[0].observed_at)
+  const charted = new Set(
+    listed
+      .filter((row) => row.currency === currency)
+      .map((row) => row.source_id),
+  )
+  const first = Date.parse(
+    (rows.find((row) => charted.has(row.source_id)) ?? rows[0]).observed_at,
+  )
   const chartStart = Math.max(first, windowStart)
   const steps: WishlistTrend['steps'] = []
   const times = new Set([chartStart])

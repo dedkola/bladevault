@@ -3,6 +3,8 @@ import {
   groupByKnife,
   isAbovePaid,
   isBelowPaid,
+  knifeCount,
+  knifeCoverage,
   matchesQuery,
   nextSort,
   parseSection,
@@ -124,6 +126,63 @@ describe('price table model', () => {
     expect(sectionRows('oos', all, all)).toEqual([smkw, official, unread])
     // A store filter shows fewer rows but judges the knife on every store.
     expect(sectionRows('oos', [bladeHq, smkw], all)).toEqual([smkw])
+  })
+
+  it('counts knives, not links, for the tabs and the coverage bar', () => {
+    const knife = (id: string) => ({
+      id,
+      name: id,
+      brand: 'Kizer',
+      image: null,
+      subtitle: null,
+    })
+    const now = Date.parse('2026-11-27T12:00:00.000Z')
+    const out = {
+      availability: 'out_of_stock',
+      result: 'out_of_stock',
+    } as const
+    const rows = [
+      // Two stores, both read today: one knife, read.
+      source({
+        knife: knife('read'),
+        lastCheckedAt: '2026-11-27T10:00:00.000Z',
+      }),
+      source({
+        knife: knife('read'),
+        lastCheckedAt: '2026-11-27T11:00:00.000Z',
+      }),
+      // Sold out everywhere, last read six days ago: sold out and stale.
+      source({
+        knife: knife('gone'),
+        ...out,
+        lastCheckedAt: '2026-11-21T15:56:49.355Z',
+      }),
+      // A page that needs attention.
+      source({
+        knife: knife('broken'),
+        result: 'attention',
+        status: 'failed',
+        lastCheckedAt: '2026-11-27T09:00:00.000Z',
+      }),
+      // Never read.
+      source({
+        knife: knife('new'),
+        availability: null,
+        result: 'pending',
+        lastCheckedAt: null,
+      }),
+    ]
+
+    expect(knifeCount(rows)).toBe(4)
+    expect(knifeCoverage(rows, now, 24)).toEqual({
+      monitored: 4,
+      read: 1,
+      soldOut: 1,
+      attention: 1,
+      neverChecked: 1,
+      stale: 1,
+    })
+    expect(knifeCoverage(rows, now, null).stale).toBe(0)
   })
 
   it('lists anything dearer than its regular price as up', () => {

@@ -129,8 +129,8 @@ export function NotificationSettings({
   const updateThresholds = (
     patch: Partial<PriceMonitoringSettings['thresholds']>,
   ) => updatePrice({ thresholds: { ...priceMonitoring.thresholds, ...patch } })
-  // The super-sale rule covers knives the collection pass checks: it needs
-  // What to monitor narrower than everything and the pass switched on.
+  // The super-sale rule covers the rest of the collection's knives: it needs
+  // What to monitor narrower than everything and those checks switched on.
   const collectionPassOn =
     priceMonitoring.scope.kind !== 'all' &&
     priceMonitoring.collectionPass.enabled
@@ -258,7 +258,7 @@ export function NotificationSettings({
 
       <SettingsSection
         title="Rest of the collection"
-        description="Knives outside What to monitor, checked in free time. They follow their own rule instead of the settings above."
+        description="Knives outside What to monitor, checked after it in every cycle. They follow their own rule instead of the settings above."
       >
         <SettingsRow
           label="Notify only about a super sale"
@@ -271,7 +271,7 @@ export function NotificationSettings({
               <>
                 Applies while the rest of the collection is checked. Turn on{' '}
                 <SettingsLink tab="prices">
-                  Check the rest of the collection in free time
+                  Check the rest of the collection too
                 </SettingsLink>{' '}
                 in Price monitoring first.
               </>

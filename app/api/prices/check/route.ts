@@ -19,9 +19,9 @@ import { withVaultMutationRequest } from '@/lib/vault-mutation-request'
 
 /**
  * Check now for one source or all of a knife's sources: they run right away,
- * never two at one store. `scope: 'all'` (Check all now) starts a round over
- * every monitored knife. Poll the knife's price watch or /api/prices/queue
- * for progress.
+ * never two at one store. `scope: 'all'` (Check all now) starts a new cycle
+ * over every monitored knife, What to monitor first. Poll the knife's price
+ * watch or /api/prices/queue for progress.
  */
 export async function POST(request: Request) {
   return withVaultMutationRequest(request, async () => {
@@ -53,13 +53,9 @@ export async function POST(request: Request) {
             },
             { status: 409 },
           )
-        // Check all now starts a round; progress shows in /api/prices/queue.
-        const round = await getPriceMonitorWorker().startRoundNow()
-        if (!round)
-          return NextResponse.json(
-            { error: 'A round is already checking every knife.' },
-            { status: 409 },
-          )
+        // Check all now starts a new cycle over every monitored knife;
+        // progress shows in /api/prices/queue.
+        const round = await getPriceMonitorWorker().startCycleNow()
         return NextResponse.json(
           {
             round: {

@@ -128,6 +128,8 @@ import { validateExternalUrl } from '@/lib/url-validation'
 import { getVaultAccessState } from '@/lib/vault-access'
 
 export type CheckTrigger = CheckRecord['trigger']
+/** read: the page only (a cycle's checks); fix: AI may recover too. */
+export type CheckMode = 'read' | 'fix'
 
 /** Whole-check budget, including fallbacks and a confirmation re-read. */
 export const CHECK_BUDGET_MS = 60_000
@@ -1031,6 +1033,12 @@ export async function checkPriceSource(
     trigger: CheckTrigger
     signal?: AbortSignal
     intervalMs?: number
+    /**
+     * read: the page is only read (HTTP or browser and the parsers), so a
+     * cycle gets every price first; what fails is set aside and AI works on
+     * it at the end of the cycle. fix (the default): AI may recover.
+     */
+    mode?: CheckMode
   },
 ): Promise<CheckSummary> {
   const intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS
@@ -1081,9 +1089,19 @@ export async function checkPriceSource(
   }
   // Amazon pages are checked without AI: no AI reading, verifying, solving
   // or troubleshooting, whatever the AI settings say.
-  const aiSettings: PriceAiSettings = isAmazonSource(source)
+  const fullAi: PriceAiSettings = isAmazonSource(source)
     ? { ...monitoringAi, enabled: false }
     : monitoringAi
+  // Reading only: no AI recovery, reading, solving or troubleshooting. AI
+  // still confirms a change before it alerts (Confirm changes), and a page
+  // showing another variant is still told apart, so the fix later knows.
+  const readOnly = options.mode === 'read'
+  const aiSettings: PriceAiSettings = readOnly
+    ? { ...fullAi, enabled: false }
+    : fullAi
+  const reviewSettings: PriceAiSettings = readOnly
+    ? { ...fullAi, spotCheck: false }
+    : fullAi
   const base = {
     generation,
     sourceId: source.id,
@@ -1399,34 +1417,12 @@ export async function checkPriceSource(
     ) {
       const problemCode = evaluated.errorCode
       const problem = { code: problemCode, message: messageFor(problemCode) }
-      let solved = await flow.solve({
+      const solved = await flow.solve({
         problem,
         settings: aiSettings,
         accept: acceptsPrice,
         signal: options.signal,
       })
-      // Unlimited AI: one more run with fresh cookies when AI worked the
-      // page and still found nothing (stale cookies hide prices too).
-      if (
-        !solved.offer &&
-        solved.status !== 'challenge' &&
-        solved.aiCalls > 0 &&
-        aiSettings.usage.mode === 'unlimited' &&
-        !aiBudgetRefusal('solver')
-      ) {
-        const fresh = await flow.solve({
-          problem,
-          settings: aiSettings,
-          accept: acceptsPrice,
-          signal: options.signal,
-          freshCookies: true,
-        })
-        solved = {
-          ...fresh,
-          aiCalls: solved.aiCalls + fresh.aiCalls,
-          steps: [...solved.steps, ...fresh.steps],
-        }
-      }
       aiUsed = aiUsed || solved.aiCalls > 0
       solverSteps = solved.steps.length ? solved.steps : null
       recovery = solved.offer
@@ -1509,8 +1505,9 @@ export async function checkPriceSource(
     if (
       evaluated.kind === 'observation' &&
       variantPage &&
-      recoveryOn &&
-      aiSettings.fixVariants
+      aiConfigured(fullAi) &&
+      fullAi.resolveErrors &&
+      fullAi.fixVariants
     ) {
       const expected = expectedVariantFor(source)
       const seen = readPageVariant(variantPage.html, variantPage.url)
@@ -1672,7 +1669,7 @@ export async function checkPriceSource(
       html: method === 'solver' ? solverPage?.html : reading?.check.html,
       source,
       knife,
-      settings: aiSettings,
+      settings: reviewSettings,
       notifications,
       implausible,
       parserReading: method !== 'ai' && method !== 'solver',
@@ -1718,7 +1715,7 @@ export async function checkPriceSource(
           html: solved.html ?? undefined,
           source,
           knife,
-          settings: aiSettings,
+          settings: reviewSettings,
           notifications,
           implausible,
           parserReading: false,

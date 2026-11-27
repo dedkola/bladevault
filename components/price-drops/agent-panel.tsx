@@ -18,6 +18,7 @@ import { useKnives } from '@/components/providers/knives-provider'
 import { getHourCycle } from '@/lib/time-format'
 import { clockTime, relativeTime, storeLabel } from './price-format'
 import { StatusDot, useMinuteClock } from './price-ui'
+import type { KnifeCoverage } from './price-table-model'
 
 /**
  * The AI supervisor on Price Drops: a status strip above Monitoring status
@@ -244,38 +245,21 @@ function NeedsYou({ stores }: { stores: string[] }) {
   )
 }
 
-function CoverageMeter({ coverage }: { coverage: AgentCoverage }) {
-  const total = Math.max(1, coverage.monitored)
-  const attention =
-    coverage.failed + coverage.blocked + coverage.priceUnavailable
-  const fresh = Math.max(
-    0,
-    coverage.monitored -
-      coverage.neverChecked -
-      attention -
-      coverage.outOfStock,
-  )
-  const parts = [
-    { key: 'fresh', label: 'read', value: fresh, color: 'var(--price-drop)' },
-    {
-      key: 'oos',
-      label: 'out of stock',
-      value: coverage.outOfStock,
-      color: 'var(--price-stock)',
-    },
-    {
-      key: 'attention',
-      label: 'need attention',
-      value: attention,
-      color: 'var(--price-attention)',
-    },
-    {
-      key: 'never',
-      label: 'never checked',
-      value: coverage.neverChecked,
-      color: 'var(--price-neutral)',
-    },
-  ]
+type CoveragePart = { key: string; label: string; value: number; color: string }
+
+/** A coverage bar and its legend: parts of `total`, in `unit`. */
+function CoverageBar({
+  parts,
+  total,
+  unit,
+  stale,
+}: {
+  parts: CoveragePart[]
+  total: number
+  unit: string
+  stale: number
+}) {
+  const width = Math.max(1, total)
   return (
     <div>
       <div className="pd-agent-meter" role="img" aria-label="Coverage">
@@ -284,7 +268,7 @@ function CoverageMeter({ coverage }: { coverage: AgentCoverage }) {
             <i
               key={part.key}
               style={{
-                width: `${(part.value / total) * 100}%`,
+                width: `${(part.value / width) * 100}%`,
                 background: part.color,
               }}
             />
@@ -307,21 +291,102 @@ function CoverageMeter({ coverage }: { coverage: AgentCoverage }) {
         ))}
         <span>
           of{' '}
-          <b className="font-semibold text-foreground tabular-nums">
-            {coverage.monitored}
-          </b>{' '}
-          monitored
+          <b className="font-semibold text-foreground tabular-nums">{total}</b>{' '}
+          {unit}
         </span>
-        {coverage.stale ? (
+        {stale ? (
           <span>
             <b className="font-semibold text-foreground tabular-nums">
-              {coverage.stale}
+              {stale}
             </b>{' '}
             stale
           </span>
         ) : null}
       </p>
     </div>
+  )
+}
+
+/** What a supervisor run saw, in store links. */
+function CoverageMeter({ coverage }: { coverage: AgentCoverage }) {
+  const attention =
+    coverage.failed + coverage.blocked + coverage.priceUnavailable
+  const fresh = Math.max(
+    0,
+    coverage.monitored -
+      coverage.neverChecked -
+      attention -
+      coverage.outOfStock,
+  )
+  return (
+    <CoverageBar
+      total={coverage.monitored}
+      unit="monitored"
+      stale={coverage.stale}
+      parts={[
+        {
+          key: 'fresh',
+          label: 'read',
+          value: fresh,
+          color: 'var(--price-drop)',
+        },
+        {
+          key: 'oos',
+          label: 'out of stock',
+          value: coverage.outOfStock,
+          color: 'var(--price-stock)',
+        },
+        {
+          key: 'attention',
+          label: 'need attention',
+          value: attention,
+          color: 'var(--price-attention)',
+        },
+        {
+          key: 'never',
+          label: 'never checked',
+          value: coverage.neverChecked,
+          color: 'var(--price-neutral)',
+        },
+      ]}
+    />
+  )
+}
+
+/** The monitored knives now, counted like the tabs (sold out = Out of stock). */
+function KnifeCoverageMeter({ coverage }: { coverage: KnifeCoverage }) {
+  return (
+    <CoverageBar
+      total={coverage.monitored}
+      unit="knives"
+      stale={coverage.stale}
+      parts={[
+        {
+          key: 'fresh',
+          label: 'read',
+          value: coverage.read,
+          color: 'var(--price-drop)',
+        },
+        {
+          key: 'oos',
+          label: 'sold out',
+          value: coverage.soldOut,
+          color: 'var(--price-stock)',
+        },
+        {
+          key: 'attention',
+          label: 'need attention',
+          value: coverage.attention,
+          color: 'var(--price-attention)',
+        },
+        {
+          key: 'never',
+          label: 'never checked',
+          value: coverage.neverChecked,
+          color: 'var(--price-neutral)',
+        },
+      ]}
+    />
   )
 }
 
@@ -344,9 +409,12 @@ const KIND_SUMMARY: Record<AgentAction['kind'], [string, string]> = {
 export function AgentStrip({
   controls,
   now,
+  knives,
 }: {
   controls: AgentControls
   now: number
+  /** The monitored knives now; without it, what the last run saw. */
+  knives?: KnifeCoverage
 }) {
   const { state, notice } = controls
   if (!state || !state.aiConfigured) return null
@@ -470,7 +538,11 @@ export function AgentStrip({
             now.
           </p>
         ) : null}
-        {last?.coverage ? <CoverageMeter coverage={last.coverage} /> : null}
+        {knives ? (
+          <KnifeCoverageMeter coverage={knives} />
+        ) : last?.coverage ? (
+          <CoverageMeter coverage={last.coverage} />
+        ) : null}
         {last?.ok && (counts.size || refused) ? (
           <div className="flex flex-wrap gap-1.5">
             {[...counts].map(([kind, count]) => (

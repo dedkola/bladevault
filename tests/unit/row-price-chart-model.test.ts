@@ -289,6 +289,23 @@ describe('rowChartTooltip', () => {
     expect(html).not.toContain('<b>Vosteed</b>')
     expect(priceAt(amazon, early)).toBeNull()
   })
+
+  it('lists a store in another currency last, in its own currency', () => {
+    const euro: RowChartStore = {
+      key: 'foxknives.com',
+      label: 'Fox Knives',
+      trend: trend([['2026-11-19T08:45:00Z', 14467]], undefined, 'EUR'),
+    }
+    const html = rowChartTooltip(
+      { trend: best, stores: [euro, ...stores], regularMinor: null },
+      at('2026-11-26T00:00:00Z'),
+    )
+    expect(html).toContain('Fox Knives')
+    expect(html).toMatch(/€144\.67|144\.67/)
+    expect(html.indexOf('Fox Knives')).toBeGreaterThan(
+      html.indexOf('Vosteed</span>'),
+    )
+  })
 })
 
 describe('cachedRowChartStores', () => {

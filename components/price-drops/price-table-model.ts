@@ -92,6 +92,67 @@ export function soldOutKnives(sources: MonitoredSource[]): Set<string> {
   )
 }
 
+/** How many knives the listings belong to: a tab counts knives, not links. */
+export function knifeCount(sources: readonly MonitoredSource[]): number {
+  return new Set(sources.map((source) => source.knife.id)).size
+}
+
+/** The supervisor's coverage bar in knives, counted like the tabs. */
+export type KnifeCoverage = {
+  monitored: number
+  read: number
+  soldOut: number
+  attention: number
+  neverChecked: number
+  /** Knives with a link not checked for 1.5 × the check interval. */
+  stale: number
+}
+
+/**
+ * Each monitored knife once, in the first group it fits: never checked (no
+ * link read yet), sold out (the Out of stock tab), needs attention (the
+ * Needs attention tab), else read.
+ */
+export function knifeCoverage(
+  sources: MonitoredSource[],
+  now: number,
+  intervalHours: number | null,
+): KnifeCoverage {
+  const byKnife = new Map<string, MonitoredSource[]>()
+  for (const source of sources) {
+    const list = byKnife.get(source.knife.id)
+    if (list) list.push(source)
+    else byKnife.set(source.knife.id, [source])
+  }
+  const soldOut = soldOutKnives(sources)
+  const staleBefore =
+    intervalHours === null ? null : now - intervalHours * 1.5 * 3_600_000
+  const coverage: KnifeCoverage = {
+    monitored: byKnife.size,
+    read: 0,
+    soldOut: 0,
+    attention: 0,
+    neverChecked: 0,
+    stale: 0,
+  }
+  for (const [knifeId, list] of byKnife) {
+    const checked = list.filter((source) => source.lastCheckedAt !== null)
+    if (!checked.length) {
+      coverage.neverChecked += 1
+      continue
+    }
+    if (
+      staleBefore !== null &&
+      checked.some((source) => Date.parse(source.lastCheckedAt!) < staleBefore)
+    )
+      coverage.stale += 1
+    if (soldOut.has(knifeId)) coverage.soldOut += 1
+    else if (list.some(SECTION_FILTER.attention)) coverage.attention += 1
+    else coverage.read += 1
+  }
+  return coverage
+}
+
 /**
  * Knives some store sells now at or below their regular price. Up leaves
  * them out: a store charging more does not matter while the knife can be

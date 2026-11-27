@@ -495,6 +495,55 @@ describe('wishlist', () => {
     expect(buildPriceTrends(db, now).sources['2'].currency).toBe('USD')
   })
 
+  it('charts the currency most stores show and starts at their first reading', () => {
+    const db = getLocalDb()
+    const now = Date.parse('2026-06-30T12:00:00Z')
+    const day = 24 * 60 * 60 * 1000
+    const iso = (daysAgo: number) => new Date(now - daysAgo * day).toISOString()
+    db.prepare(
+      `UPDATE knives SET specs = json_set(specs, '$.price', '€79.90')
+       WHERE id = 'first'`,
+    ).run()
+    for (const host of ['official', 'smkw', 'bladehq'])
+      db.prepare(
+        `INSERT INTO price_sources
+           (knife_id, url, normalized_url, provider, lane_key, store_name,
+            origin, created_at, updated_at)
+         VALUES ('first', ?, ?, 'generic', ?, ?, 'manual', 't', 't')`,
+      ).run(
+        `https://${host}.example/p`,
+        `https://${host}.example/p`,
+        host,
+        host,
+      )
+    const snapshot = db.prepare(
+      `INSERT INTO price_snapshots
+         (knife_id, source_id, price_minor, currency, availability,
+          extraction_status, extraction_method, observed_at, last_seen_at)
+       VALUES ('first', ?, ?, ?, 'in_stock', 'ok', 'json_ld', ?, ?)`,
+    )
+    // The official store sells it in EUR; two US stores outnumber it, so the
+    // chart is in USD and none of them is dropped (Bigger Digger on Docker).
+    snapshot.run(1, 7990, 'EUR', iso(9), iso(0))
+    snapshot.run(2, 7990, 'USD', iso(2), iso(0))
+    snapshot.run(3, 8995, 'USD', iso(2), iso(0))
+
+    const trend = buildPriceTrends(db, now).knives.first
+    expect(trend).toMatchObject({
+      currency: 'USD',
+      lowMinor: 7990,
+      highMinor: 8995,
+    })
+    // It starts when the first US store was read, not with an empty stretch
+    // from the EUR store's older readings.
+    expect(trend.since).toBe(now - 2 * day)
+    expect(trend.readings).toEqual([
+      { at: now - 2 * day, price: 7990 },
+      { at: now - 2 * day, price: 8995 },
+    ])
+    expect(buildWishlistTrends(db, ['first'], now).first.currency).toBe('USD')
+  })
+
   it('starts the chart when tracking began and keeps a same-day drop', () => {
     const db = getLocalDb()
     const now = Date.parse('2026-06-30T12:00:00Z')

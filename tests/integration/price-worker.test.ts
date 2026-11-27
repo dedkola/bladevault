@@ -15,7 +15,6 @@ import {
   readCurrentRound,
   readRetryTasks,
 } from '@/lib/price-monitor/round-store'
-import { RETRY_END_MARGIN_MS } from '@/lib/price-monitor/rounds'
 import { requestSourceChecks } from '@/lib/price-monitor/store'
 import {
   buildQueueSnapshot,
@@ -97,6 +96,7 @@ function sourceIds(): Map<string, number> {
 type Pending = {
   sourceId: number
   trigger: string
+  mode: string
   resolve: (summary?: Partial<CheckSummary>) => void
 }
 
@@ -117,6 +117,7 @@ function harness(extra: Partial<WorkerDeps> = {}) {
         pending.push({
           sourceId,
           trigger: options.trigger,
+          mode: options.mode ?? 'fix',
           resolve: (summary = {}) => {
             getLocalDb()
               .prepare(
@@ -171,7 +172,7 @@ const lanesOf = (pending: Pending[], ids: Map<string, number>) => {
 
 const HOUR = 60 * MIN
 
-/** Every link was read yesterday: rounds check them, not first readings. */
+/** Every link was read yesterday: cycles check them, not first readings. */
 function checkedYesterday(now = Date.UTC(2026, 10, 18, 12)) {
   getLocalDb()
     .prepare(
@@ -250,8 +251,8 @@ const retryKeys = () =>
     .map((task) => `${task.key}:${task.reason}`)
     .sort()
 
-describe('price check rounds', () => {
-  it('checks one knife’s stores at the same time, then pauses before the next knife', async () => {
+describe('price check cycles', () => {
+  it('checks every store at the same time, each at its own gap, without AI', async () => {
     await knife(['https://a.example/1', 'https://b.example/1'])
     await knife(['https://a.example/2', 'https://c.example/2'])
     await knife(['https://b.example/3'])
@@ -262,136 +263,202 @@ describe('price check rounds', () => {
     const start = now()
     worker.start({ scheduled: true })
     await worker.pass()
-    expect(lanesOf(pending, ids)).toEqual(['a.example', 'b.example'])
-    expect(pending.map((check) => check.trigger)).toEqual([
-      'scheduled',
-      'scheduled',
+    // One knife's stores, and the next knife's store nobody else uses.
+    expect(lanesOf(pending, ids)).toEqual([
+      'a.example',
+      'b.example',
+      'c.example',
     ])
-
-    // The next knife waits until all of this knife's stores are done.
+    expect(new Set(pending.map((check) => check.trigger))).toEqual(
+      new Set(['scheduled']),
+    )
+    expect(new Set(pending.map((check) => check.mode))).toEqual(
+      new Set(['read']),
+    )
     await finish()
-    expect(pending).toHaveLength(1)
     await finish()
-    expect(pending).toHaveLength(0)
-    expect(buildQueueSnapshot(now()).round).toMatchObject({
+    await finish()
+    expect(buildQueueSnapshot(now()).cycle).toMatchObject({
       trigger: 'scheduled',
       knives: 3,
-      done: 1,
+      wishlist: { links: 5, done: 3 },
+      deferred: 0,
+      problems: 0,
     })
 
-    // Then the pause between knives (1 minute).
+    // A store's next request waits its gap (1 minute); others do not wait.
     advance(MIN - 1000)
     await worker.pass()
     expect(pending).toHaveLength(0)
     advance(1000)
     await worker.pass()
-    expect(lanesOf(pending, ids)).toEqual(['a.example', 'c.example'])
+    expect(lanesOf(pending, ids)).toEqual(['a.example', 'b.example'])
     await finish()
     await finish()
-    advance(MIN)
-    await worker.pass()
-    expect(lanesOf(pending, ids)).toEqual(['b.example'])
-    await finish()
+    expect(buildQueueSnapshot(now()).cycle).toMatchObject({
+      wishlist: { links: 5, done: 5 },
+      endsAt: new Date(start + 6 * HOUR).toISOString(),
+    })
 
-    // After the last knife the round ends; the next starts 6 h after it began.
-    advance(MIN)
-    await worker.pass()
-    const snapshot = buildQueueSnapshot(now())
-    expect(snapshot.round).toBeNull()
-    expect(snapshot.lastRound).toMatchObject({ knives: 3 })
-    expect(snapshot.nextRoundAt).toBe(new Date(start + 6 * HOUR).toISOString())
+    // The next cycle starts 6 hours after this one began.
     advance(start + 6 * HOUR - now() - MIN)
     await worker.pass()
     expect(pending).toHaveLength(0)
     advance(MIN)
     await worker.pass()
-    expect(lanesOf(pending, ids)).toEqual(['a.example', 'b.example'])
+    expect(lanesOf(pending, ids)).toEqual([
+      'a.example',
+      'b.example',
+      'c.example',
+    ])
   })
 
-  it('puts failures and stores that are not ready on the retry list, then spreads them out', async () => {
-    await knife(['https://shop.example/1', 'https://other.example/1'])
-    await knife(['https://shop.example/2'])
+  it('runs at most seven checks at once', async () => {
+    for (let index = 0; index < 9; index += 1)
+      await knife([`https://shop${index}.example/p`])
+    checkedYesterday()
+    const { worker, pending, finish } = harness()
+    worker.start({ scheduled: true })
+    await worker.pass()
+    expect(pending).toHaveLength(7)
+    await finish()
+    expect(pending).toHaveLength(7)
+  })
+
+  it('tries a store that could not answer again 10–15 minutes later, then leaves it to AI', async () => {
+    await knife(['https://shop.example/1'])
+    await knife(['https://other.example/2'])
     checkedYesterday()
     roundEvery(6)
     const ids = sourceIds()
+    const shop = ids.get('https://shop.example/1')!
+    const other = ids.get('https://other.example/2')!
     const { worker, pending, finish, advance, now } = harness({
       random: () => 0.5,
     })
-    const start = now()
     worker.start({ scheduled: true })
     await worker.pass()
-    const shop = pending.findIndex(
-      (check) => check.sourceId === ids.get('https://shop.example/1'),
-    )
-    await finish(shop, { outcome: 'blocked', laneOutcome: 'blocked' })
-    await finish(0, {
-      outcome: 'failed',
-      laneOutcome: 'neutral',
+    const timeout = {
+      outcome: 'failed' as const,
+      laneOutcome: 'failed' as const,
       errorCode: 'timeout',
+    }
+    await finish(
+      pending.findIndex((check) => check.sourceId === shop),
+      timeout,
+    )
+    // A page without a price is a problem right away: no retries.
+    await finish(0, {
+      outcome: 'no_price',
+      laneOutcome: 'neutral',
+      errorCode: 'no_price',
+    })
+    expect(retryKeys()).toEqual(
+      [`check:${other}:no_price`, `check:${shop}:failed`].sort(),
+    )
+    const deferred = () =>
+      readRetryTasks(getLocalDb()).find((task) => task.sourceId === shop)!
+    expect(deferred()).toMatchObject({ attempts: 1 })
+    expect(deferred().dueAt).toBe(now() + 12.5 * MIN)
+    expect(
+      readRetryTasks(getLocalDb()).find((task) => task.sourceId === other),
+    ).toMatchObject({ dueAt: null })
+    expect(buildQueueSnapshot(now()).cycle).toMatchObject({
+      deferred: 1,
+      problems: 1,
     })
 
-    // The next knife's store waits out a bot-check pause: skipped.
+    // Its time comes: tried again, still without AI.
+    for (const attempt of [2, 3]) {
+      advance(deferred().dueAt! - now() - 1000)
+      await worker.pass()
+      expect(pending).toHaveLength(0)
+      advance(1000)
+      await worker.pass()
+      expect(pending.map((check) => [check.sourceId, check.trigger])).toEqual([
+        [shop, 'retry'],
+      ])
+      expect(pending[0].mode).toBe('read')
+      await finish(0, timeout)
+      expect(deferred()).toMatchObject({ attempts: attempt })
+    }
+    // The third failure in this cycle: a problem for AI (none here).
+    expect(deferred().dueAt).toBeNull()
+    advance(HOUR)
+    await worker.pass()
+    expect(pending).toHaveLength(0)
+  })
+
+  it('lets AI work on problems one at a time once every link was checked', async () => {
+    await knife(['https://a.example/1'])
+    await knife(['https://b.example/2'])
+    await knife(['https://c.example/3'])
+    checkedYesterday()
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        ai: {
+          ...DEFAULT_PRICE_MONITORING.ai,
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          model: 'test-model',
+        },
+      },
+    })
+    const ids = sourceIds()
+    const [a, b, c] = [
+      'https://a.example/1',
+      'https://b.example/2',
+      'https://c.example/3',
+    ].map((url) => ids.get(url)!)
+    const noPrice = {
+      outcome: 'no_price' as const,
+      laneOutcome: 'neutral' as const,
+      errorCode: 'no_price',
+    }
+    const { worker, pending, finish, advance } = harness()
+    worker.start({ scheduled: true })
+    await worker.pass()
+    const at = (sourceId: number) =>
+      pending.findIndex((check) => check.sourceId === sourceId)
+    await finish(at(a), noPrice)
+    await finish(at(b))
+    // C is still being read: AI waits for the prices.
+    expect(pending.map((check) => check.sourceId)).toEqual([c])
+    await finish(0, noPrice)
+
+    // Every link was checked: AI takes the first problem, one at a time.
+    advance(MIN)
+    await worker.pass()
+    expect(
+      pending.map((check) => [check.sourceId, check.trigger, check.mode]),
+    ).toEqual([[a, 'retry', 'fix']])
+    await finish()
+    expect(retryKeys()).toEqual([`check:${c}:no_price`])
+    await worker.pass()
+    expect(
+      pending.map((check) => [check.sourceId, check.trigger, check.mode]),
+    ).toEqual([[c, 'retry', 'fix']])
+    await finish(0, noPrice)
+
+    // One try per page and cycle: what AI could not fix waits.
     advance(MIN)
     await worker.pass()
     expect(pending).toHaveLength(0)
-    advance(MIN)
-    await worker.pass()
-    expect(readCurrentRound(getLocalDb())).toBeNull()
-    expect(retryKeys()).toEqual(
-      [
-        `check:${ids.get('https://other.example/1')}:failed`,
-        `check:${ids.get('https://shop.example/1')}:blocked`,
-        `check:${ids.get('https://shop.example/2')}:store_not_ready`,
-      ].sort(),
-    )
-    // Random times between the round's end and 10 minutes before the next.
-    const tasks = readRetryTasks(getLocalDb())
-    for (const task of tasks) {
-      expect(task.dueAt).toBeGreaterThan(now())
-      expect(task.dueAt).toBeLessThanOrEqual(
-        start + 6 * HOUR - RETRY_END_MARGIN_MS,
-      )
-    }
-    expect(buildQueueSnapshot(now()).retries).toMatchObject({
-      waiting: 0,
-      scheduled: 3,
-    })
-
-    // Their time comes: one per store at a time, the paused store probed.
-    advance(Math.max(...tasks.map((task) => task.dueAt!)) - now())
-    await worker.pass()
-    expect(pending.map((check) => check.trigger).sort()).toEqual([
-      'probe',
-      'retry',
-    ])
-    const other = pending.findIndex(
-      (check) => check.sourceId === ids.get('https://other.example/1'),
-    )
-    await finish(other)
-    await finish(0, { outcome: 'blocked', laneOutcome: 'blocked' })
-
-    // What failed again waits for the next round, with its tries counted.
-    const left = readRetryTasks(getLocalDb())
-    expect(left.map((task) => task.sourceId).sort()).toEqual(
-      [
-        ids.get('https://shop.example/1'),
-        ids.get('https://shop.example/2'),
-      ].sort(),
-    )
-    expect(
-      left.find((task) => task.sourceId === ids.get('https://shop.example/1')),
-    ).toMatchObject({ attempts: 2, dueAt: null })
+    expect(retryKeys()).toEqual([`check:${c}:no_price`])
   })
 
-  it('continues a round at its saved knife after a restart', async () => {
+  it('carries on where the cycle was after a restart', async () => {
     await knife(['https://a.example/1'])
-    await knife(['https://b.example/2'])
+    await knife(['https://a.example/2'])
     checkedYesterday()
     const ids = sourceIds()
     const first = harness()
     first.worker.start({ scheduled: true })
     await first.worker.pass()
-    expect(lanesOf(first.pending, ids)).toEqual(['a.example'])
+    expect(first.pending.map((check) => check.sourceId)).toEqual([
+      ids.get('https://a.example/1'),
+    ])
     await first.finish()
     await first.worker.stop()
 
@@ -399,66 +466,38 @@ describe('price check rounds', () => {
     second.advance(2 * MIN)
     second.worker.start({ scheduled: true })
     await second.worker.pass()
-    expect(lanesOf(second.pending, ids)).toEqual(['b.example'])
-    expect(buildQueueSnapshot(second.now()).round).toMatchObject({
+    expect(second.pending.map((check) => check.sourceId)).toEqual([
+      ids.get('https://a.example/2'),
+    ])
+    expect(buildQueueSnapshot(second.now()).cycle).toMatchObject({
       knives: 2,
-      done: 1,
+      wishlist: { links: 2, done: 1 },
     })
   })
 
-  it('starts a round with Check all now, also where checks are not scheduled', async () => {
+  it('starts a new cycle with Check all now, also where checks are not scheduled', async () => {
     await knife(['https://a.example/1'])
     await knife(['https://b.example/2'])
     checkedYesterday()
     const ids = sourceIds()
-    const { worker, pending } = harness()
+    const { worker, pending, finish } = harness()
     worker.start({ scheduled: false })
     await worker.pass()
     expect(pending).toHaveLength(0)
 
-    const round = await worker.startRoundNow()
-    expect(round).toMatchObject({ trigger: 'manual' })
-    expect(round?.knifeIds).toHaveLength(2)
+    const cycle = await worker.startCycleNow()
+    expect(cycle).toMatchObject({ trigger: 'manual' })
+    expect(cycle.knifeIds).toHaveLength(2)
     await worker.pass()
-    expect(lanesOf(pending, ids)).toEqual(['a.example'])
-    // One round at a time.
-    expect(await worker.startRoundNow()).toBeNull()
-  })
-
-  it('only runs Check now when scheduling is off or not covered', async () => {
-    await knife(['https://a.example/p'])
-    const off = await knife(['https://b.example/p'])
-    await priceWatchRoute.PUT(
-      json('http://localhost/x', 'PUT', { mode: 'off' }),
-      {
-        params: Promise.resolve({ id: off }),
-      },
-    )
-    await knife(['https://c.example/p'], { sold: true })
-    const ids = sourceIds()
-    saveSettings({
-      priceMonitoring: { ...getSettings().priceMonitoring, enabled: false },
-    })
-    const { worker, pending } = harness()
-    worker.start({ scheduled: true })
+    expect(lanesOf(pending, ids)).toEqual(['a.example', 'b.example'])
+    // Pressed again: a new cycle replaces it.
+    const again = await worker.startCycleNow()
+    expect(again.id).toBeGreaterThan(cycle.id)
+    await finish()
+    await finish()
+    // Without scheduled checks it ends once every link was checked.
     await worker.pass()
-    expect(pending).toHaveLength(0)
-
-    await requestSourceChecks([ids.get('https://b.example/p')!])
-    await worker.pass()
-    expect(pending.map((check) => [check.sourceId, check.trigger])).toEqual([
-      [ids.get('https://b.example/p'), 'manual'],
-    ])
-
-    // Back on: the Never monitor and sold knives stay out of the round.
-    saveSettings({
-      priceMonitoring: { ...getSettings().priceMonitoring, enabled: true },
-    })
-    await worker.pass()
-    expect(pending.map((check) => check.sourceId).sort()).toEqual(
-      [ids.get('https://a.example/p'), ids.get('https://b.example/p')].sort(),
-    )
-    expect(readCurrentRound(getLocalDb())?.knifeIds).toHaveLength(1)
+    expect(readCurrentRound(getLocalDb())).toBeNull()
   })
 
   it('lets only one worker per vault run checks', async () => {
@@ -522,25 +561,21 @@ describe('price check rounds', () => {
     })
     worker.start({ scheduled: true })
     await worker.pass()
-    expect(pending).toHaveLength(0)
+    // Stores do not wait for each other: C runs, A and B are held.
+    expect(pending.map((check) => [check.sourceId, check.trigger])).toEqual([
+      [ids.get('https://c.example/p'), 'scheduled'],
+    ])
 
     await requestSourceChecks([ids.get('https://a.example/p')!])
     await worker.pass()
     expect(pending.map((check) => [check.sourceId, check.trigger])).toEqual([
-      [ids.get('https://a.example/p'), 'manual'],
-    ])
-    advance(MIN)
-    await worker.pass()
-    advance(MIN)
-    await worker.pass()
-    expect(pending.map((check) => [check.sourceId, check.trigger])).toEqual([
-      [ids.get('https://a.example/p'), 'manual'],
       [ids.get('https://c.example/p'), 'scheduled'],
+      [ids.get('https://a.example/p'), 'manual'],
     ])
-    expect(retryKeys()).toEqual([
-      `check:${ids.get('https://a.example/p')}:store_not_ready`,
-      `check:${ids.get('https://b.example/p')}:store_not_ready`,
-    ])
+    advance(MIN)
+    await worker.pass()
+    expect(pending).toHaveLength(2)
+    expect(retryKeys()).toEqual([])
   })
 
   it('asks the AI advisor once it is due, only with AI on', async () => {
@@ -656,7 +691,7 @@ describe('price check rounds', () => {
     })
   })
 
-  it('searches a knife at every store without a listing, together with its checks', async () => {
+  it('searches a knife at every store without a listing, between the stores’ checks', async () => {
     const own = await knife(['https://maker.example/a'])
     const atBladeHq = await knife([
       'https://www.bladehq.com/item--Test-Knife--2',
@@ -669,11 +704,14 @@ describe('price check rounds', () => {
     worker.start({ scheduled: true })
     await worker.pass()
     expect(lanesOf(pending, ids)).toEqual(['maker.example'])
-    expect(calls.map((call) => [call.knifeId, call.store])).toEqual([
-      [own, 'bladehq'],
-      [own, 'smkw'],
-      [own, 'amazon'],
-    ])
+    // Every store at once; What to monitor's order decides the knife.
+    expect(calls.map((call) => [call.knifeId, call.store]).sort()).toEqual(
+      [
+        [own, 'bladehq'],
+        [own, 'smkw'],
+        [own, 'amazon'],
+      ].sort(),
+    )
     expect([...worker.searches.keys()].sort()).toEqual([
       'amazon',
       'bladehq.com',
@@ -689,13 +727,15 @@ describe('price check rounds', () => {
     advance(5 * MIN)
     await worker.pass()
     expect(lanesOf(pending, ids)).toEqual(['www.bladehq.com'])
-    expect(calls.map((call) => [call.knifeId, call.store])).toEqual([
-      [atBladeHq, 'smkw'],
-      [atBladeHq, 'amazon'],
-    ])
+    expect(calls.map((call) => [call.knifeId, call.store]).sort()).toEqual(
+      [
+        [atBladeHq, 'smkw'],
+        [atBladeHq, 'amazon'],
+      ].sort(),
+    )
   })
 
-  it('checks a listing the search just found in the same step', async () => {
+  it('checks a listing the search just found at the store’s next turn', async () => {
     const lookFor = await knife([])
     otherStores({ bladehq: true })
     const { calls, discover } = searches()
@@ -723,10 +763,9 @@ describe('price check rounds', () => {
     expect(pending.map((check) => [check.sourceId, check.trigger])).toEqual([
       [found, 'scheduled'],
     ])
-    expect(readCurrentRound(getLocalDb())?.cursor).toBe(0)
   })
 
-  it('skips a store whose search gap is not over and retries it later', async () => {
+  it('waits out a store’s search gap before its next search', async () => {
     const first = await knife([])
     const second = await knife([])
     otherStores({ knifejoy: true })
@@ -739,17 +778,11 @@ describe('price check rounds', () => {
     await worker.idle()
     await worker.pass()
 
-    // KnifeJoy allows one search every 15 minutes: the next knife skips it.
-    advance(MIN)
+    // KnifeJoy allows one search every 15 minutes.
+    advance(14 * MIN)
     await worker.pass()
     expect(calls).toHaveLength(1)
-    expect(retryKeys()).toEqual([`search:${second}:knifejoy:store_not_ready`])
     advance(MIN)
-    await worker.pass()
-    expect(readCurrentRound(getLocalDb())).toBeNull()
-    expect(calls).toHaveLength(1)
-
-    advance(13 * MIN)
     await worker.pass()
     expect(calls.map((call) => call.knifeId)).toEqual([first, second])
     calls[1].resolve(notFound)
@@ -829,7 +862,7 @@ describe('price check rounds', () => {
   })
 })
 
-/** What to monitor is the Wishlist; the rest goes to the collection pass. */
+/** What to monitor is the Wishlist; the rest of the collection is on too. */
 function wishlistWithCollectionPass(wishlist: string[]) {
   const at = new Date(Date.UTC(2026, 10, 1)).toISOString()
   const insert = getLocalDb().prepare(
@@ -846,11 +879,11 @@ function wishlistWithCollectionPass(wishlist: string[]) {
   })
 }
 
-describe('collection pass', () => {
-  it('checks the rest of the collection in free time, after the Wishlist round and at most once a day', async () => {
+describe('the rest of the collection', () => {
+  it('comes after What to monitor, spread evenly over the cycle', async () => {
     const wished = await knife(['https://a.example/1'])
-    await knife(['https://b.example/2'])
-    await knife(['https://c.example/3'])
+    await knife(['https://a.example/2'])
+    await knife(['https://a.example/3'])
     checkedYesterday()
     roundEvery(6)
     wishlistWithCollectionPass([wished])
@@ -859,102 +892,65 @@ describe('collection pass', () => {
     const start = now()
     worker.start({ scheduled: true })
 
-    // The Wishlist round comes first and holds only the Wishlist knife.
+    // The Wishlist first.
     await worker.pass()
-    expect(lanesOf(pending, ids)).toEqual(['a.example'])
-    expect(buildQueueSnapshot(now()).round).toMatchObject({ knives: 1 })
+    expect(pending.map((check) => check.sourceId)).toEqual([
+      ids.get('https://a.example/1'),
+    ])
     await finish()
+    expect(buildQueueSnapshot(now()).cycle).toMatchObject({
+      knives: 3,
+      wishlist: { links: 1, done: 1 },
+      collection: { links: 2, done: 0 },
+    })
 
-    // Free time: the round ends and the collection pass starts.
+    // Then the rest, one link now and the last one spread to the cycle's
+    // last tenth (5.4 hours in).
     advance(MIN)
     await worker.pass()
-    expect(readCurrentRound(getLocalDb())).toBeNull()
-    expect(lanesOf(pending, ids)).toEqual(['b.example'])
-    expect(buildQueueSnapshot(now()).collectionPass).toMatchObject({
-      running: true,
-      waiting: false,
-      knives: 2,
-      done: 0,
-    })
-    // A failure in the pass does not join the retry list.
-    await finish(0, {
-      outcome: 'failed',
-      laneOutcome: 'neutral',
-      errorCode: 'timeout',
-    })
-    expect(readRetryTasks(getLocalDb())).toEqual([])
+    expect(pending.map((check) => check.sourceId)).toEqual([
+      ids.get('https://a.example/2'),
+    ])
+    await finish()
+    advance(HOUR)
+    await worker.pass()
+    expect(pending).toHaveLength(0)
+    advance(start + 5.4 * HOUR - now())
+    await worker.pass()
+    expect(pending.map((check) => check.sourceId)).toEqual([
+      ids.get('https://a.example/3'),
+    ])
+    await finish()
 
-    // The next Wishlist round is due: it goes first, the pass waits.
+    // The next cycle starts with the Wishlist again.
     advance(start + 6 * HOUR - now())
     await worker.pass()
-    expect(lanesOf(pending, ids)).toEqual(['a.example'])
-    expect(buildQueueSnapshot(now()).collectionPass).toMatchObject({
-      running: true,
-      waiting: true,
-      done: 1,
-    })
-    await finish()
-
-    // The round ends; the pass continues at its next knife.
-    advance(MIN)
-    await worker.pass()
-    expect(lanesOf(pending, ids)).toEqual(['c.example'])
-    await finish()
-    advance(MIN)
-    await worker.pass()
-    expect(pending).toHaveLength(0)
-    const done = buildQueueSnapshot(now()).collectionPass
-    expect(done).toMatchObject({ running: false })
-    expect(done?.nextAt).toBe(new Date(start + MIN + 24 * HOUR).toISOString())
-
-    // Later Wishlist rounds that day leave the collection alone.
-    advance(start + 12 * HOUR - now())
-    await worker.pass()
-    expect(lanesOf(pending, ids)).toEqual(['a.example'])
-    await finish()
-    advance(MIN)
-    await worker.pass()
-    expect(pending).toHaveLength(0)
+    expect(pending.map((check) => check.sourceId)).toEqual([
+      ids.get('https://a.example/1'),
+    ])
   })
 
-  it('passes a knife that moved to the Wishlist, and stops when switched off', async () => {
+  it('starts at every store at once, and is left out when switched off', async () => {
     const wished = await knife(['https://a.example/1'])
     await knife(['https://b.example/2'])
-    const moved = await knife(['https://c.example/3'])
     checkedYesterday()
     wishlistWithCollectionPass([wished])
     const ids = sourceIds()
-    const { worker, pending, finish, advance, now } = harness()
+    const { worker, pending, now } = harness()
     worker.start({ scheduled: true })
     await worker.pass()
-    await finish()
-    advance(MIN)
-    await worker.pass()
-    expect(lanesOf(pending, ids)).toEqual(['b.example'])
-    await finish()
+    expect(lanesOf(pending, ids)).toEqual(['a.example', 'b.example'])
 
-    // The third knife joins the Wishlist: the pass leaves it to the rounds.
-    getLocalDb()
-      .prepare(
-        `INSERT INTO wishlist_items (knife_id, lane, position, added_at, updated_at)
-         VALUES (?, 'saving', 0, ?, ?)`,
-      )
-      .run(moved, new Date(now()).toISOString(), new Date(now()).toISOString())
-    advance(MIN)
-    await worker.pass()
-    expect(pending).toHaveLength(0)
-    expect(buildQueueSnapshot(now()).collectionPass).toMatchObject({
-      running: false,
-    })
-
-    // Switched off: no pass and no collection status.
     saveSettings({
       priceMonitoring: {
         ...getSettings().priceMonitoring,
         collectionPass: { enabled: false, superSalePercent: 50 },
       },
     })
-    expect(buildQueueSnapshot(now()).collectionPass).toBeNull()
+    expect(buildQueueSnapshot(now()).cycle).toMatchObject({
+      wishlist: { links: 1 },
+      collection: { links: 0 },
+    })
   })
 })
 
@@ -1038,19 +1034,16 @@ describe('store actions', () => {
 })
 
 describe('queue snapshot', () => {
-  it('reports Check now requests, the retry list and the next round', async () => {
+  it('reports Check now requests and the cycle', async () => {
     await knife(['https://shop.example/a', 'https://shop.example/b'])
     checkedYesterday(Date.now())
     roundEvery(12)
     const ids = sourceIds()
     expect(buildQueueSnapshot()).toMatchObject({
       waiting: 0,
-      round: null,
-      lastRound: null,
+      cycle: null,
       frequencyMs: 12 * HOUR,
-      retries: { waiting: 0, scheduled: 0, nextAt: null },
     })
-    expect(buildQueueSnapshot().nextRoundAt).not.toBeNull()
     await requestSourceChecks([ids.get('https://shop.example/a')!])
     const snapshot = buildQueueSnapshot()
     expect(snapshot.waiting).toBe(1)
@@ -1063,7 +1056,7 @@ describe('queue snapshot', () => {
     })
   })
 
-  it('checks a sold-out official link every round, also with its alerts quieted', async () => {
+  it('checks a sold-out official link every cycle, also with its alerts quieted', async () => {
     await knife(['https://maker.example/1'])
     await knife(['https://shop.example/2'])
     checkedYesterday()
@@ -1083,19 +1076,16 @@ describe('queue snapshot', () => {
     const { worker, pending, finish, advance, now } = harness()
     const start = now()
 
-    for (const roundStart of [start, start + 12 * HOUR]) {
-      advance(roundStart - now())
-      if (roundStart === start) worker.start({ scheduled: true })
+    for (const cycleStart of [start, start + 12 * HOUR]) {
+      advance(cycleStart - now())
+      if (cycleStart === start) worker.start({ scheduled: true })
       await worker.pass()
-      expect(lanesOf(pending, ids)).toEqual(['maker.example'])
+      expect(lanesOf(pending, ids)).toEqual(['maker.example', 'shop.example'])
       await finish()
-      advance(MIN)
-      await worker.pass()
-      expect(lanesOf(pending, ids)).toEqual(['shop.example'])
       await finish()
-      advance(MIN)
-      await worker.pass()
-      expect(buildQueueSnapshot(now()).round).toBeNull()
+      expect(buildQueueSnapshot(now()).cycle).toMatchObject({
+        wishlist: { links: 2, done: 2 },
+      })
     }
   })
 

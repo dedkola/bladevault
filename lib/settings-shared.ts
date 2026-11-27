@@ -487,16 +487,15 @@ export type PriceMonitoringSettings = {
   /** Which knives scheduled monitoring covers; Check now works for any. */
   scope: PriceMonitorScope
   /**
-   * The rest of the collection (knives outside `scope`) in free time:
-   * rounds of the scope always come first; between them the other knives
-   * are checked at most once a day, and they notify only about a super sale
-   * (a drop to at least `superSalePercent` below the regular price). Has no
-   * effect while the scope is the whole collection.
+   * The rest of the collection (knives outside `scope`): checked once per
+   * cycle after the scope, spread over it, and notifying only about a super
+   * sale (a drop to at least `superSalePercent` below the regular price).
+   * Has no effect while the scope is the whole collection.
    */
   collectionPass: PriceCollectionPassSettings
   /**
-   * Price checks run in rounds, around the clock: every `intervalHours` a
-   * round goes through every monitored knife, one knife's stores at a time.
+   * Price checks run in cycles, around the clock: every `intervalHours` a
+   * cycle checks every monitored link, every store at the same time.
    */
   schedule: {
     intervalHours: PriceRoundHours
@@ -506,12 +505,12 @@ export type PriceMonitoringSettings = {
      */
     slowOutOfStock: boolean
   }
-  /** Pacing of a round. */
+  /** Pacing of each store. */
   pacing: {
     /**
-     * Pause between knives: after one knife's stores are checked, the round
-     * waits this long before the next knife. Also the floor between two
-     * requests at one store; raised automatically when a store slows down.
+     * The shortest time between two requests at one store; raised
+     * automatically when a store slows down. Stores do not wait for each
+     * other.
      */
     minGapSeconds: number
   }
@@ -709,8 +708,9 @@ export type PriceCollectionPassSettings = {
 }
 
 /**
- * The collection pass runs: switched on and What to monitor leaves part of
- * the collection out (with the whole collection, rounds cover everything).
+ * The rest of the collection is checked: switched on and What to monitor
+ * leaves part of the collection out (with the whole collection, cycles
+ * cover everything anyway).
  */
 export function isCollectionPassOn(
   settings: Pick<PriceMonitoringSettings, 'collectionPass' | 'scope'>,

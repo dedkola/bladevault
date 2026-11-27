@@ -27,10 +27,9 @@ import {
 import {
   queueRetryNow,
   readCurrentRound,
-  readLastRound,
   readRetryTasks,
 } from '@/lib/price-monitor/round-store'
-import { nextRoundAt, type RetryReason } from '@/lib/price-monitor/rounds'
+import type { RetryReason } from '@/lib/price-monitor/rounds'
 import { laneAvailability, laneFloorMs } from '@/lib/price-monitor/lanes'
 import { adviceWindowMs, frequencyMs } from '@/lib/price-monitor/schedule'
 import { redactSecrets } from '@/lib/price-monitor/secret-registry'
@@ -280,14 +279,15 @@ export type AgentSource = {
    */
   storeHoldMin?: number
   /**
-   * Knives the running round checks before this source's knife (0: its
-   * knife is next); null when the round does not reach it (no round runs,
-   * or it was checked in this round already).
+   * Knives the running cycle checks before this source's knife (0: its
+   * knife is next); null when the cycle does not reach it (no cycle runs,
+   * or it was checked in this cycle already).
    */
   ahead: number | null
   /**
    * On the retry list: why, its tries so far, and minutes until its retry
-   * (null: after the round ends). Only present when on the list.
+   * (null: a problem waiting for AI at the end of the cycle). Only present
+   * when on the list.
    */
   retry?: { reason: RetryReason; attempts: number; inMin: number | null }
   /** The store's current price, e.g. "129.00 USD"; null when unknown. */
@@ -453,8 +453,8 @@ export type AgentSnapshot = {
   mode: Exclude<PriceAgentMode, 'off'>
   checkIntervalHours: number
   /**
-   * The round in progress (knives done of all), or null; and minutes until
-   * the next round starts (null while one runs).
+   * The check cycle in progress (knives fully checked of all), or null; and
+   * minutes until the next cycle starts.
    */
   round: { done: number; knives: number } | null
   nextRoundInMin: number | null
@@ -603,7 +603,7 @@ export function buildAgentSnapshot(input: {
   )
   const intervalMs = frequencyMs(settings.schedule)
   // Every monitored knife is the supervisor's: What to monitor and the rest
-  // of the collection (checked in free time, marked `daily`).
+  // of the collection (spread over each cycle, marked `daily`).
   const candidates = readQueueCandidates(database, settings, now)
   const daily = new Set(
     candidates
@@ -640,13 +640,23 @@ export function buildAgentSnapshot(input: {
     )
     .all() as SourceQueryRow[]
 
-  // The running round: knives still to come, in order. A source whose
-  // knife is among them and that was not checked since the round started
-  // waits that many knives.
+  // The running cycle: knives still to check, in order. A source whose
+  // knife is among them and that was not checked since the cycle started
+  // waits that many knives (its store checks them first).
   const round = readCurrentRound(database)
   const ahead = new Map<number, number>()
+  let roundDone = 0
   if (round) {
-    const remaining = round.knifeIds.slice(round.cursor)
+    const waiting = new Set<string>()
+    for (const row of rows)
+      if (
+        monitored.has(row.id) &&
+        (row.last_checked_at === null ||
+          Date.parse(row.last_checked_at) < round.startedAt)
+      )
+        waiting.add(row.knife_id)
+    const remaining = round.knifeIds.filter((id) => waiting.has(id))
+    roundDone = round.knifeIds.length - remaining.length
     const position = new Map(remaining.map((id, index) => [id, index]))
     for (const row of rows) {
       const index = position.get(row.knife_id)
@@ -835,17 +845,10 @@ export function buildAgentSnapshot(input: {
     }).format(now),
     mode: input.mode,
     checkIntervalHours: Math.round((intervalMs / HOUR_MS) * 10) / 10,
-    round: round
-      ? {
-          done: Math.min(round.cursor, round.knifeIds.length),
-          knives: round.knifeIds.length,
-        }
+    round: round ? { done: roundDone, knives: round.knifeIds.length } : null,
+    nextRoundInMin: round
+      ? Math.max(0, minutesUntil(round.startedAt + intervalMs, now) ?? 0)
       : null,
-    nextRoundInMin: (() => {
-      if (round) return null
-      const next = nextRoundAt(readLastRound(database), intervalMs, now)
-      return next === null ? null : Math.max(0, minutesUntil(next, now) ?? 0)
-    })(),
     ai: {
       usage: settings.ai.usage.mode,
       today,
@@ -1762,10 +1765,10 @@ export const AGENT_SCHEMA = {
 export const AGENT_PROMPT = [
   'You supervise price monitoring for a knife collector. Each source is one store product page that BladeVault checks for price and stock. Keep every monitored source fresh and readable, and spend checks where they matter most to the collector right now.',
   "trigger says why you run: event (events woke you: react to them), scheduled (your regular look over everything) or manual (the collector asked). events lists what changed since your last run, newest first: drop and increase (from, to, pct), out_of_stock and back_in_stock, failing (a source's failures in a row reached 3 or 5), bot_check (a store showed a bot check), found_listing (Other stores found the knife at a store). After a move at one store, crossCheck the knife's other stores; after a drop near the target or a restock, consider watchClosely or advise.",
-  "The input lists knives, most urgent first. Each knife has its market: regular (the knife's stored regular price), target (the collector's alert price), best (the cheapest in-stock price now) and bestStore, low (lowest in-stock price ever), low90d and high90d, lastPriceChange, lastStockChange, muted, notMonitored (not covered by scheduled monitoring: no advise, ask or remember for it), and search (Other stores searches). Under it are its sources: status, price, stock, outOfStockDays, timing in minutes, failures, error, queued, ahead and retry; daily marks a knife outside What to monitor, checked at most once a day in free time, so a day between its checks is normal. Out of stock never stops checks: a sold-out page is checked like any other. variant marks a listing of the same model in another variant (handle, steel, colour) that Other stores keeps watching, with its title: it never sets the knife's market (best, low, changes) or alerts; when the title shows it is not the same model at all, pause it. The input also has the round, each store's pace, coverage, the AI budget, localTime and your recent runs, each action with its note (why it was refused) or outcome (what its next check or search found). Missing fields are unknown.",
+  "The input lists knives, most urgent first. Each knife has its market: regular (the knife's stored regular price), target (the collector's alert price), best (the cheapest in-stock price now) and bestStore, low (lowest in-stock price ever), low90d and high90d, lastPriceChange, lastStockChange, muted, notMonitored (not covered by scheduled monitoring: no advise, ask or remember for it), and search (Other stores searches). Under it are its sources: status, price, stock, outOfStockDays, timing in minutes, failures, error, queued, ahead and retry; daily marks a knife outside What to monitor, checked once per cycle, spread over the day, so a day between its checks is normal. Out of stock never stops checks: a sold-out page is checked like any other. variant marks a listing of the same model in another variant (handle, steel, colour) that Other stores keeps watching, with its title: it never sets the knife's market (best, low, changes) or alerts; when the title shows it is not the same model at all, pause it. The input also has the cycle (round), each store's pace, coverage, the AI budget, localTime and your recent runs, each action with its note (why it was refused) or outcome (what its next check or search found). Missing fields are unknown.",
   'Answer with JSON only: {"summary", "check", "retryWithAi", "findPage", "fetchMode", "pause", "searchOtherStore", "watchClosely", "crossCheck", "advise", "ask", "remember", "forget"}. Leave a list empty when nothing is needed: often nothing is.',
-  "Prices are checked in rounds (round: knives done of all; nextRoundInMin; checkIntervalHours between rounds). A round goes knife by knife: all of a knife's stores at the same time, then a pause, then the next knife. ahead says how many knives come before a source's knife in the running round. What fails or finds its store not ready goes on the retry list (retry: reason, attempts, inMin), which runs at random times before the next round with AI allowed; what fails again waits for the next round.",
-  `check (at most ${AGENT_LIMITS.check}): check sources right away, before the round's next knife. A source with ahead 0 is next anyway and a check changes nothing. Use check to read a source that matters more now: a knife near or below its target or regular price, a price that just moved at another store, a restock to confirm, a sale period (look at localTime, e.g. Black Friday and holiday sales). Skip sources marked queued, checked in the last 30 minutes, or not monitored.`,
+  "Prices are checked in cycles (round: knives fully checked of all; nextRoundInMin until the next cycle; checkIntervalHours per cycle). Every store works at the same time, one request at a time with its own gap: What to monitor first, then links never checked, then the rest of the collection spread over the cycle. ahead says how many knives still to check come before a source's knife in the cycle. Checks run without AI. A store that asked to wait (rate limit, time-out, bot check) is tried again 10 to 15 minutes later (retry with inMin), up to three times; a page without a usable price is a problem (retry without inMin) that AI works on once every link of the cycle was checked, one page at a time.",
+  `check (at most ${AGENT_LIMITS.check}): check sources next at their store, before its other links. A source with ahead 0 is next anyway and a check changes nothing. Use check to read a source that matters more now: a knife near or below its target or regular price, a price that just moved at another store, a restock to confirm, a sale period (look at localTime, e.g. Black Friday and holiday sales). Skip sources marked queued, checked in the last 30 minutes, or not monitored.`,
   'A store takes one request at a time at its own safe pace (minGapSec), and paused stores (circuit open) wait out their pause. You cannot speed a store up, so do not ask for more than the stores can do before your next run. A source with storeHoldMin is held by its store that long; asking again for it changes nothing.',
   `retryWithAi (at most ${AGENT_LIMITS.retryWithAi}): failed or price_unavailable sources where AI reading or working the page may get the price: they go on the retry list and are retried soon with AI allowed. Never for blocked sources: a bot check needs the user. Not for sources marked aiRetryPending: their retry already waits (retry.inMin, storeHoldMin).`,
   `findPage (at most ${AGENT_LIMITS.findPage}): failed or price_unavailable sources whose page seems moved or gone (moved, soft_missing, redirect, not_found, http_404, http_410): on the next check AI searches the same store for the product and proposes its new link in the Inbox. Only when ai.findsPages is true.`,
@@ -2048,7 +2051,7 @@ export function validateAgentPlan(
     push(
       { kind: 'check', sourceId: entry.sourceId, reason: entry.reason },
       checkRefusal(source) ??
-        (source?.ahead === 0 ? 'its knife is next in the round' : null),
+        (source?.ahead === 0 ? 'its knife is next in the cycle' : null),
     )
   }
   for (const entry of plan.retryWithAi) {
@@ -2554,8 +2557,8 @@ export async function applyAgentActions(
             changes = expedite.run(now, now, action.sourceId).changes
             break
           case 'retryWithAi':
-            // On the retry list, due now: it runs between the round's
-            // knives, with the per-product AI wait lifted.
+            // On the retry list, due now: its store runs it next with AI,
+            // the per-product AI wait lifted.
             clearAi.run(action.sourceId)
             changes = queueRetryNow(database, {
               sourceId: action.sourceId!,

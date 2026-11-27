@@ -80,12 +80,15 @@ import {
   EMPTY_TEXT,
   groupByKnife,
   hasBuyablePrice,
+  knifeCount,
+  knifeCoverage,
   matchesQuery,
   nextSort,
   parseSection,
   sectionRows,
   SECTION_LABEL,
   SECTIONS,
+  soldOutKnives,
   sortRows,
   storeOptions,
   vsPaid,
@@ -115,46 +118,43 @@ type QueueLane = {
   checking: boolean
 }
 
-type QueueRound = {
+type QueueCycle = {
   id: number
   trigger: 'scheduled' | 'manual'
   startedAt: string
-  /** Knives in the round, and how many are done. */
-  knives: number
-  done: number
+  /** When the next cycle starts. */
+  endsAt: string
+  /** Links of What to monitor and of the rest of the collection, and how many were checked. */
+  wishlist: { links: number; done: number }
+  collection: { links: number; done: number }
+  /** Checks a store asked to wait for, tried again 10–15 minutes later. */
+  deferred: number
+  /** Pages without a usable price, waiting for AI at the end of the cycle. */
+  problems: number
+  /** AI is set up to work on the problems. */
+  ai: boolean
+  /** AI works on the problems now. */
+  aiTurn: boolean
 }
 
 type QueueSnapshot = {
   enabled: boolean
+  /** Scheduled cycles run here (false: only Check all and Check now). */
+  scheduled: boolean
   /** Check now requests waiting. */
   waiting: number
-  /** The round in progress, if any. */
-  round: QueueRound | null
-  /** The last round that finished, if any. */
-  lastRound: { id: number } | null
-  /** When the next round starts (null while one runs or checks are off). */
-  nextRoundAt: string | null
-  /** The retry list: items waiting for a time, and items with one. */
-  retries: { waiting: number; scheduled: number; nextAt: string | null }
+  /** The check cycle in progress, if any. */
+  cycle: QueueCycle | null
   lanes: QueueLane[]
   /** What to monitor; `knives` is null for the whole collection. */
   scope?: { kind: PriceMonitorScopeKind; knives: number | null }
-  /** The rest of the collection, checked in free time; null while off. */
-  collectionPass?: {
-    running: boolean
-    /** A round runs, so the pass waits at its knife. */
-    waiting: boolean
-    knives: number
-    done: number
-    nextAt: string | null
-  } | null
 }
 
 const SCOPE_LABEL = { wishlist: 'Wishlist', selected: 'Selected knives' }
 
 const OVERVIEW_REFRESH_MS = 60_000
 const QUEUE_REFRESH_MS = 10_000
-/** Faster while a round runs, so its progress moves visibly. */
+/** Faster while Check all runs, so its progress moves visibly. */
 const PROGRESS_REFRESH_MS = 3_000
 /** Bulk changes to this many listings or knives ask first. */
 const BULK_CONFIRM_AT = 5
@@ -271,7 +271,7 @@ function useOverview(version: number) {
   return { ...state, retry: () => setTick((value) => value + 1) }
 }
 
-/** The live queue; polled faster while a round runs (or was just started). */
+/** The live queue; polled faster while Check all runs. */
 function useQueue(fast: boolean, version: number) {
   const [queue, setQueue] = useState<QueueSnapshot | null>(null)
   useEffect(() => {
@@ -330,15 +330,44 @@ function usePriceTrends(key: string | null) {
 }
 
 /** "12 of 38 knives checked", with why the rest may wait. */
-function roundText(round: QueueRound, pausedStores: number): string {
+/** Links still to check in the cycle's main pass. */
+function cycleLeft(cycle: QueueCycle): number {
+  return (
+    Math.max(0, cycle.wishlist.links - cycle.wishlist.done) +
+    Math.max(0, cycle.collection.links - cycle.collection.done)
+  )
+}
+
+function cycleParts(
+  cycle: QueueCycle,
+  scope: QueueSnapshot['scope'],
+): string[] {
+  const part = (label: string, progress: QueueCycle['wishlist']) =>
+    progress.links
+      ? `${label} ${Math.min(progress.done, progress.links)}/${progress.links}`
+      : null
+  const scopeLabel =
+    !scope || scope.kind === 'all' ? 'Collection' : SCOPE_LABEL[scope.kind]
+  return [
+    part(scopeLabel, cycle.wishlist),
+    part('Collection', cycle.collection),
+    cycle.deferred ? `Deferred ${cycle.deferred}` : null,
+    cycle.problems
+      ? `Problems ${cycle.problems} (${!cycle.ai ? 'AI off' : cycle.aiTurn ? 'AI working on them' : 'AI after prices'})`
+      : null,
+  ].filter((value): value is string => value !== null)
+}
+
+function cycleProgressText(cycle: QueueCycle, pausedStores: number): string {
+  const total = cycle.wishlist.links + cycle.collection.links
   const parts = [
-    `${Math.min(round.done, round.knives)} of ${round.knives} ${round.knives === 1 ? 'knife' : 'knives'} checked`,
+    `${total - cycleLeft(cycle)} of ${total} ${total === 1 ? 'link' : 'links'} checked`,
   ]
   if (pausedStores)
     parts.push(
       `${pausedStores} ${pausedStores === 1 ? 'store is' : 'stores are'} paused after a bot check`,
     )
-  else parts.push("all of a knife's stores at once, then a pause")
+  else parts.push('every store at once, each at its own pace')
   return parts.join(' · ')
 }
 
@@ -487,8 +516,30 @@ function PriceNote({ source }: { source: MonitoredSource }) {
  * The price now, with the regular price under it. The latest small move is
  * left to the knife's large chart. A check that could not read the page keeps the last known price,
  * shown muted with its date so it never passes for a fresh reading.
+ * A knife no store sells says Sold out, with the last price under it.
  */
-function PriceCell({ source }: { source: MonitoredSource }) {
+function PriceCell({
+  source,
+  soldOut = false,
+}: {
+  source: MonitoredSource
+  soldOut?: boolean
+}) {
+  if (soldOut) {
+    const seen = source.priceSeenAt ?? source.lastCheckedAt
+    return (
+      <div data-price-cell data-stale>
+        <span data-price-line>
+          <b title="No store has it in stock">Sold out</b>
+        </span>
+        <span data-price-note>
+          {source.priceMinor !== null
+            ? `last ${money(source.priceMinor, source.currency)}${seen ? ` · ${shortDate(seen)}` : ''}`
+            : null}
+        </span>
+      </div>
+    )
+  }
   // A price nobody can buy now is greyed: a failed check's kept price, or
   // one of a store that is out of stock.
   const stale =
@@ -698,6 +749,7 @@ function SourceTableRow({
   bestMinor,
   group,
   child,
+  soldOut,
   onSelect,
   onToggleChecked,
   onResolve,
@@ -734,6 +786,8 @@ function SourceTableRow({
   group?: { count: number; expanded: boolean; onToggle: () => void }
   /** A store row under an expanded knife. */
   child?: boolean
+  /** A knife row whose stores are all out of stock. */
+  soldOut?: boolean
   onSelect: () => void
   onToggleChecked: () => void
   onResolve: () => void
@@ -858,7 +912,7 @@ function SourceTableRow({
         />
       </td>
       <td data-col="price" className="py-2.5 pr-4">
-        <PriceCell source={source} />
+        <PriceCell source={source} soldOut={soldOut} />
       </td>
       <td data-col="chip" className="py-2.5 pr-4">
         {child ? null : (
@@ -972,37 +1026,36 @@ function laneNote(
   return null
 }
 
-function RoundProgress({
-  round,
+function CycleProgress({
+  cycle,
   pausedStores,
 }: {
-  round: QueueRound
+  cycle: QueueCycle
   pausedStores: number
 }) {
-  const done = Math.min(round.done, round.knives)
+  const total = cycle.wishlist.links + cycle.collection.links
+  const done = total - cycleLeft(cycle)
   return (
-    <div data-price-round={round.trigger} className="mb-4 space-y-1.5">
+    <div data-price-cycle={cycle.trigger} className="mb-4 space-y-1.5">
       <p
         role="status"
         aria-live="polite"
         className="text-sm text-muted-foreground"
       >
-        {round.trigger === 'manual' ? 'Check all: ' : 'Round: '}
-        {roundText(round, pausedStores)}
+        {cycle.trigger === 'manual' ? 'Check all: ' : 'Cycle: '}
+        {cycleProgressText(cycle, pausedStores)}
       </p>
       <div
         role="progressbar"
-        aria-label="Round progress"
+        aria-label="Cycle progress"
         aria-valuemin={0}
-        aria-valuemax={round.knives}
+        aria-valuemax={total}
         aria-valuenow={done}
         className="h-1.5 max-w-md overflow-hidden rounded-full bg-[var(--bladevault-surface-soft)]"
       >
         <div
           className="h-full rounded-full bg-primary transition-[width] duration-500"
-          style={{
-            width: `${round.knives ? (done / round.knives) * 100 : 0}%`,
-          }}
+          style={{ width: `${total ? (done / total) * 100 : 0}%` }}
         />
       </div>
     </div>
@@ -1105,11 +1158,11 @@ export function PriceDropsView({
   const trends = usePriceTrends(
     overview ? `${version}|${overview.kpis.lastSuccessAt ?? ''}` : null,
   )
-  // The round Check all started, so its end can be announced.
+  // The cycle Check all started, so its end can be announced.
   const [started, setStarted] = useState<number | null>(null)
   const [queueVersion, setQueueVersion] = useState(0)
-  const [roundSeen, setRoundSeen] = useState<number | null>(null)
-  const queue = useQueue(started !== null || roundSeen !== null, queueVersion)
+  const [cycleSeen, setCycleSeen] = useState<number | null>(null)
+  const queue = useQueue(started !== null, queueVersion)
   const agent = useAgentState(version)
   const now = useMinuteClock()
   const hourCycle = getHourCycle(useKnives().timeFormat)
@@ -1162,24 +1215,27 @@ export function PriceDropsView({
     queue?.lanes.filter((lane) => lane.checking).length ?? 0
   const pausedStores =
     queue?.lanes.filter((lane) => lane.circuit === 'open').length ?? 0
-  const round = queue?.round ?? null
-  const retryCount = queue ? queue.retries.waiting + queue.retries.scheduled : 0
-  // A round seen running that is gone from the queue has finished, and so
-  // has the one Check all started once it is the last round (it may end
-  // between two polls). The table then reloads, and Check all says so.
-  // Derived from the polled queue, so it is applied while rendering (React's
-  // pattern for state that follows other state).
+  const cycle = queue?.cycle ?? null
+  // The main pass: links of the cycle still to check (deferred checks and
+  // AI on problems come after it).
+  const mainPass = cycle !== null && cycleLeft(cycle) > 0
+  const checkAllRunning = mainPass && cycle?.trigger === 'manual'
+  // A new cycle reloads the table. Check all is done once its cycle checked
+  // every link, or a newer cycle replaced it (it may end between two
+  // polls). Derived from the polled queue, so it is applied while rendering
+  // (React's pattern for state that follows other state).
   const startedDone =
-    started !== null && !round && queue?.lastRound?.id === started
-  if (queue && ((round?.id ?? null) !== roundSeen || startedDone)) {
+    started !== null && queue !== null && (cycle?.id !== started || !mainPass)
+  if (queue && ((cycle?.id ?? null) !== cycleSeen || startedDone)) {
     if (startedDone) {
       setStarted(null)
+      const later = cycle?.id === started ? cycle.deferred + cycle.problems : 0
       setNotice(
-        `Check all finished.${retryCount ? ` ${retryCount} ${retryCount === 1 ? 'listing or search is' : 'listings or searches are'} on the retry list and will be tried again before the next round.` : ''}`,
+        `Check all finished.${later ? ` ${later} ${later === 1 ? 'listing waits' : 'listings wait'} for another try: stores that asked to wait are tried again in 10–15 minutes, AI looks at pages without a price.` : ''}`,
       )
     }
-    if (roundSeen !== null || startedDone) setVersion((value) => value + 1)
-    setRoundSeen(round?.id ?? null)
+    if (cycleSeen !== null || startedDone) setVersion((value) => value + 1)
+    setCycleSeen(cycle?.id ?? null)
   }
 
   const monitored = overview?.monitored ?? []
@@ -1204,6 +1260,8 @@ export function PriceDropsView({
     list.push(source)
     knifeSources.set(source.knife.id, list)
   }
+  // Knives no store sells: their row says Sold out instead of a price.
+  const soldOut = soldOutKnives(monitored)
   // The chart's dots: each of the knife's stores' own history.
   const chartStoresOf = (sources: MonitoredSource[]) =>
     trends
@@ -1474,17 +1532,21 @@ export function PriceDropsView({
               data-price-queue
               className="inline-flex items-center gap-2 rounded-full border border-[var(--bladevault-line)] px-2.5 py-1 text-xs text-muted-foreground"
             >
-              <StatusDot tone={checkingStores || round ? 'run' : 'idle'} />
+              <StatusDot tone={checkingStores || mainPass ? 'run' : 'idle'} />
               {!queue.enabled
                 ? 'Automatic checks are off'
-                : round
-                  ? `Round: ${Math.min(round.done, round.knives)} of ${round.knives} ${round.knives === 1 ? 'knife' : 'knives'}`
+                : cycle
+                  ? `Cycle: ${[
+                      ...cycleParts(cycle, queue.scope),
+                      ...(queue.scheduled
+                        ? [
+                            `next cycle ${clockTime(cycle.endsAt, hourCycle, now)}`,
+                          ]
+                        : []),
+                    ].join(' · ')}`
                   : checkingStores
                     ? `${checkingStores} ${checkingStores === 1 ? 'store' : 'stores'} checking`
-                    : queue.nextRoundAt
-                      ? `Next round ${clockTime(queue.nextRoundAt, hourCycle, now)}`
-                      : 'Waiting for the next check'}
-              {queue.enabled && retryCount ? ` · retry list ${retryCount}` : ''}
+                    : 'Waiting for the next check'}
               {overview?.kpis.lastSuccessAt
                 ? ` · last check ${relativeTime(overview.kpis.lastSuccessAt, now)}`
                 : ''}
@@ -1499,7 +1561,7 @@ export function PriceDropsView({
             >
               {queue.scope.knives
                 ? `${SCOPE_LABEL[queue.scope.kind]} · ${queue.scope.knives} ${queue.scope.knives === 1 ? 'knife' : 'knives'}`
-                : queue.collectionPass
+                : cycle?.collection.links
                   ? `${SCOPE_LABEL[queue.scope.kind]} is empty`
                   : queue.scope.kind === 'wishlist'
                     ? 'Wishlist is empty: nothing is monitored'
@@ -1507,31 +1569,12 @@ export function PriceDropsView({
               <span className="underline">Change</span>
             </Link>
           ) : null}
-          {queue?.enabled && queue.collectionPass ? (
-            <span
-              data-price-collection-pass={
-                queue.collectionPass.waiting
-                  ? 'waiting'
-                  : queue.collectionPass.running
-                    ? 'running'
-                    : 'idle'
-              }
-              title="The rest of the collection is checked between rounds, at most once a day, and notifies only about a super sale."
-              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--bladevault-line)] px-2.5 py-1 text-xs text-muted-foreground"
-            >
-              {queue.collectionPass.running
-                ? `Collection: ${Math.min(queue.collectionPass.done, queue.collectionPass.knives)} of ${queue.collectionPass.knives}${queue.collectionPass.waiting ? ' · waits for the round' : ''}`
-                : queue.collectionPass.nextAt
-                  ? `Collection next ${clockTime(queue.collectionPass.nextAt, hourCycle, now)}`
-                  : 'Collection'}
-            </span>
-          ) : null}
           <Button
             size="sm"
             onClick={() => void checkAll()}
             disabled={
               checking ||
-              round !== null ||
+              checkAllRunning ||
               !overview?.kpis.monitoredKnives ||
               queue?.enabled === false
             }
@@ -1541,12 +1584,12 @@ export function PriceDropsView({
             title={
               queue?.enabled === false
                 ? 'Turn on automatic checks in Settings to check every knife.'
-                : round
-                  ? 'A round is checking every knife now.'
-                  : undefined
+                : checkAllRunning
+                  ? 'Check all is checking every knife now.'
+                  : 'Start a new cycle now: every knife, What to monitor first.'
             }
           >
-            {checking || round ? (
+            {checking || checkAllRunning ? (
               <Loader2 className="size-3.5 animate-spin" />
             ) : (
               <RefreshCw className="size-3.5" />
@@ -1624,6 +1667,7 @@ export function PriceDropsView({
         bestMinor={options.bestMinor}
         group={options.group}
         child={options.child}
+        soldOut={!options.child && soldOut.has(source.knife.id)}
         onSelect={() => selectRow(source.knife.id)}
         onToggleChecked={() => toggleChecked(ids)}
         onCheckNow={() => void checkOne(source)}
@@ -1691,8 +1735,8 @@ export function PriceDropsView({
           </Button>
         </div>
       ) : null}
-      {round ? (
-        <RoundProgress round={round} pausedStores={pausedStores} />
+      {cycle && mainPass ? (
+        <CycleProgress cycle={cycle} pausedStores={pausedStores} />
       ) : notice ? (
         <p role="status" className="mb-4 text-sm text-muted-foreground">
           {notice}
@@ -1731,7 +1775,15 @@ export function PriceDropsView({
         </Card>
       ) : (
         <>
-          <AgentStrip controls={agent} now={now} />
+          <AgentStrip
+            controls={agent}
+            now={now}
+            knives={knifeCoverage(
+              monitored,
+              now,
+              overview?.round.intervalHours ?? null,
+            )}
+          />
           <MonitoringStatus
             overview={overview}
             now={now}
@@ -1749,10 +1801,11 @@ export function PriceDropsView({
                   className="inline-flex max-w-full flex-wrap gap-0.5 rounded-lg border border-[var(--bladevault-line)] p-0.5"
                 >
                   {SECTIONS.map((value) => {
+                    // Knives, like the table's rows: a knife's stores are one item.
                     const count =
                       value === 'recent'
                         ? null
-                        : sectionRows(value, filtered, monitored).length
+                        : knifeCount(sectionRows(value, filtered, monitored))
                     return (
                       <button
                         key={value}

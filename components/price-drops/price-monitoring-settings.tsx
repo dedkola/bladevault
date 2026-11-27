@@ -234,8 +234,9 @@ function adviceSummary(
 }
 
 /**
- * Settings → Price monitoring: how often a round starts, the pause between
- * knives, plus a live view of each store's pace, pauses and retry list.
+ * Settings → Price monitoring: how long a check cycle lasts, the gap
+ * between two requests at one store, plus a live view of each store's
+ * pace, pauses and retry list.
  */
 export function PriceMonitoringSettings({
   settings,
@@ -349,11 +350,11 @@ export function PriceMonitoringSettings({
         {settings.scope.kind !== 'all' ? (
           <SettingsRow
             inline
-            label="Check the rest of the collection in free time"
-            description="Knives outside What to monitor are checked between rounds, at most once a day, and Other stores looks for them too. A round of What to monitor always comes first: the collection waits until it is done. Their prices and drops show on Price Drops; set when they notify in Notifications."
+            label="Check the rest of the collection too"
+            description="Knives outside What to monitor are checked once per cycle as well, spread over it after What to monitor, and Other stores looks for them too. Their prices and drops show on Price Drops; set when they notify in Notifications."
           >
             <SettingsSwitch
-              aria-label="Check the rest of the collection in free time"
+              aria-label="Check the rest of the collection too"
               checked={settings.collectionPass.enabled}
               disabled={off}
               onCheckedChange={(enabled) =>
@@ -379,7 +380,7 @@ export function PriceMonitoringSettings({
         <SettingsRow
           inline
           label="Don’t notify when the official site is out of stock"
-          description="No out-of-stock alerts for a knife’s own product link. It is still checked on every round, shows as out of stock, and a restock still notifies."
+          description="No out-of-stock alerts for a knife’s own product link. It is still checked in every cycle, shows as out of stock, and a restock still notifies."
         >
           <SettingsSwitch
             aria-label="Don’t notify when the official site is out of stock"
@@ -396,14 +397,14 @@ export function PriceMonitoringSettings({
 
       <SettingsSection
         title="Schedule"
-        description="Prices are checked in rounds, around the clock. A round goes through every monitored knife in order: all of one knife’s stores at the same time, then a pause, then the next knife. What fails is retried at random times before the next round."
+        description="Prices are checked in cycles, around the clock. Every store is checked at the same time as the others, one request at a time: What to monitor first, then links never checked, then the rest of the collection spread evenly over the cycle. A store that asks to wait is tried again 10–15 minutes later; pages without a price wait for AI at the end of the cycle."
       >
         <SettingsRow
-          label="Start a round"
-          description="Each knife is checked once per round. Other stores looks for a knife again at most once a day."
+          label="Check every link"
+          description="Each link is checked once per cycle. Other stores looks for a knife again at most once a day."
         >
           <SegmentedControl
-            aria-label="How often a round starts"
+            aria-label="How often every link is checked"
             value={
               String(settings.schedule.intervalHours) as `${PriceRoundHours}`
             }
@@ -417,11 +418,11 @@ export function PriceMonitoringSettings({
           />
         </SettingsRow>
         <SettingsRow
-          label="Pause between knives"
-          description="After one knife’s stores are checked, the round waits this long before the next knife. It is also the shortest time between two requests at the same store; BladeVault waits longer by itself at a store that answers slowly, rate-limits or shows a bot check."
+          label="Gap between requests to one store"
+          description="The shortest time between two requests at the same store; different stores are checked at the same time. BladeVault waits longer by itself at a store that answers slowly, rate-limits or shows a bot check."
         >
           <NumberField
-            aria-label="Pause between knives in seconds"
+            aria-label="Gap between requests to one store in seconds"
             value={settings.pacing.minGapSeconds}
             min={PRICE_MONITORING_LIMITS.minGapSeconds[0]}
             max={PRICE_MONITORING_LIMITS.minGapSeconds[1]}
@@ -433,7 +434,7 @@ export function PriceMonitoringSettings({
         <SettingsRow
           inline
           label="Check long out-of-stock pages once a day"
-          description="A page that has been out of stock for two weeks is checked in at most one round a day, so a restock still shows within a day and stores get fewer requests. Check now and Check all still check it right away."
+          description="A page that has been out of stock for two weeks is checked at most once a day, so a restock still shows within a day and stores get fewer requests. Check now and Check all still check it right away."
         >
           <SettingsSwitch
             aria-label="Check long out-of-stock pages once a day"

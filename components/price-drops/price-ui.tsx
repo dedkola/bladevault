@@ -68,7 +68,8 @@ export function ChangePill({ event }: { event: ChangeEvent }) {
 
 /**
  * A drop of a knife outside What to monitor that reached the super-sale
- * line (collection pass), with how far below the regular price it is.
+ * line (the rest of the collection), with how far below the regular price
+ * it is.
  */
 export function SuperSalePill({
   percentBelow,

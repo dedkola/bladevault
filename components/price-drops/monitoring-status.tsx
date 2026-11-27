@@ -402,7 +402,7 @@ function ActivityTimeline({
               type="button"
               className="pd-queue"
               aria-label={`${knivesLabel(due.sources.length)} due and waiting in the store queue`}
-              title="Due now; each is checked when its store's turn comes in the round"
+              title="Due now; each is checked when its store's turn comes"
               onClick={(event) =>
                 show(due, event.currentTarget.getBoundingClientRect())
               }

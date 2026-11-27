@@ -27,6 +27,23 @@ import {
 import { aiConfigured } from '@/lib/price-monitor/ai'
 import { clearBrowserState } from '@/lib/price-monitor/browser-state'
 import {
+  AI_RESERVE_SHARE,
+  DEFER_MAX_TRIES,
+  DEFER_MIN_MS,
+  FIX_BUDGET_MS,
+  MAX_PARALLEL_TASKS,
+  classifyCheck,
+  deferredDueAt,
+  linkDone,
+  linkPending,
+  pickLaneCheck,
+  pickLaneSearch,
+  plannedCheckTimes,
+  restPaceMs,
+  type CycleLink,
+  type CycleRetry,
+} from '@/lib/price-monitor/cycle'
+import {
   discoverKnife,
   discoveryActive,
   enabledDiscoveryStores,
@@ -38,6 +55,7 @@ import { startAttentionSummaryIfDue } from '@/lib/price-monitor/attention'
 import { startPriceDigestIfDue } from '@/lib/price-monitor/digest'
 import {
   checkPriceSource,
+  type CheckMode,
   type CheckSummary,
   type CheckTrigger,
 } from '@/lib/price-monitor/engine'
@@ -48,10 +66,8 @@ import {
   applyLaneOutcome,
   defaultLaneState,
   discoveryAvailability,
-  firstReadingAvailability,
   laneAvailability,
   laneFloorMs,
-  type LaneAvailability,
   type LaneState,
 } from '@/lib/price-monitor/lanes'
 import {
@@ -60,43 +76,19 @@ import {
   type QueueInput,
 } from '@/lib/price-monitor/queue'
 import {
-  advancePass,
-  advanceRound,
   dropStaleRetries,
-  finishPass,
-  finishRetry,
-  finishRound,
+  finishCycle,
+  planCheckTimes,
   pruneRounds,
-  readCurrentPass,
   readCurrentRound,
-  readDueRetries,
-  readLastPass,
-  readLastRound,
   readRetryTasks,
-  recordTaskResults,
-  startPass,
-  startRound,
-  type CollectionPass,
+  recordCheckVerdict,
+  startCycle,
   type RetryTask,
   type Round,
   type RoundTrigger,
-  type TaskResult,
 } from '@/lib/price-monitor/round-store'
-import {
-  COLLECTION_PASS_INTERVAL_MS,
-  laneDecision,
-  LANE_WAIT_MS,
-  nextPassAt,
-  nextRoundAt,
-  planStep,
-  retryableCheck,
-  retryableSearch,
-  retryDueTimes,
-  tasksByLane,
-  type RetryReason,
-  type StepSource,
-  type StepTask,
-} from '@/lib/price-monitor/rounds'
+import type { RetryReason } from '@/lib/price-monitor/rounds'
 import {
   adviceWindowMs,
   checkLoad,
@@ -119,12 +111,11 @@ import {
 } from '@/lib/price-monitor/store'
 import { reportServerError } from '@/lib/sentry/server'
 import { getSettings } from '@/lib/settings'
-import {
-  isCollectionPassOn as collectionPassOn,
-  type ActiveHours,
-  type OtherStoreId,
-  type PriceMonitoringSettings,
-  type PriceMonitorScopeKind,
+import type {
+  ActiveHours,
+  OtherStoreId,
+  PriceMonitoringSettings,
+  PriceMonitorScopeKind,
 } from '@/lib/settings-shared'
 import {
   getVaultAccessState,
@@ -134,15 +125,16 @@ import {
 
 /**
  * The price monitor. One worker per vault (a lease in SQLite). Scheduled
- * checks run in rounds (rounds.ts): every 6, 12 or 24 hours a round goes
- * through every monitored knife in order, checking all of one knife's stores
- * at the same time (and searching the Other stores where it has no listing
- * yet), then pausing before the next knife. What fails goes on the retry
- * list, which runs at random times before the next round. Check now runs
- * right away, at most one request per store at a time. Each store keeps its
- * own pacing: an adaptive minimum gap, Retry-After and a circuit breaker.
- * It runs in the Next.js server process and does not depend on any page
- * being open.
+ * checks run in cycles (cycle.ts): every 6, 12 or 24 hours a cycle goes
+ * through every monitored link. Stores work at the same time and on their
+ * own, one request at a time with their own gap: What to monitor first,
+ * then links never checked, then the rest of the collection spread over the
+ * cycle. Pages a store could not serve now are tried again 10–15 minutes
+ * later; pages without a usable price wait for AI at the end of the cycle.
+ * Other stores searches run at each store between its checks. Check now
+ * runs right away. Each store keeps its own pacing: an adaptive minimum
+ * gap, Retry-After and a circuit breaker. It runs in the Next.js server
+ * process and does not depend on any page being open.
  */
 const SECOND_MS = 1000
 const MINUTE_MS = 60 * SECOND_MS
@@ -157,7 +149,7 @@ const ADVISOR_CHECK_EVERY_MS = 10 * MINUTE_MS
 const AGENT_CHECK_EVERY_MS = MINUTE_MS
 /** The AI endpoint failed during a search: wait before the next one. */
 const DISCOVERY_AI_PAUSE_MS = 30 * MINUTE_MS
-/** A knife watched closely waits at least this long between its steps. */
+/** A link of a knife watched closely waits at least this long between checks. */
 const FOCUS_MIN_GAP_MS = 15 * MINUTE_MS
 export const DEFAULT_WARMUP_MS = 2 * MINUTE_MS
 
@@ -208,6 +200,8 @@ type InFlight = {
   laneKey: string
   trigger: CheckTrigger
   startedAt: number
+  /** AI works on the page (a problem at the end of the cycle). */
+  fix: boolean
 }
 
 type PassContext = {
@@ -222,29 +216,26 @@ type PassContext = {
   laneFor: (laneKey: string) => LaneState
   /** Other stores searches may run now (on, AI connected, not paused). */
   searches: boolean
-  /** Knives due for a search per store, read once per pass. */
-  dueSearches: Map<OtherStoreId, Set<string>>
+  /** Knives due for a search per store, in the queue's order. */
+  dueSearches: Map<OtherStoreId, string[]>
 }
 
-/**
- * One knife's step: its stores in parallel, each store's tasks one after
- * another. `round` steps go through the round; `priority` steps check links
- * moved forward (a new link, Check first, Cross-check); `focus` steps check
- * a knife watched closely; `pass` steps go through the collection pass in
- * the free time between rounds.
- */
-type ActiveStep = {
-  kind: 'round' | 'priority' | 'focus' | 'pass'
-  knifeId: string
-  roundId: number | null
-  passId: number | null
-  /** The round's (or pass's) cursor once this step is done. */
-  nextCursor: number | null
-  pending: Map<string, StepTask[]>
-  /** Since when the step waits for a store that is not ready yet. */
-  waitingSince: Map<string, number>
-  running: number
-  results: TaskResult[]
+/** What the cycle looks like in this pass. */
+type PassCycle = {
+  cycle: Round
+  /** Scheduled monitoring runs here: deferred checks and AI fixes too. */
+  scheduled: boolean
+  /** The rest of the collection is spread over the cycle (not Check all). */
+  spread: boolean
+  links: CycleLink[]
+  byLane: Map<string, CycleLink[]>
+  retries: Map<string, CycleRetry[]>
+  /** Links still to check in this cycle, at every store. */
+  pending: number
+  /** What to monitor's knives in the cycle's order (searches go first). */
+  wishlistOrder: Map<string, number>
+  /** Problem pages waiting for AI. */
+  problems: RetryTask[]
 }
 
 function isVaultError(error: unknown): boolean {
@@ -263,8 +254,8 @@ function normalizeLane(
 
 /**
  * A store's pacing with the floor and any AI advice in force. The advised
- * gap is capped so the store's `sourceCount` checks still fit in one round
- * interval (maxAdvisedGapMs).
+ * gap is capped so the store's `sourceCount` checks still fit in one cycle
+ * (maxAdvisedGapMs).
  */
 function effectiveLane(
   lane: LaneState,
@@ -308,37 +299,26 @@ function restingOutOfStock(
   )
 }
 
-function checkRetryReason(
-  summary: CheckSummary | null,
-): { reason: RetryReason; error: string | null } | null {
-  if (!summary) return { reason: 'failed', error: null }
-  if (summary.status === 'skipped') return null
-  if (summary.status === 'deferred')
-    return { reason: 'failed', error: 'The check was interrupted.' }
-  if (!retryableCheck(summary.outcome)) return null
-  return {
-    reason:
-      summary.outcome === 'blocked'
-        ? 'blocked'
-        : summary.outcome === 'no_price'
-          ? 'no_price'
-          : 'failed',
-    error: summary.errorCode,
-  }
+/** A link of a knife watched closely whose next check is due. */
+function focusDue(candidate: CandidateRow, now: number): boolean {
+  return (
+    candidate.focusIntervalMs !== null &&
+    (candidate.nextCheckAt === null || candidate.nextCheckAt <= now) &&
+    (candidate.lastCheckedAt === null ||
+      now - candidate.lastCheckedAt >= FOCUS_MIN_GAP_MS)
+  )
 }
 
-function searchRetryReason(
-  summary: DiscoverySummary | null,
-): { reason: RetryReason; error: string | null } | null {
-  if (!summary) return { reason: 'failed', error: null }
-  if (summary.status !== 'done' || !retryableSearch(summary.result)) return null
-  return {
-    reason: summary.result === 'blocked' ? 'blocked' : 'failed',
-    error: null,
-  }
+function retryReasonFor(summary: CheckSummary | null): RetryReason {
+  if (summary?.status !== 'done') return 'failed'
+  return summary.outcome === 'blocked'
+    ? 'blocked'
+    : summary.outcome === 'no_price'
+      ? 'no_price'
+      : 'failed'
 }
 
-/** The AI may work on the product again right away (Retry with AI). */
+/** The AI may work on the product again right away (a fix). */
 function liftAiWait(sourceId: number) {
   withVaultWriteSync(() => {
     getLocalDb()
@@ -356,6 +336,46 @@ function savedSearchAt(store: OtherStoreId): number | null {
     .get(store) as { at: string | null } | undefined
   const at = row?.at ? Date.parse(row.at) : NaN
   return Number.isFinite(at) ? at : null
+}
+
+/**
+ * The cycle's links from the queue's candidates: scheduled links not
+ * waiting for Check now. Knives the cycle did not list (added since it
+ * started) come after its own.
+ */
+function cycleLinks(
+  cycle: Round,
+  context: Pick<PassContext, 'candidates' | 'intervalMs' | 'now' | 'settings'>,
+  setAside: ReadonlySet<number>,
+): CycleLink[] {
+  const order = new Map(cycle.knifeIds.map((id, index) => [id, index]))
+  return context.candidates
+    .filter(
+      (candidate) =>
+        candidate.scheduled &&
+        candidate.priority < 2 &&
+        !setAside.has(candidate.sourceId),
+    )
+    .map((candidate) => ({
+      sourceId: candidate.sourceId,
+      knifeId: candidate.knifeId,
+      laneKey: candidate.laneKey,
+      tier: candidate.tier,
+      order: order.get(candidate.knifeId) ?? cycle.knifeIds.length,
+      lastCheckedAt: candidate.lastCheckedAt,
+      priority: candidate.priority === 1 || focusDue(candidate, context.now),
+      resting: restingOutOfStock(candidate, context),
+    }))
+}
+
+function groupByLane<T extends { laneKey: string }>(items: readonly T[]) {
+  const groups = new Map<string, T[]>()
+  for (const item of items) {
+    const list = groups.get(item.laneKey)
+    if (list) list.push(item)
+    else groups.set(item.laneKey, [item])
+  }
+  return groups
 }
 
 export class PriceMonitorWorker {
@@ -385,12 +405,24 @@ export class PriceMonitorWorker {
   readonly inFlight = new Map<string, InFlight>()
   private readonly work = new Set<Promise<unknown>>()
   private readonly controllers = new Set<AbortController>()
-  /** The knife being checked right now, if any. */
-  private step: ActiveStep | null = null
-  /** The pause between knives ends here. */
-  private nextStepAt = 0
-  /** Knives watched closely that just had a step, until when. */
-  private readonly focusHeld = new Map<string, number>()
+  /** The cycle the per-store state below belongs to. */
+  private cycleId: number | null = null
+  /** Per store: its last check was moved forward (the next is ordinary). */
+  private readonly lastWasPriority = new Map<string, boolean>()
+  /** Per store: when its next rest-of-collection link may start. */
+  private readonly restNextAt = new Map<string, number>()
+  /** Per store: when its next deferred check may start. */
+  private readonly deferredNextAt = new Map<string, number>()
+  /** Links whose check threw in this cycle: on the retry list instead. */
+  private readonly setAside = new Set<number>()
+  /** Problem pages AI worked on in this cycle (one try each). */
+  private readonly fixTried = new Set<number>()
+  /**
+   * Store searches run in this cycle (`store:knifeId`). A search saves its
+   * result and moves to the back of the store's queue; one that ended
+   * without saving (skipped, or an error) still waits for the next cycle.
+   */
+  private readonly searchedInCycle = new Set<string>()
 
   constructor(private readonly deps: WorkerDeps = realDeps) {}
 
@@ -475,6 +507,16 @@ export class PriceMonitorWorker {
     return new Set([...this.inFlight.keys(), ...this.searches.keys()])
   }
 
+  /** Checks and searches running now (each one a browser at most). */
+  private running(): number {
+    return this.inFlight.size + this.searches.size
+  }
+
+  private get fixing(): boolean {
+    for (const entry of this.inFlight.values()) if (entry.fix) return true
+    return false
+  }
+
   private async runPass(): Promise<void> {
     if (this.stopped) return
     let delay = MAX_SLEEP_MS
@@ -511,7 +553,7 @@ export class PriceMonitorWorker {
         })
       }
 
-      const roundsOn = this.scheduled && settings.enabled
+      const cyclesOn = this.scheduled && settings.enabled
       const advice = readActiveAdvice(database, now)
       const candidates = readQueueCandidates(database, settings, now)
       const stored = readLaneStates(database)
@@ -529,7 +571,7 @@ export class PriceMonitorWorker {
             sourceCount: counts.get(laneKey) ?? 0,
           },
         )
-      if (roundsOn) {
+      if (cyclesOn) {
         this.maybeAdvise(
           settings,
           stored.values(),
@@ -583,22 +625,11 @@ export class PriceMonitorWorker {
         )
       this.considerWake(nextWakeAt({ ...manual, busyLanes: this.busyLanes() }))
 
-      if (roundsOn) {
-        await this.driveSteps(context)
-        this.driveRetries(context)
-      } else if (
-        settings.enabled &&
-        readCurrentRound(database)?.trigger === 'manual'
-      ) {
-        // Check all now where checks are not scheduled (dev server, or
-        // BLADEVAULT_PRICE_MONITOR=off): its round runs here; the retry list
-        // and the next round wait for scheduled monitoring.
-        await this.driveSteps(context, { roundOnly: true })
-      } else if (this.step) {
-        // Monitoring was turned off: the knife being checked finishes.
-        this.advanceStep(context)
-        if (this.stepDone()) await this.finishStep(context)
-      }
+      // Check all now where checks are not scheduled (dev server, or
+      // BLADEVAULT_PRICE_MONITOR=off): its cycle runs here; deferred
+      // checks, AI fixes and the next cycle wait for scheduled monitoring.
+      const cycle = await this.currentCycle(context, cyclesOn)
+      if (cycle) await this.driveCycle(cycle, cyclesOn, context)
 
       if (this.wakeAt !== null)
         delay = Math.min(MAX_SLEEP_MS, Math.max(SECOND_MS, this.wakeAt - now))
@@ -609,552 +640,292 @@ export class PriceMonitorWorker {
     }
   }
 
-  // ----------------------------------------------------------- rounds
+  // ----------------------------------------------------------- cycles
 
   /**
-   * Starts a round when one is due, then works through steps: links moved
-   * forward first, then knives watched closely, then the round's next knife.
-   * Each step is followed by the pause between knives. When the round's
-   * last knife is done, the round ends and its retry list is spread out.
+   * The cycle to work on. With scheduled monitoring one always runs: the
+   * next starts when its time is up. Without it only Check all's cycle
+   * runs here.
    */
-  private async driveSteps(
+  private async currentCycle(
     context: PassContext,
-    options: { roundOnly?: boolean } = {},
-  ): Promise<void> {
-    const database = getLocalDb()
-    let round = readCurrentRound(database)
-    if (!round && !options.roundOnly) {
-      const last = readLastRound(database)
-      const due = nextRoundAt(last, context.intervalMs, context.now)
-      if (due !== null && due <= context.now)
-        round = await this.beginRound('scheduled', context)
-      else this.considerWake(due)
-    }
-
-    if (this.step) {
-      this.advanceStep(context)
-      if (!this.stepDone()) return
-      await this.finishStep(context)
-    }
-    if (context.now < this.nextStepAt) {
-      this.considerWake(this.nextStepAt)
-      return
-    }
-    let step =
-      (options.roundOnly
-        ? null
-        : (this.priorityStep(context) ?? this.focusStep(context))) ??
-      (round ? await this.roundStep(round, context) : null)
-    // Free time: no round running (or the round just ended). The round
-    // always comes first; the pass waits at its cursor until it is done.
-    if (!step && !options.roundOnly && !readCurrentRound(database))
-      step = await this.passStep(context)
-    if (!step) return
-    this.step = step
-    this.advanceStep(context)
-    if (this.stepDone()) await this.finishStep(context)
-  }
-
-  private beginRound(
-    trigger: RoundTrigger,
-    context: PassContext,
+    cyclesOn: boolean,
   ): Promise<Round | null> {
-    return startRound({
+    let cycle = readCurrentRound(getLocalDb())
+    if (!cyclesOn) return cycle?.trigger === 'manual' ? cycle : null
+    if (cycle && context.now >= cycle.startedAt + context.intervalMs) {
+      await finishCycle({
+        roundId: cycle.id,
+        now: context.now,
+        generation: context.generation,
+      })
+      cycle = null
+    }
+    cycle ??= await startCycle({
       settings: context.settings,
-      trigger,
+      trigger: 'scheduled',
       intervalMs: context.intervalMs,
-      pauseMs: context.floorMs,
       searches: context.searches,
       now: context.now,
       generation: context.generation,
     })
+    if (cycle) this.considerWake(cycle.startedAt + context.intervalMs)
+    return cycle
   }
 
-  private dueSearchesAt(
-    store: OtherStoreId,
+  /** The cycle's state, and a fresh start of the per-store state on a new one. */
+  private async cycleView(
+    cycle: Round,
+    scheduled: boolean,
     context: PassContext,
-  ): Set<string> {
-    const cached = context.dueSearches.get(store)
-    if (cached) return cached
-    const config = DISCOVERY_STORES[store]
-    const due = new Set(
-      readDiscoveryQueue(getLocalDb(), {
-        settings: context.settings,
-        store,
-        marketplace: config.marketplace,
-        laneKey: config.laneKey,
-        now: context.now,
-        limit: Number.MAX_SAFE_INTEGER,
-      }),
-    )
-    context.dueSearches.set(store, due)
-    return due
-  }
-
-  private newStep(
-    kind: ActiveStep['kind'],
-    knifeId: string,
-    tasks: readonly StepTask[],
-    position: { id: number; nextCursor: number } | null = null,
-  ): ActiveStep {
-    return {
-      kind,
-      knifeId,
-      roundId: kind === 'round' ? (position?.id ?? null) : null,
-      passId: kind === 'pass' ? (position?.id ?? null) : null,
-      nextCursor: position?.nextCursor ?? null,
-      pending: tasksByLane(tasks),
-      waitingSince: new Map(),
-      running: 0,
-      results: [],
+  ): Promise<PassCycle> {
+    const fresh = this.cycleId !== cycle.id
+    if (fresh) {
+      this.cycleId = cycle.id
+      this.lastWasPriority.clear()
+      this.restNextAt.clear()
+      this.deferredNextAt.clear()
+      this.setAside.clear()
+      this.fixTried.clear()
+      this.searchedInCycle.clear()
     }
-  }
-
-  /** Links moved forward: a new link, the supervisor's Check first or Cross-check. */
-  private priorityStep(context: PassContext): ActiveStep | null {
-    const first = context.candidates
-      .filter((candidate) => candidate.scheduled && candidate.priority === 1)
-      .sort((a, b) => a.sourceId - b.sourceId)[0]
-    if (!first) return null
-    const tasks = context.candidates
-      .filter(
-        (candidate) =>
-          candidate.knifeId === first.knifeId &&
-          candidate.scheduled &&
-          candidate.priority === 1,
-      )
-      .map((candidate): StepTask => ({
-        kind: 'check',
-        sourceId: candidate.sourceId,
-        laneKey: candidate.laneKey,
-      }))
-    return this.newStep('priority', first.knifeId, tasks)
-  }
-
-  /** A knife watched closely gets all its stores checked at its own pace. */
-  private focusStep(context: PassContext): ActiveStep | null {
-    const held = (knifeId: string) =>
-      (this.focusHeld.get(knifeId) ?? 0) > context.now
-    const due = context.candidates
-      .filter(
-        (candidate) =>
-          candidate.scheduled &&
-          candidate.focusIntervalMs !== null &&
-          !held(candidate.knifeId) &&
-          (candidate.nextCheckAt === null ||
-            candidate.nextCheckAt <= context.now),
-      )
-      .sort((a, b) => (a.nextCheckAt ?? 0) - (b.nextCheckAt ?? 0))[0]
-    if (!due) {
-      const next = context.candidates
-        .filter(
-          (candidate) =>
-            candidate.scheduled && candidate.focusIntervalMs !== null,
-        )
-        .map((candidate) =>
-          Math.max(
-            candidate.nextCheckAt ?? context.now,
-            this.focusHeld.get(candidate.knifeId) ?? 0,
+    const links = cycleLinks(cycle, context, this.setAside)
+    const spread = cycle.trigger === 'scheduled'
+    if (fresh)
+      // "Next check" in the UI. Knives watched closely keep their own times.
+      await planCheckTimes({
+        planned: plannedCheckTimes({
+          links: links.filter(
+            (link) =>
+              !context.candidates.some(
+                (candidate) =>
+                  candidate.sourceId === link.sourceId &&
+                  candidate.focusIntervalMs !== null,
+              ),
           ),
-        )
-      if (next.length) this.considerWake(Math.min(...next))
-      return null
-    }
-    this.focusHeld.set(due.knifeId, context.now + FOCUS_MIN_GAP_MS)
-    const tasks = context.candidates
-      .filter(
-        (candidate) =>
-          candidate.knifeId === due.knifeId &&
-          candidate.scheduled &&
-          !restingOutOfStock(candidate, context),
-      )
-      .map((candidate): StepTask => ({
-        kind: 'check',
-        sourceId: candidate.sourceId,
-        laneKey: candidate.laneKey,
-      }))
-    return tasks.length ? this.newStep('focus', due.knifeId, tasks) : null
-  }
-
-  /**
-   * The round's next knife with something to do. Knives with nothing due
-   * (every link checked this round, nothing to search) are passed without
-   * a pause. After the last knife the round ends.
-   */
-  private async roundStep(
-    round: Round,
-    context: PassContext,
-  ): Promise<ActiveStep | null> {
-    let cursor = round.cursor
-    while (cursor < round.knifeIds.length) {
-      const knifeId = round.knifeIds[cursor]
-      const tasks = this.knifeTasks(knifeId, round.startedAt, context)
-      cursor += 1
-      if (tasks.length)
-        return this.newStep('round', knifeId, tasks, {
-          id: round.id,
-          nextCursor: cursor,
-        })
-    }
-    if (cursor !== round.cursor)
-      await advanceRound({
-        roundId: round.id,
-        cursor,
+          now: context.now,
+          cycleStart: cycle.startedAt,
+          cycleMs: context.intervalMs,
+          floorMs: context.floorMs,
+          spread,
+        }),
         generation: context.generation,
       })
-    const next = Math.max(context.now, round.startedAt + context.intervalMs)
-    await finishRound({
-      roundId: round.id,
-      now: context.now,
-      nextRoundAt: next,
-      random: this.deps.random,
-      generation: context.generation,
-    })
-    this.considerWake(next)
-    return null
+    const scheduledIds = new Set(links.map((link) => link.sourceId))
+    for (const sourceId of this.setAside) scheduledIds.add(sourceId)
+    const tasks = readRetryTasks(getLocalDb()).filter(
+      (task) =>
+        task.kind === 'check' &&
+        task.sourceId !== null &&
+        scheduledIds.has(task.sourceId),
+    )
+    const retries = groupByLane(
+      tasks
+        .filter((task) => task.dueAt !== null)
+        .map((task): CycleRetry => ({
+          sourceId: task.sourceId!,
+          laneKey: task.laneKey,
+          dueAt: task.dueAt,
+          supervisor: task.reason === 'supervisor',
+        })),
+    )
+    const order = new Map(cycle.knifeIds.map((id, index) => [id, index]))
+    const wishlistOrder = new Map<string, number>()
+    for (const link of links)
+      if (link.tier === 'scope')
+        wishlistOrder.set(link.knifeId, order.get(link.knifeId) ?? link.order)
+    return {
+      cycle,
+      scheduled,
+      spread,
+      links,
+      byLane: groupByLane(links),
+      retries,
+      pending: links.filter((link) => linkPending(link, cycle.startedAt))
+        .length,
+      wishlistOrder,
+      problems: tasks.filter((task) => task.dueAt === null),
+    }
   }
 
   /**
-   * The collection pass's next knife with something to do, when the pass is
-   * on and free time has come: a pass starts at most once a day and goes
-   * through the knives outside What to monitor, one step at a time like a
-   * round. A knife that moved into What to monitor meanwhile is passed.
-   * After the last knife the pass ends.
+   * Starts what each free store can start: an Other stores search when its
+   * turn has come, else its next check (cycle.ts, pickLaneCheck). Stores
+   * that answered least recently go first; at most MAX_PARALLEL_TASKS run.
+   * Once every link of the cycle was checked (or its last tenth began), AI
+   * works on one problem page at a time.
    */
-  private async passStep(context: PassContext): Promise<ActiveStep | null> {
-    const database = getLocalDb()
-    let pass: CollectionPass | null = readCurrentPass(database)
-    if (!collectionPassOn(context.settings)) {
-      if (pass)
-        await finishPass({
-          passId: pass.id,
-          now: context.now,
-          generation: context.generation,
-        })
-      return null
-    }
-    if (!pass) {
-      const due = nextPassAt(readLastPass(database), context.now)
-      if (due === null || due > context.now) {
-        this.considerWake(due)
-        return null
-      }
-      pass = await startPass({
-        settings: context.settings,
-        pauseMs: context.floorMs,
-        searches: context.searches,
+  private async driveCycle(
+    cycle: Round,
+    scheduled: boolean,
+    context: PassContext,
+  ): Promise<void> {
+    const view = await this.cycleView(cycle, scheduled, context)
+    if (!scheduled && view.pending === 0) {
+      // Check all without scheduled monitoring: done once all was checked.
+      await finishCycle({
+        roundId: cycle.id,
         now: context.now,
         generation: context.generation,
       })
-      if (!pass) return null
+      return
     }
-    let cursor = pass.cursor
-    while (cursor < pass.knifeIds.length) {
-      const knifeId = pass.knifeIds[cursor]
-      const tasks = this.knifeTasks(
-        knifeId,
-        pass.startedAt,
-        context,
-        'collection',
-      )
-      cursor += 1
-      if (tasks.length)
-        return this.newStep('pass', knifeId, tasks, {
-          id: pass.id,
-          nextCursor: cursor,
-        })
-    }
-    if (cursor !== pass.cursor)
-      await advancePass({
-        passId: pass.id,
-        cursor,
-        generation: context.generation,
-      })
-    await finishPass({
-      passId: pass.id,
-      now: context.now,
-      generation: context.generation,
-    })
-    this.considerWake(
-      Math.max(context.now, pass.startedAt + COLLECTION_PASS_INTERVAL_MS),
+    const searchLanes = new Map<string, OtherStoreId>()
+    if (context.searches)
+      for (const store of enabledDiscoveryStores(context.settings))
+        searchLanes.set(DISCOVERY_STORES[store].laneKey, store)
+    const lanes = [
+      ...new Set([
+        ...view.byLane.keys(),
+        ...(scheduled ? view.retries.keys() : []),
+        ...searchLanes.keys(),
+      ]),
+    ].sort(
+      (a, b) =>
+        (context.laneFor(a).lastRequestAt ?? -Infinity) -
+          (context.laneFor(b).lastRequestAt ?? -Infinity) || a.localeCompare(b),
     )
-    return null
+    for (const laneKey of lanes) {
+      if (this.running() >= MAX_PARALLEL_TASKS) break
+      if (this.laneBusy(laneKey)) continue
+      const store = searchLanes.get(laneKey)
+      if (store && this.startSearchIfDue(store, laneKey, view, context))
+        continue
+      this.startLaneCheck(laneKey, view, context)
+    }
+    if (
+      scheduled &&
+      this.running() < MAX_PARALLEL_TASKS &&
+      !this.fixing &&
+      aiConfigured(context.settings.ai) &&
+      (view.pending === 0 ||
+        context.now >=
+          cycle.startedAt + context.intervalMs * (1 - AI_RESERVE_SHARE))
+    )
+      this.startFix(view, context)
   }
 
-  /**
-   * One knife's tasks in a round or pass that started at `startedAt`. In
-   * the collection pass only the knife's collection-tier links count, so a
-   * knife that moved into What to monitor is left to the rounds.
-   */
-  private knifeTasks(
-    knifeId: string,
-    startedAt: number,
-    context: PassContext,
-    tier?: MonitorTier,
-  ): StepTask[] {
-    const own = context.candidates.filter(
-      (candidate) => candidate.knifeId === knifeId,
-    )
-    if (tier && own.some((candidate) => candidate.tier !== tier)) return []
-    const sources: StepSource[] = own.map((candidate) => ({
-      sourceId: candidate.sourceId,
-      laneKey: candidate.laneKey,
-      scheduled: candidate.scheduled,
-      checkedThisRound:
-        candidate.lastCheckedAt !== null &&
-        candidate.lastCheckedAt >= startedAt,
-      restingOutOfStock: restingOutOfStock(candidate, context),
-    }))
-    const searches = context.searches
-      ? enabledDiscoveryStores(context.settings)
-          .filter((store) => this.dueSearchesAt(store, context).has(knifeId))
-          .map((store) => ({ store, laneKey: DISCOVERY_STORES[store].laneKey }))
-      : []
-    return planStep({ sources, searches })
-  }
-
-  private taskAvailability(
-    task: StepTask,
-    context: PassContext,
-  ): LaneAvailability {
-    const lane = context.laneFor(task.laneKey)
-    const advice = context.advice.get(task.laneKey)
+  private holdFor(laneKey: string, context: PassContext): number | null {
+    const advice = context.advice.get(laneKey)
     // Advised quiet hours hold scheduled work at the store.
     if (inQuietHours(advice, new Date(context.now)))
-      return { state: 'cooling', until: Number.POSITIVE_INFINITY }
-    const pauseUntil =
-      advice && advice.expiresAt > context.now ? advice.pauseUntil : null
-    if (task.kind === 'search')
-      return discoveryAvailability(lane, context.now, {
-        floorMs: context.floorMs,
-        pauseUntil,
-        storeGapMs: DISCOVERY_STORES[task.store].searchGapMs,
-        lastSearchAt: this.lastSearchAt(task.store),
-      })
-    if (task.followUp)
-      return firstReadingAvailability(lane, context.now, pauseUntil)
-    return laneAvailability(lane, context.now)
+      return Number.POSITIVE_INFINITY
+    return advice && advice.expiresAt > context.now ? advice.pauseUntil : null
+  }
+
+  /** A store's next check of the cycle, when the store is ready for it. */
+  private startLaneCheck(
+    laneKey: string,
+    view: PassCycle,
+    context: PassContext,
+  ) {
+    const lane = context.laneFor(laneKey)
+    const pause = this.holdFor(laneKey, context)
+    if (pause === Number.POSITIVE_INFINITY) return
+    if (pause !== null && pause > context.now) {
+      this.considerWake(pause)
+      return
+    }
+    const availability = laneAvailability(lane, context.now)
+    if (availability.state === 'waiting' || availability.state === 'cooling') {
+      this.considerWake(availability.until)
+      return
+    }
+    // One AI fix at a time: a due Retry with AI waits for the running one.
+    const retries = (view.scheduled ? view.retries.get(laneKey) : null) ?? []
+    const { pick, wakeAt } = pickLaneCheck({
+      now: context.now,
+      cycleStart: view.cycle.startedAt,
+      links: view.byLane.get(laneKey) ?? [],
+      retries: this.fixing
+        ? retries.filter((retry) => !retry.supervisor)
+        : retries,
+      lastWasPriority: this.lastWasPriority.get(laneKey) ?? false,
+      restReadyAt: view.spread ? (this.restNextAt.get(laneKey) ?? 0) : 0,
+      deferredReadyAt: this.deferredNextAt.get(laneKey) ?? 0,
+    })
+    if (!pick) {
+      this.considerWake(wakeAt)
+      return
+    }
+    const now = context.now
+    this.lastWasPriority.set(laneKey, pick.group === 'priority')
+    if (pick.group === 'deferred')
+      this.deferredNextAt.set(laneKey, now + DEFER_MIN_MS)
+    if (pick.group === 'rest' && view.spread) {
+      const remaining = (view.byLane.get(laneKey) ?? []).filter(
+        (link) =>
+          link.tier !== 'scope' &&
+          link.lastCheckedAt !== null &&
+          link.sourceId !== pick.sourceId &&
+          linkPending(link, view.cycle.startedAt),
+      ).length
+      this.restNextAt.set(
+        laneKey,
+        now +
+          restPaceMs({
+            now,
+            cycleStart: view.cycle.startedAt,
+            cycleMs: context.intervalMs,
+            remaining,
+            floorMs: Math.max(lane.minGapMs, context.floorMs),
+          }),
+      )
+    }
+    const link = view.links.find((item) => item.sourceId === pick.sourceId)
+    this.runCycleCheck(
+      {
+        sourceId: pick.sourceId,
+        knifeId:
+          link?.knifeId ??
+          context.candidates.find(
+            (candidate) => candidate.sourceId === pick.sourceId,
+          )?.knifeId ??
+          '',
+        laneKey,
+      },
+      {
+        trigger:
+          availability.state === 'probe'
+            ? 'probe'
+            : pick.group === 'deferred' || pick.fix
+              ? 'retry'
+              : 'scheduled',
+        fix: pick.fix,
+      },
+      view,
+      context,
+    )
   }
 
   /**
-   * Starts what the current step can start: at every store with work left
-   * and nothing running, its next task when the store is ready, a short
-   * wait when it soon will be, else the store's tasks go on the retry list.
+   * AI's turn: the first problem page (What to monitor first) at a store
+   * that is free and ready, one try per page and cycle.
    */
-  private advanceStep(context: PassContext) {
-    const step = this.step
-    if (!step) return
-    for (const [laneKey, tasks] of [...step.pending]) {
-      if (!tasks.length) {
-        step.pending.delete(laneKey)
-        continue
-      }
-      if (this.laneBusy(laneKey)) continue
-      const task = tasks[0]
-      const since = step.waitingSince.get(laneKey) ?? context.now
-      const decision = laneDecision(
-        this.taskAvailability(task, context),
+  private startFix(view: PassCycle, context: PassContext) {
+    const order = new Map(
+      view.links.map((link) => [
+        link.sourceId,
+        link.tier === 'scope'
+          ? link.order
+          : view.cycle.knifeIds.length + link.order,
+      ]),
+    )
+    const problems = view.problems
+      .filter((task) => !this.fixTried.has(task.sourceId!))
+      .sort(
+        (a, b) =>
+          (order.get(a.sourceId!) ?? Infinity) -
+            (order.get(b.sourceId!) ?? Infinity) || a.sourceId! - b.sourceId!,
+      )
+    for (const task of problems) {
+      if (this.laneBusy(task.laneKey)) continue
+      const pause = this.holdFor(task.laneKey, context)
+      if (pause !== null && pause > context.now) continue
+      const availability = laneAvailability(
+        context.laneFor(task.laneKey),
         context.now,
-        LANE_WAIT_MS - (context.now - since),
       )
-      if (decision.action === 'wait') {
-        step.waitingSince.set(laneKey, since)
-        this.considerWake(decision.until)
-        continue
-      }
-      step.waitingSince.delete(laneKey)
-      if (decision.action === 'skip') {
-        for (const skipped of tasks)
-          step.results.push({
-            task: skipped,
-            knifeId: step.knifeId,
-            retry: { reason: 'store_not_ready', error: null },
-          })
-        step.pending.delete(laneKey)
-        continue
-      }
-      tasks.shift()
-      if (!tasks.length) step.pending.delete(laneKey)
-      step.running += 1
-      this.runStepTask(step, task, context)
-    }
-  }
-
-  private runStepTask(step: ActiveStep, task: StepTask, context: PassContext) {
-    const lane = context.laneFor(task.laneKey)
-    const done = (retry: TaskResult['retry']) => {
-      step.results.push({ task, knifeId: step.knifeId, retry })
-      step.running -= 1
-      this.wake(0)
-    }
-    if (task.kind === 'check') {
-      const trigger: CheckTrigger =
-        lane.circuit === 'open' ? 'probe' : 'scheduled'
-      void this.track(
-        this.runCheck(task.sourceId, task.laneKey, trigger, lane, context).then(
-          (summary) => done(checkRetryReason(summary)),
-        ),
-      )
-      return
-    }
-    void this.track(
-      this.runSearch(task.store, step.knifeId, lane, context).then(
-        (summary) => {
-          // A listing the search just found gets its first price in this
-          // step, at the same store.
-          if (
-            summary?.status === 'done' &&
-            summary.result === 'found' &&
-            summary.sourceId !== null
-          )
-            step.pending.set(task.laneKey, [
-              {
-                kind: 'check',
-                sourceId: summary.sourceId,
-                laneKey: task.laneKey,
-                followUp: true,
-              },
-              ...(step.pending.get(task.laneKey) ?? []),
-            ])
-          done(searchRetryReason(summary))
-        },
-      ),
-    )
-  }
-
-  private stepDone(): boolean {
-    return (
-      this.step !== null && this.step.pending.size === 0 && !this.step.running
-    )
-  }
-
-  /**
-   * Saves what the step did, moves the round on and starts the pause before
-   * the next knife. Outside a round, what failed is retried at a random time
-   * before the next round.
-   */
-  private async finishStep(context: PassContext) {
-    const step = this.step
-    if (!step) return
-    this.step = null
-    const now = this.deps.now()
-    this.nextStepAt = now + context.floorMs
-    this.considerWake(this.nextStepAt)
-    if (!this.ownsLease()) return
-    // The collection pass keeps no retry list: the next pass reads what
-    // failed again, so stores get no extra requests for it.
-    const results =
-      step.kind === 'pass'
-        ? step.results.map((result) => ({ ...result, retry: null }))
-        : step.results
-    let dueAt: number | null = null
-    if (
-      step.kind !== 'pass' &&
-      step.roundId === null &&
-      results.some((result) => result.retry)
-    ) {
-      const last = readLastRound(getLocalDb())
-      dueAt = retryDueTimes({
-        count: 1,
-        roundEnd: now,
-        nextRoundAt:
-          nextRoundAt(last, context.intervalMs, now) ??
-          now + context.intervalMs,
-        random: this.deps.random,
-      })[0]
-    }
-    await recordTaskResults({
-      results,
-      roundId: step.roundId,
-      now,
-      dueAt,
-      generation: context.generation,
-    })
-    if (step.roundId !== null && step.nextCursor !== null)
-      await advanceRound({
-        roundId: step.roundId,
-        cursor: step.nextCursor,
-        generation: context.generation,
-      })
-    if (step.passId !== null && step.nextCursor !== null)
-      await advancePass({
-        passId: step.passId,
-        cursor: step.nextCursor,
-        generation: context.generation,
-      })
-  }
-
-  /** Check all now: a round starts now unless one is running. */
-  async startRoundNow(): Promise<Round | null> {
-    const settings = getSettings().priceMonitoring
-    const now = this.deps.now()
-    const round = await startRound({
-      settings,
-      trigger: 'manual',
-      intervalMs: frequencyMs(settings.schedule),
-      pauseMs: laneFloorMs(settings.pacing),
-      searches: discoveryActive(settings) && now >= this.discoveryNotBefore,
-      now,
-    })
-    // Runs here even where checks are not scheduled (see pass()).
-    this.start({ scheduled: false })
-    return round
-  }
-
-  // ------------------------------------------------------- retry list
-
-  /**
-   * Runs the retry list items whose time has come, one per store at a time,
-   * at stores the current step does not need. Checks may use AI right away;
-   * searches run as usual. What fails again waits for the next round.
-   */
-  private driveRetries(context: PassContext) {
-    const due = readDueRetries(getLocalDb(), context.now)
-    if (!due.length) {
-      const next = readRetryTasks(getLocalDb()).find(
-        (task) => task.dueAt !== null,
-      )
-      this.considerWake(next?.dueAt ?? null)
-      return
-    }
-    const stepLanes = new Set(this.step?.pending.keys() ?? [])
-    const started = new Set<string>()
-    const scheduled = new Set(
-      context.candidates
-        .filter((candidate) => candidate.scheduled)
-        .map((candidate) => candidate.sourceId),
-    )
-    for (const task of due) {
-      if (
-        started.has(task.laneKey) ||
-        stepLanes.has(task.laneKey) ||
-        this.laneBusy(task.laneKey)
-      )
-        continue
-      const obsolete =
-        task.kind === 'check'
-          ? task.sourceId === null || !scheduled.has(task.sourceId)
-          : task.store === null ||
-            !discoveryActive(context.settings, task.store)
-      if (obsolete) {
-        void this.track(
-          finishRetry({
-            key: task.key,
-            ok: true,
-            now: context.now,
-            generation: context.generation,
-          }).catch(() => {}),
-        )
-        continue
-      }
-      if (task.kind === 'search' && !context.searches) continue
-      const availability =
-        task.kind === 'check'
-          ? laneAvailability(context.laneFor(task.laneKey), context.now)
-          : this.taskAvailability(
-              { kind: 'search', store: task.store!, laneKey: task.laneKey },
-              context,
-            )
       if (
         availability.state === 'waiting' ||
         availability.state === 'cooling'
@@ -1162,45 +933,142 @@ export class PriceMonitorWorker {
         this.considerWake(availability.until)
         continue
       }
-      started.add(task.laneKey)
-      this.runRetry(task, context)
-    }
-  }
-
-  private runRetry(task: RetryTask, context: PassContext) {
-    const lane = context.laneFor(task.laneKey)
-    const finish = (retry: TaskResult['retry']) =>
-      finishRetry({
-        key: task.key,
-        ok: retry === null,
-        reason: retry?.reason,
-        error: retry?.error ?? null,
-        now: this.deps.now(),
-        generation: context.generation,
-      }).catch((error) => {
-        if (!isVaultError(error))
-          reportServerError(error, 'price-monitor/retry')
-      })
-    if (task.kind === 'check' && task.sourceId !== null) {
-      const sourceId = task.sourceId
-      if (aiConfigured(context.settings.ai)) liftAiWait(sourceId)
-      const trigger: CheckTrigger = lane.circuit === 'open' ? 'probe' : 'retry'
-      void this.track(
-        this.runCheck(sourceId, task.laneKey, trigger, lane, context).then(
-          (summary) => finish(checkRetryReason(summary)),
-        ),
+      this.fixTried.add(task.sourceId!)
+      this.runCycleCheck(
+        {
+          sourceId: task.sourceId!,
+          knifeId: task.knifeId,
+          laneKey: task.laneKey,
+        },
+        {
+          trigger: availability.state === 'probe' ? 'probe' : 'retry',
+          fix: true,
+        },
+        view,
+        context,
       )
       return
     }
-    if (task.kind === 'search' && task.store)
-      void this.track(
-        this.runSearch(task.store, task.knifeId, lane, context).then(
-          (summary) => finish(searchRetryReason(summary)),
-        ),
-      )
+  }
+
+  /**
+   * Runs one check of the cycle and records what it means for the retry
+   * list: read, deferred (10–15 minutes later), or a problem for AI.
+   */
+  private runCycleCheck(
+    link: { sourceId: number; knifeId: string; laneKey: string },
+    options: { trigger: CheckTrigger; fix: boolean },
+    view: PassCycle,
+    context: PassContext,
+  ) {
+    if (options.fix && aiConfigured(context.settings.ai))
+      liftAiWait(link.sourceId)
+    void this.track(
+      this.runCheck(
+        link.sourceId,
+        link.laneKey,
+        options.trigger,
+        context.laneFor(link.laneKey),
+        context,
+        { mode: options.fix ? 'fix' : 'read', fix: options.fix },
+      ).then(async (summary) => {
+        if (summary === null) this.setAside.add(link.sourceId)
+        const verdict = classifyCheck(summary)
+        if (verdict === 'none' || !this.ownsLease()) return
+        const now = this.deps.now()
+        await recordCheckVerdict({
+          ...link,
+          cycleId: view.cycle.id,
+          verdict,
+          reason: retryReasonFor(summary),
+          error: summary?.status === 'done' ? summary.errorCode : null,
+          // AI's try is the last one in this cycle.
+          dueAt:
+            verdict === 'defer' && !options.fix
+              ? deferredDueAt(now, this.deps.random)
+              : null,
+          maxTries: DEFER_MAX_TRIES,
+          now,
+          generation: context.generation,
+        }).catch((error) => {
+          if (!isVaultError(error))
+            reportServerError(error, 'price-monitor/retry')
+        })
+      }),
+    )
+  }
+
+  /** Check all now: a new cycle starts now, over every monitored knife. */
+  async startCycleNow(): Promise<Round> {
+    const settings = getSettings().priceMonitoring
+    const now = this.deps.now()
+    const cycle = await startCycle({
+      settings,
+      trigger: 'manual',
+      intervalMs: frequencyMs(settings.schedule),
+      searches: discoveryActive(settings) && now >= this.discoveryNotBefore,
+      now,
+      replace: true,
+    })
+    // Runs here even where checks are not scheduled (see runPass()).
+    this.start({ scheduled: false })
+    return cycle!
   }
 
   // ---------------------------------------------------- checks, searches
+
+  /**
+   * An Other stores search at the store when its turn has come: knives in
+   * What to monitor first, then never searched, then the longest waiting.
+   */
+  private startSearchIfDue(
+    store: OtherStoreId,
+    laneKey: string,
+    view: PassCycle,
+    context: PassContext,
+  ): boolean {
+    const pause = this.holdFor(laneKey, context)
+    if (pause === Number.POSITIVE_INFINITY) return false
+    const lane = context.laneFor(laneKey)
+    const availability = discoveryAvailability(lane, context.now, {
+      floorMs: context.floorMs,
+      pauseUntil: pause,
+      storeGapMs: DISCOVERY_STORES[store].searchGapMs,
+      lastSearchAt: this.lastSearchAt(store),
+    })
+    if (availability.state === 'waiting' || availability.state === 'cooling') {
+      this.considerWake(availability.until)
+      return false
+    }
+    const due = this.dueSearchesAt(store, context).filter(
+      (id) => !this.searchedInCycle.has(`${store}:${id}`),
+    )
+    const knifeId = pickLaneSearch(due, view.wishlistOrder)
+    if (!knifeId) return false
+    this.searchedInCycle.add(`${store}:${knifeId}`)
+    context.dueSearches.set(
+      store,
+      due.filter((id) => id !== knifeId),
+    )
+    void this.track(this.runSearch(store, knifeId, lane, context))
+    return true
+  }
+
+  private dueSearchesAt(store: OtherStoreId, context: PassContext): string[] {
+    const cached = context.dueSearches.get(store)
+    if (cached) return cached
+    const config = DISCOVERY_STORES[store]
+    const due = readDiscoveryQueue(getLocalDb(), {
+      settings: context.settings,
+      store,
+      marketplace: config.marketplace,
+      laneKey: config.laneKey,
+      now: context.now,
+      limit: Number.MAX_SAFE_INTEGER,
+    })
+    context.dueSearches.set(store, due)
+    return due
+  }
 
   private startManualCheck(
     sourceId: number,
@@ -1215,13 +1083,35 @@ export class PriceMonitorWorker {
         trigger,
         context.laneFor(laneKey),
         context,
-      ),
+        { mode: 'fix', fix: false },
+      ).then(async (summary) => {
+        // A page read on request leaves the retry list.
+        if (classifyCheck(summary) !== 'ok' || !this.ownsLease()) return
+        const knifeId =
+          context.candidates.find(
+            (candidate) => candidate.sourceId === sourceId,
+          )?.knifeId ?? ''
+        await recordCheckVerdict({
+          sourceId,
+          knifeId,
+          laneKey,
+          cycleId: null,
+          verdict: 'ok',
+          reason: 'failed',
+          error: null,
+          dueAt: null,
+          maxTries: DEFER_MAX_TRIES,
+          now: this.deps.now(),
+          generation: context.generation,
+        }).catch(() => {})
+      }),
     )
   }
 
   /**
    * One price check at a store, with the store's pacing updated from how it
-   * answered. Resolves with the check's summary, or null when it threw.
+   * answered. Resolves with the check's summary, or null when it threw. An
+   * AI fix is cut off after FIX_BUDGET_MS.
    */
   private runCheck(
     sourceId: number,
@@ -1229,28 +1119,33 @@ export class PriceMonitorWorker {
     trigger: CheckTrigger,
     lane: LaneState,
     context: PassContext,
+    options: { mode: CheckMode; fix: boolean },
   ): Promise<CheckSummary | null> {
     this.inFlight.set(laneKey, {
       sourceId,
       laneKey,
       trigger,
       startedAt: this.deps.now(),
+      fix: options.fix,
     })
     const controller = new AbortController()
     this.controllers.add(controller)
+    const budget = options.fix
+      ? this.deps.setTimer(() => controller.abort(), FIX_BUDGET_MS)
+      : null
     return (async () => {
       try {
         const summary = await this.deps.check(sourceId, {
           trigger,
           intervalMs: context.intervalMs,
           signal: controller.signal,
+          mode: options.mode,
         })
         if (summary.status !== 'done' || controller.signal.aborted)
           return summary
         if (!this.ownsLease()) return summary
         const current = readLaneStates(getLocalDb()).get(laneKey) ?? lane
-        // Rounds space a store's requests by knife: the next one waits only
-        // the store's minimum gap.
+        // The store's next request waits its minimum gap.
         const update = applyLaneOutcome(
           normalizeLane(current, context.settings.pacing),
           {
@@ -1274,6 +1169,7 @@ export class PriceMonitorWorker {
           reportServerError(error, 'price-monitor/check')
         return null
       } finally {
+        if (budget !== null) this.deps.clearTimer(budget)
         this.controllers.delete(controller)
         this.inFlight.delete(laneKey)
         this.wake(0)
@@ -1443,6 +1339,8 @@ export class PriceMonitorWorker {
   }
 
   /** Resolves when nothing runs: no pass, check, search or AI run. */
+
+  /** Resolves when nothing runs: no pass, check, search or AI run. */
   async idle(): Promise<void> {
     while (
       this.passing ||
@@ -1466,7 +1364,7 @@ export class PriceMonitorWorker {
    * `timeoutMs` (server shutdown) it waits at most that long for running
    * work (an AI run cannot be cancelled) and releases the lease anyway;
    * that work then finds it no longer owns the lease and writes nothing.
-   * A round in progress resumes at its knife on the next start.
+   * A cycle in progress carries on where it was on the next start.
    */
   async stop(options: { timeoutMs?: number } = {}): Promise<void> {
     this.stopped = true
@@ -1485,22 +1383,19 @@ export class PriceMonitorWorker {
       ])
       clearTimeout(timeout)
     }
-    this.step = null
-    this.nextStepAt = 0
-    this.focusHeld.clear()
+    this.cycleId = null
+    this.lastWasPriority.clear()
+    this.restNextAt.clear()
+    this.deferredNextAt.clear()
+    this.setAside.clear()
+    this.fixTried.clear()
+    this.searchedInCycle.clear()
     this.started = false
     this.scheduled = false
     if (this.leaseHeld) {
       this.leaseHeld = false
       await releaseWorkerLease(this.owner).catch(() => {})
     }
-  }
-
-  /** The knife the round checks right now (Price Drops). */
-  get currentStep(): { knifeId: string; kind: ActiveStep['kind'] } | null {
-    return this.step
-      ? { knifeId: this.step.knifeId, kind: this.step.kind }
-      : null
   }
 }
 
@@ -1554,7 +1449,7 @@ export type QueueLaneView = {
   strategy: HostStrategy
   lastRequestAt: string | null
   checking: boolean
-  /** On the retry list at this store. */
+  /** On the retry list at this store (deferred and problems). */
   retries: number
   /** AI advice in force for this store, if any. */
   advice: {
@@ -1566,15 +1461,30 @@ export type QueueLaneView = {
   } | null
 }
 
-export type RoundView = {
+/** Links of one part of the cycle, and how many it checked. */
+export type CycleProgress = { links: number; done: number }
+
+export type CycleStatus = {
   id: number
   trigger: RoundTrigger
   startedAt: string
-  /** Knives in the round, and how many are done. */
+  /** When the next scheduled cycle starts (Check all's cycle without scheduled checks ends once every link was checked). */
+  endsAt: string
+  /** What to monitor (the Wishlist) and the rest of the collection. */
+  wishlist: CycleProgress
+  collection: CycleProgress
+  /** Checks a store asked to wait for, tried again 10–15 minutes later. */
+  deferred: number
+  /** Pages without a usable price, waiting for AI at the end of the cycle. */
+  problems: number
+  /** AI is set up: it works on the problems at the end of the cycle. */
+  ai: boolean
+  /** Every link was checked or the cycle's last tenth began: AI's turn. */
+  aiTurn: boolean
+  /** The problem page AI works on now, if any. */
+  fixingSourceId: number | null
+  /** Knives in the cycle. */
   knives: number
-  done: number
-  /** The knife being checked now, if any. */
-  currentKnifeId: string | null
 }
 
 export type QueueSnapshot = {
@@ -1583,28 +1493,18 @@ export type QueueSnapshot = {
   scheduled: boolean
   enabled: boolean
   timeZone: string
-  /** Time between two rounds. */
+  /** How long one cycle lasts. */
   frequencyMs: number
   /** Check now requests waiting. */
   waiting: number
-  /** The round in progress, if any. */
-  round: RoundView | null
-  /** The last round that finished, if any. */
-  lastRound: {
-    id: number
-    startedAt: string
-    finishedAt: string
-    knives: number
-  } | null
-  /** When the next round starts (null while one runs or checks are off). */
-  nextRoundAt: string | null
-  /** The retry list: items waiting for a time, and items with one. */
-  retries: { waiting: number; scheduled: number; nextAt: string | null }
+  /** The cycle in progress, if any. */
+  cycle: CycleStatus | null
   inFlight: Array<{
     sourceId: number
     laneKey: string
     trigger: CheckTrigger
     startedAt: string
+    fix: boolean
   }>
   lanes: QueueLaneView[]
   /**
@@ -1612,27 +1512,12 @@ export type QueueSnapshot = {
    * (null for the whole collection).
    */
   scope: { kind: PriceMonitorScopeKind; knives: number | null }
-  /**
-   * The collection pass (knives outside What to monitor, in free time):
-   * null while it is off. `knives`/`done` describe the running pass;
-   * `nextAt` is when the next one may start (it still waits for free time).
-   */
-  collectionPass: {
-    running: boolean
-    /** A round runs, so the pass waits at its knife. */
-    waiting: boolean
-    knives: number
-    done: number
-    currentKnifeId: string | null
-    lastFinishedAt: string | null
-    nextAt: string | null
-  } | null
 }
 
 const iso = (value: number | null) =>
   value === null ? null : new Date(value).toISOString()
 
-/** Queue and round state for the UI, read from SQLite plus this process. */
+/** Queue and cycle state for the UI, read from SQLite plus this process. */
 export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
   const worker = getPriceMonitorWorker()
   const database = getLocalDb()
@@ -1664,7 +1549,9 @@ export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
       waiting += 1
     }
   }
-  const retryTasks = readRetryTasks(database)
+  const retryTasks = readRetryTasks(database).filter(
+    (task) => task.kind === 'check',
+  )
   const retriesByLane = new Map<string, number>()
   for (const task of retryTasks)
     retriesByLane.set(task.laneKey, (retriesByLane.get(task.laneKey) ?? 0) + 1)
@@ -1747,29 +1634,42 @@ export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
   })
 
   const current = readCurrentRound(database)
-  const last = readLastRound(database)
-  const finished = last && last.finishedAt !== null ? last : null
-  const step = worker.currentStep
-  const nextAt =
-    settings.enabled && !current ? nextRoundAt(last, intervalMs, now) : null
-  const pass = readCurrentPass(database)
-  const lastPass = pass ? null : readLastPass(database)
-  const collectionPass: QueueSnapshot['collectionPass'] = collectionPassOn(
-    settings,
-  )
-    ? {
-        running: pass !== null,
-        waiting: pass !== null && current !== null,
-        knives: pass?.knifeIds.length ?? 0,
-        done: pass ? Math.min(pass.cursor, pass.knifeIds.length) : 0,
-        currentKnifeId: step?.kind === 'pass' ? step.knifeId : null,
-        lastFinishedAt: iso(lastPass?.finishedAt ?? null),
-        nextAt:
-          pass || !settings.enabled
-            ? null
-            : iso(Math.max(now, nextPassAt(lastPass, now) ?? now)),
+  let cycle: CycleStatus | null = null
+  if (current) {
+    const links = cycleLinks(
+      current,
+      { candidates, intervalMs, now, settings },
+      new Set(),
+    ).filter((link) => !link.resting)
+    const progress = (tier: MonitorTier): CycleProgress => {
+      const own = links.filter((link) => link.tier === tier)
+      return {
+        links: own.length,
+        done: own.filter((link) => linkDone(link, current.startedAt)).length,
       }
-    : null
+    }
+    const pending = links.filter(
+      (link) => !linkDone(link, current.startedAt),
+    ).length
+    const fixing = [...worker.inFlight.values()].find((entry) => entry.fix)
+    cycle = {
+      id: current.id,
+      trigger: current.trigger,
+      startedAt: new Date(current.startedAt).toISOString(),
+      endsAt: new Date(current.startedAt + intervalMs).toISOString(),
+      wishlist: progress('scope'),
+      collection: progress('collection'),
+      deferred: retryTasks.filter((task) => task.dueAt !== null).length,
+      problems: retryTasks.filter((task) => task.dueAt === null).length,
+      ai: aiConfigured(settings.ai),
+      aiTurn:
+        aiConfigured(settings.ai) &&
+        (pending === 0 ||
+          now >= current.startedAt + intervalMs * (1 - AI_RESERVE_SHARE)),
+      fixingSourceId: fixing?.sourceId ?? null,
+      knives: current.knifeIds.length,
+    }
+  }
   return {
     running: worker.started,
     scheduled: worker.scheduled,
@@ -1777,43 +1677,18 @@ export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     frequencyMs: intervalMs,
     waiting,
-    round: current
-      ? {
-          id: current.id,
-          trigger: current.trigger,
-          startedAt: new Date(current.startedAt).toISOString(),
-          knives: current.knifeIds.length,
-          done: Math.min(current.cursor, current.knifeIds.length),
-          currentKnifeId: step?.kind === 'round' ? step.knifeId : null,
-        }
-      : null,
-    lastRound: finished
-      ? {
-          id: finished.id,
-          startedAt: new Date(finished.startedAt).toISOString(),
-          finishedAt: new Date(finished.finishedAt!).toISOString(),
-          knives: finished.knifeIds.length,
-        }
-      : null,
-    nextRoundAt: iso(nextAt),
-    retries: {
-      waiting: retryTasks.filter((task) => task.dueAt === null).length,
-      scheduled: retryTasks.filter((task) => task.dueAt !== null).length,
-      nextAt: iso(
-        retryTasks.find((task) => task.dueAt !== null)?.dueAt ?? null,
-      ),
-    },
+    cycle,
     inFlight: [...worker.inFlight.values()].map((entry) => ({
       sourceId: entry.sourceId,
       laneKey: entry.laneKey,
       trigger: entry.trigger,
       startedAt: new Date(entry.startedAt).toISOString(),
+      fix: entry.fix,
     })),
     lanes,
     scope: {
       kind: settings.scope.kind,
       knives: countMonitorScopeKnives(database, settings.scope),
     },
-    collectionPass,
   }
 }

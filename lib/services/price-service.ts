@@ -119,7 +119,7 @@ const ELIGIBILITY_TEXT: Record<EligibilityReason, string> = {
   monitored_auto: 'Monitored: Auto mode and a store URL.',
   monitored_forced: 'Monitored: Always monitor is on.',
   monitored_collection:
-    'Monitored with the rest of the collection: outside What to monitor, checked in free time at most once a day, and notifies only about a super sale.',
+    'Monitored with the rest of the collection: outside What to monitor, checked once per cycle after What to monitor, and notifies only about a super sale.',
   off: 'Not monitored: monitoring is off for this knife.',
   sold: 'Not monitored: the knife is sold and Auto mode skips sold knives.',
   no_source: 'Not monitored: no active store URL.',
