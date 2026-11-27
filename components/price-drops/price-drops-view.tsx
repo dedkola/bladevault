@@ -688,8 +688,8 @@ function SourceTableRow({
   hourCycle,
   canSolve,
   trend,
+  chartTrend,
   chartStores,
-  knifeTrend,
   bestMinor,
   group,
   child,
@@ -710,12 +710,19 @@ function SourceTableRow({
   checkingNow: boolean
   hourCycle: 'h12' | 'h23'
   canSolve: boolean | null
-  /** The 30-day chart: the knife's best price, or this store's own. */
+  /**
+   * The row's own history, for its signals (90-day low): the knife's best
+   * price on a grouped row, this store's own on a listing.
+   */
   trend: WishlistTrend | undefined
-  /** Each store's own history behind `trend`, for the chart's dots. */
+  /**
+   * The row chart: always the knife's best price across all its stores,
+   * the same chart that opens under the row. A listing's own history is
+   * usually one flat price, which drew as two parallel lines.
+   */
+  chartTrend: WishlistTrend | undefined
+  /** Each of the knife's stores' own history, for the chart's dots. */
   chartStores?: readonly RowChartStore[]
-  /** `trend` is the knife's best price across its stores. */
-  knifeTrend?: boolean
   /** A store row: the knife's best price, to say how far above it this is. */
   bestMinor?: number | null
   /** A grouped knife row: its stores count and expand state. */
@@ -864,11 +871,10 @@ function SourceTableRow({
             ) : null
           ) : (
             <PriceTrend
-              trend={trend}
+              trend={chartTrend}
               stores={chartStores}
-              currentMinor={chipPriceIn(source, trend)}
-              regularMinor={regularIn(source, trend)}
-              label={knifeTrend ? 'Best store price' : `Price at ${store}`}
+              currentMinor={chipPriceIn(source, chartTrend)}
+              regularMinor={regularIn(source, chartTrend)}
             />
           )}
         </div>
@@ -1181,14 +1187,23 @@ export function PriceDropsView({
       (store === 'all' || source.laneKey === store) &&
       matchesQuery(source, query),
   )
-  // A grouped row charts the knife's best price; a listing its own store.
-  // A grouped row charts the knife's best price across its stores (one
-  // knife, many sources); a listing on its own charts its store.
+  // A grouped row's signals use the knife's best price; a listing's its
+  // own store. The chart is always the knife's (`knifeTrendOf`).
   const trendOf = (source: MonitoredSource, byKnife: boolean) =>
     byKnife
       ? trends?.knives[source.knife.id]
       : trends?.sources[String(source.sourceId)]
-  // The chart's dots: each store's own history (one store for a listing).
+  const knifeTrendOf = (source: MonitoredSource) =>
+    trends?.knives[source.knife.id]
+  // Every monitored store of a knife, whatever the tab or search shows, so
+  // the chart's dots match its best-price line.
+  const knifeSources = new Map<string, MonitoredSource[]>()
+  for (const source of monitored) {
+    const list = knifeSources.get(source.knife.id) ?? []
+    list.push(source)
+    knifeSources.set(source.knife.id, list)
+  }
+  // The chart's dots: each of the knife's stores' own history.
   const chartStoresOf = (sources: MonitoredSource[]) =>
     trends
       ? cachedRowChartStores(
@@ -1214,7 +1229,7 @@ export function PriceDropsView({
     filtered.filter(SECTION_FILTER[section]),
     sort,
     (source) => {
-      const net = trendNetChange(trendOf(source, grouped === '1'))
+      const net = trendNetChange(knifeTrendOf(source))
       return net === null ? null : net * 100
     },
   )
@@ -1580,8 +1595,6 @@ export function PriceDropsView({
       ids?: number[]
       child?: boolean
       bestMinor?: number | null
-      /** A grouped knife row: all its stores. */
-      stores?: MonitoredSource[]
     } = {},
   ) => {
     const ids = options.ids ?? [source.sourceId]
@@ -1600,12 +1613,12 @@ export function PriceDropsView({
         hourCycle={hourCycle}
         canSolve={canSolve}
         trend={options.child ? undefined : trendOf(source, byKnife)}
+        chartTrend={options.child ? undefined : knifeTrendOf(source)}
         chartStores={
           options.child
             ? undefined
-            : chartStoresOf(byKnife ? (options.stores ?? [source]) : [source])
+            : chartStoresOf(knifeSources.get(source.knife.id) ?? [source])
         }
-        knifeTrend={byKnife}
         bestMinor={options.bestMinor}
         group={options.group}
         child={options.child}
@@ -2114,7 +2127,6 @@ export function PriceDropsView({
                                 <Fragment key={group.knifeId}>
                                   {renderRow(group.lead, {
                                     ids: group.sources.map((s) => s.sourceId),
-                                    stores: group.sources,
                                     group: {
                                       count: group.sources.length,
                                       expanded: open,

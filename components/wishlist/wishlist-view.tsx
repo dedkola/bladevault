@@ -394,9 +394,10 @@ function Sparkline({ row }: { row: Row }) {
   const priced = trend.steps.filter(
     (step): step is { at: number; price: number } => step.price !== null,
   )
-  // Tracked, but no store has had it in stock inside the window.
-  if (!priced.length)
-    return <span data-wishlist-spark-empty>No in-stock price yet</span>
+  // Tracked, but no store has shown a price inside the window. Prices shown
+  // while out of stock still chart: the chart is price history.
+  if (!priced.length && !trend.readings?.length)
+    return <span data-wishlist-spark-empty>No price yet</span>
 
   const regular =
     row.regularMinor !== null && row.currency === trend.currency
@@ -423,8 +424,9 @@ function Sparkline({ row }: { row: Row }) {
   const change = moves.at(-1)
   const current = trend.steps[trend.steps.length - 1].price
   const stockNote = current === null ? ', out of stock now' : ''
-  const first = priced[0].price
-  const net = priced[priced.length - 1].price - first
+  const net = priced.length
+    ? priced[priced.length - 1].price - priced[0].price
+    : 0
   // The chip reads against the regular price, when there is one.
   const gap = regularGap(
     row.live && !row.summary?.outOfStock ? row.priceMinor : null,
@@ -468,7 +470,7 @@ function Sparkline({ row }: { row: Row }) {
                 : `No price change over ${dayText}`
             }
           >
-            {chipLabel(net, first)}
+            {chipLabel(net, priced[0]?.price ?? 0)}
           </span>
         )}
       </div>

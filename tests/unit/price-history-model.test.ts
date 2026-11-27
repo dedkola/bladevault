@@ -217,6 +217,22 @@ describe('historyChartTrends', () => {
     expect(result?.stores).toHaveLength(1)
   })
 
+  it('runs to now when given, the latest prices holding until then', () => {
+    const a = source(1, 'a.example', [point(0, 1, 100), point(4, 5, 90)])
+    const result = historyChartTrends(
+      { sources: [a], chartStart: null },
+      'USD',
+      ms(20),
+    )
+    expect(result?.best.until).toBe(ms(20))
+    expect(result?.best.steps.at(-1)).toEqual({ at: ms(4), price: 90 })
+    // A "now" before the last reading never cuts the chart short.
+    expect(
+      historyChartTrends({ sources: [a], chartStart: null }, 'USD', ms(1))?.best
+        .until,
+    ).toBe(ms(5))
+  })
+
   it('is null without any reading', () => {
     expect(
       historyChartTrends({ sources: [], chartStart: null }, 'USD'),

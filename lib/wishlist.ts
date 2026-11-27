@@ -38,6 +38,12 @@ export type WishlistTrend = {
   since: number
   /** Chart end (epoch ms): when the trend was built. */
   until: number
+  /**
+   * Every price a store showed from `since`, in stock or not, oldest first:
+   * the price line's points. A store's price from before the window counts
+   * at `since`; a store's repeat of the same price is left out.
+   */
+  readings?: Array<{ at: number; price: number }>
   /** Lowest in-stock price over the last 90 days. */
   lowMinor: number | null
   /** Highest in-stock price over the last 90 days. */
