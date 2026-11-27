@@ -520,17 +520,16 @@
 }
 [data-price-signals] {
   display: flex;
-  flex-wrap: wrap;
+  justify-content: center;
   gap: 4px;
-  margin-top: 4px;
 }
 .pd-badge[data-price-signal='low'] {
   --pd-color: var(--primary);
 }
 [data-price-cell] {
   display: grid;
-  justify-items: end;
-  text-align: right;
+  justify-items: center;
+  text-align: center;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -568,8 +567,29 @@
 }
 [data-price-trend] {
   display: grid;
-  justify-items: end;
   gap: 2px;
+  text-align: center;
+}
+
+/* Every column after the knife is centred. Status and chip take only the
+   width they need and stay empty when a row has nothing to show. The
+   trend column holds the full 260px chart (plus its padding): the knife
+   column takes all spare width, so without a minimum the chart would
+   shrink to its own. */
+[data-price-grid] th,
+[data-price-grid] td[data-col]:not([data-col='check'], [data-col='knife']) {
+  text-align: center;
+}
+[data-price-grid] th:nth-child(-n + 2) {
+  text-align: left;
+}
+[data-price-grid] td[data-col='status'],
+[data-price-grid] td[data-col='chip'] {
+  width: 1%;
+  white-space: nowrap;
+}
+[data-price-grid] td[data-col='trend'] {
+  min-width: 276px;
 }
 
 /* Price table: the selected knife is marked by more than its background,
@@ -630,7 +650,8 @@
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
       'check knife knife'
-      'check price price'
+      'check status status'
+      'check price chip'
       'check trend trend'
       'check checked actions';
     align-items: center;
@@ -639,6 +660,12 @@
   }
   [data-price-grid] tbody td {
     padding: 0;
+  }
+  [data-price-grid] td[data-col]:not([data-col='check'], [data-col='knife']) {
+    text-align: left;
+  }
+  [data-price-grid] td[data-col='status']:empty {
+    display: none;
   }
   [data-price-grid] td[data-col='check'] {
     grid-area: check;
@@ -654,8 +681,21 @@
   [data-price-grid] td[data-col='knife'] > div {
     padding-left: 0;
   }
+  [data-price-grid] td[data-col='status'] {
+    grid-area: status;
+    width: auto;
+  }
+  [data-price-grid] td[data-col='status'] [data-price-signals] {
+    justify-content: flex-start;
+  }
   [data-price-grid] td[data-col='price'] {
     grid-area: price;
+  }
+  /* `:is` matches the centring rule's weight, so the chip sits right. */
+  [data-price-grid] td[data-col]:is([data-col='chip']) {
+    grid-area: chip;
+    width: auto;
+    text-align: right;
   }
   [data-price-grid] td[data-col='price'] [data-price-cell] {
     justify-items: start;
@@ -663,12 +703,14 @@
   }
   [data-price-grid] td[data-col='trend'] {
     grid-area: trend;
+    min-width: 0;
   }
   [data-price-grid] td[data-col='trend'] [data-price-trend] {
     justify-items: start;
   }
   [data-price-grid] td[data-col='trend'] [data-trend-note] {
     width: auto;
+    margin-inline: 0;
     justify-content: flex-start;
     gap: 10px;
   }

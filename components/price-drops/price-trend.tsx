@@ -71,14 +71,54 @@ export function trendNetChange(
 }
 
 /**
+ * The one headline number of a row: how far its current price is below (or
+ * above) the item's regular price, in money and percent. Nothing without a
+ * buyable price or a regular price.
+ */
+export function RegularChip({
+  currentMinor,
+  regularMinor,
+  currency,
+}: {
+  currentMinor: number | null | undefined
+  regularMinor: number | null | undefined
+  currency: string | null
+}) {
+  const gap = regularGap(currentMinor, regularMinor)
+  if (!gap) return null
+  return (
+    <span
+      data-trend-chip={gap.direction}
+      title={regularGapText(gap, regularMinor!, currency, true)}
+    >
+      {regularChipLabel(gap, currency)}
+    </span>
+  )
+}
+
+/** "$72.10 (36%) below the regular price $202.00", for labels and titles. */
+function regularGapText(
+  gap: RegularGap,
+  regularMinor: number,
+  currency: string | null,
+  capital = false,
+): string {
+  const text =
+    gap.direction === 'flat'
+      ? `at the regular price ${money(regularMinor, currency)}`
+      : `${money(Math.abs(gap.delta), currency)} (${gap.share}%) ${gap.direction === 'down' ? 'below' : 'above'} the regular price ${money(regularMinor, currency)}`
+  return capital ? `${text[0].toUpperCase()}${text.slice(1)}` : text
+}
+
+/**
  * The row chart (mockup variant A, see `rowChartOption`): the best store
  * price as a filled area, coloured by its latest move, a dot in the store's
  * colour for every store reading, and a thin line at the item's regular
- * price. Hovering lists every store's price at that moment. The chip is the
- * one headline number: how far the current price is below (or above) the
- * regular price, in money and percent.
+ * price. Hovering lists every store's price at that moment. How far the
+ * current price is from the regular price is the row's `RegularChip`, in a
+ * column of its own so the chart keeps its place in every row.
  *
- * Renders two siblings (chart row, caption); the parent lays them out.
+ * Renders two siblings (chart, caption); the parent lays them out.
  */
 export function PriceTrend({
   trend,
@@ -125,11 +165,7 @@ export function PriceTrend({
     ? priced[priced.length - 1].price - priced[0].price
     : 0
 
-  const gapText = gap
-    ? gap.direction === 'flat'
-      ? `at the regular price ${money(regular, currency)}`
-      : `${money(Math.abs(gap.delta), currency)} (${gap.share}%) ${gap.direction === 'down' ? 'below' : 'above'} the regular price ${money(regular, currency)}`
-    : ''
+  const gapText = gap ? regularGapText(gap, regular!, currency) : ''
   const history = moves.length
     ? `net ${net < 0 ? 'down' : 'up'} ${money(Math.abs(net), currency)}, last change ${change!.delta < 0 ? 'down' : 'up'} ${money(Math.abs(change!.delta), currency)} on ${moveDate(change!.at)}`
     : 'no price change'
@@ -144,28 +180,21 @@ export function PriceTrend({
 
   return (
     <>
-      <div data-trend-row>
-        <div
-          data-trend-spark={rowChartDirection(trend)}
-          style={{ flexBasis: width, maxWidth: width, height }}
-        >
-          <RowPriceChart
-            trend={trend}
-            stores={stores}
-            regularMinor={regular}
-            ariaLabel={ariaLabel}
-          />
-        </div>
-        {gap && (
-          <span
-            data-trend-chip={gap.direction}
-            title={`${gapText[0].toUpperCase()}${gapText.slice(1)}`}
-          >
-            {regularChipLabel(gap, currency)}
-          </span>
-        )}
+      {/* The cell's width up to the mockup size, so every row's chart
+          starts and ends in the same place. The box needs a width of its
+          own: the chart's canvas is absolute and holds nothing open. */}
+      <div
+        data-trend-spark={rowChartDirection(trend)}
+        style={{ maxWidth: width, height }}
+      >
+        <RowPriceChart
+          trend={trend}
+          stores={stores}
+          regularMinor={regular}
+          ariaLabel={ariaLabel}
+        />
       </div>
-      <span data-trend-note>
+      <span data-trend-note style={{ maxWidth: width }}>
         <span>{days}d tracked</span>
         {regular !== null && (
           <span data-trend-regular-note>

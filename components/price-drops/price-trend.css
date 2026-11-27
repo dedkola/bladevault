@@ -1,32 +1,22 @@
 /* Row price chart for Price Drops and Wishlist (an ECharts chart, see
    row-price-chart-model.ts). The line takes --trend-down, --trend-up and
    --trend-flat when an ancestor sets them. */
-[data-trend-row] {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-/* The mockup's row size when the table has room; it gives up width (down
-   to 160px) before the table would scroll sideways. */
+/* The mockup's row size (the max-width set inline), filling its cell. */
 [data-trend-spark] {
-  flex: 0 1 auto;
-  min-width: 160px;
+  width: 100%;
+  margin-inline: auto;
   cursor: crosshair;
   touch-action: pan-y;
 }
 @media (max-width: 639px) {
-  [data-trend-row] {
-    min-width: 0;
-    max-width: 100%;
-  }
   [data-trend-spark] {
-    flex: 0 1 auto;
-    min-width: 0;
+    margin-inline: 0;
   }
 }
 /* The current price against the regular price; the arrow keeps it
    readable without colour. */
 [data-trend-chip] {
+  display: inline-block;
   --trend-chip: var(--trend-flat, var(--price-neutral, #9a958b));
   flex: none;
   min-width: 42px;
@@ -54,7 +44,7 @@
   justify-content: space-between;
   gap: 6px;
   width: 100%;
-  max-width: 260px;
+  margin-inline: auto;
   color: var(--muted-foreground);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
