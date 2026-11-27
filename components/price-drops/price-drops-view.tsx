@@ -440,10 +440,11 @@ function chipPriceIn(
 /**
  * The line under the price: the regular price it beats ("~~$294~~ · save
  * $73.50"), how far above it it is, or how old a price a failed check kept.
- * Out of stock gets none: a price nobody can buy is not a sale.
+ * Out of stock says only that: a price nobody can buy is not a sale.
  */
 function PriceNote({ source }: { source: MonitoredSource }) {
-  if (source.result === 'out_of_stock') return null
+  if (source.result === 'out_of_stock')
+    return source.priceMinor !== null ? <>out of stock</> : null
   if (source.result === 'attention' && source.priceMinor !== null)
     return (
       <>
@@ -491,7 +492,11 @@ function PriceNote({ source }: { source: MonitoredSource }) {
  * shown muted with its date so it never passes for a fresh reading.
  */
 function PriceCell({ source }: { source: MonitoredSource }) {
-  const stale = source.result === 'attention' && source.priceMinor !== null
+  // A price nobody can buy now is greyed: a failed check's kept price, or
+  // one of a store that is out of stock.
+  const stale =
+    (source.result === 'attention' || source.result === 'out_of_stock') &&
+    source.priceMinor !== null
   return (
     <div data-price-cell data-stale={stale || undefined}>
       <span data-price-line>
@@ -1582,7 +1587,7 @@ export function PriceDropsView({
   const empty = kpis.monitoredKnives === 0 && kpis.knivesWithSources === 0
   const stores = storeOptions(monitored)
   const filtering = query.trim() !== '' || store !== 'all'
-  const groups = grouped === '1' ? groupByKnife(rows) : null
+  const groups = grouped === '1' ? groupByKnife(rows, filtered) : null
   const visibleIds = rows.map((source) => source.sourceId)
   const allChecked =
     visibleIds.length > 0 && visibleIds.every((id) => checked.has(id))

@@ -48,6 +48,18 @@ export function isBelowPaid(source: MonitoredSource): boolean {
   )
 }
 
+/** In stock, read on its last check and dearer than the regular price. */
+export function isAbovePaid(source: MonitoredSource): boolean {
+  return (
+    source.priceMinor !== null &&
+    source.paidMinor !== null &&
+    source.priceMinor > source.paidMinor &&
+    source.result !== 'out_of_stock' &&
+    source.result !== 'attention' &&
+    source.result !== 'pending'
+  )
+}
+
 /**
  * A page in trouble that needs the user. Quiet problems (a first failure, a
  * doubted price another store agrees with, a broken store of a knife other
@@ -98,7 +110,9 @@ export const SECTION_FILTER: Record<
   // What a buyer counts as a drop: a store cut its price, or the knife can
   // be bought below its regular price now, even at a store just added.
   drops: (source) => source.result === 'drop' || isBelowPaid(source),
-  increases: (source) => source.result === 'increase',
+  // The mirror of Down: a store raised its price, or the knife sells above
+  // its regular price now, even at a store just added or restocked.
+  increases: (source) => source.result === 'increase' || isAbovePaid(source),
   restocked: (source) => source.result === 'restocked',
   attention: (source) => needsAttention(source) || source.retireHint !== null,
   recent: (source) => Boolean(source.lastCheckedAt),
@@ -124,7 +138,8 @@ export const EMPTY_TEXT: Record<Section, string> = {
   changes: 'No price or stock changes in the last 30 days.',
   drops:
     'Nothing is cheaper than its regular price or dropped in the last 30 days.',
-  increases: 'No price increases in the last 30 days.',
+  increases:
+    'Nothing is dearer than its regular price or went up in the last 30 days.',
   restocked: 'Nothing came back in stock in the last 7 days.',
   oos: 'Nothing is out of stock.',
   attention: 'Every store page was read on its last check.',
@@ -339,14 +354,26 @@ function leadSource(sources: MonitoredSource[]): MonitoredSource {
 
 /**
  * One group per knife, in the order its first row appears in `rows`, so
- * groups follow the current sort.
+ * groups follow the current sort. A tab only picks which knives are listed:
+ * each group holds all the knife's listings in `pool` (the search and store
+ * filter), so the row leads with the knife's best in-stock price even when
+ * only another store matched the tab (an Out of stock tab listing a knife
+ * that one store sold out of). The tab's own rows come first.
  */
-export function groupByKnife(rows: MonitoredSource[]): KnifeGroup[] {
+export function groupByKnife(
+  rows: MonitoredSource[],
+  pool: MonitoredSource[] = rows,
+): KnifeGroup[] {
   const groups = new Map<string, MonitoredSource[]>()
   for (const source of rows) {
     const list = groups.get(source.knife.id) ?? []
     list.push(source)
     groups.set(source.knife.id, list)
+  }
+  for (const source of pool) {
+    const list = groups.get(source.knife.id)
+    if (list && !list.some((row) => row.sourceId === source.sourceId))
+      list.push(source)
   }
   return [...groups].map(([knifeId, sources]) => ({
     knifeId,

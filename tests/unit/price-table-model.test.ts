@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   groupByKnife,
+  isAbovePaid,
   isBelowPaid,
   matchesQuery,
   nextSort,
@@ -128,6 +129,30 @@ describe('price table model', () => {
     )
   })
 
+  it('lists anything dearer than its regular price as up', () => {
+    // A store back in stock at a price far over the regular price.
+    const restocked = source({
+      result: 'restocked',
+      priceMinor: 19995,
+      paidMinor: 12855,
+    })
+    const raised = source({ result: 'increase', deltaPct: 10, paidMinor: null })
+    const full = source({ priceMinor: 12900, paidMinor: 12900 })
+    const gone = source({
+      result: 'out_of_stock',
+      priceMinor: 20000,
+      paidMinor: 12900,
+    })
+    const broken = source({
+      result: 'attention',
+      priceMinor: 20000,
+      paidMinor: 12900,
+    })
+    const rows = [full, raised, gone, broken, restocked]
+    expect(rows.filter(isAbovePaid)).toEqual([restocked])
+    expect(rows.filter(SECTION_FILTER.increases)).toEqual([raised, restocked])
+  })
+
   it('compares with the regular price in money and percent', () => {
     expect(vsPaid({ priceMinor: 9000, paidMinor: 12000 })).toEqual({
       deltaMinor: -3000,
@@ -239,5 +264,31 @@ describe('price table model', () => {
     expect(groups.map((g) => g.knifeId)).toEqual([knife.id, other.knife.id])
     expect(groups[0].lead).toBe(b)
     expect(groups[0].sources).toHaveLength(3)
+  })
+
+  it('leads with the knife’s best in-stock store when the tab lists only another', () => {
+    const knife = source().knife
+    const soldOut = source({ knife, priceMinor: 5520, result: 'out_of_stock' })
+    const amazon = source({ knife, priceMinor: 4899 })
+    const official = source({ knife, priceMinor: 6900 })
+    const other = source()
+    const pool = [official, other, amazon, soldOut]
+    // Changed lists the sold-out listing alone; Out of stock skips the
+    // knife, since other stores sell it.
+    const tab = pool.filter(SECTION_FILTER.changes)
+    expect(sectionRows('oos', pool, pool)).toEqual([])
+    const groups = groupByKnife(tab, pool)
+    expect(groups.map((g) => g.knifeId)).toEqual([knife.id])
+    expect(groups[0].lead).toBe(amazon)
+    expect(groups[0].sources).toEqual([soldOut, official, amazon])
+  })
+
+  it('leads with an out-of-stock store only when no store has it', () => {
+    const knife = source().knife
+    const a = source({ knife, priceMinor: 5520, result: 'out_of_stock' })
+    const b = source({ knife, priceMinor: 6900, result: 'out_of_stock' })
+    const groups = groupByKnife([a], [a, b])
+    expect(groups[0].lead.result).toBe('out_of_stock')
+    expect(groups[0].sources).toEqual([a, b])
   })
 })
