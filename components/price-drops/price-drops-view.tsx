@@ -80,6 +80,7 @@ import {
   EMPTY_TEXT,
   groupByKnife,
   hasBuyablePrice,
+  latestCheckedAt,
   matchesQuery,
   nextSort,
   parseSection,
@@ -696,6 +697,7 @@ function SourceTableRow({
   chartTrend,
   chartStores,
   bestMinor,
+  checkedAt = source.lastCheckedAt,
   group,
   child,
   onSelect,
@@ -730,6 +732,8 @@ function SourceTableRow({
   chartStores?: readonly RowChartStore[]
   /** A store row: the knife's best price, to say how far above it this is. */
   bestMinor?: number | null
+  /** The Checked time: the knife's newest check on Recently checked. */
+  checkedAt?: string | null
   /** A grouped knife row: its stores count and expand state. */
   group?: { count: number; expanded: boolean; onToggle: () => void }
   /** A store row under an expanded knife. */
@@ -902,8 +906,8 @@ function SourceTableRow({
           ) : (
             '—'
           )
-        ) : source.lastCheckedAt ? (
-          relativeTime(source.lastCheckedAt, now)
+        ) : checkedAt ? (
+          relativeTime(checkedAt, now)
         ) : (
           'not yet'
         )}
@@ -1598,6 +1602,7 @@ export function PriceDropsView({
       ids?: number[]
       child?: boolean
       bestMinor?: number | null
+      checkedAt?: string | null
     } = {},
   ) => {
     const ids = options.ids ?? [source.sourceId]
@@ -1623,6 +1628,7 @@ export function PriceDropsView({
             : chartStoresOf(knifeSources.get(source.knife.id) ?? [source])
         }
         bestMinor={options.bestMinor}
+        checkedAt={options.checkedAt ?? source.lastCheckedAt}
         group={options.group}
         child={options.child}
         onSelect={() => selectRow(source.knife.id)}
@@ -2114,6 +2120,11 @@ export function PriceDropsView({
                             <Fragment key={group.knifeId}>
                               {renderRow(group.lead, {
                                 ids: group.sources.map((s) => s.sourceId),
+                                // The knife was checked when any store was.
+                                checkedAt:
+                                  section === 'recent'
+                                    ? latestCheckedAt(group.sources)
+                                    : undefined,
                                 group: {
                                   count: group.sources.length,
                                   expanded: open,

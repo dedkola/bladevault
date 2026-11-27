@@ -304,10 +304,43 @@ function savingPct(source: MonitoredSource): number {
   )
 }
 
+/** How many knives Recently checked lists. */
+export const RECENT_KNIVES = 30
+
+const newestCheckFirst = (a: MonitoredSource, b: MonitoredSource) =>
+  (b.lastCheckedAt ?? '').localeCompare(a.lastCheckedAt ?? '')
+
+/** A knife's newest check across its listings, null when none ran yet. */
+export function latestCheckedAt(
+  sources: readonly MonitoredSource[],
+): string | null {
+  return sources.reduce<string | null>(
+    (latest, source) =>
+      source.lastCheckedAt && (!latest || source.lastCheckedAt > latest)
+        ? source.lastCheckedAt
+        : latest,
+    null,
+  )
+}
+
+/**
+ * Every listing of the knives checked last, so a tab grouped by knife shows
+ * `RECENT_KNIVES` knives rather than as many listings.
+ */
+function newestKnives(list: MonitoredSource[]): MonitoredSource[] {
+  const knives = new Set<string>()
+  for (const source of [...list].sort(newestCheckFirst)) {
+    if (knives.size === RECENT_KNIVES) break
+    knives.add(source.knife.id)
+  }
+  return list.filter((source) => knives.has(source.knife.id))
+}
+
 /**
  * Rows for a section: by result (drops first) unless a column is sorted;
  * Drops puts the biggest saving first. `trendPct` feeds the Trend sort.
- * Missing values always sort last. Recently checked keeps the newest 30.
+ * Missing values always sort last. Recently checked keeps every listing of
+ * the newest `RECENT_KNIVES` knives, newest check first.
  */
 export function sortRows(
   section: Section,
@@ -315,7 +348,7 @@ export function sortRows(
   sort: Sort,
   trendPct?: TrendPct,
 ): MonitoredSource[] {
-  const sorted = [...list]
+  const sorted = section === 'recent' ? newestKnives(list) : [...list]
   if (sort) {
     const factor = sort.dir === 'asc' ? 1 : -1
     sorted.sort((a, b) => {
@@ -332,10 +365,7 @@ export function sortRows(
         (b.changedAt ?? '').localeCompare(a.changedAt ?? '') ||
         byName(a, b),
     )
-  else if (section === 'recent')
-    sorted.sort((a, b) =>
-      (b.lastCheckedAt ?? '').localeCompare(a.lastCheckedAt ?? ''),
-    )
+  else if (section === 'recent') sorted.sort(newestCheckFirst)
   else
     sorted.sort(
       (a, b) =>
@@ -343,7 +373,7 @@ export function sortRows(
         (b.changedAt ?? '').localeCompare(a.changedAt ?? '') ||
         byName(a, b),
     )
-  return section === 'recent' ? sorted.slice(0, 30) : sorted
+  return sorted
 }
 
 export type KnifeGroup = {
