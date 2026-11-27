@@ -48,6 +48,18 @@ export function isBelowPaid(source: MonitoredSource): boolean {
   )
 }
 
+/** In stock, read on its last check and dearer than the regular price. */
+export function isAbovePaid(source: MonitoredSource): boolean {
+  return (
+    source.priceMinor !== null &&
+    source.paidMinor !== null &&
+    source.priceMinor > source.paidMinor &&
+    source.result !== 'out_of_stock' &&
+    source.result !== 'attention' &&
+    source.result !== 'pending'
+  )
+}
+
 /**
  * A page in trouble that needs the user. Quiet problems (a first failure, a
  * doubted price another store agrees with, a broken store of a knife other
@@ -78,7 +90,9 @@ export const SECTION_FILTER: Record<
   // What a buyer counts as a drop: a store cut its price, or the knife can
   // be bought below its regular price now, even at a store just added.
   drops: (source) => source.result === 'drop' || isBelowPaid(source),
-  increases: (source) => source.result === 'increase',
+  // The mirror of Down: a store raised its price, or the knife sells above
+  // its regular price now, even at a store just added or restocked.
+  increases: (source) => source.result === 'increase' || isAbovePaid(source),
   restocked: (source) => source.result === 'restocked',
   oos: (source) => source.result === 'out_of_stock',
   attention: (source) => needsAttention(source) || source.retireHint !== null,
@@ -90,7 +104,8 @@ export const EMPTY_TEXT: Record<Section, string> = {
   changes: 'No price or stock changes in the last 30 days.',
   drops:
     'Nothing is cheaper than its regular price or dropped in the last 30 days.',
-  increases: 'No price increases in the last 30 days.',
+  increases:
+    'Nothing is dearer than its regular price or went up in the last 30 days.',
   restocked: 'Nothing came back in stock in the last 7 days.',
   oos: 'Nothing is out of stock.',
   attention: 'Every store page was read on its last check.',
