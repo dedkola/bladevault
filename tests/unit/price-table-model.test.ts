@@ -124,6 +124,10 @@ describe('price table model', () => {
     expect(sectionRows('oos', all, all)).toEqual([smkw, official, unread])
     // A store filter shows fewer rows but judges the knife on every store.
     expect(sectionRows('oos', [bladeHq, smkw], all)).toEqual([smkw])
+    // Another variant in stock (an Amazon listing under Other variants)
+    // means the knife can still be bought.
+    expect(soldOutKnives(all, ['gone'])).toEqual(new Set())
+    expect(sectionRows('oos', all, all, ['gone'])).toEqual([])
   })
 
   it('lists anything dearer than its regular price as up', () => {

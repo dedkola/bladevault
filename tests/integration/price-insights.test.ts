@@ -181,6 +181,7 @@ describe('price overview', () => {
       'kpis',
       'monitored',
       'round',
+      'variantsSelling',
       'windowDays',
     ])
     expect(result.kpis.knivesWithSources).toBe(2)
@@ -1039,6 +1040,31 @@ describe('other variants of the model (Other stores)', () => {
     // The watch view lists them, outside the source limit.
     const watch = await getWatch(knife.id)
     expect(watch.sources.filter((source) => source.variantTitle).length).toBe(2)
+  })
+
+  it('reports knives an in-stock variant sells, so they are not out of stock', async () => {
+    const knife = await createKnife('Raccoon', '129.00 USD', [
+      'https://shop.example/raccoon',
+    ])
+    const [own] = knife.sources
+    await search(knife.id, VARIANTS)
+    const [black, s90v] = activeVariants(knife.id).map((row) => row.id)
+
+    await checkAt(0, own, offer(129, 'out_of_stock'))
+    await checkAt(0, black, offer(99, 'out_of_stock'))
+    // Variants not read yet, or all sold out, sell nothing.
+    expect((await overview()).variantsSelling).toEqual([])
+
+    await checkAt(1, s90v, offer(149))
+    const after = await overview()
+    expect(after.monitored.map((row) => row.sourceId)).toEqual([own])
+    expect(after.variantsSelling).toEqual([knife.id])
+
+    // A variant listing you turned off does not count.
+    getLocalDb()
+      .prepare('UPDATE price_sources SET enabled = 0 WHERE id = ?')
+      .run(s90v)
+    expect((await overview()).variantsSelling).toEqual([])
   })
 
   it('drops a variant the newest search no longer lists, keeping its history, and respects your removal', async () => {
