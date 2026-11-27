@@ -63,7 +63,7 @@
   color: var(--foreground);
 }
 
-/* Monitoring status: lanes in the style of Maintenance > Coming up. */
+/* Monitoring status: one strip of checks per hour. */
 .pd-status-head {
   display: flex;
   align-items: flex-start;
@@ -145,33 +145,8 @@
 }
 .pd-tl-toolbar {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 16px;
-  margin-bottom: 10px;
-}
-.pd-seg {
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--bladevault-line);
-  border-radius: 8px;
-}
-.pd-seg button {
-  border: 0;
-  background: transparent;
-  color: var(--muted-foreground);
-  font: inherit;
-  font-size: 11.5px;
-  padding: 2px 9px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.pd-seg button[aria-checked='true'] {
-  background: var(--bladevault-nav-active-bg);
-  color: var(--bladevault-nav-active-fg);
-  font-weight: 600;
+  justify-content: flex-end;
+  margin-bottom: 8px;
 }
 .pd-legend {
   display: flex;
@@ -192,18 +167,29 @@
   content: '';
   width: 7px;
   height: 7px;
-  border-radius: 50%;
+  border-radius: 2px;
   background: var(--pd-color);
 }
+.pd-legend li[data-checked]::before {
+  background: var(--pd-bar-checked);
+}
 .pd-legend li[data-upcoming]::before {
-  background: var(--card);
-  border: 1px solid var(--muted-foreground);
+  background: transparent;
+  border: 1px solid var(--pd-bar-scheduled);
+}
+.pd-timeline {
+  --pd-bar-checked: color-mix(in srgb, var(--price-neutral) 55%, transparent);
+  --pd-bar-scheduled: color-mix(
+    in srgb,
+    var(--muted-foreground) 55%,
+    transparent
+  );
 }
 .pd-tl-axis,
-.pd-tl-lane {
+.pd-tl-bars {
   display: grid;
-  /* The upcoming checks matter most, so they get the wider side. */
-  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  /* One hour is as wide on both sides when the horizon is 24 hours. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 .pd-tl-axis {
   color: var(--muted-foreground);
@@ -230,36 +216,19 @@
   color: var(--foreground);
   font-weight: 650;
 }
-.pd-tl-lane {
-  border-top: 1px dashed var(--bladevault-line);
-  align-items: center;
-  padding-bottom: 6px;
-}
-.pd-tl-lane > h3 {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  padding: 6px 0 4px;
-  color: var(--muted-foreground);
-  font-size: 11px;
-  font-weight: 600;
-}
-.pd-tl-count {
-  font-weight: 500;
-}
 .pd-swatch {
-  width: 9px;
-  height: 9px;
-  border-radius: 3px;
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  border-radius: 2px;
   background: var(--pd-color);
 }
 .pd-tl-past,
 .pd-tl-future {
   position: relative;
   min-width: 0;
-  height: calc(var(--pd-rows, 1) * 24px + 4px);
+  height: 64px;
 }
 .pd-tl-past {
   border-radius: 6px 0 0 6px;
@@ -283,57 +252,84 @@
     color-mix(in srgb, var(--muted-foreground) 22%, transparent);
   pointer-events: none;
 }
-.pd-pin {
+/* One hour: the button fills the column so even a short bar is easy to hit. */
+.pd-bar {
   position: absolute;
-  transform: translateX(-50%);
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  max-width: 100%;
-  padding: 0 7px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 1px;
   border: 0;
-  border-radius: 999px;
-  background: var(--pd-color);
-  color: var(--price-on-solid);
-  font: inherit;
-  font-size: 10.5px;
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  background: transparent;
   cursor: pointer;
+}
+.pd-bar:hover,
+.pd-bar[data-open] {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+.pd-bar:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.pd-bar-fill {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 2px 2px 0 0;
+}
+.pd-bar-fill > i {
+  display: block;
+  min-height: 0;
+  background: var(--pd-color);
+}
+.pd-bar-fill > i[data-rest] {
+  background: var(--pd-bar-checked);
+}
+.pd-bar[data-kind='upcoming'] .pd-bar-fill {
+  border: 1px solid var(--pd-bar-scheduled);
+  border-bottom: 0;
+}
+.pd-bar[data-empty] {
+  cursor: default;
+}
+.pd-bar[data-empty]:hover {
+  background: transparent;
+}
+.pd-bar[data-empty] .pd-bar-fill {
+  height: 3px;
+  border: 0;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--muted-foreground) 25%, transparent);
+}
+.pd-bar[data-kind='upcoming'] .pd-bar-fill > i {
+  background: transparent;
+}
+.pd-queue {
+  position: absolute;
+  top: 5px;
+  left: 6px;
   z-index: 1;
-}
-.pd-pin[data-align='start'] {
-  transform: none;
-}
-.pd-pin[data-align='end'] {
-  transform: translateX(-100%);
-}
-.pd-pin[data-upcoming] {
+  height: 20px;
+  padding: 0 8px;
+  border: 1.5px solid var(--foreground);
+  border-radius: 999px;
   background: var(--card);
   color: var(--foreground);
-  border: 1px solid var(--bladevault-line);
-  font-weight: 550;
-}
-.pd-pin[data-due] {
-  border: 1.5px solid var(--pd-color);
+  font: inherit;
+  font-size: 10.5px;
   font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
 }
-.pd-pin:hover {
-  filter: brightness(0.92);
-  z-index: 2;
+.pd-queue:hover {
+  background: var(--bladevault-surface-hover);
 }
-.pd-pin[aria-pressed='true'] {
-  outline: 2px solid var(--foreground);
-  outline-offset: 1px;
-  z-index: 3;
-}
-.pd-pin:focus-visible {
+.pd-queue:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
-  z-index: 3;
 }
 .pd-pin-list {
   position: fixed;
@@ -415,10 +411,6 @@
   opacity: 0.85;
 }
 @media (max-width: 760px) {
-  .pd-tl-axis,
-  .pd-tl-lane {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
-  }
   .pd-tl-dates > [data-minor] {
     display: none;
   }
