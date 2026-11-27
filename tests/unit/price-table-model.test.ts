@@ -3,9 +3,11 @@ import {
   groupByKnife,
   isAbovePaid,
   isBelowPaid,
+  latestCheckedAt,
   matchesQuery,
   nextSort,
   parseSection,
+  RECENT_KNIVES,
   SECTION_FILTER,
   sectionRows,
   soldOutKnives,
@@ -346,5 +348,35 @@ describe('price table model', () => {
     const groups = groupByKnife([a], [a, b])
     expect(groups[0].lead.result).toBe('out_of_stock')
     expect(groups[0].sources).toEqual([a, b])
+  })
+
+  it('lists every store of the knives checked last on Recently checked', () => {
+    const at = (minute: number) =>
+      new Date(Date.UTC(2026, 10, 27, 20, minute)).toISOString()
+    // One knife checked at five stores in a row, then one store per knife.
+    const busy = source().knife
+    const busyRows = [1, 2, 3, 4, 5].map((minute) =>
+      source({ knife: busy, lastCheckedAt: at(59 - minute) }),
+    )
+    const singles = Array.from({ length: RECENT_KNIVES + 5 }, (_, index) =>
+      source({ lastCheckedAt: at(50 - index) }),
+    )
+    const rows = sortRows('recent', [...singles, ...busyRows], null)
+    const knives = groupByKnife(rows).map((group) => group.knifeId)
+    expect(knives).toHaveLength(RECENT_KNIVES)
+    expect(knives[0]).toBe(busy.id)
+    expect(rows.slice(0, 5)).toEqual(busyRows)
+    expect(knives.slice(1)).toEqual(
+      singles.slice(0, RECENT_KNIVES - 1).map((row) => row.knife.id),
+    )
+  })
+
+  it('takes a knife’s newest check across its stores', () => {
+    const knife = source().knife
+    const old = source({ knife, lastCheckedAt: '2026-11-27T10:00:00.000Z' })
+    const fresh = source({ knife, lastCheckedAt: '2026-11-27T21:51:00.000Z' })
+    const never = source({ knife, lastCheckedAt: null })
+    expect(latestCheckedAt([old, never, fresh])).toBe(fresh.lastCheckedAt)
+    expect(latestCheckedAt([never])).toBeNull()
   })
 })
