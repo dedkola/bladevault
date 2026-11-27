@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   groupByKnife,
+  isAbovePaid,
   isBelowPaid,
   matchesQuery,
   nextSort,
@@ -84,6 +85,30 @@ describe('price table model', () => {
     const drops = [full, cut, gone, newStore].filter(SECTION_FILTER.drops)
     expect(drops).toEqual([cut, newStore])
     expect(sortRows('drops', drops, null)).toEqual([newStore, cut])
+  })
+
+  it('lists anything dearer than its regular price as up', () => {
+    // A store back in stock at a price far over the regular price.
+    const restocked = source({
+      result: 'restocked',
+      priceMinor: 19995,
+      paidMinor: 12855,
+    })
+    const raised = source({ result: 'increase', deltaPct: 10, paidMinor: null })
+    const full = source({ priceMinor: 12900, paidMinor: 12900 })
+    const gone = source({
+      result: 'out_of_stock',
+      priceMinor: 20000,
+      paidMinor: 12900,
+    })
+    const broken = source({
+      result: 'attention',
+      priceMinor: 20000,
+      paidMinor: 12900,
+    })
+    const rows = [full, raised, gone, broken, restocked]
+    expect(rows.filter(isAbovePaid)).toEqual([restocked])
+    expect(rows.filter(SECTION_FILTER.increases)).toEqual([raised, restocked])
   })
 
   it('compares with the regular price in money and percent', () => {
