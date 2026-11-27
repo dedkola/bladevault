@@ -174,16 +174,16 @@ describe('rowChartDirection', () => {
 })
 
 describe('rowChartRange', () => {
-  it('fits every price with some room, never below 0', () => {
+  it('starts at zero so heights are in proportion to prices', () => {
     expect(rowChartRange([12200, 21500])).toEqual({
-      min: 12200 - 0.12 * 9300,
-      max: 21500 + 0.12 * 9300,
+      min: 0,
+      max: 21500 * 1.08,
     })
-    // A flat price still gets room above and below.
+    // A flat price sits near the top, not on the floor.
     const flat = rowChartRange([4200])
-    expect(flat.min).toBeLessThan(4200)
+    expect(flat.min).toBe(0)
     expect(flat.max).toBeGreaterThan(4200)
-    expect(rowChartRange([5, 10]).min).toBeGreaterThanOrEqual(0)
+    expect(rowChartRange([5, 10]).max).toBeGreaterThan(10)
   })
 })
 

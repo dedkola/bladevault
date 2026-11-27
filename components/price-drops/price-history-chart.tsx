@@ -299,7 +299,7 @@ function axisMoney(minor: number, currency: string | null): string {
  * The open knife's price history, drawn like the row charts: a plain line
  * through every store reading in time order, coloured by price from green
  * (cheapest) to red (dearest), and a dot in the store's colour for every
- * reading, on a scale fitted to the prices. Markers
+ * reading, on a scale from zero. Markers
  * show price drops and increases and the lowest price seen; the tooltip
  * lists every store's price and stock at the hovered moment.
  */
