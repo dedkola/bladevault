@@ -129,9 +129,11 @@ export function NotificationSettings({
   const updateThresholds = (
     patch: Partial<PriceMonitoringSettings['thresholds']>,
   ) => updatePrice({ thresholds: { ...priceMonitoring.thresholds, ...patch } })
-  // The minimum amount only filters notifications, unlike the percent.
-  const priceAlertsOn =
-    priceMonitoring.notify.drop || priceMonitoring.notify.increase
+  // The super-sale rule covers knives the collection pass checks: it needs
+  // What to monitor narrower than everything and the pass switched on.
+  const collectionPassOn =
+    priceMonitoring.scope.kind !== 'all' &&
+    priceMonitoring.collectionPass.enabled
   const ai = priceMonitoring.ai
   const aiOff = !ai.enabled
 
@@ -211,7 +213,7 @@ export function NotificationSettings({
         ))}
         <SettingsRow
           label="Minimum change"
-          description="Price changes smaller than this don't notify and show as No change on Price Drops, with the small move as a hint. Set it to 0 to count every price change. Stock changes always notify."
+          description="For knives in What to monitor. Price changes smaller than this don't notify and show as No change on Price Drops, with the small move as a hint. Set it to 0 to count every price change. Stock changes always notify."
         >
           <NumberField
             aria-label="Minimum price change in percent"
@@ -222,33 +224,6 @@ export function NotificationSettings({
             unit="%"
             disabled={priceDisabled}
             onCommit={(minPercent) => updateThresholds({ minPercent })}
-          />
-        </SettingsRow>
-        <SettingsRow
-          label="Minimum amount"
-          description="Price notifications also skip changes smaller than this, in each price's own currency (3 means $3, €3 or ₴3). A change must pass both the percent and the amount. 0 turns it off."
-        >
-          <NumberField
-            aria-label="Minimum price change in the price's currency"
-            value={priceMonitoring.thresholds.minAmount}
-            min={PRICE_MONITORING_LIMITS.minAmount[0]}
-            max={PRICE_MONITORING_LIMITS.minAmount[1]}
-            decimals={2}
-            unit="in its currency"
-            disabled={priceDisabled || !priceAlertsOn}
-            onCommit={(minAmount) => updateThresholds({ minAmount })}
-          />
-        </SettingsRow>
-        <SettingsRow
-          inline
-          label="Always notify about a new lowest price"
-          description="A drop to the lowest price a store has shown for a knife notifies even below the minimum percent. Needs Price drops on; the minimum amount still applies."
-        >
-          <SettingsSwitch
-            aria-label="Always notify about a new lowest price"
-            checked={priceMonitoring.thresholds.allTimeLow}
-            disabled={priceDisabled || !priceMonitoring.notify.drop}
-            onCheckedChange={(allTimeLow) => updateThresholds({ allTimeLow })}
           />
         </SettingsRow>
         {serverRuntime ? (
@@ -279,6 +254,47 @@ export function NotificationSettings({
             />
           </SettingsRow>
         ) : null}
+      </SettingsSection>
+
+      <SettingsSection
+        title="Rest of the collection"
+        description="Knives outside What to monitor, checked in free time. They follow their own rule instead of the settings above."
+      >
+        <SettingsRow
+          label="Notify only about a super sale"
+          description={
+            collectionPassOn ? (
+              "These knives send an Inbox message only when a price falls at least this far below the knife's regular price, or reaches its own target price. Smaller drops, increases and stock changes stay on Price Drops."
+            ) : priceMonitoring.scope.kind === 'all' ? (
+              'What to monitor is the whole collection, so every knife follows the settings above.'
+            ) : (
+              <>
+                Applies while the rest of the collection is checked. Turn on{' '}
+                <SettingsLink tab="prices">
+                  Check the rest of the collection in free time
+                </SettingsLink>{' '}
+                in Price monitoring first.
+              </>
+            )
+          }
+        >
+          <NumberField
+            aria-label="Super sale: percent below regular price"
+            value={priceMonitoring.collectionPass.superSalePercent}
+            min={PRICE_MONITORING_LIMITS.superSalePercent[0]}
+            max={PRICE_MONITORING_LIMITS.superSalePercent[1]}
+            unit="% below regular"
+            disabled={priceDisabled || !collectionPassOn}
+            onCommit={(superSalePercent) =>
+              updatePrice({
+                collectionPass: {
+                  ...priceMonitoring.collectionPass,
+                  superSalePercent,
+                },
+              })
+            }
+          />
+        </SettingsRow>
       </SettingsSection>
 
       <SettingsSection

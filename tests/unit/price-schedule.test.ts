@@ -138,7 +138,7 @@ describe('normalizePriceMonitoring', () => {
         outOfStock: true,
         backInStock: true,
       },
-      thresholds: { minPercent: 100, minAmount: 0, allTimeLow: false },
+      thresholds: { minPercent: 100 },
       ai: DEFAULT_PRICE_MONITORING.ai,
       otherStores: DEFAULT_PRICE_MONITORING.otherStores,
     })
@@ -146,7 +146,7 @@ describe('normalizePriceMonitoring', () => {
       normalizePriceMonitoring({
         thresholds: { minPercent: -3 },
       }).thresholds,
-    ).toEqual({ minPercent: 0, minAmount: 0, allTimeLow: false })
+    ).toEqual({ minPercent: 0 })
   })
 
   it('keeps unspecified parts of the current settings', () => {
@@ -171,7 +171,7 @@ describe('normalizePriceMonitoring', () => {
     expect(
       normalizePriceMonitoring({ thresholds: { minPercent: 2.5 } }, alerts)
         .thresholds,
-    ).toEqual({ minPercent: 2.5, minAmount: 0, allTimeLow: false })
+    ).toEqual({ minPercent: 2.5 })
   })
 })
 

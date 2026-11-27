@@ -225,7 +225,7 @@ describe('price notifications', () => {
           outOfStock: true,
           backInStock: false,
         },
-        thresholds: { minPercent: 15, minAmount: 0, allTimeLow: false },
+        thresholds: { minPercent: 15 },
       },
     })
     const knifeId = await createKnife()
