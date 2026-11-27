@@ -71,7 +71,7 @@ import {
   relativeTime,
   storeLabel,
 } from './price-format'
-import { PriceTrend, trendNetChange } from './price-trend'
+import { PriceTrend, RegularChip, trendNetChange } from './price-trend'
 import {
   cachedRowChartStores,
   type RowChartStore,
@@ -511,6 +511,9 @@ function PriceCell({ source }: { source: MonitoredSource }) {
   )
 }
 
+/** The price table's columns, for rows that span all of them. */
+const PRICE_GRID_COLUMNS = 8
+
 /** Results that are news on their own; drops and rises show as a tag. */
 const STATUS_RESULTS = new Set<MonitoredSource['result']>([
   'restocked',
@@ -538,9 +541,9 @@ function atNinetyDayLow(
 }
 
 /**
- * Wishlist-style signals under the knife: its stock or check status and a
- * 90-day low. How far below the regular price it is shows once, on the
- * trend chip.
+ * A row's signals, in their own column after the knife: its stock or check
+ * status and a 90-day low. How far below the regular price it is shows
+ * once, on the chip before the chart.
  */
 function RowSignals({
   source,
@@ -611,7 +614,7 @@ function RowActions({
   const safeUrl = getSafeExternalUrl(source.url)
   const stop = (event: React.SyntheticEvent) => event.stopPropagation()
   return (
-    <div data-price-row-actions className="flex items-center justify-end">
+    <div data-price-row-actions className="flex items-center justify-center">
       {source.result === 'attention' ? (
         <AttentionButtons
           compact
@@ -793,16 +796,6 @@ function SourceTableRow({
             >
               {store}
             </button>
-            {STATUS_RESULTS.has(source.result) ? (
-              <ResultBadge
-                source={source}
-                now={now}
-                onResolve={canSolve ? onResolve : undefined}
-                solveUnavailable={
-                  canSolve === false ? SOLVE_UNAVAILABLE_TEXT : undefined
-                }
-              />
-            ) : null}
           </div>
         ) : (
           <div className="flex min-w-0 items-center gap-3">
@@ -852,19 +845,32 @@ function SourceTableRow({
                   store
                 )}
               </span>
-              <RowSignals
-                source={source}
-                trend={trend}
-                now={now}
-                canSolve={canSolve}
-                onResolve={onResolve}
-              />
             </div>
           </div>
         )}
       </td>
+      {/* Status and chip columns have no header and stay empty when a row
+          has nothing to say, so the price and chart keep their place. */}
+      <td data-col="status" className="py-2.5 pr-4">
+        <RowSignals
+          source={source}
+          trend={child ? undefined : trend}
+          now={now}
+          canSolve={canSolve}
+          onResolve={onResolve}
+        />
+      </td>
       <td data-col="price" className="py-2.5 pr-4">
         <PriceCell source={source} />
+      </td>
+      <td data-col="chip" className="py-2.5 pr-4">
+        {child ? null : (
+          <RegularChip
+            currentMinor={chipPriceIn(source, chartTrend)}
+            regularMinor={regularIn(source, chartTrend)}
+            currency={chartTrend?.currency ?? null}
+          />
+        )}
       </td>
       <td data-col="trend" className="py-2.5 pr-4">
         <div data-price-trend>
@@ -886,10 +892,10 @@ function SourceTableRow({
       </td>
       <td
         data-col="checked"
-        className="py-2.5 pr-1 text-xs whitespace-nowrap text-muted-foreground"
+        className="py-2.5 pr-4 text-xs whitespace-nowrap text-muted-foreground"
       >
         {paused ? (
-          <span className="flex items-center gap-1.5">
+          <span className="inline-flex items-center gap-1.5">
             <StatusDot tone="bad" />
             {paused}
           </span>
@@ -941,7 +947,7 @@ function RetireRow({
         selected && 'bg-[var(--bladevault-surface-soft)]',
       )}
     >
-      <td colSpan={6} className="px-1 pb-2.5">
+      <td colSpan={PRICE_GRID_COLUMNS} className="px-1 pb-2.5">
         <RetireHintNotice
           hint={source.retireHint}
           knifeId={source.knife.id}
@@ -1010,13 +1016,11 @@ function SortHeader({
   label,
   sortKey,
   sort,
-  align = 'right',
   onSort,
 }: {
   label: string
   sortKey: SortKey
   sort: Sort
-  align?: 'left' | 'right'
   onSort: (key: SortKey) => void
 }) {
   const active = sort?.key === sortKey ? sort.dir : null
@@ -1031,10 +1035,8 @@ function SortHeader({
             ? 'descending'
             : 'none'
       }
-      className={cn(
-        'py-2 font-medium',
-        align === 'right' ? 'pr-4 text-right' : 'pr-3 text-left',
-      )}
+      // Centred, like every data column after the knife.
+      className="py-2 pr-4 text-center font-medium"
     >
       <button
         type="button"
@@ -1672,7 +1674,7 @@ export function PriceDropsView({
   const detailRow = (knifeId: string) =>
     !narrow && panel && knifeId === selectedKnife ? (
       <tr key={`detail-${knifeId}`} data-price-detail-row>
-        <td colSpan={6} className="px-4 pt-1 pb-4">
+        <td colSpan={PRICE_GRID_COLUMNS} className="px-4 pt-1 pb-4">
           {/* Zero intrinsic width: the chart, sized in pixels once drawn,
               must not widen the table past the screen. */}
           <div
@@ -2093,12 +2095,20 @@ export function PriceDropsView({
                             />
                           </th>
                           <th className="py-2 pr-3 font-medium">Knife</th>
+                          <th className="py-2 pr-4 font-medium">
+                            <span className="sr-only">Status</span>
+                          </th>
                           <SortHeader
                             label="Price"
                             sortKey="price"
                             sort={sort}
                             onSort={(key) => setSort(nextSort(sort, key))}
                           />
+                          <th className="py-2 pr-4 font-medium">
+                            <span className="sr-only">
+                              Against the regular price
+                            </span>
+                          </th>
                           <SortHeader
                             label="Trend · 30d"
                             sortKey="paid"
@@ -2106,7 +2116,7 @@ export function PriceDropsView({
                             onSort={(key) => setSort(nextSort(sort, key))}
                           />
                           {section === 'attention' ? (
-                            <th className="py-2 pr-1 font-medium">
+                            <th className="py-2 pr-1 text-center font-medium">
                               Next check
                             </th>
                           ) : (
@@ -2114,7 +2124,6 @@ export function PriceDropsView({
                               label="Checked"
                               sortKey="checked"
                               sort={sort}
-                              align="left"
                               onSort={(key) => setSort(nextSort(sort, key))}
                             />
                           )}

@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import {
   PriceTrend,
+  RegularChip,
   regularChipLabel,
   regularGap,
   trendNetChange,
@@ -78,22 +79,46 @@ describe('row chart window change', () => {
   })
 })
 
+describe('RegularChip', () => {
+  const render = (props: Parameters<typeof RegularChip>[0]) =>
+    renderToStaticMarkup(createElement(RegularChip, props))
+
+  it('shows the gap to the regular price, with a readable title', () => {
+    const html = render({
+      currentMinor: 12990,
+      regularMinor: 20200,
+      currency: 'USD',
+    })
+    expect(html).toContain('data-trend-chip="down"')
+    expect(html).toContain('▼ $72.10 · 36%')
+    expect(html).toContain(
+      'title="$72.10 (36%) below the regular price $202.00"',
+    )
+  })
+
+  it('is empty without a regular price or a buyable price', () => {
+    expect(
+      render({ currentMinor: 12990, regularMinor: null, currency: 'USD' }),
+    ).toBe('')
+    expect(
+      render({ currentMinor: null, regularMinor: 20200, currency: 'USD' }),
+    ).toBe('')
+  })
+})
+
 describe('PriceTrend', () => {
   const render = (props: Parameters<typeof PriceTrend>[0]) =>
     renderToStaticMarkup(createElement(PriceTrend, props))
 
-  it('puts one headline on the chip and the regular price under the chart', () => {
+  it('leaves the chip to its own column and puts the regular price under the chart', () => {
     const html = render({
       trend: amazon,
       currentMinor: 12990,
       regularMinor: 20200,
       label: 'Price at Amazon',
     })
-    expect(html).toContain('data-trend-chip="down"')
-    expect(html).toContain('▼ $72.10 · 36%')
+    expect(html).not.toContain('data-trend-chip')
     expect(html).toContain('regular $202.00')
-    // The last small move belongs to the price cell, not the chip.
-    expect(html).not.toContain('$0.56 ·')
     expect(html).toContain(
       'now $129.90, $72.10 (36%) below the regular price $202.00',
     )
@@ -110,20 +135,18 @@ describe('PriceTrend', () => {
     expect(html).toContain('width:260px;height:54px')
   })
 
-  it('drops the chip without a regular price', () => {
+  it('drops the regular price note without a regular price', () => {
     const html = render({ trend: amazon, currentMinor: 12990 })
-    expect(html).not.toContain('data-trend-chip')
     expect(html).not.toContain('data-trend-regular-note')
     expect(html).toContain('data-trend-spark="down"')
   })
 
-  it('drops the chip when the price is not buyable now', () => {
+  it('keeps the regular price note when the price is not buyable now', () => {
     const html = render({
       trend: amazon,
       currentMinor: null,
       regularMinor: 20200,
     })
-    expect(html).not.toContain('data-trend-chip')
     expect(html).toContain('regular $202.00')
   })
 
