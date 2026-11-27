@@ -198,4 +198,27 @@ describe('price table model', () => {
     expect(groups[0].lead).toBe(b)
     expect(groups[0].sources).toHaveLength(3)
   })
+
+  it('leads with the knife’s best in-stock store when the tab lists only another', () => {
+    const knife = source().knife
+    const soldOut = source({ knife, priceMinor: 5520, result: 'out_of_stock' })
+    const amazon = source({ knife, priceMinor: 4899 })
+    const official = source({ knife, priceMinor: 6900 })
+    const other = source()
+    const pool = [official, other, amazon, soldOut]
+    const tab = pool.filter(SECTION_FILTER.oos)
+    const groups = groupByKnife(tab, pool)
+    expect(groups.map((g) => g.knifeId)).toEqual([knife.id])
+    expect(groups[0].lead).toBe(amazon)
+    expect(groups[0].sources).toEqual([soldOut, official, amazon])
+  })
+
+  it('leads with an out-of-stock store only when no store has it', () => {
+    const knife = source().knife
+    const a = source({ knife, priceMinor: 5520, result: 'out_of_stock' })
+    const b = source({ knife, priceMinor: 6900, result: 'out_of_stock' })
+    const groups = groupByKnife([a], [a, b])
+    expect(groups[0].lead.result).toBe('out_of_stock')
+    expect(groups[0].sources).toEqual([a, b])
+  })
 })
