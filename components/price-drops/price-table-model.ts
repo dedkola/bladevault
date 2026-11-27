@@ -77,8 +77,28 @@ export function isSnoozed(source: MonitoredSource): boolean {
   return source.result === 'attention' && source.attention?.class === 'snoozed'
 }
 
+/**
+ * Knives no store sells now: every listing read so far shows out of stock.
+ * Listings not read yet count neither way, like the Wishlist's stock pill.
+ */
+export function soldOutKnives(sources: MonitoredSource[]): Set<string> {
+  const read = new Map<string, boolean>()
+  for (const source of sources) {
+    if (source.availability === null) continue
+    const soldOut = source.availability === 'out_of_stock'
+    read.set(source.knife.id, (read.get(source.knife.id) ?? true) && soldOut)
+  }
+  return new Set(
+    [...read].filter(([, soldOut]) => soldOut).map(([knifeId]) => knifeId),
+  )
+}
+
+/**
+ * Listing-level tabs. Out of stock is about the knife, so it is not here:
+ * see `sectionRows`.
+ */
 export const SECTION_FILTER: Record<
-  Section,
+  Exclude<Section, 'oos'>,
   (source: MonitoredSource) => boolean
 > = {
   all: () => true,
@@ -94,9 +114,23 @@ export const SECTION_FILTER: Record<
   // its regular price now, even at a store just added or restocked.
   increases: (source) => source.result === 'increase' || isAbovePaid(source),
   restocked: (source) => source.result === 'restocked',
-  oos: (source) => source.result === 'out_of_stock',
   attention: (source) => needsAttention(source) || source.retireHint !== null,
   recent: (source) => Boolean(source.lastCheckedAt),
+}
+
+/**
+ * Rows a tab shows. Out of stock lists every listing of a knife that no
+ * store sells, judged on all of its stores (`all`), not only the ones a
+ * search or store filter leaves in `rows`.
+ */
+export function sectionRows(
+  section: Section,
+  rows: MonitoredSource[],
+  all: MonitoredSource[],
+): MonitoredSource[] {
+  if (section !== 'oos') return rows.filter(SECTION_FILTER[section])
+  const soldOut = soldOutKnives(all)
+  return rows.filter((source) => soldOut.has(source.knife.id))
 }
 
 export const EMPTY_TEXT: Record<Section, string> = {

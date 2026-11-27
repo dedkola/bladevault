@@ -7,6 +7,8 @@ import {
   nextSort,
   parseSection,
   SECTION_FILTER,
+  sectionRows,
+  soldOutKnives,
   sortRows,
   storeOptions,
   vsPaid,
@@ -85,6 +87,46 @@ describe('price table model', () => {
     const drops = [full, cut, gone, newStore].filter(SECTION_FILTER.drops)
     expect(drops).toEqual([cut, newStore])
     expect(sortRows('drops', drops, null)).toEqual([newStore, cut])
+  })
+
+  it('lists a knife as out of stock only when no store sells it', () => {
+    const knife = (id: string) => ({
+      id,
+      name: 'Begleiter 2.9',
+      brand: 'Kizer',
+      image: null,
+      subtitle: null,
+    })
+    const out = {
+      availability: 'out_of_stock',
+      result: 'out_of_stock',
+    } as const
+    // One store still sells it: the sold-out stores do not make it sold out.
+    const bladeHq = source({ knife: knife('mixed'), ...out })
+    const amazon = source({ knife: knife('mixed'), availability: 'limited' })
+    // Every store read is sold out; one not read yet counts neither way.
+    const smkw = source({ knife: knife('gone'), ...out })
+    const official = source({ knife: knife('gone'), ...out })
+    const unread = source({
+      knife: knife('gone'),
+      availability: null,
+      result: 'pending',
+    })
+    // Nothing read yet is not out of stock.
+    const fresh = source({
+      knife: knife('fresh'),
+      availability: null,
+      result: 'pending',
+    })
+    const all = [bladeHq, amazon, smkw, official, unread, fresh]
+
+    expect(soldOutKnives(all)).toEqual(new Set(['gone']))
+    expect(sectionRows('oos', all, all)).toEqual([smkw, official, unread])
+    // A store filter shows fewer rows but judges the knife on every store.
+    expect(sectionRows('oos', [bladeHq, smkw], all)).toEqual([smkw])
+    expect(sectionRows('restocked', all, all)).toEqual(
+      all.filter(SECTION_FILTER.restocked),
+    )
   })
 
   it('lists anything dearer than its regular price as up', () => {
@@ -231,7 +273,10 @@ describe('price table model', () => {
     const official = source({ knife, priceMinor: 6900 })
     const other = source()
     const pool = [official, other, amazon, soldOut]
-    const tab = pool.filter(SECTION_FILTER.oos)
+    // Changed lists the sold-out listing alone; Out of stock skips the
+    // knife, since other stores sell it.
+    const tab = pool.filter(SECTION_FILTER.changes)
+    expect(sectionRows('oos', pool, pool)).toEqual([])
     const groups = groupByKnife(tab, pool)
     expect(groups.map((g) => g.knifeId)).toEqual([knife.id])
     expect(groups[0].lead).toBe(amazon)
