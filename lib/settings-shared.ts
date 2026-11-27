@@ -525,16 +525,6 @@ export type PriceMonitoringSettings = {
   thresholds: {
     /** Percent of the previous price, 0–100. */
     minPercent: number
-    /**
-     * Ignore moves smaller than this many units of the price's own currency
-     * (e.g. 3 = $3 or ₴3); 0 turns it off. Applies alongside `minPercent`.
-     */
-    minAmount: number
-    /**
-     * A drop to a store's lowest price so far notifies whatever the percent
-     * threshold (still needs the drop switch and the minimum amount).
-     */
-    allTimeLow: boolean
   }
   /** Optional OpenAI-compatible AI; monitoring works without it. */
   ai: PriceAiSettings
@@ -738,7 +728,6 @@ export type PriceNotifyCategories = {
 export const PRICE_MONITORING_LIMITS = {
   minGapSeconds: [30, 3600],
   minPercent: [0, 100],
-  minAmount: [0, 100_000],
   superSalePercent: [20, 90],
 } as const
 
@@ -754,7 +743,7 @@ export const DEFAULT_PRICE_MONITORING: PriceMonitoringSettings = {
   },
   pacing: { minGapSeconds: 60 },
   notify: { drop: true, increase: false, outOfStock: false, backInStock: true },
-  thresholds: { minPercent: 5, minAmount: 0, allTimeLow: false },
+  thresholds: { minPercent: 5 },
   ai: {
     enabled: false,
     baseUrl: '',
@@ -1252,16 +1241,6 @@ export function normalizePriceMonitoring(
         1,
         fallback.thresholds.minPercent,
       ),
-      minAmount: boundedDecimal(
-        thresholds.minAmount,
-        PRICE_MONITORING_LIMITS.minAmount,
-        2,
-        fallback.thresholds.minAmount,
-      ),
-      allTimeLow:
-        typeof thresholds.allTimeLow === 'boolean'
-          ? thresholds.allTimeLow
-          : fallback.thresholds.allTimeLow,
     },
     ai: normalizePriceAi(record.ai, fallback.ai),
     otherStores: normalizeOtherStores(record.otherStores, fallback.otherStores),

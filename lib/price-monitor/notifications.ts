@@ -27,7 +27,7 @@
  *   increases and stock changes stay on the Price Drops page.
  */
 import type { ChangeEvent } from '@/lib/price-monitor/insights'
-import { formatMoney, toMinorUnits } from '@/lib/price-monitor/money'
+import { formatMoney } from '@/lib/price-monitor/money'
 import type { MonitorTier } from '@/lib/price-monitor/shared'
 import type { PriceMonitoringSettings } from '@/lib/settings-shared'
 
@@ -280,32 +280,17 @@ export function expiredPriceNotificationIds(
   })
 }
 
-type PriceMove = { deltaPct: number; deltaMinor: number; currency: string }
-
-/** Whether a move reaches the minimum amount (0 turns it off). */
-function meetsMinimumAmount(
-  change: PriceMove,
-  thresholds: PriceNotificationSettings['thresholds'],
-): boolean {
-  if (!(thresholds.minAmount > 0)) return true
-  return (
-    Math.abs(change.deltaMinor) >=
-    toMinorUnits(thresholds.minAmount, change.currency)
-  )
-}
+type PriceMove = { deltaPct: number }
 
 /**
- * Whether a price change is big enough: at least `minPercent` and at least
- * `minAmount` in its own currency. Thresholds of 0 let every change through.
+ * Whether a price change is big enough: at least `minPercent` of the
+ * previous price. A threshold of 0 lets every change through.
  */
 export function meetsPriceThreshold(
   change: PriceMove,
   thresholds: PriceNotificationSettings['thresholds'],
 ): boolean {
-  return (
-    Math.abs(change.deltaPct) >= thresholds.minPercent &&
-    meetsMinimumAmount(change, thresholds)
-  )
+  return Math.abs(change.deltaPct) >= thresholds.minPercent
 }
 
 /** Whether the knife or the source is muted at `now`. */
@@ -374,8 +359,7 @@ function collectionNotifyReason(
  *   notifies whatever the thresholds;
  * - with "only below regular price", the new price must be under the
  *   regular price (ignored when no comparable regular price is stored);
- * - with `allTimeLow` on, a new lowest price for the source skips the
- *   percent threshold (the minimum amount still applies).
+ * - otherwise it must move by at least the minimum percent.
  */
 export function shouldNotify(
   event: PriceNotificationEvent,
@@ -425,14 +409,7 @@ function usualNotify(
     return false
   const previousMinor = event.priceMinor - event.deltaMinor
   if (target !== null && previousMinor > target) return true
-  if (meetsPriceThreshold(event, settings.thresholds)) return true
-  const lowest = context?.lowestBeforeMinor ?? null
-  return (
-    settings.thresholds.allTimeLow &&
-    lowest !== null &&
-    event.priceMinor < lowest &&
-    meetsMinimumAmount(event, settings.thresholds)
-  )
+  return meetsPriceThreshold(event, settings.thresholds)
 }
 
 /**

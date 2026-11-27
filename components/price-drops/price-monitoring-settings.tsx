@@ -347,47 +347,22 @@ export function PriceMonitoringSettings({
           onChange={(scope) => update({ scope })}
         />
         {settings.scope.kind !== 'all' ? (
-          <>
-            <SettingsRow
-              inline
-              label="Check the rest of the collection in free time"
-              description="Knives outside What to monitor are checked between rounds, at most once a day, and Other stores looks for them too. A round of What to monitor always comes first: the collection waits until it is done. Their prices and drops show on Price Drops."
-            >
-              <SettingsSwitch
-                aria-label="Check the rest of the collection in free time"
-                checked={settings.collectionPass.enabled}
-                disabled={off}
-                onCheckedChange={(enabled) =>
-                  update({
-                    collectionPass: { ...settings.collectionPass, enabled },
-                  })
-                }
-              />
-            </SettingsRow>
-            {settings.collectionPass.enabled ? (
-              <SettingsRow
-                label="Notify only about a super sale"
-                description="The rest of the collection sends an Inbox message only when a price falls at least this far below the knife’s regular price, or reaches its own target price. Smaller drops, increases and stock changes stay on Price Drops."
-              >
-                <NumberField
-                  aria-label="Super sale: percent below regular price"
-                  value={settings.collectionPass.superSalePercent}
-                  min={PRICE_MONITORING_LIMITS.superSalePercent[0]}
-                  max={PRICE_MONITORING_LIMITS.superSalePercent[1]}
-                  unit="% below regular"
-                  disabled={off}
-                  onCommit={(superSalePercent) =>
-                    update({
-                      collectionPass: {
-                        ...settings.collectionPass,
-                        superSalePercent,
-                      },
-                    })
-                  }
-                />
-              </SettingsRow>
-            ) : null}
-          </>
+          <SettingsRow
+            inline
+            label="Check the rest of the collection in free time"
+            description="Knives outside What to monitor are checked between rounds, at most once a day, and Other stores looks for them too. A round of What to monitor always comes first: the collection waits until it is done. Their prices and drops show on Price Drops; set when they notify in Notifications."
+          >
+            <SettingsSwitch
+              aria-label="Check the rest of the collection in free time"
+              checked={settings.collectionPass.enabled}
+              disabled={off}
+              onCheckedChange={(enabled) =>
+                update({
+                  collectionPass: { ...settings.collectionPass, enabled },
+                })
+              }
+            />
+          </SettingsRow>
         ) : null}
         <SettingsRow
           inline

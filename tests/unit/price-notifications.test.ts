@@ -89,16 +89,8 @@ function stored(patch: Partial<PriceNotification> = {}): PriceNotification {
 const nowIso = NOW.toISOString()
 
 describe('meetsPriceThreshold', () => {
-  const change = (deltaPct: number) => ({
-    deltaPct,
-    deltaMinor: deltaPct * 100,
-    currency: 'USD',
-  })
-  const percent = (minPercent: number) => ({
-    minPercent,
-    minAmount: 0,
-    allTimeLow: false,
-  })
+  const change = (deltaPct: number) => ({ deltaPct })
+  const percent = (minPercent: number) => ({ minPercent })
 
   it('notifies when the change reaches the percent in either direction', () => {
     const thresholds = percent(5)
@@ -590,43 +582,12 @@ describe('alert rules (shouldNotify)', () => {
     ).toBe(true)
   })
 
-  it('applies the minimum amount in the price currency', () => {
-    const amount = settings({ thresholds: { minPercent: 0, minAmount: 3 } })
-    expect(shouldNotify(drop(10_000, 9_750), amount, null, NOW)).toBe(false)
-    expect(shouldNotify(drop(10_000, 9_700), amount, null, NOW)).toBe(true)
-    // JPY has no minor unit: 3 means ¥3.
-    const yen = priceEvent(-2, -0.5, { currency: 'JPY', priceMinor: 398 })
-    expect(shouldNotify(yen, amount, null, NOW)).toBe(false)
-  })
-
-  it('notifies a new all-time low below the percent when the setting is on', () => {
+  it('holds a new lowest price below the percent like any small drop', () => {
     const low = alertContext({ lowestBeforeMinor: 9_900 })
-    const small = drop(10_000, 9_800) // -2%, a new low
-    expect(shouldNotify(small, DEFAULTS, low, NOW)).toBe(false)
-    const on = settings({ thresholds: { allTimeLow: true } })
-    expect(shouldNotify(small, on, low, NOW)).toBe(true)
-    // Not a new low.
-    expect(shouldNotify(drop(10_000, 9_900), on, low, NOW)).toBe(false)
-    // No history yet.
-    expect(shouldNotify(small, on, alertContext(), NOW)).toBe(false)
-    // The minimum amount still applies.
-    expect(
-      shouldNotify(
-        small,
-        settings({ thresholds: { allTimeLow: true, minAmount: 5 } }),
-        low,
-        NOW,
-      ),
-    ).toBe(false)
-    // The drop switch still applies.
-    expect(
-      shouldNotify(
-        small,
-        settings({ notify: { drop: false }, thresholds: { allTimeLow: true } }),
-        low,
-        NOW,
-      ),
-    ).toBe(false)
+    // -2%, a new low for the store: still under the 5% minimum.
+    expect(shouldNotify(drop(10_000, 9_800), DEFAULTS, low, NOW)).toBe(false)
+    // -6%, a new low past the minimum.
+    expect(shouldNotify(drop(10_000, 9_400), DEFAULTS, low, NOW)).toBe(true)
   })
 
   it('lets the planner resolve an open message even while muted', () => {

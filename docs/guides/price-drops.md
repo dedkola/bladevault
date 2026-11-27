@@ -31,7 +31,7 @@ While What to monitor is the Wishlist or Selected knives, turn on **Check the re
 - Rounds of What to monitor keep their schedule and always come first. Between them, the rest of the collection is checked knife by knife, at most once a day, with the same pause between knives. When a round falls due, the knife in progress finishes, the round runs, and the collection continues where it stopped.
 - **Other stores** looks for these knives too, at each store's usual search pace.
 - Their prices, drops, and charts appear on **Price Drops** and the knife's **Market** tab like any other monitored knife. The Wishlist page still shows only Wishlist knives.
-- They notify only about a super sale: a price at least **Notify only about a super sale** percent below the knife's regular price (50% by default, from 20 to 90), or a drop to the knife's own target price. Smaller drops, increases, and stock changes do not notify. The setting needs a stored regular price in the store's currency to compare with.
+- They notify only about a super sale: a price at least **Notify only about a super sale** percent (in **Settings → Notifications → Rest of the collection**) below the knife's regular price (50% by default, from 20 to 90), or a drop to the knife's own target price. Smaller drops, increases, and stock changes do not notify. The setting needs a stored regular price in the store's currency to compare with.
 - A failed check of these knives is not put on the retry list; the next day's pass reads it again. The AI supervisor and the daily summary stay with What to monitor.
 
 The Price Drops header shows the pass, such as **Collection: 40 of 312**, with **waits for the round** while a round runs, or when the next pass starts.
@@ -162,13 +162,9 @@ Choose which changes notify you in **Settings → Notifications → Price drops 
 
 To stop out-of-stock alerts from any notification, select **Stop out-of-stock alerts** on an out-of-stock message: it turns **Out of stock** off for every knife and clears the open out-of-stock messages. Stock is still checked and shown, and **Back in stock** still notifies. **Don't notify when the official site is out of stock** (under **Price monitoring**) quiets only the knife's own product link the same way.
 
-**Minimum change** filters small price moves: a price change notifies only when it moves by at least this percentage of the previous price. The default is 5%. The same threshold decides which moves count as a change on the Price Drops page (see [Small moves and fluctuating prices](#small-moves-and-fluctuating-prices)). Set it to 0 to be notified about every price change. Stock changes always notify when their switch is on.
+**Minimum change** filters small price moves of knives in What to monitor: a price change notifies only when it moves by at least this percentage of the previous price. The default is 5%. The same threshold decides which moves count as a change on the Price Drops page (see [Small moves and fluctuating prices](#small-moves-and-fluctuating-prices)). Set it to 0 to be notified about every price change. Stock changes always notify when their switch is on.
 
-**Minimum amount** also ignores price changes smaller than this many units of the price's own currency, for example 3 to skip moves under $3, €3, or ₴3. A change must pass both the percentage and the amount. The default is 0 (off).
-
-Knives that the collection pass checks (see [Wishlist first, the rest of the collection in free time](#wishlist-first-the-rest-of-the-collection-in-free-time)) follow their own rule: they notify only about a super sale, marked **Super sale · 55% below regular** in the Inbox and titled **Super sale** in desktop notifications.
-
-**Always notify about a new lowest price** (off by default) lets a drop to the lowest price a store has shown for the knife notify even when it is below the minimum percentage. It still needs **Price drops** on, and the minimum amount still applies.
+Knives that the collection pass checks (see [Wishlist first, the rest of the collection in free time](#wishlist-first-the-rest-of-the-collection-in-free-time)) follow their own rule, set under **Settings → Notifications → Rest of the collection**: they notify only about a super sale, marked **Super sale · 55% below regular** in the Inbox and titled **Super sale** in desktop notifications. The field is unavailable until **Check the rest of the collection in free time** is on.
 
 ### Alerts for one knife
 
