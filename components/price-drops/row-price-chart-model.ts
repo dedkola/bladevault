@@ -3,10 +3,11 @@ import { wishlistMoves, type WishlistTrend } from '@/lib/wishlist'
 import { money } from './price-format'
 
 /**
- * The row chart on Price Drops and Wishlist (mockup variant A): one filled
- * area for the best store price, a dot in the store's colour for every
- * store reading, and a thin line at the item's own price. The scale fits
- * all of them, the item's price included.
+ * The price chart on Price Drops, Wishlist and the open item: a plain line
+ * through every store reading in time order (a higher price takes it up, a
+ * lower one down), coloured by price from green (cheapest) to red (dearest),
+ * with a dot in the store's colour for every reading. The scale fits the
+ * readings.
  */
 
 /** One store's own history, drawn as dots. */
@@ -16,12 +17,6 @@ export type RowChartStore = {
   label: string
   trend: WishlistTrend
 }
-
-/**
- * How long before a price change the curve starts to bend, at most: the
- * price holds until the move instead of drifting across days.
- */
-export const ROW_CHART_HOLD_MS = 3 * 3_600_000
 
 /** Room above and below the prices, as a share of their range. */
 const RANGE_PAD = 0.12
@@ -58,40 +53,109 @@ export function storeColor(key: string, dark = false): string {
 
 type Priced = { at: number; price: number }
 
+/**
+ * Every price a store showed, in stock or not (`readings`); a trend without
+ * them falls back to its in-stock steps. The chart is price history: stock
+ * shows elsewhere.
+ */
+export function shownPrices(
+  trend: Pick<WishlistTrend, 'steps' | 'readings'>,
+): Priced[] {
+  return (
+    trend.readings ??
+    trend.steps.filter((step): step is Priced => step.price !== null)
+  )
+}
+
 function pricedSteps(trend: WishlistTrend): Priced[] {
   return trend.steps.filter((step): step is Priced => step.price !== null)
 }
 
-/** A point of the best-price line; bend points carry no symbol. */
-export type RowChartPoint = { value: [number, number]; symbol?: 'none' }
+/**
+ * Every price from every store in the trend's currency (`shownPrices`, in
+ * stock or not), merged in time order: the points of the price line. A
+ * store's price in force when the window opens counts as a reading at its
+ * start; readings at the same moment keep the stores' order. The latest
+ * reading holds to the window's end so the line reaches the right edge.
+ * Without stores, the trend's own prices are used.
+ */
+export function rowChartReadings(
+  trend: Pick<
+    WishlistTrend,
+    'steps' | 'readings' | 'since' | 'until' | 'currency'
+  >,
+  stores: readonly RowChartStore[],
+): Array<[number, number]> {
+  const own = stores.filter((store) => store.trend.currency === trend.currency)
+  const sources = own.length ? own.map((store) => store.trend) : [trend]
+  const readings: Array<{ at: number; price: number; order: number }> = []
+  sources.forEach((source, order) => {
+    const shown = shownPrices(source)
+    const opening = shown.filter((step) => step.at < trend.since).at(-1)
+    if (opening) readings.push({ at: trend.since, price: opening.price, order })
+    for (const step of shown)
+      if (step.at >= trend.since && step.at <= trend.until)
+        readings.push({ at: step.at, price: step.price, order })
+  })
+  readings.sort((a, b) => a.at - b.at || a.order - b.order)
+  const points = readings.map(
+    (reading) => [reading.at, reading.price] as [number, number],
+  )
+  const last = points.at(-1)
+  if (last && last[0] < trend.until) points.push([trend.until, last[1]])
+  return points
+}
 
 /**
- * The best price as smooth steps: each price holds until shortly before
- * the next one (at most `ROW_CHART_HOLD_MS`, at most 40% of the gap), and
- * the last one runs to `until`. Out-of-stock stretches keep the line
- * unbroken at the last price.
+ * The price line: a smooth curve through the readings over a light fill in
+ * the line's colours. Monotone along time, so the curve never swings past a
+ * reading.
  */
-export function rowChartLine(
-  trend: Pick<WishlistTrend, 'steps' | 'until'>,
-): RowChartPoint[] {
-  const priced = trend.steps.filter(
-    (step): step is Priced => step.price !== null,
-  )
-  const points: RowChartPoint[] = []
-  priced.forEach((step, index) => {
-    const previous = priced[index - 1]
-    if (previous && previous.price !== step.price) {
-      const gap = step.at - previous.at
-      const bend = Math.min(ROW_CHART_HOLD_MS, gap * 0.4)
-      if (gap > 0)
-        points.push({ value: [step.at - bend, previous.price], symbol: 'none' })
-    }
-    points.push({ value: [step.at, step.price] })
-  })
-  const last = priced[priced.length - 1]
-  if (last && last.at < trend.until)
-    points.push({ value: [trend.until, last.price], symbol: 'none' })
-  return points
+export function priceLineSeries(
+  readings: Array<[number, number]>,
+  flatColor: string,
+  width = 2,
+) {
+  const prices = readings.map((point) => point[1])
+  const flat = Math.min(...prices) === Math.max(...prices)
+  return {
+    name: 'Price',
+    type: 'line' as const,
+    smooth: 0.4,
+    smoothMonotone: 'x' as const,
+    showSymbol: false,
+    symbol: 'none',
+    z: 2,
+    lineStyle: flat ? { width, color: flatColor } : { width },
+    itemStyle: flat ? { color: flatColor } : undefined,
+    // Without a colour of its own the fill takes the line's price gradient.
+    areaStyle: flat ? { color: flatColor, opacity: 0.12 } : { opacity: 0.12 },
+    data: readings,
+  }
+}
+
+/**
+ * The line's colour by price, as in the ECharts line-gradient example:
+ * green at the lowest reading, red at the highest. Null when every reading
+ * is the same price (the line is then grey).
+ */
+export function priceLineVisualMap(
+  readings: Array<[number, number]>,
+  colors: { down: string; up: string },
+) {
+  const prices = readings.map((point) => point[1])
+  const min = Math.min(...prices)
+  const max = Math.max(...prices)
+  if (!prices.length || min === max) return null
+  return {
+    show: false,
+    type: 'continuous' as const,
+    seriesIndex: 0,
+    dimension: 1,
+    min,
+    max,
+    inRange: { color: [colors.down, colors.up] },
+  }
 }
 
 /**
@@ -226,23 +290,23 @@ export function rowChartOption(
   /** The chart's right edge in the window, read when the tooltip shows. */
   chartRight: () => number | null = () => null,
 ): EChartsOption {
-  const { trend, regularMinor } = input
+  const { trend } = input
   const stores = input.stores.filter(
     (store) => store.trend.currency === trend.currency,
   )
-  const direction = rowChartDirection(trend)
-  const color = colors[direction]
+  const readings = rowChartReadings(trend, stores)
+  const visualMap = priceLineVisualMap(readings, colors)
   const dots = stores.map((store) => ({
     store,
-    points: pricedSteps(store.trend).filter(
+    points: shownPrices(store.trend).filter(
       (step) => step.at >= trend.since && step.at <= trend.until,
     ),
   }))
-  const range = rowChartRange([
-    ...pricedSteps(trend).map((step) => step.price),
-    ...dots.flatMap((dot) => dot.points.map((point) => point.price)),
-    ...(regularMinor ? [regularMinor] : []),
-  ])
+  const range = rowChartRange(
+    readings.length
+      ? readings.map((point) => point[1])
+      : pricedSteps(trend).map((step) => step.price),
+  )
   return {
     animation: false,
     grid: { left: 3, right: 3, top: 4, bottom: 4 },
@@ -278,34 +342,9 @@ export function rowChartOption(
     },
     xAxis: { type: 'time', min: trend.since, max: trend.until, show: false },
     yAxis: { type: 'value', min: range.min, max: range.max, show: false },
+    ...(visualMap ? { visualMap } : {}),
     series: [
-      {
-        name: 'Best price',
-        type: 'line',
-        smooth: 0.35,
-        smoothMonotone: 'x',
-        symbol: 'none',
-        z: 2,
-        lineStyle: { color, width: 2 },
-        itemStyle: { color },
-        areaStyle: { color, opacity: 0.16 },
-        data: rowChartLine(trend),
-        markLine: regularMinor
-          ? {
-              silent: true,
-              symbol: 'none',
-              animation: false,
-              label: { show: false },
-              lineStyle: {
-                color: colors.muted,
-                width: 1,
-                type: 'solid',
-                opacity: 0.7,
-              },
-              data: [{ yAxis: regularMinor }],
-            }
-          : undefined,
-      },
+      priceLineSeries(readings, colors.flat),
       ...dots.map(({ store, points }) => ({
         name: store.label,
         type: 'scatter' as const,

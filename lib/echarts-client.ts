@@ -10,6 +10,7 @@ import {
   MarkAreaComponent,
   MarkLineComponent,
   TooltipComponent,
+  VisualMapContinuousComponent,
 } from 'echarts/components'
 import { LabelLayout } from 'echarts/features'
 import * as echarts from 'echarts/core'
@@ -25,6 +26,7 @@ echarts.use([
   MarkAreaComponent,
   MarkLineComponent,
   TooltipComponent,
+  VisualMapContinuousComponent,
   LabelLayout,
   SVGRenderer,
 ])

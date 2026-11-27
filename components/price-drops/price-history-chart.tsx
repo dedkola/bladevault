@@ -23,9 +23,11 @@ import {
 } from './price-history-model'
 import {
   priceAt,
-  rowChartDirection,
-  rowChartLine,
+  priceLineSeries,
+  priceLineVisualMap,
   rowChartRange,
+  rowChartReadings,
+  shownPrices,
   storeColor,
 } from './row-price-chart-model'
 import './price-drops.css'
@@ -294,11 +296,10 @@ function axisMoney(minor: number, currency: string | null): string {
 }
 
 /**
- * The open knife's price history, drawn like the row charts (mockup
- * variant A): one filled area for the best in-stock price across its
- * stores, coloured by its latest move in the range, a dot in the store's
- * colour for every store reading, and a thin line at the regular price
- * (your price) at its true place on a scale fitted to the prices. Markers
+ * The open knife's price history, drawn like the row charts: a plain line
+ * through every store reading in time order, coloured by price from green
+ * (cheapest) to red (dearest), and a dot in the store's colour for every
+ * reading, on a scale fitted to the prices. Markers
  * show price drops and increases and the lowest price seen; the tooltip
  * lists every store's price and stock at the hovered moment.
  */
@@ -313,8 +314,9 @@ export function PriceHistoryChart({
   const buildOption = useCallback(
     (palette: InsightsChartPalette): EChartsOption => {
       const dark = isDarkMode()
-      const trends = historyChartTrends(history, currency)
-      const end = historyEnd(history)
+      // To today, like the row charts: the latest prices hold until now.
+      const trends = historyChartTrends(history, currency, Date.now())
+      const end = trends?.best.until ?? historyEnd(history)
       const xMin = history.chartStart ? Date.parse(history.chartStart) : null
       const regular = regularMinor(history, currency)
       const lineColor = {
@@ -329,21 +331,21 @@ export function PriceHistoryChart({
       }
       const markers = buildMarkers(history, currency, xMin)
       const best = trends?.best
-      const color = best ? lineColor[rowChartDirection(best)] : lineColor.flat
+      // Every store reading in time order: up on a higher price, down on a
+      // lower one, coloured green (cheapest) to red (dearest).
+      const readings = trends
+        ? rowChartReadings(trends.best, trends.stores)
+        : []
+      const visualMap = priceLineVisualMap(readings, lineColor)
       const dots = (trends?.stores ?? []).map((store) => ({
         store,
-        points: store.trend.steps.filter(
-          (step): step is { at: number; price: number } =>
-            step.price !== null && (xMin === null || step.at >= xMin),
+        points: shownPrices(store.trend).filter(
+          (step) => xMin === null || step.at >= xMin,
         ),
       }))
       const prices = [
-        ...(best?.steps ?? []).flatMap((step) =>
-          step.price === null ? [] : [step.price],
-        ),
-        ...dots.flatMap((dot) => dot.points.map((point) => point.price)),
+        ...readings.map((point) => point[1]),
         ...markers.map((marker) => marker.minor),
-        ...(regular ? [regular] : []),
       ]
       const range = prices.length ? rowChartRange(prices) : null
       const xValues = [
@@ -443,38 +445,9 @@ export function PriceHistoryChart({
           },
           splitLine: { lineStyle: { color: palette.ringTrack } },
         },
+        ...(visualMap ? { visualMap } : {}),
         series: [
-          {
-            type: 'line',
-            name: 'Best price',
-            smooth: 0.35,
-            smoothMonotone: 'x',
-            symbol: 'none',
-            z: 2,
-            lineStyle: { color, width: 2 },
-            itemStyle: { color },
-            areaStyle: { color, opacity: 0.16 },
-            data: best ? rowChartLine(best) : [],
-            markLine: regular
-              ? {
-                  silent: true,
-                  symbol: 'none',
-                  label: {
-                    formatter: `your price ${money(regular, currency)}`,
-                    color: palette.muted,
-                    fontSize: 10,
-                    position: 'insideEndTop',
-                  },
-                  lineStyle: {
-                    color: palette.muted,
-                    width: 1,
-                    type: 'solid',
-                    opacity: 0.7,
-                  },
-                  data: [{ yAxis: regular }],
-                }
-              : undefined,
-          },
+          priceLineSeries(readings, lineColor.flat),
           ...dots.map(({ store, points }) => ({
             type: 'scatter' as const,
             name: store.label,
@@ -548,14 +521,8 @@ function MarkerSwatch({
   )
 }
 
-const DIRECTION_COLOR = {
-  down: 'var(--price-drop, #2f7d46)',
-  up: 'var(--price-rise, #b4232a)',
-  flat: 'var(--price-neutral, #9a958b)',
-} as const
-
 /**
- * The chart's key (best price, each store's dots, your price, markers),
+ * The chart's key (the price line, each store's dots, markers),
  * plus notes on what the chart leaves out: where tracking began when the
  * range reaches back further, and stores priced in another currency.
  */
@@ -574,7 +541,6 @@ export function ChartLegend({ history }: { history: KnifeHistory }) {
     (source) => source.points.length && !source.variantTitle,
   )
   const dark = isDarkMode()
-  const regular = regularMinor(history, currency)
   return (
     <div className="space-y-1">
       {fitted || hiddenNote ? (
@@ -604,13 +570,13 @@ export function ChartLegend({ history }: { history: KnifeHistory }) {
             <span
               aria-hidden="true"
               data-price-legend-best
-              className="inline-block h-2.5 w-3.5 rounded-[2px]"
+              className="inline-block h-0.5 w-3.5 rounded-full"
               style={{
-                background: `color-mix(in srgb, ${DIRECTION_COLOR[rowChartDirection(trends.best)]} 22%, transparent)`,
-                borderTop: `2px solid ${DIRECTION_COLOR[rowChartDirection(trends.best)]}`,
+                background:
+                  'linear-gradient(90deg, var(--price-drop, #2f7d46), var(--price-rise, #b4232a))',
               }}
             />
-            {stores.length > 1 ? 'Best price' : 'Price'}
+            Price
           </span>
         ) : null}
         {stores.map((source) => (
@@ -627,15 +593,6 @@ export function ChartLegend({ history }: { history: KnifeHistory }) {
             {historyLineLabel(source)}
           </span>
         ))}
-        {regular ? (
-          <span className="inline-flex items-center gap-1.5">
-            <span
-              aria-hidden="true"
-              className="inline-block w-3.5 border-t border-muted-foreground"
-            />
-            Your price {money(regular, currency)}
-          </span>
-        ) : null}
         {kinds.has('drop') ? <MarkerSwatch kind="drop" label="Drop" /> : null}
         {kinds.has('increase') ? (
           <MarkerSwatch kind="increase" label="Increase" />

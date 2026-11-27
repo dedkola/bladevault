@@ -85,10 +85,47 @@ type SnapshotRow = {
 }
 
 /**
+ * Every price the stores showed in `currency` (in stock or not) from
+ * `start` to `end`, oldest first, for the price line. Each store's latest
+ * price from before `start` counts at `start`; a store repeating its last
+ * price adds nothing.
+ */
+function chartReadings(
+  rows: readonly SnapshotRow[],
+  currency: string,
+  start: number,
+  end: number,
+): NonNullable<WishlistTrend['readings']> {
+  const shown = (row: SnapshotRow) =>
+    row.price_minor !== null && row.currency === currency
+  const before = new Map<number, number>()
+  const inWindow: SnapshotRow[] = []
+  for (const row of rows) {
+    if (!shown(row)) continue
+    const at = Date.parse(row.observed_at)
+    if (at < start) before.set(row.source_id, row.price_minor!)
+    else if (at <= end) inWindow.push(row)
+  }
+  const readings: NonNullable<WishlistTrend['readings']> = []
+  const last = new Map<number, number>()
+  for (const [source, price] of before) {
+    readings.push({ at: start, price })
+    last.set(source, price)
+  }
+  for (const row of inWindow) {
+    if (last.get(row.source_id) === row.price_minor) continue
+    last.set(row.source_id, row.price_minor!)
+    readings.push({ at: Date.parse(row.observed_at), price: row.price_minor! })
+  }
+  return readings
+}
+
+/**
  * Daily best in-stock price over the last 30 days and the 90-day low and
  * high, from price snapshots (oldest first) of one or more store links. A
  * snapshot holds its price until the next snapshot of the same store
- * replaces it. Null when nothing was in stock in the window.
+ * replaces it. `readings` lists every price shown, in stock or not, for
+ * the price line. Null when no store showed a price at all.
  *
  * Charts are built from the item's regular price, so they use its currency
  * (`regularCurrency`) whenever a store's latest in-stock reading is in it.
@@ -98,21 +135,19 @@ function trendFromSnapshots(
   now: number,
   regularCurrency: string | null = null,
 ): WishlistTrend | null {
-  const priced = rows.filter(
-    (row) =>
-      row.price_minor !== null &&
-      row.currency &&
-      row.availability !== 'out_of_stock',
-  )
-  if (!priced.length) return null
+  const listed = rows.filter((row) => row.price_minor !== null && row.currency)
+  if (!listed.length) return null
+  const priced = listed.filter((row) => row.availability !== 'out_of_stock')
   // The currency the stores price it in now: each store's latest in-stock
   // reading counts once. The regular price's currency wins when a store
   // shows it, so the chart stays comparable to the regular price; otherwise
   // the most common one, and a tie goes to the newest. Counting every old
   // snapshot let a store that once showed another currency keep the chart
   // in it after it switched.
+  // Only out-of-stock prices so far: the currency they are shown in.
   const latest = new Map<number, SnapshotRow>()
-  for (const row of priced) latest.set(row.source_id, row)
+  for (const row of priced.length ? priced : listed)
+    latest.set(row.source_id, row)
   const counts = new Map<string, { count: number; at: string }>()
   for (const row of latest.values()) {
     const seen = counts.get(row.currency!)
@@ -182,8 +217,9 @@ function trendFromSnapshots(
     steps,
     since: chartStart,
     until: now,
-    lowMinor: Math.min(...prices),
-    highMinor: Math.max(...prices),
+    readings: chartReadings(rows, currency, chartStart, now),
+    lowMinor: prices.length ? Math.min(...prices) : null,
+    highMinor: prices.length ? Math.max(...prices) : null,
   }
 }
 

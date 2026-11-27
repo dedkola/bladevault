@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
-  ROW_CHART_HOLD_MS,
   cachedRowChartStores,
   priceAt,
+  priceLineVisualMap,
   rowChartDirection,
-  rowChartLine,
   rowChartOption,
+  rowChartReadings,
   rowChartRange,
   rowChartTooltip,
   rowChartTooltipPosition,
@@ -16,7 +16,6 @@ import {
 import type { WishlistTrend } from '@/lib/wishlist'
 
 const at = (iso: string) => Date.parse(iso)
-const H = 3_600_000
 
 function trend(
   steps: Array<[string, number | null]>,
@@ -63,40 +62,98 @@ const colors: RowChartColors = {
   dark: false,
 }
 
-describe('rowChartLine', () => {
-  it('holds each price until just before the next move (smooth steps)', () => {
-    const points = rowChartLine(best)
-    expect(points.map((point) => point.value)).toEqual([
-      [at('2026-11-19T08:45:00Z'), 13900],
-      [at('2026-11-24T17:54:00Z') - ROW_CHART_HOLD_MS, 13900],
-      [at('2026-11-24T17:54:00Z'), 11120],
-      [at('2026-11-25T04:52:00Z') - ROW_CHART_HOLD_MS, 11120],
-      [at('2026-11-25T04:52:00Z'), 13900],
-      [best.until, 13900],
+// Kizer Drop Bear (real readings): Kizer at $42, its regular price; Blade
+// HQ first seen two days in at $59.99; SMKW at $42 later.
+const BEAR_END = '2026-11-27T09:00:00Z'
+const kizer = trend([['2026-11-19T12:05:00Z', 4200]], BEAR_END)
+const dropBearStores: RowChartStore[] = [
+  { key: 'kizerknives.com', label: 'Kizer', trend: kizer },
+  {
+    key: 'bladehq.com',
+    label: 'Blade HQ',
+    trend: trend([['2026-11-21T06:26:00Z', 5999]], BEAR_END),
+  },
+  {
+    key: 'smkw.com',
+    label: 'SMKW',
+    trend: trend([['2026-11-25T16:00:00Z', 4200]], BEAR_END),
+  },
+]
+
+describe('rowChartReadings', () => {
+  it('runs through every store reading in time order to the end', () => {
+    expect(rowChartReadings(kizer, dropBearStores)).toEqual([
+      [at('2026-11-19T12:05:00Z'), 4200],
+      [at('2026-11-21T06:26:00Z'), 5999],
+      [at('2026-11-25T16:00:00Z'), 4200],
+      [at(BEAR_END), 4200],
     ])
-    // Bend and end points carry no dot.
-    expect(points.filter((point) => point.symbol === 'none')).toHaveLength(3)
   })
 
-  it('bends over at most 40% of a short gap', () => {
-    const quick = trend([
-      ['2026-11-25T10:00:00Z', 12776],
-      ['2026-11-25T12:00:00Z', 12790],
-    ])
-    expect(rowChartLine(quick)[1].value[0]).toBe(
-      at('2026-11-25T12:00:00Z') - 0.4 * 2 * H,
-    )
-  })
-
-  it('keeps the line unbroken through out-of-stock readings', () => {
+  it('skips out-of-stock readings and other currencies', () => {
     const gap = trend([
       ['2026-11-25T01:00:00Z', 12757],
       ['2026-11-25T02:00:00Z', null],
-      ['2026-11-25T03:00:00Z', 12757],
+      ['2026-11-25T03:00:00Z', 12800],
     ])
-    expect(rowChartLine(gap).every((point) => point.value[1] === 12757)).toBe(
-      true,
-    )
+    const euro: RowChartStore = {
+      key: 'example.eu',
+      label: 'EU',
+      trend: trend([['2026-11-25T01:30:00Z', 9000]], undefined, 'EUR'),
+    }
+    expect(
+      rowChartReadings(gap, [
+        { key: 'a.com', label: 'A', trend: gap },
+        euro,
+      ]).map((point) => point[1]),
+    ).toEqual([12757, 12800, 12800])
+  })
+
+  it("uses the trend's own steps without stores", () => {
+    expect(rowChartReadings(best, [])).toEqual([
+      [at('2026-11-19T08:45:00Z'), 13900],
+      [at('2026-11-24T17:54:00Z'), 11120],
+      [at('2026-11-25T04:52:00Z'), 13900],
+      [best.until, 13900],
+    ])
+  })
+
+  it('counts prices shown while out of stock', () => {
+    const artisan = {
+      ...trend([['2026-11-18T20:33:00Z', null]], BEAR_END),
+      readings: [{ at: at('2026-11-18T20:33:00Z'), price: 12855 }],
+    }
+    const bladehq = trend([['2026-11-25T15:25:00Z', 19995]], BEAR_END)
+    expect(
+      rowChartReadings({ ...artisan, steps: [] }, [
+        { key: 'artisancutlery.net', label: 'Artisan', trend: artisan },
+        { key: 'bladehq.com', label: 'Blade HQ', trend: bladehq },
+      ]).map((point) => point[1]),
+    ).toEqual([12855, 19995, 19995])
+  })
+
+  it('counts a store price set before the window as its first reading', () => {
+    const window = { ...kizer, since: at('2026-11-22T00:00:00Z') }
+    expect(rowChartReadings(window, dropBearStores).slice(0, 2)).toEqual([
+      [window.since, 4200],
+      [window.since, 5999],
+    ])
+  })
+})
+
+describe('priceLineVisualMap', () => {
+  it('colours the line green at the lowest reading, red at the highest', () => {
+    expect(
+      priceLineVisualMap(rowChartReadings(kizer, dropBearStores), colors),
+    ).toMatchObject({
+      show: false,
+      seriesIndex: 0,
+      dimension: 1,
+      min: 4200,
+      max: 5999,
+      inRange: { color: ['green', 'red'] },
+    })
+    expect(priceLineVisualMap(rowChartReadings(kizer, []), colors)).toBeNull()
   })
 })
 
@@ -141,43 +198,55 @@ describe('storeColor', () => {
 })
 
 describe('rowChartOption', () => {
-  it('draws the best price, a dot per store reading and your price', () => {
+  it('draws a smooth price line through every reading and the store dots', () => {
     const option = rowChartOption(
-      { trend: best, stores, regularMinor: 13900 },
+      { trend: kizer, stores: dropBearStores, regularMinor: 4200 },
       colors,
     )
     const series = option.series as Array<Record<string, unknown>>
     expect(series[0]).toMatchObject({
       type: 'line',
-      smooth: 0.35,
-      lineStyle: { color: 'red' },
-      areaStyle: { color: 'red' },
-      markLine: { data: [{ yAxis: 13900 }] },
+      showSymbol: false,
+      smooth: 0.4,
+      smoothMonotone: 'x',
     })
+    expect(series[0].areaStyle).toEqual({ opacity: 0.12 })
+    expect(series[0].markLine).toBeUndefined()
+    expect((series[0].data as number[][]).map((point) => point[1])).toEqual([
+      4200, 5999, 4200, 4200,
+    ])
+    expect(option.visualMap).toMatchObject({ min: 4200, max: 5999 })
     expect(
       series.slice(1).map((s) => [s.name, (s.data as unknown[]).length]),
     ).toEqual([
-      ['Vosteed', 1],
-      ['Amazon', 2],
+      ['Kizer', 1],
+      ['Blade HQ', 1],
+      ['SMKW', 1],
     ])
     const y = option.yAxis as { min: number; max: number }
-    expect(y.min).toBeLessThan(11120)
-    expect(y.max).toBeGreaterThan(13900)
+    expect(y.min).toBeLessThan(4200)
+    expect(y.max).toBeGreaterThan(5999)
   })
 
-  it('puts your price at its true position on the scale', () => {
-    const chief = trend([
-      ['2026-11-23T18:05:00Z', 16125],
-      ['2026-11-24T21:35:00Z', 12200],
-    ])
+  it('draws a grey line when every reading is the same price', () => {
     const option = rowChartOption(
-      { trend: chief, stores: [], regularMinor: 21500 },
+      { trend: kizer, stores: [], regularMinor: 4200 },
       colors,
     )
-    expect((option.yAxis as { max: number }).max).toBeGreaterThan(21500)
+    const series = option.series as Array<Record<string, unknown>>
+    expect(option.visualMap).toBeUndefined()
+    expect(series[0]).toMatchObject({ lineStyle: { color: 'grey' } })
   })
 
-  it('leaves out your price line without one, and other currencies', () => {
+  it('fits the scale to the readings, not your price', () => {
+    const option = rowChartOption(
+      { trend: best, stores, regularMinor: 21500 },
+      colors,
+    )
+    expect((option.yAxis as { max: number }).max).toBeLessThan(21500)
+  })
+
+  it('leaves out stores in other currencies', () => {
     const euro: RowChartStore = {
       key: 'example.eu',
       label: 'Euro store',
@@ -187,9 +256,7 @@ describe('rowChartOption', () => {
       { trend: best, stores: [euro], regularMinor: null },
       colors,
     )
-    const series = option.series as Array<Record<string, unknown>>
-    expect(series[0].markLine).toBeUndefined()
-    expect(series).toHaveLength(1)
+    expect(option.series as unknown[]).toHaveLength(1)
   })
 })
 

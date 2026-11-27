@@ -315,6 +315,57 @@ describe('wishlist', () => {
       { at: now - 5 * day, price: 14000 },
     ])
     expect(buildWishlistTrends(db, ['second'], now)).toEqual({})
+    // The price line counts every price shown, in stock or not: A's $150
+    // from before the window at its start, B's $140 when first seen. A's
+    // out-of-stock repeat of $150 adds nothing.
+    expect(trend.readings).toEqual([
+      { at: now - 30 * day, price: 15000 },
+      { at: now - 5 * day, price: 14000 },
+    ])
+  })
+
+  it('charts a store seen only out of stock', () => {
+    const db = getLocalDb()
+    const now = Date.parse('2026-06-30T12:00:00Z')
+    const day = 24 * 60 * 60 * 1000
+    const iso = (daysAgo: number) => new Date(now - daysAgo * day).toISOString()
+    for (const host of ['artisan', 'bladehq'])
+      db.prepare(
+        `INSERT INTO price_sources
+           (knife_id, url, normalized_url, provider, lane_key, store_name,
+            origin, created_at, updated_at)
+         VALUES ('first', ?, ?, 'generic', ?, ?, 'manual', 't', 't')`,
+      ).run(
+        `https://${host}.example/p`,
+        `https://${host}.example/p`,
+        host,
+        host,
+      )
+    const snapshot = db.prepare(
+      `INSERT INTO price_snapshots
+         (knife_id, source_id, price_minor, currency, availability,
+          extraction_status, extraction_method, observed_at, last_seen_at)
+       VALUES ('first', ?, ?, 'USD', ?, 'ok', 'json_ld', ?, ?)`,
+    )
+    // Andromeda: its own store sold out at $128.55 all along; Blade HQ
+    // found later at $199.95 in stock.
+    snapshot.run(1, 12855, 'out_of_stock', iso(9), iso(0))
+    snapshot.run(2, 19995, 'in_stock', iso(2), iso(0))
+
+    const trends = buildPriceTrends(db, now)
+    expect(trends.knives.first.readings).toEqual([
+      { at: now - 9 * day, price: 12855 },
+      { at: now - 2 * day, price: 19995 },
+    ])
+    // The store seen only out of stock still has a chart, with no in-stock
+    // price, low or high.
+    expect(trends.sources['1']).toMatchObject({
+      currency: 'USD',
+      readings: [{ at: now - 9 * day, price: 12855 }],
+      steps: [{ at: now - 9 * day, price: null }],
+      lowMinor: null,
+      highMinor: null,
+    })
   })
 
   it('builds Price Drops trends per knife and per enabled store', () => {

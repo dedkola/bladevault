@@ -133,6 +133,18 @@ describe('PriceTrend', () => {
       render({
         trend: { ...amazon, steps: [{ at: amazon.since, price: null }] },
       }),
-    ).toContain('No in-stock price yet')
+    ).toContain('No price yet')
+  })
+
+  it('charts prices shown while out of stock', () => {
+    const html = render({
+      trend: {
+        ...amazon,
+        steps: [{ at: amazon.since, price: null }],
+        readings: [{ at: amazon.since, price: 12855 }],
+      },
+    })
+    expect(html).not.toContain('No price yet')
+    expect(html).toContain('data-trend-spark')
   })
 })

@@ -208,15 +208,36 @@ export function storeLinesAt(
 }
 
 /**
+ * Every price a store showed in `currency`, in stock or not, oldest first,
+ * for the price line; a repeat of its last price adds nothing.
+ */
+function shownReadings(
+  source: SourceHistory,
+  currency: string | null,
+): NonNullable<WishlistTrend['readings']> {
+  const readings: NonNullable<WishlistTrend['readings']> = []
+  for (const point of source.points) {
+    if (point.priceMinor === null || point.currency !== currency) continue
+    if (readings.at(-1)?.price === point.priceMinor) continue
+    readings.push({ at: Date.parse(point.from), price: point.priceMinor })
+  }
+  return readings
+}
+
+/**
  * The open knife's chart as the row charts draw it: the best in-stock
  * price across its stores over the range (`best`), and each store's own
- * readings (`stores`, for the dots), all in the chart's currency. Listings
+ * readings (`stores`; their `readings` include out-of-stock prices, for the
+ * price line and dots), all in the chart's currency. Listings
  * of other variants are left out; removed stores keep their readings.
- * Out-of-stock readings and other currencies are gaps (null).
+ * Out-of-stock readings and other currencies are gaps (null). With `now`,
+ * the chart runs to that moment (as the row charts do), the latest prices
+ * holding until then; without it, to the last reading.
  */
 export function historyChartTrends(
   history: Pick<KnifeHistory, 'sources' | 'chartStart'>,
   currency: string | null,
+  now?: number,
 ): { best: WishlistTrend; stores: RowChartStore[] } | null {
   const end = historyEnd(history)
   const sources = history.sources.filter((source) => !source.variantTitle)
@@ -245,12 +266,16 @@ export function historyChartTrends(
   const since = history.chartStart
     ? Math.min(Date.parse(history.chartStart), cuts[0] ?? end)
     : (cuts[0] ?? end)
-  const trend = (list: WishlistTrend['steps']): WishlistTrend => ({
+  const trend = (
+    list: WishlistTrend['steps'],
+    readings?: WishlistTrend['readings'],
+  ): WishlistTrend => ({
     currency,
     daily: [],
     steps: list,
+    ...(readings ? { readings } : {}),
     since,
-    until: end,
+    until: now === undefined ? end : Math.max(end, now),
     lowMinor: null,
     highMinor: null,
   })
@@ -264,6 +289,7 @@ export function historyChartTrends(
           at: Date.parse(point.from),
           price: priced(point),
         })),
+        shownReadings(source, currency),
       ),
     })),
   }
