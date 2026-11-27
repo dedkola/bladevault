@@ -305,14 +305,26 @@ function leadSource(sources: MonitoredSource[]): MonitoredSource {
 
 /**
  * One group per knife, in the order its first row appears in `rows`, so
- * groups follow the current sort.
+ * groups follow the current sort. A tab only picks which knives are listed:
+ * each group holds all the knife's listings in `pool` (the search and store
+ * filter), so the row leads with the knife's best in-stock price even when
+ * only another store matched the tab (an Out of stock tab listing a knife
+ * that one store sold out of). The tab's own rows come first.
  */
-export function groupByKnife(rows: MonitoredSource[]): KnifeGroup[] {
+export function groupByKnife(
+  rows: MonitoredSource[],
+  pool: MonitoredSource[] = rows,
+): KnifeGroup[] {
   const groups = new Map<string, MonitoredSource[]>()
   for (const source of rows) {
     const list = groups.get(source.knife.id) ?? []
     list.push(source)
     groups.set(source.knife.id, list)
+  }
+  for (const source of pool) {
+    const list = groups.get(source.knife.id)
+    if (list && !list.some((row) => row.sourceId === source.sourceId))
+      list.push(source)
   }
   return [...groups].map(([knifeId, sources]) => ({
     knifeId,
