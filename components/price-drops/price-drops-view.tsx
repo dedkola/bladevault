@@ -205,9 +205,6 @@ function centerKnife(
 
 const STORAGE = {
   section: 'bladevault.priceDrops.section',
-  // A knife's stores are one item, so the list starts grouped. The key is
-  // new so an older "ungrouped" choice does not hide that.
-  grouped: 'bladevault.priceDrops.groupByKnife.v2',
   statusCollapsed: 'bladevault.priceDrops.statusCollapsed',
 }
 
@@ -1133,7 +1130,6 @@ export function PriceDropsView({
     initialSection === 'supervisor',
   )
   const showSupervisor = supervisorChoice && hasAgentActivity(agent.state)
-  const [grouped, setGrouped] = useStoredValue(STORAGE.grouped, '1', parseFlag)
   const [statusCollapsed, setStatusCollapsed] = useStoredValue(
     STORAGE.statusCollapsed,
     '0',
@@ -1148,8 +1144,6 @@ export function PriceDropsView({
   const [solveTarget, setSolveTarget] = useState<SolveTarget | null>(null)
   const [selected, setSelected] = useState<string | null>(initialKnife ?? null)
   const [sheetOpen, setSheetOpen] = useState(false)
-  // The listing clicked last, so ungrouped details open under that row.
-  const [openSource, setOpenSource] = useState<number | null>(null)
   const [checking, setChecking] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -1589,7 +1583,8 @@ export function PriceDropsView({
   const empty = kpis.monitoredKnives === 0 && kpis.knivesWithSources === 0
   const stores = storeOptions(monitored)
   const filtering = query.trim() !== '' || store !== 'all'
-  const groups = grouped === '1' ? groupByKnife(rows, filtered) : null
+  // A knife's stores are one item: one row per knife, its stores inside.
+  const groups = groupByKnife(rows, filtered)
   const visibleIds = rows.map((source) => source.sourceId)
   const allChecked =
     visibleIds.length > 0 && visibleIds.every((id) => checked.has(id))
@@ -1629,20 +1624,7 @@ export function PriceDropsView({
         bestMinor={options.bestMinor}
         group={options.group}
         child={options.child}
-        onSelect={() => {
-          // Ungrouped, another listing of the open knife moves its details.
-          if (
-            !groups &&
-            !narrow &&
-            source.knife.id === selectedKnife &&
-            source.sourceId !== openSource
-          ) {
-            setOpenSource(source.sourceId)
-            return
-          }
-          setOpenSource(source.sourceId)
-          selectRow(source.knife.id)
-        }}
+        onSelect={() => selectRow(source.knife.id)}
         onToggleChecked={() => toggleChecked(ids)}
         onCheckNow={() => void checkOne(source)}
         attentionBusy={attentionBusy}
@@ -1896,19 +1878,6 @@ export function PriceDropsView({
                     </SelectContent>
                   </Select>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  aria-pressed={grouped === '1'}
-                  onClick={() => setGrouped(grouped === '1' ? '0' : '1')}
-                  className={cn(
-                    grouped === '1' &&
-                      'bg-[var(--bladevault-surface-soft)] font-semibold',
-                  )}
-                >
-                  Group by knife
-                </Button>
                 {filtering ? (
                   <Button
                     type="button"
@@ -2133,66 +2102,54 @@ export function PriceDropsView({
                         </tr>
                       </thead>
                       <tbody>
-                        {groups
-                          ? groups.map((group) => {
-                              const open = expanded.has(group.knifeId)
-                              return (
-                                <Fragment key={group.knifeId}>
-                                  {renderRow(group.lead, {
-                                    ids: group.sources.map((s) => s.sourceId),
-                                    group: {
-                                      count: group.sources.length,
-                                      expanded: open,
-                                      onToggle: () =>
-                                        setExpanded((current) => {
-                                          const next = new Set(current)
-                                          if (next.has(group.knifeId))
-                                            next.delete(group.knifeId)
-                                          else next.add(group.knifeId)
-                                          return next
-                                        }),
-                                    },
-                                  })}
-                                  {open && group.sources.length > 1
-                                    ? group.sources.map((source) =>
-                                        renderRow(source, {
-                                          child: true,
-                                          bestMinor: group.lead.priceMinor,
-                                        }),
-                                      )
-                                    : null}
-                                  {detailRow(group.knifeId)}
-                                </Fragment>
-                              )
-                            })
-                          : rows.flatMap((source, index) => [
-                              renderRow(source),
-                              section === 'attention' && source.retireHint ? (
-                                <RetireRow
-                                  key={`${source.sourceId}-retire`}
-                                  source={source}
-                                  selected={selectedKnife === source.knife.id}
-                                  now={now}
-                                  onPaused={() =>
-                                    setVersion((value) => value + 1)
-                                  }
-                                />
-                              ) : null,
-                              // Details open under the clicked listing, or
-                              // the knife's first one.
-                              source.knife.id === selectedKnife &&
-                              (source.sourceId === openSource ||
-                                (!rows.some(
-                                  (row) =>
-                                    row.sourceId === openSource &&
-                                    row.knife.id === selectedKnife,
-                                ) &&
-                                  rows.findIndex(
-                                    (row) => row.knife.id === selectedKnife,
-                                  ) === index))
-                                ? detailRow(source.knife.id)
-                                : null,
-                            ])}
+                        {groups.map((group) => {
+                          const open = expanded.has(group.knifeId)
+                          return (
+                            <Fragment key={group.knifeId}>
+                              {renderRow(group.lead, {
+                                ids: group.sources.map((s) => s.sourceId),
+                                group: {
+                                  count: group.sources.length,
+                                  expanded: open,
+                                  onToggle: () =>
+                                    setExpanded((current) => {
+                                      const next = new Set(current)
+                                      if (next.has(group.knifeId))
+                                        next.delete(group.knifeId)
+                                      else next.add(group.knifeId)
+                                      return next
+                                    }),
+                                },
+                              })}
+                              {open && group.sources.length > 1
+                                ? group.sources.map((source) =>
+                                    renderRow(source, {
+                                      child: true,
+                                      bestMinor: group.lead.priceMinor,
+                                    }),
+                                  )
+                                : null}
+                              {/* Needs attention keeps the Pause suggestion
+                                  of each store that may be gone for good. */}
+                              {section === 'attention'
+                                ? group.sources.map((source) => (
+                                    <RetireRow
+                                      key={`${source.sourceId}-retire`}
+                                      source={source}
+                                      selected={
+                                        selectedKnife === source.knife.id
+                                      }
+                                      now={now}
+                                      onPaused={() =>
+                                        setVersion((value) => value + 1)
+                                      }
+                                    />
+                                  ))
+                                : null}
+                              {detailRow(group.knifeId)}
+                            </Fragment>
+                          )
+                        })}
                       </tbody>
                     </table>
                   ) : (

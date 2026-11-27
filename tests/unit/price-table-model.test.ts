@@ -150,6 +150,61 @@ describe('price table model', () => {
     expect(rows.filter(SECTION_FILTER.increases)).toEqual([raised, restocked])
   })
 
+  it('leaves out of up a knife another store sells at its regular price', () => {
+    const knife = (id: string) => ({
+      id,
+      name: 'Abrams',
+      brand: 'Kizer',
+      image: null,
+      subtitle: null,
+    })
+    // Amazon sells it at the regular price, so dearer stores do not count.
+    const official = source({
+      knife: knife('abrams'),
+      priceMinor: 6000,
+      paidMinor: 6000,
+    })
+    const amazon = source({
+      knife: knife('abrams'),
+      priceMinor: 6000,
+      paidMinor: 6000,
+    })
+    const smkw = source({
+      knife: knife('abrams'),
+      priceMinor: 6595,
+      paidMinor: 6000,
+    })
+    const bladeHq = source({
+      knife: knife('abrams'),
+      result: 'increase',
+      priceMinor: 6595,
+      paidMinor: 6000,
+    })
+    // The only store at the regular price is sold out: the knife is up.
+    const soldOut = source({
+      knife: knife('finch'),
+      result: 'out_of_stock',
+      priceMinor: 6000,
+      paidMinor: 6000,
+    })
+    const dearer = source({
+      knife: knife('finch'),
+      priceMinor: 6995,
+      paidMinor: 6000,
+    })
+    // No regular price to compare with: a raise still counts.
+    const raised = source({
+      knife: knife('smolt'),
+      result: 'increase',
+      paidMinor: null,
+    })
+    const all = [official, amazon, smkw, bladeHq, soldOut, dearer, raised]
+
+    expect(sectionRows('increases', all, all)).toEqual([dearer, raised])
+    // A store filter shows fewer rows but judges the knife on every store.
+    expect(sectionRows('increases', [smkw, dearer], all)).toEqual([dearer])
+  })
+
   it('compares with the regular price in money and percent', () => {
     expect(vsPaid({ priceMinor: 9000, paidMinor: 12000 })).toEqual({
       deltaMinor: -3000,
