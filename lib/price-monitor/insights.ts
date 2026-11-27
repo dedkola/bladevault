@@ -253,6 +253,12 @@ export type PriceOverview = {
   }
   /** Every enabled source of a monitored knife. */
   monitored: MonitoredSource[]
+  /**
+   * Monitored knives an enabled listing of another variant (Other stores)
+   * sells now. They are not in `monitored`, but a knife one of them sells
+   * is not out of stock.
+   */
+  variantsSelling: string[]
   round: {
     /** How often each source is checked, or null when unknown. */
     intervalHours: number | null
@@ -761,6 +767,19 @@ export function buildPriceOverview(
       lastSuccessAt: lastSuccess ?? null,
     },
     monitored: monitoredSources,
+    variantsSelling: (
+      database
+        .prepare(
+          `SELECT DISTINCT knife_id FROM price_sources
+           WHERE removed_at IS NULL AND enabled = 1
+             AND variant_search IS NOT NULL
+             AND last_availability IS NOT NULL
+             AND last_availability <> 'out_of_stock'`,
+        )
+        .all() as { knife_id: string }[]
+    )
+      .map((row) => row.knife_id)
+      .filter((knifeId) => monitored.has(knifeId)),
     round: {
       intervalHours: options.frequencyMs
         ? Math.round((options.frequencyMs / HOUR_MS) * 10) / 10

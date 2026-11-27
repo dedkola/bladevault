@@ -79,16 +79,24 @@ export function isSnoozed(source: MonitoredSource): boolean {
 /**
  * Knives no store sells now: every listing read so far shows out of stock.
  * Listings not read yet count neither way, like the Wishlist's stock pill.
+ * A knife a listing of another variant sells (`variantsSelling`) is not
+ * sold out either, whatever its own stores show.
  */
-export function soldOutKnives(sources: MonitoredSource[]): Set<string> {
+export function soldOutKnives(
+  sources: MonitoredSource[],
+  variantsSelling: readonly string[] = [],
+): Set<string> {
   const read = new Map<string, boolean>()
   for (const source of sources) {
     if (source.availability === null) continue
     const soldOut = source.availability === 'out_of_stock'
     read.set(source.knife.id, (read.get(source.knife.id) ?? true) && soldOut)
   }
+  const selling = new Set(variantsSelling)
   return new Set(
-    [...read].filter(([, soldOut]) => soldOut).map(([knifeId]) => knifeId),
+    [...read]
+      .filter(([knifeId, soldOut]) => soldOut && !selling.has(knifeId))
+      .map(([knifeId]) => knifeId),
   )
 }
 
@@ -135,17 +143,19 @@ export const SECTION_FILTER: Record<
 
 /**
  * Rows a tab shows. Out of stock lists every listing of a knife that no
- * store sells; Up skips knives some store sells at or below the regular
- * price. Both judge the knife on all of its stores (`all`), not only the
- * ones a search or store filter leaves in `rows`.
+ * store sells, other variants' listings (`variantsSelling`) included; Up
+ * skips knives some store sells at or below the regular price. Both judge
+ * the knife on all of its stores (`all`), not only the ones a search or
+ * store filter leaves in `rows`.
  */
 export function sectionRows(
   section: Section,
   rows: MonitoredSource[],
   all: MonitoredSource[],
+  variantsSelling: readonly string[] = [],
 ): MonitoredSource[] {
   if (section === 'oos') {
-    const soldOut = soldOutKnives(all)
+    const soldOut = soldOutKnives(all, variantsSelling)
     return rows.filter((source) => soldOut.has(source.knife.id))
   }
   const listed = rows.filter(SECTION_FILTER[section])

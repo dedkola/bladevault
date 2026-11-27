@@ -1183,6 +1183,7 @@ export function PriceDropsView({
   }
 
   const monitored = overview?.monitored ?? []
+  const variantsSelling = overview?.variantsSelling ?? []
   const filtered = monitored.filter(
     (source) =>
       (store === 'all' || source.laneKey === store) &&
@@ -1227,7 +1228,7 @@ export function PriceDropsView({
       : undefined
   const rows = sortRows(
     section,
-    sectionRows(section, filtered, monitored),
+    sectionRows(section, filtered, monitored, variantsSelling),
     sort,
     (source) => {
       const net = trendNetChange(knifeTrendOf(source))
@@ -1752,7 +1753,12 @@ export function PriceDropsView({
                     const count =
                       value === 'recent'
                         ? null
-                        : sectionRows(value, filtered, monitored).length
+                        : sectionRows(
+                            value,
+                            filtered,
+                            monitored,
+                            variantsSelling,
+                          ).length
                     return (
                       <button
                         key={value}
