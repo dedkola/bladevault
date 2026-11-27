@@ -139,6 +139,8 @@ export function readDiscoveryQueue(
     laneKey?: string
     now: number
     limit?: number
+    /** Only knives never searched at this store (no search ran yet). */
+    neverSearched?: boolean
   },
 ): string[] {
   const rows = database
@@ -169,7 +171,7 @@ export function readDiscoveryQueue(
     if (row.has_store_source || row.source_count >= MAX_PRICE_SOURCES_PER_KNIFE)
       continue
     if (row.status !== null) {
-      if (!row.next_attempt_at) continue
+      if (input.neverSearched || !row.next_attempt_at) continue
       const at = Date.parse(row.next_attempt_at)
       if (Number.isFinite(at) && at > input.now) continue
     }

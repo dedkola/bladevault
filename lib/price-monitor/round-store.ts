@@ -1,5 +1,7 @@
 import type Database from 'better-sqlite3'
 import { getLocalDb } from '@/lib/local-db'
+import { readDiscoveryQueue } from '@/lib/price-monitor/discovery-store'
+import { DISCOVERY_STORES } from '@/lib/price-monitor/discovery-stores'
 import { getEligibility } from '@/lib/price-monitor/eligibility'
 import {
   plannedStepTimes,
@@ -10,9 +12,10 @@ import {
 } from '@/lib/price-monitor/rounds'
 import { withMonitorScope } from '@/lib/price-monitor/scope'
 import type { MonitorTier, PriceWatchMode } from '@/lib/price-monitor/shared'
-import type {
-  OtherStoreId,
-  PriceMonitoringSettings,
+import {
+  OTHER_STORE_IDS,
+  type OtherStoreId,
+  type PriceMonitoringSettings,
 } from '@/lib/settings-shared'
 import { assertVaultGeneration, withVaultWrite } from '@/lib/vault-access'
 
@@ -141,44 +144,128 @@ const WISHLIST_ORDER = `CASE w.lane WHEN 'next' THEN 0 WHEN 'saving' THEN 1
   WHEN 'someday' THEN 2 ELSE 3 END`
 
 /**
- * The knives a round goes through, in order: Wishlist knives first (Next,
- * Saving, Someday, each in its own order), then the rest by when they were
- * added. A knife counts when monitoring covers it (What to monitor, its
- * watch mode, a regular price) and it has an enabled store link, or Other
- * stores can look for it. Knives of the collection pass are left out.
+ * The knives a round goes through, in order (see orderKnives). A knife
+ * counts when monitoring covers it (What to monitor, its watch mode, a
+ * regular price) and it has an enabled store link, or Other stores can look
+ * for it. Knives of the collection pass are left out.
  */
 export function readRoundKnifeIds(
   database: Database.Database,
   settings: PriceMonitoringSettings,
-  options: { searches: boolean },
+  options: KnifeListOptions,
 ): string[] {
   return readTierKnifeIds(database, settings, options, 'scope')
 }
 
 /**
- * The knives the collection pass goes through, by when they were added:
- * outside What to monitor, covered because the collection pass is on.
+ * The knives the collection pass goes through, in the same order as a
+ * round: outside What to monitor, covered because the collection pass is on.
  */
 export function readCollectionPassKnifeIds(
   database: Database.Database,
   settings: PriceMonitoringSettings,
-  options: { searches: boolean },
+  options: KnifeListOptions,
 ): string[] {
   return readTierKnifeIds(database, settings, options, 'collection')
+}
+
+type KnifeListOptions = {
+  /** Other stores searches run in this round or pass. */
+  searches: boolean
+  now?: number
+}
+
+type KnifeOrderRow = {
+  id: string
+  onWishlist: boolean
+  /** An enabled store link that was never checked. */
+  neverChecked: boolean
+  /** Never searched at one of the Other stores that would search for it. */
+  neverSearched: boolean
+  /** The knife's least recent check (epoch ms), null when none ran. */
+  oldestCheck: number | null
+  addedAt: string
+}
+
+function orderGroup(row: KnifeOrderRow): number {
+  if (row.onWishlist) return 0
+  if (row.neverChecked) return 1
+  if (row.neverSearched) return 2
+  return 3
+}
+
+/**
+ * The order knives are checked in: the Wishlist first (Next, Saving,
+ * Someday, each in its own order), then knives with a store link never
+ * checked, then knives never searched in Other stores, then the rest by
+ * their oldest check, so the knife that waited longest always comes next.
+ * `rows` arrive in Wishlist order; the sort keeps it within the Wishlist.
+ */
+export function orderKnives(rows: readonly KnifeOrderRow[]): string[] {
+  return rows
+    .map((row, index) => ({ row, index, group: orderGroup(row) }))
+    .sort((a, b) => {
+      if (a.group !== b.group) return a.group - b.group
+      if (a.group === 0) return a.index - b.index
+      if (a.group === 3) {
+        const at = a.row.oldestCheck ?? -Infinity
+        const bt = b.row.oldestCheck ?? -Infinity
+        if (at !== bt) return at - bt
+      }
+      if (a.row.addedAt !== b.row.addedAt)
+        return a.row.addedAt < b.row.addedAt ? -1 : 1
+      return a.row.id < b.row.id ? -1 : a.row.id > b.row.id ? 1 : 0
+    })
+    .map(({ row }) => row.id)
+}
+
+/** Knives never searched at any Other store that would search for them. */
+function readNeverSearchedKnifeIds(
+  database: Database.Database,
+  settings: PriceMonitoringSettings,
+  now: number,
+): Set<string> {
+  const ids = new Set<string>()
+  for (const store of OTHER_STORE_IDS) {
+    if (!settings.otherStores.stores[store]) continue
+    const config = DISCOVERY_STORES[store]
+    for (const id of readDiscoveryQueue(database, {
+      settings,
+      store,
+      marketplace: config.marketplace,
+      laneKey: config.laneKey,
+      now,
+      limit: Infinity,
+      neverSearched: true,
+    }))
+      ids.add(id)
+  }
+  return ids
 }
 
 function readTierKnifeIds(
   database: Database.Database,
   settings: PriceMonitoringSettings,
-  options: { searches: boolean },
+  options: KnifeListOptions,
   tier: MonitorTier,
 ): string[] {
   const rows = database
     .prepare(
-      `SELECT k.id, k.specs, k.sold, COALESCE(pw.mode, 'auto') AS mode,
+      `SELECT k.id, k.specs, k.sold, k.added_at,
+              COALESCE(pw.mode, 'auto') AS mode,
+              w.knife_id IS NOT NULL AS on_wishlist,
               (SELECT COUNT(*) FROM price_sources s
                WHERE s.knife_id = k.id AND s.removed_at IS NULL
-                 AND s.enabled = 1) AS sources
+                 AND s.enabled = 1) AS sources,
+              EXISTS (SELECT 1 FROM price_sources s
+                      WHERE s.knife_id = k.id AND s.removed_at IS NULL
+                        AND s.enabled = 1
+                        AND s.last_checked_at IS NULL) AS never_checked,
+              (SELECT MIN(s.last_checked_at) FROM price_sources s
+               WHERE s.knife_id = k.id AND s.removed_at IS NULL
+                 AND s.enabled = 1) AS oldest_check,
+              (SELECT MIN(d.last_attempt_at) FROM price_discovery d
+               WHERE d.knife_id = k.id) AS oldest_search
        FROM knives k
        LEFT JOIN wishlist_items w ON w.knife_id = k.id
        LEFT JOIN price_watch pw ON pw.knife_id = k.id
@@ -188,29 +275,46 @@ function readTierKnifeIds(
     id: string
     specs: string
     sold: number
+    added_at: string
     mode: PriceWatchMode
+    on_wishlist: number
     sources: number
+    never_checked: number
+    oldest_check: string | null
+    oldest_search: string | null
   }>
   const scoped = withMonitorScope(database, settings)
-  return rows
-    .filter((row) => {
-      if (!row.sources && !options.searches) return false
-      let price: string | undefined
-      try {
-        price = (JSON.parse(row.specs) as { price?: string }).price
-      } catch {
-        price = undefined
-      }
-      const eligibility = getEligibility(
-        { id: row.id, sold: row.sold === 1, specs: { price } },
-        row.mode,
-        // A knife without a store link is what Other stores looks for.
-        1,
-        scoped,
-      )
-      return eligibility.monitored && eligibility.tier === tier
-    })
-    .map((row) => row.id)
+  const neverSearched = options.searches
+    ? readNeverSearchedKnifeIds(database, scoped, options.now ?? Date.now())
+    : new Set<string>()
+  const eligible = rows.filter((row) => {
+    if (!row.sources && !options.searches) return false
+    let price: string | undefined
+    try {
+      price = (JSON.parse(row.specs) as { price?: string }).price
+    } catch {
+      price = undefined
+    }
+    const eligibility = getEligibility(
+      { id: row.id, sold: row.sold === 1, specs: { price } },
+      row.mode,
+      // A knife without a store link is what Other stores looks for.
+      1,
+      scoped,
+    )
+    return eligibility.monitored && eligibility.tier === tier
+  })
+  return orderKnives(
+    eligible.map((row) => ({
+      id: row.id,
+      onWishlist: row.on_wishlist === 1,
+      neverChecked: row.never_checked === 1,
+      neverSearched: neverSearched.has(row.id),
+      // A knife without store links is as old as its last search.
+      oldestCheck: time(row.sources ? row.oldest_check : row.oldest_search),
+      addedAt: row.added_at,
+    })),
+  )
 }
 
 /**
@@ -235,6 +339,7 @@ export async function startRound(input: {
       if (readCurrentRound(database)) return null
       const knifeIds = readRoundKnifeIds(database, input.settings, {
         searches: input.searches,
+        now: input.now,
       })
       const startedAt = iso(input.now)
       const id = Number(
@@ -648,6 +753,7 @@ export async function startPass(input: {
       if (readCurrentPass(database)) return null
       const knifeIds = readCollectionPassKnifeIds(database, input.settings, {
         searches: input.searches,
+        now: input.now,
       })
       const startedAt = iso(input.now)
       const id = Number(
