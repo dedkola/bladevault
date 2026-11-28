@@ -38,7 +38,11 @@ export type AgentState = {
   /** Changes since the last run that will wake it. */
   pendingEvents: number
   nextRunAt: string | null
-  blockedStores: string[]
+  /**
+   * Store pages that need the user, and where to open them: the Inbox
+   * message while one is open, else the first page on Price Drops.
+   */
+  needsYou: { count: number; href: string | null }
   runs: AgentRun[]
   labels: AgentLabels
   /** Notes the supervisor keeps for its later runs. */
@@ -228,18 +232,23 @@ function RunButton({ controls }: { controls: AgentControls }) {
   )
 }
 
-function NeedsYou({ stores }: { stores: string[] }) {
-  if (!stores.length) return null
-  const names = stores.map(storeLabel)
-  const listed =
-    names.length > 3
-      ? `${names.slice(0, 3).join(', ')} and ${names.length - 3} more`
-      : names.join(' and ')
+/** Points to where the store pages that need the user are listed. */
+function NeedsYou({ needsYou }: { needsYou: AgentState['needsYou'] }) {
+  const { count, href } = needsYou
+  if (!count || !href) return null
+  const inbox = href.startsWith('/inbox')
   return (
     <p className="pd-agent-attn">
-      <b>Needs you:</b> {listed} {stores.length === 1 ? 'shows' : 'show'} a bot
-      check. Select Solve in the table to pass it in a browser; AI never solves
-      bot checks.
+      <b>Needs you:</b> {count} store{' '}
+      {count === 1 ? 'page needs' : 'pages need'} your call.{' '}
+      <Link
+        href={href}
+        className="font-medium underline underline-offset-2"
+        data-agent-needs-you
+      >
+        {inbox ? 'Open the Inbox' : 'Open Needs attention'}
+      </Link>
+      {inbox ? ' for a suggested fix and buttons for each.' : '.'}
     </p>
   )
 }
@@ -399,9 +408,9 @@ export function AgentStrip({
             Turn on
           </Button>
         </div>
-        {state.blockedStores.length || notice ? (
+        {state.needsYou.count || notice ? (
           <div className="space-y-2 px-4 pb-3 text-sm">
-            <NeedsYou stores={state.blockedStores} />
+            <NeedsYou needsYou={state.needsYou} />
             {notice ? (
               <p role="status" className="text-xs text-destructive">
                 {notice.text}
@@ -491,7 +500,7 @@ export function AgentStrip({
             ) : null}
           </div>
         ) : null}
-        <NeedsYou stores={state.blockedStores} />
+        <NeedsYou needsYou={state.needsYou} />
         {notice ? (
           <p
             role="status"
@@ -1013,11 +1022,16 @@ export function AgentActivity({
             failed
           </span>
         ) : null}
-        {state.blockedStores.map((store) => (
-          <span key={store} className="pd-badge" data-result="attention">
-            {storeLabel(store)} blocked
-          </span>
-        ))}
+        {state.needsYou.count && state.needsYou.href ? (
+          <Link
+            href={state.needsYou.href}
+            className="pd-badge"
+            data-result="attention"
+          >
+            {state.needsYou.count}{' '}
+            {state.needsYou.count === 1 ? 'needs' : 'need'} you
+          </Link>
+        ) : null}
         <span className="ml-auto">
           <RunButton controls={controls} />
         </span>

@@ -3,6 +3,7 @@ import {
   classifyAttention,
   classifyAttentionRows,
   parseAttentionActionRequest,
+  suggestAttentionFix,
   type AttentionInputRow,
   type AttentionSourceInput,
 } from '@/lib/price-monitor/attention-filter'
@@ -223,5 +224,59 @@ describe('parseAttentionActionRequest', () => {
     expect(() =>
       parseAttentionActionRequest({ action: 'pause', sourceIds: [] }),
     ).toThrow('sourceIds')
+  })
+})
+
+describe('suggestAttentionFix', () => {
+  const item = (
+    status: 'blocked' | 'failed' | 'needs_review',
+    failures = 3,
+  ) => ({
+    status,
+    storeName: 'sogknives.com',
+    consecutiveFailures: failures,
+  })
+  const docker = {
+    solveAvailable: false,
+    otherStoresActive: true,
+    otherStoresSearchable: true,
+  }
+
+  it('asks a doubted price nothing: its review card does', () => {
+    expect(suggestAttentionFix(item('needs_review'), docker)).toBeNull()
+  })
+
+  it('puts Solve first where a browser window can open', () => {
+    expect(
+      suggestAttentionFix(item('blocked'), { ...docker, solveAvailable: true }),
+    ).toMatchObject({
+      fix: 'solve',
+      fixes: ['solve', 'find_other_stores', 'retry', 'pause'],
+    })
+  })
+
+  it('on a server, searches other stores before retrying', () => {
+    const suggestion = suggestAttentionFix(item('blocked'), docker)
+    expect(suggestion?.fix).toBe('find_other_stores')
+    expect(suggestion?.fixes).not.toContain('solve')
+    expect(
+      suggestAttentionFix(item('blocked'), {
+        ...docker,
+        otherStoresSearchable: false,
+      })?.fix,
+    ).toBe('retry')
+  })
+
+  it('suggests Pause once retries stopped helping', () => {
+    const suggestion = suggestAttentionFix(item('failed', 12), {
+      solveAvailable: false,
+      otherStoresActive: false,
+      otherStoresSearchable: false,
+    })
+    expect(suggestion).toMatchObject({
+      fix: 'pause',
+      fixes: ['pause', 'retry'],
+    })
+    expect(suggestion?.text).toContain('Turn on Other stores')
   })
 })

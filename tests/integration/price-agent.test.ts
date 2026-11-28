@@ -1134,7 +1134,7 @@ describe('AI supervisor', () => {
     ).toEqual({ count: 0 })
   })
 
-  it('serves knife labels, blocked stores and switches the mode', async () => {
+  it('serves knife labels, what needs the user and switches the mode', async () => {
     enableAgent('observe')
     const { id, source } = await createKnife(
       'Drop Bear',
@@ -1143,7 +1143,7 @@ describe('AI supervisor', () => {
     getLocalDb()
       .prepare(
         `UPDATE price_sources SET status = 'blocked', store_name = 'Kizer',
-           last_checked_at = '2026-01-01T00:00:00.000Z', priority = 0
+           consecutive_failures = 3, last_checked_at = '2026-01-01T00:00:00.000Z', priority = 0
          WHERE id = ?`,
       )
       .run(source.id)
@@ -1162,12 +1162,16 @@ describe('AI supervisor', () => {
     )
     expect(ran.status).toBe(200)
     const state = (await ran.json()) as {
-      blockedStores: string[]
+      needsYou: { count: number; href: string | null }
       labels: { sources: Record<string, { knifeId: string; knife: string }> }
       runs: unknown[]
       nextRunAt: string | null
     }
-    expect(state.blockedStores).toEqual(['Kizer'])
+    // No Inbox message yet: the link opens the page on Price Drops.
+    expect(state.needsYou).toEqual({
+      count: 1,
+      href: `/price-drops?section=attention&knife=${encodeURIComponent(id)}&source=${source.id}`,
+    })
     expect(state.labels.sources[String(source.id)]).toEqual({
       knifeId: id,
       knife: 'Kizer Drop Bear',

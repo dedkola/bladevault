@@ -2,7 +2,15 @@
 
 import Link from 'next/link'
 import { useEffect, useEffectEvent, useState } from 'react'
-import { Loader2, Pause, Trash2 } from 'lucide-react'
+import {
+  AppWindow,
+  Lightbulb,
+  Loader2,
+  Pause,
+  RotateCw,
+  Search,
+  Trash2,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -12,10 +20,15 @@ import {
   LaterMenu,
   postAttentionAction,
 } from '@/components/price-drops/attention-actions'
+import {
+  SolveInBrowserDialog,
+  type SolveTarget,
+} from '@/components/price-drops/solve-in-browser'
 import { SourceReviewCard } from '@/components/price-drops/source-review'
 import {
   ATTENTION_PROBLEM_LABEL,
   type AttentionActionRequest,
+  type AttentionFix,
   type AttentionItem,
   type AttentionList,
 } from '@/lib/price-monitor/attention-filter'
@@ -28,6 +41,82 @@ function sinceLabel(since: string | null, now: number): string | null {
   const days = Math.floor((now - Date.parse(since)) / DAY_MS)
   if (!Number.isFinite(days) || days < 1) return 'today'
   return days === 1 ? 'for 1 day' : `for ${days} days`
+}
+
+const FIX_ICON = {
+  solve: AppWindow,
+  find_other_stores: Search,
+  retry: RotateCw,
+} as const
+
+function fixLabel(fix: Exclude<AttentionFix, 'pause'>, blocked: boolean) {
+  if (fix === 'solve') return blocked ? 'Solve in browser' : 'Fix in browser'
+  if (fix === 'find_other_stores') return 'Find at other stores'
+  return blocked ? 'Retry with fresh cookies' : 'Retry now'
+}
+
+/**
+ * The suggested fix for a page that cannot be read, in a sentence, with a
+ * button for each fix that works on this server (the suggested one filled).
+ * Pause stays with the row's other buttons.
+ */
+function SuggestedFix({
+  item,
+  busy,
+  onAction,
+  onSolve,
+}: {
+  item: AttentionItem
+  busy: boolean
+  onAction: (request: AttentionActionRequest) => void
+  onSolve: () => void
+}) {
+  const suggestion = item.suggestion
+  if (!suggestion) return null
+  const blocked = item.status === 'blocked'
+  const label = `${item.knife} at ${item.storeName}`
+  return (
+    <div
+      data-attention-fix={suggestion.fix}
+      className="basis-full space-y-1.5 pb-1 text-xs sm:pl-7"
+    >
+      <p className="flex gap-1.5 text-muted-foreground">
+        <Lightbulb
+          className="mt-0.5 size-3 shrink-0 text-foreground"
+          aria-hidden="true"
+        />
+        <span>
+          <b className="font-medium text-foreground">Suggested:</b>{' '}
+          {suggestion.text}
+        </span>
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {suggestion.fixes.map((fix) => {
+          if (fix === 'pause') return null
+          const Icon = FIX_ICON[fix]
+          const text = fixLabel(fix, blocked)
+          return (
+            <Button
+              key={fix}
+              type="button"
+              variant={fix === suggestion.fix ? 'default' : 'outline'}
+              size="xs"
+              disabled={busy}
+              aria-label={`${text}: ${label}`}
+              onClick={() =>
+                fix === 'solve'
+                  ? onSolve()
+                  : onAction({ action: fix, sourceIds: [item.sourceId] })
+              }
+            >
+              <Icon className="size-3" aria-hidden="true" />
+              {text}
+            </Button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 /** Price Drops, Needs attention, with the item's knife open at its store. */
@@ -54,6 +143,7 @@ export function PriceAttentionPanel({
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [ticked, setTicked] = useState<Set<number>>(new Set())
+  const [solveTarget, setSolveTarget] = useState<SolveTarget | null>(null)
   const [now] = useState(() => Date.now())
   const reportFirst = useEffectEvent((item: AttentionItem | null) =>
     onFirstItem?.(item),
@@ -67,6 +157,13 @@ export function PriceAttentionPanel({
     // Only when the first page changes, not on every list reload.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstKey, loaded])
+
+  const reload = () => {
+    fetchAttentionList()
+      .then(setList)
+      .catch(() => {})
+    window.dispatchEvent(new Event(SYSTEM_MESSAGES_REFRESH_EVENT))
+  }
 
   useEffect(() => {
     let live = true
@@ -245,6 +342,19 @@ export function PriceAttentionPanel({
                     answersShown={item.status === 'needs_review'}
                     onAction={(request) => void run(request)}
                   />
+                  <SuggestedFix
+                    item={item}
+                    busy={busy}
+                    onAction={(request) => void run(request)}
+                    onSolve={() =>
+                      setSolveTarget({
+                        sourceId: item.sourceId,
+                        url: item.url,
+                        storeName: item.storeName,
+                        status: item.status,
+                      })
+                    }
+                  />
                   {item.status === 'needs_review' ? (
                     <SourceReviewCard
                       className="basis-full pb-1 sm:pl-7"
@@ -293,6 +403,11 @@ export function PriceAttentionPanel({
           </Link>
         </p>
       ) : null}
+      <SolveInBrowserDialog
+        target={solveTarget}
+        onClose={() => setSolveTarget(null)}
+        onSolved={reload}
+      />
     </div>
   )
 }
