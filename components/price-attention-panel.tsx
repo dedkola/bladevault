@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useEffectEvent, useState } from 'react'
 import { Loader2, Pause, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -12,9 +12,11 @@ import {
   LaterMenu,
   postAttentionAction,
 } from '@/components/price-drops/attention-actions'
+import { SourceReviewCard } from '@/components/price-drops/source-review'
 import {
   ATTENTION_PROBLEM_LABEL,
   type AttentionActionRequest,
+  type AttentionItem,
   type AttentionList,
 } from '@/lib/price-monitor/attention-filter'
 import { SYSTEM_MESSAGES_REFRESH_EVENT } from '@/lib/system-messages'
@@ -28,18 +30,43 @@ function sinceLabel(since: string | null, now: number): string | null {
   return days === 1 ? 'for 1 day' : `for ${days} days`
 }
 
+/** Price Drops, Needs attention, with the item's knife open at its store. */
+export function attentionItemHref(
+  item: Pick<AttentionItem, 'knifeId' | 'sourceId'>,
+): string {
+  return `/price-drops?section=attention&knife=${encodeURIComponent(item.knifeId)}&source=${item.sourceId}`
+}
+
 /**
  * The store pages behind the Needs attention message, each with Later,
- * Price is right / Wrong page and Pause, plus the same for every ticked
- * page. Read live, so it never lists a page that was already fixed.
+ * Pause and, for a doubted price, AI's page next to the knife with the
+ * answers; plus bulk actions for every ticked page. Read live, so it never
+ * lists a page that was already fixed. `onFirstItem` gets the first page
+ * still listed, for the message's Open Needs attention link.
  */
-export function PriceAttentionPanel() {
+export function PriceAttentionPanel({
+  onFirstItem,
+}: {
+  onFirstItem?: (item: AttentionItem | null) => void
+} = {}) {
   const [list, setList] = useState<AttentionList | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [ticked, setTicked] = useState<Set<number>>(new Set())
   const [now] = useState(() => Date.now())
+  const reportFirst = useEffectEvent((item: AttentionItem | null) =>
+    onFirstItem?.(item),
+  )
+  const first =
+    list?.items.find((item) => item.verdict.class === 'attention') ?? null
+  const firstKey = first ? `${first.knifeId}|${first.sourceId}` : ''
+  const loaded = list !== null
+  useEffect(() => {
+    if (loaded) reportFirst(first)
+    // Only when the first page changes, not on every list reload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstKey, loaded])
 
   useEffect(() => {
     let live = true
@@ -196,7 +223,7 @@ export function PriceAttentionPanel() {
                   />
                   <div className="min-w-0 flex-1 text-xs">
                     <Link
-                      href={`/price-drops?section=attention&knife=${encodeURIComponent(item.knifeId)}`}
+                      href={attentionItemHref(item)}
                       className="font-medium text-foreground underline-offset-2 hover:underline"
                     >
                       {item.knife}
@@ -215,8 +242,25 @@ export function PriceAttentionPanel() {
                     verdict={item.verdict}
                     label={label}
                     busy={busy}
+                    answersShown={item.status === 'needs_review'}
                     onAction={(request) => void run(request)}
                   />
+                  {item.status === 'needs_review' ? (
+                    <SourceReviewCard
+                      className="basis-full pb-1 sm:pl-7"
+                      review={item.review}
+                      knifeId={item.knifeId}
+                      sourceId={item.sourceId}
+                      storeName={item.storeName}
+                      url={item.url}
+                      priceMinor={item.priceMinor}
+                      currency={item.currency}
+                      origin={item.origin}
+                      lastError={item.lastError}
+                      busy={busy}
+                      onAction={(request) => void run(request)}
+                    />
+                  ) : null}
                 </li>
               )
             })}

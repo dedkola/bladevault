@@ -2,6 +2,8 @@
  * Client-safe price monitoring types, limits and URL helpers. Server modules
  * (store, engine) and UI components both import from here.
  */
+
+import type { SourceReview } from '@/lib/price-monitor/review'
 import type { OfferAvailability } from '@/lib/scrape-offer'
 import { isIsoCurrencyCode } from '@/lib/price-monitor/money'
 import type { PriceAlertRules } from '@/lib/price-monitor/notifications'
@@ -95,6 +97,8 @@ export type PriceSourceView = {
   outOfStockSince?: string | null
   /** The listing may be gone for good: suggest Pause or another store. */
   retireHint?: RetireHint | null
+  /** AI doubts the price: what it saw on the page, next to the knife. */
+  review?: SourceReview | null
 }
 
 /**

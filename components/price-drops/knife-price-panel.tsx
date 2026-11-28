@@ -45,6 +45,10 @@ import {
   usePriceHistory,
 } from './price-history-chart'
 import { PriceExportButton } from './price-export-button'
+import { postAttentionAction, attentionResultText } from './attention-actions'
+import { SourceReviewCard } from './source-review'
+import type { AttentionActionRequest } from '@/lib/price-monitor/attention-filter'
+import { SYSTEM_MESSAGES_REFRESH_EVENT } from '@/lib/system-messages'
 import {
   CheckHistoryDialog,
   type CheckHistoryTarget,
@@ -279,11 +283,15 @@ function SourceLine({
           )}
           title={source.lastError ?? undefined}
         >
-          {source.status === 'failed' ||
-          source.status === 'blocked' ||
-          source.status === 'needs_review'
-            ? (source.lastError ?? statusText)
-            : statusText}
+          {source.status === 'needs_review' &&
+          !source.variantTitle &&
+          source.review
+            ? 'AI doubts this link: compare it above'
+            : source.status === 'failed' ||
+                source.status === 'blocked' ||
+                source.status === 'needs_review'
+              ? (source.lastError ?? statusText)
+              : statusText}
         </div>
       </div>
       <span className="flex flex-col items-end">
@@ -511,8 +519,14 @@ export function KnifePricePanel({
   variant,
   onClose,
   onChanged,
+  focusSourceId,
+  onAnswered,
 }: {
   knifeId: string
+  /** A doubted store link to ask about first (a deep link from the Inbox). */
+  focusSourceId?: number
+  /** An answer to AI's doubt went through; the panel may close after it. */
+  onAnswered?: (text: string) => void
   /** page: the phone sheet; inline: opened under a price table row; tab: a
    *  knife's Market tab. */
   variant: 'page' | 'tab' | 'inline'
@@ -548,6 +562,28 @@ export function KnifePricePanel({
   const historyState = usePriceHistory(knifeId, range, historyVersion)
   const history = historyState.status === 'ready' ? historyState.history : null
   const manageId = `knife-price-manage-${knifeId}`
+  const [reviewBusy, setReviewBusy] = useState(false)
+  const [reviewNotice, setReviewNotice] = useState<string | null>(null)
+  const answerReview = async (request: AttentionActionRequest) => {
+    setReviewBusy(true)
+    setReviewNotice(null)
+    try {
+      const { result } = await postAttentionAction(request)
+      const text = attentionResultText(request, result)
+      setReviewNotice(text)
+      onAnswered?.(text)
+      setVersion((value) => value + 1)
+      onChanged?.()
+      // The Inbox summary may have closed or changed.
+      window.dispatchEvent(new Event(SYSTEM_MESSAGES_REFRESH_EVENT))
+    } catch (err) {
+      setReviewNotice(
+        err instanceof Error ? err.message : 'The answer did not go through.',
+      )
+    } finally {
+      setReviewBusy(false)
+    }
+  }
 
   const startCheck = async (body: {
     scope: 'knife' | 'source'
@@ -608,6 +644,12 @@ export function KnifePricePanel({
   // listed apart and never make its price.
   const ownSources =
     watch?.sources.filter((source) => !source.variantTitle) ?? []
+  // AI doubts the price at these links: asked first, above the chart.
+  const doubted = ownSources
+    .filter((source) => source.enabled && source.status === 'needs_review')
+    .sort(
+      (a, b) => Number(b.id === focusSourceId) - Number(a.id === focusSourceId),
+    )
   const variantSources =
     watch?.sources.filter((source) => source.variantTitle) ?? []
   const currency =
@@ -748,6 +790,34 @@ export function KnifePricePanel({
             </Button>
           ) : null}
         </div>
+      ) : null}
+
+      {doubted.map((source) => (
+        <section
+          key={source.id}
+          data-price-review={source.id}
+          aria-label={`Check the ${storeLabel(source.storeName)} link`}
+          className="rounded-lg border border-amber-300/70 bg-amber-50/40 p-3 dark:border-amber-700/60 dark:bg-amber-950/20"
+        >
+          <SourceReviewCard
+            review={source.review ?? null}
+            knifeId={knifeId}
+            sourceId={source.id}
+            storeName={source.storeName}
+            url={source.url}
+            priceMinor={source.lastPriceMinor}
+            currency={source.lastCurrency}
+            origin={source.origin}
+            lastError={source.lastError}
+            busy={reviewBusy}
+            onAction={(request) => void answerReview(request)}
+          />
+        </section>
+      ))}
+      {reviewNotice ? (
+        <p role="status" className="text-xs text-muted-foreground">
+          {reviewNotice}
+        </p>
       ) : null}
 
       <div className="flex flex-wrap items-end justify-between gap-3">

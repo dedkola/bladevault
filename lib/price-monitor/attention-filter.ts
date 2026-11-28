@@ -1,5 +1,7 @@
+import type { SourceReview } from '@/lib/price-monitor/review'
 import {
   ATTENTION_STATUS_LIST,
+  type PriceSourceOrigin,
   type PriceSourceStatus,
 } from '@/lib/price-monitor/shared'
 
@@ -190,6 +192,10 @@ export type AttentionItem = {
   currency: string | null
   consecutiveFailures: number
   lastError: string | null
+  /** auto: the knife's own product link (Wrong page pauses it instead). */
+  origin: PriceSourceOrigin
+  /** AI doubts the price: what it saw on the page, next to the knife. */
+  review: SourceReview | null
 }
 
 export type AttentionList = {
@@ -201,6 +207,8 @@ export const ATTENTION_ACTIONS = [
   'snooze',
   'unsnooze',
   'accept',
+  /** Same knife: accept, and never doubt this link as another version. */
+  'same_product',
   'wrong_page',
   'pause',
   'remove',

@@ -18,6 +18,12 @@ import {
   parseMoneyText,
   toMinorUnits,
 } from '@/lib/price-monitor/money'
+import {
+  REVIEW_FIELDS,
+  REVIEW_MATCHES,
+  type ReviewDetail,
+  type ReviewMatch,
+} from '@/lib/price-monitor/review'
 import type { Availability } from '@/lib/price-monitor/shared'
 import type { PriceAiSettings } from '@/lib/settings-shared'
 
@@ -32,6 +38,8 @@ import type { PriceAiSettings } from '@/lib/settings-shared'
 export const VERIFY_MIN_CONFIDENCE = 0.8
 const VERIFY_TIMEOUT_PER_10KB_MS = 2_000
 const REASON_MAX_LENGTH = 200
+const PAGE_VALUE_MAX_LENGTH = 80
+const TITLE_MAX_LENGTH = 160
 
 export const VERIFY_ISSUES = [
   'none',
@@ -81,6 +89,10 @@ export type VerifyVerdict =
       reason: string
       /** The price AI read on the page, only when it is there as written. */
       pagePrice: string | null
+      /** The product title on the page, for the user's comparison. */
+      title: string | null
+      /** Model number, lock, finish and handle as the page states them. */
+      page: ReviewDetail['page']
     }
   | { status: 'unsure' }
 
@@ -133,7 +145,7 @@ export function spotCheckActive(settings: PriceAiSettings): boolean {
 export const VERIFY_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['verdict', 'issue', 'pagePrice', 'confidence', 'reason'],
+  required: ['verdict', 'issue', 'pagePrice', 'confidence', 'reason', 'page'],
   properties: {
     verdict: { type: 'string', enum: ['confirmed', 'rejected', 'unsure'] },
     issue: { type: 'string', enum: [...VERIFY_ISSUES] },
@@ -144,6 +156,28 @@ export const VERIFY_SCHEMA = {
     },
     confidence: { type: 'number', minimum: 0, maximum: 1 },
     reason: { type: 'string' },
+    page: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['title', ...REVIEW_FIELDS],
+      properties: {
+        title: { type: ['string', 'null'] },
+        ...Object.fromEntries(
+          REVIEW_FIELDS.map((field) => [
+            field,
+            {
+              type: 'object',
+              additionalProperties: false,
+              required: ['value', 'match'],
+              properties: {
+                value: { type: ['string', 'null'] },
+                match: { type: 'string', enum: [...REVIEW_MATCHES] },
+              },
+            },
+          ]),
+        ),
+      },
+    },
   },
 } as const
 
@@ -153,10 +187,11 @@ const SYSTEM_PROMPT = [
   UNTRUSTED_CONTENT_RULE,
   'Decide whether the new reading is the current selling price of exactly this product: the same model and variant (blade length, steel, finish, handle), in the stated currency, for one item.',
   'Reject it when the page shows a different current price for the product, when the price belongs to another variant, another product, an accessory, a bundle or set, a per-unit or instalment price, a crossed-out or list price, or when it is in another currency.',
-  'Answer with JSON only: {"verdict", "issue", "pagePrice", "confidence", "reason"}.',
+  'Answer with JSON only: {"verdict", "issue", "pagePrice", "confidence", "reason", "page"}.',
   'verdict: confirmed, rejected, or unsure when the page does not tell. issue: none when confirmed, otherwise the main problem (different_price, wrong_variant, wrong_currency, bundle, accessory, per_unit, wrong_product, not_current, other).',
   'pagePrice: the current price of exactly this product copied exactly as written in the fragment, or null. Never make up or compute a price.',
   'confidence: 0 to 1, how sure you are of the verdict. reason: one short sentence for the user.',
+  'page: what the page says about the product it prices, so the user can compare it with their own knife. title: the product title as written, or null. modelNumber, lockingMechanism, bladeCoating (blade finish) and handleMaterial (material and colour): each {value, match}. value: copied or closely summarized from the page, null when the page does not say. match: same when it agrees with the tracked product, different only for a real conflict, unknown when either side is missing. A value that only adds detail (a colour, a longer name) is same.',
 ].join('\n')
 
 function priceText(minor: number, currency: string): string {
@@ -280,7 +315,73 @@ export function parseVerifyAnswer(
           reading,
         )
       : ''
-  return { status: 'rejected', issue, confidence, reason, pagePrice }
+  return {
+    status: 'rejected',
+    issue,
+    confidence,
+    reason,
+    pagePrice,
+    ...parsePageDetails(record.page, fragment, reading),
+  }
+}
+
+/**
+ * The page's details from AI's answer; missing or malformed ones read as
+ * unknown. A title that quotes a price not on the page is dropped, like the
+ * reason.
+ */
+function parsePageDetails(
+  value: unknown,
+  fragment: string,
+  reading: VerifyReading,
+): { title: string | null; page: ReviewDetail['page'] } {
+  const record =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {}
+  const short = (raw: unknown, max: number) =>
+    typeof raw === 'string' ? clean(raw).slice(0, max) || null : null
+  const rawTitle = short(record.title, TITLE_MAX_LENGTH)
+  const title = rawTitle
+    ? reasonWithPagePrices(rawTitle, fragment, reading) || null
+    : null
+  const page: ReviewDetail['page'] = {}
+  for (const field of REVIEW_FIELDS) {
+    const entry = record[field]
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue
+    const { value: raw, match } = entry as Record<string, unknown>
+    const text = short(raw, PAGE_VALUE_MAX_LENGTH)
+    page[field] = {
+      value: text,
+      match:
+        text && (REVIEW_MATCHES as readonly unknown[]).includes(match)
+          ? (match as ReviewMatch)
+          : 'unknown',
+    }
+  }
+  return { title, page }
+}
+
+/**
+ * What a rejection leaves for the user to compare (review_detail), with the
+ * knife's details AI compared against.
+ */
+export function reviewDetailOf(
+  verdict: Extract<VerifyVerdict, { status: 'rejected' }>,
+  product: VerifyProduct,
+): ReviewDetail {
+  const compared: NonNullable<ReviewDetail['compared']> = {}
+  for (const field of REVIEW_FIELDS) {
+    const value = product.specs[field]
+    if (value) compared[field] = value
+  }
+  return {
+    issue: verdict.issue,
+    pagePrice: verdict.pagePrice,
+    title: verdict.title,
+    page: verdict.page,
+    compared,
+  }
 }
 
 export type VerifyResult = VerifyVerdict & { fragmentBytes: number }
@@ -316,7 +417,7 @@ export async function verifyReadingWithAi(
       schemaName: 'price_verification',
       purpose: 'verify',
       schema: VERIFY_SCHEMA,
-      maxTokens: 300,
+      maxTokens: 700,
     },
     {
       timeoutMs:

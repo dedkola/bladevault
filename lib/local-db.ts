@@ -23,7 +23,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 19
+export const LOCAL_DB_SCHEMA_VERSION = 20
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -1438,6 +1438,10 @@ function migratePriceMonitoringSchema(
   addColumn('price_host_state', 'robots_delay_ms', 'INTEGER')
   addColumn('price_host_state', 'robots_checked_at', 'TEXT')
   addColumn('price_host_state', 'open_reason', 'TEXT')
+  // Schema 20: what AI saw on a page it doubts, for the user's comparison,
+  // and when the user confirmed a link is their knife (Same knife).
+  addColumn('price_sources', 'review_detail', 'TEXT')
+  addColumn('price_sources', 'product_confirmed_at', 'TEXT')
   // Sources already in trouble count from their last check: the exact
   // start is not stored, and this never makes one look older than it is.
   if (!hadAttentionSince)

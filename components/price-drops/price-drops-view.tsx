@@ -1095,9 +1095,12 @@ function sortValueOf(sort: Sort) {
 export function PriceDropsView({
   initialSection,
   initialKnife,
+  initialSourceId,
 }: {
   initialSection?: string
   initialKnife?: string
+  /** The store link a deep link is about (Inbox), asked first. */
+  initialSourceId?: number
 } = {}) {
   const [version, setVersion] = useState(0)
   const { overview, error, loadedAt, retry } = useOverview(version)
@@ -1640,10 +1643,14 @@ export function PriceDropsView({
     <KnifePricePanel
       key={selectedKnife}
       knifeId={selectedKnife}
+      focusSourceId={
+        selectedKnife === initialKnife ? initialSourceId : undefined
+      }
       // A knife without a table row keeps its own header.
       variant={narrow || selectedUnlisted ? 'page' : 'inline'}
       onClose={narrow ? undefined : () => setSelected(null)}
       onChanged={() => setVersion((value) => value + 1)}
+      onAnswered={setNotice}
     />
   ) : null
   const detailRow = (knifeId: string) =>

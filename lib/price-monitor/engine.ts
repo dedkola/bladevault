@@ -109,9 +109,11 @@ import {
   troubleshootCheck,
   type TroubleshootPlan,
 } from '@/lib/price-monitor/troubleshoot'
+import { isVersionIssue } from '@/lib/price-monitor/review'
 import {
   confirmChangesActive,
   describeRejection,
+  reviewDetailOf,
   spotCheckActive,
   verifyProduct,
   verifyReadingWithAi,
@@ -727,6 +729,8 @@ type AiReview = {
   errorCode: string | null
   /** For the check log and the source. */
   message: string | null
+  /** What AI saw on the page (ReviewDetail JSON); null keeps the stored one. */
+  detail: string | null
 }
 
 const NO_REVIEW: AiReview = {
@@ -734,6 +738,7 @@ const NO_REVIEW: AiReview = {
   needsReview: false,
   errorCode: null,
   message: null,
+  detail: null,
 }
 
 /**
@@ -864,20 +869,28 @@ async function reviewWithAi(input: {
   if (verdict.status === 'confirmed')
     return { ...NO_REVIEW, aiReview: 'confirmed' }
   if (verdict.status !== 'rejected') return keep
+  // The user said this link is their knife: another version is not a doubt.
+  if (source.product_confirmed_at && isVersionIssue(verdict.issue))
+    return NO_REVIEW
 
   const why = describeRejection(verdict)
+  const detail = JSON.stringify(
+    reviewDetailOf(verdict, verifyProduct(input.knife)),
+  )
   if (gate)
     return {
       aiReview: 'unconfirmed',
       needsReview: spotDue,
       errorCode: 'ai_unconfirmed',
       message: `AI could not confirm this price: ${why}. The reading was kept as unconfirmed and did not notify.`,
+      detail,
     }
   return {
     aiReview: null,
     needsReview: true,
     errorCode: 'ai_review',
     message: `AI doubts the price the page parser read: ${why}. The parser's price was kept; check the page and the product link.`,
+    detail,
   }
 }
 
@@ -1773,6 +1786,7 @@ export async function checkPriceSource(
       observation: evaluated.observation,
       aiReview: review.aiReview,
       needsReview: review.needsReview,
+      reviewDetail: review.detail,
       errorCode: review.errorCode,
       errorMessage:
         [review.message, relinkNote].filter(Boolean).join(' ') || null,

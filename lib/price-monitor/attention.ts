@@ -9,6 +9,12 @@ import type { EligibilitySettings } from '@/lib/price-monitor/eligibility'
 import { toMinorUnits } from '@/lib/price-monitor/money'
 import { readKnifePaid } from '@/lib/price-monitor/notification-store'
 import {
+  buildSourceReview,
+  parseReviewDetail,
+  reviewKnifeFromRow,
+  type SourceReview,
+} from '@/lib/price-monitor/review'
+import {
   ATTENTION_STATUS_LIST,
   type PriceSourceOrigin,
   type PriceSourceStatus,
@@ -65,6 +71,8 @@ export type AttentionSource = AttentionRow & {
   priceMinor: number | null
   currency: string | null
   verdict: AttentionVerdict
+  /** What AI saw on a page it doubts, next to the knife's own details. */
+  review: SourceReview | null
 }
 
 type ProblemRow = {
@@ -84,6 +92,9 @@ type ProblemRow = {
   last_error: string | null
   last_price_minor: number | null
   last_currency: string | null
+  review_detail: string | null
+  specs: string | null
+  handle_material: string | null
 }
 
 /**
@@ -108,7 +119,8 @@ export function readAttentionSources(
                 s.origin, s.status, s.consecutive_failures,
                 s.attention_since, s.attention_snoozed_until,
                 s.attention_reported_at, s.last_checked_at, s.last_error,
-                s.last_price_minor, s.last_currency
+                s.last_price_minor, s.last_currency, s.review_detail,
+                k.specs, k.handle_material
          FROM price_sources s JOIN knives k ON k.id = s.knife_id
          WHERE s.removed_at IS NULL AND s.enabled = 1
            AND s.variant_search IS NULL
@@ -194,6 +206,13 @@ export function readAttentionSources(
       priceMinor: row.last_price_minor,
       currency: row.last_currency,
       verdict,
+      review:
+        row.status === 'needs_review'
+          ? buildSourceReview(
+              reviewKnifeFromRow(row),
+              parseReviewDetail(row.review_detail),
+            )
+          : null,
     }
   })
 }

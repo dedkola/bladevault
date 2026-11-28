@@ -71,6 +71,8 @@ describe('parseVerifyAnswer', () => {
       confidence: 0.95,
       reason: 'Price of a set.',
       pagePrice: null,
+      title: null,
+      page: {},
     })
   })
 

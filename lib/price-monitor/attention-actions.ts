@@ -37,6 +37,8 @@ export function toAttentionItem(source: AttentionSource): AttentionItem {
     currency: source.currency,
     consecutiveFailures: source.consecutiveFailures,
     lastError: source.lastError,
+    origin: source.origin,
+    review: source.review,
   }
 }
 
@@ -68,7 +70,7 @@ export function readAttentionList(now = Date.now()): AttentionList {
 }
 
 /**
- * Later, Price is right, Wrong page, Pause and Remove for store pages in
+ * Later, Price is right, Same knife, Wrong page, Pause and Remove for store pages in
  * Needs attention, one or many at once. Pages not in a state the action
  * fits are skipped. The knife's own product link cannot be removed, so
  * Remove and Wrong page pause it instead. The Inbox message is refreshed
@@ -94,6 +96,7 @@ export async function applyAttentionAction(
           case 'unsnooze':
             return source.attention_snoozed_until !== null
           case 'accept':
+          case 'same_product':
           case 'wrong_page':
             return source.status === 'needs_review'
           case 'pause':
@@ -136,6 +139,7 @@ export async function applyAttentionAction(
               .run(nowIso, id)
             break
           case 'accept':
+          case 'same_product':
             database
               .prepare(
                 `UPDATE price_sources
@@ -144,11 +148,19 @@ export async function applyAttentionAction(
                      accepted_price_minor = last_price_minor,
                      accepted_currency = last_currency,
                      last_error_code = NULL, last_error = NULL,
+                     review_detail = NULL,
+                     product_confirmed_at = CASE WHEN ? THEN ?
+                       ELSE product_confirmed_at END,
                      attention_since = NULL, attention_snoozed_until = NULL,
                      attention_reported_at = NULL, updated_at = ?
                  WHERE id = ?`,
               )
-              .run(nowIso, id)
+              .run(
+                request.action === 'same_product' ? 1 : 0,
+                nowIso,
+                nowIso,
+                id,
+              )
             break
           case 'pause':
             setSourcePaused(database, id, true, 'manual', nowIso)

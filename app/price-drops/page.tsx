@@ -13,9 +13,11 @@ export default async function PriceDropsPage({
   searchParams: Promise<{
     section?: string | string[]
     knife?: string | string[]
+    source?: string | string[]
   }>
 }) {
-  const { section, knife } = await searchParams
+  const { section, knife, source } = await searchParams
+  const sourceId = typeof source === 'string' ? Number(source) : Number.NaN
   return (
     <div
       data-price-drops-page
@@ -24,6 +26,9 @@ export default async function PriceDropsPage({
       <PriceDropsView
         initialSection={typeof section === 'string' ? section : undefined}
         initialKnife={typeof knife === 'string' && knife ? knife : undefined}
+        initialSourceId={
+          Number.isSafeInteger(sourceId) && sourceId > 0 ? sourceId : undefined
+        }
       />
     </div>
   )

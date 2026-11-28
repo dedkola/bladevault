@@ -40,7 +40,10 @@ import {
 } from '@/components/providers/care-inbox-provider'
 import { careToneDotClass, careToneTextClass } from '@/components/care-badge'
 import { AchievementBadge } from '@/components/achievement-badge'
-import { PriceAttentionPanel } from '@/components/price-attention-panel'
+import {
+  attentionItemHref,
+  PriceAttentionPanel,
+} from '@/components/price-attention-panel'
 import {
   ACHIEVEMENTS_HREF,
   achievementIdFromMessageKey,
@@ -794,6 +797,10 @@ function SystemMessageRow({
   const unread = isSystemMessageUnread(message)
   const ids = [message.id]
   const backingUp = cloudBackupJob.status === 'running'
+  // Needs attention opens on the first listed store link, not the page top.
+  const [attentionHref, setAttentionHref] = useState(
+    SYSTEM_MESSAGE_HREF['price-attention'],
+  )
   const markRead = () => {
     if (unread) onAction({ action: 'read', ids })
   }
@@ -851,7 +858,15 @@ function SystemMessageRow({
           </p>
         )}
         {!compact && box === 'open' && message.kind === 'price-attention' && (
-          <PriceAttentionPanel />
+          <PriceAttentionPanel
+            onFirstItem={(item) =>
+              setAttentionHref(
+                item
+                  ? attentionItemHref(item)
+                  : SYSTEM_MESSAGE_HREF['price-attention'],
+              )
+            }
+          />
         )}
         {!compact && (
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -891,12 +906,7 @@ function SystemMessageRow({
               <Button
                 type="button"
                 size="xs"
-                render={
-                  <Link
-                    href={SYSTEM_MESSAGE_HREF['price-attention']}
-                    onClick={markRead}
-                  />
-                }
+                render={<Link href={attentionHref} onClick={markRead} />}
                 nativeButton={false}
               >
                 <LineChart className="size-3" />
