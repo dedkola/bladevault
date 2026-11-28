@@ -12,12 +12,8 @@
 - When reporting finished work, name the branch, the worktree path, and whether the changes are committed, pushed, or still uncommitted.
 - If a `desktop-release.yml` job (often the macOS DMG build) fails, first check whether it failed on GitHub runner capacity or infrastructure; if so, rerun only the failed jobs (`gh run rerun <run-id> --failed`) before changing code.
 
-## Code investigation and Graphify
+## Library docs
 
-- For nontrivial code investigations and behavior changes, consult Graphify before editing. Target this repository with `repository_id: "dedkola/bladevault"` after checking the Git remote; use the corresponding repository name if working in a fork.
-- Start with a focused `query_graph` or `graphify_rank_files` query. Inspect callers, dependencies, impact, or related tests when relevant to the change. Use `recall` when prior decisions or known pitfalls matter.
-- Check the indexed commit and verify relevant definitions and behavior against the current checkout. Graph results can omit dynamic callers, unindexed files, and local edits. Missing links do not prove safety; matching bodies do not prove equivalent behavior. Treat unverified recalled notes as leads.
-- If Graphify is unavailable or insufficient, state that briefly and continue with targeted `rg` searches and source reads. Skip Graphify for text-only or trivial edits.
 - For complex or unfamiliar library work (Next.js App Router, React, Electron, electron-builder, better-sqlite3, Playwright, MCP SDK, or any version-sensitive API), look up current docs with the Context7 MCP (`resolve-library-id`, then `get-library-docs`) before writing code, matching the versions in `package.json`. Skip it for small fixes and theme/CSS tweaks.
 
 ## Architecture and runtime boundaries
@@ -61,3 +57,13 @@
 - Playwright launches a standalone production build on `127.0.0.1:3199` with a temporary vault and refuses server reuse. `npm run test:e2e` builds and runs the whole browser suite; prefer selected specs when sufficient.
 - Electron rebuilds `better-sqlite3` for its own runtime. Account for the native-module ABI when switching between Electron and Node validation; do not mistake a mismatched native build for an application regression.
 - Broaden checks only for affected behavior, failures, or an explicit request. Do not repeat successful checks without further changes. Inspect the final diff, report what changed and what actually ran, and name remaining limitations without claiming unverified success.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
