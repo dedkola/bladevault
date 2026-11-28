@@ -1,6 +1,14 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from 'vitest'
 import * as knivesRoute from '@/app/api/knives/route'
 import * as solveRoute from '@/app/api/prices/sources/[id]/solve/route'
 import * as advisorRoute from '@/app/api/prices/advisor/route'
@@ -1070,6 +1078,88 @@ describe('Needs attention in the Inbox', () => {
     expect(
       await applyAttentionAction({ action: 'remove', sourceIds: [source.id] }),
     ).toEqual({ applied: 1, skipped: 0, pausedInstead: 1 })
+  })
+  it('suggests a fix for a bot check and applies Retry and Find at other stores', async () => {
+    // Docker: no browser window the user can see, so no Solve.
+    vi.stubEnv('BLADEVAULT_DOCKER_RUNTIME', '1')
+    onTestFinished(() => {
+      vi.unstubAllEnvs()
+    })
+    const { id, source } = await createKnife('Bot Raccoon')
+    mocks.browser.mockRejectedValue(new ScrapeError('challenge'))
+    const database = getLocalDb()
+    for (let i = 0; i < 3; i++)
+      await checkPriceSource(source.id, { trigger: 'manual' })
+    const start = vi
+      .spyOn(getPriceMonitorWorker(), 'start')
+      .mockImplementation(() => {})
+
+    // Other stores off: retry first, no search offered.
+    let [item] = readAttentionList().items
+    expect(item.status).toBe('blocked')
+    expect(item.suggestion).toMatchObject({ fix: 'retry' })
+    expect(item.suggestion?.fixes).not.toContain('find_other_stores')
+    expect(
+      await applyAttentionAction({
+        action: 'find_other_stores',
+        sourceIds: [source.id],
+      }),
+    ).toMatchObject({ applied: 0, skipped: 1 })
+
+    // Retry: checked now, off Later, the store's cookies forgotten.
+    await saveBrowserState(source.lane_key, { cookies: [], origins: [] })
+    database
+      .prepare(
+        'UPDATE price_sources SET attention_snoozed_until = ? WHERE id = ?',
+      )
+      .run(new Date(Date.now() + 86_400_000).toISOString(), source.id)
+    expect(
+      await applyAttentionAction({ action: 'retry', sourceIds: [source.id] }),
+    ).toMatchObject({ applied: 1, skipped: 0 })
+    expect(
+      database
+        .prepare(
+          'SELECT priority, attention_snoozed_until FROM price_sources WHERE id = ?',
+        )
+        .get(source.id),
+    ).toEqual({ priority: 2, attention_snoozed_until: null })
+    expect(await loadBrowserState(source.lane_key)).toBeUndefined()
+    expect(start).toHaveBeenCalledWith({ scheduled: false })
+
+    // Other stores on and not searched today: search first.
+    enableAi()
+    saveSettings({
+      priceMonitoring: {
+        ...getSettings().priceMonitoring,
+        otherStores: {
+          enabled: true,
+          stores: { ...DEFAULT_PRICE_MONITORING.otherStores.stores },
+        },
+      },
+    })
+    ;[item] = readAttentionList().items
+    expect(item.suggestion).toMatchObject({
+      fix: 'find_other_stores',
+      fixes: ['find_other_stores', 'retry', 'pause'],
+    })
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString()
+    database
+      .prepare(
+        `INSERT INTO price_discovery
+           (knife_id, store, marketplace, status, last_attempt_at, next_attempt_at)
+         VALUES (?, 'bladehq', 'US', 'failed', ?, ?)`,
+      )
+      .run(id, new Date().toISOString(), tomorrow)
+    expect(
+      await applyAttentionAction({
+        action: 'find_other_stores',
+        sourceIds: [source.id],
+      }),
+    ).toMatchObject({ applied: 1, skipped: 0 })
+    const { next_attempt_at } = database
+      .prepare('SELECT next_attempt_at FROM price_discovery WHERE knife_id = ?')
+      .get(id) as { next_attempt_at: string }
+    expect(Date.parse(next_attempt_at)).toBeLessThanOrEqual(Date.now())
   })
 })
 

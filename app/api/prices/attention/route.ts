@@ -34,7 +34,8 @@ export async function GET(request: Request) {
 
 /**
  * Later (snooze 1 or 7 days), unsnooze, Price is right (accept), Wrong
- * page, Pause or Remove for one or many store pages:
+ * page, Pause, Remove, Retry (check now, fresh cookies after a bot check)
+ * or Find at other stores for one or many store pages:
  * `{ action, sourceIds, days? }`.
  */
 export async function POST(request: Request) {

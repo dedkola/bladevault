@@ -1,5 +1,4 @@
 import type Database from 'better-sqlite3'
-import type { EligibilitySettings } from '@/lib/price-monitor/eligibility'
 import { getLocalDb } from '@/lib/local-db'
 import { readActiveAdvice } from '@/lib/price-monitor/advice-store'
 import { applyAdviceToLane, maxAdvisedGapMs } from '@/lib/price-monitor/advisor'
@@ -2969,33 +2968,6 @@ export function readAgentLabels(
     if (row) labels.knives[id] = [row.brand, row.name].filter(Boolean).join(' ')
   }
   return labels
-}
-
-/** Stores whose checks hit a bot check: only the user can pass it. */
-/** Stores with a bot check on a source that monitoring covers. */
-export function readBlockedStores(
-  database: Database.Database,
-  settings: EligibilitySettings,
-): string[] {
-  const covered = new Set(
-    readQueueCandidates(database, settings)
-      .filter((candidate) => candidate.covered)
-      .map((candidate) => candidate.sourceId),
-  )
-  const stores = new Set(
-    (
-      database
-        .prepare(
-          `SELECT id, store_name AS store FROM price_sources
-           WHERE status = 'blocked' AND enabled = 1 AND removed_at IS NULL
-           ORDER BY store_name`,
-        )
-        .all() as Array<{ id: number; store: string }>
-    )
-      .filter((row) => covered.has(row.id))
-      .map((row) => row.store),
-  )
-  return [...stores]
 }
 
 /**

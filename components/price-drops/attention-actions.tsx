@@ -61,6 +61,10 @@ export function attentionResultText(
     wrong_page: `Removed ${pages(result.applied - result.pausedInstead)}.`,
     pause: `Paused ${pages(result.applied)}. Resume them in each knife's edit mode.`,
     remove: `Removed ${pages(result.applied - result.pausedInstead)}.`,
+    retry: `Checking ${pages(result.applied)} again now.`,
+    find_other_stores: result.applied
+      ? `Other stores will search for ${result.applied === 1 ? 'this knife' : `${result.applied} knives`} soon.`
+      : 'Other stores is off: turn it on in Settings → Price monitoring.',
   }
   const paused = result.pausedInstead
     ? ` ${pages(result.pausedInstead)} from the knife's own product link ${result.pausedInstead === 1 ? 'was' : 'were'} paused instead.`

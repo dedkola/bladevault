@@ -14,14 +14,15 @@ import {
   readAgentLabels,
   readAgentNotes,
   readAgentRuns,
-  readBlockedStores,
   runPriceAgent,
 } from '@/lib/price-monitor/agent'
 import { aiConfigured } from '@/lib/price-monitor/ai'
+import { readAttentionSources } from '@/lib/price-monitor/attention'
 import { NO_STORE, priceAiErrorResponse } from '@/lib/price-monitor/ai-route'
 import { readCoveredKnifeIds } from '@/lib/price-monitor/store'
 import { getPriceMonitorWorker } from '@/lib/price-monitor/worker'
 import { reportServerError } from '@/lib/sentry/server'
+import { readSystemMessages } from '@/lib/system-message-store'
 import { getSettings, saveSettings } from '@/lib/settings'
 import { PRICE_AGENT_MODES, type PriceAgentMode } from '@/lib/settings-shared'
 import { vaultAccessErrorResponse } from '@/lib/vault-access'
@@ -45,6 +46,34 @@ const SKIPPED: Record<string, { status: number; error: string }> = {
     status: 503,
     error: 'The computer went to sleep during the AI request. Try again.',
   },
+}
+
+/**
+ * Store pages that need the user, and where to open them: the Inbox message
+ * (with a suggested fix for each) while one is open, otherwise the first
+ * page on Price Drops, since the Inbox raises it only once a day.
+ */
+function readNeedsYou(
+  database: ReturnType<typeof getLocalDb>,
+  settings: ReturnType<typeof getSettings>['priceMonitoring'],
+  now: number,
+): { count: number; href: string | null } {
+  const first = readAttentionSources(database, settings, now).filter(
+    (row) => row.verdict.class === 'attention',
+  )
+  if (!first.length) return { count: 0, href: null }
+  const inInbox = readSystemMessages(database).some(
+    (message) =>
+      message.kind === 'price-attention' &&
+      !message.resolvedAt &&
+      !message.dismissedAt,
+  )
+  return {
+    count: first.length,
+    href: inInbox
+      ? '/inbox?filter=system'
+      : `/price-drops?section=attention&knife=${encodeURIComponent(first[0].knifeId)}&source=${first[0].sourceId}`,
+  }
 }
 
 function state() {
@@ -80,7 +109,7 @@ function state() {
             }),
           ).toISOString()
         : null,
-    blockedStores: readBlockedStores(database, settings),
+    needsYou: readNeedsYou(database, settings, now),
     runs,
     labels: readAgentLabels(database, runs),
     notes: readAgentNotes(

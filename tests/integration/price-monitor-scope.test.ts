@@ -9,7 +9,8 @@ import {
   readMonitorScopeKnifeIds,
   withMonitorScope,
 } from '@/lib/price-monitor/scope'
-import { readAgentNotes, readBlockedStores } from '@/lib/price-monitor/agent'
+import { readAgentNotes } from '@/lib/price-monitor/agent'
+import { readAttentionRows } from '@/lib/price-monitor/attention'
 import { readDigestData } from '@/lib/price-monitor/digest'
 import { insertSource, readCoveredKnifeIds } from '@/lib/price-monitor/store'
 import {
@@ -121,7 +122,9 @@ describe('knives outside the scope on Price Drops', () => {
     expect(
       readAgentNotes(db, Date.now(), covered).map((row) => row.note),
     ).toEqual(['Watching first.', 'A general note.'])
-    expect(readBlockedStores(db, settings)).toEqual(['kizer.example'])
+    expect(readAttentionRows(db, settings).map((row) => row.storeName)).toEqual(
+      ['kizer.example'],
+    )
     const digest = readDigestData(db, Date.now(), settings)
     expect(digest.monitoredSources).toBe(1)
     expect(digest.needAttention.map((row) => row.knife)).toEqual([
@@ -130,10 +133,11 @@ describe('knives outside the scope on Price Drops', () => {
 
     // Nothing is deleted: back in scope, everything shows again.
     expect(readAgentNotes(db, Date.now())).toHaveLength(3)
-    expect(readBlockedStores(db, { ...settings, scope: undefined })).toEqual([
-      'kizer.example',
-      'sog.example',
-    ])
+    expect(
+      readAttentionRows(db, { ...settings, scope: undefined })
+        .map((row) => row.storeName)
+        .sort(),
+    ).toEqual(['kizer.example', 'sog.example'])
   })
 })
 

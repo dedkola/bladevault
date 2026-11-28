@@ -196,6 +196,97 @@ export type AttentionItem = {
   origin: PriceSourceOrigin
   /** AI doubts the price: what it saw on the page, next to the knife. */
   review: SourceReview | null
+  /** The fix the Inbox puts first for a page that cannot be read. */
+  suggestion: AttentionSuggestion | null
+}
+
+/**
+ * Fixes for a page that cannot be read (bot check, failed check, no price):
+ * - solve: pass the bot check in a visible browser window (desktop only);
+ * - find_other_stores: search Other stores for the knife now;
+ * - retry: check again now, with fresh cookies after a bot check;
+ * - pause: stop checking the page.
+ */
+export type AttentionFix = 'solve' | 'find_other_stores' | 'retry' | 'pause'
+
+export type AttentionSuggestion = {
+  /** The fix to try first. */
+  fix: AttentionFix
+  text: string
+  /** Every fix that works here, the suggested one first. */
+  fixes: AttentionFix[]
+}
+
+/** What the server knows about the knife and itself, for suggestAttentionFix. */
+export type AttentionFixContext = {
+  /** This server can open a browser window the user sees (not Docker). */
+  solveAvailable: boolean
+  /** Other stores is on and has a store to search. */
+  otherStoresActive: boolean
+  /**
+   * Other stores could search for the knife now: it has room for another
+   * store and a turned-on store has not finished a search for it today.
+   */
+  otherStoresSearchable: boolean
+}
+
+/** After this many failures in a row, retrying is not worth suggesting. */
+export const ATTENTION_RETRY_LIMIT = 10
+
+/**
+ * The one fix worth trying first for a page that cannot be read, in plain
+ * words; null for a doubted price, whose review card asks the question.
+ * Rule-based: no AI runs for it.
+ */
+export function suggestAttentionFix(
+  item: Pick<AttentionItem, 'status' | 'storeName' | 'consecutiveFailures'>,
+  context: AttentionFixContext,
+): AttentionSuggestion | null {
+  const { status, storeName: store, consecutiveFailures: failures } = item
+  if (
+    status !== 'blocked' &&
+    status !== 'failed' &&
+    status !== 'price_unavailable'
+  )
+    return null
+  const blocked = status === 'blocked'
+  const available: AttentionFix[] = [
+    ...(context.solveAvailable ? (['solve'] as const) : []),
+    ...(context.otherStoresActive ? (['find_other_stores'] as const) : []),
+    'retry',
+    'pause',
+  ]
+  const suggest = (fix: AttentionFix, text: string): AttentionSuggestion => ({
+    fix,
+    text,
+    fixes: [fix, ...available.filter((other) => other !== fix)],
+  })
+  if (blocked && context.solveAvailable)
+    return suggest(
+      'solve',
+      `${store} shows a bot check. Solve it once in a browser window; BladeVault keeps the store's cookies for later checks.`,
+    )
+  const trouble = blocked
+    ? 'shows a bot check that BladeVault cannot pass on this server'
+    : status === 'failed'
+      ? 'keeps failing'
+      : 'shows no price'
+  if (context.otherStoresActive && context.otherStoresSearchable)
+    return suggest(
+      'find_other_stores',
+      `${store} ${trouble}, and no other store tracks this knife. Search other stores so its price is still followed.`,
+    )
+  if (failures < ATTENTION_RETRY_LIMIT)
+    return suggest(
+      'retry',
+      blocked
+        ? `${store} ${trouble}. Retry now with fresh cookies; the server's built-in browser tries once more if the check shows again.`
+        : `${store} ${trouble}. Retry now; the trouble may have passed.`,
+    )
+  return suggest(
+    'pause',
+    `${store} failed ${failures} checks in a row. Pause this link and resume it from the knife when the store works again.${context.otherStoresActive ? '' : ' Turn on Other stores in Settings to find the knife elsewhere.'}`,
+  )
 }
 
 export type AttentionList = {
@@ -212,6 +303,10 @@ export const ATTENTION_ACTIONS = [
   'wrong_page',
   'pause',
   'remove',
+  /** Check again now; after a bot check, with the store's cookies reset. */
+  'retry',
+  /** Search Other stores for the knife now. */
+  'find_other_stores',
 ] as const
 export type AttentionAction = (typeof ATTENTION_ACTIONS)[number]
 
