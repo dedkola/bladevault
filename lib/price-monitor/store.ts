@@ -61,6 +61,10 @@ import {
   writePriceNotificationChanges,
 } from '@/lib/price-monitor/notification-store'
 import { toMinorUnits } from '@/lib/price-monitor/money'
+import {
+  buildSourceReview,
+  parseReviewDetail,
+} from '@/lib/price-monitor/review'
 import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
 import { assertVaultGeneration, withVaultWrite } from '@/lib/vault-access'
 
@@ -113,6 +117,10 @@ export type SourceRow = {
   /** Why it is paused: manual, missing_page or auto_attention. */
   paused_reason: PausedReason | null
   paused_at: string | null
+  /** What AI saw on the page it doubts (review.ts ReviewDetail, JSON). */
+  review_detail: string | null
+  /** The user said this link is their knife (Same knife): no version doubts. */
+  product_confirmed_at: string | null
 }
 
 export type PausedReason = 'manual' | 'missing_page' | 'auto_attention'
@@ -456,6 +464,14 @@ export function buildPriceWatchView(
         now,
       }),
       ...(found.has(source.id) ? { foundByAi: true } : {}),
+      ...(source.status === 'needs_review'
+        ? {
+            review: buildSourceReview(
+              knife,
+              parseReviewDetail(source.review_detail),
+            ),
+          }
+        : {}),
       ...(isIgnoredOfficialOutOfStock(
         { origin: source.origin, availability: source.last_availability },
         settings,
@@ -927,6 +943,11 @@ export type CheckRecord = {
   aiReview?: 'confirmed' | 'unconfirmed' | null
   /** AI doubts the page parser's reading: the source needs review. */
   needsReview?: boolean
+  /**
+   * What AI saw on the page (ReviewDetail JSON), kept while the source needs
+   * review; null keeps the stored one (AI unsure on a re-check).
+   */
+  reviewDetail?: string | null
   /** The variant the source tracks, learned on this check (JSON). */
   expectedVariant?: string | null
   /** Forget the learned variant: the next good reading learns it again. */
@@ -1340,6 +1361,8 @@ export async function recordCheck(
              expected_variant = CASE WHEN ? THEN NULL
                ELSE COALESCE(?, expected_variant) END,
              find_page_at = NULL,
+             review_detail = CASE WHEN ? THEN COALESCE(?, review_detail)
+               ELSE NULL END,
              updated_at = ?
            WHERE id = ?`,
         )
@@ -1363,6 +1386,8 @@ export async function recordCheck(
           now,
           record.forgetVariant ? 1 : 0,
           record.expectedVariant ?? null,
+          status === 'needs_review' ? 1 : 0,
+          record.reviewDetail ?? null,
           now,
           source.id,
         )
@@ -2183,7 +2208,8 @@ export function relinkSourceRow(
            attention_since = NULL, attention_snoozed_until = NULL,
            attention_reported_at = NULL, paused_reason = NULL,
            paused_at = NULL, accepted_price_minor = NULL,
-           accepted_currency = NULL,
+           accepted_currency = NULL, review_detail = NULL,
+           product_confirmed_at = NULL,
            next_check_at = ?, priority = 1, updated_at = ?
        WHERE id = ?`,
     )

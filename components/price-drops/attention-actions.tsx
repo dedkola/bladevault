@@ -57,6 +57,7 @@ export function attentionResultText(
     snooze: `${pages(result.applied)} put off; checked again ${request.days === 7 ? 'in a week' : 'tomorrow'}.`,
     unsnooze: `${pages(result.applied)} back in Needs attention.`,
     accept: `Price confirmed for ${pages(result.applied)}.`,
+    same_product: `Kept ${pages(result.applied)} as your knife; AI won’t ask about another version there again.`,
     wrong_page: `Removed ${pages(result.applied - result.pausedInstead)}.`,
     pause: `Paused ${pages(result.applied)}. Resume them in each knife's edit mode.`,
     remove: `Removed ${pages(result.applied - result.pausedInstead)}.`,
@@ -143,11 +144,14 @@ export function AttentionButtons({
   label,
   busy,
   compact = false,
+  answersShown = false,
   onAction,
 }: {
   sourceId: number
   status: PriceSourceStatus
   verdict: AttentionVerdict | null
+  /** The review card beside it already offers the answers. */
+  answersShown?: boolean
   /** "Knife at store", for accessible names. */
   label: string
   busy?: boolean
@@ -173,7 +177,7 @@ export function AttentionButtons({
         Show now
       </Button>
     )
-  const review = status === 'needs_review'
+  const review = status === 'needs_review' && !answersShown
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
       {review ? (

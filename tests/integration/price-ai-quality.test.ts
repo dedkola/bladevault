@@ -19,6 +19,10 @@ import { DEFAULT_PRICE_MONITORING } from '@/lib/settings-shared'
 import type { ExtractedOffer } from '@/lib/scrape-offer'
 import { getSystemMessages } from '@/lib/system-message-store'
 import { runAttentionSummary } from '@/lib/price-monitor/attention'
+import {
+  applyAttentionAction,
+  readAttentionList,
+} from '@/lib/price-monitor/attention-actions'
 import { getVaultAccessState } from '@/lib/vault-access'
 import { monitorWholeCollection } from '@/tests/helpers/monitor-whole-collection'
 import { createTempVault, type TempVault } from '@/tests/helpers/temp-vault'
@@ -105,7 +109,9 @@ function rows(sql: string, ...args: unknown[]) {
     .all(...args) as Array<Record<string, unknown>>
 }
 
-async function createKnife() {
+async function createKnife(
+  extra: { specs?: Record<string, string>; handleMaterial?: string } = {},
+) {
   const response = await knivesRoute.POST(
     new Request('http://localhost/api/knives', {
       method: 'POST',
@@ -114,10 +120,14 @@ async function createKnife() {
         name: 'Raccoon',
         brand: 'Vosteed',
         description: NOTE,
+        ...(extra.handleMaterial
+          ? { handleMaterial: extra.handleMaterial }
+          : {}),
         specs: {
           price: '129.00 USD',
           bladeLength: '3.3 in',
           bladeMaterial: 'Nitro-V',
+          ...extra.specs,
         },
         sourceUrl: PRODUCT_URL,
       }),
@@ -417,6 +427,85 @@ describe('Spot-check page readings (Unlimited)', () => {
     browserReads(90, pageWith('$90.00'))
     await checkPriceSource(source.id, { trigger: 'manual' })
     expect(aiFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps what AI saw for the comparison until the user answers Same knife', async () => {
+    enableAi({ usage: unlimited() })
+    const { source } = await createKnife({
+      specs: { modelNumber: 'A4516', lockingMechanism: 'Top Liner Lock' },
+      handleMaterial: 'Titanium',
+    })
+    const otherVersion = {
+      verdict: 'rejected',
+      issue: 'wrong_variant',
+      pagePrice: null,
+      confidence: 0.9,
+      reason: 'The page is for the crossbar-lock version.',
+      page: {
+        title: 'Raccoon Crossbar A4516',
+        modelNumber: { value: 'A4516', match: 'same' },
+        lockingMechanism: { value: 'Crossbar lock', match: 'different' },
+        bladeCoating: { value: null, match: 'unknown' },
+        handleMaterial: { value: 'Blue titanium', match: 'same' },
+      },
+    }
+    browserReads(90, pageWith('$90.00'))
+    aiFetch.mockResolvedValueOnce(chat(otherVersion))
+    await checkPriceSource(source.id, { trigger: 'manual' })
+    expect(requestBody(0)).toContain('lockingMechanism')
+
+    const reviewOf = () =>
+      readAttentionList().items.find((item) => item.sourceId === source.id)
+        ?.review
+    expect(reviewOf()).toMatchObject({
+      issue: 'wrong_variant',
+      version: true,
+      title: 'Raccoon Crossbar A4516',
+      rows: [
+        { field: 'modelNumber', yours: 'A4516', page: 'A4516', match: 'same' },
+        {
+          field: 'lockingMechanism',
+          yours: 'Top Liner Lock',
+          page: 'Crossbar lock',
+          match: 'different',
+        },
+        {
+          field: 'handleMaterial',
+          yours: 'Titanium',
+          page: 'Blue titanium',
+          match: 'same',
+        },
+      ],
+    })
+
+    // AI unavailable on the next check: the comparison stays.
+    browserReads(90, pageWith('$90.00'))
+    aiFetch.mockRejectedValueOnce(new TypeError('connect ECONNREFUSED'))
+    await checkPriceSource(source.id, { trigger: 'manual' })
+    expect(reviewOf()?.title).toBe('Raccoon Crossbar A4516')
+
+    await applyAttentionAction({
+      action: 'same_product',
+      sourceIds: [source.id],
+    })
+    expect(
+      rows(
+        `SELECT status, review_detail, product_confirmed_at IS NOT NULL AS confirmed
+         FROM price_sources WHERE id = ?`,
+        source.id,
+      )[0],
+    ).toEqual({ status: 'ok', review_detail: null, confirmed: 1 })
+
+    // A new price is still checked, but another version is no doubt now.
+    browserReads(88, pageWith('$88.00'))
+    aiFetch.mockResolvedValueOnce(chat(otherVersion))
+    await checkPriceSource(source.id, { trigger: 'manual' })
+    expect(aiFetch).toHaveBeenCalledTimes(3)
+    expect(sourceRow(source.id)).toMatchObject({
+      status: 'ok',
+      last_price_minor: 8800,
+      last_error_code: null,
+    })
   })
 
   it('keeps the review when AI is unavailable', async () => {
