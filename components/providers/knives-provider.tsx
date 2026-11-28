@@ -722,9 +722,19 @@ export function KnivesProvider({
       if (isAutoBackupConfigured) {
         scheduleAutoBackup()
       }
+      const skipped =
+        typeof data.skippedImages === 'number' ? data.skippedImages : 0
+      if (skipped > 0) {
+        showFeedback(
+          `${knife.name} was saved, but ${skipped} ${
+            skipped === 1 ? 'photo' : 'photos'
+          } could not be downloaded.`,
+          'error',
+        )
+      }
       return knife
     },
-    [isAutoBackupConfigured, scheduleAutoBackup],
+    [isAutoBackupConfigured, scheduleAutoBackup, showFeedback],
   )
 
   const updateKnife = useCallback(

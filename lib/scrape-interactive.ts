@@ -16,6 +16,10 @@ import {
 import { ScrapeError, toScrapeError } from '@/lib/scrape-errors'
 import { validateExternalUrl } from '@/lib/url-validation'
 import { withRegionCookies } from '@/lib/price-monitor/region'
+import {
+  createBrowserImageFetcher,
+  type BrowserImageSession,
+} from '@/lib/scrape-browser-images'
 
 export type InteractiveSessionStatus =
   'waiting' | 'ready' | 'scraping' | 'completed' | 'error' | 'cancelled'
@@ -253,11 +257,14 @@ export type InteractiveCapture = {
   finalUrl: string
   screenshot?: string
   screenshotWarning?: string
+  /** The session's browser, with `keepBrowserForImages`; the caller closes it. */
+  imageSession?: BrowserImageSession
 }
 
 export async function captureInteractiveSession(
   id: string,
   parent?: ScrapeOperation,
+  { keepBrowserForImages = false }: { keepBrowserForImages?: boolean } = {},
 ): Promise<InteractiveCapture> {
   const session = sessions.get(id)
   if (!session) throw new ScrapeError('session_expired')
@@ -311,8 +318,19 @@ export async function captureInteractiveSession(
       const cleanedHtml = await session.page.content()
       if (isSecurityChallengePage(cleanedHtml))
         throw new ScrapeError('challenge')
-      await closeSession(id)
-      return { html: cleanedHtml || html, finalUrl, ...capture }
+      const captured = { html: cleanedHtml || html, finalUrl, ...capture }
+      if (!keepBrowserForImages) {
+        await closeSession(id)
+        return captured
+      }
+      // Stays 'scraping' until closed; the session TTL still ends it.
+      return {
+        ...captured,
+        imageSession: {
+          fetchImages: createBrowserImageFetcher(session.context, finalUrl),
+          close: () => closeSession(id),
+        },
+      }
     })
   } catch (error) {
     if (

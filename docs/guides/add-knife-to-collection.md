@@ -30,7 +30,7 @@ Review the imported identity, price, dimensions, construction details, and descr
 
 ![Imported product images, all selected, with the cover marked](../images/add-knife-images.png)
 
-Product images are stored in the vault when you save the record and are included in ZIP backups and [cloud backups](../reference/cloud-backup.md). Deselect images you do not want, choose a **cover**, and reorder or remove images as needed. You can also add your own photos or image URLs.
+Product images are stored in the vault when you save the record and are included in ZIP backups and [cloud backups](../reference/cloud-backup.md). BladeVault downloads them in the same browser that opened the product page, so images behind the store's bot protection still save. If some images still cannot be downloaded, the record is saved without them and a message tells you how many are missing. Deselect images you do not want, choose a **cover**, and reorder or remove images as needed. You can also add your own photos or image URLs.
 
 ## 5. Save the knife to your collection
 

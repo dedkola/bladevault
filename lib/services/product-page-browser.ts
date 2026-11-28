@@ -10,11 +10,12 @@ import type { RenderedProductPage } from '@/lib/services/product-scrape-service'
 export async function renderProductPageInBrowser(
   url: string,
   operation: ScrapeOperation,
-  options: { screenshot?: boolean } = {},
+  options: { screenshot?: boolean; keepBrowserForImages?: boolean } = {},
 ): Promise<RenderedProductPage> {
   const { fetchRenderedHtml } = await import('@/lib/scrape-playwright')
   return fetchRenderedHtml(url, operation, {
     storageState: withRegionCookies(url, undefined),
     screenshot: options.screenshot,
+    keepBrowserForImages: options.keepBrowserForImages,
   })
 }

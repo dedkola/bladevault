@@ -42,6 +42,9 @@ export async function POST(request: Request) {
           }
         }
 
+        const imageUrls: string[] = Array.isArray(body.imageUrls)
+          ? body.imageUrls
+          : []
         const storage = getStorage()
         const knife = await storage.createKnife({
           name: body.name,
@@ -65,13 +68,18 @@ export async function POST(request: Request) {
             country: body.specs?.country ?? '',
           },
           customFields,
-          imageUrls: Array.isArray(body.imageUrls) ? body.imageUrls : [],
+          imageUrls,
           sourceUrl: typeof body.sourceUrl === 'string' ? body.sourceUrl : '',
           pinned: typeof body.pinned === 'boolean' ? body.pinned : false,
           sold: typeof body.sold === 'boolean' ? body.sold : false,
         })
 
-        return NextResponse.json({ knife })
+        // Product photos that fail to download are skipped, not fatal.
+        const skippedImages = Math.max(
+          0,
+          imageUrls.length - knife.images.length,
+        )
+        return NextResponse.json({ knife, skippedImages })
       } catch (error) {
         reportServerError(error, '/api/knives')
         const message = error instanceof Error ? error.message : 'Unknown error'

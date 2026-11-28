@@ -1,6 +1,11 @@
 import { getLocalDb } from '@/lib/local-db'
 import { tryCaptureWebpageScreenshot } from '@/lib/webpage-screenshot-capture'
-import { chromium, type BrowserContextOptions, type Page } from 'playwright'
+import {
+  chromium,
+  type BrowserContext,
+  type BrowserContextOptions,
+  type Page,
+} from 'playwright'
 import { installScrapeBrowserInitScript } from '@/lib/scrape-browser-context'
 import { createScrapeBrowserResources } from '@/lib/scrape-browser-resources'
 import {
@@ -17,6 +22,10 @@ import { waitForSogProductContent } from '@/lib/scrape-sog-browser'
 import { isAmazonProductUrl } from '@/lib/scrape-amazon'
 import { ensureAmazonUsDelivery } from '@/lib/scrape-amazon-location'
 import { validateExternalUrl } from '@/lib/url-validation'
+import {
+  createBrowserImageFetcher,
+  type BrowserImageSession,
+} from '@/lib/scrape-browser-images'
 
 export type RenderedPage = {
   html: string
@@ -27,6 +36,8 @@ export type RenderedPage = {
   serverHtml?: string
   /** Cookies and storage after the page loaded, when requested. */
   storageState?: BrowserStorageState
+  /** The still-open browser, with `keepBrowserForImages`; the caller closes it. */
+  imageSession?: BrowserImageSession
 }
 
 export type BrowserStorageState = Exclude<
@@ -54,7 +65,16 @@ export type RenderOptions = {
    * AI problem solver and store recipes act on the page here.
    */
   interact?: (page: Page, operation: ScrapeOperation) => Promise<void>
+  /**
+   * Keep the browser open after rendering and return it as `imageSession`,
+   * so product photos can be downloaded with the cookies that passed the
+   * page's bot check. The caller must close it.
+   */
+  keepBrowserForImages?: boolean
 }
+
+/** Closes a kept image browser that its caller never closed. */
+const IMAGE_SESSION_TTL_MS = 2 * 60 * 1000
 
 const LIGHT_BLOCKED_RESOURCES = new Set(['media', 'image', 'font'])
 
@@ -79,8 +99,10 @@ export async function fetchRenderedHtml(
     ),
   })
   const resources = createScrapeBrowserResources(operation)
+  let activeContext: BrowserContext | undefined
+  let handedOff = false
   try {
-    return await operation.run(async () => {
+    const rendered = await operation.run(async (): Promise<RenderedPage> => {
       const database = getLocalDb()
       const validation = await validateExternalUrl(url, {
         signal: operation.signal,
@@ -149,6 +171,7 @@ export async function fetchRenderedHtml(
         }),
       )
       await installScrapeBrowserInitScript(context)
+      activeContext = context
       const page = await resources.acquirePage(() => context.newPage())
       let navigationFailure: ScrapeError | undefined
       await page.route('**/*', async (route) => {
@@ -328,8 +351,27 @@ export async function fetchRenderedHtml(
         captureOperation.dispose()
       }
     })
+    if (!options.keepBrowserForImages || !activeContext) return rendered
+    // Hand the browser to the caller: the render deadline no longer closes it.
+    resources.detach()
+    handedOff = true
+    const ttl = setTimeout(() => void resources.close(), IMAGE_SESSION_TTL_MS)
+    ttl.unref?.()
+    return {
+      ...rendered,
+      imageSession: {
+        fetchImages: createBrowserImageFetcher(
+          activeContext,
+          rendered.finalUrl,
+        ),
+        close: () => {
+          clearTimeout(ttl)
+          return resources.close()
+        },
+      },
+    }
   } finally {
-    await resources.close()
+    if (!handedOff) await resources.close()
     operation.dispose()
   }
 }
