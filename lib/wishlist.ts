@@ -212,6 +212,45 @@ export function wishlistTrackedDays(
   return Math.max(1, Math.round((trend.until - trend.since) / DAY_MS))
 }
 
+/** A day mark under a row chart: where it sits (0–100%) and its label. */
+export type WishlistDayTick = { at: number; left: number; label: string }
+
+/** At most this many day marks under a row chart. */
+const MAX_DAY_TICKS = 8
+
+/**
+ * Day marks for a row chart: each local midnight inside the window,
+ * thinned to at most eight. The first mark and the first of a month name
+ * the month ("Nov 24"), the rest only the day ("25").
+ */
+export function wishlistDayTicks(
+  trend: Pick<WishlistTrend, 'since' | 'until'>,
+): WishlistDayTick[] {
+  const span = trend.until - trend.since
+  if (span <= 0) return []
+  const midnights: Date[] = []
+  const day = new Date(trend.since)
+  day.setHours(24, 0, 0, 0)
+  while (day.getTime() <= trend.until) {
+    midnights.push(new Date(day))
+    day.setDate(day.getDate() + 1)
+  }
+  const step = Math.ceil(midnights.length / MAX_DAY_TICKS)
+  return midnights
+    .filter((_, index) => index % step === 0)
+    .map((date, index) => ({
+      at: date.getTime(),
+      left: ((date.getTime() - trend.since) / span) * 100,
+      label:
+        index === 0 || date.getDate() === 1
+          ? date.toLocaleDateString(undefined, {
+              day: 'numeric',
+              month: 'short',
+            })
+          : String(date.getDate()),
+    }))
+}
+
 /** Where a price sits between the 90-day low (0) and high (1). */
 export function rangePosition(
   priceMinor: number | null,

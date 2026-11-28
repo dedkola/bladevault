@@ -209,6 +209,20 @@
 [data-wishlist] [data-wishlist-name]:hover {
   text-decoration: underline;
 }
+/* Name, then the Price Drops and remove buttons right beside it. */
+[data-wishlist] [data-wishlist-title-line] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+[data-wishlist] [data-wishlist-title-line] [data-wishlist-name] {
+  min-width: 0;
+  margin-right: 2px;
+}
+[data-wishlist] [data-wishlist-title-line] > :not([data-wishlist-name]) {
+  flex: none;
+}
 /* "3 of 6 stores": opens the store list */
 [data-wishlist] [data-wishlist-stores] {
   padding: 0;
@@ -285,6 +299,19 @@
 [data-wishlist-store-name] svg {
   color: var(--muted-foreground);
 }
+/* The store's colour, as its dots on the chart. */
+[data-wishlist-store-dot] {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: var(--store-light);
+}
+html.dark [data-wishlist-store-dot],
+html[data-theme-mode='dark'] [data-wishlist-store-dot] {
+  background: var(--store-dark);
+}
 [data-wishlist-store-diff] {
   color: var(--muted-foreground);
   text-align: right;
@@ -320,26 +347,62 @@
   color: var(--destructive);
 }
 
-[data-wishlist] [data-wishlist-spark-row] {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
 [data-wishlist] [data-wishlist-spark-cell] {
+  display: grid;
+  gap: 5px;
   min-width: 0;
 }
-/* The row chart (row-price-chart-model.ts) at the mockup's row size, in
+/* The gap to your price and the last move, above the chart. */
+[data-wishlist] [data-wishlist-spark-head] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+[data-wishlist] [data-wishlist-spark-note] {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  white-space: nowrap;
+}
+/* The row chart (row-price-chart-model.ts) takes the rest of the row, in
    the wishlist's own colours. */
 [data-wishlist] [data-wishlist-spark-box] {
   --trend-down: var(--wl-sale);
   --trend-up: var(--wl-up);
   --trend-flat: var(--wl-neutral);
-  flex: 1 1 0;
+  position: relative;
   min-width: 0;
-  max-width: 260px;
-  height: 54px;
+  height: 84px;
   cursor: crosshair;
   touch-action: pan-y;
+}
+/* A faint line per day behind the chart, inset like the chart's grid. */
+[data-wishlist] [data-wishlist-spark-grid] {
+  position: absolute;
+  inset: 0 3px;
+  pointer-events: none;
+}
+[data-wishlist] [data-wishlist-spark-grid] > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed var(--border);
+}
+/* Day labels under the lines; each shifts by its own position so the first
+   and last stay inside the chart. */
+[data-wishlist] [data-wishlist-spark-ticks] {
+  position: relative;
+  height: 14px;
+  margin: 0 3px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 14px;
+}
+[data-wishlist] [data-wishlist-spark-ticks] > span {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
 }
 /* Net change over the window; the arrow keeps it readable without colour. */
 [data-wishlist] [data-wishlist-spark-chip] {
@@ -364,16 +427,6 @@
 }
 [data-wishlist] [data-wishlist-spark-chip='up'] {
   --wl-chip: var(--wl-up);
-}
-/* Start date, the last move and today, under the chart (not the chip). */
-[data-wishlist] [data-wishlist-spark-axis] {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin: 3px 50px 0 0;
-  color: var(--muted-foreground);
-  font-size: 11px;
-  white-space: nowrap;
 }
 [data-wishlist] [data-wishlist-spark-empty] {
   color: var(--muted-foreground);
@@ -468,8 +521,8 @@
 [data-wishlist-row] {
   display: grid;
   grid-template-columns:
-    60px minmax(220px, 1fr) 150px minmax(230px, 290px)
-    minmax(280px, 1.6fr) auto;
+    60px minmax(240px, 320px) 150px minmax(230px, 280px)
+    minmax(280px, 1fr);
   gap: 20px;
   align-items: center;
   padding: 12px 16px;
@@ -495,15 +548,9 @@
 [data-wishlist-row-trend] {
   min-width: 0;
 }
-[data-wishlist-row-actions] {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 /* Widths follow the page column, not the window, so the sidebar counts.
-   Deal cards put the photo on top; rows take two lines: name, price and
-   actions, then stores and chart. */
+   Deal cards put the photo on top; rows take two lines: name and price,
+   then stores and chart. */
 @container wishlist (max-width: 1180px) {
   [data-wishlist] [data-wishlist-deal] {
     grid-template-columns: minmax(0, 1fr);
@@ -520,7 +567,7 @@
     font-size: 24px;
   }
   [data-wishlist-row] {
-    grid-template-columns: 60px minmax(220px, 270px) minmax(0, 1fr) 150px auto;
+    grid-template-columns: 60px minmax(220px, 270px) minmax(0, 1fr) 150px;
     row-gap: 10px;
   }
   [data-wishlist-row-info] {
@@ -530,17 +577,13 @@
     grid-row: 1;
     grid-column: 4;
   }
-  [data-wishlist-row-actions] {
-    grid-row: 1;
-    grid-column: 5;
-  }
   [data-wishlist-row-stores] {
     grid-row: 2;
     grid-column: 2;
   }
   [data-wishlist-row-trend] {
     grid-row: 2;
-    grid-column: 3 / 6;
+    grid-column: 3 / 5;
   }
 }
 /* One deal card per line; stores and chart each take a full line. */
@@ -558,16 +601,13 @@
     height: 72px;
   }
   [data-wishlist-row] {
-    grid-template-columns: 60px minmax(0, 1fr) auto auto;
+    grid-template-columns: 60px minmax(0, 1fr) auto;
   }
   [data-wishlist-row-info] {
     grid-column: 2;
   }
   [data-wishlist-row-price] {
     grid-column: 3;
-  }
-  [data-wishlist-row-actions] {
-    grid-column: 4;
   }
   [data-wishlist-row-stores] {
     grid-column: 2 / -1;
@@ -592,17 +632,13 @@
   [data-wishlist-row-info],
   [data-wishlist-row-price],
   [data-wishlist-row-stores],
-  [data-wishlist-row-trend],
-  [data-wishlist-row-actions] {
+  [data-wishlist-row-trend] {
     grid-row: auto;
     grid-column: 2;
   }
   [data-wishlist-row-price] {
     justify-items: start;
     text-align: left;
-  }
-  [data-wishlist] [data-wishlist-spark-axis] {
-    margin-right: 0;
   }
 }
 

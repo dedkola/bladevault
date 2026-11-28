@@ -6,6 +6,7 @@ import {
   trendChange,
   wishlistDeal,
   wishlistMoves,
+  wishlistDayTicks,
   wishlistStorePrices,
   wishlistTrackedDays,
   wishlistTrendDirection,
@@ -128,6 +129,44 @@ describe('wishlist trend moves', () => {
     expect(wishlistTrackedDays({ since: 0, until: 5 * 86_400_000 })).toBe(5)
     expect(wishlistTrackedDays({ since: 0, until: 3_600_000 })).toBe(1)
     expect(wishlistTrackedDays({ since: 100, until: 100 })).toBe(1)
+  })
+
+  it('marks each midnight under the chart, naming the month first', () => {
+    const since = new Date(2026, 10, 23, 14).getTime()
+    const until = new Date(2026, 10, 28, 9).getTime()
+    const ticks = wishlistDayTicks({ since, until })
+    expect(ticks.map((tick) => new Date(tick.at).getDate())).toEqual([
+      24, 25, 26, 27, 28,
+    ])
+    expect(ticks[0].label).toMatch(/24/)
+    expect(ticks[0].label).not.toBe('24')
+    expect(ticks.slice(1).map((tick) => tick.label)).toEqual([
+      '25',
+      '26',
+      '27',
+      '28',
+    ])
+    for (const tick of ticks) {
+      expect(tick.left).toBeGreaterThan(0)
+      expect(tick.left).toBeLessThanOrEqual(100)
+    }
+  })
+
+  it('thins long windows to eight marks and names a new month', () => {
+    const since = new Date(2026, 9, 29, 12).getTime()
+    const until = new Date(2026, 10, 28, 12).getTime()
+    const ticks = wishlistDayTicks({ since, until })
+    expect(ticks.length).toBeLessThanOrEqual(8)
+    expect(wishlistDayTicks({ since: until, until })).toEqual([])
+    const first = wishlistDayTicks({
+      since: new Date(2026, 10, 29, 12).getTime(),
+      until: new Date(2026, 11, 2, 12).getTime(),
+    })
+    expect(first.map((tick) => tick.label.length > 2)).toEqual([
+      true,
+      true,
+      false,
+    ])
   })
 })
 
