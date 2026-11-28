@@ -37,6 +37,7 @@ import { redactSecrets } from '@/lib/price-monitor/secret-registry'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
 import {
   FETCH_OVERRIDES,
+  FOCUS_MIN_EVERY_HOURS,
   type Availability,
   type FetchOverride,
   type PriceSourceStatus,
@@ -156,12 +157,13 @@ export const QUESTION_REPEAT_DAYS = 30
 export const QUESTION_EXPIRY_DAYS = 7
 const TITLE_MAX = 120
 const DETAIL_MAX = 400
-/** Knives the supervisor may watch closely at once. */
-export const MAX_FOCUSED_KNIVES = 20
+/**
+ * Knives the supervisor may watch closely at once: their checks take turns
+ * with the round, so a few keep the rest of the vault moving.
+ */
+export const MAX_FOCUSED_KNIVES = 5
 /** A close watch lasts at most this long (hours). */
 export const FOCUS_MAX_HOURS = 72
-/** And checks at most this often (hours). */
-export const FOCUS_MIN_EVERY_HOURS = 1
 /** A check asked for this soon after the last one is refused. */
 export const RECHECK_MIN_MS = 30 * MINUTE_MS
 /** Failed checks in a row before the agent may pause a source. */
@@ -1352,8 +1354,10 @@ function readAgentKnives(input: {
     const watching =
       knife?.focus_interval_ms && focusUntil > now
         ? {
-            everyHours:
+            everyHours: Math.max(
+              FOCUS_MIN_EVERY_HOURS,
               Math.round((knife.focus_interval_ms / HOUR_MS) * 10) / 10,
+            ),
             endsInHours: Math.round(((focusUntil - now) / HOUR_MS) * 10) / 10,
             reason: knife.focus_reason ?? '',
           }
@@ -2153,7 +2157,9 @@ export function validateAgentPlan(
           ? 'no monitored source'
           : entry.everyHours >= snapshot.checkIntervalHours
             ? `not more often than the schedule (every ${snapshot.checkIntervalHours} h)`
-            : !knife.watching && watched >= MAX_FOCUSED_KNIVES
+            : // Renewing counts the other watched knives: a watch only
+              // stays while fewer than the limit are watched.
+              (knife.watching ? watched - 1 : watched) >= MAX_FOCUSED_KNIVES
               ? `already watching ${MAX_FOCUSED_KNIVES} knives`
               : null,
     )
@@ -2258,6 +2264,12 @@ export function validateAgentPlan(
                 : LINK.test(entry.question)
                   ? 'links are not allowed'
                   : null
+    if (
+      !refusal &&
+      entry.ask === 'watch_closely' &&
+      watched >= MAX_FOCUSED_KNIVES
+    )
+      refusal = `already watching ${MAX_FOCUSED_KNIVES} knives`
     let message: AgentMessage | undefined
     if (knife && !refusal) {
       const asked = askMessage(entry, knife, snapshot, byId)

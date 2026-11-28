@@ -23,6 +23,7 @@ import {
 import { recordNewStoreEvent } from '@/lib/price-monitor/new-store'
 import {
   ATTENTION_STATUS_LIST,
+  FOCUS_MIN_EVERY_HOURS,
   laneKeyForUrl,
   MAX_PRICE_SOURCES_PER_KNIFE,
   normalizeSourceUrl,
@@ -236,7 +237,10 @@ function activeFocus(
     return null
   return {
     until: row.focus_until,
-    intervalMs: row.focus_interval_ms,
+    intervalMs: Math.max(
+      row.focus_interval_ms,
+      FOCUS_MIN_EVERY_HOURS * 3_600_000,
+    ),
     reason: row.focus_reason ?? '',
   }
 }
