@@ -630,9 +630,15 @@
       'changes sources';
   }
 }
-/* The open row and its details read as one block. */
+/* The open row is the header of its details: a stronger tint and a dashed
+   line mark where clicking collapses it; the gold bar keeps them one item. */
 [data-price-grid] tr[data-selected]:has(+ tr[data-price-detail-row]) {
-  border-bottom-color: transparent;
+  background: color-mix(
+    in srgb,
+    var(--foreground) 7%,
+    var(--bladevault-surface-soft)
+  );
+  border-bottom: 1px dashed var(--bladevault-line);
 }
 [data-price-grid] tr[data-price-detail-row] {
   background: var(--bladevault-surface-soft);
