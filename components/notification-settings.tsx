@@ -258,7 +258,7 @@ export function NotificationSettings({
 
       <SettingsSection
         title="Rest of the collection"
-        description="Knives outside What to monitor, checked in free time. They follow their own rule instead of the settings above."
+        description="Knives outside What to monitor, checked about once a day after What to monitor. They follow their own rule instead of the settings above."
       >
         <SettingsRow
           label="Notify only about a super sale"
@@ -271,7 +271,7 @@ export function NotificationSettings({
               <>
                 Applies while the rest of the collection is checked. Turn on{' '}
                 <SettingsLink tab="prices">
-                  Check the rest of the collection in free time
+                  Check the rest of the collection once a day
                 </SettingsLink>{' '}
                 in Price monitoring first.
               </>

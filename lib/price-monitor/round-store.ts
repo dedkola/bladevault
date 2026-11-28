@@ -3,13 +3,7 @@ import { getLocalDb } from '@/lib/local-db'
 import { readDiscoveryQueue } from '@/lib/price-monitor/discovery-store'
 import { DISCOVERY_STORES } from '@/lib/price-monitor/discovery-stores'
 import { getEligibility } from '@/lib/price-monitor/eligibility'
-import {
-  plannedStepTimes,
-  retryDueTimes,
-  retryKey,
-  type RetryReason,
-  type StepTask,
-} from '@/lib/price-monitor/rounds'
+import { retryKey, type RetryReason } from '@/lib/price-monitor/rounds'
 import { withMonitorScope } from '@/lib/price-monitor/scope'
 import type { MonitorTier, PriceWatchMode } from '@/lib/price-monitor/shared'
 import {
@@ -155,18 +149,6 @@ export function readRoundKnifeIds(
   options: KnifeListOptions,
 ): string[] {
   return readTierKnifeIds(database, settings, options, 'scope')
-}
-
-/**
- * The knives the collection pass goes through, in the same order as a
- * round: outside What to monitor, covered because the collection pass is on.
- */
-export function readCollectionPassKnifeIds(
-  database: Database.Database,
-  settings: PriceMonitoringSettings,
-  options: KnifeListOptions,
-): string[] {
-  return readTierKnifeIds(database, settings, options, 'collection')
 }
 
 type KnifeListOptions = {
@@ -318,16 +300,16 @@ function readTierKnifeIds(
 }
 
 /**
- * Starts a round unless one is running: saves its knives in order and gives
- * their store links planned check times, so "next check" in the UI shows
- * when the round reaches them. Knives watched closely keep their own times.
- * Returns the new round, or null when one was already running.
+ * Check all now, unless one is running: saves its knives in order and makes
+ * every link of theirs due now, earliest for the first knife, so each
+ * store's queue takes them in that order. The round ends once every one of
+ * its links was checked (or tried). Returns the new round, or null when one
+ * was already running.
  */
 export async function startRound(input: {
   settings: PriceMonitoringSettings
   trigger: RoundTrigger
   intervalMs: number
-  pauseMs: number
   searches: boolean
   now: number
   generation?: string
@@ -356,20 +338,15 @@ export async function startRound(input: {
             JSON.stringify(knifeIds),
           ).lastInsertRowid,
       )
-      const plan = database.prepare(
+      const due = database.prepare(
         `UPDATE price_sources SET next_check_at = ?
          WHERE knife_id = ? AND removed_at IS NULL AND enabled = 1
-           AND priority = 0
-           AND NOT EXISTS (
-             SELECT 1 FROM price_watch w
-             WHERE w.knife_id = price_sources.knife_id
-               AND w.focus_until IS NOT NULL AND w.focus_until > ?)`,
+           AND priority = 0`,
       )
-      plannedStepTimes({
-        count: knifeIds.length,
-        startAt: input.now,
-        pauseMs: input.pauseMs,
-      }).forEach((at, index) => plan.run(iso(at), knifeIds[index], startedAt))
+      // A second apart, so a store's queue keeps the knives' order.
+      knifeIds.forEach((knifeId, index) =>
+        due.run(iso(input.now - (knifeIds.length - index) * 1000), knifeId),
+      )
       return {
         id,
         trigger: input.trigger,
@@ -383,184 +360,20 @@ export async function startRound(input: {
   })
 }
 
-/** The round moves on to its next knife. */
-export async function advanceRound(input: {
+/** Check all is done: every link of its knives was checked or tried. */
+export async function endRound(input: {
   roundId: number
-  cursor: number
+  now: number
   generation: string
 }): Promise<void> {
   await withVaultWrite(async () => {
     assertVaultGeneration(input.generation)
     getLocalDb()
-      .prepare('UPDATE price_rounds SET cursor = MAX(cursor, ?) WHERE id = ?')
-      .run(input.cursor, input.roundId)
-  })
-}
-
-/**
- * Ends a round and spreads its retry list over random times before the next
- * round. Checks on the list show their retry time as their next check.
- */
-export async function finishRound(input: {
-  roundId: number
-  now: number
-  nextRoundAt: number
-  random: () => number
-  generation: string
-}): Promise<number> {
-  return withVaultWrite(async () => {
-    assertVaultGeneration(input.generation)
-    const database = getLocalDb()
-    return database.transaction(() => {
-      database
-        .prepare('UPDATE price_rounds SET finished_at = ? WHERE id = ?')
-        .run(iso(input.now), input.roundId)
-      const waiting = (
-        database
-          .prepare(
-            `SELECT * FROM price_retry_tasks WHERE due_at IS NULL
-             ORDER BY created_at, task_key`,
-          )
-          .all() as RetryRow[]
-      ).map(toRetry)
-      // Shuffle by the random times so stores mix over the retry window.
-      const times = retryDueTimes({
-        count: waiting.length,
-        roundEnd: input.now,
-        nextRoundAt: input.nextRoundAt,
-        random: input.random,
-      })
-      const order = waiting
-        .map((task) => ({ task, key: input.random() }))
-        .sort((a, b) => a.key - b.key)
-        .map((entry) => entry.task)
-      const schedule = database.prepare(
-        'UPDATE price_retry_tasks SET due_at = ?, updated_at = ? WHERE task_key = ?',
+      .prepare(
+        `UPDATE price_rounds SET finished_at = ?, cursor = json_array_length(knife_ids)
+         WHERE id = ? AND finished_at IS NULL`,
       )
-      const showNext = database.prepare(
-        `UPDATE price_sources SET next_check_at = ?
-         WHERE id = ? AND removed_at IS NULL`,
-      )
-      order.forEach((task, index) => {
-        const due = iso(times[index])
-        schedule.run(due, iso(input.now), task.key)
-        if (task.kind === 'check' && task.sourceId !== null)
-          showNext.run(due, task.sourceId)
-      })
-      return order.length
-    })()
-  })
-}
-
-export type TaskResult = {
-  task: StepTask
-  knifeId: string
-  /** Null: the task worked and leaves the retry list. */
-  retry: { reason: RetryReason; error: string | null } | null
-}
-
-/**
- * Records what a step's tasks did: what worked leaves the retry list, what
- * failed joins it (or counts one more attempt). Retries wait for the end of
- * the round (no due time) unless `dueAt` is given.
- */
-export async function recordTaskResults(input: {
-  results: readonly TaskResult[]
-  roundId: number | null
-  now: number
-  dueAt?: number | null
-  generation: string
-}): Promise<void> {
-  if (!input.results.length) return
-  await withVaultWrite(async () => {
-    assertVaultGeneration(input.generation)
-    const database = getLocalDb()
-    const remove = database.prepare(
-      'DELETE FROM price_retry_tasks WHERE task_key = ?',
-    )
-    const upsert = database.prepare(
-      `INSERT INTO price_retry_tasks
-         (task_key, kind, knife_id, source_id, store, lane_key, reason,
-          attempts, round_id, due_at, last_error, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
-       ON CONFLICT(task_key) DO UPDATE SET
-         reason = excluded.reason,
-         attempts = price_retry_tasks.attempts + 1,
-         round_id = COALESCE(excluded.round_id, price_retry_tasks.round_id),
-         due_at = excluded.due_at,
-         last_error = excluded.last_error,
-         updated_at = excluded.updated_at`,
-    )
-    // A link moved forward whose store was not ready waits on the retry
-    // list instead of being moved forward again and again.
-    const settle = database.prepare(
-      'UPDATE price_sources SET priority = 0 WHERE id = ? AND priority = 1',
-    )
-    const now = iso(input.now)
-    const dueAt =
-      input.dueAt === undefined || input.dueAt === null
-        ? null
-        : iso(input.dueAt)
-    database.transaction(() => {
-      for (const result of input.results) {
-        const { task } = result
-        if (task.kind === 'check' && result.retry?.reason === 'store_not_ready')
-          settle.run(task.sourceId)
-        const key =
-          task.kind === 'check'
-            ? retryKey({ kind: 'check', sourceId: task.sourceId })
-            : retryKey({
-                kind: 'search',
-                knifeId: result.knifeId,
-                store: task.store,
-              })
-        if (!result.retry) {
-          remove.run(key)
-          continue
-        }
-        upsert.run(
-          key,
-          task.kind,
-          result.knifeId,
-          task.kind === 'check' ? task.sourceId : null,
-          task.kind === 'search' ? task.store : null,
-          task.laneKey,
-          result.retry.reason,
-          input.roundId,
-          dueAt,
-          result.retry.error,
-          now,
-          now,
-        )
-      }
-    })()
-  })
-}
-
-/**
- * A knife watched closely: the step's links that are still due (their store
- * had no time, or the check was skipped) wait until `until`, the knife's
- * next watch time, instead of making the knife due again right away.
- */
-export async function deferUnreadChecks(input: {
-  sourceIds: readonly number[]
-  until: number
-  now: number
-  generation: string
-}): Promise<void> {
-  if (!input.sourceIds.length) return
-  await withVaultWrite(async () => {
-    assertVaultGeneration(input.generation)
-    const database = getLocalDb()
-    const defer = database.prepare(
-      `UPDATE price_sources SET next_check_at = ?
-       WHERE id = ? AND removed_at IS NULL
-         AND (next_check_at IS NULL OR next_check_at <= ?)`,
-    )
-    database.transaction(() => {
-      for (const sourceId of input.sourceIds)
-        defer.run(iso(input.until), sourceId, iso(input.now))
-    })()
+      .run(iso(input.now), input.roundId)
   })
 }
 
@@ -593,34 +406,18 @@ export function readRetryTasks(database: Database.Database): RetryTask[] {
 }
 
 /**
- * A retry ran: it leaves the list when it worked; otherwise it waits for the
- * next round's end with one more attempt counted.
+ * A retry ran: it leaves the list either way. What failed again comes back
+ * on the source's own retry delays, in its store's queue.
  */
 export async function finishRetry(input: {
   key: string
-  ok: boolean
-  reason?: RetryReason
-  error?: string | null
-  now: number
   generation: string
 }): Promise<void> {
   await withVaultWrite(async () => {
     assertVaultGeneration(input.generation)
-    const database = getLocalDb()
-    if (input.ok) {
-      database
-        .prepare('DELETE FROM price_retry_tasks WHERE task_key = ?')
-        .run(input.key)
-      return
-    }
-    database
-      .prepare(
-        `UPDATE price_retry_tasks
-         SET attempts = attempts + 1, due_at = NULL,
-             reason = COALESCE(?, reason), last_error = ?, updated_at = ?
-         WHERE task_key = ?`,
-      )
-      .run(input.reason ?? null, input.error ?? null, iso(input.now), input.key)
+    getLocalDb()
+      .prepare('DELETE FROM price_retry_tasks WHERE task_key = ?')
+      .run(input.key)
   })
 }
 
@@ -664,7 +461,9 @@ export function queueRetryNow(
 
 /**
  * Drops retry list items that no longer apply: a removed or paused source,
- * a deleted knife, or a store that now has a listing for the knife.
+ * a deleted knife, a store that now has a listing for the knife, or an
+ * item the old rounds left (failed checks now come back on their own retry
+ * delays; only the supervisor's Retry with AI uses the list).
  */
 export async function dropStaleRetries(generation: string): Promise<number> {
   return withVaultWrite(async () => {
@@ -672,7 +471,8 @@ export async function dropStaleRetries(generation: string): Promise<number> {
     return getLocalDb()
       .prepare(
         `DELETE FROM price_retry_tasks
-         WHERE (kind = 'check' AND NOT EXISTS (
+         WHERE reason <> 'supervisor'
+            OR (kind = 'check' AND NOT EXISTS (
                   SELECT 1 FROM price_sources s
                   WHERE s.id = price_retry_tasks.source_id
                     AND s.removed_at IS NULL AND s.enabled = 1))
@@ -697,151 +497,4 @@ export function pruneRounds(database: Database.Database, now: number): void {
          WHERE finished_at IS NOT NULL AND finished_at < ?`,
       )
       .run(iso(now - ROUND_HISTORY_MS))
-}
-
-// ------------------------------------------------------- collection pass
-
-/**
- * The collection pass: knives outside What to monitor, one at a time in the
- * free time between rounds (see rounds.ts, nextPassAt). Its failures do not
- * join the retry list; the next pass reads them again. Stores that were not
- * ready do, so a skipped link does not wait for the next pass.
- */
-export type CollectionPass = {
-  id: number
-  startedAt: number
-  finishedAt: number | null
-  knifeIds: string[]
-  /** Index of the next knife to check. */
-  cursor: number
-}
-
-type PassRow = Omit<RoundRow, 'trigger' | 'interval_ms'>
-
-function toPass(row: PassRow | undefined): CollectionPass | null {
-  if (!row) return null
-  let knifeIds: string[] = []
-  try {
-    const parsed = JSON.parse(row.knife_ids) as unknown
-    if (Array.isArray(parsed))
-      knifeIds = parsed.filter((id): id is string => typeof id === 'string')
-  } catch {
-    knifeIds = []
-  }
-  return {
-    id: row.id,
-    startedAt: time(row.started_at) ?? 0,
-    finishedAt: time(row.finished_at),
-    knifeIds,
-    cursor: row.cursor,
-  }
-}
-
-/** The collection pass in progress, if any. */
-export function readCurrentPass(
-  database: Database.Database,
-): CollectionPass | null {
-  return toPass(
-    database
-      .prepare(
-        `SELECT * FROM price_collection_passes WHERE finished_at IS NULL
-         ORDER BY id DESC LIMIT 1`,
-      )
-      .get() as PassRow | undefined,
-  )
-}
-
-/** The latest collection pass, running or finished. */
-export function readLastPass(
-  database: Database.Database,
-): CollectionPass | null {
-  return toPass(
-    database
-      .prepare('SELECT * FROM price_collection_passes ORDER BY id DESC LIMIT 1')
-      .get() as PassRow | undefined,
-  )
-}
-
-/**
- * Starts a collection pass unless one is running, and gives its knives'
- * store links planned check times (rounds that come first push them back).
- * Returns null when one was already running.
- */
-export async function startPass(input: {
-  settings: PriceMonitoringSettings
-  pauseMs: number
-  searches: boolean
-  now: number
-  generation: string
-}): Promise<CollectionPass | null> {
-  return withVaultWrite(async () => {
-    assertVaultGeneration(input.generation)
-    const database = getLocalDb()
-    return database.transaction(() => {
-      if (readCurrentPass(database)) return null
-      const knifeIds = readCollectionPassKnifeIds(database, input.settings, {
-        searches: input.searches,
-        now: input.now,
-      })
-      const startedAt = iso(input.now)
-      const id = Number(
-        database
-          .prepare(
-            `INSERT INTO price_collection_passes
-               (started_at, knife_ids, cursor) VALUES (?, ?, 0)`,
-          )
-          .run(startedAt, JSON.stringify(knifeIds)).lastInsertRowid,
-      )
-      const plan = database.prepare(
-        `UPDATE price_sources SET next_check_at = ?
-         WHERE knife_id = ? AND removed_at IS NULL AND enabled = 1
-           AND priority = 0`,
-      )
-      plannedStepTimes({
-        count: knifeIds.length,
-        startAt: input.now,
-        pauseMs: input.pauseMs,
-      }).forEach((at, index) => plan.run(iso(at), knifeIds[index]))
-      return {
-        id,
-        startedAt: input.now,
-        finishedAt: null,
-        knifeIds,
-        cursor: 0,
-      }
-    })()
-  })
-}
-
-/** The pass moves on to its next knife. */
-export async function advancePass(input: {
-  passId: number
-  cursor: number
-  generation: string
-}): Promise<void> {
-  await withVaultWrite(async () => {
-    assertVaultGeneration(input.generation)
-    getLocalDb()
-      .prepare(
-        'UPDATE price_collection_passes SET cursor = MAX(cursor, ?) WHERE id = ?',
-      )
-      .run(input.cursor, input.passId)
-  })
-}
-
-/** Ends the collection pass. */
-export async function finishPass(input: {
-  passId: number
-  now: number
-  generation: string
-}): Promise<void> {
-  await withVaultWrite(async () => {
-    assertVaultGeneration(input.generation)
-    getLocalDb()
-      .prepare(
-        `UPDATE price_collection_passes SET finished_at = ?
-         WHERE id = ? AND finished_at IS NULL`,
-      )
-      .run(iso(input.now), input.passId)
-  })
 }

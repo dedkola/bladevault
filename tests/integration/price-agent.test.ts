@@ -379,7 +379,7 @@ describe('AI supervisor', () => {
     expect(row(paused.source.id).last_ai_at).toBe(old)
   })
 
-  it('shows each knife its market, its place in the round and what came of earlier actions', async () => {
+  it('shows each knife its market, its place in its store’s queue and what came of earlier actions', async () => {
     enableAgent('act')
     saveSettings({
       priceMonitoring: {
@@ -409,12 +409,11 @@ describe('AI supervisor', () => {
     )
     setState.run(ago(1), ago(0.05), 9900, watched.source.id)
     setState.run(ago(1), ago(0.2), 5000, first.source.id)
-    // A round runs: Drop Bear (added first) is next, Mini after it.
+    // Check all runs: Drop Bear (added first) is next at the store, Mini after it.
     await startRound({
       settings: getSettings().priceMonitoring,
       trigger: 'scheduled',
       intervalMs: 6 * 3_600_000,
-      pauseMs: 60_000,
       searches: false,
       now: Date.now(),
     })
@@ -476,7 +475,6 @@ describe('AI supervisor', () => {
       retry: { reason: 'supervisor', attempts: 0, inMin: 0 },
     })
     expect(snapshot.round).toEqual({ done: 0, knives: 2 })
-    expect(snapshot.nextRoundInMin).toBeNull()
     expect(sourceOf(source.id)).toMatchObject({
       ahead: 0,
       price: '99.00 USD',
@@ -532,7 +530,7 @@ describe('AI supervisor', () => {
     expect(
       result.run.actions.map((action) => [action.kind, action.note]),
     ).toEqual([
-      ['check', 'its knife is next in the round'],
+      ['check', 'it is next at its store'],
       ['check', null],
       ['searchOtherStore', null],
     ])
@@ -563,7 +561,7 @@ describe('AI supervisor', () => {
         kind: 'check',
         target: `source ${source.id}`,
         status: 'refused',
-        note: 'its knife is next in the round',
+        note: 'it is next at its store',
         outcome: undefined,
       },
       {

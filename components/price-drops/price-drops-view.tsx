@@ -129,33 +129,29 @@ type QueueSnapshot = {
   enabled: boolean
   /** Check now requests waiting. */
   waiting: number
-  /** The round in progress, if any. */
+  /** Scheduled links due now, waiting for their store's turn. */
+  backlog?: number
+  /** Check all now in progress, if any. */
   round: QueueRound | null
-  /** The last round that finished, if any. */
+  /** The last Check all that finished, if any. */
   lastRound: { id: number } | null
-  /** When the next round starts (null while one runs or checks are off). */
-  nextRoundAt: string | null
-  /** The retry list: items waiting for a time, and items with one. */
+  /** The supervisor's Retry with AI: items waiting, and with a time. */
   retries: { waiting: number; scheduled: number; nextAt: string | null }
   lanes: QueueLane[]
   /** What to monitor; `knives` is null for the whole collection. */
   scope?: { kind: PriceMonitorScopeKind; knives: number | null }
-  /** The rest of the collection, checked in free time; null while off. */
-  collectionPass?: {
-    running: boolean
-    /** A round runs, so the pass waits at its knife. */
-    waiting: boolean
-    knives: number
-    done: number
-    nextAt: string | null
-  } | null
+  /**
+   * The rest of the collection, checked at most once a day; null while off.
+   * `done` knives were checked in the last 24 hours.
+   */
+  collectionPass?: { knives: number; done: number } | null
 }
 
 const SCOPE_LABEL = { wishlist: 'Wishlist', selected: 'Selected knives' }
 
 const OVERVIEW_REFRESH_MS = 60_000
 const QUEUE_REFRESH_MS = 10_000
-/** Faster while a round runs, so its progress moves visibly. */
+/** Faster while Check all runs, so its progress moves visibly. */
 const PROGRESS_REFRESH_MS = 3_000
 /** Bulk changes to this many listings or knives ask first. */
 const BULK_CONFIRM_AT = 5
@@ -272,7 +268,7 @@ function useOverview(version: number) {
   return { ...state, retry: () => setTick((value) => value + 1) }
 }
 
-/** The live queue; polled faster while a round runs (or was just started). */
+/** The live queue; polled faster while Check all runs (or was just started). */
 function useQueue(fast: boolean, version: number) {
   const [queue, setQueue] = useState<QueueSnapshot | null>(null)
   useEffect(() => {
@@ -339,7 +335,7 @@ function roundText(round: QueueRound, pausedStores: number): string {
     parts.push(
       `${pausedStores} ${pausedStores === 1 ? 'store is' : 'stores are'} paused after a bot check`,
     )
-  else parts.push("all of a knife's stores at once, then a pause")
+  else parts.push('every store at its own pace')
   return parts.join(' · ')
 }
 
@@ -991,12 +987,11 @@ function RoundProgress({
         aria-live="polite"
         className="text-sm text-muted-foreground"
       >
-        {round.trigger === 'manual' ? 'Check all: ' : 'Round: '}
-        {roundText(round, pausedStores)}
+        Check all: {roundText(round, pausedStores)}
       </p>
       <div
         role="progressbar"
-        aria-label="Round progress"
+        aria-label="Check all progress"
         aria-valuemin={0}
         aria-valuemax={round.knives}
         aria-valuenow={done}
@@ -1178,9 +1173,7 @@ export function PriceDropsView({
   if (queue && ((round?.id ?? null) !== roundSeen || startedDone)) {
     if (startedDone) {
       setStarted(null)
-      setNotice(
-        `Check all finished.${retryCount ? ` ${retryCount} ${retryCount === 1 ? 'listing or search is' : 'listings or searches are'} on the retry list and will be tried again before the next round.` : ''}`,
-      )
+      setNotice('Check all finished.')
     }
     if (roundSeen !== null || startedDone) setVersion((value) => value + 1)
     setRoundSeen(round?.id ?? null)
@@ -1483,13 +1476,16 @@ export function PriceDropsView({
               {!queue.enabled
                 ? 'Automatic checks are off'
                 : round
-                  ? `Round: ${Math.min(round.done, round.knives)} of ${round.knives} ${round.knives === 1 ? 'knife' : 'knives'}`
+                  ? `Check all: ${Math.min(round.done, round.knives)} of ${round.knives} ${round.knives === 1 ? 'knife' : 'knives'}`
                   : checkingStores
                     ? `${checkingStores} ${checkingStores === 1 ? 'store' : 'stores'} checking`
-                    : queue.nextRoundAt
-                      ? `Next round ${clockTime(queue.nextRoundAt, hourCycle, now)}`
-                      : 'Waiting for the next check'}
-              {queue.enabled && retryCount ? ` · retry list ${retryCount}` : ''}
+                    : queue.backlog
+                      ? 'Waiting for the stores'
+                      : 'Up to date'}
+              {queue.enabled && queue.backlog ? ` · ${queue.backlog} due` : ''}
+              {queue.enabled && retryCount
+                ? ` · retry with AI ${retryCount}`
+                : ''}
               {overview?.kpis.lastSuccessAt
                 ? ` · last check ${relativeTime(overview.kpis.lastSuccessAt, now)}`
                 : ''}
@@ -1512,23 +1508,13 @@ export function PriceDropsView({
               <span className="underline">Change</span>
             </Link>
           ) : null}
-          {queue?.enabled && queue.collectionPass ? (
+          {queue?.enabled && queue.collectionPass?.knives ? (
             <span
-              data-price-collection-pass={
-                queue.collectionPass.waiting
-                  ? 'waiting'
-                  : queue.collectionPass.running
-                    ? 'running'
-                    : 'idle'
-              }
-              title="The rest of the collection is checked between rounds, at most once a day, and notifies only about a super sale."
+              data-price-collection-pass
+              title="The rest of the collection is checked about once a day, after What to monitor at each store, and notifies only about a super sale."
               className="inline-flex items-center gap-1.5 rounded-full border border-[var(--bladevault-line)] px-2.5 py-1 text-xs text-muted-foreground"
             >
-              {queue.collectionPass.running
-                ? `Collection: ${Math.min(queue.collectionPass.done, queue.collectionPass.knives)} of ${queue.collectionPass.knives}${queue.collectionPass.waiting ? ' · waits for the round' : ''}`
-                : queue.collectionPass.nextAt
-                  ? `Collection next ${clockTime(queue.collectionPass.nextAt, hourCycle, now)}`
-                  : 'Collection'}
+              {`Collection: ${Math.min(queue.collectionPass.done, queue.collectionPass.knives)} of ${queue.collectionPass.knives} checked today`}
             </span>
           ) : null}
           <Button
@@ -1547,7 +1533,7 @@ export function PriceDropsView({
               queue?.enabled === false
                 ? 'Turn on automatic checks in Settings to check every knife.'
                 : round
-                  ? 'A round is checking every knife now.'
+                  ? 'Check all is running: every knife is due at its stores.'
                   : undefined
             }
           >

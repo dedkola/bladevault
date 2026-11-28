@@ -396,14 +396,14 @@ export function PriceMonitoringSettings({
 
       <SettingsSection
         title="Schedule"
-        description="Prices are checked in rounds, around the clock. A round goes through every monitored knife in order: all of one knife’s stores at the same time, then a pause, then the next knife. What fails is retried at random times before the next round."
+        description="Prices are checked around the clock, store by store. Every store works through its own queue at its own pace, at the same time as the others, so a slow store never holds up a fast one. Each link’s checks are spread evenly over the day. What fails is tried again on its own a little later."
       >
         <SettingsRow
-          label="Start a round"
-          description="Each knife is checked once per round. Other stores looks for a knife again at most once a day."
+          label="Check each link"
+          description="How often every monitored link is checked. A store too slow for this is checked as often as it allows; Monitoring status on Price Drops names it. Other stores looks for a knife again at most once a day."
         >
           <SegmentedControl
-            aria-label="How often a round starts"
+            aria-label="How often each link is checked"
             value={
               String(settings.schedule.intervalHours) as `${PriceRoundHours}`
             }
@@ -417,11 +417,11 @@ export function PriceMonitoringSettings({
           />
         </SettingsRow>
         <SettingsRow
-          label="Pause between knives"
-          description="After one knife’s stores are checked, the round waits this long before the next knife. It is also the shortest time between two requests at the same store; BladeVault waits longer by itself at a store that answers slowly, rate-limits or shows a bot check."
+          label="Pause between requests to a store"
+          description="The shortest time between two requests at the same store. BladeVault waits longer by itself at a store that answers slowly, rate-limits or shows a bot check. Different stores never wait for each other."
         >
           <NumberField
-            aria-label="Pause between knives in seconds"
+            aria-label="Pause between requests to a store in seconds"
             value={settings.pacing.minGapSeconds}
             min={PRICE_MONITORING_LIMITS.minGapSeconds[0]}
             max={PRICE_MONITORING_LIMITS.minGapSeconds[1]}
@@ -433,7 +433,7 @@ export function PriceMonitoringSettings({
         <SettingsRow
           inline
           label="Check long out-of-stock pages once a day"
-          description="A page that has been out of stock for two weeks is checked in at most one round a day, so a restock still shows within a day and stores get fewer requests. Check now and Check all still check it right away."
+          description="A page that has been out of stock for two weeks is checked at most once a day, so a restock still shows within a day and stores get fewer requests. Check now and Check all still check it right away."
         >
           <SettingsSwitch
             aria-label="Check long out-of-stock pages once a day"

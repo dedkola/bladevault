@@ -74,7 +74,7 @@ const REASON_TEXT: Record<EligibilityReason, string> = {
   monitored_auto: 'monitored automatically',
   monitored_forced: 'Always monitor is on',
   monitored_collection:
-    'checked with the collection in free time; notifies only about a super sale',
+    'checked with the collection once a day; notifies only about a super sale',
   off: 'not checked automatically',
   sold: 'sold, so not monitored',
   no_source: 'no product URL yet',
