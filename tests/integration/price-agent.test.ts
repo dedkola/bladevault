@@ -637,7 +637,7 @@ describe('AI supervisor', () => {
           {
             knifeId: watched.id,
             hours: 24,
-            everyHours: 1,
+            everyHours: 3,
             reason: 'Fresh drop, may go lower.',
           },
           { knifeId: other.id, hours: 24, everyHours: 500, reason: '' },
@@ -674,7 +674,7 @@ describe('AI supervisor', () => {
     expect(
       candidates.find((candidate) => candidate.sourceId === second)
         ?.focusIntervalMs,
-    ).toBe(3_600_000)
+    ).toBe(3 * 3_600_000)
     expect(
       candidates.find((candidate) => candidate.sourceId === other.source.id)
         ?.focusIntervalMs,
@@ -688,7 +688,7 @@ describe('AI supervisor', () => {
     expect(
       snapshot.knives.find((knife) => knife.knifeId === watched.id)?.watching,
     ).toEqual({
-      everyHours: 1,
+      everyHours: 3,
       endsInHours: 24,
       reason: 'Fresh drop, may go lower.',
     })
@@ -709,7 +709,7 @@ describe('AI supervisor', () => {
       ((await view.json()) as { watch: { focus: unknown } }).watch.focus,
     ).toEqual({
       until: expect.any(String),
-      intervalMs: 3_600_000,
+      intervalMs: 3 * 3_600_000,
       reason: 'Fresh drop, may go lower.',
     })
     const stopped = await watchRoute.PUT(

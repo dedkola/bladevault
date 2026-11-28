@@ -20,6 +20,11 @@ export const MAX_PRICE_SOURCES_PER_KNIFE = 10
  * variant (handle, steel, colour) are monitored per knife and store search.
  */
 export const MAX_MONITORED_VARIANTS_PER_STORE = 2
+/**
+ * A knife watched closely is checked at most this often (hours); older
+ * watches set more often are read as this.
+ */
+export const FOCUS_MIN_EVERY_HOURS = 3
 
 export const PRICE_WATCH_MODES = ['auto', 'on', 'off'] as const
 /** auto: monitored when a regular price is stored; on/off: forced. */

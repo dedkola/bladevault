@@ -537,6 +537,33 @@ export async function recordTaskResults(input: {
   })
 }
 
+/**
+ * A knife watched closely: the step's links that are still due (their store
+ * had no time, or the check was skipped) wait until `until`, the knife's
+ * next watch time, instead of making the knife due again right away.
+ */
+export async function deferUnreadChecks(input: {
+  sourceIds: readonly number[]
+  until: number
+  now: number
+  generation: string
+}): Promise<void> {
+  if (!input.sourceIds.length) return
+  await withVaultWrite(async () => {
+    assertVaultGeneration(input.generation)
+    const database = getLocalDb()
+    const defer = database.prepare(
+      `UPDATE price_sources SET next_check_at = ?
+       WHERE id = ? AND removed_at IS NULL
+         AND (next_check_at IS NULL OR next_check_at <= ?)`,
+    )
+    database.transaction(() => {
+      for (const sourceId of input.sourceIds)
+        defer.run(iso(input.until), sourceId, iso(input.now))
+    })()
+  })
+}
+
 /** Retry list items whose time has come, earliest first. */
 export function readDueRetries(
   database: Database.Database,
@@ -677,7 +704,8 @@ export function pruneRounds(database: Database.Database, now: number): void {
 /**
  * The collection pass: knives outside What to monitor, one at a time in the
  * free time between rounds (see rounds.ts, nextPassAt). Its failures do not
- * join the retry list; the next pass reads them again.
+ * join the retry list; the next pass reads them again. Stores that were not
+ * ready do, so a skipped link does not wait for the next pass.
  */
 export type CollectionPass = {
   id: number

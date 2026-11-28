@@ -62,6 +62,7 @@ import {
 import {
   advancePass,
   advanceRound,
+  deferUnreadChecks,
   dropStaleRetries,
   finishPass,
   finishRetry,
@@ -240,6 +241,8 @@ type ActiveStep = {
   passId: number | null
   /** The round's (or pass's) cursor once this step is done. */
   nextCursor: number | null
+  /** A `focus` step: how often the knife is watched. */
+  focusIntervalMs: number | null
   pending: Map<string, StepTask[]>
   /** Since when the step waits for a store that is not ready yet. */
   waitingSince: Map<string, number>
@@ -391,6 +394,11 @@ export class PriceMonitorWorker {
   private nextStepAt = 0
   /** Knives watched closely that just had a step, until when. */
   private readonly focusHeld = new Map<string, number>()
+  /**
+   * The last step was a watched knife or a link moved forward: the round
+   * (or the collection pass) gets the next turn.
+   */
+  private lastStepWasExtra = false
 
   constructor(private readonly deps: WorkerDeps = realDeps) {}
 
@@ -613,7 +621,8 @@ export class PriceMonitorWorker {
 
   /**
    * Starts a round when one is due, then works through steps: links moved
-   * forward first, then knives watched closely, then the round's next knife.
+   * forward and knives watched closely take turns with the round's next
+   * knife (or the collection pass), so they can never hold the round up.
    * Each step is followed by the pause between knives. When the round's
    * last knife is done, the round ends and its retry list is spread out.
    */
@@ -640,16 +649,22 @@ export class PriceMonitorWorker {
       this.considerWake(this.nextStepAt)
       return
     }
-    let step =
-      (options.roundOnly
+    const extraStep = () =>
+      options.roundOnly
         ? null
-        : (this.priorityStep(context) ?? this.focusStep(context))) ??
-      (round ? await this.roundStep(round, context) : null)
-    // Free time: no round running (or the round just ended). The round
-    // always comes first; the pass waits at its cursor until it is done.
-    if (!step && !options.roundOnly && !readCurrentRound(database))
-      step = await this.passStep(context)
+        : (this.priorityStep(context) ?? this.focusStep(context))
+    const regularStep = async () => {
+      const next = round ? await this.roundStep(round, context) : null
+      // Free time: no round running (or the round just ended). The round
+      // always comes first; the pass waits at its cursor until it is done.
+      if (next || options.roundOnly || readCurrentRound(database)) return next
+      return this.passStep(context)
+    }
+    const step = this.lastStepWasExtra
+      ? ((await regularStep()) ?? extraStep())
+      : (extraStep() ?? (await regularStep()))
     if (!step) return
+    this.lastStepWasExtra = step.kind === 'priority' || step.kind === 'focus'
     this.step = step
     this.advanceStep(context)
     if (this.stepDone()) await this.finishStep(context)
@@ -703,6 +718,7 @@ export class PriceMonitorWorker {
       roundId: kind === 'round' ? (position?.id ?? null) : null,
       passId: kind === 'pass' ? (position?.id ?? null) : null,
       nextCursor: position?.nextCursor ?? null,
+      focusIntervalMs: null,
       pending: tasksByLane(tasks),
       waitingSince: new Map(),
       running: 0,
@@ -731,49 +747,48 @@ export class PriceMonitorWorker {
     return this.newStep('priority', first.knifeId, tasks)
   }
 
-  /** A knife watched closely gets all its stores checked at its own pace. */
+  /**
+   * A knife watched closely gets its due links checked at its own pace, all
+   * stores at once. A link the step cannot read waits for the knife's next
+   * watch time (finishStep), so the knife is not due again right away.
+   */
   private focusStep(context: PassContext): ActiveStep | null {
     const held = (knifeId: string) =>
       (this.focusHeld.get(knifeId) ?? 0) > context.now
-    const due = context.candidates
-      .filter(
-        (candidate) =>
-          candidate.scheduled &&
-          candidate.focusIntervalMs !== null &&
-          !held(candidate.knifeId) &&
-          (candidate.nextCheckAt === null ||
-            candidate.nextCheckAt <= context.now),
-      )
+    const isDue = (candidate: CandidateRow) =>
+      candidate.nextCheckAt === null || candidate.nextCheckAt <= context.now
+    const watched = context.candidates.filter(
+      (candidate) =>
+        candidate.scheduled &&
+        candidate.focusIntervalMs !== null &&
+        !restingOutOfStock(candidate, context),
+    )
+    const due = watched
+      .filter((candidate) => !held(candidate.knifeId) && isDue(candidate))
       .sort((a, b) => (a.nextCheckAt ?? 0) - (b.nextCheckAt ?? 0))[0]
     if (!due) {
-      const next = context.candidates
-        .filter(
-          (candidate) =>
-            candidate.scheduled && candidate.focusIntervalMs !== null,
-        )
-        .map((candidate) =>
-          Math.max(
-            candidate.nextCheckAt ?? context.now,
-            this.focusHeld.get(candidate.knifeId) ?? 0,
-          ),
-        )
+      const next = watched.map((candidate) =>
+        Math.max(
+          candidate.nextCheckAt ?? context.now,
+          this.focusHeld.get(candidate.knifeId) ?? 0,
+        ),
+      )
       if (next.length) this.considerWake(Math.min(...next))
       return null
     }
     this.focusHeld.set(due.knifeId, context.now + FOCUS_MIN_GAP_MS)
-    const tasks = context.candidates
+    const tasks = watched
       .filter(
-        (candidate) =>
-          candidate.knifeId === due.knifeId &&
-          candidate.scheduled &&
-          !restingOutOfStock(candidate, context),
+        (candidate) => candidate.knifeId === due.knifeId && isDue(candidate),
       )
       .map((candidate): StepTask => ({
         kind: 'check',
         sourceId: candidate.sourceId,
         laneKey: candidate.laneKey,
       }))
-    return tasks.length ? this.newStep('focus', due.knifeId, tasks) : null
+    const step = this.newStep('focus', due.knifeId, tasks)
+    step.focusIntervalMs = due.focusIntervalMs
+    return step
   }
 
   /**
@@ -1041,18 +1056,27 @@ export class PriceMonitorWorker {
     this.nextStepAt = now + context.floorMs
     this.considerWake(this.nextStepAt)
     if (!this.ownsLease()) return
-    // The collection pass keeps no retry list: the next pass reads what
-    // failed again, so stores get no extra requests for it.
-    const results =
-      step.kind === 'pass'
-        ? step.results.map((result) => ({ ...result, retry: null }))
-        : step.results
+    const results = step.results.flatMap((result): TaskResult[] => {
+      const notReady = result.retry?.reason === 'store_not_ready'
+      // A watched knife's link its store had no time for waits for the
+      // knife's next watch time (below), not on the retry list.
+      if (step.kind === 'focus' && notReady) return []
+      // The collection pass retries only stores that were not ready: the
+      // next pass reads what failed again, so stores get no extra requests.
+      if (step.kind === 'pass' && !notReady) return [{ ...result, retry: null }]
+      return [result]
+    })
+    if (step.kind === 'focus' && step.focusIntervalMs !== null)
+      await deferUnreadChecks({
+        sourceIds: step.results.flatMap(({ task }) =>
+          task.kind === 'check' ? [task.sourceId] : [],
+        ),
+        until: now + step.focusIntervalMs,
+        now,
+        generation: context.generation,
+      })
     let dueAt: number | null = null
-    if (
-      step.kind !== 'pass' &&
-      step.roundId === null &&
-      results.some((result) => result.retry)
-    ) {
+    if (step.roundId === null && results.some((result) => result.retry)) {
       const last = readLastRound(getLocalDb())
       dueAt = retryDueTimes({
         count: 1,
@@ -1488,6 +1512,7 @@ export class PriceMonitorWorker {
     this.step = null
     this.nextStepAt = 0
     this.focusHeld.clear()
+    this.lastStepWasExtra = false
     this.started = false
     this.scheduled = false
     if (this.leaseHeld) {

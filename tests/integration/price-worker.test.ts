@@ -830,6 +830,128 @@ describe('price check rounds', () => {
 })
 
 /** What to monitor is the Wishlist; the rest goes to the collection pass. */
+/** The AI supervisor watches a knife closely, checked every `everyMs`. */
+function watchClosely(knifeId: string, everyMs: number, now: number) {
+  getLocalDb()
+    .prepare(
+      `INSERT INTO price_watch
+         (knife_id, mode, updated_at, focus_until, focus_interval_ms,
+          focus_reason)
+       VALUES (?, 'auto', ?, ?, ?, 'test')
+       ON CONFLICT(knife_id) DO UPDATE SET
+         focus_until = excluded.focus_until,
+         focus_interval_ms = excluded.focus_interval_ms`,
+    )
+    .run(
+      knifeId,
+      new Date(now).toISOString(),
+      new Date(now + 72 * HOUR).toISOString(),
+      everyMs,
+    )
+}
+
+/** AI advice pauses a store until `until`. */
+async function pauseStore(laneKey: string, until: number, now: number) {
+  const createdAt = new Date(now).toISOString()
+  await recordAdvice({
+    generation: getVaultAccessState().generation,
+    createdAt,
+    trigger: 'manual',
+    model: 'm',
+    input: {
+      now: createdAt,
+      timeZone: 'UTC',
+      frequencyHours: 24,
+      statsDays: 7,
+      stores: [],
+    },
+    applied: {
+      createdAt,
+      expiresAt: new Date(now + 48 * HOUR).toISOString(),
+      lanes: [
+        {
+          laneKey,
+          minGapMs: null,
+          pauseUntil: new Date(until).toISOString(),
+          quietHours: null,
+          strategy: null,
+          reason: 'test',
+          adjustments: [],
+        },
+      ],
+    },
+  })
+}
+
+const nextCheckAt = (sourceId: number) =>
+  (
+    getLocalDb()
+      .prepare('SELECT next_check_at FROM price_sources WHERE id = ?')
+      .get(sourceId) as { next_check_at: string | null }
+  ).next_check_at
+
+describe('knives watched closely', () => {
+  it('checks only due links and moves a link its store had no time for to the next watch time', async () => {
+    const watched = await knife([
+      'https://a.example/w',
+      'https://slow.example/w',
+    ])
+    checkedYesterday()
+    const ids = sourceIds()
+    const slow = ids.get('https://slow.example/w')!
+    const { worker, pending, finish, advance, now } = harness()
+    const start = now()
+    // An older watch set to every hour reads as every 3 hours.
+    watchClosely(watched, HOUR, start)
+    await pauseStore('slow.example', start + HOUR, start)
+    worker.start({ scheduled: true })
+    await worker.pass()
+    expect(lanesOf(pending, ids)).toEqual(['a.example'])
+    await finish()
+
+    // The paused store's link waits for the next watch time, not the retry
+    // list, so the knife is not due again 15 minutes later.
+    expect(nextCheckAt(slow)).toBe(new Date(start + 3 * HOUR).toISOString())
+    expect(retryKeys()).not.toContain(`check:${slow}:store_not_ready`)
+    for (let minutes = 0; minutes < 30; minutes += 1) {
+      advance(MIN)
+      await worker.pass()
+    }
+    expect(pending).toHaveLength(0)
+
+    // At the watch time only the due link is checked.
+    advance(start + 3 * HOUR - now())
+    await worker.pass()
+    expect(pending.map((check) => check.sourceId)).toEqual([slow])
+  })
+
+  it('takes turns with the round so watched knives cannot hold it up', async () => {
+    await knife(['https://r1.example/1'])
+    await knife(['https://r2.example/2'])
+    const first = await knife(['https://w1.example/1'])
+    const second = await knife(['https://w2.example/2'])
+    checkedYesterday()
+    const ids = sourceIds()
+    const { worker, pending, finish, advance, now } = harness()
+    watchClosely(first, 3 * HOUR, now())
+    watchClosely(second, 3 * HOUR, now())
+    worker.start({ scheduled: true })
+    const order: Array<string | undefined> = []
+    for (let step = 0; step < 4; step += 1) {
+      await worker.pass()
+      order.push(...lanesOf(pending, ids))
+      await finish()
+      advance(MIN)
+    }
+    expect(order).toEqual([
+      'w1.example',
+      'r1.example',
+      'w2.example',
+      'r2.example',
+    ])
+  })
+})
+
 function wishlistWithCollectionPass(wishlist: string[]) {
   const at = new Date(Date.UTC(2026, 10, 1)).toISOString()
   const insert = getLocalDb().prepare(
@@ -915,6 +1037,41 @@ describe('collection pass', () => {
     advance(MIN)
     await worker.pass()
     expect(pending).toHaveLength(0)
+  })
+
+  it('retries a store the pass found not ready before the next round', async () => {
+    const wished = await knife(['https://a.example/1'])
+    await knife(['https://b.example/2', 'https://slow.example/2'])
+    checkedYesterday()
+    roundEvery(6)
+    wishlistWithCollectionPass([wished])
+    const ids = sourceIds()
+    const slow = ids.get('https://slow.example/2')!
+    const { worker, pending, finish, advance, now } = harness({
+      random: () => 0.5,
+    })
+    const start = now()
+    await pauseStore('slow.example', start + HOUR, start)
+    worker.start({ scheduled: true })
+    await worker.pass()
+    expect(lanesOf(pending, ids)).toEqual(['a.example'])
+    await finish()
+
+    advance(MIN)
+    await worker.pass()
+    expect(lanesOf(pending, ids)).toEqual(['b.example'])
+    await finish()
+
+    // The skipped link does not wait for tomorrow's pass.
+    const [retry] = readRetryTasks(getLocalDb())
+    expect(retry).toMatchObject({
+      key: `check:${slow}`,
+      reason: 'store_not_ready',
+    })
+    expect(retry.dueAt).toBeGreaterThan(now())
+    expect(retry.dueAt).toBeLessThanOrEqual(
+      start + 6 * HOUR - RETRY_END_MARGIN_MS,
+    )
   })
 
   it('passes a knife that moved to the Wishlist, and stops when switched off', async () => {

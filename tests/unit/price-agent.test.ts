@@ -281,7 +281,7 @@ describe('validateAgentPlan', () => {
 })
 
 describe('watchClosely and crossCheck', () => {
-  it('clamps a watch to 72 hours and at least hourly checks', () => {
+  it('clamps a watch to 72 hours and checks at most every 3 hours', () => {
     const plan = readAgentPlan({
       summary: '',
       remember: [],
@@ -296,7 +296,7 @@ describe('watchClosely and crossCheck', () => {
       crossCheck: [{ knifeId: 'k1', reason: 'moved' }, { reason: 'none' }],
     })
     expect(plan.watchClosely).toEqual([
-      { knifeId: 'k1', hours: 72, everyHours: 1, reason: 'drop' },
+      { knifeId: 'k1', hours: 72, everyHours: 3, reason: 'drop' },
     ])
     expect(plan.crossCheck).toEqual([{ knifeId: 'k1', reason: 'moved' }])
   })
@@ -327,12 +327,12 @@ describe('watchClosely and crossCheck', () => {
       knife({ knifeId: 'k2' }),
       knife({
         knifeId: 'k3',
-        watching: { everyHours: 2, endsInHours: 10, reason: '' },
+        watching: { everyHours: 3, endsInHours: 10, reason: '' },
       }),
-      ...Array.from({ length: 18 }, (_, index) =>
+      ...Array.from({ length: 3 }, (_, index) =>
         knife({
           knifeId: `w${index}`,
-          watching: { everyHours: 2, endsInHours: 10, reason: '' },
+          watching: { everyHours: 3, endsInHours: 10, reason: '' },
         }),
       ),
     ]
@@ -363,7 +363,7 @@ describe('watchClosely and crossCheck', () => {
       ['k3', null],
     ])
 
-    // 19 knives watched + k1 = 20: a 21st is refused.
+    // 4 knives watched + k1 = 5: a 6th is refused.
     const full = validateAgentPlan(
       {
         ...empty,
@@ -382,7 +382,33 @@ describe('watchClosely and crossCheck', () => {
     )
     expect(full.map((action) => action.note)).toEqual([
       null,
-      'already watching 20 knives',
+      'already watching 5 knives',
+    ])
+
+    // Over the limit (watches from before it): a renewal is refused too, so
+    // the watches run out until fewer than 5 are left.
+    const crowded = validateAgentPlan(
+      { ...empty, watchClosely: [watch('k3')] },
+      {
+        sources,
+        knives: [
+          ...knives,
+          knife({
+            knifeId: 'w3',
+            watching: { everyHours: 3, endsInHours: 10, reason: '' },
+          }),
+          knife({
+            knifeId: 'w4',
+            watching: { everyHours: 3, endsInHours: 10, reason: '' },
+          }),
+        ],
+        ai,
+        otherStores: false,
+        checkIntervalHours: 6,
+      },
+    )
+    expect(crowded.map((action) => action.note)).toEqual([
+      'already watching 5 knives',
     ])
   })
 
@@ -741,6 +767,28 @@ describe('advise and ask', () => {
       }),
     )
     expect(answered[0].note).toBe('asked the same in the last 30 days')
+
+    // Five knives watched already: no question to watch a sixth.
+    const base = snapshot()
+    const full = validateAgentPlan(
+      {
+        ...empty,
+        ask: [ask({ ask: 'watch_closely', hours: 24, everyHours: 3 })],
+      },
+      {
+        ...base,
+        knives: [
+          ...base.knives,
+          ...Array.from({ length: 5 }, (_, index) =>
+            knife({
+              knifeId: `w${index}`,
+              watching: { everyHours: 3, endsInHours: 10, reason: '' },
+            }),
+          ),
+        ],
+      },
+    )
+    expect(full[0].note).toBe('already watching 5 knives')
   })
 
   it('reads advise and ask items, dropping malformed ones', () => {
@@ -774,7 +822,7 @@ describe('advise and ask', () => {
         price: null,
         sourceId: null,
         hours: 72,
-        everyHours: 1,
+        everyHours: 3,
       },
     ])
   })
