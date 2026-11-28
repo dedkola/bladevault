@@ -3,11 +3,7 @@ import * as knivesRoute from '@/app/api/knives/route'
 import * as priceWatchRoute from '@/app/api/knives/[id]/price-watch/route'
 import { getLocalDb } from '@/lib/local-db'
 import { DISCOVERY_STORES } from '@/lib/price-monitor/discovery-stores'
-import {
-  orderKnives,
-  readCollectionPassKnifeIds,
-  readRoundKnifeIds,
-} from '@/lib/price-monitor/round-store'
+import { orderKnives, readRoundKnifeIds } from '@/lib/price-monitor/round-store'
 import { getSettings, saveSettings } from '@/lib/settings'
 import {
   DEFAULT_PRICE_MONITORING,
@@ -165,33 +161,6 @@ describe('round order', () => {
     expect(
       readRoundKnifeIds(getLocalDb(), settings, { searches: true, now: NOW }),
     ).toEqual([old, bladehq])
-  })
-
-  it('orders the collection pass the same way', async () => {
-    const recent = await knife('https://shop.example.com/a')
-    const old = await knife('https://shop.example.com/b')
-    const fresh = await knife('https://shop.example.com/c')
-    const wished = await knife('https://shop.example.com/d')
-    wishlist(wished, 'next', 0)
-    checkedAt(recent, NOW - HOUR)
-    checkedAt(old, NOW - 4 * 24 * HOUR)
-    const settings = useSettings({
-      scope: { kind: 'wishlist', knifeIds: [] },
-      collectionPass: {
-        ...DEFAULT_PRICE_MONITORING.collectionPass,
-        enabled: true,
-      },
-    })
-
-    expect(
-      readRoundKnifeIds(getLocalDb(), settings, { searches: false, now: NOW }),
-    ).toEqual([wished])
-    expect(
-      readCollectionPassKnifeIds(getLocalDb(), settings, {
-        searches: false,
-        now: NOW,
-      }),
-    ).toEqual([fresh, old, recent])
   })
 })
 

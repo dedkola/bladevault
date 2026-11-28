@@ -1,3 +1,4 @@
+import { alignToSlot } from '@/lib/price-monitor/store-queue'
 import type {
   ActiveHours,
   PriceMonitoringSettings,
@@ -76,28 +77,38 @@ export function scheduledIntervalMs(input: {
 }
 
 /**
- * When a source is next due after a successful check (epoch ms): the next
- * round, about one interval later, or a day later for a page out of stock
- * for two weeks; sooner for a knife the AI supervisor watches closely.
+ * When a source is next due after a successful check (epoch ms): about one
+ * interval later, or a day later for a page out of stock for two weeks;
+ * sooner for a knife the AI supervisor watches closely. With a slot
+ * (store-queue.ts) a regular check moves to the link's place in its
+ * interval, so a store's checks spread evenly.
  */
 export function nextScheduledCheckAt(input: {
   schedule: PriceMonitoringSettings['schedule']
-  /** The round interval (defaults to the schedule's). */
+  /** The link's interval (defaults to the schedule's). */
   intervalMs?: number
   outOfStockSince: number | null
   now: number
   focusIntervalMs?: number | null
+  /** The link's place in its store's interval (0–1). */
+  slotFraction?: number
 }): number {
-  return (
-    input.now +
-    scheduledIntervalMs({
-      intervalMs: input.intervalMs ?? frequencyMs(input.schedule),
-      outOfStockSince: input.outOfStockSince,
-      now: input.now,
-      slowOutOfStock: input.schedule.slowOutOfStock,
-      focusIntervalMs: input.focusIntervalMs,
-    })
-  )
+  const baseMs = input.intervalMs ?? frequencyMs(input.schedule)
+  const waitMs = scheduledIntervalMs({
+    intervalMs: baseMs,
+    outOfStockSince: input.outOfStockSince,
+    now: input.now,
+    slowOutOfStock: input.schedule.slowOutOfStock,
+    focusIntervalMs: input.focusIntervalMs,
+  })
+  // Watched knives keep their own short pace.
+  if (input.slotFraction === undefined || waitMs < baseMs)
+    return input.now + waitMs
+  return alignToSlot({
+    now: input.now,
+    intervalMs: waitMs,
+    fraction: input.slotFraction,
+  })
 }
 
 /**

@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3'
+import type { StorePlan } from '@/lib/price-monitor/store-plan'
 import {
   getEligibility,
   isIgnoredOfficialOutOfStock,
@@ -216,7 +217,13 @@ export type MonitoredSource = SourceSummary & {
   paidMinor: number | null
   /** Currency of the stored regular price, when it names one. */
   paidCurrency: string | null
+  /**
+   * When the next check is expected: for a link already due, when its
+   * store's queue reaches it at the store's pace.
+   */
   nextCheckAt: string | null
+  /** Due now and waiting for its store's turn. */
+  queued: boolean
   /** When it came back in stock, while that is the latest stock change. */
   restockedAt: string | null
   /**
@@ -266,6 +273,11 @@ export type PriceOverview = {
     failed24h: number
     /** The longest-ago latest check among monitored sources. */
     oldestCheckAt: string | null
+    /**
+     * Stores that cannot check all their links within the interval at their
+     * pace: how many links, and how many hours one pass over them takes.
+     */
+    slowStores: Array<{ laneKey: string; links: number; cycleHours: number }>
   }
 }
 
@@ -667,6 +679,8 @@ export function buildPriceOverview(
     windowDays?: number
     /** Check frequency from the schedule, shown with the status timeline. */
     frequencyMs?: number
+    /** The store queues' plan (store-plan.ts): expected times, slow stores. */
+    plan?: Pick<StorePlan, 'projected' | 'slow'>
   } = {},
 ): PriceOverview {
   const now = options.now ?? Date.now()
@@ -729,6 +743,7 @@ export function buildPriceOverview(
       priceSeen: readPriceSeen(database),
       now,
       alertsOff,
+      projected: options.plan?.projected,
     },
   )
   const dayAgo = new Date(now - DAY_MS).toISOString()
@@ -793,6 +808,11 @@ export function buildPriceOverview(
           .get(dayAgo) as { n: number }
       ).n,
       oldestCheckAt,
+      slowStores: (options.plan?.slow ?? []).map((store) => ({
+        laneKey: store.laneKey,
+        links: store.links,
+        cycleHours: Math.round((store.cycleMs / HOUR_MS) * 10) / 10,
+      })),
     },
   }
 }
@@ -919,6 +939,8 @@ function buildMonitoredSources(
     now: number
     alertsOff: (row: SourceRow) => boolean
     attention: ReadonlyMap<number, AttentionVerdict>
+    /** Due links: when their store's queue reaches them. */
+    projected?: StorePlan['projected']
   },
 ): MonitoredSource[] {
   return sources.map((source) => {
@@ -937,6 +959,7 @@ function buildMonitoredSources(
         ? (context.outOfStockSince.get(source.id) ?? null)
         : null
     const knife = knives.get(source.knife_id)
+    const planned = context.projected?.get(source.id)
     return {
       ...toSourceSummary(source, knives, outOfStockSince, alertsOff),
       result,
@@ -948,7 +971,10 @@ function buildMonitoredSources(
       fluctuating: (changed || result === 'same') && Boolean(move?.fluctuating),
       paidMinor: paidIn(knife, source.last_currency),
       paidCurrency: paidCurrency(knife),
-      nextCheckAt: source.next_check_at,
+      nextCheckAt: planned
+        ? new Date(planned.at).toISOString()
+        : source.next_check_at,
+      queued: planned !== undefined,
       restockedAt: result === 'restocked' ? restockedAt : null,
       priceSeenAt: context.priceSeen.get(source.id) ?? null,
       retireHint: retireHintFor({

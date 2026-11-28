@@ -1031,6 +1031,11 @@ export async function checkPriceSource(
     trigger: CheckTrigger
     signal?: AbortSignal
     intervalMs?: number
+    /**
+     * The link's place in its store's interval (store-queue.ts): its next
+     * scheduled check is moved to that slot so the store's checks spread.
+     */
+    slotFraction?: number
   },
 ): Promise<CheckSummary> {
   const intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS
@@ -1145,6 +1150,7 @@ export async function checkPriceSource(
         now,
         focusIntervalMs:
           readKnifeFocus(database, source.knife_id, now)?.intervalMs ?? null,
+        slotFraction: options.slotFraction,
       }),
     ).toISOString()
   }

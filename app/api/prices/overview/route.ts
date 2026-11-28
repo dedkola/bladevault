@@ -3,6 +3,7 @@ import { requireAppUnlock } from '@/lib/app-lock'
 import { getLocalDb } from '@/lib/local-db'
 import { buildPriceOverview } from '@/lib/price-monitor/insights'
 import { frequencyMs } from '@/lib/price-monitor/schedule'
+import { readStorePlan } from '@/lib/price-monitor/store-plan'
 import { reportServerError } from '@/lib/sentry/server'
 import { getSettings } from '@/lib/settings'
 import { vaultAccessErrorResponse } from '@/lib/vault-access'
@@ -18,11 +19,15 @@ export async function GET(request: Request) {
       ? Math.min(365, Math.max(1, requested))
       : 30
     const settings = getSettings().priceMonitoring
+    const database = getLocalDb()
+    const now = Date.now()
     return NextResponse.json(
       {
-        overview: buildPriceOverview(getLocalDb(), settings, {
+        overview: buildPriceOverview(database, settings, {
+          now,
           windowDays,
           frequencyMs: frequencyMs(settings.schedule),
+          plan: readStorePlan(database, settings, now),
         }),
       },
       { headers: { 'Cache-Control': 'no-store' } },

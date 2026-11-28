@@ -53,7 +53,7 @@ const ELIGIBILITY_TEXT: Record<EligibilityReason, string> = {
   monitored_auto: 'Monitored automatically.',
   monitored_forced: 'Monitored: Always monitor is on, also when sold.',
   monitored_collection:
-    'Checked with the rest of the collection in free time, at most once a day. Notifies only about a super sale far below the regular price.',
+    'Checked with the rest of the collection, at most once a day. Notifies only about a super sale far below the regular price.',
   off: 'Not monitored. Check now still works for a single reading.',
   sold: 'Not monitored: the knife is marked as sold. Choose Always monitor to keep watching it.',
   no_source: 'Not monitored yet: add a product URL below.',

@@ -54,9 +54,9 @@ export function daysAgo(iso: string, now: number) {
 }
 
 /**
- * When a source is next checked (epoch ms). A never-checked source has no
- * scheduled time: it waits at the front of its store's queue, so it shows at
- * Now with the other due checks.
+ * When a source is next checked (epoch ms): for a due one, when its store's
+ * queue reaches it. A never-checked source without a time waits at the
+ * front of its store's queue, so it counts as now.
  */
 function nextCheckTime(source: MonitoredSource, now: number): number | null {
   if (source.nextCheckAt) return Date.parse(source.nextCheckAt)
@@ -64,7 +64,7 @@ function nextCheckTime(source: MonitoredSource, now: number): number | null {
 }
 
 type Bucket = {
-  /** Checked in that hour, scheduled for that hour, or due and waiting. */
+  /** Checked in that hour, expected in that hour, or due and waiting. */
   kind: 'past' | 'upcoming' | 'due'
   /** "5–4 h ago", "in 2–3 h". */
   when: string
@@ -125,11 +125,14 @@ function bucketsFor(
           source,
         )
     }
+    if (source.queued || (!source.lastCheckedAt && !source.nextCheckAt))
+      due.sources.push(source)
+    // Due links show when their store's queue is expected to reach them.
     const next = nextCheckTime(source, now)
     if (next === null) continue
-    if (next <= now) due.sources.push(source)
-    else if (next - now < horizonHours * HOUR_MS)
-      upcoming[Math.floor((next - now) / HOUR_MS)].sources.push(source)
+    const ahead = Math.max(0, next - now)
+    if (ahead < horizonHours * HOUR_MS)
+      upcoming[Math.floor(ahead / HOUR_MS)].sources.push(source)
   }
   return { past, upcoming, due }
 }
@@ -401,8 +404,8 @@ function ActivityTimeline({
             <button
               type="button"
               className="pd-queue"
-              aria-label={`${knivesLabel(due.sources.length)} due and waiting in the store queue`}
-              title="Due now; each is checked when its store's turn comes in the round"
+              aria-label={`${knivesLabel(due.sources.length)} due and waiting for their store's turn`}
+              title="Due now, waiting for their store's turn. The bars show when each store is expected to reach them."
               onClick={(event) =>
                 show(due, event.currentTarget.getBoundingClientRect())
               }
@@ -511,10 +514,11 @@ export function MonitoringStatus({
   const nextChecks = sources
     .map((source) => nextCheckTime(source, now))
     .filter((value): value is number => value !== null)
-  const queued = nextChecks.filter((value) => value <= now).length
+  const queued = sources.filter((source) => source.queued).length
   const nextDueAt = nextChecks.length ? Math.min(...nextChecks) : null
   const nextDue = nextDueAt === null ? null : new Date(nextDueAt).toISOString()
   const interval = overview.round.intervalHours
+  const slow = overview.round.slowStores ?? []
   const horizonHours = Math.min(24, Math.max(6, interval ?? 12))
 
   return (
@@ -530,8 +534,9 @@ export function MonitoringStatus({
             <p>
               Checks per hour over the last 24 hours and the next {horizonHours}
               . Colored tops mark drops, rises, restocks and pages that need
-              attention; knives already due wait in the queue at Now. Select a
-              bar to see its knives.
+              attention. Each store checks its own queue at its own pace, so
+              links already due show when their store is expected to reach them.
+              Select a bar to see its knives.
             </p>
           )}
         </div>
@@ -588,8 +593,8 @@ export function MonitoringStatus({
             </span>
           ) : null}
           {queued ? (
-            <span>
-              <b>{queued}</b> waiting in the queue
+            <span title="Due now, waiting for their store's turn">
+              <b>{queued}</b> due now
             </span>
           ) : nextDue ? (
             <span>
@@ -597,6 +602,19 @@ export function MonitoringStatus({
             </span>
           ) : null}
         </p>
+        {collapsed || !slow.length ? null : (
+          <p className="pd-slow-stores" data-price-slow-stores>
+            {slow.length === 1 ? 'One store is' : `${slow.length} stores are`}{' '}
+            too slow to check every link each {interval} h at its pace:{' '}
+            {slow
+              .map(
+                (store) =>
+                  `${store.laneKey} (${store.links} links, about ${store.cycleHours} h)`,
+              )
+              .join(', ')}
+            . Their links are checked as often as the store allows.
+          </p>
+        )}
         {collapsed ? null : sources.length ? (
           <ActivityTimeline
             sources={sources}

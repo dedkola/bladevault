@@ -437,7 +437,7 @@ export function normalizeCareDeferrals(value: unknown): CareDeferrals {
   return deferrals
 }
 
-/** How often a price check round starts: every 6, 12 or 24 hours. */
+/** How often each monitored link is checked: every 6, 12 or 24 hours. */
 export const PRICE_ROUND_HOURS = [6, 12, 24] as const
 export type PriceRoundHours = (typeof PRICE_ROUND_HOURS)[number]
 
@@ -480,23 +480,24 @@ export type PriceMonitoringSettings = {
   skipSoldKnives: boolean
   /**
    * No out-of-stock alerts for the knife's own product link (its official
-   * store). Only the alert is quieted: the link is checked on every round,
+   * store). Only the alert is quieted: the link is checked on schedule,
    * counts and shows as out of stock, and a restock still notifies.
    */
   ignoreOfficialOutOfStock: boolean
   /** Which knives scheduled monitoring covers; Check now works for any. */
   scope: PriceMonitorScope
   /**
-   * The rest of the collection (knives outside `scope`) in free time:
-   * rounds of the scope always come first; between them the other knives
-   * are checked at most once a day, and they notify only about a super sale
+   * The rest of the collection (knives outside `scope`): at each store
+   * the scope's links come first; the other knives are checked at most
+   * once a day, and they notify only about a super sale
    * (a drop to at least `superSalePercent` below the regular price). Has no
    * effect while the scope is the whole collection.
    */
   collectionPass: PriceCollectionPassSettings
   /**
-   * Price checks run in rounds, around the clock: every `intervalHours` a
-   * round goes through every monitored knife, one knife's stores at a time.
+   * Price checks run around the clock, store by store (store-queue.ts):
+   * every monitored link is checked about every `intervalHours`, spread
+   * evenly over that time.
    */
   schedule: {
     intervalHours: PriceRoundHours
@@ -506,12 +507,11 @@ export type PriceMonitoringSettings = {
      */
     slowOutOfStock: boolean
   }
-  /** Pacing of a round. */
+  /** Pacing per store. */
   pacing: {
     /**
-     * Pause between knives: after one knife's stores are checked, the round
-     * waits this long before the next knife. Also the floor between two
-     * requests at one store; raised automatically when a store slows down.
+     * The floor between two requests at one store; raised automatically
+     * when a store slows down. Stores never wait for each other.
      */
     minGapSeconds: number
   }
@@ -710,7 +710,7 @@ export type PriceCollectionPassSettings = {
 
 /**
  * The collection pass runs: switched on and What to monitor leaves part of
- * the collection out (with the whole collection, rounds cover everything).
+ * the collection out (with the whole collection, the scope covers everything).
  */
 export function isCollectionPassOn(
   settings: Pick<PriceMonitoringSettings, 'collectionPass' | 'scope'>,

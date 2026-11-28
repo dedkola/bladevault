@@ -48,6 +48,7 @@ function source(overrides: Partial<MonitoredSource> = {}): MonitoredSource {
     changedAt: null,
     paidMinor: null,
     nextCheckAt: null,
+    queued: false,
     restockedAt: null,
     priceSeenAt: null,
     driftPct: null,
