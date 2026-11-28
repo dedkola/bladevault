@@ -270,4 +270,37 @@ describe('rendered scrape browser lifecycle', () => {
     })
     expect(browser.close).toHaveBeenCalledOnce()
   })
+  it('keeps the browser open for image downloads until the caller closes it', async () => {
+    const { browser, context } = resources()
+    const rendered = await fetchRenderedHtml(url, undefined, {
+      screenshot: false,
+      keepBrowserForImages: true,
+    })
+    expect(rendered.imageSession).toBeDefined()
+    // The render deadline passing must not close the handed-off browser.
+    await vi.advanceTimersByTimeAsync(45_000)
+    expect(browser.close).not.toHaveBeenCalled()
+    await rendered.imageSession!.close()
+    expect(context.close).toHaveBeenCalledOnce()
+    expect(browser.close).toHaveBeenCalledOnce()
+  })
+
+  it('closes a kept image browser its caller never closed', async () => {
+    const { browser } = resources()
+    await fetchRenderedHtml(url, undefined, {
+      screenshot: false,
+      keepBrowserForImages: true,
+    })
+    await vi.advanceTimersByTimeAsync(2 * 60 * 1000)
+    expect(browser.close).toHaveBeenCalledOnce()
+  })
+
+  it('closes the browser after rendering unless asked to keep it', async () => {
+    const { browser } = resources()
+    const rendered = await fetchRenderedHtml(url, undefined, {
+      screenshot: false,
+    })
+    expect(rendered.imageSession).toBeUndefined()
+    expect(browser.close).toHaveBeenCalledOnce()
+  })
 })

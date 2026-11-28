@@ -50,6 +50,8 @@ export async function POST(request: Request) {
         const { result, renderer, screenshot, screenshotWarning } =
           await scrapeProductPage(validation.url, operation, {
             renderPage: renderProductPageInBrowser,
+            // Photos behind the page's bot check download in its browser.
+            inlineImages: true,
           })
         if (screenshot) result.product.images.push(screenshot)
         recordScrapeSuccess('url', attemptedUrl, result, renderer)
