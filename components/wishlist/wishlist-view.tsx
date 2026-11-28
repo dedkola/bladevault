@@ -6,6 +6,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from 'react'
 import Link from 'next/link'
@@ -27,6 +28,7 @@ import { RowPriceChart } from '@/components/price-drops/row-price-chart'
 import {
   cachedRowChartStores,
   rowChartDirection,
+  storeColor,
   type RowChartStore,
 } from '@/components/price-drops/row-price-chart-model'
 import { useMinuteClock } from '@/components/price-drops/price-ui'
@@ -58,6 +60,7 @@ import {
   wishlistDeal,
   wishlistMoves,
   wishlistStorePrices,
+  wishlistDayTicks,
   wishlistTrackedDays,
   wishlistTrendDirection,
   type PriceTrends,
@@ -368,11 +371,11 @@ const NO_STORES: RowChartStore[] = []
 /**
  * Best store price while the knife has been tracked, as on Price Drops
  * (see `rowChartOption`): a filled area coloured by its latest move, a dot
- * in the store's colour for every store reading, and a thin line at the
- * regular price. Hovering lists every store's price at that moment. The
- * chip gives how far the price is from the regular price, and the axis
- * names the window and the last move, so a two-day chart does not read
- * like a month.
+ * in the store's colour for every store reading (the store list beside it
+ * uses the same colours). Hovering lists every store's price at that
+ * moment. Above the chart: how far the price is from the regular price and
+ * the last move; under it, a mark per day, so a two-day chart does not read
+ * like a month. The chart takes the rest of the row's width.
  */
 function Sparkline({ row }: { row: Row }) {
   const { stores } = useWishlist()
@@ -420,35 +423,33 @@ function Sparkline({ row }: { row: Row }) {
     row.live && !row.summary?.outOfStock ? row.priceMinor : null,
     regular,
   )
+  const ticks = wishlistDayTicks(trend)
   const summary = moves.length
     ? `net ${net < 0 ? 'down' : 'up'} ${money(Math.abs(net), trend.currency)}, last change ${change!.delta < 0 ? 'down' : 'up'} ${money(Math.abs(change!.delta), trend.currency)} on ${moveDate(change!.at)}`
     : 'no price change'
 
   return (
     <div data-wishlist-spark-cell>
-      <div data-wishlist-spark-row>
-        <div
-          data-wishlist-spark-box
-          data-wishlist-spark={rowChartDirection(trend)}
-        >
-          <RowPriceChart
-            trend={trend}
-            stores={chartStores}
-            regularMinor={regular}
-            ariaLabel={`Best store price over ${dayText}: ${summary}${stockNote}`}
-          />
-        </div>
+      <div data-wishlist-spark-head>
         {gap ? (
-          <span
-            data-wishlist-spark-chip={gap.direction}
-            data-wishlist-savings={gap.direction === 'down' || undefined}
-            title={
-              gap.direction === 'flat'
-                ? `At the regular price ${money(regular, trend.currency)}`
-                : `${money(Math.abs(gap.delta), trend.currency)} (${gap.share}%) ${gap.direction === 'down' ? 'below' : 'above'} the regular price ${money(regular, trend.currency)}`
-            }
-          >
-            {regularChipLabel(gap, trend.currency)}
+          <span>
+            <span
+              data-wishlist-spark-chip={gap.direction}
+              data-wishlist-savings={gap.direction === 'down' || undefined}
+              title={
+                gap.direction === 'flat'
+                  ? `At the regular price ${money(regular, trend.currency)}`
+                  : `${money(Math.abs(gap.delta), trend.currency)} (${gap.share}%) ${gap.direction === 'down' ? 'below' : 'above'} the regular price ${money(regular, trend.currency)}`
+              }
+            >
+              {regularChipLabel(gap, trend.currency)}
+            </span>
+            {gap.direction !== 'flat' && (
+              <span data-wishlist-spark-note>
+                {' '}
+                {gap.direction === 'down' ? 'below' : 'above'} your price
+              </span>
+            )}
           </span>
         ) : (
           <span
@@ -462,19 +463,45 @@ function Sparkline({ row }: { row: Row }) {
             {chipLabel(net, priced[0]?.price ?? 0)}
           </span>
         )}
-      </div>
-      <div data-wishlist-spark-axis>
-        <span>
-          {moveDate(trend.since)} · {days}d tracked
-        </span>
         {change ? (
-          <span data-wishlist-change={change.delta < 0 ? 'down' : 'up'}>
-            {moveLabel(change, trend.currency)}
+          <span data-wishlist-spark-note>
+            Last move{' '}
+            <span data-wishlist-change={change.delta < 0 ? 'down' : 'up'}>
+              {moveLabel(change, trend.currency)}
+            </span>
           </span>
         ) : (
-          <span>no change</span>
+          <span data-wishlist-spark-note>No price change</span>
         )}
-        <span>today</span>
+      </div>
+      <div
+        data-wishlist-spark-box
+        data-wishlist-spark={rowChartDirection(trend)}
+      >
+        <div data-wishlist-spark-grid aria-hidden>
+          {ticks.map((tick) => (
+            <span key={tick.at} style={{ left: `${tick.left}%` }} />
+          ))}
+        </div>
+        <RowPriceChart
+          trend={trend}
+          stores={chartStores}
+          regularMinor={regular}
+          ariaLabel={`Best store price over ${dayText}: ${summary}${stockNote}`}
+        />
+      </div>
+      <div data-wishlist-spark-ticks aria-hidden>
+        {ticks.map((tick) => (
+          <span
+            key={tick.at}
+            style={{
+              left: `${tick.left}%`,
+              transform: `translateX(-${tick.left}%)`,
+            }}
+          >
+            {tick.label}
+          </span>
+        ))}
       </div>
     </div>
   )
@@ -511,6 +538,16 @@ function BestStores({ row }: { row: Row }) {
           const content = (
             <>
               <span data-wishlist-store-name>
+                <i
+                  data-wishlist-store-dot
+                  aria-hidden
+                  style={
+                    {
+                      '--store-light': storeColor(price.key),
+                      '--store-dark': storeColor(price.key, true),
+                    } as CSSProperties
+                  }
+                />
                 {price.label}
                 <ArrowUpRight aria-hidden className="size-3 shrink-0" />
               </span>
@@ -650,12 +687,16 @@ function DealGroups({ rows, tabs }: { rows: Row[]; tabs?: ReactNode }) {
                 <li key={row.knife.id} data-wishlist-row>
                   <Thumb knife={row.knife} size="sm" />
                   <div data-wishlist-row-info className="min-w-0">
-                    <Link
-                      href={`/collection/${encodeURIComponent(row.knife.id)}?tab=market`}
-                      data-wishlist-name
-                    >
-                      {row.knife.name}
-                    </Link>
+                    <div data-wishlist-title-line>
+                      <Link
+                        href={`/collection/${encodeURIComponent(row.knife.id)}?tab=market`}
+                        data-wishlist-name
+                      >
+                        {row.knife.name}
+                      </Link>
+                      <PriceDetailsLink row={row} />
+                      <RemoveButton row={row} />
+                    </div>
                     <span data-wishlist-sub className="block truncate">
                       {row.knife.brand ? `${row.knife.brand} · ` : ''}
                       <StoresButton row={row} />
@@ -676,10 +717,6 @@ function DealGroups({ rows, tabs }: { rows: Row[]; tabs?: ReactNode }) {
                   </div>
                   <div data-wishlist-row-trend>
                     <Sparkline row={row} />
-                  </div>
-                  <div data-wishlist-row-actions>
-                    <PriceDetailsLink row={row} />
-                    <RemoveButton row={row} />
                   </div>
                 </li>
               ))}
