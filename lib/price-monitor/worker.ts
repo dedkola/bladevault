@@ -41,6 +41,7 @@ import {
   type CheckTrigger,
 } from '@/lib/price-monitor/engine'
 import { countMonitorScopeKnives } from '@/lib/price-monitor/scope'
+import { fetchCrawlDelay } from '@/lib/price-monitor/robots'
 import { checkClockJump, monitorHoldMs } from '@/lib/price-monitor/power'
 import {
   applyLaneOutcome,
@@ -48,6 +49,7 @@ import {
   discoveryAvailability,
   laneAvailability,
   laneFloorMs,
+  DURATION_SAMPLES,
   type LaneAvailability,
   type LaneState,
 } from '@/lib/price-monitor/lanes'
@@ -94,13 +96,18 @@ import {
   acquireWorkerLease,
   ownsWorkerLease,
   pruneCheckLog,
+  readLaneHealth,
+  emptyLaneHealth,
+  type LaneHealth,
   readLaneStates,
+  readRobotsDue,
   readQueueCandidates,
   releaseWorkerLease,
   requestSourceChecks,
   resetStaleChecking,
   syncAllAutoSources,
   writeLaneState,
+  writeRobotsDelay,
   type CandidateRow,
   type HostStrategy,
 } from '@/lib/price-monitor/store'
@@ -173,6 +180,8 @@ export type WorkerDeps = {
       canWrite: () => boolean
     },
   ) => Promise<DiscoverySummary>
+  /** A store's robots.txt Crawl-delay (ms), or null (robots.ts). */
+  crawlDelay?: (pageUrl: string, signal: AbortSignal) => Promise<number | null>
 }
 
 const realDeps: WorkerDeps = {
@@ -188,6 +197,7 @@ const realDeps: WorkerDeps = {
   advise: (trigger) => runPriceAdvisor({ trigger }),
   supervise: (trigger, options) => runPriceAgent({ trigger, ...options }),
   discover: (knifeId, options) => discoverKnife(knifeId, options),
+  crawlDelay: (pageUrl, signal) => fetchCrawlDelay(pageUrl, signal),
 }
 
 type InFlight = {
@@ -248,6 +258,8 @@ export class PriceMonitorWorker {
   private advising: Promise<unknown> | null = null
   private lastAgentCheck = 0
   private supervising: Promise<unknown> | null = null
+  /** The daily robots.txt read, one store at a time. */
+  private readingRobots: Promise<unknown> | null = null
   /** Other stores: the searches running, one per store lane at most. */
   readonly searches = new Map<string, Promise<unknown>>()
   /** When each store's last search here ended, saved or not. */
@@ -350,6 +362,37 @@ export class PriceMonitorWorker {
     return new Set([...this.inFlight.keys(), ...this.searches.keys()])
   }
 
+  /**
+   * Reads robots.txt at stores not read in a day, one store at a time in
+   * the background. Its Crawl-delay becomes the store's floor (lanes.ts).
+   */
+  private maybeReadRobots(generation: string, now: number) {
+    const { crawlDelay } = this.deps
+    if (!crawlDelay || this.readingRobots) return
+    const due = readRobotsDue(getLocalDb(), now)
+    if (!due.length) return
+    const controller = new AbortController()
+    this.controllers.add(controller)
+    this.readingRobots = this.track(
+      (async () => {
+        try {
+          for (const store of due) {
+            if (controller.signal.aborted || !this.ownsLease()) return
+            const delayMs = await crawlDelay(store.url, controller.signal)
+            if (controller.signal.aborted || !this.ownsLease()) return
+            await writeRobotsDelay(store.laneKey, delayMs, generation)
+          }
+        } catch (error) {
+          if (!isVaultError(error) && !controller.signal.aborted)
+            reportServerError(error, 'price-monitor/robots')
+        } finally {
+          this.controllers.delete(controller)
+          this.readingRobots = null
+        }
+      })(),
+    )
+  }
+
   private async runPass(): Promise<void> {
     if (this.stopped) return
     let delay = MAX_SLEEP_MS
@@ -376,6 +419,9 @@ export class PriceMonitorWorker {
         this.lastSync = now
         await syncAllAutoSources()
         await dropStaleRetries(access.generation)
+        // Stores are contacted only while scheduled monitoring runs.
+        if (this.scheduled && settings.enabled)
+          this.maybeReadRobots(access.generation, now)
       }
       if (now - this.lastPrune >= PRUNE_EVERY_MS) {
         this.lastPrune = now
@@ -814,6 +860,8 @@ export class PriceMonitorWorker {
             kind: summary.laneOutcome,
             durationMs: summary.durationMs,
             retryAfterMs: summary.retryAfterMs,
+            suspect: summary.suspect,
+            priced: summary.outcome === 'ok',
           },
           {
             now: this.deps.now(),
@@ -1115,6 +1163,14 @@ export type QueueLaneView = {
     reason: string
     expiresAt: string
   } | null
+  /** The store's robots.txt Crawl-delay, when it sets one. */
+  robotsDelayMs: number | null
+  /** The store's usual check time, once it has a few checks. */
+  typicalMs: number | null
+  /** Why the store is cooling down, when pages loaded without prices. */
+  openReason: 'soft_block' | null
+  /** What happened at the store in the last 24 hours. */
+  last24h: LaneHealth
 }
 
 /** Check all now in progress. */
@@ -1238,6 +1294,7 @@ export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
     ).map((row) => row.lane_key),
   )
 
+  const health = readLaneHealth(database, now - DAY_MS)
   const lanes = [...laneKeys].sort().map((laneKey) => {
     const raw = stored.get(laneKey)
     const laneAdvice = advice.get(laneKey)
@@ -1289,6 +1346,14 @@ export function buildQueueSnapshot(now = Date.now()): QueueSnapshot {
             expiresAt: new Date(laneAdvice.expiresAt).toISOString(),
           }
         : null,
+      robotsDelayMs: raw?.robotsDelayMs ?? null,
+      typicalMs:
+        raw && (raw.durationSamples ?? 0) >= DURATION_SAMPLES
+          ? (raw.typicalMs ?? null)
+          : null,
+      openReason:
+        availability.state === 'cooling' ? (lane.openReason ?? null) : null,
+      last24h: health.get(laneKey) ?? emptyLaneHealth(),
     }
   })
 

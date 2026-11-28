@@ -972,6 +972,11 @@ export type CheckSummary =
       detection: DetectResult | null
       errorCode: string | null
       laneOutcome: LaneOutcomeKind
+      /**
+       * The page loaded without a price although the link had one at its
+       * last check: maybe a bot wall (lanes.ts, SOFT_BLOCK_AFTER).
+       */
+      suspect: boolean
       durationMs: number
       retryAfterMs: number | null
     }
@@ -998,6 +1003,21 @@ function laneOutcomeFor(
   if (status === 429 || status === 503) return 'throttled'
   if (code && NEUTRAL_CODES.has(code)) return 'neutral'
   return 'failed'
+}
+
+/**
+ * A page without any price at a link that had one at its last check. One
+ * such page is often a product page change; several in a row at one store
+ * look like a bot wall the page detection did not recognise.
+ */
+export function isSuspectPage(
+  outcome: CheckOutcomeKind,
+  code: string | null,
+  previousStatus: string,
+): boolean {
+  return (
+    outcome === 'no_price' && code === 'not_found' && previousStatus === 'ok'
+  )
 }
 
 /** Retry-After from a fetch error (seconds or an HTTP date). */
@@ -1126,6 +1146,11 @@ export async function checkPriceSource(
         record.outcome,
         record.errorCode ?? null,
         record.httpStatus ?? null,
+      ),
+      suspect: isSuspectPage(
+        record.outcome,
+        record.errorCode ?? null,
+        source.status,
       ),
       durationMs,
       retryAfterMs: extra.retryAfterMs ?? null,

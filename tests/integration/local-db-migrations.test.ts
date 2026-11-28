@@ -64,6 +64,22 @@ describe('local database migrations', () => {
     expect(
       getLocalDb().prepare('SELECT checks FROM price_monitor_daily').get(),
     ).toEqual({ checks: 3 })
+    // Schema 19: store pacing columns, added once and kept on reopen.
+    const hostColumns = (
+      getLocalDb()
+        .prepare("SELECT name FROM pragma_table_info('price_host_state')")
+        .all() as Array<{ name: string }>
+    ).map((row) => row.name)
+    expect(hostColumns).toEqual(
+      expect.arrayContaining([
+        'soft_fail_streak',
+        'typical_ms',
+        'duration_samples',
+        'robots_delay_ms',
+        'robots_checked_at',
+        'open_reason',
+      ]),
+    )
   })
 
   it('resets Other stores gaps slowed by long searches once, keeping paused stores', async () => {

@@ -62,6 +62,21 @@ type LaneView = {
   /** On the retry list at this store. */
   retries?: number
   advice?: AdvisorLaneAdvice | null
+  /** The store's robots.txt Crawl-delay; its gap never goes below it. */
+  robotsDelayMs?: number | null
+  /** Cooling down because pages loaded without prices. */
+  openReason?: 'soft_block' | null
+  /** What happened at the store in the last 24 hours. */
+  last24h?: LaneHealthView
+}
+
+type LaneHealthView = {
+  checks: number
+  ok: number
+  noPrice: number
+  throttled: number
+  blocked: number
+  failed: number
 }
 
 type QueueSnapshot = {
@@ -204,12 +219,25 @@ function laneStatus(lane: LaneView, hourCycle: HourCycle): string {
   if (lane.checking) return 'Checking'
   if (lane.paused) return 'Paused by you'
   if (lane.circuit === 'open' && lane.cooldownUntil)
-    return `Paused until ${clockTime(lane.cooldownUntil, hourCycle)} (blocked)`
+    return lane.openReason === 'soft_block'
+      ? `Paused until ${clockTime(lane.cooldownUntil, hourCycle)} (pages without prices)`
+      : `Paused until ${clockTime(lane.cooldownUntil, hourCycle)} (blocked)`
   if (lane.manual) return `${lane.manual} waiting for Check now`
   const pause = lane.advice?.pauseUntil
   if (pause && Date.parse(pause) > Date.now())
     return `Paused by AI until ${clockTime(pause, hourCycle)}`
   return 'Ready'
+}
+
+/** ["42 checks", "2 slowed down", "1 blocked"]: the parts that happened. */
+function healthParts(health: LaneHealthView | undefined): string[] {
+  if (!health?.checks) return ['No checks']
+  const parts = [`${health.checks} ${health.checks === 1 ? 'check' : 'checks'}`]
+  if (health.noPrice) parts.push(`${health.noPrice} no price`)
+  if (health.throttled) parts.push(`${health.throttled} slowed down`)
+  if (health.blocked) parts.push(`${health.blocked} blocked`)
+  if (health.failed) parts.push(`${health.failed} failed`)
+  return parts
 }
 
 /**
@@ -497,6 +525,7 @@ export function PriceMonitoringSettings({
                   <th className="py-1.5 pr-3 font-medium">Store</th>
                   <th className="py-1.5 pr-3 font-medium">Products</th>
                   <th className="py-1.5 pr-3 font-medium">Minimum gap</th>
+                  <th className="py-1.5 pr-3 font-medium">Last 24 h</th>
                   <th className="py-1.5 pr-3 font-medium">Retry list</th>
                   <th className="py-1.5 pr-3 font-medium">Status</th>
                   <th className="py-1.5 text-right font-medium">
@@ -529,11 +558,34 @@ export function PriceMonitoringSettings({
                       </td>
                       <td className="py-1.5 pr-3 tabular-nums">
                         {lane.paused ? '—' : formatDuration(lane.gapMs)}
+                        {lane.robotsDelayMs ? (
+                          <span
+                            className="ml-1 whitespace-nowrap text-muted-foreground"
+                            title="The store's robots.txt asks for at least this long between requests, so its gap never goes below it"
+                          >
+                            · robots.txt {formatDuration(lane.robotsDelayMs)}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="py-1.5 pr-3 tabular-nums">
+                        {healthParts(lane.last24h).map((part, index) => (
+                          <Fragment key={part}>
+                            {index ? ' · ' : null}
+                            <span className="whitespace-nowrap">{part}</span>
+                          </Fragment>
+                        ))}
                       </td>
                       <td className="py-1.5 pr-3 tabular-nums">
                         {lane.retries ? lane.retries : '—'}
                       </td>
-                      <td className="py-1.5 pr-3">
+                      <td
+                        className="py-1.5 pr-3"
+                        title={
+                          lane.openReason === 'soft_block'
+                            ? 'Several pages in a row loaded without any price at links that had one: likely a bot wall, or the store changed its pages.'
+                            : undefined
+                        }
+                      >
                         {laneStatus(lane, hourCycle)}
                         {lane.circuit === 'open' && !lane.checking ? (
                           <Button
@@ -596,7 +648,7 @@ export function PriceMonitoringSettings({
                     {lane.advice ? (
                       <tr>
                         <td
-                          colSpan={6}
+                          colSpan={7}
                           className="pb-1.5 text-muted-foreground"
                         >
                           {adviceSummary(lane.advice, hourCycle)}

@@ -1419,6 +1419,11 @@ type LaneRow = {
   last_request_at: string | null
   strategy: HostStrategy
   paused_at: string | null
+  soft_fail_streak: number | null
+  typical_ms: number | null
+  duration_samples: number | null
+  robots_delay_ms: number | null
+  open_reason: string | null
 }
 
 const parseTime = (value: string | null): number | null => {
@@ -1452,6 +1457,11 @@ export function readLaneStates(
         successStreak: row.success_streak,
         failureStreak: row.failure_streak,
         lastRequestAt: parseTime(row.last_request_at),
+        softFailStreak: row.soft_fail_streak ?? 0,
+        typicalMs: row.typical_ms,
+        durationSamples: row.duration_samples ?? 0,
+        robotsDelayMs: row.robots_delay_ms,
+        openReason: row.open_reason === 'soft_block' ? 'soft_block' : null,
         strategy: row.strategy,
         pausedAt: parseTime(row.paused_at),
       },
@@ -1471,8 +1481,9 @@ export async function writeLaneState(
       .prepare(
         `INSERT INTO price_host_state
           (lane_key, min_gap_ms, ready_at, circuit, cooldown_until, open_count,
-           success_streak, failure_streak, last_request_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           success_streak, failure_streak, last_request_at, soft_fail_streak,
+           typical_ms, duration_samples, open_reason, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(lane_key) DO UPDATE SET
            min_gap_ms = excluded.min_gap_ms,
            ready_at = excluded.ready_at,
@@ -1482,6 +1493,10 @@ export async function writeLaneState(
            success_streak = excluded.success_streak,
            failure_streak = excluded.failure_streak,
            last_request_at = excluded.last_request_at,
+           soft_fail_streak = excluded.soft_fail_streak,
+           typical_ms = excluded.typical_ms,
+           duration_samples = excluded.duration_samples,
+           open_reason = excluded.open_reason,
            updated_at = excluded.updated_at`,
       )
       .run(
@@ -1494,6 +1509,128 @@ export async function writeLaneState(
         lane.successStreak,
         lane.failureStreak,
         toIso(lane.lastRequestAt),
+        lane.softFailStreak ?? 0,
+        lane.typicalMs === null || lane.typicalMs === undefined
+          ? null
+          : Math.round(lane.typicalMs),
+        lane.durationSamples ?? 0,
+        lane.openReason ?? null,
+        now,
+      )
+  })
+}
+
+/** What happened at one store over a time window (price_check_log). */
+export type LaneHealth = {
+  checks: number
+  ok: number
+  noPrice: number
+  /** The store asked us to slow down (HTTP 429 or 503). */
+  throttled: number
+  /** Bot checks and other refusals (403). */
+  blocked: number
+  /** Network errors, timeouts and other failures. */
+  failed: number
+}
+
+export function emptyLaneHealth(): LaneHealth {
+  return { checks: 0, ok: 0, noPrice: 0, throttled: 0, blocked: 0, failed: 0 }
+}
+
+/** Each store's checks since `since` (epoch ms), by what happened. */
+export function readLaneHealth(
+  database: Database.Database,
+  since: number,
+): Map<string, LaneHealth> {
+  const rows = database
+    .prepare(
+      `SELECT lane_key AS laneKey,
+              COUNT(*) AS checks,
+              SUM(outcome = 'ok') AS ok,
+              SUM(outcome = 'no_price') AS noPrice,
+              SUM(outcome IN ('failed', 'blocked')
+                  AND http_status IN (429, 503)) AS throttled,
+              SUM(outcome = 'blocked'
+                  AND COALESCE(http_status, 0) NOT IN (429, 503)) AS blocked,
+              SUM(outcome = 'failed'
+                  AND COALESCE(http_status, 0) NOT IN (429, 503)) AS failed
+       FROM price_check_log
+       WHERE started_at >= ?
+       GROUP BY lane_key`,
+    )
+    .all(new Date(since).toISOString()) as Array<
+    { laneKey: string } & Record<keyof LaneHealth, number | null>
+  >
+  return new Map(
+    rows.map((row) => [
+      row.laneKey,
+      {
+        checks: row.checks ?? 0,
+        ok: row.ok ?? 0,
+        noPrice: row.noPrice ?? 0,
+        throttled: row.throttled ?? 0,
+        blocked: row.blocked ?? 0,
+        failed: row.failed ?? 0,
+      },
+    ]),
+  )
+}
+
+/** Stores whose robots.txt was not read in this long are read again. */
+export const ROBOTS_REFRESH_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Stores with active sources whose robots.txt is due for a read, with one
+ * of their links (its origin is where robots.txt lives). Stores the user
+ * paused, or cooling down after a block, are left alone.
+ */
+export function readRobotsDue(
+  database: Database.Database,
+  now: number,
+): Array<{ laneKey: string; url: string }> {
+  return database
+    .prepare(
+      `SELECT s.lane_key AS laneKey, MIN(s.url) AS url
+       FROM price_sources s
+       LEFT JOIN price_host_state h ON h.lane_key = s.lane_key
+       WHERE s.removed_at IS NULL AND s.enabled = 1
+         AND h.paused_at IS NULL
+         AND COALESCE(h.circuit, 'closed') = 'closed'
+         AND (h.robots_checked_at IS NULL OR h.robots_checked_at < ?)
+       GROUP BY s.lane_key
+       ORDER BY s.lane_key`,
+    )
+    .all(new Date(now - ROBOTS_REFRESH_MS).toISOString()) as Array<{
+    laneKey: string
+    url: string
+  }>
+}
+
+/** Stores a store's robots.txt Crawl-delay (null: none or unreadable). */
+export async function writeRobotsDelay(
+  laneKey: string,
+  delayMs: number | null,
+  generation: string,
+): Promise<void> {
+  await withVaultWrite(async () => {
+    assertVaultGeneration(generation)
+    const now = new Date().toISOString()
+    db()
+      .prepare(
+        `INSERT INTO price_host_state
+          (lane_key, min_gap_ms, ready_at, robots_delay_ms, robots_checked_at,
+           updated_at)
+         VALUES (?, 0, ?, ?, ?, ?)
+         ON CONFLICT(lane_key) DO UPDATE SET
+           robots_delay_ms = excluded.robots_delay_ms,
+           robots_checked_at = excluded.robots_checked_at,
+           updated_at = excluded.updated_at`,
+      )
+      .run(
+        laneKey,
+        now,
+        delayMs === null ? null : Math.round(delayMs),
+        now,
         now,
       )
   })

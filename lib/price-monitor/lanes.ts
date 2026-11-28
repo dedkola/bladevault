@@ -16,7 +16,21 @@ export const COOLDOWNS_MS = [
   8 * HOUR_MS,
   24 * HOUR_MS,
 ] as const
+/** Slow-check limit until a store has enough checks for its own. */
 export const SLOW_CHECK_MS = 15_000
+/** A store's own limit: this many times its usual check time... */
+export const SLOW_FACTOR = 2
+/** ...and never below this. */
+export const MIN_SLOW_CHECK_MS = 5_000
+/** Checks a store needs before its own slow-check limit applies. */
+export const DURATION_SAMPLES = 5
+/** Weight of the newest check in the store's usual check time. */
+const DURATION_WEIGHT = 0.2
+/**
+ * Pages that load without a price, in a row, at links that had one: the
+ * store may be serving a bot wall instead of its pages.
+ */
+export const SOFT_BLOCK_AFTER = 3
 export const SPEED_UP_AFTER_SUCCESSES = 5
 export const OPEN_AFTER_FAILURES = 3
 /** Cookies are dropped after this many circuit openings in a row. */
@@ -37,6 +51,16 @@ export type LaneState = {
   successStreak: number
   failureStreak: number
   lastRequestAt: number | null
+  /** Suspect pages in a row (see SOFT_BLOCK_AFTER). */
+  softFailStreak?: number
+  /** The store's usual check time (ms), once it has a few checks. */
+  typicalMs?: number | null
+  /** Checks counted in typicalMs, at most DURATION_SAMPLES. */
+  durationSamples?: number
+  /** The store's robots.txt Crawl-delay; its gap never goes below it. */
+  robotsDelayMs?: number | null
+  /** Why the circuit opened, when it was pages without prices. */
+  openReason?: 'soft_block' | null
 }
 
 /**
@@ -49,10 +73,69 @@ export type LaneOutcome = {
   kind: 'success' | 'throttled' | 'blocked' | 'failed' | 'neutral'
   durationMs: number
   retryAfterMs: number | null
+  /**
+   * A success where the page loaded without a price at a link that had one:
+   * possibly a bot wall the page detection did not recognise.
+   */
+  suspect?: boolean
+  /**
+   * The check read a price. Only that ends a soft-block streak or a
+   * soft-block pause: a search, or a page that already had no price, says
+   * nothing about whether the bot wall is gone.
+   */
+  priced?: boolean
 }
 
 export function laneFloorMs(pacing: PriceMonitoringSettings['pacing']): number {
   return pacing.minGapSeconds * 1000
+}
+
+/**
+ * A store's own floor: the Minimum gap setting, or its robots.txt
+ * Crawl-delay when that is longer (at most MAX_MIN_GAP_MS).
+ */
+export function storeFloorMs(
+  lane: Pick<LaneState, 'robotsDelayMs'>,
+  floorMs: number,
+): number {
+  return Math.max(floorMs, Math.min(lane.robotsDelayMs ?? 0, MAX_MIN_GAP_MS))
+}
+
+/**
+ * True when a check took long for this store: over SLOW_FACTOR times its
+ * usual check time (at least MIN_SLOW_CHECK_MS) once it has
+ * DURATION_SAMPLES checks, over SLOW_CHECK_MS before that.
+ */
+export function isSlowCheck(lane: LaneState, durationMs: number): boolean {
+  const typical = lane.typicalMs ?? null
+  if (typical === null || (lane.durationSamples ?? 0) < DURATION_SAMPLES)
+    return durationMs > SLOW_CHECK_MS
+  return durationMs > Math.max(MIN_SLOW_CHECK_MS, SLOW_FACTOR * typical)
+}
+
+/** The store's usual check time after one more check. */
+function nextTypical(
+  lane: LaneState,
+  durationMs: number,
+): Pick<LaneState, 'typicalMs' | 'durationSamples'> {
+  // Other stores searches report 0: their time is AI work, not the store.
+  if (durationMs <= 0)
+    return {
+      typicalMs: lane.typicalMs ?? null,
+      durationSamples: lane.durationSamples ?? 0,
+    }
+  const typical = lane.typicalMs ?? null
+  return {
+    typicalMs: Math.round(
+      typical === null
+        ? durationMs
+        : typical + DURATION_WEIGHT * (durationMs - typical),
+    ),
+    durationSamples: Math.min(
+      DURATION_SAMPLES,
+      (lane.durationSamples ?? 0) + 1,
+    ),
+  }
 }
 
 export function defaultLaneState(
@@ -70,6 +153,11 @@ export function defaultLaneState(
     successStreak: 0,
     failureStreak: 0,
     lastRequestAt: null,
+    softFailStreak: 0,
+    typicalMs: null,
+    durationSamples: 0,
+    robotsDelayMs: null,
+    openReason: null,
   }
 }
 
@@ -171,6 +259,7 @@ function openCircuit(
   lane: LaneState,
   now: number,
   retryAfterMs: number | null,
+  reason: LaneState['openReason'] = null,
 ): LaneState {
   const stale =
     lane.cooldownUntil !== null &&
@@ -188,6 +277,8 @@ function openCircuit(
     openCount,
     successStreak: 0,
     failureStreak: 0,
+    softFailStreak: 0,
+    openReason: reason,
   }
 }
 
@@ -211,7 +302,8 @@ export function applyLaneOutcome(
     random?: () => number
   },
 ): LaneUpdate {
-  const { now, floorMs } = context
+  const { now } = context
+  const floorMs = storeFloorMs(lane, context.floorMs)
   const jitter = (ms: number) =>
     ms * (1 + 0.2 * (context.random ?? Math.random)())
   const base = { ...lane, lastRequestAt: now }
@@ -219,9 +311,49 @@ export function applyLaneOutcome(
 
   switch (outcome.kind) {
     case 'success': {
+      const timed = { ...base, ...nextTypical(lane, outcome.durationMs) }
       let minGapMs = Math.max(lane.minGapMs, floorMs)
+      if (outcome.suspect) {
+        // Pages without prices never speed the store up; enough of them
+        // in a row pause it like a bot check.
+        const softFailStreak = (lane.softFailStreak ?? 0) + 1
+        if (wasProbe || softFailStreak >= SOFT_BLOCK_AFTER) {
+          const opened = openCircuit(
+            { ...timed, minGapMs },
+            now,
+            outcome.retryAfterMs,
+            'soft_block',
+          )
+          return {
+            lane: opened,
+            clearCookies: opened.openCount >= CLEAR_COOKIES_AFTER_OPENINGS,
+          }
+        }
+        return {
+          lane: {
+            ...timed,
+            minGapMs,
+            softFailStreak,
+            successStreak: 0,
+            failureStreak: 0,
+            readyAt: now + jitter(Math.max(context.gapMs, minGapMs)),
+          },
+          clearCookies: false,
+        }
+      }
+      if (wasProbe && lane.openReason === 'soft_block' && !outcome.priced)
+        // The probe did not show a price either way: keep the store paused
+        // for the first cooldown step without counting another opening.
+        return {
+          lane: {
+            ...timed,
+            readyAt: now + COOLDOWNS_MS[0],
+            cooldownUntil: now + COOLDOWNS_MS[0],
+          },
+          clearCookies: false,
+        }
       let successStreak = lane.successStreak + 1
-      if (outcome.durationMs > SLOW_CHECK_MS) {
+      if (isSlowCheck(lane, outcome.durationMs)) {
         minGapMs = Math.min(minGapMs * 1.25, MAX_MIN_GAP_MS)
         successStreak = 0
       } else if (successStreak >= SPEED_UP_AFTER_SUCCESSES) {
@@ -230,12 +362,14 @@ export function applyLaneOutcome(
       }
       return {
         lane: {
-          ...base,
+          ...timed,
           minGapMs,
           successStreak,
           failureStreak: 0,
+          softFailStreak: outcome.priced ? 0 : (lane.softFailStreak ?? 0),
           circuit: 'closed',
           cooldownUntil: wasProbe ? null : lane.cooldownUntil,
+          openReason: wasProbe ? null : (lane.openReason ?? null),
           readyAt: now + jitter(Math.max(context.gapMs, minGapMs)),
         },
         clearCookies: false,

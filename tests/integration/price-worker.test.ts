@@ -1004,6 +1004,64 @@ describe('store actions', () => {
     expect(fs.existsSync(browserStatePath('shop.example'))).toBe(false)
   })
 
+  it('pauses a store whose pages load without prices, others go on', async () => {
+    await knife(['https://shop.example/a'])
+    await knife(['https://shop.example/b'])
+    await knife(['https://shop.example/c'])
+    await knife(['https://other.example/a', 'https://other.example/b'])
+    const ids = sourceIds()
+    const { worker, pending, finish, now, advance } = harness()
+    worker.start({ scheduled: true })
+    const shop = (check: Pending) =>
+      [...ids].find(([, id]) => id === check.sourceId)?.[0].includes('shop.')
+    const suspect = {
+      outcome: 'no_price',
+      errorCode: 'not_found',
+      suspect: true,
+    } as const
+    for (let i = 0; i < 3; i += 1) {
+      await worker.pass()
+      const index = pending.findIndex(shop)
+      expect(index).toBeGreaterThanOrEqual(0)
+      await finish(index, suspect)
+      for (const _ of [...pending]) await finish(0)
+      advance(10 * MIN)
+    }
+    const lanes = buildQueueSnapshot(now()).lanes
+    const shopLane = lanes.find((lane) => lane.laneKey === 'shop.example')
+    expect(shopLane).toMatchObject({
+      circuit: 'open',
+      openReason: 'soft_block',
+    })
+    await worker.pass()
+    expect(pending.some(shop)).toBe(false)
+    expect(
+      lanes.find((lane) => lane.laneKey === 'other.example')?.circuit,
+    ).toBe('closed')
+  })
+
+  it('reads robots.txt once a day and keeps the gap at its Crawl-delay', async () => {
+    await knife(['https://shop.example/a'])
+    const crawlDelay = vi.fn<NonNullable<WorkerDeps['crawlDelay']>>(
+      async () => 5 * MIN,
+    )
+    const { worker, now, advance } = harness({ crawlDelay })
+    worker.start({ scheduled: true })
+    await worker.pass()
+    await vi.waitFor(() => expect(crawlDelay).toHaveBeenCalledTimes(1))
+    expect(crawlDelay.mock.calls[0][0]).toBe('https://shop.example/a')
+    await vi.waitFor(() =>
+      expect(buildQueueSnapshot(now()).lanes[0]).toMatchObject({
+        robotsDelayMs: 5 * MIN,
+        gapMs: 5 * MIN,
+      }),
+    )
+    // Read again only after a day.
+    advance(20 * MIN)
+    await worker.pass()
+    expect(crawlDelay).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects unknown stores and actions', async () => {
     expect((await storeAction('nowhere.example', 'pause')).status).toBe(404)
     expect((await storeAction('nowhere.example', 'explode')).status).toBe(400)

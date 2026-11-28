@@ -8,6 +8,7 @@ import {
 import {
   defaultLaneState,
   laneFloorMs,
+  storeFloorMs,
   type LaneState,
 } from '@/lib/price-monitor/lanes'
 import {
@@ -46,7 +47,7 @@ export function normalizeLane(
 ): LaneState {
   return {
     ...lane,
-    minGapMs: Math.max(lane.minGapMs, laneFloorMs(pacing)),
+    minGapMs: Math.max(lane.minGapMs, storeFloorMs(lane, laneFloorMs(pacing))),
   }
 }
 
@@ -66,7 +67,10 @@ export function effectiveLane(
     normalizeLane(lane, pacing),
     advice,
     now,
-    maxAdvisedGapMs({ ...cap, floorMs: laneFloorMs(pacing) }),
+    maxAdvisedGapMs({
+      ...cap,
+      floorMs: storeFloorMs(lane, laneFloorMs(pacing)),
+    }),
   )
 }
 
