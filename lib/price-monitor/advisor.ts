@@ -14,6 +14,7 @@ import {
 } from '@/lib/price-monitor/advice-store'
 import {
   laneFloorMs,
+  storeFloorMs,
   MAX_MIN_GAP_MS,
   type LaneState,
 } from '@/lib/price-monitor/lanes'
@@ -214,7 +215,9 @@ export function buildAdvisorInput(input: {
     }
     durations.sort((a, b) => a - b)
     const lane = input.lanes.get(laneKey)
-    const floorMs = laneFloorMs(settings.pacing)
+    const floorMs = lane
+      ? storeFloorMs(lane, laneFloorMs(settings.pacing))
+      : laneFloorMs(settings.pacing)
     const sources = rows.sources.get(laneKey) ?? 0
     // Rounds check one knife at a time: a store's gap is its minimum gap.
     const gapMs = Math.max(lane?.minGapMs ?? floorMs, floorMs)

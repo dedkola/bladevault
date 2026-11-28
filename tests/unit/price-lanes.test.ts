@@ -3,9 +3,13 @@ import {
   applyLaneOutcome,
   COOLDOWNS_MS,
   defaultLaneState,
+  DURATION_SAMPLES,
+  isSlowCheck,
   laneAvailability,
   laneFloorMs,
   manualReadyAt,
+  SOFT_BLOCK_AFTER,
+  storeFloorMs,
   type LaneOutcome,
   type LaneState,
 } from '@/lib/price-monitor/lanes'
@@ -135,5 +139,134 @@ describe('circuit breaker', () => {
     const state = lane({ lastRequestAt: NOW, minGapMs: 2 * MIN })
     expect(manualReadyAt(state)).toBe(NOW + 2 * MIN)
     expect(manualReadyAt(lane())).toBe(0)
+  })
+})
+
+describe('soft blocks', () => {
+  it('pauses a store after pages without prices at links that had one', () => {
+    let state = lane({ minGapMs: 2 * MIN, successStreak: 4 })
+    for (let i = 1; i < SOFT_BLOCK_AFTER; i += 1) {
+      state = apply(state, outcome('success', { suspect: true })).lane
+      expect(state.circuit).toBe('closed')
+      expect(state.softFailStreak).toBe(i)
+      // Pages without prices never speed the store up.
+      expect(state.successStreak).toBe(0)
+      expect(state.minGapMs).toBe(2 * MIN)
+    }
+    state = apply(state, outcome('success', { suspect: true })).lane
+    expect(state.circuit).toBe('open')
+    expect(state.openReason).toBe('soft_block')
+    expect(state.cooldownUntil).toBe(NOW + COOLDOWNS_MS[0])
+    expect(state.softFailStreak).toBe(0)
+  })
+
+  it('resets the streak on a page with a price', () => {
+    let state = lane()
+    state = apply(state, outcome('success', { suspect: true })).lane
+    state = apply(state, outcome('success', { suspect: true })).lane
+    state = apply(state, outcome('success', { priced: true })).lane
+    expect(state.softFailStreak).toBe(0)
+    state = apply(state, outcome('success', { suspect: true })).lane
+    expect(state.circuit).toBe('closed')
+  })
+
+  it('reopens at once when the probe after a soft block is suspect too', () => {
+    const probe = lane({
+      circuit: 'open',
+      cooldownUntil: NOW - MIN,
+      openCount: 1,
+      openReason: 'soft_block',
+    })
+    const next = apply(probe, outcome('success', { suspect: true })).lane
+    expect(next.circuit).toBe('open')
+    expect(next.openCount).toBe(2)
+    const healed = apply(probe, outcome('success', { priced: true })).lane
+    expect(healed.circuit).toBe('closed')
+    expect(healed.openReason).toBeNull()
+  })
+
+  it('keeps counting across searches and pages that already had no price', () => {
+    let state = lane()
+    state = apply(state, outcome('success', { suspect: true })).lane
+    // A link already without a price, then an Other stores search.
+    state = apply(state, outcome('success')).lane
+    state = apply(state, outcome('success', { durationMs: 0 })).lane
+    state = apply(state, outcome('success', { suspect: true })).lane
+    expect(state.softFailStreak).toBe(2)
+    state = apply(state, outcome('success', { suspect: true })).lane
+    expect(state.circuit).toBe('open')
+    expect(state.openReason).toBe('soft_block')
+  })
+
+  it('stays paused when a soft-block probe shows no price either way', () => {
+    const probe = lane({
+      circuit: 'open',
+      cooldownUntil: NOW - MIN,
+      openCount: 1,
+      openReason: 'soft_block',
+    })
+    const next = apply(probe, outcome('success')).lane
+    expect(next.circuit).toBe('open')
+    expect(next.openCount).toBe(1)
+    expect(next.cooldownUntil).toBe(NOW + COOLDOWNS_MS[0])
+    // A probe after a bot check still closes on any answer.
+    const blocked = lane({
+      circuit: 'open',
+      cooldownUntil: NOW - MIN,
+      openCount: 1,
+    })
+    expect(apply(blocked, outcome('success')).lane.circuit).toBe('closed')
+  })
+})
+
+describe('slow checks per store', () => {
+  it('uses 15 s until a store has its own usual check time', () => {
+    expect(isSlowCheck(lane(), 14_000)).toBe(false)
+    expect(isSlowCheck(lane(), 16_000)).toBe(true)
+  })
+
+  it('learns the usual check time and judges by it', () => {
+    let state = lane()
+    for (let i = 0; i < DURATION_SAMPLES; i += 1)
+      state = apply(state, outcome('success', { durationMs: 20_000 })).lane
+    expect(state.typicalMs).toBe(20_000)
+    expect(state.durationSamples).toBe(DURATION_SAMPLES)
+    // A browser store at 20 s is not slow at 30 s, only past 40 s.
+    expect(isSlowCheck(state, 30_000)).toBe(false)
+    expect(isSlowCheck(state, 41_000)).toBe(true)
+    // A fast store is slow well before 15 s, but never under 5 s.
+    const fast = lane({ typicalMs: 1_000, durationSamples: DURATION_SAMPLES })
+    expect(isSlowCheck(fast, 4_000)).toBe(false)
+    expect(isSlowCheck(fast, 6_000)).toBe(true)
+  })
+
+  it('learned slow stores no longer slow down on every check', () => {
+    const state = lane({
+      minGapMs: 2 * MIN,
+      typicalMs: 20_000,
+      durationSamples: DURATION_SAMPLES,
+    })
+    expect(
+      apply(state, outcome('success', { durationMs: 22_000 })).lane.minGapMs,
+    ).toBe(2 * MIN)
+  })
+
+  it('searches (duration 0) leave the usual check time alone', () => {
+    const state = lane({ typicalMs: 3_000, durationSamples: 2 })
+    const next = apply(state, outcome('success', { durationMs: 0 })).lane
+    expect(next.typicalMs).toBe(3_000)
+    expect(next.durationSamples).toBe(2)
+  })
+})
+
+describe('robots.txt floor', () => {
+  it('never lets a store go below its Crawl-delay', () => {
+    expect(storeFloorMs({ robotsDelayMs: null }, MIN)).toBe(MIN)
+    expect(storeFloorMs({ robotsDelayMs: 10_000 }, MIN)).toBe(MIN)
+    expect(storeFloorMs({ robotsDelayMs: 5 * MIN }, MIN)).toBe(5 * MIN)
+    let state = lane({ minGapMs: 5 * MIN, robotsDelayMs: 5 * MIN })
+    for (let i = 0; i < 10; i += 1)
+      state = apply(state, outcome('success')).lane
+    expect(state.minGapMs).toBe(5 * MIN)
   })
 })

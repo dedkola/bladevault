@@ -7,7 +7,7 @@ import { getLocalDb } from '@/lib/local-db'
 import { checkPriceSource } from '@/lib/price-monitor/engine'
 import { getPriceMonitorWorker } from '@/lib/price-monitor/worker'
 import type { PriceWatchView } from '@/lib/price-monitor/shared'
-import { readHostState } from '@/lib/price-monitor/store'
+import { readHostState, readLaneHealth } from '@/lib/price-monitor/store'
 import type { ExtractedOffer } from '@/lib/scrape-offer'
 import { ScrapeError } from '@/lib/scrape-errors'
 import { monitorWholeCollection } from '@/tests/helpers/monitor-whole-collection'
@@ -368,6 +368,61 @@ describe('price checks', () => {
     expect(
       rows('SELECT http_status FROM price_check_log').map((r) => r.http_status),
     ).toEqual([404, 404, 404])
+  })
+
+  it('marks a page without a price as suspect only after a price', async () => {
+    const knifeId = await createKnife('129.00 USD')
+    const sourceId = await sourceIdFor(knifeId)
+    browserReading(null)
+    await expect(
+      checkPriceSource(sourceId, { trigger: 'manual' }),
+    ).resolves.toMatchObject({ outcome: 'no_price', suspect: false })
+    browserReading(offer(100))
+    await expect(
+      checkPriceSource(sourceId, { trigger: 'manual' }),
+    ).resolves.toMatchObject({ outcome: 'ok', suspect: false })
+    browserReading(null)
+    await expect(
+      checkPriceSource(sourceId, { trigger: 'manual' }),
+    ).resolves.toMatchObject({
+      outcome: 'no_price',
+      errorCode: 'not_found',
+      suspect: true,
+      laneOutcome: 'success',
+    })
+  })
+
+  it('counts each store’s last 24 hours by what happened', async () => {
+    const database = getLocalDb()
+    const insert = database.prepare(
+      `INSERT INTO price_check_log (lane_key, trigger, source_id, knife_id,
+         started_at, duration_ms, outcome, http_status)
+       VALUES (?, 'scheduled', 1, 'k', ?, 1000, ?, ?)`,
+    )
+    const now = Date.UTC(2026, 10, 18, 12)
+    const recent = new Date(now - 60 * 60_000).toISOString()
+    insert.run('shop.example', recent, 'ok', 200)
+    insert.run('shop.example', recent, 'no_price', 200)
+    insert.run('shop.example', recent, 'blocked', 429)
+    insert.run('shop.example', recent, 'failed', 503)
+    insert.run('shop.example', recent, 'blocked', 403)
+    insert.run('shop.example', recent, 'failed', null)
+    insert.run(
+      'shop.example',
+      new Date(now - 25 * 60 * 60_000).toISOString(),
+      'ok',
+      200,
+    )
+    expect(
+      readLaneHealth(database, now - 24 * 60 * 60_000).get('shop.example'),
+    ).toEqual({
+      checks: 6,
+      ok: 1,
+      noPrice: 1,
+      throttled: 2,
+      blocked: 1,
+      failed: 1,
+    })
   })
 
   it('records blocks and failures without touching history', async () => {

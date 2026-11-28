@@ -32,7 +32,11 @@ import {
 import type { RetryReason } from '@/lib/price-monitor/rounds'
 import { readStorePlan } from '@/lib/price-monitor/store-plan'
 import { checkAllPending } from '@/lib/price-monitor/store-queue'
-import { laneAvailability, laneFloorMs } from '@/lib/price-monitor/lanes'
+import {
+  laneAvailability,
+  laneFloorMs,
+  storeFloorMs,
+} from '@/lib/price-monitor/lanes'
 import { adviceWindowMs, frequencyMs } from '@/lib/price-monitor/schedule'
 import { redactSecrets } from '@/lib/price-monitor/secret-registry'
 import { readPriceAiKey } from '@/lib/price-monitor/secrets'
@@ -667,11 +671,14 @@ export function buildAgentSnapshot(input: {
       counts.set(row.lane_key, (counts.get(row.lane_key) ?? 0) + 1)
   const lanes = readLaneStates(database)
   const advice = readActiveAdvice(database, now)
-  const floorMs = laneFloorMs(settings.pacing)
+  const settingFloorMs = laneFloorMs(settings.pacing)
   const windowMs = adviceWindowMs(settings.schedule)
   const storeViews = new Map<string, AgentStore>()
   for (const [laneKey, sources] of counts) {
     const stored = lanes.get(laneKey)
+    const floorMs = stored
+      ? storeFloorMs(stored, settingFloorMs)
+      : settingFloorMs
     const lane = stored
       ? applyAdviceToLane(
           { ...stored, minGapMs: Math.max(stored.minGapMs, floorMs) },

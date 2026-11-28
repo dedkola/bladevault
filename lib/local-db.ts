@@ -23,7 +23,7 @@ function joinProjectPath(...segments: string[]): string {
 
 const LEGACY_DATA_DIR = joinProjectPath('data')
 
-export const LOCAL_DB_SCHEMA_VERSION = 18
+export const LOCAL_DB_SCHEMA_VERSION = 19
 
 function joinRuntimePath(basePath: string, ...segments: string[]): string {
   return path.join(/* turbopackIgnore: true */ basePath, ...segments)
@@ -1420,6 +1420,24 @@ function migratePriceMonitoringSchema(
   addColumn('price_sources', 'accepted_currency', 'TEXT')
   addColumn('price_sources', 'paused_reason', 'TEXT')
   addColumn('price_sources', 'paused_at', 'TEXT')
+  // Schema 19: store pacing (price-monitor/lanes). Pages that load without
+  // a price at a store that had one (a soft block), the store's usual check
+  // time for its own slow-response limit, its robots.txt Crawl-delay, and
+  // why its circuit opened.
+  addColumn(
+    'price_host_state',
+    'soft_fail_streak',
+    'INTEGER NOT NULL DEFAULT 0',
+  )
+  addColumn('price_host_state', 'typical_ms', 'INTEGER')
+  addColumn(
+    'price_host_state',
+    'duration_samples',
+    'INTEGER NOT NULL DEFAULT 0',
+  )
+  addColumn('price_host_state', 'robots_delay_ms', 'INTEGER')
+  addColumn('price_host_state', 'robots_checked_at', 'TEXT')
+  addColumn('price_host_state', 'open_reason', 'TEXT')
   // Sources already in trouble count from their last check: the exact
   // start is not stored, and this never makes one look older than it is.
   if (!hadAttentionSince)
