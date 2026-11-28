@@ -1063,13 +1063,7 @@ export function KnifePricePanel({
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
       {inline ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--bladevault-line)]/60 pt-2">
-          <Link
-            href={`/collection/${encodeURIComponent(knifeId)}?tab=market`}
-            className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-          >
-            Open knife page
-          </Link>
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--bladevault-line)]/60 pt-2">
           <div className="flex items-center gap-1">
             <PriceExportButton knifeId={knifeId} />
             {onClose ? (
