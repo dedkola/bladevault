@@ -1,0 +1,31 @@
+{
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npm test -- *)",
+      "Bash(npx eslint *)",
+      "Bash(npx prettier --check *)",
+      "Bash(npm run lint)",
+      "Bash(npm run build)"
+    ],
+    "ask": ["Bash(gh pr merge *)"],
+    "deny": ["Read(./.env)", "Read(./.env.local)"]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format.mjs"
+          }
+        ]
+      }
+    ]
+  }
+}
